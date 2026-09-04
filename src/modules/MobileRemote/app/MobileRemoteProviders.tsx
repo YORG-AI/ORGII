@@ -20,7 +20,11 @@ import type {
   InitializeResult,
   MobileConnectionConfig,
   MobileConnectionState,
+  MobileModelOption,
   MobilePairedDesktopSummary,
+  MobileSendAttachment,
+  MobileSessionModelConfig,
+  MobileSessionModelState,
   MobileSessionRow,
 } from "../connection/types";
 import {
@@ -30,6 +34,8 @@ import {
 } from "../demo/demoFixtures";
 import {
   type InteractionQueueState,
+  type PermissionBusEnvelope,
+  countPermissionRequests,
   dequeuePermissionRequest,
   peekPermissionRequest,
   reduceInteractionQueueFromBusEvent,
@@ -68,6 +74,33 @@ const CONNECT_TIMEOUT_MS = 15_000;
 const PAIRING_TIMEOUT_MS = 130_000;
 const MAX_RECONNECT_SECONDS = 30;
 
+const INITIAL_SESSION_MODEL_STATE: MobileSessionModelState = {
+  config: null,
+  options: [],
+  loading: false,
+  patching: false,
+};
+
+const DEMO_SESSION_MODEL: MobileSessionModelConfig = {
+  sessionId: "fix-auth-tests",
+  model: "claude-sonnet-4-5",
+  accountId: "demo-account",
+  modelEditable: true,
+};
+
+const DEMO_MODEL_OPTIONS: MobileModelOption[] = [
+  {
+    id: "claude-sonnet-4-5",
+    accountId: "demo-account",
+    accountLabel: "Demo Anthropic",
+  },
+  {
+    id: "claude-opus-4-5",
+    accountId: "demo-account",
+    accountLabel: "Demo Anthropic",
+  },
+];
+
 export interface MobileRemoteContextValue {
   connection: MobileConnectionState;
   sessions: MobileSessionRow[];
@@ -83,6 +116,8 @@ export interface MobileRemoteContextValue {
   sendStatus: MobileSendStatus | null;
   activePermission: PermissionSheetRequest | null;
   permissionQueueDepth: number;
+  /** True while an answer is on the wire; the sheet must stay disabled. */
+  permissionSubmitting: boolean;
   rpc: MobileRpcClient | null;
   connectionConfig: MobileConnectionConfig | null;
   pairedDesktops: MobilePairedDesktopSummary[];
@@ -95,7 +130,11 @@ export interface MobileRemoteContextValue {
   unsubscribeSession: () => Promise<void>;
   selectRound: (roundId: string | null) => void;
   retrySelectedRound: () => void;
-  sendMessage: (sessionId: string, content: string) => Promise<void>;
+  sendMessage: (
+    sessionId: string,
+    content: string,
+    attachments?: MobileSendAttachment[]
+  ) => Promise<void>;
   openSessionFileInDesktop: (
     sessionId: string,
     roundId: string,
@@ -107,6 +146,12 @@ export interface MobileRemoteContextValue {
   ) => Promise<void>;
   dismissPermissionHead: () => void;
   stopSession: (sessionId: string) => Promise<void>;
+  sessionModel: MobileSessionModelState;
+  refreshSessionModel: (sessionId: string) => Promise<void>;
+  setSessionModel: (
+    sessionId: string,
+    option: MobileModelOption
+  ) => Promise<void>;
 }
 
 export interface MobileSendStatus {
@@ -353,6 +398,12 @@ export function MobileRemoteProviders({
   const [sendStatus, setSendStatus] = useState<MobileSendStatus | null>(null);
   const [interactionQueue, setInteractionQueue] =
     useState<InteractionQueueState>({ queue: [] });
+  const [permissionSubmitting, setPermissionSubmitting] = useState(false);
+  /** requestId of the answer currently on the wire, or null. */
+  const permissionInFlightRef = useRef<string | null>(null);
+  const [sessionModel, setSessionModelState] =
+    useState<MobileSessionModelState>(INITIAL_SESSION_MODEL_STATE);
+  const sessionModelRequestRef = useRef(0);
 
   const persistConnection = useCallback(
     (config: MobileConnectionConfig | null) => {
@@ -446,9 +497,7 @@ export function MobileRemoteProviders({
         return;
       }
       if (method === "orgii/event") {
-        const envelope = params?.envelope as
-          | { type?: string; payload?: Record<string, unknown> }
-          | undefined;
+        const envelope = params?.envelope as PermissionBusEnvelope | undefined;
         if (envelope) {
           setInteractionQueue((prev) =>
             reduceInteractionQueueFromBusEvent(prev, envelope)
@@ -623,7 +672,12 @@ export function MobileRemoteProviders({
 
   const establishConnection = useCallback(
     async (config: MobileConnectionConfig, generation: number) => {
-      const socket = platform.connection.createSocket(buildMobileWsUrl(config));
+      const deviceLabel =
+        config.deviceLabel?.trim() || platform.clientInfo.defaultDeviceLabel;
+      const transportConfig = { ...config, deviceLabel };
+      const socket = platform.connection.createSocket(
+        buildMobileWsUrl(transportConfig)
+      );
       let authenticated = false;
       let intentionalClose = false;
       socketRef.current = socket;
@@ -652,8 +706,7 @@ export function MobileRemoteProviders({
             version: platform.clientInfo.version,
           },
           capabilities: { interactions: ["permission"], streaming: true },
-          deviceLabel:
-            config.deviceLabel ?? platform.clientInfo.defaultDeviceLabel,
+          deviceLabel,
         });
         if (generation !== generationRef.current) {
           intentionalClose = true;
@@ -858,6 +911,141 @@ export function MobileRemoteProviders({
     await requestSessionList(client);
   }, [connection.demoMode, connection.presence, requestSessionList]);
 
+  const requireWritableClient = useCallback((): MobileRpcClient => {
+    const client = clientRef.current;
+    if (
+      !client ||
+      connection.status !== "connected" ||
+      connection.presence !== "online"
+    ) {
+      throw new Error("Desktop is offline");
+    }
+    if (connection.tier === "read_only") {
+      throw new Error("This device has read-only access");
+    }
+    return client;
+  }, [connection.presence, connection.status, connection.tier]);
+
+  const refreshSessionModel = useCallback(async (sessionId: string) => {
+    const requestGeneration = ++sessionModelRequestRef.current;
+    setSessionModelState((prev) => ({
+      ...prev,
+      loading: true,
+      error: undefined,
+    }));
+    const currentConnection = connectionRef.current;
+    if (currentConnection.demoMode) {
+      if (requestGeneration !== sessionModelRequestRef.current) return;
+      setSessionModelState({
+        config: { ...DEMO_SESSION_MODEL, sessionId },
+        options: DEMO_MODEL_OPTIONS,
+        loading: false,
+        patching: false,
+      });
+      return;
+    }
+    const client = clientRef.current;
+    if (!client || currentConnection.presence !== "online") {
+      setSessionModelState((prev) => ({
+        ...prev,
+        loading: false,
+        error: "Desktop is offline",
+      }));
+      return;
+    }
+    try {
+      const [config, list] = await Promise.all([
+        client.call<MobileSessionModelConfig>("session/config", { sessionId }),
+        client.call<{ models?: MobileModelOption[] }>("models/list", {
+          sessionId,
+        }),
+      ]);
+      if (
+        requestGeneration !== sessionModelRequestRef.current ||
+        activeSessionRef.current !== sessionId
+      ) {
+        return;
+      }
+      setSessionModelState({
+        config,
+        options: list.models ?? [],
+        loading: false,
+        patching: false,
+      });
+    } catch (error) {
+      if (requestGeneration !== sessionModelRequestRef.current) return;
+      setSessionModelState((prev) => ({
+        ...prev,
+        loading: false,
+        error: toMobileRpcError(error).message,
+      }));
+    }
+  }, []);
+
+  const setSessionModel = useCallback(
+    async (sessionId: string, option: MobileModelOption) => {
+      setSessionModelState((prev) => ({
+        ...prev,
+        patching: true,
+        error: undefined,
+      }));
+      const currentConnection = connectionRef.current;
+      if (currentConnection.demoMode) {
+        setSessionModelState((prev) => ({
+          ...prev,
+          patching: false,
+          config: prev.config
+            ? {
+                ...prev.config,
+                sessionId,
+                model: option.id,
+                accountId: option.accountId,
+              }
+            : {
+                sessionId,
+                model: option.id,
+                accountId: option.accountId,
+                modelEditable: true,
+              },
+        }));
+        return;
+      }
+      try {
+        await requireWritableClient().call("session/patch", {
+          sessionId,
+          patch: {
+            model: option.id,
+            accountId: option.accountId || undefined,
+          },
+        });
+        setSessionModelState((prev) => ({
+          ...prev,
+          patching: false,
+          config: prev.config
+            ? {
+                ...prev.config,
+                model: option.id,
+                accountId: option.accountId,
+              }
+            : {
+                sessionId,
+                model: option.id,
+                accountId: option.accountId,
+                modelEditable: true,
+              },
+        }));
+      } catch (error) {
+        setSessionModelState((prev) => ({
+          ...prev,
+          patching: false,
+          error: toMobileRpcError(error).message,
+        }));
+        throw error;
+      }
+    },
+    [requireWritableClient]
+  );
+
   const subscribeSession = useCallback(
     async (sessionId: string) => {
       activeSessionRef.current = sessionId;
@@ -875,6 +1063,7 @@ export function MobileRemoteProviders({
             demoTranscriptItems()
           )
         );
+        await refreshSessionModel(sessionId);
         return;
       }
       const client = clientRef.current;
@@ -891,16 +1080,19 @@ export function MobileRemoteProviders({
         throw error;
       }
       await requestSessionSnapshot(client, sessionId, subscriptionGeneration);
+      await refreshSessionModel(sessionId);
     },
-    [requestSessionSnapshot]
+    [refreshSessionModel, requestSessionSnapshot]
   );
 
   const unsubscribeSession = useCallback(async () => {
     const sessionId = activeSessionRef.current;
     activeSessionRef.current = null;
     subscriptionGenerationRef.current += 1;
+    sessionModelRequestRef.current += 1;
     setTranscript(createInitialTranscriptLoadState());
     setSendStatus(null);
+    setSessionModelState(INITIAL_SESSION_MODEL_STATE);
     const currentConnection = connectionRef.current;
     if (currentConnection.demoMode || !sessionId) return;
     if (clientRef.current && currentConnection.presence === "online") {
@@ -995,33 +1187,34 @@ export function MobileRemoteProviders({
     transcript.sessionId,
   ]);
 
-  const requireWritableClient = useCallback((): MobileRpcClient => {
-    const client = clientRef.current;
-    if (
-      !client ||
-      connection.status !== "connected" ||
-      connection.presence !== "online"
-    ) {
-      throw new Error("Desktop is offline");
-    }
-    if (connection.tier === "read_only") {
-      throw new Error("This device has read-only access");
-    }
-    return client;
-  }, [connection.presence, connection.status, connection.tier]);
-
   const sendMessage = useCallback(
-    async (sessionId: string, content: string) => {
+    async (
+      sessionId: string,
+      content: string,
+      attachments: MobileSendAttachment[] = []
+    ) => {
       const trimmed = content.trim();
-      if (!trimmed) return;
+      if (!trimmed && attachments.length === 0) return;
       const turnIntentId = platform.runtime.randomUUID();
+      const optimisticPreview =
+        trimmed ||
+        attachments
+          .map((attachment) => attachment.fileName?.trim())
+          .filter(Boolean)
+          .join(", ") ||
+        "Photo";
       setSendStatus({
         sessionId,
         turnIntentId,
         phase: "submitting",
       });
       setTranscript((prev) =>
-        appendOptimisticUserMessage(prev, sessionId, turnIntentId, trimmed)
+        appendOptimisticUserMessage(
+          prev,
+          sessionId,
+          turnIntentId,
+          optimisticPreview
+        )
       );
       if (connection.demoMode) {
         setInteractionQueue({
@@ -1035,6 +1228,7 @@ export function MobileRemoteProviders({
         return;
       }
       try {
+        const selectedModel = sessionModel.config?.model;
         await requireWritableClient().call<{
           execution?: string;
         }>("session/send", {
@@ -1042,7 +1236,8 @@ export function MobileRemoteProviders({
           content: trimmed,
           turnIntentId,
           turnIntentSource: "mobile_remote",
-          attachments: [],
+          attachments,
+          ...(selectedModel ? { model: selectedModel } : {}),
         });
         setSendStatus((current) =>
           current?.sessionId === sessionId &&
@@ -1073,7 +1268,12 @@ export function MobileRemoteProviders({
         throw error;
       }
     },
-    [connection.demoMode, platform.runtime, requireWritableClient]
+    [
+      connection.demoMode,
+      platform.runtime,
+      requireWritableClient,
+      sessionModel.config?.model,
+    ]
   );
 
   const openSessionFileInDesktop = useCallback(
@@ -1099,23 +1299,56 @@ export function MobileRemoteProviders({
 
   const respondPermission = useCallback(
     async (response: "allow" | "deny" | "always_allow") => {
-      const head = peekPermissionRequest(interactionQueue);
+      const head = peekPermissionRequest(
+        interactionQueue,
+        transcript.sessionId
+      );
       if (!head) return;
-      if (!connection.demoMode) {
-        await requireWritableClient().call("interaction/respond_permission", {
-          sessionId: head.sessionId,
-          requestId: head.requestId,
-          response,
-        });
+      // Single-flight: a second tap before the RPC settles would answer the
+      // same requestId twice and dequeue twice, silently dropping the prompt
+      // queued behind it.
+      if (permissionInFlightRef.current) return;
+      permissionInFlightRef.current = head.requestId;
+      setPermissionSubmitting(true);
+      try {
+        if (!connection.demoMode) {
+          await requireWritableClient().call("interaction/respond_permission", {
+            sessionId: head.sessionId,
+            requestId: head.requestId,
+            response,
+            // The desktop routes the answer by origin. Dropping it defaults to
+            // `rust_agent`, which sends cli_hook / ACP answers to the native
+            // permission manager, where they resolve nothing.
+            origin: head.origin ?? "rust_agent",
+          });
+        }
+        // Dequeue by id, never blind: the queue may have grown while the
+        // answer was in flight.
+        setInteractionQueue((prev) =>
+          dequeuePermissionRequest(prev, head.requestId)
+        );
+      } finally {
+        permissionInFlightRef.current = null;
+        setPermissionSubmitting(false);
       }
-      setInteractionQueue((prev) => dequeuePermissionRequest(prev));
     },
-    [connection.demoMode, interactionQueue, requireWritableClient]
+    [
+      connection.demoMode,
+      interactionQueue,
+      requireWritableClient,
+      transcript.sessionId,
+    ]
   );
 
+  /** Escape hatch for a prompt the desktop resolved without telling us. */
   const dismissPermissionHead = useCallback(() => {
-    setInteractionQueue((prev) => dequeuePermissionRequest(prev));
-  }, []);
+    if (permissionInFlightRef.current) return;
+    const head = peekPermissionRequest(interactionQueue, transcript.sessionId);
+    if (!head) return;
+    setInteractionQueue((prev) =>
+      dequeuePermissionRequest(prev, head.requestId)
+    );
+  }, [interactionQueue, transcript.sessionId]);
 
   const stopSession = useCallback(
     async (sessionId: string) => {
@@ -1186,7 +1419,14 @@ export function MobileRemoteProviders({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const activePermission = peekPermissionRequest(interactionQueue);
+  const activePermission = peekPermissionRequest(
+    interactionQueue,
+    transcript.sessionId
+  );
+  const permissionQueueDepth = countPermissionRequests(
+    interactionQueue,
+    transcript.sessionId
+  );
   const transcriptView = getSelectedTranscriptView(transcript);
   const value = useMemo<MobileRemoteContextValue>(
     () => ({
@@ -1202,7 +1442,8 @@ export function MobileRemoteProviders({
       activeRoundId: transcriptView.roundId,
       sendStatus,
       activePermission,
-      permissionQueueDepth: interactionQueue.queue.length,
+      permissionQueueDepth,
+      permissionSubmitting,
       rpc: clientRef.current,
       connectionConfig,
       pairedDesktops,
@@ -1220,6 +1461,9 @@ export function MobileRemoteProviders({
       respondPermission,
       dismissPermissionHead,
       stopSession,
+      sessionModel,
+      refreshSessionModel,
+      setSessionModel,
     }),
     [
       activePermission,
@@ -1229,7 +1473,9 @@ export function MobileRemoteProviders({
       dismissPermissionHead,
       disconnect,
       enterDemoMode,
-      interactionQueue.queue.length,
+      permissionQueueDepth,
+      permissionSubmitting,
+      refreshSessionModel,
       refreshSessions,
       openSessionFileInDesktop,
       pairedDesktops,
@@ -1238,7 +1484,9 @@ export function MobileRemoteProviders({
       selectRound,
       sendMessage,
       sendStatus,
+      sessionModel,
       sessions,
+      setSessionModel,
       stopSession,
       subscribeSession,
       switchPairedDesktop,

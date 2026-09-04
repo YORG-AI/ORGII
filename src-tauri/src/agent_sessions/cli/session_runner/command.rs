@@ -277,7 +277,11 @@ fn map_codex_model_variant(model: &str) -> CodexModelLaunchConfig {
         let Some(reasoning) = suffix_parts.first().copied() else {
             continue;
         };
-        if !CODEX_REASONING_LEVELS.contains(&reasoning) {
+        // GPT-5.6 adds Max above xhigh; do not reinterpret unsupported Max
+        // suffixes for older families as a launch override.
+        let supports_gpt_5_6_max = reasoning == "max"
+            && matches!(base_model, "gpt-5.6-sol" | "gpt-5.6-terra" | "gpt-5.6-luna");
+        if !CODEX_REASONING_LEVELS.contains(&reasoning) && !supports_gpt_5_6_max {
             continue;
         }
 

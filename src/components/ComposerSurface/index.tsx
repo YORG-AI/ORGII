@@ -20,12 +20,8 @@ interface ComposerSurfaceProps extends Omit<ComposerShellProps, "children"> {
   trailingActions?: React.ReactNode;
   /** Pill controls rendered after the + button (mode, model, settings…). */
   pills?: React.ReactNode;
-  /** Enables the standard add-content control when paired with `onUpload`. */
+  /** Enables the standard add-context control. */
   onAddContent?: () => void;
-  /** Enables the standard add-content control when paired with `onAddContent`. */
-  onUpload?: () => void;
-  onOpenSkillsTools?: () => void;
-  dropdownDirection?: "up" | "down";
   showContextInfo?: boolean;
   repoPath?: string;
   secondaryControlsPosition?: "left" | "right";
@@ -39,9 +35,6 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
       trailingActions,
       pills,
       onAddContent,
-      onUpload,
-      onOpenSkillsTools,
-      dropdownDirection = "up",
       showContextInfo = false,
       repoPath,
       secondaryControlsPosition = "left",
@@ -53,7 +46,7 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
       leadingActions ||
       trailingActions ||
       pills ||
-      (onAddContent && onUpload) ||
+      onAddContent ||
       showContextInfo
     );
 
@@ -63,14 +56,11 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
         {hasActionBar ? (
           <ComposerBar
             onAddContent={onAddContent}
-            onUpload={onUpload}
-            onOpenSkillsTools={onOpenSkillsTools}
-            dropdownDirection={dropdownDirection}
             leftPrefix={leadingActions}
             pills={pills}
             repoPath={repoPath}
             submitButton={trailingActions}
-            hideAddButton={!onAddContent || !onUpload}
+            hideAddButton={!onAddContent}
             showContextInfo={showContextInfo}
             secondaryControlsPosition={secondaryControlsPosition}
           />

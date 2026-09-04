@@ -203,6 +203,40 @@ describe("MarkdownTextareaEditor", () => {
     expect(textarea.value).toBe("hello example.ts [file:/repo/src/example.ts]");
   });
 
+  it("closes slash before a programmatic mention opens", () => {
+    const editorRef = React.createRef<MarkdownTextareaEditorRef>();
+    const onAtMention = vi.fn();
+    const onSlashCommand = vi.fn();
+    const onSlashCommandClose = vi.fn();
+
+    function Harness() {
+      const [value, setValue] = useState("hello");
+      return React.createElement(MarkdownTextareaEditor, {
+        ref: editorRef,
+        value,
+        onChange: setValue,
+        onAtMention,
+        onSlashCommand,
+        onSlashCommandClose,
+      });
+    }
+
+    act(() => root.render(React.createElement(Harness)));
+    const textarea = container.querySelector("textarea")!;
+    textarea.setSelectionRange(0, 0);
+    act(() => {
+      textarea.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "/", bubbles: true })
+      );
+    });
+    expect(onSlashCommand).toHaveBeenCalledWith("");
+
+    act(() => editorRef.current?.triggerAtMention());
+
+    expect(onSlashCommandClose).toHaveBeenCalledOnce();
+    expect(onAtMention).toHaveBeenCalledWith("", expect.any(Object));
+  });
+
   it("renders read-only content directly in Preview", () => {
     act(() => {
       root.render(

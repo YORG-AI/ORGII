@@ -12,6 +12,7 @@ import {
 } from "../sidebarConnectorUtils";
 import {
   buildChannelsPinnedMenuItems,
+  buildDraftMenuItems,
   buildPinnedMenuItems,
   buildProjectsPinnedMenuItems,
 } from "../workstationSidebarMenuItems";
@@ -121,5 +122,29 @@ describe("buildPinnedMenuItems", () => {
         dataTestId: "sidebar-team-inbox",
       }),
     ]);
+  });
+
+  it("marks draft rows as chat-panel tab destinations", () => {
+    const [separator, draft] = buildDraftMenuItems({
+      draftsLabel: "Drafts",
+      sessionCreatorDrafts: [
+        {
+          id: "draft-a",
+          sessionName: "",
+          editorContent: "Continue tab behavior",
+          uploadedFiles: [],
+          createdAt: "2026-09-02T00:00:00.000Z",
+          updatedAt: "2026-09-02T00:00:00.000Z",
+          savedAt: "2026-09-02T00:00:00.000Z",
+          sidebarVisible: true,
+        },
+      ],
+    });
+
+    expect(separator?.opensChatPanelTab).toBeUndefined();
+    expect(draft).toMatchObject({
+      opensChatPanelTab: true,
+      openContextMenuOnSelectedClick: true,
+    });
   });
 });

@@ -5,7 +5,7 @@ import { buildVariantEditOptions } from "../variantEditOptions";
 
 describe("buildVariantEditOptions", () => {
   it.each(["gpt-5.6-sol", "gpt-5.6-terra"])(
-    "matches the %s Codex menu while preserving Max and Ultra request identities",
+    "orders %s Max above Extra High and below Ultra",
     (base) => {
       // Discovery order must not determine the slider's effort order.
       const options = buildVariantEditOptions(
@@ -14,11 +14,12 @@ describe("buildVariantEditOptions", () => {
           `${base}-${effort}-fast`,
         ])
       );
-      expect(options.getAvailableLevels()).toEqual([
+      expect(options.availableLevels).toEqual([
         MODEL_REASONING_LEVEL.LOW,
         MODEL_REASONING_LEVEL.MEDIUM,
         MODEL_REASONING_LEVEL.HIGH,
         MODEL_REASONING_LEVEL.EXTRA_HIGH,
+        MODEL_REASONING_LEVEL.MAX,
         MODEL_REASONING_LEVEL.ULTRA,
       ]);
       for (const level of [
@@ -37,16 +38,6 @@ describe("buildVariantEditOptions", () => {
           ).toBe(id);
         }
       }
-      // Existing persisted Max remains accurately editable, including Fast.
-      // The menu only stops advertising it as a new selection.
-      expect(options.getAvailableLevels(MODEL_REASONING_LEVEL.MAX)).toEqual([
-        MODEL_REASONING_LEVEL.LOW,
-        MODEL_REASONING_LEVEL.MEDIUM,
-        MODEL_REASONING_LEVEL.HIGH,
-        MODEL_REASONING_LEVEL.EXTRA_HIGH,
-        MODEL_REASONING_LEVEL.MAX,
-        MODEL_REASONING_LEVEL.ULTRA,
-      ]);
     }
   );
 
@@ -55,7 +46,7 @@ describe("buildVariantEditOptions", () => {
       [
         "gpt-5.6-luna",
         ["low", "medium", "high", "xhigh", "max"],
-        MODEL_REASONING_LEVEL.EXTRA_HIGH,
+        MODEL_REASONING_LEVEL.MAX,
       ],
       [
         "gpt-5.5",
@@ -66,8 +57,8 @@ describe("buildVariantEditOptions", () => {
       const options = buildVariantEditOptions(
         efforts.map((effort) => `${base}-${effort}`)
       );
-      expect(options.getAvailableLevels().at(-1)).toBe(highest);
-      expect(options.getAvailableLevels()).not.toContain(
+      expect(options.availableLevels.at(-1)).toBe(highest);
+      expect(options.availableLevels).not.toContain(
         MODEL_REASONING_LEVEL.ULTRA
       );
       expect(
@@ -83,7 +74,7 @@ describe("buildVariantEditOptions", () => {
   it("keeps other model families' Max option", () => {
     for (const base of ["claude-opus-4-7", "grok-4.5"]) {
       const options = buildVariantEditOptions([`${base}-high`, `${base}-max`]);
-      expect(options.getAvailableLevels()).toEqual([
+      expect(options.availableLevels).toEqual([
         MODEL_REASONING_LEVEL.HIGH,
         MODEL_REASONING_LEVEL.MAX,
       ]);

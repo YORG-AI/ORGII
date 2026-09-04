@@ -39,7 +39,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@src/api/tauri/mobileRemote", () => ({
-  default: {
+  mobileRemoteApi: {
     getRelayStatus: vi.fn(),
     pairComplete: mocks.pairComplete,
     pairInit: mocks.pairInit,
@@ -47,6 +47,25 @@ vi.mock("@src/api/tauri/mobileRemote", () => ({
     syncDevices: mocks.syncDevices,
   },
   PERMISSION_TIER: { FULL: "full", READ_ONLY: "read_only" },
+}));
+
+vi.mock("react-router-dom", () => ({
+  useNavigate: () => vi.fn(),
+}));
+
+vi.mock("jotai", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("jotai")>();
+  return {
+    ...actual,
+    useAtomValue: () => ({
+      userId: "cloud-user",
+      profile: { displayName: "Test user" },
+    }),
+  };
+});
+
+vi.mock("@src/features/Org2Cloud/useOrg2CloudSignIn", () => ({
+  useOrg2CloudSignIn: () => vi.fn(),
 }));
 
 vi.mock("@src/components/Message", () => ({
@@ -167,11 +186,14 @@ describe("MobileRemoteSettingsSection outdoor pairing", () => {
     ).toBeNull();
 
     await act(async () => firstRequest.resolve(firstPairing));
-    expect(mocks.pairInit).toHaveBeenNthCalledWith(1, {
-      isPrimary: true,
-      label: "My phone",
-      tier: "full",
-    });
+    expect(mocks.pairInit).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        isPrimary: true,
+        tier: "full",
+        label: expect.stringMatching(/^Phone · /),
+      })
+    );
     expect(
       container.querySelector<HTMLTextAreaElement>(
         "#mobile-remote-pairing-payload"

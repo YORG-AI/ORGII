@@ -24,31 +24,54 @@ import {
 export type { WorkItemPickerOption } from "./workItemPickerModel";
 
 const logger = createLogger("WorkItemPickerModal");
+const DEFAULT_SOURCE_FILTERS: readonly WorkItemPickerFilter[] = [
+  "all",
+  "workitem",
+  "github_issue",
+  "github_pr",
+];
 
 export interface WorkItemPickerModalProps {
   open: boolean;
   onClose: () => void;
   /** The consumer owns applying the selection and closing the modal. */
   onSelect: (options: readonly WorkItemPickerOption[]) => void;
+  /** Whether more than one result can be selected before confirming. */
+  multiple?: boolean;
   repoId?: string;
   repoPath?: string;
+  /** Limit the selectable sources when a caller represents one specific command. */
+  sourceFilters?: readonly WorkItemPickerFilter[];
   title?: string;
 }
 
 const WorkItemPickerModalContent: React.FC<
   Omit<WorkItemPickerModalProps, "open">
-> = ({ onClose, onSelect, repoId, repoPath, title }) => {
+> = ({
+  onClose,
+  onSelect,
+  multiple = true,
+  repoId,
+  repoPath,
+  sourceFilters = DEFAULT_SOURCE_FILTERS,
+  title,
+}) => {
   const { t } = useTranslation(["projects", "common"]);
   const panelRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sourceFilter, setSourceFilter] = useState<WorkItemPickerFilter>("all");
+  const [sourceFilter, setSourceFilter] = useState<WorkItemPickerFilter>(
+    sourceFilters[0] ?? "workitem"
+  );
   const [workItems, setWorkItems] = useState<WorkItemPickerOption[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [loadingWorkItems, setLoadingWorkItems] = useState(true);
   const [workItemError, setWorkItemError] = useState<string | null>(null);
   const workItemLoadGenerationRef = useRef(0);
+  const githubEnabled = sourceFilters.some(
+    (filter) => filter === "all" || filter.startsWith("github_")
+  );
   const { github } = useWorktreeSourceData({
-    open: true,
+    open: githubEnabled,
     repoId,
     repoPath,
     loadBranches: false,
@@ -92,6 +115,12 @@ const WorkItemPickerModalContent: React.FC<
   }, []);
 
   useEffect(() => {
+    panelRef.current
+      ?.querySelector<HTMLInputElement>("[data-spotlight-input]")
+      ?.focus();
+  }, []);
+
+  useEffect(() => {
     loadWorkItems();
     return () => {
       workItemLoadGenerationRef.current += 1;
@@ -132,15 +161,20 @@ const WorkItemPickerModalContent: React.FC<
     github.refresh();
   }, [github, loadWorkItems]);
 
-  const handleToggleSelection = useCallback((key: string, checked: boolean) => {
-    setSelectedKeys((current) =>
-      checked
-        ? current.includes(key)
-          ? current
-          : [...current, key]
-        : current.filter((candidate) => candidate !== key)
-    );
-  }, []);
+  const handleToggleSelection = useCallback(
+    (key: string, checked: boolean) => {
+      setSelectedKeys((current) =>
+        checked
+          ? multiple
+            ? current.includes(key)
+              ? current
+              : [...current, key]
+            : [key]
+          : current.filter((candidate) => candidate !== key)
+      );
+    },
+    [multiple]
+  );
 
   const handleConfirm = useCallback(() => {
     if (selectedOptions.length > 0) onSelect(selectedOptions);
@@ -176,6 +210,7 @@ const WorkItemPickerModalContent: React.FC<
           selectedKeys={selectedKeys}
           selectedCount={selectedOptions.length}
           sourceFilter={sourceFilter}
+          sourceFilters={sourceFilters}
         />
       </div>
     </SpotlightShell>
@@ -189,7 +224,11 @@ const WorkItemPickerModal: React.FC<WorkItemPickerModalProps> = ({
 }) =>
   open ? (
     <WorkItemPickerModalContent
-      key={JSON.stringify([props.repoId ?? null, props.repoPath ?? null])}
+      key={JSON.stringify([
+        props.repoId ?? null,
+        props.repoPath ?? null,
+        props.sourceFilters ?? DEFAULT_SOURCE_FILTERS,
+      ])}
       {...props}
     />
   ) : null;

@@ -42,6 +42,22 @@ function activateSourceControlTab(store: ReturnType<typeof createStore>) {
 }
 
 describe("WorkstationTabHeader", () => {
+  it("does not reserve the shell-wide row when an active split owns its header", () => {
+    const store = createStore();
+    store.set(activeStatusBarAppAtom, "code");
+    store.set(workstationTabHeaderAtomByHost.code, { hidden: true });
+
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(WorkstationTabHeader)
+      )
+    );
+
+    expect(markup).toBe("");
+  });
+
   it("removes the unused shell-leading gutter for self-contained surfaces", () => {
     const store = createStore();
     store.set(activeStatusBarAppAtom, "code");

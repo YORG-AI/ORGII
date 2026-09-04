@@ -242,6 +242,7 @@ dependencies = [
  "objc2-app-kit",
  "objc2-foundation",
  "perf_utils",
+ "settings",
  "tauri",
  "tracing",
  "window-vibrancy",

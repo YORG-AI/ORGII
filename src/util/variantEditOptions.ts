@@ -38,15 +38,6 @@ const LEVEL_DISPLAY_ORDER: ModelReasoningLevel[] = [
   MODEL_REASONING_LEVEL.ULTRACODE,
 ];
 
-// Product policy: match the normal Codex GPT-5.6 picker, which does not
-// advertise a separate Max step. Max remains valid capability data and a
-// wire effort; do not delete its variants or reinterpret it as Ultra.
-const GPT_5_6_PICKER_MODELS = new Set([
-  "gpt-5.6-sol",
-  "gpt-5.6-terra",
-  "gpt-5.6-luna",
-]);
-
 export interface VariantSelection {
   /**
    * `true` when the user wants reasoning to be applied. `false` selects
@@ -65,13 +56,8 @@ export interface VariantSelection {
 }
 
 export interface VariantEditOptions {
-  /**
-   * Levels offered by the picker. Preserve an already-applied Max selection
-   * so opening the editor cannot mislabel or silently change saved settings.
-   */
-  getAvailableLevels: (
-    appliedLevel?: ModelReasoningLevel
-  ) => ModelReasoningLevel[];
+  /** Reasoning levels exposed by the family, in display order. */
+  availableLevels: ModelReasoningLevel[];
   /** `true` when the family has a non-thinking base variant. */
   thinkingToggleable: boolean;
   /**
@@ -163,18 +149,6 @@ export function buildVariantEditOptions(
   const availableLevels = LEVEL_DISPLAY_ORDER.filter((level) =>
     levelSet.has(level)
   );
-  const useCodexPickerLevels =
-    modelIds.length > 0 &&
-    modelIds.every((modelId) =>
-      GPT_5_6_PICKER_MODELS.has(
-        parseModelVariant(modelId)?.baseModel ?? modelId
-      )
-    );
-  const pickerLevels = useCodexPickerLevels
-    ? availableLevels.filter((level) => level !== MODEL_REASONING_LEVEL.MAX)
-    : availableLevels;
-  const getAvailableLevels = (appliedLevel?: ModelReasoningLevel) =>
-    appliedLevel === MODEL_REASONING_LEVEL.MAX ? availableLevels : pickerLevels;
 
   // Thinking is "toggleable" only when the family exposes both states
   // — at least one thinking variant AND at least one non-thinking
@@ -225,7 +199,7 @@ export function buildVariantEditOptions(
   };
 
   return {
-    getAvailableLevels,
+    availableLevels,
     thinkingToggleable,
     fastAvailableAnywhere,
     fastAvailable,

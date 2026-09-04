@@ -14,12 +14,7 @@ import {
   WORKSPACE_PORT_ADVERTISED_URL_DEBOUNCE_MS,
   workspacePortProbesAtom,
 } from "@src/store/workstation/codeEditor/workspacePortsAtom";
-import { safeUnlisten } from "@src/util/platform/tauri";
-import { listenTauri } from "@src/util/platform/tauri/init";
-import {
-  type PtyOutputPayload,
-  ptyPayloadBytes,
-} from "@src/util/terminal/ptyOutputPayload";
+import { observePtyOutput } from "@src/util/terminal/ptyOutputBus";
 import { toBackendPtySessionId } from "@src/util/ui/terminal/ptySessionId";
 import { normalizeHttpUrlCandidate } from "@src/util/url/validation";
 
@@ -118,11 +113,9 @@ export function useWorkspacePortAdvertisedUrls(enabled: boolean): void {
       return;
     }
 
-    let cancelled = false;
-    const unlisteners: Array<() => void> = [];
+    const unobservers: Array<() => void> = [];
     const buffers = new Map<string, string>();
     const pendingOriginsByFolder = pendingOriginsRef.current;
-    const decoder = new TextDecoder("utf-8", { fatal: false });
 
     const flushPending = () => {
       debounceTimerRef.current = null;
@@ -191,56 +184,33 @@ export function useWorkspacePortAdvertisedUrls(enabled: boolean): void {
       queueOrigins(folderId, extractOrigins(finalized));
     };
 
-    void (async () => {
-      for (const session of sessions) {
-        if (cancelled) {
-          return;
-        }
-        const backendSessionId = toBackendPtySessionId(session.id);
-        try {
-          const unlisten = await listenTauri<PtyOutputPayload>(
-            `pty-output-${backendSessionId}`,
-            (event) => {
-              const fallbackFolderId =
-                folderIdRef.current ?? foldersRef.current[0]?.id ?? null;
-              const folderId = folderIdForTerminalSession(
-                session,
-                foldersRef.current,
-                fallbackFolderId
-              );
-              const chunk = ptyPayloadBytes(event.payload);
-              if (chunk && chunk.length > 0) {
-                const decoded = decoder.decode(chunk, { stream: true });
-                if (decoded) {
-                  ingestChunk(backendSessionId, folderId, decoded);
-                }
-                return;
-              }
-              if (event.payload.data) {
-                ingestChunk(backendSessionId, folderId, event.payload.data);
-              }
-            }
-          );
-          if (cancelled) {
-            safeUnlisten(unlisten);
-            return;
-          }
-          unlisteners.push(() => safeUnlisten(unlisten));
-        } catch (error) {
-          logger.warn("failed to listen for pty output:", error);
-        }
-      }
-    })();
+    // Terminal output arrives over a per-session IPC channel with a single
+    // receiver, so this reads the pane's fan-out rather than opening a second
+    // listener that the channel transport would starve. Same lifetime as
+    // before: a session with no attached pane produces no output either way.
+    for (const session of sessions) {
+      const backendSessionId = toBackendPtySessionId(session.id);
+      const unobserve = observePtyOutput(backendSessionId, (text) => {
+        const fallbackFolderId =
+          folderIdRef.current ?? foldersRef.current[0]?.id ?? null;
+        const folderId = folderIdForTerminalSession(
+          session,
+          foldersRef.current,
+          fallbackFolderId
+        );
+        ingestChunk(backendSessionId, folderId, text);
+      });
+      unobservers.push(unobserve);
+    }
 
     return () => {
-      cancelled = true;
       if (debounceTimerRef.current != null) {
         window.clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = null;
       }
       pendingOriginsByFolder.clear();
-      for (const unlisten of unlisteners) {
-        unlisten();
+      for (const unobserve of unobservers) {
+        unobserve();
       }
     };
   }, [enabled, sessions]);

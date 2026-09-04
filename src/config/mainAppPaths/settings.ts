@@ -8,7 +8,6 @@ import { SETTINGS_BASE, settingsPathParts } from "./shared";
 
 export type SettingsSectionSegment =
   | "general"
-  | "collaboration"
   | "appearance"
   | "editor"
   | "security"
@@ -20,7 +19,6 @@ export type SettingsSubpageSegment = "editor-appearance";
 
 export const SETTINGS_SECTIONS: readonly SettingsSectionSegment[] = [
   "general",
-  "collaboration",
   "appearance",
   "editor",
   "security",
@@ -34,8 +32,7 @@ export const SETTINGS_SUBPAGES: readonly SettingsSubpageSegment[] = [
 ] as const;
 
 export const SETTINGS_SECTION_TABS = {
-  general: ["general", "notifications", "shortcuts"],
-  collaboration: ["cloud", "self-hosted"],
+  general: ["general", "notifications", "shortcuts", "self-hosted"],
   appearance: ["app", "code-editor", "chat-panel"],
   editor: ["editor"],
   monitor: ["resources", "network", "storage"],
@@ -72,6 +69,13 @@ export interface SettingsPathOptions {
   subpage?: SettingsSubpageSegment;
 }
 
+/**
+ * Retired settings section kept only to resolve existing bookmarked URLs.
+ * New navigation exposes the managed login and self-hosted endpoint under
+ * General instead.
+ */
+const LEGACY_COLLABORATION_SECTION = "collaboration";
+
 export function buildSettingsPath(options: SettingsPathOptions = {}): string {
   const { section, tab, subpage } = options;
 
@@ -102,6 +106,10 @@ export function parseCoreSettingsItem(pathname: string): {
       : parts[0];
 
   if (!itemPart) return { section: null, category: null };
+
+  if (itemPart === LEGACY_COLLABORATION_SECTION) {
+    return { section: "general", category: null };
+  }
 
   let normalized = fromCategoryUrlSegment(itemPart);
   if (normalized === "notifications" || normalized === "shortcuts") {
@@ -141,6 +149,13 @@ export function parseSettingsSectionTab(pathname: string): {
 
   if (itemPart === "notifications" || itemPart === "shortcuts") {
     return { section: "general", tab: itemPart };
+  }
+
+  if (itemPart === LEGACY_COLLABORATION_SECTION) {
+    return {
+      section: "general",
+      tab: tabPart === "self-hosted" ? "self-hosted" : "general",
+    };
   }
 
   if (itemPart === "code-search-indexing" || itemPart === "workspace") {

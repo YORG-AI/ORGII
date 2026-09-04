@@ -60,7 +60,7 @@ function canvasProps(
   } as unknown as UniversalEventProps;
 }
 
-describe("CanvasInlineAdapter revisions", () => {
+describe("CanvasInlineAdapter", () => {
   it("renders a persistent activity record instead of a second Canvas card", () => {
     const markup = renderToStaticMarkup(
       createElement(
@@ -93,6 +93,25 @@ describe("CanvasInlineAdapter revisions", () => {
       )
     );
 
+    expect(markup).toContain("Revision failed");
+  });
+
+  it("renders a failed Canvas creation as a shared danger InlineAlert", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        CanvasInlineAdapter,
+        canvasProps(
+          { mode: "html", content: "<main />" },
+          "failed",
+          "render_inline_canvas"
+        )
+      )
+    );
+
+    expect(markup).toContain('data-tool-call-event-id="event-b"');
+    expect(markup).toContain('role="alert"');
+    expect(markup).toContain('data-icon="triangle-alert"');
+    expect(markup).toContain("shadow-dropdown-soft");
     expect(markup).toContain("Revision failed");
   });
 

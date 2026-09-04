@@ -90,6 +90,17 @@ function createContext(overrides: Record<string, unknown> = {}) {
     },
     activePermission: null,
     permissionQueueDepth: 0,
+    sessionModel: {
+      config: {
+        sessionId: "session-a",
+        model: "claude-sonnet-4-5",
+        modelEditable: true,
+      },
+      options: [],
+      loading: false,
+      patching: false,
+    },
+    setSessionModel: vi.fn().mockResolvedValue(undefined),
     sendMessage: vi.fn(),
     respondPermission: vi.fn(),
     subscribeSession: vi.fn().mockResolvedValue(undefined),

@@ -4,7 +4,6 @@
  * Hooks for session lifecycle: creation, discovery, management.
  */
 
-export { useSessionManager } from "./useSessionManager";
 export { useSessionDiscovery } from "./useSessionDiscovery";
 export { useSessionCreator } from "./useSessionCreator";
 export type { UseSessionCreatorReturn } from "./useSessionCreator/types";

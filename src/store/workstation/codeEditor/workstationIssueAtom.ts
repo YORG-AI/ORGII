@@ -6,10 +6,7 @@ import type {
   GitHubIssueTimelineItem,
 } from "@src/api/tauri/github";
 
-import {
-  DEFAULT_WORKSTATION_REPO_SCOPE,
-  workstationRepoScopeKey,
-} from "./workstationPrAtom";
+import { workstationRepoScopeKey } from "./workstationPrAtom";
 
 export type IssueFilterState = "open" | "closed" | "all";
 
@@ -65,10 +62,6 @@ export const workstationIssueListAtomFamily = atomFamily((scopeKey: string) => {
   return scopedAtom;
 });
 
-export const workstationIssueListAtom = workstationIssueListAtomFamily(
-  DEFAULT_WORKSTATION_REPO_SCOPE
-);
-
 export const workstationSelectedIssueAtomFamily = atomFamily(
   (scopeKey: string) => {
     const scopedAtom = atom<WorkstationSelectedIssueState>({
@@ -78,10 +71,6 @@ export const workstationSelectedIssueAtomFamily = atomFamily(
     scopedAtom.debugLabel = `workstationSelectedIssueAtom(${scopeKey})`;
     return scopedAtom;
   }
-);
-
-export const workstationSelectedIssueAtom = workstationSelectedIssueAtomFamily(
-  DEFAULT_WORKSTATION_REPO_SCOPE
 );
 
 export function workstationIssueDetailScopeKey(
@@ -117,10 +106,6 @@ export const workstationIssueCallbackAtomFamily = atomFamily(
     scopedAtom.debugLabel = `workstationIssueCallbackAtom(${scopeKey})`;
     return scopedAtom;
   }
-);
-
-export const workstationIssueCallbackAtom = workstationIssueCallbackAtomFamily(
-  DEFAULT_WORKSTATION_REPO_SCOPE
 );
 
 const retainedIssueDetailScopes = new Map<string, number>();

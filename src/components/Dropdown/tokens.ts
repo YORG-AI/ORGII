@@ -384,7 +384,10 @@ export const DROPDOWN_CLASSES = {
     DROPDOWN_ITEM.hoverBgClass,
   ].join(" "),
 
-  /** 32px menu row for label + right-side control such as Switch. */
+  /**
+   * 32px menu row for a label + right-side control such as a Switch or pill.
+   * The embedded control owns its hover state; the containing row stays clear.
+   */
   menuControlItem: [
     "flex",
     "w-full",
@@ -401,7 +404,6 @@ export const DROPDOWN_CLASSES = {
     DROPDOWN_ITEM.fontSizeClass,
     DROPDOWN_ITEM.transitionClass,
     "text-text-1",
-    DROPDOWN_ITEM.hoverBgClass,
   ].join(" "),
 
   /** Inset rule between menu-item groups with a tight 2px local offset. */
@@ -459,9 +461,18 @@ export const DROPDOWN_CLASSES = {
     DROPDOWN_PANEL.paddingClass,
   ].join(" "),
 
-  /** Section / group label inside a dropdown (non-interactive). */
-  sectionLabel:
+  /**
+   * Section / group label inside a dropdown (non-interactive). Labels pin to
+   * the top of their nearest scrolling menu until the next section replaces
+   * them, so the current group stays identifiable in long lists.
+   */
+  sectionLabel: [
+    "sticky",
+    "-top-1",
+    "z-10",
+    DROPDOWN_PANEL.bgClass,
     "px-1.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-text-3",
+  ].join(" "),
 
   /** Bordered dropdown section wrapper for grouped controls above/between lists. */
   sectionContainer: [

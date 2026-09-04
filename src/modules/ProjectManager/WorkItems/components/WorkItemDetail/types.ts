@@ -32,6 +32,8 @@ export interface WorkItemDetailActions {
 export interface WorkItemDetailProps {
   workItem: WorkItemExtended;
   onClose: () => void;
+  /** Preserve the list/detail split while offering an explicit dedicated tab. */
+  onOpenInNewTab?: () => void;
   onNavigate: (direction: "prev" | "next") => void;
   hasPrev: boolean;
   hasNext: boolean;

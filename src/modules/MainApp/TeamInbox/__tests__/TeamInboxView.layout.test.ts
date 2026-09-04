@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { Provider, createStore } from "jotai";
 import React, { act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import {
@@ -13,6 +14,8 @@ import {
 } from "vitest";
 
 import { InternetIcon, LinkSquare02Icon } from "@src/icons";
+import { WorkManagementSplitHeaderContext } from "@src/modules/MainApp/WorkManagement/workManagementSplitHeaderContext";
+import { workstationTabHeaderAtomByHost } from "@src/store/workstation";
 import type { WorkItem } from "@src/types/core/workItem";
 
 import type { ManagedPrItem } from "../../WorkManagement/githubManagedItemModel";
@@ -52,19 +55,25 @@ vi.mock("@src/modules/shared/layouts/SplitViewLayout", () => ({
     return createElement(
       "div",
       { "data-testid": "team-inbox-split" },
+      props.listHeader as React.ReactNode,
       props.listContent as React.ReactNode,
       props.mainContent as React.ReactNode
     );
   },
 }));
 
-vi.mock("@src/modules/shared/layouts/blocks", () => ({
-  LoadingBar: () => createElement("div", { "data-testid": "loading-bar" }),
-  Placeholder: (props: Record<string, unknown>) => {
-    componentProps.placeholder = props;
-    return null;
-  },
-}));
+vi.mock("@src/modules/shared/layouts/blocks", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@src/modules/shared/layouts/blocks")>();
+  return {
+    ...actual,
+    LoadingBar: () => createElement("div", { "data-testid": "loading-bar" }),
+    Placeholder: (props: Record<string, unknown>) => {
+      componentProps.placeholder = props;
+      return null;
+    },
+  };
+});
 
 vi.mock("@src/components/Placeholder", () => ({
   Placeholder: (props: Record<string, unknown>) => {
@@ -196,7 +205,6 @@ describe("TeamInboxView split layout", () => {
       );
     });
 
-    expect(splitViewProps.current?.alwaysShowBreadcrumb).toBeUndefined();
     expect(splitViewProps.current?.hideBreadcrumbWhenSidebarCollapsed).toBe(
       true
     );
@@ -208,6 +216,333 @@ describe("TeamInboxView split layout", () => {
     expect(splitViewProps.current?.minListWidth).toBe(280);
     expect(splitViewProps.current?.maxListWidth).toBe(480);
     expect(componentProps.list?.loading).toBe(true);
+  });
+
+  it("starts with a headerless empty right pane", async () => {
+    await act(async () => {
+      root.render(
+        createElement(TeamInboxView, {
+          dataSource: {
+            listPage: async () => ({ items: [], nextCursor: null }),
+          },
+        })
+      );
+      await Promise.resolve();
+    });
+
+    expect(
+      container
+        .querySelector('[data-testid="team-inbox-list-detail-layout"]')
+        ?.getAttribute("data-layout-mode")
+    ).toBe("split");
+    expect(
+      container.querySelector('[data-compact-list-header="true"]')
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="team-inbox-close-detail"]')
+    ).toBeNull();
+    expect(
+      container
+        .querySelector('[data-detail-pane-layout="true"]')
+        ?.querySelector("[data-detail-pane-body]")?.previousElementSibling
+    ).toBeNull();
+  });
+
+  it("keeps compact Inbox controls in one left-column header row", async () => {
+    await act(async () => {
+      root.render(
+        createElement(
+          WorkManagementSplitHeaderContext.Provider,
+          {
+            value: {
+              splitDatasetControl: createElement(
+                "button",
+                { "data-testid": "work-dataset-inbox" },
+                "Inbox"
+              ),
+            },
+          },
+          createElement(TeamInboxView, {
+            dataSource: {
+              listPage: async () => ({ items: [], nextCursor: null }),
+            },
+          })
+        )
+      );
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-split-list-header="true"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelectorAll("[data-split-list-header-row]")
+    ).toHaveLength(1);
+    expect(
+      container.querySelector('[data-testid="work-dataset-inbox"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="team-inbox-search"]')
+    ).not.toBeNull();
+    expect(
+      container
+        .querySelector('[data-testid="work-dataset-inbox"]')
+        ?.closest("[data-split-list-header-row]")
+    ).toBe(
+      container
+        .querySelector('[data-testid="team-inbox-search"]')
+        ?.closest("[data-split-list-header-row]")
+    );
+    expect(
+      container
+        .querySelector('[data-testid="team-inbox-search"]')
+        ?.classList.contains("flex-1")
+    ).toBe(true);
+    expect(
+      container
+        .querySelector('[data-testid="team-inbox-search"]')
+        ?.parentElement?.classList.contains("flex-1")
+    ).toBe(true);
+    expect(
+      container.querySelector('[data-testid="split-list-fullscreen-toggle"]')
+    ).not.toBeNull();
+  });
+
+  it("keeps Inbox controls in the left header without a tab-bar dependency", async () => {
+    const store = createStore();
+    await act(async () => {
+      root.render(
+        createElement(
+          Provider,
+          { store },
+          createElement(
+            WorkManagementSplitHeaderContext.Provider,
+            {
+              value: {
+                splitDatasetControl: createElement(
+                  "button",
+                  { "data-testid": "work-dataset-inbox" },
+                  "Inbox"
+                ),
+              },
+            },
+            createElement(TeamInboxView, {
+              dataSource: {
+                listPage: async () => ({ items: [], nextCursor: null }),
+              },
+            })
+          )
+        )
+      );
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-split-list-header="true"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="work-dataset-inbox"]')
+    ).not.toBeNull();
+    expect(
+      container
+        .querySelector('[data-testid="team-inbox-search"]')
+        ?.classList.contains("flex-1")
+    ).toBe(true);
+    const publishedHeader = store.get(
+      workstationTabHeaderAtomByHost.workManagement
+    );
+    expect(publishedHeader).toEqual({ hidden: true });
+  });
+
+  it("keeps the restore control in a dedicated full-list row when maximized", async () => {
+    const store = createStore();
+    await act(async () => {
+      root.render(
+        createElement(
+          Provider,
+          { store },
+          createElement(
+            WorkManagementSplitHeaderContext.Provider,
+            {
+              value: {
+                splitDatasetControl: createElement(
+                  "button",
+                  { "data-testid": "work-dataset-inbox" },
+                  "Inbox"
+                ),
+                surfaceDatasetControl: createElement(
+                  "button",
+                  { "data-testid": "work-dataset-inbox-full" },
+                  "Inbox"
+                ),
+              },
+            },
+            createElement(TeamInboxView, {
+              dataSource: {
+                listPage: async () => ({ items: [], nextCursor: null }),
+              },
+            })
+          )
+        )
+      );
+      await Promise.resolve();
+    });
+
+    const maximizeButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="split-list-fullscreen-toggle"]'
+    );
+    expect(maximizeButton).not.toBeNull();
+
+    await act(async () => maximizeButton?.click());
+
+    expect(
+      container
+        .querySelector('[data-testid="team-inbox-list-detail-layout"]')
+        ?.getAttribute("data-layout-mode")
+    ).toBe("single");
+
+    expect(
+      container.querySelectorAll("[data-split-list-header-row]")
+    ).toHaveLength(1);
+    expect(
+      container.querySelector('[data-testid="work-dataset-inbox-full"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="split-list-fullscreen-toggle"]')
+    ).not.toBeNull();
+    expect(container.innerHTML).toContain('data-icon="minimize-2"');
+    expect(store.get(workstationTabHeaderAtomByHost.workManagement)).toEqual({
+      hidden: true,
+    });
+  });
+
+  it("opens an Inbox item when selected from list fullscreen", async () => {
+    await act(async () => {
+      root.render(
+        createElement(TeamInboxView, {
+          dataSource: {
+            listPage: async () => ({
+              items: [partialLoadItem],
+              nextCursor: null,
+            }),
+          },
+        })
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="split-list-fullscreen-toggle"]'
+        )
+        ?.click()
+    );
+    expect(
+      container
+        .querySelector('[data-testid="team-inbox-list-detail-layout"]')
+        ?.getAttribute("data-layout-mode")
+    ).toBe("single");
+
+    await act(async () => {
+      const onSelectItem = componentProps.list?.onSelectItem as
+        | ((item: AssignedWorkItem) => void)
+        | undefined;
+      onSelectItem?.(partialLoadItem);
+    });
+
+    expect(
+      container
+        .querySelector('[data-testid="team-inbox-list-detail-layout"]')
+        ?.getAttribute("data-layout-mode")
+    ).toBe("split");
+    expect(componentProps.assignedDetail).not.toBeNull();
+  });
+
+  it("keeps a show-side control after the detail pane is closed", async () => {
+    const store = createStore();
+    await act(async () => {
+      root.render(
+        createElement(
+          Provider,
+          { store },
+          createElement(
+            WorkManagementSplitHeaderContext.Provider,
+            {
+              value: {
+                splitDatasetControl: createElement(
+                  "button",
+                  { "data-testid": "work-dataset-inbox" },
+                  "Inbox"
+                ),
+                surfaceDatasetControl: createElement(
+                  "button",
+                  { "data-testid": "work-dataset-inbox-full" },
+                  "Inbox"
+                ),
+              },
+            },
+            createElement(TeamInboxView, {
+              dataSource: {
+                listPage: async () => ({
+                  items: [partialLoadItem],
+                  nextCursor: null,
+                }),
+              },
+            })
+          )
+        )
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      const onSelectItem = componentProps.list?.onSelectItem as
+        | ((item: AssignedWorkItem) => void)
+        | undefined;
+      onSelectItem?.(partialLoadItem);
+    });
+    expect(componentProps.assignedDetail).not.toBeNull();
+
+    await act(async () => {
+      const onClose = componentProps.assignedDetail?.onClose as
+        | (() => void)
+        | undefined;
+      onClose?.();
+    });
+
+    expect(
+      container
+        .querySelector('[data-testid="team-inbox-list-detail-layout"]')
+        ?.getAttribute("data-layout-mode")
+    ).toBe("single");
+
+    expect(
+      container.querySelectorAll("[data-split-list-header-row]")
+    ).toHaveLength(1);
+    expect(
+      container.querySelector('[data-testid="work-dataset-inbox-full"]')
+    ).not.toBeNull();
+    expect(container.innerHTML).toContain('data-icon="minimize-2"');
+    expect(store.get(workstationTabHeaderAtomByHost.workManagement)).toEqual({
+      hidden: true,
+    });
+
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="split-list-fullscreen-toggle"]'
+        )
+        ?.click()
+    );
+
+    expect(
+      container
+        .querySelector('[data-testid="team-inbox-list-detail-layout"]')
+        ?.getAttribute("data-layout-mode")
+    ).toBe("split");
   });
 
   it("keeps the initial gate closed for a source loading snapshot", async () => {

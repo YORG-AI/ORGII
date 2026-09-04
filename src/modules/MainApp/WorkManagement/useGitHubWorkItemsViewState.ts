@@ -29,7 +29,6 @@ import {
 import type { OpsGitHubViewScope } from "./githubWorkItemsViewCache";
 
 export const ISSUE_REPO_FILTER = {
-  ALL: "all",
   CURRENT_WORKSTATION: "currentWorkstation",
 } as const;
 

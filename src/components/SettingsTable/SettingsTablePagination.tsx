@@ -61,7 +61,7 @@ export function SettingsTablePagination({
   totalLabel,
   pageLabel,
   openEndedPageCount = false,
-  showTotal = true,
+  showTotal = false,
   showPageSize = true,
   className = "",
 }: SettingsTablePaginationProps) {
@@ -88,11 +88,20 @@ export function SettingsTablePagination({
 
   return (
     <div className={`grid w-full grid-cols-3 items-center py-1 ${className}`}>
-      <span className="text-xs font-medium text-text-1">
-        {showTotal
-          ? (totalLabel ?? t("pagination.totalItems", { count: total }))
-          : null}
-      </span>
+      <div className="flex justify-start">
+        {showPageSize ? (
+          <Select
+            value={pageSize}
+            onChange={(value) => onPageSizeChange(Number(value))}
+            options={pageSizeOptions.map((size) => ({
+              label: `${size} ${t("pagination.perPage")}`,
+              value: size,
+            }))}
+            size="small"
+            placement="top"
+          />
+        ) : null}
+      </div>
 
       <div className="flex items-center justify-center gap-1">
         {canJump ? (
@@ -166,20 +175,11 @@ export function SettingsTablePagination({
         ) : null}
       </div>
 
-      <div className="flex justify-end">
-        {showPageSize ? (
-          <Select
-            value={pageSize}
-            onChange={(value) => onPageSizeChange(Number(value))}
-            options={pageSizeOptions.map((size) => ({
-              label: `${size} ${t("pagination.perPage")}`,
-              value: size,
-            }))}
-            size="small"
-            placement="top"
-          />
-        ) : null}
-      </div>
+      <span className="text-right text-xs font-medium text-text-1">
+        {showTotal
+          ? (totalLabel ?? t("pagination.totalItems", { count: total }))
+          : null}
+      </span>
     </div>
   );
 }

@@ -99,11 +99,6 @@ interface InputAreaProps {
   autoFocus?: boolean;
   /** Limit the slash menu to the supplied item categories. */
   slashItemCategories?: ReadonlyArray<SlashItemCategory>;
-  /**
-   * Set by the bottom-anchored floating composer so its + / slash / @ menus
-   * open upward even in queue-edit mode (there is no room beneath it).
-   */
-  bottomAnchored?: boolean;
   /** Contextual composers used by element-selection surfaces. */
   presentation?: InputAreaPresentation;
 }
@@ -146,7 +141,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     onRemoveEditImage,
     surfaceBg = false,
     omitChatHeader = false,
-    chatPanelPosition = "right",
     sessionId: propSessionId,
     onSubmitOverride,
     customMentionOptions,
@@ -164,7 +158,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     enableAgentInterceptors = true,
     autoFocus = false,
     slashItemCategories,
-    bottomAnchored = false,
     presentation = "default",
   }) => {
     const { t } = useTranslation("sessions");
@@ -207,7 +200,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       containerRef,
       contextMenuKeyboardHandlerRef,
       slashCommandKeyboardHandlerRef,
-      plusSlashCommandKeyboardHandlerRef,
       setIsInputFocused,
       handleInputBlur,
       handleContentChange,
@@ -227,14 +219,12 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       handleSlashCommand,
       handleSlashCommandClose,
       handleSlashSelect,
-      handleSlashAppendSelect,
       handleModeSelect,
       currentMode,
       includeProjectMode,
       filteredSlashItems,
       slashLoading,
       slashQuery,
-      prefetchSlashItems,
       fileInputRef,
       handleUploadClick,
       handleFileUpload,
@@ -278,7 +268,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     const currentInputEmpty = currentTextEmpty && !hasImages;
     const stopSuppressedForEmptyInput =
       disableStopWhenEmpty && currentInputEmpty && !isWpGeneWorking;
-    const mentionTreePosition = chatPanelPosition === "left" ? "right" : "left";
     const voiceFeatureEnabled = useAtomValue(voiceInputEnabledAtom);
     const [pinnedActionsVisible, setPinnedActionsVisible] = useAtom(
       pinnedActionsVisibleAtom
@@ -292,21 +281,27 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     const isContextual = isContextualInputAreaPresentation(presentation);
 
     const {
-      showPlusSlashMenu,
-      plusSlashQuery,
-      contextMenuKeyboardOpened,
-      handleOpenSkillsTools,
       handleOpenContextMenu,
-      handlePlusSlashClose,
-      handlePlusSlashQueryChange,
       handleContextMenuClose,
       handleKeyboardAtMention,
     } = useInputAreaMenus({
-      prefetchSlashItems,
+      composerInputRef,
       setShowContextMenu,
       setAtSearchQuery,
       handleAtMention,
     });
+    const handleContextModeSelect = useCallback(
+      (mode: Parameters<typeof handleModeSelect>[0]) => {
+        handleModeSelect(mode);
+        composerInputRef.current?.consumeMentionQuery();
+        handleContextMenuClose();
+      },
+      [composerInputRef, handleContextMenuClose, handleModeSelect]
+    );
+    const handleContextImageUpload = useCallback(() => {
+      composerInputRef.current?.consumeMentionQuery();
+      handleUploadClick();
+    }, [composerInputRef, handleUploadClick]);
 
     const attachedImageDataUrls = attachedImages.map((image) => image.dataUrl);
     const { editContainerRef, handleEditSubmit, handleEditKeyDown } =
@@ -491,13 +486,8 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                 contextMenuKeyboardHandlerRef={contextMenuKeyboardHandlerRef}
                 showSlashMenu={showSlashMenu}
                 slashCommandKeyboardHandlerRef={slashCommandKeyboardHandlerRef}
-                showPlusSlashMenu={showPlusSlashMenu}
-                plusSlashCommandKeyboardHandlerRef={
-                  plusSlashCommandKeyboardHandlerRef
-                }
                 onSlashCommand={handleSlashCommand}
                 onSlashCommandClose={handleSlashCommandClose}
-                onPlusSlashClose={handlePlusSlashClose}
                 onContentChange={handleContentChange}
                 onAtMention={handleKeyboardAtMention}
                 onAtMentionClose={handleAtMentionClose}
@@ -511,8 +501,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                   allowFileAttachments ? handleImagePaste : undefined
                 }
                 onAddContent={handleOpenContextMenu}
-                onUpload={handleUploadClick}
-                onOpenSkillsTools={handleOpenSkillsTools}
                 isCiteCode={isCiteCode}
                 selectedCiteRange={selectedCiteRange}
                 citeFileName={citeFileName}
@@ -540,13 +528,8 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                 contextMenuKeyboardHandlerRef={contextMenuKeyboardHandlerRef}
                 showSlashMenu={showSlashMenu}
                 slashCommandKeyboardHandlerRef={slashCommandKeyboardHandlerRef}
-                showPlusSlashMenu={showPlusSlashMenu}
-                plusSlashCommandKeyboardHandlerRef={
-                  plusSlashCommandKeyboardHandlerRef
-                }
                 onSlashCommand={handleSlashCommand}
                 onSlashCommandClose={handleSlashCommandClose}
-                onPlusSlashClose={handlePlusSlashClose}
                 onContentChange={handleContentChange}
                 onAtMention={handleKeyboardAtMention}
                 onAtMentionClose={handleAtMentionClose}
@@ -560,8 +543,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                   allowFileAttachments ? handleImagePaste : undefined
                 }
                 onAddContent={handleOpenContextMenu}
-                onUpload={handleUploadClick}
-                onOpenSkillsTools={handleOpenSkillsTools}
                 isCiteCode={isCiteCode}
                 selectedCiteRange={selectedCiteRange}
                 citeFileName={citeFileName}
@@ -612,13 +593,14 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
           containerRef={containerRef}
           onContextMenuClose={handleContextMenuClose}
           onAtSelect={handleAtSelect}
+          onImageUpload={
+            allowFileAttachments ? handleContextImageUpload : undefined
+          }
           customMentionOptions={activeCustomMentionOptions}
           onCustomMentionSelect={handleCustomMentionSelect}
           atSearchQuery={atSearchQuery}
-          contextMenuKeyboardOpened={contextMenuKeyboardOpened}
           currentRepoPath={currentRepoPath}
           contextMenuKeyboardHandlerRef={contextMenuKeyboardHandlerRef}
-          mentionTreePosition={mentionTreePosition}
           isEditMode={isEditMode}
           showSlashMenu={showSlashMenu}
           filteredSlashItems={visibleSlashItems}
@@ -628,20 +610,8 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
           slashQuery={slashQuery}
           onSlashCommandClose={handleSlashCommandClose}
           onSlashSelect={handleSlashSelect}
-          onModeSelect={handleModeSelect}
+          onContextModeSelect={handleContextModeSelect}
           slashCommandKeyboardHandlerRef={slashCommandKeyboardHandlerRef}
-          onImageUpload={allowFileAttachments ? handleUploadClick : undefined}
-          showActionFlyouts={showAgentControls}
-          showModeRows={showAgentControls}
-          showPlusSlashMenu={showPlusSlashMenu}
-          plusSlashQuery={plusSlashQuery}
-          onPlusSlashClose={handlePlusSlashClose}
-          onSlashAppendSelect={handleSlashAppendSelect}
-          plusSlashCommandKeyboardHandlerRef={
-            plusSlashCommandKeyboardHandlerRef
-          }
-          onPlusSlashQueryChange={handlePlusSlashQueryChange}
-          bottomAnchored={bottomAnchored}
         />
 
         {allowFileAttachments && (

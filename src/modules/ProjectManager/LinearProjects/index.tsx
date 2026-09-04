@@ -15,6 +15,9 @@ import WorkItemDetail, {
 } from "@src/modules/ProjectManager/WorkItems/components/WorkItemDetail";
 import WorkItemsPageHeader from "@src/modules/ProjectManager/WorkItems/components/WorkItemsPageHeader";
 import { useProjectManagerWorkItemsTabBarRegistration } from "@src/modules/ProjectManager/hooks/useProjectManagerWorkItemsTabBarRegistration";
+import DetailPaneLayout, {
+  DetailPanePlaceholder,
+} from "@src/modules/shared/layouts/DetailPaneLayout";
 import {
   getProjectLinearProjectsTabChrome,
   getProjectLinearWorkItemsTabChrome,
@@ -306,7 +309,13 @@ const LinearProjectsPage: React.FC<LinearProjectsPageProps> = ({
   });
 
   const detailContent = selectedWorkItem && project && (
-    <Suspense fallback={<Placeholder variant="loading" />}>
+    <Suspense
+      fallback={
+        <DetailPaneLayout>
+          <DetailPanePlaceholder variant="loading" />
+        </DetailPaneLayout>
+      }
+    >
       <WorkItemDetail
         workItem={selectedWorkItem}
         onClose={() => setSelectedIssueId(null)}

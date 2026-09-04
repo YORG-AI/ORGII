@@ -394,6 +394,11 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
                   }
                 }}
                 sessionKey={session.id}
+                // Every session in this list stays mounted and is hidden with
+                // `display: none`, so the pane itself has to say whether it is
+                // on screen. Without it every terminal ever opened claims a
+                // foreground output schedule and a GPU context forever.
+                isForeground={session.id === activeSessionId}
                 onSelectionChange={handleSelectionChange}
                 repoPath={session.cwd || repoPath}
                 workingDirectory={session.liveCwd || session.cwd}

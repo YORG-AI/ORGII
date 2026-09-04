@@ -59,6 +59,8 @@ export interface WorkItemContentProps {
   githubIssueTimeline?: {
     items: GitHubIssueTimelineItem[];
     loading: boolean;
+    /** Surfaced inline so a failed activity load is never a blank thread. */
+    error?: string | null;
   };
   /** Inline GitHub-native body, comment, and status actions for thread surfaces. */
   githubIssueInteraction?: GitHubIssueInteractionConfig;

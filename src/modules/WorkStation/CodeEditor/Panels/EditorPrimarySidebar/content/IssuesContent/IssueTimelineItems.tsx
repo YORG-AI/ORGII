@@ -17,6 +17,8 @@ import { IssueTimelineEventRow } from "./IssueTimelineEvent";
 interface IssueTimelineItemsProps {
   timeline: GitHubIssueTimelineItem[];
   timelineLoading: boolean;
+  /** Reported inline: an empty thread cannot say why it is empty. */
+  timelineError?: string | null;
   navigationEnabled?: boolean;
 }
 
@@ -38,9 +40,14 @@ export function getIssueTimelineTrailLabel(
 export function IssueTimelineItems({
   timeline,
   timelineLoading,
+  timelineError = null,
   navigationEnabled = false,
 }: IssueTimelineItemsProps): React.ReactNode {
   const { t } = useTranslation("common");
+
+  // A failed activity load is reported by the host's alert slot above the
+  // title, not buried at the end of the thread.
+  if (!timelineLoading && timelineError) return null;
 
   if (timelineLoading) {
     return (

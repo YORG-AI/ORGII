@@ -4,6 +4,7 @@
  */
 import { atom } from "jotai";
 
+import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation/workstationTabBarAtoms";
 import type {
   GitHubIssueDetailTabData,
   GitHubPrDetailTabData,
@@ -14,7 +15,6 @@ import {
   createChannelTab,
   createGitHubIssueTab,
   createGitHubPrTab,
-  createTeamInboxTab,
 } from "../chatPanelTabFactories";
 import {
   activateChatPanelTabAtom,
@@ -22,30 +22,16 @@ import {
 } from "../chatPanelTabPresentationAtoms";
 import type { ChatPanelSelectedChannel } from "../chatPanelTabsModel";
 import { chatPanelTabsAtom } from "../chatPanelTabsState";
+import { openWorkManagementChatPanelTabAtom } from "./workManagement";
 
-/** Open or focus the singleton Team Inbox tab. */
+/** Open Inbox in the shared Work list tab so it keeps the dataset selector. */
 export const openTeamInboxInChatPanelTabAtom = atom(
   null,
-  (get, set, title: string = "Inbox") => {
-    const state = get(chatPanelTabsAtom);
-    const existingTab = state.tabs.find((tab) => tab.type === "team-inbox");
-    if (existingTab) {
-      if (existingTab.title !== title) {
-        set(chatPanelTabsAtom, {
-          ...state,
-          tabs: state.tabs.map((tab) =>
-            tab.id === existingTab.id ? { ...tab, title } : tab
-          ),
-        });
-      }
-      set(activateChatPanelTabAtom, existingTab.id);
-      return existingTab.id;
-    }
-
-    const tab = createTeamInboxTab({ title });
-    set(appendAndActivateChatPanelTabAtom, { tab });
-    return tab.id;
-  }
+  (_get, set, title: string = "Inbox") =>
+    set(openWorkManagementChatPanelTabAtom, {
+      section: WORK_MANAGEMENT_SECTION.INBOX,
+      title,
+    })
 );
 openTeamInboxInChatPanelTabAtom.debugLabel = "openTeamInboxInChatPanelTab";
 

@@ -813,8 +813,8 @@ export async function selectRenderedExecMode(mode) {
     // current mode is non-default, clicking RESETS to build and closes —
     // no dropdown opens. Detect that: if the pill vanished (hideWhenDefault)
     // or now shows the default, the reset happened. When the caller wanted
-    // the default mode we are done; otherwise fall through to the slash
-    // menu path below to pick the explicit mode.
+    // the default mode we are done; otherwise fall through to the shared
+    // + / @ menu path below to pick the explicit mode.
     await new Promise((resolveSleep) => setTimeout(resolveSleep, 300));
     const pillStillRendered = await execJS(js.exists(pillSelector));
     const optionsOpened = await execJS(
@@ -829,7 +829,7 @@ export async function selectRenderedExecMode(mode) {
         postClickText.includes(DEFAULT_AGENT_EXEC_MODE_LABEL);
       if (resetLanded && mode === "build") return;
       if (resetLanded) {
-        await selectExecModeViaSlashMenu(mode);
+        await selectExecModeViaContextMenu(mode);
         return;
       }
     }
@@ -873,46 +873,30 @@ export async function selectRenderedExecMode(mode) {
     return;
   }
 
-  await selectExecModeViaSlashMenu(mode);
+  await selectExecModeViaContextMenu(mode);
 }
 
 const DEFAULT_AGENT_EXEC_MODE_LABEL = "build";
 
-async function selectExecModeViaSlashMenu(mode) {
-  const skillsToolsButtonSelector =
-    '[data-testid="composer-skills-tools-button"]';
-  await browser.waitUntil(
-    async () => execJS(js.exists(skillsToolsButtonSelector)),
-    {
-      timeout: RENDER_TIMEOUT_MS,
-      timeoutMsg: "Composer skills/tools button never rendered",
-    }
-  );
-  const openSlashResult = await execJS(
-    js.visibleClick(skillsToolsButtonSelector)
-  );
-  if (openSlashResult !== "clicked") {
-    throw new Error(
-      `Composer skills/tools button did not open: ${openSlashResult}`
-    );
+async function selectExecModeViaContextMenu(mode) {
+  const addButtonSelector = '[data-testid="composer-add-context-button"]';
+  await browser.waitUntil(async () => execJS(js.exists(addButtonSelector)), {
+    timeout: RENDER_TIMEOUT_MS,
+    timeoutMsg: "Composer + button never rendered for mode selection",
+  });
+  const openMenuResult = await execJS(js.visibleClick(addButtonSelector));
+  if (openMenuResult !== "clicked") {
+    throw new Error(`Composer context menu did not open: ${openMenuResult}`);
   }
-  // The slash menu renders ModeRow entries flat (showModeRows) — there is
-  // no "Mode" flyout trigger anymore. Click the mode option directly.
-  // ModeRow commits on mousedown (visibleClick dispatches it).
-  const slashModeOptionSelector = `[data-testid="slash-command-mode-option-${mode}"]`;
-  await browser.waitUntil(
-    async () => execJS(js.exists(slashModeOptionSelector)),
-    {
-      timeout: RENDER_TIMEOUT_MS,
-      timeoutMsg: `Slash command mode option ${mode} never rendered`,
-    }
-  );
-  const slashModeClickResult = await execJS(
-    js.visibleClick(slashModeOptionSelector)
-  );
-  if (slashModeClickResult !== "clicked") {
+  const modeOptionSelector = `[data-testid="context-menu-mode-option-${mode}"]`;
+  await browser.waitUntil(async () => execJS(js.exists(modeOptionSelector)), {
+    timeout: RENDER_TIMEOUT_MS,
+    timeoutMsg: `Shared context mode option ${mode} never rendered`,
+  });
+  const modeClickResult = await execJS(js.visibleClick(modeOptionSelector));
+  if (modeClickResult !== "clicked") {
     throw new Error(
-      `Slash command mode option ${mode} did not click: ${slashModeClickResult}`
+      `Shared context mode option ${mode} did not click: ${modeClickResult}`
     );
   }
 }

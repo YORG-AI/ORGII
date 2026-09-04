@@ -1,3 +1,4 @@
+import { useAtomValue } from "jotai";
 import React, {
   useCallback,
   useEffect,
@@ -6,23 +7,30 @@ import React, {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 
-import type {
-  PairedDeviceInfo,
-  PairingInitOutput,
-  RelayStatus,
+import {
+  PERMISSION_TIER,
+  type PairedDeviceInfo,
+  type PairingInitOutput,
+  type RelayStatus,
+  mobileRemoteApi,
 } from "@src/api/tauri/mobileRemote";
-import mobileRemoteApi, { PERMISSION_TIER } from "@src/api/tauri/mobileRemote";
 import Button from "@src/components/Button";
 import { InlineBanner } from "@src/components/InlineBanner";
 import Input from "@src/components/Input";
 import Message from "@src/components/Message";
 import { Placeholder } from "@src/components/Placeholder";
-import SettingsTable, {
-  SETTINGS_TABLE_CELL,
-  SETTINGS_TABLE_COL,
-} from "@src/components/SettingsTable";
+import SegmentedTextPill from "@src/components/SegmentedTextPill";
 import Switch from "@src/components/Switch";
+import { buildSettingsPath } from "@src/config/mainAppPaths";
+import {
+  type MobileRemoteRelayPreset,
+  mobileRemoteRelayPresetUrl,
+  resolveMobileRemoteRelayPreset,
+} from "@src/config/mobileRemoteRelay";
+import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
 import { useAsyncData } from "@src/hooks/async";
 import { useSetting } from "@src/hooks/settings/useSettings";
 import {
@@ -31,15 +39,21 @@ import {
 } from "@src/modules/shared/layouts/SectionLayout";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
+import { SECTION_IDS } from "../config";
 import MobileRemoteOutdoorPairingDetails from "./MobileRemoteOutdoorPairingDetails";
 import MobileRemoteQrCodeDisplay from "./MobileRemoteQrCodeDisplay";
+import PairedDeviceList from "./PairedDeviceList";
 import {
   buildMobileRemoteWsUrl,
   fetchMobileRemoteLanIp,
+  formatMobileRemoteRelayStatusMessage,
   generateMobileRemoteLanToken,
   isMobileRemoteLanHostPlaceholder,
+  isMobileRemoteRelayReady,
   resolveMobileRemoteLanHostWithIp,
+  usesLocalRelayDesktopToken,
 } from "./mobileRemoteSettingsHelpers";
+import { suggestOutdoorPairingPhoneLabel } from "./pairedDeviceDisplay";
 
 function formatDeviceTimestamp(ms: number | null): string {
   if (ms == null || ms <= 0) return "—";
@@ -47,7 +61,10 @@ function formatDeviceTimestamp(ms: number | null): string {
 }
 
 const MobileRemoteSettingsSection: React.FC = () => {
-  const { t } = useTranslation("settings");
+  const { t } = useTranslation(["settings", "navigation", "common"]);
+  const navigate = useNavigate();
+  const cloudAuth = useAtomValue(org2CloudAuthAtom);
+  const handleCloudSignIn = useOrg2CloudSignIn();
   const [enabled, setEnabled] = useSetting("mobileRemote.enabled");
   const [relayEnabled, setRelayEnabled] = useSetting(
     "mobileRemote.relayEnabled"
@@ -62,7 +79,9 @@ const MobileRemoteSettingsSection: React.FC = () => {
   const [lanToken, setLanToken] = useSetting("mobileRemote.lanToken");
   const [lanPort] = useSetting("mobileRemote.lanPort");
 
-  const [phoneLabel, setPhoneLabel] = useState("My phone");
+  const [phoneLabel, setPhoneLabel] = useState(() =>
+    suggestOutdoorPairingPhoneLabel()
+  );
   const [fullAccess, setFullAccess] = useState(true);
   const [pairing, setPairing] = useState<PairingInitOutput | null>(null);
   const [pairingLoading, setPairingLoading] = useState(false);
@@ -79,11 +98,24 @@ const MobileRemoteSettingsSection: React.FC = () => {
     [lanToken, setEnabled, setLanToken]
   );
 
-  const relayConfigured =
-    relayEnabled &&
-    /^wss?:\/\//.test(relayUrl.trim()) &&
-    desktopToken.trim().length >= 24;
-  const relayQueryKey = `${enabled}:${relayEnabled}:${relayUrl}:${desktopToken.length}`;
+  const activeRelayPreset = useMemo(
+    () => resolveMobileRemoteRelayPreset(relayUrl),
+    [relayUrl]
+  );
+  const usesLocalDesktopToken = usesLocalRelayDesktopToken(relayUrl);
+  const cloudSignedIn = cloudAuth != null;
+  const cloudSignedInIdentity =
+    cloudAuth?.profile?.displayName ??
+    cloudAuth?.profile?.primaryEmail ??
+    cloudAuth?.userId ??
+    "";
+
+  const relayConfigured = isMobileRemoteRelayReady({
+    relayUrl,
+    desktopToken,
+    cloudSignedIn,
+  });
+  const relayQueryKey = `${enabled}:${relayEnabled}:${relayUrl}:${usesLocalDesktopToken ? desktopToken.length : (cloudAuth?.userId ?? "signed-out")}`;
   const {
     data: relayStatus,
     loading: relayStatusLoading,
@@ -101,7 +133,7 @@ const MobileRemoteSettingsSection: React.FC = () => {
     try {
       const next = await mobileRemoteApi.pairInit({
         tier: fullAccess ? PERMISSION_TIER.FULL : PERMISSION_TIER.READ_ONLY,
-        label: phoneLabel.trim() || "My phone",
+        label: phoneLabel.trim() || suggestOutdoorPairingPhoneLabel(),
         isPrimary: true,
       });
       if (requestId !== pairingRequestIdRef.current) return;
@@ -118,11 +150,44 @@ const MobileRemoteSettingsSection: React.FC = () => {
     }
   }, [fullAccess, phoneLabel, t]);
 
+  const handleRelayPresetChange = useCallback(
+    (preset: MobileRemoteRelayPreset) => {
+      setRelayUrl(mobileRemoteRelayPresetUrl(preset));
+    },
+    [setRelayUrl]
+  );
+
+  const handleOpenGeneralSettings = useCallback(() => {
+    navigate(buildSettingsPath({ section: SECTION_IDS.GENERAL }));
+  }, [navigate]);
+
+  const relayStatusDescription = useMemo(() => {
+    const formatted = formatMobileRemoteRelayStatusMessage(
+      relayStatus?.message,
+      relayUrl,
+      cloudSignedIn,
+      t
+    );
+    if (formatted) {
+      return formatted;
+    }
+    if (!usesLocalDesktopToken && !cloudSignedIn) {
+      return t("mobileRemote.cloudLoginDescSignedOut");
+    }
+    return t("mobileRemote.relayEnabledDesc");
+  }, [cloudSignedIn, relayStatus?.message, relayUrl, t, usesLocalDesktopToken]);
+
   useEffect(() => {
     pairingRequestIdRef.current += 1;
     setPairing(null);
     setPairingLoading(false);
-  }, [desktopToken, enabled, relayEnabled, relayUrl]);
+  }, [
+    cloudAuth?.userId,
+    enabled,
+    relayEnabled,
+    relayUrl,
+    usesLocalDesktopToken,
+  ]);
 
   useEffect(
     () => () => {
@@ -205,7 +270,9 @@ const MobileRemoteSettingsSection: React.FC = () => {
       {enabled ? (
         <>
           <InlineBanner tone="info">
-            {t("mobileRemote.relaySetupNotice")}
+            {usesLocalDesktopToken
+              ? t("mobileRemote.relaySetupNoticeLocal")
+              : t("mobileRemote.relaySetupNotice")}
           </InlineBanner>
 
           <SectionRow
@@ -224,34 +291,90 @@ const MobileRemoteSettingsSection: React.FC = () => {
                 layout="vertical"
                 indent
               >
-                <Input
-                  value={relayUrl}
-                  onChange={setRelayUrl}
-                  placeholder="wss://relay.example.com/v1/mobile/ws"
-                  spellCheck={false}
-                />
+                <div className="flex w-full flex-col items-start gap-2">
+                  <SegmentedTextPill
+                    ariaLabel={t("mobileRemote.relayPresetAria")}
+                    dataTestId="mobile-remote-relay-preset"
+                    size="small"
+                    value={activeRelayPreset}
+                    options={[
+                      {
+                        value: "local",
+                        label: t("mobileRemote.relayPresetLocal"),
+                      },
+                      {
+                        value: "production",
+                        label: t("mobileRemote.relayPresetProduction"),
+                      },
+                    ]}
+                    onChange={handleRelayPresetChange}
+                  />
+                  <Input
+                    value={relayUrl}
+                    onChange={setRelayUrl}
+                    placeholder="wss://relay.example.com/v1/mobile/ws"
+                    spellCheck={false}
+                  />
+                </div>
               </SectionRow>
 
-              <SectionRow
-                label={t("mobileRemote.desktopToken")}
-                description={t("mobileRemote.desktopTokenDesc")}
-                layout="vertical"
-                indent
-              >
-                <Input
-                  type="password"
-                  value={desktopToken}
-                  onChange={setDesktopToken}
-                  spellCheck={false}
-                  autoComplete="off"
-                />
-              </SectionRow>
+              {usesLocalDesktopToken ? (
+                <SectionRow
+                  label={t("mobileRemote.desktopToken")}
+                  description={t("mobileRemote.desktopTokenDesc")}
+                  layout="vertical"
+                  indent
+                >
+                  <Input
+                    type="password"
+                    value={desktopToken}
+                    onChange={setDesktopToken}
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                </SectionRow>
+              ) : (
+                <SectionRow
+                  label={t("mobileRemote.cloudLoginTitle")}
+                  description={
+                    cloudSignedIn
+                      ? t("mobileRemote.cloudLoginDescSignedIn", {
+                          identity: cloudSignedInIdentity,
+                        })
+                      : t("mobileRemote.cloudLoginDescSignedOut")
+                  }
+                  indent
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    {cloudSignedIn ? (
+                      <span className="text-sm text-text-2">
+                        {cloudSignedInIdentity}
+                      </span>
+                    ) : (
+                      <Button
+                        size="default"
+                        onClick={handleCloudSignIn}
+                        data-testid="mobile-remote-cloud-sign-in"
+                      >
+                        {t("navigation:cloud.signIn")}
+                      </Button>
+                    )}
+                    <Button
+                      variant="tertiary"
+                      appearance="ghost"
+                      size="small"
+                      onClick={handleOpenGeneralSettings}
+                      data-testid="mobile-remote-open-general-settings"
+                    >
+                      {t("mobileRemote.openGeneralSettings")}
+                    </Button>
+                  </div>
+                </SectionRow>
+              )}
 
               <SectionRow
                 label={t("mobileRemote.relayStatus")}
-                description={
-                  relayStatus?.message ?? t("mobileRemote.relayEnabledDesc")
-                }
+                description={relayStatusDescription}
                 indent
               >
                 <div className="flex items-center gap-2">
@@ -344,59 +467,10 @@ const MobileRemoteSettingsSection: React.FC = () => {
                     subtitle={t("mobileRemote.noDevicesDesc")}
                   />
                 ) : (
-                  <SettingsTable<PairedDeviceInfo>
-                    columns={[
-                      {
-                        key: "label",
-                        label: t("mobileRemote.deviceLabel"),
-                        width: SETTINGS_TABLE_COL.fill,
-                        renderCell: (row) => (
-                          <span className={SETTINGS_TABLE_CELL.primary}>
-                            {row.label || row.deviceId}
-                          </span>
-                        ),
-                      },
-                      {
-                        key: "tier",
-                        label: t("mobileRemote.deviceTier"),
-                        width: SETTINGS_TABLE_COL.valueSm,
-                        renderCell: (row) => (
-                          <span className={SETTINGS_TABLE_CELL.muted}>
-                            {row.tier}
-                          </span>
-                        ),
-                      },
-                      {
-                        key: "lastSeenMs",
-                        label: t("mobileRemote.deviceLastSeen"),
-                        width: SETTINGS_TABLE_COL.valueMd,
-                        align: "right",
-                        renderCell: (row) => (
-                          <span className={SETTINGS_TABLE_CELL.value}>
-                            {formatDeviceTimestamp(row.lastSeenMs)}
-                          </span>
-                        ),
-                      },
-                      {
-                        key: "actions",
-                        label: "",
-                        width: SETTINGS_TABLE_COL.hug,
-                        renderCell: (row) => (
-                          <Button
-                            variant="danger"
-                            appearance="ghost"
-                            size="small"
-                            onClick={() =>
-                              void handleRevokeDevice(row.deviceId)
-                            }
-                          >
-                            {t("mobileRemote.revokeDevice")}
-                          </Button>
-                        ),
-                      },
-                    ]}
-                    rows={devices}
-                    getRowKey={(row) => row.deviceId}
+                  <PairedDeviceList
+                    devices={devices}
+                    formatTimestamp={formatDeviceTimestamp}
+                    onRevoke={(deviceId) => void handleRevokeDevice(deviceId)}
                   />
                 )}
               </SectionRow>

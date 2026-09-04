@@ -41,6 +41,21 @@ fn test_empty_object() {
 }
 
 #[test]
+fn read_normalization_hides_retired_multi_profile_settings() {
+    let mut settings = serde_json::json!({
+        "general.profileTechSavvy": "expert",
+        "general.profilePresets": [{ "id": "another-profile" }],
+        "general.activeProfileId": "another-profile",
+    });
+
+    remove_retired_profile_settings(&mut settings);
+
+    assert_eq!(settings["general.profileTechSavvy"], "expert");
+    assert!(settings.get("general.profilePresets").is_none());
+    assert!(settings.get("general.activeProfileId").is_none());
+}
+
+#[test]
 fn test_recover_trailing_garbage_json() {
     let input = r#"{
   "general.language": "zh",

@@ -1,19 +1,25 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import InlineAlert from "@src/components/InlineAlert";
 import { Placeholder } from "@src/components/Placeholder";
+import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import {
   type ManagedPrItem,
   getManagedPullRequestKey,
 } from "@src/modules/MainApp/WorkManagement/githubManagedItemModel";
-import SplitViewLayout from "@src/modules/shared/layouts/SplitViewLayout";
+import InboxListDetailLayout from "@src/modules/shared/layouts/InboxListDetailLayout";
+import SplitListFullscreenButton from "@src/modules/shared/layouts/SplitListFullscreenButton";
+import SplitListHeader from "@src/modules/shared/layouts/SplitListHeader";
 import { normalizePrStatus } from "@src/shared/pr/prStatus";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 import type { WorkItem } from "@src/types/core/workItem";
 
+import { useWorkManagementSplitHeader } from "../WorkManagement/workManagementSplitHeaderContext";
 import { TeamInboxList } from "./components";
 import { TeamInboxDetailPane } from "./components/TeamInboxDetailPane";
+import { TeamInboxListControls } from "./components/TeamInboxList";
 import TeamInboxSessionDropSurface from "./components/TeamInboxSessionDropSurface";
 import {
   type TeamInboxDataSource,
@@ -77,6 +83,8 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   onOpenPullRequestTab,
 }) => {
   const { t } = useTranslation();
+  const { splitDatasetControl, surfaceDatasetControl } =
+    useWorkManagementSplitHeader();
   const issueMessage = useCallback(
     (issue: TeamInboxIssue): string => {
       if (issue.code === "identity_unresolved") {
@@ -129,6 +137,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   const [dismissedLoadNoticeKey, setDismissedLoadNoticeKey] = useState<
     string | null
   >(null);
+  const [listFullscreen, setListFullscreen] = useState(false);
   const initialCombinedLoadPending =
     inboxInitialLoading || pullRequestsInitialLoading;
   const presentedItems = useMemo(
@@ -173,7 +182,6 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   const unreadCounts = initialCombinedLoadPending
     ? loadedUnreadCounts
     : (authoritativeUnreadCounts ?? loadedUnreadCounts);
-  const totalUnread = unreadCounts.all;
   const selectedPullRequest = useMemo(
     () =>
       presentedPullRequests.find(
@@ -225,42 +233,74 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
       unreadCounts,
     });
 
-  const handleSelect = (item: TeamInboxItem) => {
-    updateViewState((current) => ({
-      ...current,
-      filter: focusRequestActive ? "all" : current.filter,
-      query: focusRequestActive ? "" : current.query,
-      selectedItemId: getTeamInboxItemKey(item),
-      selectedPullRequestKey: null,
-      supersededFocusRequestId: focusRequest?.requestId ?? null,
-    }));
-  };
+  const handleSelect = useCallback(
+    (item: TeamInboxItem) => {
+      // A selected item must reveal its detail even if the user had expanded
+      // the list into its full-width presentation.
+      setListFullscreen(false);
+      updateViewState((current) => ({
+        ...current,
+        filter: focusRequestActive ? "all" : current.filter,
+        query: focusRequestActive ? "" : current.query,
+        detailPaneOpen: true,
+        selectedItemId: getTeamInboxItemKey(item),
+        selectedPullRequestKey: null,
+        supersededFocusRequestId: focusRequest?.requestId ?? null,
+      }));
+    },
+    [focusRequest?.requestId, focusRequestActive, updateViewState]
+  );
 
-  const handleFilterChange = (nextFilter: TeamInboxFilter) => {
-    updateViewState((current) => ({
-      ...current,
-      filter: nextFilter,
-      query: focusRequestActive ? "" : current.query,
-      supersededFocusRequestId: focusRequest?.requestId ?? null,
-    }));
-  };
+  const handleQueryChange = useCallback(
+    (nextQuery: string) => {
+      updateViewState((current) => ({
+        ...current,
+        filter: focusRequestActive ? "all" : current.filter,
+        query: nextQuery,
+        supersededFocusRequestId: focusRequest?.requestId ?? null,
+      }));
+    },
+    [focusRequest?.requestId, focusRequestActive, updateViewState]
+  );
 
-  const handleQueryChange = (nextQuery: string) => {
+  const handleSelectPullRequest = useCallback(
+    (pullRequest: ManagedPrItem) => {
+      // PR rows share the same full-list presentation as Inbox items.
+      setListFullscreen(false);
+      updateViewState((current) => ({
+        ...current,
+        detailPaneOpen: true,
+        selectedPullRequestKey: getManagedPullRequestKey(pullRequest),
+        supersededFocusRequestId: focusRequest?.requestId ?? null,
+      }));
+    },
+    [focusRequest?.requestId, updateViewState]
+  );
+  const handleCloseDetail = useCallback(() => {
+    setListFullscreen(false);
     updateViewState((current) => ({
       ...current,
-      filter: focusRequestActive ? "all" : current.filter,
-      query: nextQuery,
-      supersededFocusRequestId: focusRequest?.requestId ?? null,
+      detailPaneOpen: false,
+      supersededFocusRequestId:
+        focusRequest?.requestId ?? current.supersededFocusRequestId,
     }));
-  };
-
-  const handleSelectPullRequest = (pullRequest: ManagedPrItem) => {
-    updateViewState((current) => ({
-      ...current,
-      selectedPullRequestKey: getManagedPullRequestKey(pullRequest),
-      supersededFocusRequestId: focusRequest?.requestId ?? null,
-    }));
-  };
+  }, [focusRequest?.requestId, updateViewState]);
+  const detailPaneOpen =
+    focusRequestActive || viewState.detailPaneOpen !== false;
+  const isListOnly = !detailPaneOpen || listFullscreen;
+  const handleToggleListPresentation = useCallback(() => {
+    if (!detailPaneOpen) {
+      setListFullscreen(false);
+      updateViewState((current) => ({
+        ...current,
+        detailPaneOpen: true,
+      }));
+      return;
+    }
+    setListFullscreen((current) => !current);
+  }, [detailPaneOpen, updateViewState]);
+  // Every split presentation owns its controls in the left-column header.
+  const useSplitListHeader = detailPaneOpen && !listFullscreen;
 
   const handleWorkItemUpdated = useCallback(
     (sourceItem: TeamInboxItem, workItem: WorkItem) => {
@@ -305,6 +345,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
       onMarkRead={handleMarkRead}
       onMarkUnread={handleMarkUnread}
       onRefresh={handleRefresh}
+      onClose={handleCloseDetail}
       onWorkItemUpdated={handleWorkItemUpdated}
     />
   );
@@ -330,77 +371,157 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
       </InlineAlert>
     ) : null;
 
+  const listHeaderControls = useMemo(
+    () => (
+      <TeamInboxListControls
+        filter={visibleFilter}
+        unreadCounts={unreadCounts}
+        query={visibleQuery}
+        loading={
+          initialCombinedLoadPending ||
+          loadState.status === "loading" ||
+          pullRequestsLoading ||
+          loadingMore
+        }
+        placement="header"
+        fillSearch={useSplitListHeader}
+        trailingActions={
+          <SplitListFullscreenButton
+            isFullscreen={isListOnly}
+            onToggle={handleToggleListPresentation}
+          />
+        }
+        onQueryChange={handleQueryChange}
+        onRefresh={handleRefresh}
+        onMarkAllRead={dataSource.markAllRead ? handleMarkAllRead : undefined}
+      />
+    ),
+    [
+      dataSource.markAllRead,
+      handleMarkAllRead,
+      handleQueryChange,
+      handleRefresh,
+      handleToggleListPresentation,
+      initialCombinedLoadPending,
+      isListOnly,
+      loadState.status,
+      loadingMore,
+      pullRequestsLoading,
+      unreadCounts,
+      useSplitListHeader,
+      visibleFilter,
+      visibleQuery,
+    ]
+  );
+  const splitListHeader = useMemo(
+    () =>
+      useSplitListHeader ? (
+        <SplitListHeader
+          primary={
+            <div className="flex min-w-0 flex-1 items-center gap-px">
+              {splitDatasetControl}
+              {listHeaderControls}
+            </div>
+          }
+        />
+      ) : null,
+    [listHeaderControls, splitDatasetControl, useSplitListHeader]
+  );
+  const fullListHeader = useMemo(
+    () =>
+      !useSplitListHeader ? (
+        <SplitListHeader
+          fullWidth
+          primary={
+            <div className="flex min-w-0 flex-1 items-center gap-px">
+              {surfaceDatasetControl}
+              {surfaceDatasetControl ? (
+                <HeaderSectionSeparator className="mx-0.5" />
+              ) : null}
+              <div className="ml-auto flex min-w-0 items-center gap-px">
+                {listHeaderControls}
+              </div>
+            </div>
+          }
+        />
+      ) : null,
+    [listHeaderControls, surfaceDatasetControl, useSplitListHeader]
+  );
+  // Keep chat/workstation tab titles in the host row. Inbox controls always
+  // render in their own local 36px surface header.
+  const publishedHeader = useMemo(() => ({ hidden: true }), []);
+  usePublishWorkstationTabHeader({
+    host: "workManagement",
+    content: publishedHeader,
+  });
+
+  const listSurface =
+    loadState.status === "error" &&
+    !initialCombinedLoadPending &&
+    presentedItems.length === 0 &&
+    presentedPullRequests.length === 0 ? (
+      <Placeholder
+        variant="error"
+        placement="sidebar"
+        title={t("teamInbox.errors.loadTitle")}
+        subtitle={loadState.message ?? undefined}
+        action={{
+          label: t("common:actions.retry"),
+          onClick: handleRefresh,
+        }}
+        fillParentHeight
+      />
+    ) : (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="min-h-0 flex-1">
+          <TeamInboxList
+            filter={visibleFilter}
+            items={visibleItems}
+            selectedItemId={selectedItemId}
+            unreadCounts={unreadCounts}
+            query={visibleQuery}
+            loading={
+              initialCombinedLoadPending ||
+              loadState.status === "loading" ||
+              pullRequestsLoading
+            }
+            pullRequests={presentedPullRequests}
+            pullRequestsLoading={pullRequestsLoading}
+            pullRequestsError={pullRequestsError}
+            selectedPullRequestKey={viewState.selectedPullRequestKey}
+            onQueryChange={handleQueryChange}
+            onSelectItem={handleSelect}
+            onSelectPullRequest={handleSelectPullRequest}
+            onRefresh={handleRefresh}
+            onMarkAllRead={
+              dataSource.markAllRead ? handleMarkAllRead : undefined
+            }
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            onLoadMore={dataSource.loadMore ? handleLoadMore : undefined}
+            showControls={false}
+          />
+        </div>
+        {loadNotice}
+      </div>
+    );
+
   return (
     <TeamInboxSessionDropSurface
       dataSource={dataSource}
       onNavigate={onNavigate}
     >
       <div className="flex h-full min-h-0 flex-col">
-        <SplitViewLayout
-          className="min-h-0 flex-1 rounded-page"
-          listWidth={360}
-          minListWidth={280}
-          maxListWidth={480}
-          resizable
-          collapsible
-          hideBreadcrumbWhenSidebarCollapsed
-          listPanelBackgroundClassName="bg-chat-pane"
-          mainContentClassName="bg-chat-pane"
-          listContent={
-            loadState.status === "error" &&
-            !initialCombinedLoadPending &&
-            presentedItems.length === 0 &&
-            presentedPullRequests.length === 0 ? (
-              <Placeholder
-                variant="error"
-                placement="sidebar"
-                title={t("teamInbox.errors.loadTitle")}
-                subtitle={loadState.message ?? undefined}
-                action={{
-                  label: t("common:actions.retry"),
-                  onClick: handleRefresh,
-                }}
-                fillParentHeight
-              />
-            ) : (
-              <div className="flex h-full min-h-0 flex-col">
-                <div className="min-h-0 flex-1">
-                  <TeamInboxList
-                    filter={visibleFilter}
-                    items={visibleItems}
-                    selectedItemId={selectedItemId}
-                    totalUnread={totalUnread}
-                    unreadCounts={unreadCounts}
-                    query={visibleQuery}
-                    loading={
-                      initialCombinedLoadPending ||
-                      loadState.status === "loading" ||
-                      pullRequestsLoading
-                    }
-                    pullRequests={presentedPullRequests}
-                    pullRequestsLoading={pullRequestsLoading}
-                    pullRequestsError={pullRequestsError}
-                    selectedPullRequestKey={viewState.selectedPullRequestKey}
-                    onQueryChange={handleQueryChange}
-                    onFilterChange={handleFilterChange}
-                    onSelectItem={handleSelect}
-                    onSelectPullRequest={handleSelectPullRequest}
-                    onRefresh={handleRefresh}
-                    onMarkAllRead={
-                      dataSource.markAllRead ? handleMarkAllRead : undefined
-                    }
-                    hasMore={hasMore}
-                    loadingMore={loadingMore}
-                    onLoadMore={
-                      dataSource.loadMore ? handleLoadMore : undefined
-                    }
-                  />
-                </div>
-                {loadNotice}
-              </div>
-            )
-          }
-          mainContent={detail}
+        <InboxListDetailLayout
+          className="min-h-0 flex-1"
+          testId="team-inbox-list-detail-layout"
+          detailOpen={detailPaneOpen}
+          listFullscreen={detailPaneOpen && listFullscreen}
+          listHeader={splitListHeader}
+          fullHeader={fullListHeader}
+          fullContent={listSurface}
+          listContent={listSurface}
+          detailContent={detail}
         />
       </div>
     </TeamInboxSessionDropSurface>

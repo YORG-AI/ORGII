@@ -12,18 +12,12 @@
  * Supports time-based filtering: 12h/24h/3d/7d filters out sessions older
  * than the selected window.
  */
-import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useMemo } from "react";
+import { useAtomValue } from "jotai";
+import { useMemo } from "react";
 
 import { useCloudOrgRemoteSessions } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import { sessionsAtom, visitedSessionsAtom } from "@src/store/session";
-import {
-  kanbanReplayBoundsAtom,
-  kanbanReplayCursorAtom,
-  kanbanReplayEventsAtom,
-  kanbanReplayModeAtom,
-} from "@src/store/ui/kanbanReplayAtom";
 import { kanbanManualArchivedSessionsAtom } from "@src/store/ui/kanbanViewStateAtom";
 import { dedupeByCanonicalSession } from "@src/util/session/canonicalSessionKey";
 import { isPrimarySessionListSession } from "@src/util/session/sessionVisibility";
@@ -42,8 +36,6 @@ import {
   useKanbanOrgScope,
 } from "./useKanbanOrgScope";
 import { buildCloudRemoteKanbanProjection } from "./useKanbanTasks/cloudRemoteToKanbanTask";
-import { createReplayEvents } from "./useKanbanTasks/replayEvents";
-import { applyReplayCursor } from "./useKanbanTasks/replayProjection";
 import { sessionToKanbanTask } from "./useKanbanTasks/sessionToKanbanTask";
 import { getTaskTimestamp } from "./useKanbanTasks/taskTimestamps";
 import { useSessionImpact } from "./useSessionImpact";
@@ -103,11 +95,6 @@ export function useKanbanTasks(
   const manualArchivedSessionIds = useAtomValue(
     kanbanManualArchivedSessionsAtom
   );
-  const replayMode = useAtomValue(kanbanReplayModeAtom);
-  const replayCursor = useAtomValue(kanbanReplayCursorAtom);
-  const setReplayBounds = useSetAtom(kanbanReplayBoundsAtom);
-  const setReplayEvents = useSetAtom(kanbanReplayEventsAtom);
-
   // 30s is enough for time-window boundaries. The owner pauses while hidden,
   // refreshes once on return, and never overlaps timers.
   const nowTick = useKanbanNowTick();
@@ -130,11 +117,9 @@ export function useKanbanTasks(
   );
   const { impactBySessionId } = useSessionImpact(visibleSessions);
 
-  // Pair sessions with their kanban-task projection once. Downstream
-  // code reads from this so we don't re-iterate `sessions` per concern.
-  // The filter is applied here so every later memo (events, bounds,
-  // tasks) automatically respects the scope.
-  const sessionPairs = useMemo(() => {
+  // Project sessions once. The scope filter above owns which local sessions
+  // are eligible for every downstream board/list concern.
+  const localTasks = useMemo(() => {
     return visibleSessions.map((session) => {
       const task = sessionToKanbanTask(
         session,
@@ -144,12 +129,9 @@ export function useKanbanTasks(
         nowTick
       );
       return {
-        session,
-        task: {
-          ...task,
-          impact: impactBySessionId.get(session.session_id),
-          createdBy: resolveKanbanTaskCreator(session, orgScope),
-        },
+        ...task,
+        impact: impactBySessionId.get(session.session_id),
+        createdBy: resolveKanbanTaskCreator(session, orgScope),
       };
     });
   }, [
@@ -162,10 +144,6 @@ export function useKanbanTasks(
     orgScope,
   ]);
 
-  const localTasks = useMemo(
-    () => sessionPairs.map((pair) => pair.task),
-    [sessionPairs]
-  );
   const cloudProjection = useMemo(
     () =>
       cloudOrgId
@@ -200,84 +178,28 @@ export function useKanbanTasks(
     [cloudProjection.tasks, localTasks]
   );
 
-  // Right edge tracks the latest session activity so the bar's "now"
-  // doesn't lag behind incoming sessions. We compare against `Date.now()`
-  // below so an empty board still advances.
-  const latestSessionTs = useMemo(
-    () =>
-      allTasks
-        .map((task) => getTaskTimestamp(task))
-        .reduce((acc, ts) => Math.max(acc, ts), 0),
-    [allTasks]
+  // Recompute the moving time-window boundary whenever the visibility-aware
+  // clock ticks, so sessions age out without requiring other store activity.
+  const timeFilterCutoff = useMemo(
+    () => getTimeFilterCutoff(timeFilter, nowTick),
+    [nowTick, timeFilter]
   );
 
-  // Time-filter window is the bar's [start, end]. Recomputed whenever
-  // the filter, the most-recent-session timestamp, or the periodic
-  // tick changes — any of which should shift the bar's right edge.
-  const bounds = useMemo(() => {
-    const start = getTimeFilterCutoff(timeFilter);
-    const end = Math.max(latestSessionTs, nowTick);
-    return { start, end };
-  }, [timeFilter, latestSessionTs, nowTick]);
-
-  const setReplayCursor = useSetAtom(kanbanReplayCursorAtom);
-  useEffect(() => {
-    setReplayBounds(bounds);
-    // Reclamp the cursor into the new window. Only touch it in replay
-    // mode — follow mode reads `bounds.end` lazily via the resolved
-    // cursor atom, so it doesn't need any explicit nudging here.
-    if (
-      replayMode === "replay" &&
-      replayCursor !== null &&
-      bounds.end > bounds.start
-    ) {
-      const clamped = Math.max(
-        bounds.start,
-        Math.min(bounds.end, replayCursor)
-      );
-      if (clamped !== replayCursor) setReplayCursor(clamped);
-    }
-  }, [bounds, replayMode, replayCursor, setReplayBounds, setReplayCursor]);
-
-  // Sessions in the current time window. We always apply the time
-  // filter — replay mode then narrows further by hiding sessions whose
-  // `created_at` is past the cursor.
-  const windowedPairs = useMemo(() => {
-    const { start } = bounds;
-    return sessionPairs.filter((pair) => getTaskTimestamp(pair.task) >= start);
-  }, [sessionPairs, bounds]);
-  const windowedRemoteTasks = useMemo(() => {
-    const { start } = bounds;
-    return cloudProjection.tasks.filter(
-      (task) => getTaskTimestamp(task) >= start
+  // Sessions in the current time window.
+  const windowedLocalTasks = useMemo(() => {
+    return localTasks.filter(
+      (task) => getTaskTimestamp(task) >= timeFilterCutoff
     );
-  }, [bounds, cloudProjection.tasks]);
-
-  // Event timeline (created + terminal moments) for the bar's marker
-  // dots. Sourced from the time-windowed set so the bar's tick density
-  // matches what the user can actually see.
-  useEffect(() => {
-    setReplayEvents(createReplayEvents(windowedPairs));
-  }, [windowedPairs, setReplayEvents]);
+  }, [localTasks, timeFilterCutoff]);
+  const windowedRemoteTasks = useMemo(() => {
+    return cloudProjection.tasks.filter(
+      (task) => getTaskTimestamp(task) >= timeFilterCutoff
+    );
+  }, [cloudProjection.tasks, timeFilterCutoff]);
 
   const tasks = useMemo(() => {
-    const inReplay = replayMode === "replay" && replayCursor !== null;
-    const recentSessionTasks: KanbanTask[] = [];
-    for (const { session, task } of windowedPairs) {
-      if (inReplay) {
-        const projected = applyReplayCursor(task, session, replayCursor);
-        if (projected) recentSessionTasks.push(projected);
-      } else {
-        recentSessionTasks.push(task);
-      }
-    }
-    for (const task of windowedRemoteTasks) {
-      if (!inReplay || getTaskTimestamp(task) <= replayCursor) {
-        recentSessionTasks.push(task);
-      }
-    }
-    return recentSessionTasks;
-  }, [windowedPairs, windowedRemoteTasks, replayMode, replayCursor]);
+    return [...windowedLocalTasks, ...windowedRemoteTasks];
+  }, [windowedLocalTasks, windowedRemoteTasks]);
   const groupedTasks = useMemo(() => {
     const grouped = new Map<AgentKanbanColumnId, KanbanTask[]>();
     KANBAN_COLUMNS.forEach((column) => grouped.set(column.id, []));

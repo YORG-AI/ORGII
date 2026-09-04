@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { type ReactNode, createElement, forwardRef } from "react";
+import { type ReactNode, act, createElement, forwardRef } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -29,6 +30,17 @@ vi.mock("react-i18next", () => ({
     },
   }),
 }));
+
+vi.mock("@src/api/http/project", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@src/api/http/project")>();
+  return {
+    ...actual,
+    projectApi: {
+      ...actual.projectApi,
+      listWorkItemSubscriptions: vi.fn().mockResolvedValue([]),
+    },
+  };
+});
 
 vi.mock("@src/components/IntegrationIcon", () => ({
   default: ({ type }: { type: string }) =>
@@ -68,6 +80,14 @@ vi.mock("@src/modules/shared/components/MarkdownTextareaEditor", () => ({
       "data-editor-kind": "write-preview",
     });
   }),
+}));
+
+vi.mock("@src/modules/shared/components/GitHubLinkedReferences/lazy", () => ({
+  default: ({ references }: { references: readonly unknown[] }) =>
+    createElement("div", {
+      "data-testid": "mock-linked-references",
+      "data-reference-count": references.length,
+    }),
 }));
 
 const issue: GitHubIssue = {
@@ -156,6 +176,87 @@ describe("IssueDetailExternalLinkButton", () => {
     expect(markup).not.toContain(
       'data-testid="work-item-thread-secondary-navigation"'
     );
+  });
+
+  it("lists body and comment references only after Linked is opened", async () => {
+    const actEnvironment = globalThis as typeof globalThis & {
+      IS_REACT_ACT_ENVIRONMENT?: boolean;
+    };
+    const previousActEnvironment = actEnvironment.IS_REACT_ACT_ENVIRONMENT;
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+    const previousResizeObserver = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class MockResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    try {
+      await act(async () => {
+        root.render(
+          createElement(IssueDetailPanel, {
+            issue: {
+              ...issue,
+              body: "Fixed by https://github.com/openai/example/pull/99",
+            },
+            timeline: [
+              {
+                id: 1,
+                event: "commented",
+                created_at: "2026-07-21T13:00:00.000Z",
+                actor: issue.user,
+                body: "Related to openai/example#100",
+                html_url: null,
+                assignee: null,
+                label: null,
+                milestone: null,
+                rename: null,
+                source: null,
+                commit_id: null,
+                lock_reason: null,
+              },
+            ],
+            timelineLoading: false,
+            interaction: createInteraction(),
+          })
+        );
+      });
+
+      expect(
+        container.querySelector('[data-testid="mock-linked-references"]')
+      ).toBeNull();
+      const linkedTab = container.querySelector<HTMLButtonElement>(
+        "#issue-detail-tab-linked"
+      );
+      expect(linkedTab).not.toBeNull();
+
+      await act(async () => linkedTab?.click());
+
+      expect(
+        container
+          .querySelector('[data-testid="mock-linked-references"]')
+          ?.getAttribute("data-reference-count")
+      ).toBe("2");
+      expect(
+        container
+          .querySelector("#issue-detail-tabpanel-conversation")
+          ?.getAttribute("aria-hidden")
+      ).toBe("true");
+    } finally {
+      await act(async () => root.unmount());
+      if (previousActEnvironment === undefined) {
+        Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
+      } else {
+        actEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+      }
+      if (previousResizeObserver === undefined) {
+        Reflect.deleteProperty(globalThis, "ResizeObserver");
+      } else {
+        globalThis.ResizeObserver = previousResizeObserver;
+      }
+    }
   });
 
   it("shares GitHub comments and activity events as one timeline block", () => {

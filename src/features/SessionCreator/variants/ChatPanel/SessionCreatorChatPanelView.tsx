@@ -16,7 +16,7 @@ import {
 } from "@src/config/sessionCreatorConfig";
 import type { ScrollNavState } from "@src/engines/ChatPanel/ChatHistory";
 import CollapsedInlineRow from "@src/engines/ChatPanel/InputArea/components/CollapsedInlineRow";
-import PinnedActionsBar from "@src/engines/ChatPanel/InputArea/components/PinnedActionsBar";
+import LazyPinnedActionsBar from "@src/engines/ChatPanel/InputArea/components/PinnedActionsBar/LazyPinnedActionsBar";
 import { usePinnedActionsVisibilityContextMenu } from "@src/engines/ChatPanel/InputArea/components/PinnedActionsBar/usePinnedActionsVisibilityContextMenu";
 import type { SessionLaunchWorkItemContext } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
 import { LaunchpadActionGrid } from "@src/features/SessionCreator/components/LaunchpadActionGrid";
@@ -46,7 +46,10 @@ import ScreenPickerModal from "./ScreenPickerModal";
 import SessionCreatorAgentHero from "./SessionCreatorAgentHero";
 import SessionCreatorOrgMembersPanel from "./SessionCreatorOrgMembersPanel";
 import WorkItemAttachmentControl from "./WorkItemAttachmentControl";
-import { isRepoChromeAboveComposer } from "./repoChromeLayout";
+import {
+  isRepoChromeAboveComposer,
+  shouldShowCreatorPinnedActions,
+} from "./repoChromeLayout";
 import type { SessionCreatorAgentHeroContent } from "./resolveSessionCreatorAgentHero";
 import type {
   SessionCreatorChatPanelHeaderLayout,
@@ -217,7 +220,11 @@ const SessionCreatorChatPanelView: React.FC<
   );
   const repoChromeAboveComposer = isRepoChromeAboveComposer(repoChromePosition);
   const hasRepoChromeMenu = !hideRepoLine && headerLayout !== "compact";
-  const showPinnedActionPills = !hasRepoChromeMenu || pinnedActionsVisible;
+  const showPinnedActionPills = shouldShowCreatorPinnedActions(
+    headerLayout,
+    hasRepoChromeMenu,
+    pinnedActionsVisible
+  );
   const repoPillsRow = hasRepoChromeMenu ? (
     <RepoChromeRow
       pinnedActionsVisible={pinnedActionsVisible}
@@ -267,7 +274,7 @@ const SessionCreatorChatPanelView: React.FC<
       className={`mx-auto flex w-full items-center ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
       onContextMenu={handlePinnedActionsContextMenu}
     >
-      <PinnedActionsBar
+      <LazyPinnedActionsBar
         composerInputRef={composerInputRef}
         manageButtonPlacement="before-actions"
         managePanelAlign="left"

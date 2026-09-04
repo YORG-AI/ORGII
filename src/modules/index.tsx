@@ -389,8 +389,7 @@ const AppShell = () => {
 
   const effectiveChatFocus = resolveChatPanelMaximizedForLayout(
     chatPanelMaximized,
-    activeChatPanelTab,
-    viewportWidth
+    activeChatPanelTab
   );
 
   return (

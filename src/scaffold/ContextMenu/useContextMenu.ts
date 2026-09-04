@@ -11,7 +11,6 @@
  */
 import {
   KEYBOARD_CONFIG,
-  MENU_ITEMS,
   MenuItemId,
   SecondLayerId,
 } from "@/src/scaffold/ContextMenu/config";
@@ -44,12 +43,7 @@ import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 import { activeWorkspaceRootAtom } from "@src/store/workspace";
 import { LatestRequestGuard } from "@src/util/core/latestRequestGuard";
 
-import {
-  type DrilledProject,
-  searchFiles,
-  searchProjects,
-  searchSessions,
-} from "./contextMenuSearchHandlers";
+import { searchFiles, searchSessions } from "./contextMenuSearchHandlers";
 import {
   attachSearchRootMetadata,
   buildContextMenuSearchRoots,
@@ -90,8 +84,6 @@ export function useContextMenu(
     [activeWorkspaceRoot]
   );
   const workspaceFolders = useAtomValue(workspaceFoldersAtom);
-  const effectiveRepoPath = opts.repoPath || activeWorkspaceRoot?.path || "";
-
   const searchRoots = useMemo(
     () =>
       buildContextMenuSearchRoots({
@@ -115,17 +107,11 @@ export function useContextMenu(
     [allSessions]
   );
 
-  const drilledProjectRef = useRef<DrilledProject | null>(null);
-  const [drilledProjectName, setDrilledProjectName] = useState<string | null>(
-    null
-  );
-
-  // State — internal (used when user clicks menu items, NOT for inline @query)
+  // State is owned by the menu for both + and @ entry points.
   const [activeIndex, setActiveIndex] = useState(0);
-  const [keyboardNavigated, setKeyboardNavigated] = useState(false);
+  const [keyboardNavigated, setKeyboardNavigated] = useState(true);
   const [internalSecondLayer, setInternalSecondLayer] =
     useState<SecondLayerId | null>(null);
-  const [internalSearchQuery, setInternalSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [secondLayerActiveIndex, setSecondLayerActiveIndex] = useState(0);
@@ -142,45 +128,31 @@ export function useContextMenu(
     };
   }, []);
 
-  // Derive effective values — when externalSearchQuery is provided, override
-  // without any setState.  This eliminates the 2-setState cascade that was
-  // previously done via a useEffect in ContextMenu/index.tsx.
-  const hasExternalQuery =
-    opts.externalSearchQuery !== undefined &&
-    (opts.inlineSearchOnEmpty || opts.externalSearchQuery.length > 0);
-  const secondLayer: SecondLayerId | null = hasExternalQuery
-    ? (internalSecondLayer ?? "files")
-    : internalSecondLayer;
-  const searchQuery: string =
-    opts.externalSearchQuery !== undefined
-      ? opts.externalSearchQuery
-      : internalSearchQuery;
+  const secondLayer = internalSecondLayer;
+  const searchQuery = opts.searchQuery ?? "";
+  const isMainFileSearch =
+    secondLayer === null &&
+    Boolean(opts.searchFilesFromMain) &&
+    searchQuery.trim().length > 0;
+  const effectiveSearchLayer: SecondLayerId | null =
+    secondLayer ?? (isMainFileSearch ? "files" : null);
 
-  // Expose setters that write to the internal state
   const setSecondLayer = setInternalSecondLayer;
-  const setSearchQuery = setInternalSearchQuery;
 
-  const recentCount = opts.recentCount ?? 0;
-  const customMentionCount = opts.customMentionCount ?? 0;
-  const onCustomMentionIndexSelect = opts.onCustomMentionIndexSelect;
-  const customMentionStartIndex = recentCount;
-  const menuStartIndex = recentCount + customMentionCount;
-
-  // Get total menu items count
-  const menuItemsCount = menuStartIndex + MENU_ITEMS.length;
+  const mainItemCount = opts.mainItemCount ?? 0;
+  const onMainItemIndexSelect = opts.onMainItemIndexSelect;
+  const menuItemsCount =
+    mainItemCount + (isMainFileSearch ? searchResults.length : 0);
 
   useEffect(() => {
-    hasMovedMainHighlightRef.current = opts.keyboardOpened ?? false;
-  }, [opts.keyboardOpened, menuItemsCount, opts.externalSearchQuery]);
+    hasMovedMainHighlightRef.current = true;
+    setKeyboardNavigated(true);
+    setActiveIndex(0);
+  }, [mainItemCount, searchQuery]);
 
   useEffect(() => {
-    hasMovedSecondLayerHighlightRef.current = opts.keyboardOpened ?? false;
-  }, [
-    secondLayer,
-    searchResults.length,
-    opts.externalSearchQuery,
-    opts.keyboardOpened,
-  ]);
+    hasMovedSecondLayerHighlightRef.current = true;
+  }, [secondLayer, searchResults.length]);
 
   // Helper: set search results AND reset active index in one batch
   // (React 18 batches these into a single render)
@@ -226,12 +198,6 @@ export function useContextMenu(
               localSessionIds: localSessionIdSet,
             }),
           ];
-        } else if (type === "projects") {
-          results = await searchProjects(
-            query,
-            effectiveRepoPath,
-            drilledProjectRef.current
-          );
         } else {
           results = [];
         }
@@ -250,7 +216,6 @@ export function useContextMenu(
       }
     },
     [
-      effectiveRepoPath,
       searchRoots,
       allSessions,
       updateSearchResults,
@@ -277,74 +242,76 @@ export function useContextMenu(
   // would trigger spurious re-searches.  The ref-based callback inside
   // useDebouncedCallback keeps the function fresh.
   useEffect(() => {
-    if (secondLayer) {
+    if (effectiveSearchLayer) {
       // Invalidate immediately when the user's search intent changes. The next
       // debounced search issues its own ticket; until then, an older request
       // must not commit results for the previous query or menu invocation.
       searchRequestGuardRef.current!.invalidate();
       // When entering files layer without query, still search to show all files
-      debouncedContextSearch(searchQuery, secondLayer, !searchQuery);
+      debouncedContextSearch(
+        searchQuery,
+        effectiveSearchLayer,
+        Boolean(secondLayer) && !searchQuery
+      );
     } else if (!searchQuery) {
       debouncedContextSearch.cancel();
       searchRequestGuardRef.current!.invalidate();
       updateSearchResults([]);
       setSearchLoading(false);
     }
-  }, [searchQuery, secondLayer, debouncedContextSearch, updateSearchResults]);
+  }, [
+    searchQuery,
+    secondLayer,
+    effectiveSearchLayer,
+    debouncedContextSearch,
+    updateSearchResults,
+  ]);
 
   // Handle item selection - uses refs to avoid stale closures
-  // Intercepts "project" clicks in the projects layer to drill in
   const handleSelect = useCallback(
     (type: MenuItemId, value?: string, displayName?: string) => {
-      if (
-        type === "project" &&
-        secondLayer === "projects" &&
-        !drilledProjectRef.current &&
-        value
-      ) {
-        drilledProjectRef.current = {
-          slug: value,
-          name: displayName || value,
-        };
-        setDrilledProjectName(displayName || value);
-        setSecondLayerActiveIndex(0);
-        // Bypass debounce — drill-down must fire immediately
-        performSearch("", "projects", true);
-        return;
-      }
       onSelectRef.current?.(type, value, displayName);
       onCloseRef.current?.();
     },
-    [secondLayer, performSearch]
+    []
   );
 
-  // Go back — from drilled project to project list, or from project list to main menu
+  // Go back from a second layer to the main menu.
   const goBack = useCallback(() => {
-    if (drilledProjectRef.current) {
-      drilledProjectRef.current = null;
-      setDrilledProjectName(null);
-      setSecondLayerActiveIndex(0);
-      // Bypass debounce — back navigation must fire immediately
-      performSearch("", "projects", true);
-    } else {
-      setSecondLayer(null);
-      setSearchQuery("");
-      updateSearchResults([]);
-    }
-  }, [updateSearchResults, setSearchQuery, setSecondLayer, performSearch]);
+    setSecondLayer(null);
+    updateSearchResults([]);
+  }, [updateSearchResults, setSecondLayer]);
 
   // Reset state
   const reset = useCallback(() => {
     searchRequestGuardRef.current!.invalidate();
     setActiveIndex(0);
-    setKeyboardNavigated(false);
+    setKeyboardNavigated(true);
     setSecondLayer(null);
-    setSearchQuery("");
     updateSearchResults([]);
     setSearchLoading(false);
-    drilledProjectRef.current = null;
-    setDrilledProjectName(null);
-  }, [updateSearchResults, setSearchQuery, setSecondLayer]);
+  }, [updateSearchResults, setSecondLayer]);
+
+  const selectSearchResult = useCallback(
+    (selected: SearchResultItem, layer: SecondLayerId) => {
+      let selectType: MenuItemId = layer;
+      if (selected.iconType === "repo") {
+        selectType = "repo";
+      } else if (selected.iconType === "project") {
+        selectType = "project";
+      } else if (selected.iconType === "workitem") {
+        selectType = "workitem";
+      } else if (selected.iconType === "browser") {
+        selectType = "browser";
+      } else if (selected.iconType === "cloudSession") {
+        selectType = "cloudSession";
+      } else if (layer === "files" && selected.type === "folder") {
+        selectType = "folder";
+      }
+      handleSelect(selectType, selected.path, selected.name);
+    },
+    [handleSelect]
+  );
 
   // Handle keyboard navigation - returns true if the event was handled
   const handleKeyDown = useCallback(
@@ -363,7 +330,7 @@ export function useContextMenu(
         return true;
       }
 
-      // In second layer mode (secondLayer is set when user clicks a menu item or types after @)
+      // In second-layer mode after a main-menu context category is selected.
       if (secondLayer) {
         switch (key) {
           case KEYBOARD_CONFIG.up:
@@ -397,39 +364,9 @@ export function useContextMenu(
           case KEYBOARD_CONFIG.enter:
             e.preventDefault();
             e.stopPropagation();
-            if (
-              hasExternalQuery &&
-              activeIndex >= customMentionStartIndex &&
-              activeIndex < menuStartIndex
-            ) {
-              onCustomMentionIndexSelect?.(
-                activeIndex - customMentionStartIndex
-              );
-              return true;
-            }
             if (searchResults.length > 0) {
               const selected = searchResults[secondLayerActiveIndex];
-              // Use iconType for project/work items, otherwise secondLayer.
-              let selectType: MenuItemId = secondLayer;
-              if (selected.iconType === "repo") {
-                selectType = "repo";
-              } else if (selected.iconType === "project") {
-                selectType = "project";
-              } else if (selected.iconType === "workitem") {
-                selectType = "workitem";
-              } else if (selected.iconType === "browser") {
-                selectType = "browser";
-              } else if (selected.iconType === "cloudSession") {
-                // Without this the Enter path falls through to "sessions"
-                // and a cloud reference gets inserted as a local pill.
-                selectType = "cloudSession";
-              } else if (
-                secondLayer === "files" &&
-                selected.type === "folder"
-              ) {
-                selectType = "folder";
-              }
-              handleSelect(selectType, selected.path, selected.name);
+              selectSearchResult(selected, secondLayer);
             }
             return true;
 
@@ -461,6 +398,7 @@ export function useContextMenu(
         case KEYBOARD_CONFIG.up:
           e.preventDefault();
           e.stopPropagation();
+          if (menuItemsCount === 0) return true;
           setKeyboardNavigated(true);
           hasMovedMainHighlightRef.current = true;
           setActiveIndex((prev) => (prev > 0 ? prev - 1 : menuItemsCount - 1));
@@ -469,6 +407,7 @@ export function useContextMenu(
         case KEYBOARD_CONFIG.down:
           e.preventDefault();
           e.stopPropagation();
+          if (menuItemsCount === 0) return true;
           setKeyboardNavigated(true);
           if (hasMovedMainHighlightRef.current) {
             setActiveIndex((prev) =>
@@ -484,20 +423,13 @@ export function useContextMenu(
         case KEYBOARD_CONFIG.enter: {
           e.preventDefault();
           e.stopPropagation();
-          if (
-            activeIndex >= customMentionStartIndex &&
-            activeIndex < menuStartIndex
-          ) {
-            onCustomMentionIndexSelect?.(activeIndex - customMentionStartIndex);
+          if (activeIndex >= 0 && activeIndex < mainItemCount) {
+            onMainItemIndexSelect?.(activeIndex);
             return true;
           }
-          const menuIndex = activeIndex - menuStartIndex;
-          const item = MENU_ITEMS[menuIndex];
-          if (!item) return true;
-          if (item.hasSecondLayer) {
-            setSecondLayer(item.id as SecondLayerId);
-          } else {
-            handleSelect(item.id);
+          const result = searchResults[activeIndex - mainItemCount];
+          if (isMainFileSearch && result) {
+            selectSearchResult(result, "files");
           }
           return true;
         }
@@ -519,14 +451,12 @@ export function useContextMenu(
       searchResults,
       secondLayerActiveIndex,
       activeIndex,
-      hasExternalQuery,
+      isMainFileSearch,
       menuItemsCount,
-      customMentionStartIndex,
-      menuStartIndex,
-      handleSelect,
+      mainItemCount,
+      selectSearchResult,
       goBack,
-      setSecondLayer,
-      onCustomMentionIndexSelect,
+      onMainItemIndexSelect,
     ]
   );
 
@@ -537,17 +467,13 @@ export function useContextMenu(
     setKeyboardNavigated,
     secondLayer,
     setSecondLayer,
-    searchQuery,
-    setSearchQuery,
     searchResults,
     searchLoading,
     secondLayerActiveIndex,
     setSecondLayerActiveIndex,
     handleKeyDown,
     handleSelect,
-    goBack,
     reset,
-    drilledProjectName,
   };
 }
 

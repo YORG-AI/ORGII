@@ -402,9 +402,29 @@ spotlightInitialActionAtom.debugLabel = "spotlightInitialActionAtom";
  */
 export type SpotlightInitialEditorMode = "file" | "command" | "symbol";
 
+export interface SpotlightGitHubIssuesImportContext {
+  orgId?: string;
+  repoName?: string;
+  repoPath?: string;
+  repoUrl?: string;
+}
+
+export type SpotlightCollabOrgSource = "local" | "cloud";
+export type SpotlightCollabOrgMode = "create" | "join";
+
+export interface SpotlightCollabOrgContext {
+  source?: SpotlightCollabOrgSource;
+  mode?: SpotlightCollabOrgMode;
+}
+
 export type SpotlightInitialLayer =
   | { kind: "default" }
   | { kind: "workspace"; mode: "switch" | "open" | "add" | "create" }
+  | { kind: "collabOrg"; context?: SpotlightCollabOrgContext }
+  | {
+      kind: "githubIssuesImport";
+      context?: SpotlightGitHubIssuesImportContext;
+    }
   | { kind: "branch" }
   | { kind: "worktree" }
   | { kind: "editor"; mode?: SpotlightInitialEditorMode }

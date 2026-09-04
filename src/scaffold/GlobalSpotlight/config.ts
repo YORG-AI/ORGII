@@ -9,6 +9,8 @@ import {
   Clock01Icon,
   CloudIcon,
   CodeXmlIcon,
+  ColorPickerIcon,
+  ContrastIcon,
   Delete02Icon,
   Download02Icon,
   FolderAddIcon,
@@ -36,6 +38,7 @@ import {
   SparklesIcon,
   SquareArrowUpRight02Icon,
   Tick01Icon,
+  UserMultipleIcon,
   WorkHistoryIcon,
   WorkflowCircle05Icon,
 } from "@src/icons";
@@ -54,12 +57,15 @@ export type {
 export const ICONS = {
   // Actions
   addWorkspace: FolderImportIcon,
+  organization: UserMultipleIcon,
 
   // Shared UI
   repo: CodeXmlIcon,
   config: Settings01Icon,
   done: Tick01Icon,
   language: LanguageCircleIcon,
+  theme: ContrastIcon,
+  skin: ColorPickerIcon,
 
   // Workspace modes
   focusMode: CenterFocusIcon,
@@ -138,6 +144,35 @@ export const ACTIONS: ActionDefinition[] = [
       ...SUPPORTED_LANGUAGES,
       ...Object.values(LANGUAGE_NAMES),
     ],
+  },
+  {
+    id: "change-theme",
+    label: "Change theme",
+    labelKey: "common:spotlightActions.changeTheme",
+    pillLabelKey: "common:spotlightActions.changeTheme",
+    icon: ICONS.theme,
+    color: "primary",
+    requiredParams: ["theme"],
+    keywords: ["theme", "appearance", "light", "dark", "system"],
+    aliases: [
+      "change theme",
+      "set theme",
+      "switch theme",
+      "light theme",
+      "dark theme",
+      "system theme",
+    ],
+  },
+  {
+    id: "change-skin",
+    label: "Change skin",
+    labelKey: "common:spotlightActions.changeSkin",
+    pillLabelKey: "common:spotlightActions.changeSkin",
+    icon: ICONS.skin,
+    color: "primary",
+    requiredParams: ["skin"],
+    keywords: ["skin", "palette", "colors", "appearance"],
+    aliases: ["change skin", "set skin", "switch skin", "color scheme"],
   },
 
   // File actions - require repo

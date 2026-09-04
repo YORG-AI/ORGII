@@ -1805,28 +1805,40 @@ function rustAgentConfigs(configs) {
 }
 
 async function readCurrentModeFromMenu(label) {
-  const skillsToolsButtonSelector =
-    '[data-testid="composer-skills-tools-button"]';
-  // The slash menu renders mode entries as flat ModeRow items (the Mode
-  // flyout trigger was removed in ddcbdbdd); the current mode row carries
-  // a Check glyph via DropdownSelectedCheck.
-  const modeOptionSelector = '[data-testid^="slash-command-mode-option-"]';
+  // + and @ share this menu; the current mode row carries a Check glyph via
+  // DropdownSelectedCheck.
+  const modeOptionSelector = '[data-testid^="context-menu-mode-option-"]';
   const readCurrentModeRow = `
-    const rows = Array.from(document.querySelectorAll('[data-testid^="slash-command-mode-option-"]'));
+    const rows = Array.from(document.querySelectorAll('[data-testid^="context-menu-mode-option-"]'));
     const current = rows.find((row) => row.querySelector('[data-icon="check"]'));
     return current ? (current.textContent || '').trim() : null;
   `;
   let triggerText = await execJS(readCurrentModeRow);
   if (!triggerText) {
-    const opened = await execJS(js.visibleClick(skillsToolsButtonSelector));
+    const opened = await execJS(
+      js.click('[data-testid="composer-add-context-button"]')
+    );
     if (opened !== "clicked") {
-      return { ok: false, reason: `skills/tools open failed: ${opened}` };
+      return { ok: false, reason: `context menu trigger failed: ${opened}` };
     }
     await browser.waitUntil(async () => execJS(js.exists(modeOptionSelector)), {
       timeout: 5_000,
-      timeoutMsg: `${label} slash command mode rows never rendered`,
+      timeoutMsg: `${label} shared context mode rows never rendered`,
     });
     triggerText = await execJS(readCurrentModeRow);
+    const committed = await execJS(`
+      const rows = Array.from(document.querySelectorAll('[data-testid^="context-menu-mode-option-"]'));
+      const current = rows.find((row) => row.querySelector('[data-icon="check"]'));
+      if (!current) return "missing";
+      current.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
+      return "clicked";
+    `);
+    if (committed !== "clicked") {
+      return {
+        ok: false,
+        reason: `current context mode commit failed: ${committed}`,
+      };
+    }
   }
   return { ok: true, triggerText };
 }

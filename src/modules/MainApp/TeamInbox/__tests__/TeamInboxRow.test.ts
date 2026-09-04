@@ -230,8 +230,16 @@ describe("TeamInboxRow", () => {
       );
     });
 
-    expect(container.querySelector("[title]")?.textContent).toBe(
-      "Please review Verify the compact row"
+    const row = container.querySelector<HTMLButtonElement>(
+      '[data-testid="team-inbox-row"]'
+    );
+    const preview = container.querySelector<HTMLElement>("[title]");
+
+    expect(row?.children).toHaveLength(2);
+    expect(preview?.textContent).toBe("Please review Verify the compact row");
+    expect(preview?.className).toContain("truncate");
+    expect(preview?.parentElement?.textContent).toContain(
+      "Please review Verify the compact row·Lin"
     );
     expect(container.textContent).toContain("Lin");
     expect(

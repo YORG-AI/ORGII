@@ -17,6 +17,7 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+use crate::desktop_auth::{authorize_desktop_access, DesktopAuthError};
 use crate::state::{
     now_ms, MobileAuth, MobilePeer, PairingOutcome, RelayState, SocketCommand, MAX_FRAME_BYTES,
     OUTBOUND_QUEUE_CAPACITY,
@@ -28,7 +29,10 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 #[serde(rename_all = "camelCase")]
 pub struct DesktopSocketQuery {
     desktop_id: String,
-    token: String,
+    #[serde(default)]
+    token: Option<String>,
+    #[serde(default, rename = "access_token")]
+    access_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -36,6 +40,7 @@ pub struct DesktopSocketQuery {
 pub struct MobileSocketQuery {
     token: String,
     pairing_code: Option<String>,
+    device_label: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -56,8 +61,8 @@ pub async fn create_pairing(
     headers: HeaderMap,
     Json(request): Json<PairingInitRequest>,
 ) -> Response {
-    if !is_authorized(&state, &headers) {
-        return unauthorized_response();
+    if let Err(response) = authorize_desktop(&state, &headers, None, None).await {
+        return *response;
     }
     if request.desktop_id.trim().is_empty() || request.desktop_id.len() > 128 {
         return api_error(
@@ -117,8 +122,8 @@ pub async fn complete_pairing(
     headers: HeaderMap,
     Json(request): Json<PairingCompleteRequest>,
 ) -> Response {
-    if !is_authorized(&state, &headers) {
-        return unauthorized_response();
+    if let Err(response) = authorize_desktop(&state, &headers, None, None).await {
+        return *response;
     }
     match state
         .complete_pairing(&request.pairing_code, request.tier)
@@ -134,8 +139,8 @@ pub async fn list_devices(
     headers: HeaderMap,
     Query(query): Query<DeviceListQuery>,
 ) -> Response {
-    if !is_authorized(&state, &headers) {
-        return unauthorized_response();
+    if let Err(response) = authorize_desktop(&state, &headers, None, None).await {
+        return *response;
     }
     match state.store.list_active(query.desktop_id).await {
         Ok(devices) => Json(devices).into_response(),
@@ -148,8 +153,8 @@ pub async fn revoke_device(
     headers: HeaderMap,
     Json(request): Json<RevokeDeviceRequest>,
 ) -> Response {
-    if !is_authorized(&state, &headers) {
-        return unauthorized_response();
+    if let Err(response) = authorize_desktop(&state, &headers, None, None).await {
+        return *response;
     }
     match state
         .store
@@ -176,8 +181,8 @@ pub async fn set_primary_desktop(
     headers: HeaderMap,
     Json(request): Json<SetPrimaryDesktopRequest>,
 ) -> Response {
-    if !is_authorized(&state, &headers) {
-        return unauthorized_response();
+    if let Err(response) = authorize_desktop(&state, &headers, None, None).await {
+        return *response;
     }
     match state.store.set_primary_desktop(request.desktop_id).await {
         Ok(()) => Json(json!({ "updated": true })).into_response(),
@@ -188,14 +193,18 @@ pub async fn set_primary_desktop(
 pub async fn desktop_socket(
     ws: WebSocketUpgrade,
     State(state): State<RelayState>,
+    headers: HeaderMap,
     Query(query): Query<DesktopSocketQuery>,
 ) -> Response {
-    if !state.desktop_token_matches(&query.token) {
-        return api_error(
-            StatusCode::UNAUTHORIZED,
-            "unauthorized",
-            "invalid desktop token",
-        );
+    if let Err(response) = authorize_desktop(
+        &state,
+        &headers,
+        query.token.as_deref(),
+        query.access_token.as_deref(),
+    )
+    .await
+    {
+        return *response;
     }
     if query.desktop_id.trim().is_empty() || query.desktop_id.len() > 128 {
         return api_error(
@@ -219,7 +228,7 @@ pub async fn mobile_socket(
         Ok(auth) => auth,
         Err(message) => return api_error(StatusCode::UNAUTHORIZED, "unauthorized", &message),
     };
-    ws.on_upgrade(move |socket| run_mobile_socket(socket, state, auth))
+    ws.on_upgrade(move |socket| run_mobile_socket(socket, state, auth, query.device_label))
 }
 
 async fn run_desktop_socket(mut socket: WebSocket, state: RelayState, desktop_id: String) {
@@ -363,7 +372,12 @@ async fn handle_desktop_message(
     }
 }
 
-async fn run_mobile_socket(mut socket: WebSocket, state: RelayState, auth: MobileAuth) {
+async fn run_mobile_socket(
+    mut socket: WebSocket,
+    state: RelayState,
+    auth: MobileAuth,
+    device_label: Option<String>,
+) {
     let (device, approval_code) = match auth {
         MobileAuth::Active(device) => (device, String::new()),
         MobileAuth::Pending(pending) => {
@@ -410,6 +424,8 @@ async fn run_mobile_socket(mut socket: WebSocket, state: RelayState, auth: Mobil
             }
         }
     };
+
+    let device = apply_mobile_device_label(&state, device, device_label).await;
 
     let _ = socket
         .send(Message::text(
@@ -562,21 +578,61 @@ async fn send_command(socket: &mut WebSocket, command: SocketCommand) -> Result<
     socket.send(message).await.map_err(|_| ())
 }
 
-fn is_authorized(state: &RelayState, headers: &HeaderMap) -> bool {
-    let token = headers
-        .get(axum::http::header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
-        .unwrap_or_default();
-    state.desktop_token_matches(token)
+async fn authorize_desktop(
+    state: &RelayState,
+    headers: &HeaderMap,
+    legacy_token_query: Option<&str>,
+    access_token_query: Option<&str>,
+) -> Result<(), Box<Response>> {
+    match authorize_desktop_access(
+        &state.config,
+        headers,
+        legacy_token_query,
+        access_token_query,
+    )
+    .await
+    {
+        Ok(_) => Ok(()),
+        Err(error) => Err(Box::new(desktop_auth_error_response(error))),
+    }
 }
 
-fn unauthorized_response() -> Response {
-    api_error(
-        StatusCode::UNAUTHORIZED,
-        "unauthorized",
-        "invalid desktop token",
-    )
+fn desktop_auth_error_response(error: DesktopAuthError) -> Response {
+    let status = match error {
+        DesktopAuthError::Unavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+        DesktopAuthError::MissingCredentials | DesktopAuthError::Unauthorized => {
+            StatusCode::UNAUTHORIZED
+        }
+    };
+    api_error(status, error.api_code(), &error.message())
+}
+
+fn normalize_mobile_device_label(label: Option<String>) -> Option<String> {
+    let trimmed = label?.trim().to_string();
+    if trimmed.is_empty() || trimmed.len() > 80 {
+        None
+    } else {
+        Some(trimmed)
+    }
+}
+
+async fn apply_mobile_device_label(
+    state: &RelayState,
+    mut device: PairedDeviceInfo,
+    device_label: Option<String>,
+) -> PairedDeviceInfo {
+    let Some(label) = normalize_mobile_device_label(device_label) else {
+        return device;
+    };
+    if state
+        .store
+        .update_label(device.device_id.clone(), label.clone())
+        .await
+        .unwrap_or(false)
+    {
+        device.label = label;
+    }
+    device
 }
 
 fn api_error(status: StatusCode, code: &str, message: &str) -> Response {

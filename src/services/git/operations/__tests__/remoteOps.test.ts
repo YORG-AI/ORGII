@@ -51,7 +51,7 @@ vi.mock("@src/util/dialogs/gitAuthenticationDialog", () => ({
   showGitAuthenticationDialog: (...args: unknown[]) =>
     showGitAuthenticationDialog(...args),
 }));
-vi.mock("@src/hooks/git/useGitErrorDialog", () => ({
+vi.mock("@src/hooks/git/gitErrorDialog", () => ({
   showGitErrorAndHandle: (...args: unknown[]) => showGitErrorAndHandle(...args),
 }));
 vi.mock("@src/services/terminal", () => ({

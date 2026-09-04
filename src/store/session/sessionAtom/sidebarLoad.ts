@@ -240,7 +240,7 @@ export const performSidebarSessionLoad = async (
         const result = await loadCategoryPage(category, null, pageSize);
         applyInitialPage(category, result);
       } catch (error) {
-        log.warn(`[SessionAtom] ${category} initial page failed:`, error);
+        log.warn(`${category} initial page failed:`, error);
         if (generation === currentSidebarRosterGeneration(store)) {
           setPaginationFor(category, {
             cursor: null,
@@ -279,7 +279,7 @@ export const performSidebarSessionLoad = async (
       for (const { category, source } of importedCategories) {
         const failure = failures.get(source.sourceId);
         if (failure) {
-          log.warn(`[SessionAtom] ${category} initial page failed: ${failure}`);
+          log.warn(`${category} initial page failed: ${failure}`);
           markImportedStreamFailed(category);
           continue;
         }

@@ -11,7 +11,14 @@ import {
   PropertiesPanel,
   PropertiesRailFrame,
 } from "@src/modules/ProjectManager/shared";
-import { WorkstationTrailSurface } from "@src/modules/shared/layouts/blocks";
+import LazyGitHubLinkedReferences from "@src/modules/shared/components/GitHubLinkedReferences/lazy";
+import type { ExtractedGitHubReference } from "@src/modules/shared/components/GitHubLinkedReferences/references";
+import type { ThreadDetailTab } from "@src/modules/shared/components/ThreadDetailTabs";
+import DetailPaneErrorBoundary from "@src/modules/shared/layouts/DetailPaneErrorBoundary";
+import {
+  PersistentDetailTabPanel,
+  WorkstationTrailSurface,
+} from "@src/modules/shared/layouts/blocks";
 import { VerticalResizeHandle } from "@src/scaffold/Resize";
 import type { Person } from "@src/types/core/shared";
 import type {
@@ -30,6 +37,8 @@ const WORK_ITEM_INFO_PANEL_MAX_WIDTH = 280;
 
 interface WorkItemDetailBodyProps {
   displayWorkItem: WorkItemExtended;
+  activeTab: ThreadDetailTab;
+  linkedReferences: readonly ExtractedGitHubReference[];
   propertiesOpen: boolean;
   infoPanelWidth: number;
   setInfoPanelWidth: React.Dispatch<React.SetStateAction<number>>;
@@ -58,6 +67,8 @@ interface WorkItemDetailBodyProps {
 
 export function WorkItemDetailBody({
   displayWorkItem,
+  activeTab,
+  linkedReferences,
   propertiesOpen,
   infoPanelWidth,
   setInfoPanelWidth,
@@ -120,28 +131,59 @@ export function WorkItemDetailBody({
     <div className="flex min-h-0 flex-1 overflow-hidden">
       <div className="min-w-0 flex-1 overflow-hidden">
         <div className="flex h-full flex-col overflow-visible">
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <WorkItemContent
-              key={displayWorkItem.session_id}
-              workItem={displayWorkItem}
-              onUpdateWorkItem={onUpdateWorkItem}
-              onUpdateWorkItemImmediate={onUpdateWorkItemImmediate}
-              teamMembers={availableMembers}
-              availableAgents={availableAgents}
-              availableOrgs={availableOrgs}
-              repoPath={repoPath}
-              projectSlug={projectSlug}
-              orgId={orgId}
-              shortId={shortId}
-              onOpenSession={onOpenSession}
-              onOpenFileDiff={onOpenFileDiff}
-              onReviewAllFiles={onReviewAllFiles}
-              onOpenSubItem={onOpenSubItem}
-              onRefreshWorkflow={onRefreshWorkItem}
-              activeAgentSessionId={activeAgentSessionId}
-              onCreatePr={onCreatePr}
-            />
-          </div>
+          <PersistentDetailTabPanel
+            active={activeTab === "conversation"}
+            id="work-item-detail-tabpanel-conversation"
+            ariaLabelledBy="work-item-detail-tab-conversation"
+            className="min-h-0 min-w-0 overflow-hidden"
+          >
+            <DetailPaneErrorBoundary
+              key={`${displayWorkItem.session_id}:conversation`}
+              label={t("workItems.detail.conversation", {
+                defaultValue: "Conversation",
+              })}
+              onRetry={onRefreshWorkItem}
+            >
+              <WorkItemContent
+                key={displayWorkItem.session_id}
+                workItem={displayWorkItem}
+                presentation="thread"
+                onUpdateWorkItem={onUpdateWorkItem}
+                onUpdateWorkItemImmediate={onUpdateWorkItemImmediate}
+                teamMembers={availableMembers}
+                availableAgents={availableAgents}
+                availableOrgs={availableOrgs}
+                repoPath={repoPath}
+                projectSlug={projectSlug}
+                orgId={orgId}
+                shortId={shortId}
+                onOpenSession={onOpenSession}
+                onOpenFileDiff={onOpenFileDiff}
+                onReviewAllFiles={onReviewAllFiles}
+                onOpenSubItem={onOpenSubItem}
+                onRefreshWorkflow={onRefreshWorkItem}
+                activeAgentSessionId={activeAgentSessionId}
+                onCreatePr={onCreatePr}
+              />
+            </DetailPaneErrorBoundary>
+          </PersistentDetailTabPanel>
+          <PersistentDetailTabPanel
+            active={activeTab === "linked"}
+            id="work-item-detail-tabpanel-linked"
+            ariaLabelledBy="work-item-detail-tab-linked"
+            className="min-h-0 min-w-0 flex-col overflow-hidden"
+          >
+            <DetailPaneErrorBoundary
+              key={`${displayWorkItem.session_id}:linked`}
+              label={t("workItems.detail.linked", { defaultValue: "Linked" })}
+            >
+              <LazyGitHubLinkedReferences
+                references={linkedReferences}
+                repoPath={repoPath}
+                enabled={activeTab === "linked"}
+              />
+            </DetailPaneErrorBoundary>
+          </PersistentDetailTabPanel>
         </div>
       </div>
 

@@ -81,6 +81,8 @@ export interface NavigationMenuItem {
   onRowActionClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   /** Let a primary click on the selected row open its context menu. */
   openContextMenuOnSelectedClick?: boolean;
+  /** This row opens a chat-panel tab and supports explicit new-tab navigation. */
+  opensChatPanelTab?: boolean;
   routePath?: string;
   /** Tab type for proper tab handling */
   tabType?: "app" | "terminal" | "browser" | "editor";

@@ -50,12 +50,22 @@ export const setActiveWorkManagementSectionAtom = atom(
   ) => {
     const state = get(chatPanelTabsAtom);
     const activeTab = state.tabs.find((tab) => tab.id === state.activeTabId);
-    if (activeTab?.type !== "work-management") return;
+    if (
+      activeTab?.type !== "work-management" &&
+      activeTab?.type !== "team-inbox"
+    ) {
+      return;
+    }
     set(chatPanelTabsAtom, {
       ...state,
       tabs: state.tabs.map((tab) =>
         tab.id === activeTab.id
-          ? { ...tab, managementSection: section, title }
+          ? {
+              ...tab,
+              type: "work-management" as const,
+              managementSection: section,
+              title,
+            }
           : tab
       ),
     });
@@ -86,8 +96,11 @@ export const closeChatPanelTabAtom = atom(null, (get, set, tabId: string) => {
     set(workstationActiveSessionIdAtom, null);
   }
   if (
-    tab.type === "work-management" &&
-    !nextTabs.some((candidate) => candidate.type === "work-management")
+    (tab.type === "work-management" || tab.type === "team-inbox") &&
+    !nextTabs.some(
+      (candidate) =>
+        candidate.type === "work-management" || candidate.type === "team-inbox"
+    )
   ) {
     set(disposeWorkManagementStateAtom);
   }
@@ -461,3 +474,20 @@ export const closeOtherChatPanelTabsAtom = atom(
   }
 );
 closeOtherChatPanelTabsAtom.debugLabel = "closeOtherChatPanelTabs";
+
+/**
+ * Keep whichever chat-panel tab is active and close every sibling.
+ *
+ * Reserved for explicit replace-all navigation. Plain sidebar clicks preserve
+ * the tab strip and let the destination opener decide whether the active
+ * Launchpad placeholder should be consumed.
+ */
+export const closeOtherThanActiveChatPanelTabsAtom = atom(
+  null,
+  (get, set): Promise<void> => {
+    const activeTabId = get(chatPanelTabsAtom).activeTabId;
+    return set(closeOtherChatPanelTabsAtom, activeTabId);
+  }
+);
+closeOtherThanActiveChatPanelTabsAtom.debugLabel =
+  "closeOtherThanActiveChatPanelTabs";

@@ -14,15 +14,7 @@ export {
   useEditorAppearanceStyles,
 } from "./useEditorAppearance";
 
-export {
-  useSetting,
-  useSettingValue,
-  useAllSettings,
-  useSettingsLoaded,
-  useUpdateSettingsBatch,
-  useResetAllSettings,
-  useSettingsJson,
-} from "./useSettings";
+export { useSetting, useSettingValue, useAllSettings } from "./useSettings";
 
 export { useDevModeGuard } from "./useDevModeGuard";
 

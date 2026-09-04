@@ -18,6 +18,8 @@ export interface ProjectWorkItemsTabContentProps {
   breadcrumbSegments?: readonly ProjectManagerBreadcrumbSegment[];
   workStationTabId?: string;
   workstationHeaderHost?: WorkstationTabHeaderHost;
+  /** Disable the shell sidebar toggle when this page has no sidebar. */
+  sidebarToggleDisabled?: boolean;
   /** Navigate from the breadcrumb root back to the Projects index. */
   onOpenProjects?: () => void;
   onCreateProject?: () => void;
@@ -28,6 +30,8 @@ export interface ProjectWorkItemsTabContentProps {
   onOpenWorkItem: (selection: ProjectWorkItemSelection) => void;
   /** Org hub surface pills shown after the breadcrumb (Overview / Projects / …). */
   orgSurfaceControls?: React.ReactNode;
+  /** Parent-owned context control shown before split-list header content. */
+  splitHeaderLeading?: React.ReactNode;
 }
 
 export interface AggregatedWorkItemProject {

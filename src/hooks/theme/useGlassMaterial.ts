@@ -7,7 +7,7 @@
  * - Region-based material resolution (toolbar, menubar, tabbar, etc.)
  * - Automatic re-resolution on wallpaper/theme changes
  * - Caching for stable colors (no flicker)
- * - Preloading support for instant materials
+ * - Cached material resolution for stable rendering
  *
  * @example
  * ```tsx
@@ -269,70 +269,6 @@ export function useGlassMaterial(
     isLoading,
     refresh,
   };
-}
-
-/**
- * Hook for preloading all region materials (call on app startup)
- *
- * @example
- * ```tsx
- * function App() {
- *   const { isPreloaded } = usePreloadGlassMaterials();
- *
- *   if (!isPreloaded) {
- *     return <SplashScreen />;
- *   }
- *
- *   return <MainApp />;
- * }
- * ```
- */
-export function usePreloadGlassMaterials(): { isPreloaded: boolean } {
-  const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
-  const storedBackgroundImageUrl = useBackgroundImage();
-  const backgroundImageUrl = IS_MACOS_HOST ? "" : storedBackgroundImageUrl;
-  const backgroundColor = IS_MACOS_HOST
-    ? undefined
-    : backgroundConfig.backgroundColor;
-  const { isDark } = useCurrentTheme();
-  const appearance = isDark ? "dark" : "light";
-  const [isPreloaded, setIsPreloaded] = useState(false);
-
-  useEffect(() => {
-    // Can preload if we have either an image or a color
-    if (!backgroundImageUrl && !backgroundColor) return;
-
-    const preload = async () => {
-      const regions: GlassRegion[] = [
-        "menubar",
-        "tabbar",
-        "toolbar",
-        "sidebar",
-        "content",
-        "global",
-      ];
-
-      await Promise.all(
-        regions.map((region) =>
-          resolveGlassMaterial(
-            {
-              appearance,
-              backgroundImageUrl,
-              backgroundColor,
-              thickness: "thin",
-            },
-            region
-          )
-        )
-      );
-
-      setIsPreloaded(true);
-    };
-
-    preload();
-  }, [backgroundImageUrl, backgroundColor, appearance]);
-
-  return { isPreloaded };
 }
 
 export default useGlassMaterial;

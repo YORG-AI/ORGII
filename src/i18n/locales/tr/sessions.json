@@ -88,12 +88,6 @@
       "openAsFloatingPane": "Yüzen Panelde Aç"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "Dosya yoluna göre oturum ara",
-      "noResults": "Eşleşen bir dosyayı değiştiren oturum yok"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "Mevcut Kanban",
     "view": {
       "list": "Liste",
       "diary": "Günlük",
@@ -359,9 +353,6 @@
       "merge": "Birleştir",
       "merging": "Birleştiriliyor…",
       "merged": "Birleştirildi"
-    },
-    "replay": {
-      "replaySession": "Oynat"
     },
     "discard": {
       "discard": "Sil",
@@ -887,6 +878,8 @@
       "positionUp": "Üst",
       "positionDown": "Alt",
       "uiControls": "Arayüz kontrolleri",
+      "showQuickActions": "Hızlı eylemleri göster",
+      "showSkills": "Skills göster",
       "showCliUpdate": "CLI güncellemelerini göster",
       "title": "Ne yapmak istersiniz?",
       "back": "Başlangıç sayfasına dön",
@@ -998,6 +991,7 @@
     "fullScreenChat": "Chat paneline odaklan (Workstation'i gizle)",
     "maximizeChatPanel": "Chat panelini büyüt",
     "showWorkstation": "Workstation'i göster",
+    "workstationUnavailableForPage": "Workstation bu sayfada kullanılamaz",
     "hideWorkstation": "Workstation'i gizle",
     "restoreSplitView": "Workstation'i göster",
     "shrinkToWorkstation": "Chat panelini küçült (Workstation'i göster)",
@@ -1115,7 +1109,7 @@
     "hudThroughput": "~{{rate}} tok/sn",
     "hudEta": "~{{eta}} kaldı",
     "rateLimitHintTitle": "API Hız Sınırı",
-    "rateLimitHintBody": "Mevcut model hız sınırına ulaştı. Beklerken başka bir pencereye geçerek çalışmaya devam edebilirsiniz.",
+    "rateLimitHintBody": "Mevcut model hız sınırına ulaştı. Beklerken başka bir pencereye geçerek çalışmaya devam edebilirsiniz",
     "feedbackPending": "Geri bildirim bekleniyor",
     "executionThreads": "Yürütme İş Parçacıkları",
     "allThreads": "Tümü",

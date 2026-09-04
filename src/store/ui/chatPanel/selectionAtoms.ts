@@ -30,9 +30,7 @@ export const CHAT_PANEL_CREATE_TARGET = {
   /** One prompt, several harnesses, started at once and compared after. */
   PARALLEL_RUN: "parallelRun",
   PROJECT: "project",
-  GITHUB_ISSUES_PROJECT: "githubIssuesProject",
   WORK_ITEM: "workItem",
-  COLLAB_ORG: "collabOrg",
 } as const;
 
 export type ChatPanelCreateTarget =
@@ -45,38 +43,6 @@ export const chatPanelCreateTargetAtom = atom<ChatPanelCreateTarget>(
   DEFAULT_CHAT_PANEL_CREATE_TARGET
 );
 chatPanelCreateTargetAtom.debugLabel = "chatPanelCreateTargetAtom";
-
-export const CHAT_PANEL_COLLAB_ORG_SOURCE = {
-  LOCAL: "local",
-  CLOUD: "cloud",
-} as const;
-
-export type ChatPanelCollabOrgSource =
-  (typeof CHAT_PANEL_COLLAB_ORG_SOURCE)[keyof typeof CHAT_PANEL_COLLAB_ORG_SOURCE];
-
-export const CHAT_PANEL_COLLAB_ORG_MODE = {
-  CREATE: "create",
-  JOIN: "join",
-} as const;
-
-export type ChatPanelCollabOrgMode =
-  (typeof CHAT_PANEL_COLLAB_ORG_MODE)[keyof typeof CHAT_PANEL_COLLAB_ORG_MODE];
-
-/**
- * One-shot navigation intent for an explicitly requested Add ORG form state.
- * The creator consumes and clears it; authoritative organization state remains
- * owned by the local/cloud organization stores.
- */
-export interface ChatPanelCollabOrgCreateIntent {
-  requestId: number;
-  source: ChatPanelCollabOrgSource;
-  mode: ChatPanelCollabOrgMode;
-}
-
-export const chatPanelCollabOrgCreateIntentAtom =
-  atom<ChatPanelCollabOrgCreateIntent | null>(null);
-chatPanelCollabOrgCreateIntentAtom.debugLabel =
-  "chatPanelCollabOrgCreateIntentAtom";
 
 export const chatPanelStartPageOpenAtom = atom<boolean>(true);
 chatPanelStartPageOpenAtom.debugLabel = "chatPanelStartPageOpenAtom";

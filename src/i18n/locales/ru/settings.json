@@ -66,7 +66,7 @@
       "connections": "Подключения",
       "git": "Git",
       "databases": "Базы данных",
-      "housekeeper": "MiniCPM Housekeeper",
+      "housekeeper": "Локальный интеллект",
       "externalSkillsets": "Skills, MCPs, Plugins"
     }
   },
@@ -84,13 +84,13 @@
     "currentStatus": "Мой текущий статус",
     "tabs": {
       "presence": "Присутствие",
-      "profile": "Мои профили"
+      "profile": "Мой профиль"
     },
     "presence": {
       "instructionForAgent": "Инструкция для Agent"
     },
     "profile": {
-      "title": "Мои профили",
+      "title": "Мой профиль",
       "techSavvy": "Технический уровень",
       "techSavvyDescription": "Помогает агенту калибровать, сколько объяснять и что предполагать",
       "techSavvyPlaceholder": "Выберите уровень…",
@@ -113,7 +113,9 @@
     }
   },
   "general": {
+    "login": "Вход",
     "tabGeneral": "Общие",
+    "tabSelfHosted": "Самостоятельный хостинг",
     "loginStatus": "Статус входа",
     "loggedIn": "Вход выполнен",
     "notLoggedIn": "Вход не выполнен",
@@ -169,7 +171,6 @@
     "sidebarEdgeDepth": "Глубина границы боковой панели",
     "selectedItemTransparency": "Прозрачность выбранного элемента",
     "spotlightPlacement": "Положение Spotlight",
-    "spotlightPlacementDesc": "Выберите, где открывается командная палитра Spotlight",
     "spotlightPlacementOptions": {
       "top": "Сверху",
       "center": "По центру страницы"

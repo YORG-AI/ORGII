@@ -12,7 +12,12 @@ import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/typ
 import type { Session } from "@src/store/session";
 import type { NativeMenuItemOptions } from "@src/util/platform/tauri/nativeMenuPopup";
 
-type CloudSessionOpenDestination = "new-tab" | "my-station";
+import type { SidebarTabDisposition } from "../sidebarTabNavigation";
+
+type CloudSessionOpenDestination =
+  | SidebarTabDisposition
+  | "my-station"
+  | "new-window";
 
 interface CloudSessionDestinationOptions {
   sessionId: string;
@@ -49,7 +54,10 @@ export interface UseCloudSessionsSectionResult {
   /** Cloud row key corresponding to the active replay/import surface. */
   selectedCloudMenuItemId: string | null;
   /** Click resolver for Team rows and the Team section's pagination row. */
-  handleCloudSessionItemClick: (item: NavigationMenuItem) => boolean;
+  handleCloudSessionItemClick: (
+    item: NavigationMenuItem,
+    disposition: SidebarTabDisposition
+  ) => boolean;
   /** Forget any extra Team rows revealed with Load more. */
   resetCloudTeamPagination: () => void;
   /** Canonical Team Conversation menu shared by secondary-click and ellipsis. */

@@ -78,7 +78,6 @@ describe("TeamInboxDetailLayout header actions", () => {
             }),
             onClick: onOpenInBrowser,
           },
-          openPlacement: "header",
           onMarkUnread,
           onOpen,
         })
@@ -95,6 +94,9 @@ describe("TeamInboxDetailLayout header actions", () => {
       'button[aria-label="Open in browser"]'
     );
 
+    expect(
+      container.querySelector('[data-detail-pane-layout="true"]')
+    ).not.toBeNull();
     expect(markUnread).not.toBeNull();
     expect(openInBrowser).not.toBeNull();
     expect(open).not.toBeNull();
@@ -123,7 +125,8 @@ describe("TeamInboxDetailLayout header actions", () => {
         button.getAttribute("aria-label")
       )
     ).toEqual(["Mark unread", "Open in browser", "Open in New Tab"]);
-    expect(header?.className).toContain("h-10");
+    expect(header?.className).toContain("h-9");
+    expect(header?.className).not.toContain("h-10");
     expect(header?.className).toContain("items-center");
     expect(header?.className).toContain("pl-4!");
     expect(header?.className).toContain("pr-[7px]!");
@@ -134,6 +137,45 @@ describe("TeamInboxDetailLayout header actions", () => {
     expect(onMarkUnread).toHaveBeenCalledOnce();
     expect(onOpenInBrowser).toHaveBeenCalledOnce();
     expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  it("lets shared detail tabs own the header while the full title lives below", () => {
+    act(() => {
+      root.render(
+        createElement(TeamInboxDetailLayout, {
+          title: "Support Agent Browser",
+          subtitle: "Assigned to you",
+          icon: ClipboardListIcon,
+          headerContent: createElement(
+            "span",
+            { "data-testid": "canonical-inbox-title" },
+            "Issue #47"
+          ),
+          headerTabs: createElement(
+            "nav",
+            { "data-testid": "shared-inbox-tabs" },
+            "Conversation Linked"
+          ),
+          unread: true,
+          markReadLabel: "Mark read",
+          openLabel: "Open in New Tab",
+          openIcon: createElement(HugeiconsIcon, {
+            icon: LinkSquare02Icon,
+            "aria-hidden": true,
+          }),
+        })
+      );
+    });
+
+    expect(
+      container.querySelector("[data-testid='canonical-inbox-title']")
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-testid='shared-inbox-tabs']")
+    ).not.toBeNull();
+    expect(
+      container.querySelector("[data-testid='shared-inbox-tabs']")?.textContent
+    ).toBe("Conversation Linked");
   });
 
   it("shows the shared shortcut-style tooltip for each action", () => {
@@ -153,7 +195,6 @@ describe("TeamInboxDetailLayout header actions", () => {
               icon: LinkSquare02Icon,
               "aria-hidden": true,
             }),
-            openPlacement: "header",
             onMarkUnread: vi.fn(),
             onOpen: vi.fn(),
           })

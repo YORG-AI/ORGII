@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { IconButton } from "@src/components/IconButton";
@@ -10,6 +10,10 @@ import { MobileTopBar } from "../components/MobileTopBar";
 import { MobileComposer } from "../components/composer/MobileComposer";
 import { ChatTranscript } from "../components/transcript/ChatTranscript";
 import { RoundNavigator } from "../components/transcript/RoundNavigator";
+import type {
+  MobileModelOption,
+  MobileSendAttachment,
+} from "../connection/types";
 
 export interface SessionChatScreenProps {
   sessionId: string;
@@ -41,14 +45,19 @@ export function SessionChatScreen({
     sendStatus,
     activePermission,
     permissionQueueDepth,
+    permissionSubmitting,
+    sessionModel,
     sendMessage,
     openSessionFileInDesktop,
     respondPermission,
+    dismissPermissionHead,
     subscribeSession,
     unsubscribeSession,
     selectRound,
     retrySelectedRound,
+    setSessionModel,
   } = useMobileRemote();
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
 
   useEffect(() => {
     void subscribeSession(sessionId).catch(() => undefined);
@@ -71,8 +80,8 @@ export function SessionChatScreen({
     connection.capabilities?.openSessionFile === true;
 
   const handleSend = useCallback(
-    async (content: string) => {
-      await sendMessage(sessionId, content);
+    async (content: string, attachments: MobileSendAttachment[] = []) => {
+      await sendMessage(sessionId, content, attachments);
     },
     [sendMessage, sessionId]
   );
@@ -116,17 +125,30 @@ export function SessionChatScreen({
     }
   }, [activeRoundId, retrySelectedRound, sessionId, subscribeSession]);
 
+  // A failed answer leaves the prompt queued so the user can tap again;
+  // swallow the rejection rather than leaking an unhandled promise.
   const handleAllow = useCallback(() => {
-    void respondPermission("allow");
+    void respondPermission("allow").catch(() => undefined);
   }, [respondPermission]);
 
   const handleDeny = useCallback(() => {
-    void respondPermission("deny");
+    void respondPermission("deny").catch(() => undefined);
   }, [respondPermission]);
 
   const handleAlwaysAllow = useCallback(() => {
-    void respondPermission("always_allow");
+    void respondPermission("always_allow").catch(() => undefined);
   }, [respondPermission]);
+
+  const handleSelectModel = useCallback(
+    async (option: MobileModelOption) => {
+      await setSessionModel(sessionId, option);
+    },
+    [sessionId, setSessionModel]
+  );
+
+  const modelSelectionEnabled =
+    connection.capabilities?.modelSelection !== false &&
+    sessionModel.config?.modelEditable !== false;
 
   return (
     <>
@@ -172,7 +194,7 @@ export function SessionChatScreen({
               ? t("composerReadOnly")
               : composerDisabled
                 ? t("composerOffline")
-                : undefined
+                : sessionModel.error
           }
           statusMessage={composerStatus}
           statusTone={
@@ -183,6 +205,20 @@ export function SessionChatScreen({
               : "neutral"
           }
           onSend={handleSend}
+          modelPicker={
+            modelSelectionEnabled
+              ? {
+                  config: sessionModel.config,
+                  options: sessionModel.options,
+                  loading: sessionModel.loading,
+                  patching: sessionModel.patching,
+                  open: modelPickerOpen,
+                  onOpen: () => setModelPickerOpen(true),
+                  onClose: () => setModelPickerOpen(false),
+                  onSelect: handleSelectModel,
+                }
+              : undefined
+          }
         />
       </div>
       <PermissionSheet
@@ -190,10 +226,11 @@ export function SessionChatScreen({
         request={permissionOpen ? activePermission : null}
         desktopName={connection.desktopName}
         queueDepth={permissionQueueDepth}
-        submitting={!writable}
+        submitting={!writable || permissionSubmitting}
         onAllow={handleAllow}
         onDeny={handleDeny}
         onAlwaysAllow={handleAlwaysAllow}
+        onDismiss={permissionSubmitting ? undefined : dismissPermissionHead}
       />
     </>
   );

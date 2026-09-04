@@ -20,16 +20,19 @@ const tauriLauncherSource = fs.readFileSync(
 );
 const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
 
-test("frontend script name defaults to rspack on macOS only", () => {
+test("frontend script name defaults to rspack everywhere but Windows", () => {
   assert.equal(
     createFrontendScriptName({ platform: "darwin" }),
     "dev:frontend:rspack"
   );
+  assert.equal(
+    createFrontendScriptName({ platform: "linux" }),
+    "dev:frontend:rspack"
+  );
   assert.equal(createFrontendScriptName({ platform: "win32" }), "dev:frontend");
-  assert.equal(createFrontendScriptName({ platform: "linux" }), "dev:frontend");
   // Explicit overrides beat the platform default in both directions.
   assert.equal(
-    createFrontendScriptName({ rspack: true, platform: "linux" }),
+    createFrontendScriptName({ rspack: true, platform: "win32" }),
     "dev:frontend:rspack"
   );
   assert.equal(

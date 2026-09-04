@@ -66,7 +66,7 @@
       "connections": "接続",
       "git": "Git",
       "databases": "データベース",
-      "housekeeper": "MiniCPM Housekeeper",
+      "housekeeper": "ローカルインテリジェンス",
       "externalSkillsets": "Skills、MCPs、Plugins"
     }
   },
@@ -113,7 +113,9 @@
     }
   },
   "general": {
+    "login": "ログイン",
     "tabGeneral": "一般",
+    "tabSelfHosted": "セルフホスト",
     "loginStatus": "ログイン状態",
     "loggedIn": "ログイン済み",
     "notLoggedIn": "未ログイン",
@@ -169,7 +171,6 @@
     "sidebarEdgeDepth": "サイドバー境界の奥行き",
     "selectedItemTransparency": "選択項目の透明度",
     "spotlightPlacement": "Spotlight の位置",
-    "spotlightPlacementDesc": "Spotlight コマンドパレットを開く位置を選択",
     "spotlightPlacementOptions": {
       "top": "上部",
       "center": "ページ中央"

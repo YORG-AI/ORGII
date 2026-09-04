@@ -12,7 +12,7 @@ import {
   activateChatPanelTabAtom,
   activeWorkManagementSectionAtom,
   closeAndDestroyChatPanelTabAtom,
-  openCreateTargetInChatPanelStartPageAtom,
+  closeOtherThanActiveChatPanelTabsAtom,
   openOrFocusChatPanelStartPageTabAtom,
   openOrReplaceSessionInChatPanelTabAtom,
   openOrganizationInChatPanelTabAtom,
@@ -21,7 +21,10 @@ import {
   openTeamInboxInChatPanelTabAtom,
   openWorkManagementChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
-import { openSessionInWorkstationAtom } from "@src/store/session/sessionTabPlacementAtom";
+import {
+  openSessionInNewWindowAtom,
+  openSessionInWorkstationAtom,
+} from "@src/store/session/sessionTabPlacementAtom";
 import {
   activeStationChatVisibleAtom,
   chatPanelContentModeAtom,
@@ -52,18 +55,19 @@ export function useWorkstationSidebarChatPanelAtoms() {
   const openOrganizationTab = useSetAtom(openOrganizationInChatPanelTabAtom);
   const openSessionInNewChatTab = useSetAtom(openSessionInNewChatTabAtom);
   const openSessionInWorkstation = useSetAtom(openSessionInWorkstationAtom);
+  const openSessionInNewWindow = useSetAtom(openSessionInNewWindowAtom);
   const openOrReplaceSessionInChatPanelTab = useSetAtom(
     openOrReplaceSessionInChatPanelTabAtom
   );
   const activateChatPanelTab = useSetAtom(activateChatPanelTabAtom);
   const openStartPageTab = useSetAtom(openOrFocusChatPanelStartPageTabAtom);
-  const openCreateTargetInStartPage = useSetAtom(
-    openCreateTargetInChatPanelStartPageAtom
-  );
   const openRuntimeTab = useSetAtom(openRuntimeInChatPanelTabAtom);
   const openTeamInboxTab = useSetAtom(openTeamInboxInChatPanelTabAtom);
   const closeAndDestroyChatPanelTab = useSetAtom(
     closeAndDestroyChatPanelTabAtom
+  );
+  const closeOtherThanActiveChatPanelTabs = useSetAtom(
+    closeOtherThanActiveChatPanelTabsAtom
   );
 
   return {
@@ -82,12 +86,13 @@ export function useWorkstationSidebarChatPanelAtoms() {
     openOrganizationTab,
     openSessionInNewChatTab,
     openSessionInWorkstation,
+    openSessionInNewWindow,
     openOrReplaceSessionInChatPanelTab,
     activateChatPanelTab,
     openStartPageTab,
-    openCreateTargetInStartPage,
     openRuntimeTab,
     openTeamInboxTab,
     closeAndDestroyChatPanelTab,
+    closeOtherThanActiveChatPanelTabs,
   };
 }

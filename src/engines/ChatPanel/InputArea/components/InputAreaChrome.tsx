@@ -1,13 +1,14 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import type { ComposerInputRef } from "@src/components/ComposerInput";
 import { INPUT_AREA } from "@src/config/inputAreaTokens";
 import { ChatStatusSegmentedBar } from "@src/engines/ChatPanel/components/ChatStatusBanners";
 
 import ChatHeader from "../ChatHeader";
 import EditModeImageThumbnail from "./EditModeImageThumbnail";
 import ImageAttachmentPreview from "./ImageAttachmentPreview";
-import PinnedActionsBar from "./PinnedActionsBar";
+import LazyPinnedActionsBar from "./PinnedActionsBar/LazyPinnedActionsBar";
 import PlanTodoPill from "./PlanTodoPill";
 
 interface TopRowsProps {
@@ -15,9 +16,7 @@ interface TopRowsProps {
   omitChatHeader: boolean;
   topRowPills?: React.ReactNode;
   topRowTrailingContent?: React.ReactNode;
-  composerInputRef: React.ComponentProps<
-    typeof PinnedActionsBar
-  >["composerInputRef"];
+  composerInputRef: React.RefObject<ComposerInputRef | null>;
   sessionId?: string;
   showPinnedActions: boolean;
   skillWorkspacePaths?: string[];
@@ -38,7 +37,7 @@ export const InputAreaTopRows: React.FC<TopRowsProps> = ({
       {!isEditMode && !omitChatHeader && <ChatHeader />}
       {!isEditMode && (
         <div className="relative z-10 flex min-w-0 items-center gap-1 px-0.5 pb-1.5">
-          <PinnedActionsBar
+          <LazyPinnedActionsBar
             composerInputRef={composerInputRef}
             sessionId={sessionId}
             workspacePaths={skillWorkspacePaths ?? undefined}

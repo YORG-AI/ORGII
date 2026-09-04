@@ -18,6 +18,7 @@ import {
   saveScopedMobileConnectionConfig,
   selectScopedMobilePairedDesktop,
 } from "../../connection/mobileConnectionStorage";
+import { resolveMobileDeviceLabel } from "../../connection/resolveMobileDeviceLabel";
 import type { MobileRemotePlatform } from "../types";
 import { createBrowserMobileAuthClient } from "./browserMobileAuthClient";
 
@@ -35,6 +36,7 @@ export function createBrowserMobileRemotePlatform(): MobileRemotePlatform {
       document.addEventListener("visibilitychange", listener);
       return () => document.removeEventListener("visibilitychange", listener);
     },
+    portalContainer: () => document.body,
   };
 
   return {
@@ -42,7 +44,7 @@ export function createBrowserMobileRemotePlatform(): MobileRemotePlatform {
     clientInfo: {
       name: "orgii-mobile-pwa",
       version: "0.1.0",
-      defaultDeviceLabel: "ORGII Mobile",
+      defaultDeviceLabel: resolveMobileDeviceLabel(),
     },
     runtime,
     auth: {

@@ -1,13 +1,9 @@
 /**
  * MyRoles constants
  *
- * Shared tab identifiers, presence-guidance defaults and profile-preset
- * scaffolding for the My Roles section.
+ * Shared tab identifiers and presence-guidance defaults for the My Roles
+ * section.
  */
-import type {
-  FamiliarLanguageTechStack,
-  UserTechSavvySelection,
-} from "@src/config/profile/userProfile";
 import { CircleIcon, HatGlassesIcon, MoonIcon } from "@src/icons";
 import { USER_PRESENCE_MODE } from "@src/types/userPresence";
 
@@ -52,25 +48,6 @@ export const PRESENCE_GUIDANCE_DEFAULT_I18N_KEYS: Record<
 };
 
 export const CUSTOM_ROLE_COLOR_CLASS = "text-primary-6";
-export const DEFAULT_PROFILE_ID = "default";
-
-export interface UserProfilePreset {
-  id: string;
-  name: string;
-  techSavvy: UserTechSavvySelection;
-  jobRoles: string[];
-  familiarTechStacks: FamiliarLanguageTechStack[];
-  description: string;
-}
-
-export const emptyProfilePreset = (name: string): UserProfilePreset => ({
-  id: `profile-${Date.now()}`,
-  name,
-  techSavvy: "",
-  jobRoles: [],
-  familiarTechStacks: [],
-  description: "",
-});
 
 export const BUILT_IN_STATUS_OPTIONS = [
   {

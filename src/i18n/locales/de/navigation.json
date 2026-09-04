@@ -61,7 +61,7 @@
     "taskMarket": "Aufgabenmarkt",
     "channels": "Kanäle",
     "apiKeys": "Modelle",
-    "myProfiles": "Meine Profile",
+    "myProfiles": "Mein Profil",
     "models": "Modelle",
     "signingIn": "Anmeldung läuft...",
     "launchpad": "Startbereich",
@@ -128,6 +128,7 @@
     },
     "settingsMenu": {
       "appearance": "Darstellung",
+      "modifyAppearance": "Darstellung ändern",
       "language": "Sprache",
       "viewRam": "RAM anzeigen",
       "tutorials": "Tutorials",

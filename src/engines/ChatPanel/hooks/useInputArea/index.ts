@@ -662,7 +662,6 @@ export function useInputArea(
     containerRef: refs.containerRef,
     contextMenuKeyboardHandlerRef: refs.contextMenuKeyboardHandlerRef,
     slashCommandKeyboardHandlerRef: refs.slashCommandKeyboardHandlerRef,
-    plusSlashCommandKeyboardHandlerRef: refs.plusSlashCommandKeyboardHandlerRef,
     hasContentRef: refs.hasContentRef,
 
     // Input state
@@ -692,13 +691,11 @@ export function useInputArea(
     handleSlashCommand: slashCommand.handleSlashCommand,
     handleSlashCommandClose: slashCommand.handleSlashCommandClose,
     handleSlashSelect: slashCommand.handleSlashSelect,
-    handleSlashAppendSelect: slashCommand.handleSlashAppendSelect,
     handleModeSelect: slashCommand.handleModeSelect,
     currentMode: slashCommand.currentMode,
     includeProjectMode: slashCommand.includeProjectMode,
     filteredSlashItems: slashCommand.filteredItems,
     slashLoading: slashCommand.slashLoading,
-    prefetchSlashItems: slashCommand.prefetchItems,
 
     // File selection
     handleSelectFile: fileSelection.handleSelectFile,

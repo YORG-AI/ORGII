@@ -42,6 +42,8 @@ interface ResizableSplitPanelProps {
   onClose?: () => void;
   /** When true, disables the right-click resize context menu on the handle */
   disableContextMenu?: boolean;
+  /** Whether the resize boundary draws a resting separator line. */
+  showDivider?: boolean;
 }
 
 const ResizableSplitPanel: React.FC<ResizableSplitPanelProps> = ({
@@ -60,6 +62,7 @@ const ResizableSplitPanel: React.FC<ResizableSplitPanelProps> = ({
   resetWidth,
   onClose,
   disableContextMenu = false,
+  showDivider = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
@@ -297,6 +300,7 @@ const ResizableSplitPanel: React.FC<ResizableSplitPanelProps> = ({
         <VerticalResizeHandle
           onMouseDown={handleMouseDown}
           onContextMenu={handleContextMenu}
+          variant={showDivider ? "border" : "transparent"}
         />
       )}
 

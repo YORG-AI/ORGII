@@ -22,6 +22,10 @@ name = "app_window"
 
 [dependencies]
 perf_utils = { path = "../perf-utils" }
+# The startup backdrop follows the user's `general.theme`, which lives in
+# `~/.orgii/settings.jsonc`. `settings` is itself a leaf crate (app_paths +
+# tauri), so this stays acyclic and does not pull in `app`.
+settings = { path = "../settings" }
 
 tauri = { workspace = true }
 tracing = "0.1"

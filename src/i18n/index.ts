@@ -103,6 +103,19 @@ export const LANGUAGE_NAMES: Record<SupportedLanguage, string> = {
   pl: "Polski",
 };
 
+/**
+ * Format a language option consistently across Settings and Spotlight.
+ */
+export function formatLanguageDisplayLabel(
+  language: SupportedLanguage,
+  translatedName: string
+): string {
+  const nativeName = LANGUAGE_NAMES[language];
+  return translatedName === nativeName
+    ? nativeName
+    : `${translatedName} · ${nativeName}`;
+}
+
 const LANGUAGE_ENGLISH_NAMES: Record<SupportedLanguage, string> = {
   en: "English",
   fr: "French",
@@ -166,7 +179,7 @@ export function resolveLanguagePreference(
 export function getFollowSystemLanguageLabel(
   followSystemLabel = "Follow system"
 ): string {
-  return `${followSystemLabel} (${LANGUAGE_ENGLISH_NAMES[resolveSystemLanguage()]})`;
+  return `${followSystemLabel} · ${LANGUAGE_ENGLISH_NAMES[resolveSystemLanguage()]}`;
 }
 
 // ============================================================================

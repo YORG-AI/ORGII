@@ -1,6 +1,6 @@
 /**
  * Shared utilities for slash-menu item construction.
- * Used by useSlashItemsCache, useSlashCommand, PinnedActionsBar, and FlyoutSubmenu.
+ * Used by useSlashItemsCache, useSlashCommand, and PinnedActionsBar.
  */
 import type { ComposerInputRef } from "@src/components/ComposerInput";
 import { type InstalledSkill, SLASH_ACTIONS } from "@src/types/extensions";

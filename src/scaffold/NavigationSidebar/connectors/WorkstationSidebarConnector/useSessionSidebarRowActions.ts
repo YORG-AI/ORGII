@@ -20,8 +20,10 @@ interface UseSessionSidebarRowActionsParams {
   rename: ContextMenuParams["rename"];
   handleDeleteSession: ContextMenuParams["handleDeleteSession"];
   deleteSessionCreatorDraft: DecorateRowActionsParams["deleteSessionCreatorDraft"];
+  handleOpenDraftInNewTab: ContextMenuParams["handleOpenDraftInNewTab"];
   handleExportMarkdown: ContextMenuParams["handleExportMarkdown"];
   handleOpenInNewTab: ContextMenuParams["handleOpenInNewTab"];
+  handleOpenInNewWindow: ContextMenuParams["handleOpenInNewWindow"];
   handleOpenInMyStation: ContextMenuParams["handleOpenInMyStation"];
   handleTogglePin: ContextMenuParams["handleTogglePin"];
   handleToggleSubagentExpansion: DecorateRowActionsParams["handleToggleSubagentExpansion"];
@@ -42,8 +44,10 @@ export function useSessionSidebarRowActions({
   rename,
   handleDeleteSession,
   deleteSessionCreatorDraft,
+  handleOpenDraftInNewTab,
   handleExportMarkdown,
   handleOpenInNewTab,
+  handleOpenInNewWindow,
   handleOpenInMyStation,
   handleTogglePin,
   handleToggleSubagentExpansion,
@@ -68,8 +72,10 @@ export function useSessionSidebarRowActions({
     rename,
     handleDeleteSession,
     handleDeleteDraft: deleteSessionCreatorDraft,
+    handleOpenDraftInNewTab,
     handleExportMarkdown,
     handleOpenInNewTab,
+    handleOpenInNewWindow,
     handleOpenInMyStation,
     handleTogglePin,
     isMoveEligible: moveToOrg.isMoveEligible,

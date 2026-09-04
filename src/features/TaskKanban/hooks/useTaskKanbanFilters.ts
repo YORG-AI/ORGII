@@ -23,17 +23,15 @@ export interface UseTaskKanbanFiltersOptions {
   sidebarFilter: KanbanSidebarFilter;
   agentTypeFilter: KanbanAgentTypeFilter;
   selectedTaskId: string | null;
-  fileSearchQuery: string;
+  searchQuery: string;
 }
 
-export function normalizeFileSearchQuery(value: string): string {
-  return value.trim().replace(/\\/g, "/").toLowerCase();
+export function normalizeKanbanSearchQuery(value: string): string {
+  return value.trim().toLowerCase();
 }
 
-export function buildTaskFileSearchText(task: KanbanTask): string {
-  return (task.impact?.touchedFiles ?? [])
-    .map((path) => path.replace(/\\/g, "/").toLowerCase())
-    .join("\u0000");
+export function buildTaskSessionNameSearchText(task: KanbanTask): string {
+  return task.title.toLowerCase();
 }
 
 export function useTaskKanbanFilters({
@@ -42,21 +40,13 @@ export function useTaskKanbanFilters({
   sidebarFilter,
   agentTypeFilter,
   selectedTaskId,
-  fileSearchQuery,
+  searchQuery,
 }: UseTaskKanbanFiltersOptions) {
-  const normalizedFileQuery = normalizeFileSearchQuery(fileSearchQuery);
-  const fileSearchActive = normalizedFileQuery.length > 0;
-  const fileSearchTextByTaskId = useMemo(() => {
-    if (!fileSearchActive) return new Map<string, string>();
-    const index = new Map<string, string>();
-    for (const task of tasks) {
-      index.set(task.id, buildTaskFileSearchText(task));
-    }
-    return index;
-  }, [fileSearchActive, tasks]);
+  const normalizedSearchQuery = normalizeKanbanSearchQuery(searchQuery);
+  const searchActive = normalizedSearchQuery.length > 0;
 
   const applyVisibleFilters = useMemo(() => {
-    return (sourceTasks: KanbanTask[], includeFileSearch: boolean) =>
+    return (sourceTasks: KanbanTask[], includeSearch: boolean) =>
       sourceTasks.filter((task) => {
         if (sidebarFilter !== KANBAN_SIDEBAR_FILTER.ALL) {
           const status = task.status as KanbanSidebarFilter;
@@ -70,22 +60,16 @@ export function useTaskKanbanFilters({
         }
 
         if (
-          includeFileSearch &&
-          fileSearchActive &&
-          !fileSearchTextByTaskId.get(task.id)?.includes(normalizedFileQuery)
+          includeSearch &&
+          searchActive &&
+          !buildTaskSessionNameSearchText(task).includes(normalizedSearchQuery)
         ) {
           return false;
         }
 
         return true;
       });
-  }, [
-    agentTypeFilter,
-    fileSearchActive,
-    fileSearchTextByTaskId,
-    normalizedFileQuery,
-    sidebarFilter,
-  ]);
+  }, [agentTypeFilter, normalizedSearchQuery, searchActive, sidebarFilter]);
 
   const visibleTasks = useMemo(
     () => applyVisibleFilters(tasks, true),

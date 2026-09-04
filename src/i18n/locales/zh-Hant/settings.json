@@ -67,7 +67,7 @@
       "git": "Git",
       "databases": "數據庫",
       "externalSkillsets": "Skills、MCPs、Plugins",
-      "housekeeper": "MiniCPM 常駐管家"
+      "housekeeper": "本機智慧"
     }
   },
   "security": {
@@ -113,7 +113,9 @@
     }
   },
   "general": {
+    "login": "登錄",
     "tabGeneral": "通用",
+    "tabSelfHosted": "自託管",
     "loginStatus": "登錄狀態",
     "loggedIn": "已登錄",
     "notLoggedIn": "未登錄",
@@ -169,7 +171,6 @@
     "sidebarEdgeDepth": "側邊欄邊緣層次",
     "selectedItemTransparency": "選取項目透明度",
     "spotlightPlacement": "Spotlight 位置",
-    "spotlightPlacementDesc": "選擇 Spotlight 命令面板開啟的位置",
     "spotlightPlacementOptions": {
       "top": "頂部",
       "center": "頁面置中"

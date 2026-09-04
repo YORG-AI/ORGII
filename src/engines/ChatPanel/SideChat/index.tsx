@@ -332,7 +332,6 @@ const SideChatSessionBody: React.FC<SideChatSessionBodyProps> = ({
             <InputArea
               key={sessionId}
               omitChatHeader
-              bottomAnchored
               sessionId={sessionId}
               sessionScope="none"
               onSubmitOverride={handleSubmit}

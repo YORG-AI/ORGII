@@ -1,0 +1,11 @@
+# FullListSurfaceHeader UI audit
+
+| Line                                                             | Element                      | Verdict          | Reason                                                                                                                                                                              | Suggested change |
+| ---------------------------------------------------------------- | ---------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `src/modules/shared/layouts/InboxListDetailLayout.tsx:56`        | Single-pane full-header slot | keep with reason | The shared layout owns the header/content stacking seam, so Inbox and GitHub full views cannot diverge in scroll containment or row placement.                                      | None.            |
+| `src/modules/shared/layouts/SplitListHeader.tsx:30`              | Full-width 36px header inset | keep with reason | The explicit 15px/7px values deliberately match the Chat Panel host-header optical insets; compact split rows retain their existing 12px list-column inset.                         | None.            |
+| `src/modules/MainApp/WorkManagement/GitHubWorkItemsView.tsx:352` | GitHub full-list header      | keep with reason | Reuses the shared header shell and existing repository, filter, search, refresh, and action controls. The flexible gap preserves the established context-left/actions-right layout. | None.            |
+| `src/modules/MainApp/TeamInbox/TeamInboxView.tsx:425`            | Inbox full-list header       | keep with reason | Reuses the same shared shell, dataset switch, ghost search, tertiary actions, and right-aligned action cluster as the GitHub full-list presentation.                                | None.            |
+| `src/modules/shared/layouts/SplitListFullscreenButton.tsx:31`    | Full/split restore action    | keep with reason | Uses the design-system small tertiary icon button and standard tooltip; restoring the original shrink glyph preserves the established icon vocabulary.                              | None.            |
+
+Verdict totals: **0 fix**, **5 keep with reason**, **0 abstract**.

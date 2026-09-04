@@ -324,6 +324,28 @@ fn cleans_user_query_wrapper_variants() {
 }
 
 #[test]
+fn keeps_multi_line_user_prompt_formatting_on_replay() {
+    // Replay renders the user bubble as markdown, so blank lines, indentation
+    // and fenced code blocks the user typed have to survive verbatim.
+    let prompt = "Refactor this helper:\n\n```rust\nfn main() {\n    println!(\"hi\");\n}\n```\n\nKeep the list indented:\n  - first\n  - second";
+
+    assert_eq!(
+        clean_user_text(&format!("<user_query>\n{prompt}\n</user_query>")).as_deref(),
+        Some(prompt),
+    );
+}
+
+#[test]
+fn strips_generated_envelope_without_flattening_the_prompt_body() {
+    let prompt = "Fix the parser.\n\n```ts\nconst x = 1;\n```";
+    let wrapped = format!(
+        "<timestamp>Sunday</timestamp>\n<user_query>\n<orgii_provider_context>\ninternal rules\n</orgii_provider_context>\n{prompt}\n</user_query>"
+    );
+
+    assert_eq!(clean_user_text(&wrapped).as_deref(), Some(prompt));
+}
+
+#[test]
 fn full_agent_transcript_wins_over_compacted_store_tail() {
     let conn = fixture_conn();
     let session_id = format!("cursorcliapp-{SESSION_UUID}");

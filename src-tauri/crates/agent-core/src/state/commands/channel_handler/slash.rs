@@ -207,7 +207,7 @@ fn resolve_model_target(
             "gpt-5.5",
             "claude-sonnet-4-6",
             "claude-opus-4-6",
-            "claude-fable-5",
+            "claude-fable-5-1",
         ]
         .into_iter()
         .map(str::to_string),
@@ -216,7 +216,7 @@ fn resolve_model_target(
     candidates.dedup();
     let aliases: &[(&str, &[&str])] = &[
         ("openai/gpt-5.5:openai", &["gpt-5.5", "gpt5.5", "gpt55"]),
-        ("claude-fable-5", &["fable"]),
+        ("claude-fable-5-1", &["fable"]),
         ("claude-sonnet-4-6", &["sonnet"]),
         ("claude-opus-4-6", &["opus"]),
     ];
@@ -329,6 +329,26 @@ mod help_text_tests {
         assert_eq!(
             best_candidate_for_alias(&candidates, "claude-fable-5"),
             Some("anthropic/claude-fable-5:anthropic".to_string())
+        );
+    }
+
+    /// The `fable` alias points at Claude Fable 5.1, the newest Claude model.
+    /// Fable 5 stays reachable — it is still in the account catalog, and
+    /// `/model fable-5` finds it through the generic candidate search.
+    #[test]
+    fn fable_alias_prefers_5_1_over_a_configured_fable_5() {
+        let candidates = vec!["claude-fable-5".to_string(), "claude-fable-5-1".to_string()];
+        assert_eq!(
+            best_candidate_for_alias(&candidates, "claude-fable-5-1"),
+            Some("claude-fable-5-1".to_string())
+        );
+
+        // An account whose catalog has not picked up 5.1 yet degrades to its
+        // Fable 5 row rather than resolving to nothing.
+        let legacy_only = vec!["claude-fable-5".to_string()];
+        assert_eq!(
+            best_candidate_for_alias(&legacy_only, "claude-fable-5-1"),
+            Some("claude-fable-5".to_string())
         );
     }
 

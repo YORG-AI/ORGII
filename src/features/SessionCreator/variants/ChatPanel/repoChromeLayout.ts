@@ -1,5 +1,7 @@
 import type { CreatorRepoChromePosition } from "@src/store/session";
 
+import type { SessionCreatorChatPanelHeaderLayout } from "./types";
+
 export const REPO_CHROME_POSITION_CLASS: Record<
   CreatorRepoChromePosition,
   string
@@ -20,4 +22,13 @@ export function shouldUseCreatorComposerBreathing(
   hasMovableRepoChrome: boolean
 ): boolean {
   return isLaunchpadLayout && (!hasMovableRepoChrome || position === "top");
+}
+
+export function shouldShowCreatorPinnedActions(
+  headerLayout: SessionCreatorChatPanelHeaderLayout,
+  hasRepoChromeMenu: boolean,
+  pinnedActionsVisible: boolean
+): boolean {
+  if (headerLayout === "compact") return pinnedActionsVisible;
+  return !hasRepoChromeMenu || pinnedActionsVisible;
 }

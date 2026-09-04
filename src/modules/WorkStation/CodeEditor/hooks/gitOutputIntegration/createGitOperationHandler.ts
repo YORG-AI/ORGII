@@ -9,7 +9,7 @@
  * (see `.archive/README.md`).
  */
 import type { GitErrorType } from "@src/api/http/git/streaming";
-import { showGitErrorAndHandle } from "@src/hooks/git/useGitErrorDialog";
+import { showGitErrorAndHandle } from "@src/hooks/git/gitErrorDialog";
 import type {
   GitOperationResult,
   GitOperationType,

@@ -1,0 +1,8 @@
+# PrConversationTab UI audit
+
+| Line                                                                                                                         | Element                    | Verdict          | Reason                                                                                                                                                                                        | Suggested change |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/PullRequestContent/detail/PrConversationTab.tsx:559` | Floating PR composer       | keep with reason | Uses the shared `ComposerSurface` and `MarkdownTextareaEditor`; the explicit two-row, 64px floor keeps the persistent overlay compact without preventing it from growing for longer comments. | None.            |
+| `src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/PullRequestContent/detail/PrConversationTab.tsx:534` | Review and comment actions | keep with reason | Existing design-system `Button` controls preserve their shared compact sizing and action semantics.                                                                                           | None.            |
+
+Verdict totals: **0 fix**, **2 keep with reason**, **0 abstract**.

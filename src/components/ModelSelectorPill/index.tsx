@@ -27,8 +27,10 @@ import {
   useModelEffortSegment,
   useModelPillLabel,
 } from "@src/hooks/models";
+import type { ModelEffortSegmentState } from "@src/hooks/models/useModelEffortSegment";
 import { AiSettingIcon, FlashIcon, HugeiconsIcon } from "@src/icons";
 import type { LastModelSelection } from "@src/store/session/creatorDefaultModelAtom";
+import { formatModelNameFull } from "@src/util/formatModelName";
 import {
   MODEL_REASONING_LEVEL,
   formatReasoningLevel,
@@ -44,6 +46,10 @@ interface ModelSelectorPillProps {
   /** When set, an effort segment is shown and wired to variant apply. */
   onVariantApply?: (nextModelId: string) => void;
   className?: string;
+  /** Classes applied to the trigger button (not the PillGroup wrapper). */
+  triggerClassName?: string;
+  /** Drop left padding on the trigger so the icon lines up with editor text. */
+  triggerLeadingFlush?: boolean;
   dataTestId?: string;
   effortDataTestId?: string;
   ariaLabel?: string;
@@ -51,6 +57,13 @@ interface ModelSelectorPillProps {
   /** When false (browsing a historical session), skip variant resolution
    *  so the pill shows the session's original model, not a remapped variant. */
   isActiveSession?: boolean;
+  /** Remote/mobile callers without KeyVault can supply effort state derived
+   *  from their own model catalog instead of the internal KeyVault hook. */
+  effortSegmentOverride?: ModelEffortSegmentState;
+  /** Mobile opens the detailed Effort/Speed menu instead of the slider. */
+  settingsMenuDefaultAdvanced?: boolean;
+  /** Mobile uses the combined settings menu whenever variant rows exist. */
+  preferCombinedSettingsMenu?: boolean;
 }
 
 const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
@@ -62,11 +75,16 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
       onClick,
       onVariantApply,
       className,
+      triggerClassName,
+      triggerLeadingFlush = false,
       dataTestId,
       effortDataTestId = "chat-model-pill-effort",
       ariaLabel,
       iconSize = PILL_SM_ICON_SIZE,
       isActiveSession = false,
+      effortSegmentOverride,
+      settingsMenuDefaultAdvanced = false,
+      preferCombinedSettingsMenu = false,
     },
     ref
   ) => {
@@ -104,6 +122,17 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
     );
     const hasModelSelection = Boolean(modelIconName);
 
+    const resolvedModelLabel = useMemo(() => {
+      if (!modelIconName) return modelLabel;
+      if (modelLabel && modelLabel !== modelIconName) return modelLabel;
+      return formatModelNameFull(modelIconName) || modelLabel || defaultLabel;
+    }, [defaultLabel, modelIconName, modelLabel]);
+
+    const internalEffortSegment = useModelEffortSegment({
+      selection,
+      isActiveSession,
+      onApply: onVariantApply,
+    });
     const {
       editable: effortEditable,
       effortLabel,
@@ -111,11 +140,7 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
       modelId: effortModelId,
       variantOptions,
       handleApply: handleEffortApply,
-    } = useModelEffortSegment({
-      selection,
-      isActiveSession,
-      onApply: onVariantApply,
-    });
+    } = effortSegmentOverride ?? internalEffortSegment;
 
     const handleEffortOpenChange = useCallback((open: boolean) => {
       setEffortOpen(open);
@@ -139,7 +164,7 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
             className="text-primary-6"
           />
         ),
-        label: modelLabel,
+        label: resolvedModelLabel,
         title: modelTitle,
         tooltip: (
           <ModelPillTooltipContent
@@ -163,6 +188,7 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
         dataTestId: dataTestId,
         buttonRef: modelSegmentRef,
         maxLabelWidth: 220,
+        leadingFlush: triggerLeadingFlush,
       };
 
       if (!effortEditable || !effortModelId) {
@@ -239,42 +265,48 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
       iconSize,
       modelIconAgent,
       modelIconName,
-      modelLabel,
       modelTitle,
       onClick,
+      resolvedModelLabel,
+      triggerLeadingFlush,
       variantOptions,
     ]);
 
     const variant = effortModelId
       ? variantOptions.parseSelection(effortModelId)
       : undefined;
-    if (
+    const canEditVariants =
+      variantOptions.availableLevels.length > 1 ||
+      variantOptions.fastAvailableAnywhere ||
+      variantOptions.thinkingToggleable;
+    const useCombinedSettingsMenu =
+      preferCombinedSettingsMenu && effortModelId && canEditVariants;
+    const useSliderSettingsMenu =
+      !preferCombinedSettingsMenu &&
       effortEditable &&
       effortModelId &&
       variant &&
-      variantOptions.getAvailableLevels(variant.level).length > 1
-    ) {
+      variantOptions.availableLevels.length > 1;
+    if (useCombinedSettingsMenu || useSliderSettingsMenu) {
       return (
         <ModelSettingsMenu
           anchorRef={modelSegmentRef}
-          modelLabel={modelLabel}
+          modelLabel={resolvedModelLabel}
           value={effortModelId}
           variantOptions={variantOptions}
           onModelClick={onClick}
           onChange={handleEffortApply}
+          defaultAdvanced={settingsMenuDefaultAdvanced}
           renderTrigger={({ open, onClick: openMenu, previewLevel }) => {
             // While the effort slider is dragged the pill reports the level
             // under the thumb, so the panel is not the only place showing
             // where the gesture has landed. It falls back to the saved level
             // the moment the gesture ends.
-            const shownLevel = previewLevel ?? variant.level;
+            const shownLevel = previewLevel ?? variant?.level;
             const levelLabel = shownLevel
               ? formatReasoningLevel(shownLevel)
               : effortLabel;
-            const combinedLabel = `${modelLabel} ${levelLabel}`;
-            // The level is muted at rest so the model name leads. While the
-            // panel is open it is the value being edited, so it steps up to
-            // primary. Ultra keeps its purple either way.
+            const combinedLabel = `${resolvedModelLabel} ${levelLabel}`;
             const levelToneClass =
               shownLevel === MODEL_REASONING_LEVEL.ULTRA
                 ? "text-purple-6"
@@ -285,7 +317,7 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
               <SelectorPill
                 ref={modelSegmentRef}
                 icon={
-                  variant.fast ? (
+                  variant?.fast ? (
                     <HugeiconsIcon
                       icon={FlashIcon}
                       data-icon="fast"
@@ -298,7 +330,9 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
                 label={combinedLabel}
                 labelContent={
                   <>
-                    <span className="truncate font-medium">{modelLabel}</span>
+                    <span className="truncate font-medium">
+                      {resolvedModelLabel}
+                    </span>
                     <span
                       className={`ml-1 shrink-0 font-normal ${levelToneClass}`}
                     >
@@ -313,9 +347,10 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
                 active={active || open}
                 activeTone="neutral"
                 ariaExpanded={open}
-                ariaLabel={`${ariaLabel ?? defaultLabel}: ${combinedLabel}${variant.fast ? " · Fast" : ""}`}
+                ariaLabel={`${ariaLabel ?? defaultLabel}: ${combinedLabel}${variant?.fast ? " · Fast" : ""}`}
                 dataTestId={dataTestId}
-                className={`shrink-0 ${className ?? ""}`}
+                className={`shrink-0 ${triggerClassName ?? ""} ${className ?? ""}`}
+                leadingFlush={triggerLeadingFlush}
                 onClick={openMenu}
               />
             );
@@ -328,7 +363,7 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
       <PillGroup
         segments={segments}
         className={`shrink-0 text-[13px] ${className ?? ""}`}
-        segmentClassName="h-[28px]"
+        segmentClassName={`h-[28px] ${triggerClassName ?? ""}`.trim()}
       />
     );
   }

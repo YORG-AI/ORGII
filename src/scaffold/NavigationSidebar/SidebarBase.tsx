@@ -288,7 +288,12 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
           style={
             {
               height: `${SIDEBAR_STYLE.topBarHeight}px`,
-              paddingLeft: IS_WINDOWS_HOST
+              // Only macOS needs an inline reserve for the traffic lights.
+              // Windows/Linux (and browser mode, which resolves to Linux) must
+              // fall through to the alignment class above — an inline `0px`
+              // would beat `pl-3` and pull the top bar flush to the sidebar
+              // edge, out of line with the list rows below it.
+              paddingLeft: IS_WINDOWS_OR_LINUX_HOST
                 ? undefined
                 : `${trafficLightPadding}px`,
               WebkitAppRegion: IS_WINDOWS_HOST ? "no-drag" : "drag",

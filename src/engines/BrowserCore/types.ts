@@ -17,3 +17,15 @@ export interface BrowserSession {
   error: string | null;
   incognito?: boolean;
 }
+
+/** Browser session state and commands consumed by BrowserCore surfaces. */
+export interface BrowserState {
+  sessions: BrowserSession[];
+  activeSessionId: string;
+  activeSession: BrowserSession | undefined;
+  addSession: (url?: string, incognito?: boolean) => string;
+  closeSession: (sessionId: string) => void;
+  setActiveSession: (sessionId: string) => void;
+  updateSession: (sessionId: string, updates: Partial<BrowserSession>) => void;
+  forceSave?: () => void;
+}

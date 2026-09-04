@@ -27,6 +27,7 @@ const runtime: MobileRemoteRuntimePort = {
   clearTimeout: () => undefined,
   isHidden: () => false,
   subscribeVisibility: () => () => undefined,
+  portalContainer: () => null,
 };
 
 function deferred<T = void>() {

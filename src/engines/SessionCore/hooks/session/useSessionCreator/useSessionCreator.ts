@@ -198,7 +198,6 @@ export function useSessionCreator(
     handleAtMention,
     handleAtMentionClose,
     handleAtSelect,
-    handleAtMentionClick,
     isDark,
     showSlashMenu,
     slashQuery,
@@ -210,7 +209,6 @@ export function useSessionCreator(
     includeProjectMode,
     filteredSlashItems: baseFilteredSlashItems,
     slashLoading,
-    prefetchSlashItems,
   } = useComposerInput({
     onContentChange: (content) => {
       setEditorContent(content);
@@ -494,7 +492,6 @@ export function useSessionCreator(
     includeProjectMode,
     filteredSlashItems,
     slashLoading,
-    prefetchSlashItems,
 
     // Event handlers
     handleFileUpload,
@@ -503,7 +500,6 @@ export function useSessionCreator(
     handleContentChange,
     handleAtMention,
     handleAtMentionClose,
-    handleAtMentionClick,
     handleAtSelect,
     handleLaunch,
     canLaunch,

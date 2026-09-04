@@ -193,7 +193,10 @@ pub(super) fn clean_user_text(raw: &str) -> Option<String> {
         }
     };
     let cleaned = strip_user_query_scaffold(inner);
-    let projected = imported_history::project_user_request_text(cleaned);
+    // Body projection, not title projection: the generated context envelopes
+    // are removed, but the user's own newlines, indentation, and fenced code
+    // blocks are preserved verbatim for replay.
+    let projected = imported_history::extract_user_request_body(cleaned);
     (!projected.is_empty()).then_some(projected)
 }
 

@@ -54,19 +54,22 @@ import { registerTerminalEventHandlers } from "./terminalHandlers";
 import { cleanupPtyListeners } from "./terminalLifecycle";
 import { flushBacklog, setPaneForeground } from "./terminalOutputScheduler";
 import { initPtyConnection } from "./terminalPty";
+import { cancelRenderSettle } from "./terminalRenderSettle";
 import {
   createTerminalInstance,
   initializeWhenContainerVisible,
-  loadTerminalWebgl,
 } from "./terminalSetup";
 import {
   createFitTerminal,
   createRedrawTerminalAfterLayoutChange,
 } from "./terminalSizing";
+import {
+  type TerminalWebglController,
+  createTerminalWebglController,
+} from "./terminalWebglLifecycle";
 import type { TerminalViewHandle, TerminalViewProps } from "./types";
 import { useTerminalAppearance } from "./useTerminalAppearance";
 import { useTerminalResizeListeners } from "./useTerminalResizeListeners";
-import { releaseWebglSlot } from "./webglContextManager";
 
 // Re-export types for consumers
 export type { TerminalFileLinkTarget, TerminalViewHandle } from "./types";
@@ -99,6 +102,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
     const terminalRef = useRef<Terminal | null>(null);
     const fitAddonRef = useRef<FitAddon | null>(null);
     const webglAddonRef = useRef<WebglAddon | null>(null);
+    const webglControllerRef = useRef<TerminalWebglController | null>(null);
     const searchAddonRef = useRef<SearchAddon | null>(null);
     const serializeAddonRef = useRef<SerializeAddon | null>(null);
     const sessionIdRef = useRef<string | null>(null);
@@ -286,6 +290,12 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       searchAddonRef.current = searchAddon;
       serializeAddonRef.current = serializeAddon;
 
+      const webglController = createTerminalWebglController(
+        terminal,
+        webglAddonRef
+      );
+      webglControllerRef.current = webglController;
+
       const cleanupContainerVisibilityInit = initializeWhenContainerVisible({
         containerRef,
         terminal,
@@ -293,7 +303,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
         initPty: (cols, rows) => {
           void initPTY(cols, rows, ptyAbortController.signal);
         },
-        loadWebGL: () => loadTerminalWebgl(terminal, webglAddonRef),
+        loadWebGL: () => webglController.attach(),
         setIsReady,
       });
 
@@ -323,11 +333,9 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
           sessionIdRef,
         });
 
-        if (webglAddonRef.current) {
-          webglAddonRef.current.dispose();
-          webglAddonRef.current = null;
-          releaseWebglSlot();
-        }
+        webglController.dispose();
+        webglControllerRef.current = null;
+        cancelRenderSettle(terminal);
         terminal.dispose();
         terminalRef.current = null;
         fitAddonRef.current = null;
@@ -343,6 +351,10 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
     const schedulerSessionId = `terminal-pty-${sessionKey}`;
     useEffect(() => {
       setPaneForeground(schedulerSessionId, isForeground);
+      // A hidden pane paints nothing, so its GPU context is dead weight against
+      // Chromium's small per-process budget; the controller hands it back after
+      // a grace period and re-attaches on reveal.
+      webglControllerRef.current?.setForeground(isForeground);
 
       if (isForeground) {
         // Flush up to 256 KB of queued backlog immediately on tab show

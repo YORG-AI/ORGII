@@ -2,6 +2,7 @@ import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import InlineAlert from "@src/components/InlineAlert";
 import Textarea from "@src/components/Textarea";
 
 import { MobileTopBar } from "../components/MobileTopBar";
@@ -53,9 +54,9 @@ export function QRScanScreen({ onBack, onAcceptPairing }: QRScanScreenProps) {
           aria-label={t("pairing.urlPlaceholder")}
         />
         {errorKey ? (
-          <p className="mt-2 text-sm text-danger-6" role="alert">
+          <InlineAlert type="danger" role="alert" className="mt-2">
             {t(errorKey)}
-          </p>
+          </InlineAlert>
         ) : null}
         <div className="mt-4">
           <Button

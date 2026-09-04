@@ -1,20 +1,15 @@
 /**
- * "Session Sync" Settings section (cloud design §20.1 + §4.2).
+ * ORG2 login rows (cloud design §20.1 + §4.2).
  *
- * Two tabs:
- *  1. Cloud — ORG2 Cloud (managed) with the existing sign-in /
- *     sign-out control. Sign-in opens the managed cloud login page in the
- *     SYSTEM browser; the login page finishes through an ephemeral localhost
- *     receiver, which the OAuth plugin delivers to useDeepLinkHandler at the
- *     always-mounted app root. Installed-app custom-scheme callbacks remain
- *     supported for cold-start compatibility.
- *  2. Self-hosted — the custom ORG2 Cloud backend card (`CloudEndpointCard`,
- *     cloud-parity Phase C): self-hosting means deploying the SAME stack
- *     and pointing the app at it.
+ * Rendered as the first rows of General's first `SectionContainer`, above
+ * language. Sign-in opens the managed cloud login page in the SYSTEM browser;
+ * the login page finishes through an ephemeral localhost receiver, which the
+ * OAuth plugin delivers to useDeepLinkHandler at the always-mounted app root.
+ * Installed-app custom-scheme callbacks remain supported for cold-start
+ * compatibility.
  */
 import {
   SECTION_ACTION_GAP_CLASSES,
-  SectionContainer,
   SectionRow,
 } from "@/src/modules/shared/layouts/SectionLayout";
 import { useAtom, useStore } from "jotai";
@@ -25,7 +20,6 @@ import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Message from "@src/components/Message";
 import { REFRESH_ICON_TOKENS } from "@src/components/RefreshIcon/tokens";
-import CloudEndpointCard from "@src/features/Org2Cloud/CloudEndpointCard";
 import { importBundledOrg2CloudAuthForDev } from "@src/features/Org2Cloud/devBundledAuthImport";
 import {
   commitRefreshedAuth,
@@ -49,18 +43,7 @@ import {
 
 const log = createLogger("Org2CloudSection");
 
-export const COLLABORATION_TAB_KEYS = {
-  CLOUD: "cloud",
-  SELF_HOSTED: "self-hosted",
-} as const;
-
-interface Org2CloudSectionProps {
-  activeTab?: string;
-}
-
-const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
-  activeTab = COLLABORATION_TAB_KEYS.CLOUD,
-}) => {
+export const Org2CloudLoginRows: React.FC = () => {
   const { t } = useTranslation(["navigation", "common"]);
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
   const [isRefreshingDevAuth, setIsRefreshingDevAuth] = useState(false);
@@ -140,10 +123,6 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
     }
   }, [auth, isRefreshingDevAuth, setAuth, store, t]);
 
-  if (activeTab === COLLABORATION_TAB_KEYS.SELF_HOSTED) {
-    return <CloudEndpointCard />;
-  }
-
   const refreshDevAuthButton = process.env.NODE_ENV === "development" && (
     <Button
       size="default"
@@ -167,120 +146,115 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
 
   return (
     <>
-      <SectionContainer>
-        <SectionRow
-          label={t("cloud.title")}
-          description={t("cloud.recommendedDesc")}
-          align="start"
-        >
-          <div className={SECTION_ACTION_GAP_CLASSES}>
-            {auth ? (
-              <>
-                {refreshDevAuthButton}
-                <Button
-                  size="default"
-                  onClick={handleSignOut}
-                  data-testid="org2-cloud-sign-out"
-                >
-                  {t("cloud.signOut")}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  size="default"
-                  onClick={handleSignIn}
-                  data-testid="org2-cloud-sign-in"
-                >
-                  {t("cloud.signIn")}
-                </Button>
-                {refreshDevAuthButton}
-              </>
-            )}
-          </div>
+      <SectionRow
+        label={
+          auth
+            ? t("settings:general.loggedIn")
+            : t("settings:general.notLoggedIn")
+        }
+        align="start"
+      >
+        <div className={SECTION_ACTION_GAP_CLASSES}>
+          {auth ? (
+            <>
+              {refreshDevAuthButton}
+              <Button
+                size="default"
+                onClick={handleSignOut}
+                data-testid="org2-cloud-sign-out"
+              >
+                {t("cloud.signOut")}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                size="default"
+                onClick={handleSignIn}
+                data-testid="org2-cloud-sign-in"
+              >
+                {t("cloud.signIn")}
+              </Button>
+              {refreshDevAuthButton}
+            </>
+          )}
+        </div>
+      </SectionRow>
+      {auth && (
+        <SectionRow label={t("cloud.userName")}>
+          {renameDraft !== null ? (
+            <div className="flex items-center gap-2">
+              <Input
+                value={renameDraft}
+                onChange={(value) => setRenameDraft(value)}
+                maxLength={64}
+                autoFocus
+                className="w-48"
+                data-testid="org2-cloud-rename-input"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void handleSaveRename();
+                  if (event.key === "Escape") setRenameDraft(null);
+                }}
+              />
+              <Button
+                size="default"
+                iconOnly
+                icon={
+                  <HugeiconsIcon
+                    icon={Tick01Icon}
+                    data-icon="check"
+                    size={14}
+                  />
+                }
+                loading={isSavingRename}
+                disabled={isSavingRename || !(renameDraft ?? "").trim()}
+                onClick={() => void handleSaveRename()}
+                aria-label={t("common:actions.save")}
+                title={t("common:actions.save")}
+                data-testid="org2-cloud-rename-save"
+              />
+              <Button
+                size="default"
+                iconOnly
+                icon={
+                  <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={14} />
+                }
+                disabled={isSavingRename}
+                onClick={() => setRenameDraft(null)}
+                aria-label={t("common:actions.cancel")}
+                title={t("common:actions.cancel")}
+                data-testid="org2-cloud-rename-cancel"
+              />
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span
+                className="max-w-56 truncate text-sm text-text-2"
+                data-testid="org2-cloud-signed-in-identity"
+                title={signedInIdentity}
+              >
+                {signedInIdentity}
+              </span>
+              <Button
+                size="default"
+                iconOnly
+                icon={
+                  <HugeiconsIcon
+                    icon={Pen01Icon}
+                    data-icon="pencil"
+                    size={14}
+                  />
+                }
+                aria-label={t("cloud.renameDisplayName")}
+                onClick={() => setRenameDraft(auth.profile?.displayName ?? "")}
+                data-testid="org2-cloud-rename"
+              />
+            </div>
+          )}
         </SectionRow>
-        {auth && (
-          <SectionRow label={t("cloud.userName")}>
-            {renameDraft !== null ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={renameDraft}
-                  onChange={(value) => setRenameDraft(value)}
-                  maxLength={64}
-                  autoFocus
-                  className="w-48"
-                  data-testid="org2-cloud-rename-input"
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") void handleSaveRename();
-                    if (event.key === "Escape") setRenameDraft(null);
-                  }}
-                />
-                <Button
-                  size="default"
-                  iconOnly
-                  icon={
-                    <HugeiconsIcon
-                      icon={Tick01Icon}
-                      data-icon="check"
-                      size={14}
-                    />
-                  }
-                  loading={isSavingRename}
-                  disabled={isSavingRename || !(renameDraft ?? "").trim()}
-                  onClick={() => void handleSaveRename()}
-                  aria-label={t("common:actions.save")}
-                  title={t("common:actions.save")}
-                  data-testid="org2-cloud-rename-save"
-                />
-                <Button
-                  size="default"
-                  iconOnly
-                  icon={
-                    <HugeiconsIcon
-                      icon={Cancel01Icon}
-                      data-icon="x"
-                      size={14}
-                    />
-                  }
-                  disabled={isSavingRename}
-                  onClick={() => setRenameDraft(null)}
-                  aria-label={t("common:actions.cancel")}
-                  title={t("common:actions.cancel")}
-                  data-testid="org2-cloud-rename-cancel"
-                />
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span
-                  className="max-w-56 truncate text-sm text-text-2"
-                  data-testid="org2-cloud-signed-in-identity"
-                  title={signedInIdentity}
-                >
-                  {signedInIdentity}
-                </span>
-                <Button
-                  size="default"
-                  iconOnly
-                  icon={
-                    <HugeiconsIcon
-                      icon={Pen01Icon}
-                      data-icon="pencil"
-                      size={14}
-                    />
-                  }
-                  aria-label={t("cloud.renameDisplayName")}
-                  onClick={() =>
-                    setRenameDraft(auth.profile?.displayName ?? "")
-                  }
-                  data-testid="org2-cloud-rename"
-                />
-              </div>
-            )}
-          </SectionRow>
-        )}
-      </SectionContainer>
+      )}
     </>
   );
 };
 
-export default Org2CloudSection;
+export default Org2CloudLoginRows;

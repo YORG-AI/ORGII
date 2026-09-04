@@ -13,6 +13,7 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import { ProcessStopButton } from "@src/components/ProcessStopButton";
 import Tooltip from "@src/components/Tooltip";
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
+import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotals";
 import {
   ArrowRight01Icon,
   ArrowUpRight01Icon,
@@ -32,6 +33,17 @@ export function WorkstationItemRow({
   item: FocusedChatRailItem;
   onRequestClose?: () => void;
 }) {
+  const liveDiffTotals = useWorkingTreeDiffTotals(
+    item.workingTreeRepo?.repoId,
+    item.workingTreeRepo?.repoPath
+  );
+  const additions = item.workingTreeRepo
+    ? liveDiffTotals.additions
+    : item.additions;
+  const deletions = item.workingTreeRepo
+    ? liveDiffTotals.deletions
+    : item.deletions;
+
   const runAction = (event: React.MouseEvent<HTMLButtonElement>) => {
     // A submenu trigger keeps its host menu open; the popup it anchors is
     // part of that menu, not a destination.
@@ -66,10 +78,10 @@ export function WorkstationItemRow({
         )}
       </span>
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
-      {(item.additions ?? 0) > 0 || (item.deletions ?? 0) > 0 ? (
+      {(additions ?? 0) > 0 || (deletions ?? 0) > 0 ? (
         <DiffStatsBadge
-          additions={item.additions}
-          deletions={item.deletions}
+          additions={additions}
+          deletions={deletions}
           variant="plain"
           size="sm"
           reserveValueWidth={false}

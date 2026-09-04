@@ -18,6 +18,7 @@ interface ChatPanelShellProps {
   chatWidthStyleValue: string | number;
   embedded: boolean;
   focusedWorkstationRail?: React.ReactNode;
+  hasTabBar: boolean;
   headerSection: React.ReactNode;
   isDragging: boolean;
   isLeftPosition: boolean;
@@ -42,6 +43,7 @@ export function ChatPanelShell({
   chatWidthStyleValue,
   embedded,
   focusedWorkstationRail,
+  hasTabBar,
   headerSection,
   isDragging,
   isLeftPosition,
@@ -101,6 +103,7 @@ export function ChatPanelShell({
           <UnifiedChatPanelTabContent
             activeTab={activeTab}
             chatColumn={chatColumn}
+            hasTabBar={hasTabBar}
             isTerminalTabActive={isTerminalTabActive}
             terminalTabs={terminalTabs}
           />

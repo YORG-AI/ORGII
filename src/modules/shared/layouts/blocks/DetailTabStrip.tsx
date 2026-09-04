@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+
 export interface DetailTabStripItem<Key extends string = string> {
   key: Key;
   label: string;
@@ -19,7 +21,7 @@ export interface DetailTabStripProps<Key extends string = string> {
   tabs: readonly DetailTabStripItem<Key>[];
   className?: string;
   trailing?: ReactNode;
-  /** Full-width content row or compact tabs embedded in a 40px header. */
+  /** Full-width content row or compact tabs embedded in a 36px header. */
   variant?: "row" | "header";
 }
 
@@ -43,10 +45,10 @@ export default function DetailTabStrip<Key extends string>({
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className={`flex shrink-0 items-end gap-px ${
+      className={`flex ${DETAIL_PANEL_TOKENS.headerHeight} shrink-0 items-end gap-px ${
         isHeaderVariant
-          ? "h-10 min-w-0"
-          : "border-b border-border-2 bg-bg-2 pr-[7px] pl-3"
+          ? "min-w-0"
+          : `border-b border-border-2 bg-bg-2 ${DETAIL_PANEL_TOKENS.tabRowPadding}`
       } ${className}`.trim()}
     >
       {tabs.map((tab) => {

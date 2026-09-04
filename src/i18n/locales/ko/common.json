@@ -13,26 +13,14 @@
     },
     "sections": {
       "reviewRequested": "리뷰 요청됨",
-      "authoredByMe": "내가 작성",
-      "otherTodos": "기타 할 일"
+      "authoredByMe": "내가 작성"
     },
     "status": {
       "read": "읽음",
       "unread": "읽지 않음"
     },
     "row": {
-      "assignedSummary": "{{status}} · {{priority}}",
       "ariaLabel": "{{title}}, {{status}}"
-    },
-    "search": {
-      "placeholder": "수신함 검색",
-      "ariaLabel": "팀 수신함 검색"
-    },
-    "groups": {
-      "today": "오늘",
-      "yesterday": "어제",
-      "thisWeek": "이번 주",
-      "earlier": "이전"
     },
     "empty": {
       "title": "아직 항목이 없습니다",
@@ -56,20 +44,15 @@
     "drop": {
       "title": "여기로 끌어다 놓아 작업 항목 만들기",
       "subtitle": "세션 스냅샷을 확인한 다음 작업 항목을 만들거나 인계하세요.",
-      "processing": "“{{title}}”에서 작업 항목을 만드는 중…",
       "processingHint": "세션을 읽고 프로젝트 구성원을 확인하는 중입니다.",
       "success": "작업 항목을 만들었습니다",
       "reused": "기존 작업 항목을 업데이트했습니다",
       "failed": "작업 항목을 만들지 못했습니다",
-      "error": "이 세션에서 작업 항목을 만들 수 없습니다.",
-      "open": "열기",
       "dismiss": "닫기"
     },
     "handoff": {
       "title": "세션에서 만들기",
       "createFromSession": "팀 작업 항목 만들기…",
-      "project": "대상 프로젝트",
-      "chooseProject": "프로젝트 선택",
       "recipientSelf": "{{name}}(나)",
       "chooseRecipient": "받는 사람 선택",
       "todoCount_other": "할 일 {{count}}개",
@@ -120,6 +103,7 @@
       "pullRequestsPartialLoadHelp": "사용 가능한 항목은 계속 표시됩니다. 새로 고쳐 누락된 pull request를 다시 불러오세요",
       "workItemContext": "일부 프로젝트 정보를 사용할 수 없습니다. 작업 항목은 계속 사용할 수 있습니다.",
       "workItemLoad": "이 작업 항목을 불러올 수 없습니다. 다시 시도해 주세요.",
+      "githubIssueLoad": "이 작업 항목의 GitHub 이슈를 불러오지 못했습니다. 로컬 작업 항목 정보는 계속 표시됩니다.",
       "workItemUpdate": "작업 항목의 최신 변경 사항을 저장할 수 없습니다. 다시 시도해 주세요."
     },
     "detail": {
@@ -132,18 +116,7 @@
     "actions": {
       "markRead": "읽음으로 표시",
       "markUnread": "읽지 않음으로 표시",
-      "openWorkItem": "작업 항목 열기",
-      "openSession": "세션 열기"
-    },
-    "fields": {
-      "status": "상태",
-      "priority": "우선순위",
-      "assignee": "담당자",
-      "workItemId": "작업 항목 ID",
-      "session": "세션",
-      "comments": "댓글",
-      "threadId": "스레드 ID",
-      "commentId": "댓글 ID"
+      "openWorkItem": "작업 항목 열기"
     },
     "workItemStatus": {
       "backlog": "백로그",
@@ -724,7 +697,7 @@
     "unknown": "알 수 없는 오류",
     "agentRequestFailed": "Agent 요청 실패",
     "codexLoginExpired": "Codex 로그인 만료",
-    "codexLoginExpiredDescription": "이 계정을 복구하려면 Codex에 다시 연결하세요. 새 로그인이 저장되면 이 세션으로 돌아옵니다.",
+    "codexLoginExpiredDescription": "이 계정을 복구하려면 Codex에 다시 연결하세요. 새 로그인이 저장되면 이 세션으로 돌아옵니다",
     "reconnectCodex": "Codex 다시 연결",
     "technicalDetails": "기술 세부 정보",
     "failedToCopy": "복사에 실패했습니다",
@@ -1099,6 +1072,7 @@
     "switchLocalBranchTooltip": "로컬 브랜치 전환",
     "sessionEnvCloud": "클라우드",
     "sessionEnvLocal": "로컬",
+    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Git 작업",
     "switchToSessionRepo": "{{name}}(으)로 전환",
     "embeddingProgress": "Embedding: {{count}}개 청크 처리됨",
@@ -1287,7 +1261,7 @@
       "loadingConversation": "불러오는 중…",
       "reviewNoBody": "리뷰 댓글을 남겼습니다.",
       "submitReview": "리뷰 제출",
-      "reviewHeadNotice": "표시된 헤드 커밋이 계속 일치하는 경우에만 리뷰가 적용됩니다.",
+      "reviewHeadNotice": "표시된 헤드 커밋이 계속 일치하는 경우에만 리뷰가 적용됩니다",
       "reviewDecision": "리뷰 결정",
       "reviewComment": "리뷰 댓글",
       "reviewCommentPlaceholder": "댓글 추가…",
@@ -1333,7 +1307,14 @@
       },
       "commits": {
         "backToList": "모든 커밋",
-        "none": "커밋 없음"
+        "none": "커밋 없음",
+        "onDate": "{{date}}의 커밋",
+        "unknownDate": "알 수 없는 날짜",
+        "viewCommit": "커밋 {{sha}} 보기: {{summary}}",
+        "committed": "님이 커밋했습니다",
+        "verified": "검증됨",
+        "copySha": "커밋 SHA 복사",
+        "viewDetails": "커밋 세부 정보 보기"
       },
       "changes": {
         "title": "변경된 파일",
@@ -1559,6 +1540,20 @@
         "commentFailed": "댓글을 추가하지 못했습니다",
         "bodyUpdateFailed": "issue 설명을 업데이트하지 못했습니다",
         "statusFailed": "issue 상태를 업데이트하지 못했습니다"
+      },
+      "timelineErrorTitle": "GitHub 활동을 불러올 수 없습니다",
+      "tabs": {
+        "relatedItems": "관련 항목"
+      },
+      "relatedItems": {
+        "emptyTitle": "관련 항목이 없습니다",
+        "emptyDescription": "이 대화에서 언급된 GitHub issues와 pull requests가 여기에 표시됩니다.",
+        "loading": "관련 항목을 불러오는 중",
+        "count_one": "관련 항목 {{count}}개",
+        "count_other": "관련 항목 {{count}}개",
+        "unavailable": "세부 정보를 가져올 수 없습니다",
+        "unavailableCount_one": "관련 항목 {{count}}개를 확인할 수 없습니다",
+        "unavailableCount_other": "관련 항목 {{count}}개를 확인할 수 없습니다"
       }
     }
   },
@@ -1905,6 +1900,12 @@
         },
         "createWorkItem": {
           "label": "Work Item 생성"
+        },
+        "createOrganization": {
+          "label": "조직 만들기"
+        },
+        "joinOrganization": {
+          "label": "조직 참여"
         }
       },
       "toast": {
@@ -1970,6 +1971,10 @@
     "openAgentStation": "Agent Station으로 이동",
     "openKanban": "Kanban로 이동",
     "changeLanguage": "언어 변경",
+    "changeTheme": "테마 변경",
+    "changeSkin": "스킨 변경",
+    "searchThemes": "테마 검색...",
+    "searchSkins": "스킨 검색...",
     "switchToSystemTheme": "시스템 테마 따르기",
     "detectUpdate": "업데이트 확인",
     "recentlyUsed": "최근 사용"
@@ -2387,7 +2392,7 @@
     "selectRow": "{{id}} 선택"
   },
   "clientOrigin": {
-    "officialApp": "공식 앱",
+    "officialApp": "앱",
     "cli": "CLI",
     "thirdParty": "서드파티"
   }

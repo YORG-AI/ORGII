@@ -76,8 +76,6 @@ vi.mock("@src/engines/ChatPanel/hooks/useInputArea/useSlashItemsCache", () => ({
 }));
 
 vi.mock("./PinActionsPanel", () => ({
-  actionKey: (action: { category: string; name: string; source: string }) =>
-    `${action.category}:${action.source}:${action.name}`,
   default: () => null,
 }));
 

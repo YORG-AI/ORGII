@@ -92,13 +92,13 @@ interface ChatPanelHeaderProps {
   /** When provided, rendered before the ... button (tab-strip + menu replacement) */
   tabStripPlus?: React.ReactNode;
   /**
-   * Fold the 44px tab row into the published 40px row, which then hosts the
+   * Fold the 44px tab row into the published 36px row, which then hosts the
    * tab controls the folded row would have carried.
    */
   tabRowCollapsed: boolean;
   /** Session-scoped extras (fork button / provenance chip), leading the toolbar */
   sessionHeaderExtras?: React.ReactNode;
-  /** Canonical session-name breadcrumb rendered in the published 40px row. */
+  /** Canonical session-name breadcrumb rendered in the published 36px row. */
   sessionHeaderContent?: React.ReactNode;
   /** Let the GUI transcript scroll beneath the published session header. */
   overlayPublishedHeader?: boolean;
@@ -160,6 +160,7 @@ export function ChatPanelHeader({
     ? t("chat.showWorkstation")
     : t("chat.maximizeChatPanel");
   const shrinkToWorkstationLabel = t("chat.showWorkstation");
+  const workstationUnavailableLabel = t("chat.workstationUnavailableForPage");
   const tuiModeLabel = tuiMode ? t("chat.tuiModeOn") : t("chat.tuiModeOff");
 
   const sessionPublishedActions =
@@ -260,7 +261,13 @@ export function ChatPanelHeader({
   const chatFocusToggleButton = (
     <span className="inline-flex">
       <TabBarTrailingIconButton
-        title={isChatFocus ? shrinkToWorkstationLabel : chatFocusLabel}
+        title={
+          stationAvailable
+            ? isChatFocus
+              ? shrinkToWorkstationLabel
+              : chatFocusLabel
+            : workstationUnavailableLabel
+        }
         shortcutId={stationAvailable ? "maximize_chat" : undefined}
         tooltipPosition="bottom-end"
         nativeTitle={false}
@@ -343,11 +350,15 @@ export function ChatPanelHeader({
   // While collapsed this row is the pane's only chrome, so it renders even for
   // a surface that publishes nothing — otherwise folding the tab row would
   // strip the new-tab, close, and restore controls with it.
-  const effectivePublishedHeaderSlots =
-    tabRowCollapsed ||
-    publishedHeaderSlots ||
-    sessionHeaderContent ||
-    sessionPublishedActions
+  // A split surface beneath the visible tab bar owns its controls in its
+  // left-column header. Treat this as absent rather than merely hiding the
+  // row so the shell also releases the 36px stack reservation.
+  const effectivePublishedHeaderSlots = publishedHeaderSlots?.hidden
+    ? null
+    : tabRowCollapsed ||
+        publishedHeaderSlots ||
+        sessionHeaderContent ||
+        sessionPublishedActions
       ? {
           leading: publishedHeaderSlots?.leading,
           content:
@@ -385,7 +396,7 @@ export function ChatPanelHeader({
   // Whichever row sits at the pane's top edge owns the window-edge gap, the
   // collapsed-sidebar button, and the inset that keeps the host window's own
   // controls clear of the content — the tab row's job until it folds away.
-  // Padding the wrapper rather than the row keeps the row's 40px content band
+  // Padding the wrapper rather than the row keeps the row's 36px content band
   // intact, and makes it the positioning context the sidebar button centers in.
   // The window API is pulled in on interaction so it stays out of the boot graph.
   const handleCollapsedHeaderMouseDown = (
@@ -422,6 +433,7 @@ export function ChatPanelHeader({
       <ChatPanelPublishedHeader
         slots={effectivePublishedHeaderSlots}
         windowsHost={windowsHost}
+        hideBottomBorder={!tabRowCollapsed}
         leadingInsetPx={
           shouldOffsetHeaderForCollapsedSidebar
             ? getCollapsedSidebarChromeOffset()
@@ -433,6 +445,7 @@ export function ChatPanelHeader({
     <ChatPanelPublishedHeader
       slots={effectivePublishedHeaderSlots}
       windowsHost={windowsHost}
+      hideBottomBorder={!tabRowCollapsed}
     />
   );
 

@@ -15,8 +15,9 @@
  * slots; older pane-level publishers are normalized into the content slot.
  *
  * When the active app has nothing to publish (e.g. a tab with no header),
- * the strip still renders so the row height is stable across tab switches
- * and so the sidebar toggle stays in a fixed position.
+ * the strip still renders so the row height is stable across tab switches.
+ * A split surface can explicitly move this chrome into its left column and
+ * hide the shell-wide strip.
  */
 import { useAtomValue } from "jotai";
 import React, { memo } from "react";
@@ -47,6 +48,8 @@ const WorkstationTabHeader: React.FC = memo(() => {
   const publishedHeaderPaddingLeftClassName = isSourceControlTab
     ? "pl-0"
     : "pl-2";
+
+  if (headerSlots?.hidden) return null;
 
   // Launchpad: keep the strip for stable row height but render it empty —
   // no sidebar toggle, no search/lab actions, nothing to publish.

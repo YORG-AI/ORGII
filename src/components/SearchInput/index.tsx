@@ -33,6 +33,7 @@ import {
 } from "@src/icons";
 
 import {
+  SEARCH_WRAPPER_GHOST,
   SEARCH_WRAPPER_PANEL,
   SEARCH_WRAPPER_PANE_INPUT,
   SEARCH_WRAPPER_SIDEBAR,
@@ -46,7 +47,7 @@ import {
 
 export type SearchInputVariant = "panel" | "sidebar";
 type SearchInputSize = "sm" | "md";
-export type SearchInputSurface = "default" | "pane" | "transparent";
+export type SearchInputSurface = "default" | "pane" | "transparent" | "ghost";
 
 export interface SearchInputProps {
   /** Current search query value */
@@ -195,7 +196,9 @@ export const SearchInput: React.FC<SearchInputProps> = memo(
         ? `${inputWrapperClass} ${SEARCH_WRAPPER_PANE_INPUT}`
         : surface === "transparent"
           ? `${inputWrapperClass} bg-transparent!`
-          : inputWrapperClass;
+          : surface === "ghost"
+            ? `${inputWrapperClass} ${SEARCH_WRAPPER_GHOST}`
+            : inputWrapperClass;
     const inputWrapperMultilineClass = multiline
       ? searchWrapperMultiline(inputWrapperSurfaceClass)
       : inputWrapperSurfaceClass;

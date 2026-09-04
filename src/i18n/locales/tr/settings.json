@@ -66,7 +66,7 @@
       "connections": "Bağlantılar",
       "git": "Git",
       "databases": "Veritabanları",
-      "housekeeper": "MiniCPM Housekeeper",
+      "housekeeper": "Yerel Zekâ",
       "externalSkillsets": "Skills, MCPs, Plugins"
     }
   },
@@ -84,13 +84,13 @@
     "currentStatus": "Mevcut durumum",
     "tabs": {
       "presence": "Durum",
-      "profile": "Profillerim"
+      "profile": "Profilim"
     },
     "presence": {
       "instructionForAgent": "Agent için talimat"
     },
     "profile": {
-      "title": "Profillerim",
+      "title": "Profilim",
       "techSavvy": "Teknik düzey",
       "techSavvyDescription": "Agent'ın ne kadar açıkladığını ve neyi varsaydığını ayarlamasına yardımcı olur",
       "techSavvyPlaceholder": "Seviye seç…",
@@ -113,7 +113,9 @@
     }
   },
   "general": {
+    "login": "Giriş",
     "tabGeneral": "Genel",
+    "tabSelfHosted": "Kendi kendine barındırılan",
     "loginStatus": "Giriş Durumu",
     "loggedIn": "Giriş yapıldı",
     "notLoggedIn": "Giriş yapılmadı",
@@ -169,7 +171,6 @@
     "sidebarEdgeDepth": "Kenar çubuğu kenar derinliği",
     "selectedItemTransparency": "Seçili öğe şeffaflığı",
     "spotlightPlacement": "Spotlight konumu",
-    "spotlightPlacementDesc": "Spotlight komut paletinin nerede açılacağını seçin",
     "spotlightPlacementOptions": {
       "top": "Üst",
       "center": "Sayfa merkezi"

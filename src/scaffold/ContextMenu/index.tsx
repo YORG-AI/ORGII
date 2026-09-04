@@ -1,117 +1,174 @@
 /**
- * ContextMenu Component
+ * Shared + / @ composer menu.
  *
- * Unified context menu for session input boxes.
- * Combines file search, folder search, terminals, design, and browser options.
- *
- * Features:
- * - Multi-level menu with keyboard navigation
- * - Recent files display (top 3)
- * - Native file search integration
- * - Fuzzy matching for files and folders
- * - File type specific icons
+ * Both triggers render this exact component. The composer owns the query and
+ * keyboard focus; the menu owns rows, filtering, results, and navigation.
  */
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
+import AnyIcon from "@src/components/AnyIcon";
+import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
+import {
+  DROPDOWN_CLASSES,
+  DROPDOWN_ITEM,
+} from "@src/components/Dropdown/tokens";
+import {
+  AGENT_EXEC_MODES,
+  COMPOSER_MODES,
+  type ComposerModeEntry,
+} from "@src/config/sessionCreatorConfig";
 import { useMouseMoved } from "@src/hooks/ui/useMouseMoved";
-import { AtIcon } from "@src/icons";
+import { AtIcon, AttachmentIcon } from "@src/icons";
+import { fuzzyMatch } from "@src/util/search/fuzzy";
 
-import { SearchResultsPanel, SecondLayerPanel } from "./MenuSections";
-import { MenuItemRow } from "./ResultItems";
-import { MENU_ITEMS, STYLE_CONFIG } from "./config";
+import { ResultItemRow, SecondLayerPanel } from "./MenuSections";
+import { MenuItemRow, SearchLoadingOrEmpty } from "./ResultItems";
+import { MENU_ITEMS, type MenuItem, type SecondLayerId } from "./config";
 import type { ContextMenuCustomMentionOption, ContextMenuProps } from "./types";
 import { useContextMenu } from "./useContextMenu";
 import { useMenuEffects } from "./useMenuEffects";
 
+type MainMenuEntry =
+  | { kind: "image"; flatIndex: number }
+  | { kind: "mode"; flatIndex: number; mode: ComposerModeEntry }
+  | {
+      kind: "mention";
+      flatIndex: number;
+      option: ContextMenuCustomMentionOption;
+    }
+  | { kind: "context"; flatIndex: number; item: MenuItem };
+
 interface CustomMentionGroup {
   label: string | null;
-  options: ContextMenuCustomMentionOption[];
-  startIndex: number;
+  entries: Array<Extract<MainMenuEntry, { kind: "mention" }>>;
 }
 
-function groupCustomMentionOptions(
-  options: ReadonlyArray<ContextMenuCustomMentionOption>
+function matchesSearch(query: string, ...values: Array<string | undefined>) {
+  return !query || values.some((value) => value && fuzzyMatch(query, value));
+}
+
+function groupCustomMentionEntries(
+  entries: Array<Extract<MainMenuEntry, { kind: "mention" }>>
 ): CustomMentionGroup[] {
   const groups: CustomMentionGroup[] = [];
-  for (const option of options) {
-    const label = option.groupLabel ?? null;
+  for (const entry of entries) {
+    const label = entry.option.groupLabel ?? null;
     const lastGroup = groups[groups.length - 1];
     if (!lastGroup || lastGroup.label !== label) {
-      groups.push({ label, options: [option], startIndex: groups.length });
+      groups.push({ label, entries: [entry] });
     } else {
-      lastGroup.options.push(option);
+      lastGroup.entries.push(entry);
     }
-  }
-
-  let startIndex = 0;
-  for (const group of groups) {
-    group.startIndex = startIndex;
-    startIndex += group.options.length;
   }
   return groups;
 }
-
-const CustomMentionGroupLabel: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => (
-  <div className="px-1.5 pt-2 pb-1 text-[11px] font-medium tracking-wide text-text-3 uppercase">
-    {children}
-  </div>
-);
 
 const ContextMenu: React.FC<ContextMenuProps> = ({
   visible,
   onClose,
   onSelect,
+  onImageUpload,
+  currentMode,
+  onModeSelect,
+  includeProjectMode = false,
   customMentionOptions = [],
   onCustomMentionSelect,
-  searchQuery: externalSearchQuery,
-  inlineSearchOnEmpty = false,
+  searchQuery = "",
   recentFiles = [],
   repoPath,
   className = "",
   keyboardHandlerRef,
   treePosition = "right",
-  keyboardOpened = false,
 }) => {
   const { t } = useTranslation("sessions");
-  const menuWidthStyle = { width: "100%" };
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const mouseMovedRef = useMouseMoved(visible);
+  const imageLabel = t("common:actions.upload");
+  const modeOptions = includeProjectMode ? COMPOSER_MODES : AGENT_EXEC_MODES;
+  const mainEntries = useMemo<MainMenuEntry[]>(() => {
+    const query = searchQuery.trim();
+    const entries: MainMenuEntry[] = [];
+    let flatIndex = 0;
 
-  const recentCount = Math.min(
-    recentFiles.length,
-    STYLE_CONFIG.recentSectionMaxItems
+    if (
+      onImageUpload &&
+      matchesSearch(query, imageLabel, "Upload image", "Image")
+    ) {
+      entries.push({ kind: "image", flatIndex: flatIndex++ });
+    }
+
+    for (const mode of modeOptions) {
+      if (
+        matchesSearch(
+          query,
+          mode.name,
+          mode.id,
+          mode.description,
+          t(mode.i18nKey)
+        )
+      ) {
+        entries.push({ kind: "mode", mode, flatIndex: flatIndex++ });
+      }
+    }
+
+    for (const option of customMentionOptions) {
+      if (
+        matchesSearch(
+          query,
+          option.label,
+          option.description,
+          option.groupLabel
+        )
+      ) {
+        entries.push({ kind: "mention", option, flatIndex: flatIndex++ });
+      }
+    }
+
+    for (const item of MENU_ITEMS) {
+      const localizedLabel = t(item.translationKey, {
+        defaultValue: item.label,
+      });
+      if (matchesSearch(query, item.id, item.label, localizedLabel)) {
+        entries.push({ kind: "context", item, flatIndex: flatIndex++ });
+      }
+    }
+
+    return entries;
+  }, [
+    customMentionOptions,
+    imageLabel,
+    searchQuery,
+    modeOptions,
+    onImageUpload,
+    t,
+  ]);
+
+  const imageEntry = mainEntries.find((entry) => entry.kind === "image");
+  const modeEntries = mainEntries.filter(
+    (entry): entry is Extract<MainMenuEntry, { kind: "mode" }> =>
+      entry.kind === "mode"
   );
-
-  const filteredCustomMentionOptions = useMemo(() => {
-    const query = (externalSearchQuery ?? "").trim().toLowerCase();
-    if (!query) return customMentionOptions;
-    return customMentionOptions.filter((option) => {
-      const label = option.label.toLowerCase();
-      const description = option.description?.toLowerCase() ?? "";
-      const groupLabel = option.groupLabel?.toLowerCase() ?? "";
-      return (
-        label.includes(query) ||
-        description.includes(query) ||
-        groupLabel.includes(query)
-      );
-    });
-  }, [customMentionOptions, externalSearchQuery]);
+  const mentionEntries = mainEntries.filter(
+    (entry): entry is Extract<MainMenuEntry, { kind: "mention" }> =>
+      entry.kind === "mention"
+  );
+  const contextEntries = mainEntries.filter(
+    (entry): entry is Extract<MainMenuEntry, { kind: "context" }> =>
+      entry.kind === "context"
+  );
   const customMentionGroups = useMemo(
-    () => groupCustomMentionOptions(filteredCustomMentionOptions),
-    [filteredCustomMentionOptions]
+    () => groupCustomMentionEntries(mentionEntries),
+    [mentionEntries]
   );
 
-  const handleCustomMentionIndexSelect = useCallback(
-    (optionIndex: number) => {
-      const option = filteredCustomMentionOptions[optionIndex];
-      if (option) onCustomMentionSelect?.(option);
-    },
-    [filteredCustomMentionOptions, onCustomMentionSelect]
-  );
+  const handleImageUpload = useCallback(() => {
+    if (!onImageUpload) return;
+    onClose();
+    onImageUpload();
+  }, [onClose, onImageUpload]);
+  const mainSelectionRef = useRef<(index: number) => void>(() => undefined);
 
   const {
     activeIndex,
@@ -126,20 +183,45 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
     setSecondLayerActiveIndex,
     handleKeyDown,
     handleSelect,
-    goBack,
     reset,
-    drilledProjectName,
   } = useContextMenu({
     repoPath,
     onSelect,
     onClose,
-    externalSearchQuery,
-    inlineSearchOnEmpty,
-    recentCount,
-    customMentionCount: filteredCustomMentionOptions.length,
-    onCustomMentionIndexSelect: handleCustomMentionIndexSelect,
-    keyboardOpened,
+    searchQuery,
+    mainItemCount: mainEntries.length,
+    onMainItemIndexSelect: (index) => mainSelectionRef.current(index),
+    searchFilesFromMain: true,
   });
+
+  const handleMainItemIndexSelect = useCallback(
+    (index: number) => {
+      const entry = mainEntries[index];
+      if (!entry) return;
+      if (entry.kind === "image") {
+        handleImageUpload();
+      } else if (entry.kind === "mode") {
+        onModeSelect(entry.mode.id);
+      } else if (entry.kind === "mention") {
+        onCustomMentionSelect?.(entry.option);
+      } else if (entry.item.hasSecondLayer) {
+        setSecondLayer(entry.item.id as SecondLayerId);
+      } else {
+        handleSelect(entry.item.id);
+      }
+    },
+    [
+      handleImageUpload,
+      handleSelect,
+      mainEntries,
+      onCustomMentionSelect,
+      onModeSelect,
+      setSecondLayer,
+    ]
+  );
+  useEffect(() => {
+    mainSelectionRef.current = handleMainItemIndexSelect;
+  }, [handleMainItemIndexSelect]);
 
   const resetActiveIndex = useCallback(() => {
     if (!mouseMovedRef.current) return;
@@ -150,27 +232,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
     if (!mouseMovedRef.current) return;
     setKeyboardNavigated(false);
     setSecondLayerActiveIndex(-1);
-  }, [mouseMovedRef, setSecondLayerActiveIndex, setKeyboardNavigated]);
+  }, [mouseMovedRef, setKeyboardNavigated, setSecondLayerActiveIndex]);
 
-  useEffect(() => {
-    if (!visible || !keyboardOpened) return;
-    setKeyboardNavigated(true);
-    setActiveIndex(0);
-    setSecondLayerActiveIndex(0);
-  }, [
-    visible,
-    keyboardOpened,
-    externalSearchQuery,
-    setActiveIndex,
-    setKeyboardNavigated,
-    setSecondLayerActiveIndex,
-  ]);
-
-  const isInlineSearching =
-    externalSearchQuery !== undefined &&
-    (inlineSearchOnEmpty || externalSearchQuery.length > 0);
-
-  const { handleMenuItemClick, handleSearchResultSelect } = useMenuEffects({
+  const { handleSearchResultSelect } = useMenuEffects({
     visible,
     keyboardHandlerRef,
     handleKeyDown,
@@ -196,77 +260,32 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
       setKeyboardNavigated(false);
       setSecondLayerActiveIndex(itemIndex);
     },
-    [mouseMovedRef, setSecondLayerActiveIndex, setKeyboardNavigated]
+    [mouseMovedRef, setKeyboardNavigated, setSecondLayerActiveIndex]
   );
+
+  useEffect(() => {
+    const rows = listRef.current?.querySelectorAll("[data-context-menu-flat]");
+    rows?.[activeIndex]?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
 
   if (!visible) return null;
 
-  const showInlineSearch = isInlineSearching;
-  const showSecondLayerPanel = secondLayer !== null && !isInlineSearching;
+  const isSearching = searchQuery.trim().length > 0;
+  const mainFileActiveIndex = activeIndex - mainEntries.length;
+  const hasAnyMainResults =
+    mainEntries.length > 0 || searchResults.length > 0 || searchLoading;
+
   return (
     <div
       ref={dropdownRef}
       className={`context-menu flex flex-col gap-2 ${className}`}
       data-dropdown-keyboard-mode={keyboardNavigated ? "true" : undefined}
       onKeyDown={handleKeyDown}
-      onMouseDown={(e) => {
-        e.preventDefault();
-        e.nativeEvent.stopImmediatePropagation();
+      onMouseDown={(event) => {
+        event.nativeEvent.stopImmediatePropagation();
       }}
-      tabIndex={-1}
     >
-      {/* Inline search results (when user types after @) */}
-      {showInlineSearch && filteredCustomMentionOptions.length > 0 && (
-        <div className={DROPDOWN_CLASSES.panel} style={menuWidthStyle}>
-          <div className={DROPDOWN_CLASSES.itemsColumnPadded}>
-            {customMentionGroups.map((group) => (
-              <React.Fragment
-                key={`${group.label ?? "ungrouped"}:${group.startIndex}`}
-              >
-                {group.label && (
-                  <CustomMentionGroupLabel>
-                    {group.label}
-                  </CustomMentionGroupLabel>
-                )}
-                {group.options.map((option, optionIndex) => {
-                  const itemIndex = group.startIndex + optionIndex;
-                  return (
-                    <MenuItemRow
-                      key={option.id}
-                      icon={AtIcon}
-                      label={option.label}
-                      description={option.description}
-                      isActive={keyboardNavigated && activeIndex === itemIndex}
-                      dataTestId="agent-org-mention-option"
-                      dataMentionId={option.id}
-                      onClick={() => onCustomMentionSelect?.(option)}
-                      onMouseEnter={() => handleMainItemHover(itemIndex)}
-                      onMouseLeave={resetActiveIndex}
-                    />
-                  );
-                })}
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {showInlineSearch && (
-        <SearchResultsPanel
-          searchQuery={externalSearchQuery || ""}
-          results={searchResults}
-          loading={searchLoading}
-          activeIndex={secondLayerActiveIndex}
-          onSelect={handleSearchResultSelect}
-          onHover={handleSecondLayerHover}
-          onHoverEnd={resetSecondLayerIndex}
-          repoPath={repoPath}
-          treePosition={treePosition}
-        />
-      )}
-
-      {/* Second layer panel (when user clicks Files & Folders or Terminal) */}
-      {showSecondLayerPanel && secondLayer && (
+      {secondLayer ? (
         <SecondLayerPanel
           layerId={secondLayer}
           results={searchResults}
@@ -275,77 +294,194 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
           onSelect={handleSearchResultSelect}
           onHover={handleSecondLayerHover}
           onHoverEnd={resetSecondLayerIndex}
-          onBack={goBack}
           repoPath={repoPath}
           treePosition={treePosition}
           recentFiles={secondLayer === "files" ? recentFiles : undefined}
-          titleOverride={
-            secondLayer === "projects" && drilledProjectName
-              ? drilledProjectName
-              : undefined
-          }
         />
-      )}
+      ) : (
+        <div className={DROPDOWN_CLASSES.panel} style={{ width: "100%" }}>
+          <div ref={listRef} className={DROPDOWN_CLASSES.optionsContainer}>
+            {imageEntry && (
+              <div data-context-menu-flat>
+                <MenuItemRow
+                  icon={AttachmentIcon}
+                  label={imageLabel}
+                  dataTestId="context-menu-image-upload"
+                  isActive={
+                    keyboardNavigated && activeIndex === imageEntry.flatIndex
+                  }
+                  onClick={handleImageUpload}
+                  onMouseEnter={() => handleMainItemHover(imageEntry.flatIndex)}
+                  onMouseLeave={resetActiveIndex}
+                />
+              </div>
+            )}
 
-      {/* Main menu - shown when user just types @ without any text after */}
-      {!showInlineSearch && !showSecondLayerPanel && (
-        <div className={DROPDOWN_CLASSES.panel} style={menuWidthStyle}>
-          {filteredCustomMentionOptions.length > 0 && (
-            <>
-              <div className={DROPDOWN_CLASSES.itemsColumnPadded}>
-                {customMentionGroups.map((group) => (
+            {modeEntries.length > 0 && (
+              <>
+                {imageEntry && (
+                  <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
+                )}
+                <div className={DROPDOWN_CLASSES.sectionLabel}>
+                  {t("creator.slashMenu.mode", { defaultValue: "Mode" })}
+                </div>
+                {modeEntries.map((entry) => {
+                  const isCurrent = entry.mode.id === currentMode;
+                  return (
+                    <div key={entry.mode.id} data-context-menu-flat>
+                      <div
+                        data-testid={`context-menu-mode-option-${entry.mode.id}`}
+                        className={`${DROPDOWN_CLASSES.item} group cursor-pointer justify-between ${
+                          keyboardNavigated && activeIndex === entry.flatIndex
+                            ? DROPDOWN_CLASSES.itemActive
+                            : DROPDOWN_CLASSES.itemHover
+                        }`}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          onModeSelect(entry.mode.id);
+                        }}
+                        onMouseEnter={() =>
+                          handleMainItemHover(entry.flatIndex)
+                        }
+                        onMouseLeave={resetActiveIndex}
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <AnyIcon
+                            icon={entry.mode.icon}
+                            size={DROPDOWN_ITEM.iconSize}
+                            strokeWidth={1.75}
+                            className={
+                              isCurrent ? "text-primary-6" : "text-text-2"
+                            }
+                          />
+                          <span
+                            className={`truncate text-[13px] ${
+                              isCurrent ? "text-primary-6" : "text-text-1"
+                            }`}
+                          >
+                            {t(entry.mode.i18nKey)}
+                          </span>
+                        </div>
+                        {isCurrent && <DropdownSelectedCheck />}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {mentionEntries.length > 0 && (
+              <>
+                <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
+                {customMentionGroups.map((group, groupIndex) => (
                   <React.Fragment
-                    key={`${group.label ?? "ungrouped"}:${group.startIndex}`}
+                    key={`${group.label ?? "mentions"}:${groupIndex}`}
                   >
                     {group.label && (
-                      <CustomMentionGroupLabel>
+                      <div className={DROPDOWN_CLASSES.sectionLabel}>
                         {group.label}
-                      </CustomMentionGroupLabel>
+                      </div>
                     )}
-                    {group.options.map((option, optionIndex) => {
-                      const itemIndex =
-                        recentCount + group.startIndex + optionIndex;
-                      return (
+                    {group.entries.map((entry) => (
+                      <div key={entry.option.id} data-context-menu-flat>
                         <MenuItemRow
-                          key={option.id}
                           icon={AtIcon}
-                          label={option.label}
-                          description={option.description}
+                          label={entry.option.label}
+                          description={entry.option.description}
                           isActive={
-                            keyboardNavigated && activeIndex === itemIndex
+                            keyboardNavigated && activeIndex === entry.flatIndex
                           }
                           dataTestId="agent-org-mention-option"
-                          dataMentionId={option.id}
-                          onClick={() => onCustomMentionSelect?.(option)}
-                          onMouseEnter={() => handleMainItemHover(itemIndex)}
+                          dataMentionId={entry.option.id}
+                          onClick={() => onCustomMentionSelect?.(entry.option)}
+                          onMouseEnter={() =>
+                            handleMainItemHover(entry.flatIndex)
+                          }
                           onMouseLeave={resetActiveIndex}
                         />
-                      );
-                    })}
+                      </div>
+                    ))}
                   </React.Fragment>
                 ))}
-              </div>
-              <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
-            </>
-          )}
+              </>
+            )}
 
-          <div className={DROPDOWN_CLASSES.itemsColumnPadded}>
-            {MENU_ITEMS.map((item, idx) => {
-              const itemIndex =
-                recentCount + filteredCustomMentionOptions.length + idx;
-              return (
-                <MenuItemRow
-                  key={item.id}
-                  icon={item.icon}
-                  label={t(item.translationKey, { defaultValue: item.label })}
-                  hasArrow={item.hasSecondLayer}
-                  isActive={keyboardNavigated && activeIndex === itemIndex}
-                  onClick={() => handleMenuItemClick(item)}
-                  onMouseEnter={() => handleMainItemHover(itemIndex)}
-                  onMouseLeave={() => setActiveIndex(-1)}
-                />
-              );
-            })}
+            {contextEntries.length > 0 && (
+              <>
+                {(imageEntry ||
+                  modeEntries.length > 0 ||
+                  mentionEntries.length > 0) && (
+                  <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
+                )}
+                <div className={DROPDOWN_CLASSES.sectionLabel}>
+                  {t("creator.slashMenu.commands", {
+                    defaultValue: "Commands",
+                  })}
+                </div>
+                {contextEntries.map((entry) => (
+                  <div key={entry.item.id} data-context-menu-flat>
+                    <MenuItemRow
+                      icon={entry.item.icon}
+                      label={t(entry.item.translationKey, {
+                        defaultValue: entry.item.label,
+                      })}
+                      hasArrow={entry.item.hasSecondLayer}
+                      isActive={
+                        keyboardNavigated && activeIndex === entry.flatIndex
+                      }
+                      dataTestId={`context-menu-command-${entry.item.id}`}
+                      onClick={() => handleMainItemIndexSelect(entry.flatIndex)}
+                      onMouseEnter={() => handleMainItemHover(entry.flatIndex)}
+                      onMouseLeave={resetActiveIndex}
+                    />
+                  </div>
+                ))}
+              </>
+            )}
+
+            {isSearching && searchResults.length > 0 && (
+              <>
+                {mainEntries.length > 0 && (
+                  <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
+                )}
+                <div className={DROPDOWN_CLASSES.sectionLabel}>
+                  {t("creator.contextMenu.filesAndFolders", {
+                    defaultValue: "Files & Folders",
+                  })}
+                </div>
+                {searchResults.map((item, index) => (
+                  <div
+                    key={`${item.repoPath ?? ""}:${item.path}`}
+                    data-context-menu-flat
+                  >
+                    <ResultItemRow
+                      item={item}
+                      index={index}
+                      activeIndex={mainFileActiveIndex}
+                      onSelect={() =>
+                        handleSelect(
+                          item.type === "folder" ? "folder" : "files",
+                          item.path,
+                          item.name
+                        )
+                      }
+                      onHover={() =>
+                        handleMainItemHover(mainEntries.length + index)
+                      }
+                      onHoverEnd={resetActiveIndex}
+                      itemRef={() => undefined}
+                    />
+                  </div>
+                ))}
+              </>
+            )}
+
+            {isSearching && !hasAnyMainResults && (
+              <SearchLoadingOrEmpty searchQuery={searchQuery} loading={false} />
+            )}
+            {isSearching && searchLoading && searchResults.length === 0 && (
+              <SearchLoadingOrEmpty searchQuery={searchQuery} loading />
+            )}
           </div>
         </div>
       )}

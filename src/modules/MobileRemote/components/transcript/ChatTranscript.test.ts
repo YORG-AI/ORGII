@@ -367,7 +367,7 @@ describe("ChatTranscript tail follow", () => {
       '[data-transcript-item-kind="tool"]'
     );
     expect(tool).not.toBeNull();
-    expect(toolItem?.classList.contains("py-1")).toBe(true);
+    expect(toolItem?.classList.contains("py-0.5")).toBe(true);
     expect(toolItem?.classList.contains("px-2")).toBe(true);
     expect(tool?.textContent).toContain("transcript.tools.labels.readFile");
     expect(tool?.textContent).toContain("/repo/src/session.ts");

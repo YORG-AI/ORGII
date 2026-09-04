@@ -1,19 +1,19 @@
 /**
  * useBrowserContextAdapter
  *
- * Adapter hook to convert BrowserContext to UseBrowserStateReturn interface.
+ * Adapter hook to convert BrowserContext to the BrowserState interface.
  * Allows BrowserCore to work seamlessly with the existing BrowserContext.
  */
 import { useMemo } from "react";
 
 import { useBrowserContext } from "@src/contexts/workstation";
 
-import type { UseBrowserStateReturn } from "./useBrowserState";
+import type { BrowserState } from "../types";
 
 /**
- * Adapter hook that converts BrowserContext to UseBrowserStateReturn
+ * Adapter hook that converts BrowserContext to BrowserState
  */
-export function useBrowserContextAdapter(): UseBrowserStateReturn {
+export function useBrowserContextAdapter(): BrowserState {
   const {
     sessions,
     activeSessionId,
@@ -26,7 +26,7 @@ export function useBrowserContextAdapter(): UseBrowserStateReturn {
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
 
-  return useMemo<UseBrowserStateReturn>(
+  return useMemo<BrowserState>(
     () => ({
       sessions,
       activeSessionId,

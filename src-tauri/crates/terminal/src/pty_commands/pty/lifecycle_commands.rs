@@ -3,7 +3,10 @@
 
 use portable_pty::PtySize;
 use std::sync::atomic::Ordering;
-use tauri::{AppHandle, State};
+use tauri::{
+    ipc::{Channel, InvokeResponseBody},
+    AppHandle, State,
+};
 
 use super::state::PtyState;
 use super::types::{AttachPtyStream, CreatePtyRequest, ResizePtyRequest};
@@ -161,6 +164,39 @@ pub async fn attach_pty_stream(
     })
 }
 
+/// Install the webview's binary output channel on a PTY session.
+///
+/// Called by the frontend once its terminal pane is bound to a live session.
+/// While a channel is installed the reader task delivers output as
+/// `[8-byte big-endian stream offset][raw PTY bytes]` frames through it
+/// instead of emitting `pty-output-{session_id}` events, which saves a base64
+/// encode, a JSON serialization, and a webview-side JavaScript parse of a
+/// payload-sized source string on every chunk.
+///
+/// Installing is a single swap on a live stream and cannot reorder output:
+/// both transports are dispatched from the same reader task through the same
+/// webview eval queue, so a frame queued before the swap is delivered before
+/// one queued after it, and the channel preserves order across its own
+/// asynchronous fetches. Sessions with no channel keep the event transport,
+/// so an older webview and agent-owned PTYs are unaffected.
+#[tauri::command]
+pub async fn attach_pty_output_channel(
+    session_id: String,
+    channel: Channel<InvokeResponseBody>,
+    state: State<'_, PtyState>,
+) -> Result<(), String> {
+    let sessions = state.inner().sessions.lock().await;
+    let session = sessions
+        .get(&session_id)
+        .ok_or_else(|| format!("Session {} not found", session_id))?;
+
+    *session
+        .output_channel
+        .lock()
+        .expect("output_channel mutex poisoned") = Some(channel);
+    Ok(())
+}
+
 /// Detach the webview's event stream from a PTY session.
 ///
 /// Called by the frontend when the terminal component unmounts while the
@@ -179,6 +215,13 @@ pub async fn detach_pty_stream(
     if let Some(session) = sessions.get(&session_id) {
         session.detached.store(true, Ordering::Relaxed);
         session.unacked_bytes.store(0, Ordering::Relaxed);
+        // Drop the departing webview's channel: a stale one would keep
+        // delivering into a callback that no longer exists, and the next
+        // attach installs its own.
+        *session
+            .output_channel
+            .lock()
+            .expect("output_channel mutex poisoned") = None;
         // Wake a parked reader so it observes detached mode and resumes.
         session.ack_notify.notify_one();
     }

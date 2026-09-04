@@ -266,22 +266,21 @@ kanbanDetailPanelVisibleAtom.debugLabel = "kanban/detailPanelVisible";
 
 /**
  * Team-session card currently previewed on the board, paired with the local
- * session id its replay import materializes. The cloud card carries no
+ * session id its remote import materializes. The cloud card carries no
  * `session_id` of its own, and the imported copy only joins the board once
  * the transcript lands — this is what lets the preview render the session in
  * between. Transient, like the selection atoms above.
  */
-export interface KanbanCloudReplayTarget {
+export interface KanbanCloudPreviewTarget {
   /** Cloud task id (`cloud-remote:<row id>`) that was clicked. */
   taskId: string;
-  /** Local session id the replay import writes into. */
+  /** Local session id the remote import writes into. */
   sessionId: string;
 }
-export const kanbanCloudReplayTargetAtom = atom<KanbanCloudReplayTarget | null>(
-  null
-);
-kanbanCloudReplayTargetAtom.debugLabel = "kanban/cloudReplayTarget";
+export const kanbanCloudPreviewTargetAtom =
+  atom<KanbanCloudPreviewTarget | null>(null);
+kanbanCloudPreviewTargetAtom.debugLabel = "kanban/cloudPreviewTarget";
 
-/** Transient filename/path query; intentionally resets on app reload. */
-export const kanbanFileSearchQueryAtom = atom<string>("");
-kanbanFileSearchQueryAtom.debugLabel = "kanban/fileSearchQuery";
+/** Transient session-name query; intentionally resets on app reload. */
+export const kanbanSearchQueryAtom = atom<string>("");
+kanbanSearchQueryAtom.debugLabel = "kanban/searchQuery";

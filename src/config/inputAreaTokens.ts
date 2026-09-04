@@ -103,6 +103,15 @@ export const INPUT_AREA_EDITOR_CLASS =
 export const INPUT_AREA_CONTROL_GROUP_CLASS =
   "flex min-w-0 items-center gap-px";
 
+/** Shared frame for the +, /, and @ menus rendered above a composer. */
+export const INPUT_AREA_MENU_FRAME = {
+  /** Match the full input shell width instead of insetting the menu. */
+  horizontalInset: 0,
+  /** Vertical distance between the input shell and its menu. */
+  gap: 8,
+  placement: "up",
+} as const;
+
 // ==============================================
 // Padding Tokens
 // ==============================================

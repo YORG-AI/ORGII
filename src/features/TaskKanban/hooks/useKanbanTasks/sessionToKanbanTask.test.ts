@@ -110,7 +110,7 @@ describe("sessionToKanbanTask agent label", () => {
     expect(task.agentIconId).toBe("brain");
   });
 
-  it("uses preserved source identity for an imported Codex App replay", () => {
+  it("uses preserved source identity for an imported Codex App session", () => {
     const task = toTask(
       makeSession({
         session_id: "imported-session-codex",

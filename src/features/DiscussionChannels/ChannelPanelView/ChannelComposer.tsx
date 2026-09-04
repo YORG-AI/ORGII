@@ -90,7 +90,6 @@ const ChannelComposer: React.FC<ChannelComposerProps> = ({
       <InputArea
         key={composerId}
         omitChatHeader
-        bottomAnchored
         composerInputRef={composerInputRef}
         acceptDraggedPills={acceptDraggedPills}
         sessionId={composerId}

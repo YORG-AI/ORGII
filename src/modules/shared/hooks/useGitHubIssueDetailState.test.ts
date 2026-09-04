@@ -16,18 +16,22 @@ import {
 
 import type { GitHubIssue } from "@src/api/tauri/github";
 import {
+  UNRESOLVED_AUTH_SCOPE,
   githubIssueResourceKey,
   resetGitHubIssueDetailCoordinator,
 } from "@src/modules/shared/githubIssueDetailCoordinator";
 import { workstationSelectedIssueAtomFamily } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 
 import {
+  GITHUB_ISSUE_TIMEOUT_ERROR,
+  GITHUB_ISSUE_UNAVAILABLE_ERROR,
   resolveGitHubIssueRepoFullName,
   useGitHubIssueDetailState,
 } from "./useGitHubIssueDetailState";
 
 const mocks = vi.hoisted(() => ({
   createIssueCommentLocal: vi.fn(),
+  getGitCredentialForRemote: vi.fn(),
   getGitHubRepoPermissionsLocal: vi.fn(),
   getGitHubViewerLogin: vi.fn(),
   fetchIssue: vi.fn(),
@@ -134,6 +138,35 @@ function ColdProbe({ stateScopeKey }: { stateScopeKey: string }) {
   });
 }
 
+/** Surfaces the three outcomes a host that names its own issue must tell apart. */
+function OutcomeProbe({
+  stateScopeKey,
+  authScope,
+  issueNumber = issue.number,
+  remoteUrl = "git@github.com:org2AI/ORG2.git",
+}: {
+  stateScopeKey: string;
+  authScope?: string;
+  issueNumber?: number;
+  remoteUrl?: string;
+}) {
+  const { selectedState, interaction } = useGitHubIssueDetailState({
+    issueNumber,
+    repoPath: "/repos/ORG2",
+    remoteUrl,
+    stateScopeKey,
+    authScope,
+  });
+  return createElement("div", {
+    "data-testid": stateScopeKey,
+    "data-loading": String(selectedState.loading),
+    "data-timeline-loading": String(selectedState.timelineLoading),
+    "data-interaction-loading": String(interaction.loading),
+    "data-error": selectedState.error ?? "",
+    "data-issue": selectedState.issue ? String(selectedState.issue.number) : "",
+  });
+}
+
 describe("useGitHubIssueDetailState", () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -158,6 +191,11 @@ describe("useGitHubIssueDetailState", () => {
       can_manage_pull_requests: false,
     });
     mocks.listRepoAssigneesLocal.mockResolvedValue([]);
+    mocks.getGitCredentialForRemote.mockResolvedValue({
+      connection_id: "connection-1",
+      source: "keychain",
+      username: "viewer",
+    });
     store.set(workstationSelectedIssueAtomFamily("issue-detail-test"), {
       resourceKey: githubIssueResourceKey(
         "test-auth",
@@ -432,5 +470,189 @@ describe("useGitHubIssueDetailState", () => {
     expect(
       store.get(workstationSelectedIssueAtomFamily("issue-detail-test")).issue
     ).toEqual(otherIssue);
+  });
+  it("reports a failed issue request instead of loading forever", async () => {
+    mocks.fetchIssue.mockResolvedValue({ error: "github_rate_limited" });
+
+    await act(async () => {
+      root.render(
+        createElement(
+          Provider,
+          { store },
+          createElement(OutcomeProbe, {
+            stateScopeKey: "settled-failure",
+            authScope: "test-auth",
+          })
+        )
+      );
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        container
+          .querySelector("[data-testid='settled-failure']")
+          ?.getAttribute("data-error")
+      ).toBe("github_rate_limited");
+    });
+
+    const probe = container.querySelector("[data-testid='settled-failure']");
+    expect(probe?.getAttribute("data-loading")).toBe("false");
+    expect(probe?.getAttribute("data-timeline-loading")).toBe("false");
+    expect(probe?.getAttribute("data-interaction-loading")).toBe("false");
+    expect(probe?.getAttribute("data-issue")).toBe("");
+  });
+
+  it("still loads the issue when the credential lookup fails", async () => {
+    // The auth scope only namespaces cached reads; the request resolves its own
+    // credentials. A failed lookup must degrade to an unattributed namespace,
+    // the way pull requests — which never consult it — keep loading.
+    mocks.getGitCredentialForRemote.mockRejectedValue(
+      new Error("keychain_locked")
+    );
+
+    await act(async () => {
+      root.render(
+        createElement(
+          Provider,
+          { store },
+          createElement(OutcomeProbe, { stateScopeKey: "auth-failure" })
+        )
+      );
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        container
+          .querySelector("[data-testid='auth-failure']")
+          ?.getAttribute("data-issue")
+      ).toBe(String(issue.number));
+    });
+
+    const probe = container.querySelector("[data-testid='auth-failure']");
+    expect(probe?.getAttribute("data-loading")).toBe("false");
+    expect(probe?.getAttribute("data-error")).toBe("");
+    expect(mocks.fetchIssue).toHaveBeenCalledOnce();
+    expect(
+      store.get(workstationSelectedIssueAtomFamily("auth-failure")).resourceKey
+    ).toBe(
+      githubIssueResourceKey(UNRESOLVED_AUTH_SCOPE, "org2AI/ORG2", issue.number)
+    );
+  });
+
+  it("reports unavailability when the repository cannot be resolved", async () => {
+    await act(async () => {
+      root.render(
+        createElement(
+          Provider,
+          { store },
+          createElement(OutcomeProbe, {
+            stateScopeKey: "repo-failure",
+            authScope: "test-auth",
+            remoteUrl: "local-mirror",
+          })
+        )
+      );
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        container
+          .querySelector("[data-testid='repo-failure']")
+          ?.getAttribute("data-error")
+      ).toBe(GITHUB_ISSUE_UNAVAILABLE_ERROR);
+    });
+
+    const probe = container.querySelector("[data-testid='repo-failure']");
+    expect(probe?.getAttribute("data-loading")).toBe("false");
+    expect(probe?.getAttribute("data-timeline-loading")).toBe("false");
+    expect(mocks.fetchIssue).not.toHaveBeenCalled();
+  });
+
+  it("hides a previous selection while the requested issue is still in flight", async () => {
+    let resolveIssue: ((value: { data: GitHubIssue }) => void) | undefined;
+    mocks.fetchIssue.mockImplementation(
+      () =>
+        new Promise<{ data: GitHubIssue }>((resolve) => {
+          resolveIssue = resolve;
+        })
+    );
+    const nextIssue: GitHubIssue = { ...issue, id: 100_133, number: 133 };
+    store.set(workstationSelectedIssueAtomFamily("stale-selection"), {
+      resourceKey: githubIssueResourceKey("test-auth", "org2AI/ORG2", 132),
+      issue,
+      timeline: [],
+      loading: false,
+      timelineLoading: false,
+      error: "previous failure",
+      submittingComment: false,
+    });
+
+    await act(async () => {
+      root.render(
+        createElement(
+          Provider,
+          { store },
+          createElement(OutcomeProbe, {
+            stateScopeKey: "stale-selection",
+            authScope: "test-auth",
+            issueNumber: 133,
+          })
+        )
+      );
+    });
+
+    const probe = () =>
+      container.querySelector("[data-testid='stale-selection']");
+    expect(probe()?.getAttribute("data-issue")).toBe("");
+    expect(probe()?.getAttribute("data-loading")).toBe("true");
+    expect(probe()?.getAttribute("data-error")).toBe("");
+
+    await act(async () => {
+      resolveIssue?.({ data: nextIssue });
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => {
+      expect(probe()?.getAttribute("data-issue")).toBe("133");
+    });
+    expect(probe()?.getAttribute("data-loading")).toBe("false");
+  });
+  it("reports a request that never settles instead of waiting forever", async () => {
+    vi.useFakeTimers();
+    try {
+      // A transport that never answers is indistinguishable from a slow one,
+      // so the surface must bound the wait and explain itself.
+      mocks.fetchIssue.mockImplementation(() => new Promise(() => {}));
+      mocks.fetchIssueTimeline.mockImplementation(() => new Promise(() => {}));
+
+      await act(async () => {
+        root.render(
+          createElement(
+            Provider,
+            { store },
+            createElement(OutcomeProbe, {
+              stateScopeKey: "hung-request",
+              authScope: "test-auth",
+            })
+          )
+        );
+      });
+
+      const probe = () =>
+        container.querySelector("[data-testid='hung-request']");
+      expect(probe()?.getAttribute("data-timeline-loading")).toBe("true");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+
+      expect(probe()?.getAttribute("data-error")).toBe(
+        GITHUB_ISSUE_TIMEOUT_ERROR
+      );
+      expect(probe()?.getAttribute("data-loading")).toBe("false");
+      expect(probe()?.getAttribute("data-timeline-loading")).toBe("false");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

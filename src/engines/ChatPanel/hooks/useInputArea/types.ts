@@ -66,9 +66,6 @@ export interface InputAreaRefs {
   slashCommandKeyboardHandlerRef: MutableRefObject<
     ((event: globalThis.KeyboardEvent) => boolean) | null
   >;
-  plusSlashCommandKeyboardHandlerRef: MutableRefObject<
-    ((event: globalThis.KeyboardEvent) => boolean) | null
-  >;
   hasContentRef: MutableRefObject<boolean>;
   setHasContent: (value: boolean) => void;
 }
@@ -161,9 +158,6 @@ export interface UseInputAreaReturn {
   slashCommandKeyboardHandlerRef: MutableRefObject<
     ((event: globalThis.KeyboardEvent) => boolean) | null
   >;
-  plusSlashCommandKeyboardHandlerRef: MutableRefObject<
-    ((event: globalThis.KeyboardEvent) => boolean) | null
-  >;
 
   hasContentRef: MutableRefObject<boolean>;
 
@@ -205,13 +199,11 @@ export interface UseInputAreaReturn {
   handleSlashCommand: (query: string) => void;
   handleSlashCommandClose: () => void;
   handleSlashSelect: (item: SlashItem) => void;
-  handleSlashAppendSelect: (item: SlashItem) => void;
   handleModeSelect: (mode: ComposerModeEntry["id"]) => void;
   currentMode: ComposerModeEntry["id"];
   includeProjectMode: boolean;
   filteredSlashItems: SlashItem[];
   slashLoading: boolean;
-  prefetchSlashItems: (query: string) => void;
 
   // File selection
   handleSelectFile: (file: string) => void;

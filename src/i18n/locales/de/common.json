@@ -13,26 +13,14 @@
     },
     "sections": {
       "reviewRequested": "Überprüfung angefordert",
-      "authoredByMe": "Von mir erstellt",
-      "otherTodos": "Weitere Aufgaben"
+      "authoredByMe": "Von mir erstellt"
     },
     "status": {
       "read": "Gelesen",
       "unread": "Ungelesen"
     },
     "row": {
-      "assignedSummary": "{{status}} · {{priority}}",
       "ariaLabel": "{{title}}, {{status}}"
-    },
-    "search": {
-      "placeholder": "Posteingang durchsuchen",
-      "ariaLabel": "Team-Posteingang durchsuchen"
-    },
-    "groups": {
-      "today": "Heute",
-      "yesterday": "Gestern",
-      "thisWeek": "Diese Woche",
-      "earlier": "Früher"
     },
     "empty": {
       "title": "Noch nichts hier",
@@ -56,20 +44,15 @@
     "drop": {
       "title": "Zum Erstellen eines Arbeitselements hier ablegen",
       "subtitle": "Prüfe den Sitzungs-Schnappschuss und erstelle oder übergib dann das Arbeitselement.",
-      "processing": "Arbeitselement wird aus „{{title}}“ erstellt…",
       "processingHint": "Sitzung wird gelesen und Projektmitglieder werden aufgelöst.",
       "success": "Arbeitselement erstellt",
       "reused": "Vorhandenes Arbeitselement aktualisiert",
       "failed": "Arbeitselement konnte nicht erstellt werden",
-      "error": "Aus dieser Sitzung kann kein Arbeitselement erstellt werden.",
-      "open": "Öffnen",
       "dismiss": "Verwerfen"
     },
     "handoff": {
       "title": "Aus Sitzung erstellen",
       "createFromSession": "Team-Arbeitselement erstellen…",
-      "project": "Zielprojekt",
-      "chooseProject": "Projekt auswählen",
       "recipientSelf": "{{name}} (ich)",
       "chooseRecipient": "Empfänger auswählen",
       "todoCount_one": "{{count}} Aufgabe",
@@ -121,6 +104,7 @@
       "pullRequestsPartialLoadHelp": "Verfügbare Elemente werden weiterhin angezeigt; aktualisiere erneut, um die fehlenden Pull Requests zu laden",
       "workItemContext": "Einiger Projektkontext ist nicht verfügbar. Das Arbeitselement bleibt nutzbar.",
       "workItemLoad": "Dieses Arbeitselement konnte nicht geladen werden. Versuche es erneut.",
+      "githubIssueLoad": "Das GitHub-Issue dieses Arbeitselements konnte nicht geladen werden. Lokale Details werden weiterhin angezeigt.",
       "workItemUpdate": "Die letzte Änderung am Arbeitselement konnte nicht gespeichert werden. Versuche es erneut."
     },
     "detail": {
@@ -134,18 +118,7 @@
     "actions": {
       "markRead": "Als gelesen markieren",
       "markUnread": "Als ungelesen markieren",
-      "openWorkItem": "Arbeitselement öffnen",
-      "openSession": "Sitzung öffnen"
-    },
-    "fields": {
-      "status": "Status",
-      "priority": "Priorität",
-      "assignee": "Zugewiesen an",
-      "workItemId": "Arbeitselement-ID",
-      "session": "Sitzung",
-      "comments": "Kommentare",
-      "threadId": "Thread-ID",
-      "commentId": "Kommentar-ID"
+      "openWorkItem": "Arbeitselement öffnen"
     },
     "workItemStatus": {
       "backlog": "Backlog",
@@ -726,7 +699,7 @@
     "unknown": "Unbekannter Fehler",
     "agentRequestFailed": "Agent-Anfrage fehlgeschlagen",
     "codexLoginExpired": "Codex-Anmeldung abgelaufen",
-    "codexLoginExpiredDescription": "Verbinde Codex erneut, um dieses Konto zu reparieren. Nach dem Speichern der neuen Anmeldung kehrst du zu dieser Sitzung zurück.",
+    "codexLoginExpiredDescription": "Verbinde Codex erneut, um dieses Konto zu reparieren. Nach dem Speichern der neuen Anmeldung kehrst du zu dieser Sitzung zurück",
     "reconnectCodex": "Codex erneut verbinden",
     "technicalDetails": "Technische Details",
     "failedToCopy": "Kopieren fehlgeschlagen",
@@ -1100,6 +1073,7 @@
     "switchLocalBranchTooltip": "Lokalen Branch wechseln",
     "sessionEnvCloud": "Cloud",
     "sessionEnvLocal": "Lokal",
+    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Git-Aktionen",
     "switchToSessionRepo": "Zu {{name}} wechseln",
     "embeddingProgress": "Embedding: {{count}} Chunks verarbeitet",
@@ -1288,7 +1262,7 @@
       "loadingConversation": "Wird geladen…",
       "reviewNoBody": "Hat Review-Kommentare hinterlassen.",
       "submitReview": "Überprüfung einreichen",
-      "reviewHeadNotice": "Die Überprüfung wird nur angewendet, wenn der angezeigte Head-Commit weiterhin übereinstimmt.",
+      "reviewHeadNotice": "Die Überprüfung wird nur angewendet, wenn der angezeigte Head-Commit weiterhin übereinstimmt",
       "reviewDecision": "Überprüfungsentscheidung",
       "reviewComment": "Überprüfungskommentar",
       "reviewCommentPlaceholder": "Einen Kommentar hinzufügen…",
@@ -1334,7 +1308,14 @@
       },
       "commits": {
         "backToList": "Alle Commits",
-        "none": "Keine Commits"
+        "none": "Keine Commits",
+        "onDate": "Commits vom {{date}}",
+        "unknownDate": "Unbekanntes Datum",
+        "viewCommit": "Commit {{sha}} ansehen: {{summary}}",
+        "committed": "hat einen Commit erstellt",
+        "verified": "Verifiziert",
+        "copySha": "Commit-SHA kopieren",
+        "viewDetails": "Commit-Details ansehen"
       },
       "changes": {
         "title": "Geänderte Dateien",
@@ -1560,6 +1541,20 @@
         "commentFailed": "Kommentar konnte nicht hinzugefügt werden",
         "bodyUpdateFailed": "Issue-Beschreibung konnte nicht aktualisiert werden",
         "statusFailed": "Issue-Status konnte nicht aktualisiert werden"
+      },
+      "timelineErrorTitle": "GitHub-Aktivität nicht verfügbar",
+      "tabs": {
+        "relatedItems": "Zugehörige Elemente"
+      },
+      "relatedItems": {
+        "emptyTitle": "Noch keine zugehörigen Elemente",
+        "emptyDescription": "In dieser Unterhaltung erwähnte GitHub issues und pull requests werden hier angezeigt.",
+        "loading": "Zugehörige Elemente werden geladen",
+        "count_one": "{{count}} zugehöriges Element",
+        "count_other": "{{count}} zugehörige Elemente",
+        "unavailable": "Details nicht verfügbar",
+        "unavailableCount_one": "{{count}} zugehöriges Element konnte nicht aufgelöst werden",
+        "unavailableCount_other": "{{count}} zugehörige Elemente konnten nicht aufgelöst werden"
       }
     }
   },
@@ -1906,6 +1901,12 @@
         },
         "createWorkItem": {
           "label": "Work Item erstellen"
+        },
+        "createOrganization": {
+          "label": "Organisation erstellen"
+        },
+        "joinOrganization": {
+          "label": "Organisation beitreten"
         }
       },
       "toast": {
@@ -1976,6 +1977,10 @@
     "openAgentStation": "Zu Agent Station wechseln",
     "openKanban": "Zu Kanban wechseln",
     "changeLanguage": "Sprache ändern",
+    "changeTheme": "Theme ändern",
+    "changeSkin": "Skin ändern",
+    "searchThemes": "Themes suchen...",
+    "searchSkins": "Skins suchen...",
     "switchToSystemTheme": "Systemdesign folgen",
     "detectUpdate": "Nach Updates suchen",
     "recentlyUsed": "Zuletzt verwendet"
@@ -2394,7 +2399,7 @@
     "selectRow": "{{id}} auswählen"
   },
   "clientOrigin": {
-    "officialApp": "Offizielle App",
+    "officialApp": "App",
     "cli": "CLI",
     "thirdParty": "Drittanbieter"
   }

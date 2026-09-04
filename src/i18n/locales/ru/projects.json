@@ -93,7 +93,7 @@
     "loadingConnections": "Загрузка подключений GitHub...",
     "noConnectionTitle": "Подключение GitHub не найдено",
     "noConnectionDescription": "Сначала добавьте подключение GitHub в Integrations, затем вернитесь сюда, чтобы импортировать GitHub Issues.",
-    "linkedRepoHint": "Этот Project также будет связан с текущим Workspace repo: {{repoName}}.",
+    "linkedRepoHint": "Этот Project также будет связан с текущим Workspace repo: {{repoName}}",
     "errors": {
       "invalidRepo": "Используйте owner/repo или URL репозитория GitHub."
     },
@@ -225,6 +225,7 @@
     "noWorkItems": "Нет рабочих элементов",
     "noWorkItemsSubtitle": "Создайте первый рабочий элемент, чтобы начать",
     "addFirstWorkItem": "Добавить первый элемент",
+    "addSelected": "Добавить {{count}}",
     "deleteItems": "Удалить {{count}} элементов",
     "untitledProject": "Project без названия",
     "untitledWorkItem": "Элемент без названия",

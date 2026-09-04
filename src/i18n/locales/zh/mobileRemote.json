@@ -90,6 +90,27 @@
   "composerUncertain": "连接已变化，正在确认是否送达…",
   "composerCompleted": "回复已更新",
   "composerSendFailed": "消息发送失败",
+  "composer": {
+    "attachments": {
+      "addPhotos": "添加照片",
+      "maxReached": "最多只能附加 {{max}} 张图片",
+      "remainingWarning": "仅剩 {{remaining}} / {{max}} 个图片位",
+      "unsupportedType": "仅支持图片文件",
+      "processFailed": "无法处理所选图片"
+    }
+  },
+  "modelPicker": {
+    "title": "选择模型",
+    "selectModel": "选择模型",
+    "loading": "正在加载模型…",
+    "empty": "桌面上没有可用模型"
+  },
+  "modelPicker": {
+    "title": "选择模型",
+    "selectModel": "选择模型",
+    "loading": "正在加载模型…",
+    "empty": "桌面上没有可用模型"
+  },
   "transcript": {
     "loading": "正在加载会话历史",
     "emptyTitle": "这个会话还没有消息",

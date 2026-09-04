@@ -26,6 +26,7 @@ import SidebarSettingsMenuButton from "./SidebarSettingsMenuButton";
 const mocks = vi.hoisted(() => ({
   closeDropdown: vi.fn(),
   goToSettings: vi.fn(),
+  handleAppearanceModeChange: vi.fn().mockResolvedValue(undefined),
   navigateTo: vi.fn(),
 }));
 
@@ -79,11 +80,12 @@ vi.mock("@src/hooks/dropdown", () => ({
 vi.mock("@src/modules/MainApp/Settings/sections/useAppearanceState", () => ({
   useAppearanceState: () => ({
     appearanceMode: "system",
-    appearanceModeOptions: [],
-    activeSkinId: "orgii",
-    activeSkinOptions: [],
-    handleAppearanceModeChange: vi.fn(),
-    handleActiveSkinChange: vi.fn(),
+    appearanceModeOptions: [
+      { value: "system", label: "Follow system (Dark)" },
+      { value: "light", label: "Light" },
+      { value: "dark", label: "Dark" },
+    ],
+    handleAppearanceModeChange: mocks.handleAppearanceModeChange,
   }),
 }));
 
@@ -237,6 +239,9 @@ describe("SidebarSettingsMenuButton", () => {
     const signOut = document.querySelector<HTMLButtonElement>(
       '[data-testid="sidebar-menu-sign-out"]'
     );
+    expect(
+      document.querySelector('[data-testid="sidebar-menu-account-identity"]')
+    ).toBeNull();
     expect(signOut?.textContent).toBe("cloud.signOut");
     expect(signOut!.parentElement!.querySelector("button")).toBe(signOut);
     expect(
@@ -315,6 +320,79 @@ describe("SidebarSettingsMenuButton", () => {
     expect(
       document.body.querySelector('[role="switch"]')?.getAttribute("aria-label")
     ).toBe("layoutSettings.paginateChatHistory");
+  });
+
+  it("shows only the icon-only theme control in the appearance submenu", async () => {
+    const appearanceTrigger = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>("button")
+    ).find(
+      (button) => button.textContent === "sidebar.settingsMenu.appearance"
+    );
+
+    await act(async () => {
+      appearanceTrigger?.dispatchEvent(
+        new MouseEvent("mouseover", { bubbles: true })
+      );
+    });
+
+    const themeControl = document.body.querySelector<HTMLElement>(
+      '[role="group"][aria-label="general.theme"]'
+    );
+    const themeButtons = Array.from(
+      themeControl?.querySelectorAll<HTMLButtonElement>("button") ?? []
+    );
+
+    expect(themeButtons).toHaveLength(3);
+    expect(
+      themeButtons.map((button) => button.getAttribute("aria-label"))
+    ).toEqual(["Follow system (Dark)", "Light", "Dark"]);
+    expect(themeButtons.map((button) => button.textContent)).toEqual([
+      "",
+      "",
+      "",
+    ]);
+    expect(
+      themeButtons.map((button) => button.getAttribute("aria-pressed"))
+    ).toEqual(["true", "false", "false"]);
+    expect(
+      themeButtons.map((button) =>
+        button.querySelector("[data-icon]")?.getAttribute("data-icon")
+      )
+    ).toEqual(["theme-system", "theme-light", "theme-dark"]);
+
+    expect(document.body.querySelector('[role="menuitemradio"]')).toBeNull();
+
+    await act(async () => themeButtons[2]?.click());
+    expect(mocks.handleAppearanceModeChange).toHaveBeenCalledWith("dark");
+  });
+
+  it("opens Appearance settings from Modify appearance", async () => {
+    const appearanceTrigger = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>("button")
+    ).find(
+      (button) => button.textContent === "sidebar.settingsMenu.appearance"
+    );
+
+    await act(async () => {
+      appearanceTrigger?.dispatchEvent(
+        new MouseEvent("mouseover", { bubbles: true })
+      );
+    });
+
+    const modifyAppearance = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    ).find(
+      (item) => item.textContent === "sidebar.settingsMenu.modifyAppearance"
+    );
+
+    expect(modifyAppearance).toBeDefined();
+    expect(
+      modifyAppearance?.querySelector('[data-icon="arrow-up-right"]')
+    ).not.toBeNull();
+    await act(async () => modifyAppearance?.click());
+
+    expect(mocks.goToSettings).toHaveBeenCalledWith({ section: "appearance" });
+    expect(mocks.closeDropdown).toHaveBeenCalledOnce();
   });
 
   it("aligns vertically to the row but measures the gap from the outer panel", async () => {

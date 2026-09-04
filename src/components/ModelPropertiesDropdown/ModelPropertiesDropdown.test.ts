@@ -136,7 +136,7 @@ describe("ModelPropertiesDropdown immediate changes", () => {
     expect(document.querySelector('[role="dialog"]')?.textContent).not.toMatch(
       /Cancel|Apply/
     );
-    changeRange("4");
+    changeRange("5");
     expect(save).toHaveBeenLastCalledWith("gpt-5.6-sol-ultra-fast");
     expect(range().getAttribute("aria-valuetext")).toBe("Ultra");
     toggle("Fast");
@@ -213,8 +213,8 @@ describe("ModelPropertiesDropdown immediate changes", () => {
       range().dispatchEvent(down);
     });
     expect(down.defaultPrevented).toBe(false);
-    changeRange("3");
     changeRange("4");
+    changeRange("5");
     expect(save).not.toHaveBeenCalled();
     act(() =>
       range().dispatchEvent(

@@ -5,7 +5,7 @@
  *
  *  - `loadSessions()` — legacy "load everything (with limit/offset)" entry
  *    used by panels that want a single flat list across all categories
- *    (Chat history panel, Simulator panel, useSessionManager).
+ *    (Chat history panel and Simulator panel).
  *
  *  - `loadSessionRoster()` / `loadMoreCategory()` — the shared incremental
  *    roster consumed by Sidebar and every session Kanban mode. Native
@@ -395,7 +395,7 @@ export const loadMoreCategory = async (
       ),
     };
   } catch (error) {
-    log.warn(`[SessionAtom] loadMoreCategory(${category}) failed:`, error);
+    log.warn(`loadMoreCategory(${category}) failed:`, error);
     if (generation === currentSidebarRosterGeneration(store)) {
       setPaginationFor(category, { phase: "error", generation });
     }

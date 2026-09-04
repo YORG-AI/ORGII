@@ -69,6 +69,7 @@ import {
 import {
   buildCloudPendingPlayEntry,
   resolveCloudSessionEnvironmentIdentity,
+  resolveCloudSessionOwnerIdentity,
   resolveCloudSessionReplayIconId,
   runImmediateCloudSessionReplay,
 } from "./cloudSessionReplayLifecycle";
@@ -212,6 +213,9 @@ export function useCloudSessionActions(
       options?: CloudSessionReplayOptions
     ): Promise<CloudSessionActionOutcome> => {
       if (!orgId || remoteSession.eventsEpoch === undefined) return "noop";
+      const sessionEnvironment =
+        resolveCloudSessionEnvironmentIdentity(remoteSession);
+      const sessionOwner = resolveCloudSessionOwnerIdentity(remoteSession);
       // Store read at call time: the render-captured map can be stale, and
       // both sidebar connectors plus Kanban share this registry. Only the
       // clicked row's own in-flight action blocks it.
@@ -364,8 +368,8 @@ export function useCloudSessionActions(
             progress: {
               rowId: remoteSession.id,
               orgId,
-              sessionEnvironment:
-                resolveCloudSessionEnvironmentIdentity(remoteSession),
+              sessionEnvironment,
+              sessionOwner,
               loadedEvents: maxLoadedEvents,
               totalEvents,
               baseEvents,
@@ -547,8 +551,8 @@ export function useCloudSessionActions(
               progress: {
                 rowId: remoteSession.id,
                 orgId,
-                sessionEnvironment:
-                  resolveCloudSessionEnvironmentIdentity(remoteSession),
+                sessionEnvironment,
+                sessionOwner,
                 loadedEvents: heldLoaded,
                 totalEvents: heldTotal,
                 startedAtMs: lastProgress?.startedAtMs ?? Date.now(),
@@ -625,6 +629,9 @@ export function useCloudSessionActions(
       options?: CloudSessionForkOptions
     ): Promise<CloudSessionActionOutcome> => {
       if (!orgId || remoteSession.eventsEpoch === undefined) return "noop";
+      const sessionEnvironment =
+        resolveCloudSessionEnvironmentIdentity(remoteSession);
+      const sessionOwner = resolveCloudSessionOwnerIdentity(remoteSession);
       if (store.get(cloudSessionBusyRowsAtom).has(remoteSession.id)) {
         return "noop";
       }
@@ -757,8 +764,8 @@ export function useCloudSessionActions(
                 progress: {
                   rowId: remoteSession.id,
                   orgId,
-                  sessionEnvironment:
-                    resolveCloudSessionEnvironmentIdentity(remoteSession),
+                  sessionEnvironment,
+                  sessionOwner,
                   loadedEvents: maxLoadedEvents,
                   totalEvents,
                   baseEvents,
@@ -833,8 +840,8 @@ export function useCloudSessionActions(
                   progress: {
                     rowId: remoteSession.id,
                     orgId,
-                    sessionEnvironment:
-                      resolveCloudSessionEnvironmentIdentity(remoteSession),
+                    sessionEnvironment,
+                    sessionOwner,
                     loadedEvents: heldLoaded,
                     totalEvents: heldTotal,
                     startedAtMs: lastProgress?.startedAtMs ?? Date.now(),

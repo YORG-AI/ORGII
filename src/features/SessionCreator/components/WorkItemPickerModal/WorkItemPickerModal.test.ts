@@ -16,7 +16,15 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, options?: { count?: number }) => {
+      if (key === "common:actions.add") return "Add";
+      if (key === "projects:workItems.addSelected") {
+        return `Add ${options?.count ?? 0}`;
+      }
+      return key;
+    },
+  }),
 }));
 vi.mock("@src/api/http/project", () => ({ projectApi: mocks }));
 vi.mock("../useWorktreeSourceData", () => ({
@@ -210,6 +218,39 @@ describe("WorkItemPickerModal", () => {
     ]);
     expect(props.onClose).not.toHaveBeenCalled();
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+  });
+
+  it("can be scoped to local Work Items for a dedicated command", async () => {
+    await render({ open: true, sourceFilters: ["workitem"] });
+
+    expect(document.activeElement).toBe(
+      document.querySelector<HTMLInputElement>('input[type="text"]')
+    );
+    expect(mocks.useWorktreeSourceData).toHaveBeenLastCalledWith({
+      open: false,
+      repoId: "repo-a",
+      repoPath: "/repo-a",
+      loadBranches: false,
+    });
+    expect(
+      document.querySelector('[data-testid="work-item-picker-tabs"]')
+    ).toBeNull();
+    expect(document.body.textContent).toContain("Local work");
+    expect(document.body.textContent).not.toContain("Issue from repo-a");
+
+    selectLocal();
+    await act(async () => addAction().click());
+    expect(props.onSelect).toHaveBeenCalledWith([
+      expect.objectContaining({ kind: "workitem", pillPath: "project/ABC-1" }),
+    ]);
+  });
+
+  it("puts the selected count in the add label instead of a separate count", async () => {
+    await render({ open: true, sourceFilters: ["workitem"] });
+
+    expect(addAction().textContent).toBe("Add");
+    selectLocal();
+    expect(addAction().textContent).toBe("Add 1");
   });
 
   it("loads only while open and drops draft selection and search after closing during a request", async () => {

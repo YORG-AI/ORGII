@@ -1,0 +1,10 @@
+# Session / Work Item composer UI audit
+
+| Line                                                           | Element                            | Verdict          | Reason                                                                                                                                                                           | Suggested change |
+| -------------------------------------------------------------- | ---------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `src/engines/ChatPanel/ChatPanelStartPage.tsx:236`             | Shared agent-launcher selection    | keep with reason | Session and agent-assisted Work Item now use one launcher seam, while the manual Work Item path retains its purpose-built Markdown editor and save controls.                     | None.            |
+| `src/engines/ChatPanel/ChatPanelStartPage.tsx:366`             | Persistent creator layout          | keep with reason | Both agent targets occupy the same `CreatorContentLayout` and DOM wrapper position, preserving the composer instance without introducing a parallel shell.                       | None.            |
+| `src/engines/ChatPanel/StartPageAgentComposer.tsx:88`          | Layout-neutral portal hosts        | keep with reason | These non-interactive `contents` containers are mount targets for lazy Work Item chrome; no design-system primitive represents this structural role.                             | None.            |
+| `src/engines/ChatPanel/StartPageWorkItemComposerChrome.tsx:79` | Work Item title and property slots | keep with reason | The portaled content reuses `CreateComposerHeader` and `CreateComposerPinnedActions`, preserving the established title divider, property-pill treatment, and dropdown direction. | None.            |
+
+Verdict totals: **0 fix**, **4 keep with reason**, **0 abstract**.

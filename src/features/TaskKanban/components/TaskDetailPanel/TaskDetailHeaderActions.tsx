@@ -7,7 +7,6 @@ import {
   Delete02Icon,
   GitMergeIcon,
   HugeiconsIcon,
-  PlayIcon,
 } from "@src/icons";
 
 import {
@@ -17,7 +16,6 @@ import {
 } from "./helpers";
 
 interface TaskDetailHeaderActionsProps {
-  canReplay: boolean;
   canMerge: boolean;
   mergeLoading: boolean;
   discardLoading: boolean;
@@ -26,7 +24,6 @@ interface TaskDetailHeaderActionsProps {
   mergeButtonTitle: string;
   strategyRef: React.RefObject<HTMLDivElement | null>;
   t: TFunction<"sessions">;
-  onReplay: () => void;
   onMerge: () => void;
   onDiscard: () => void;
   onToggleStrategy: () => void;
@@ -34,7 +31,6 @@ interface TaskDetailHeaderActionsProps {
 }
 
 const TaskDetailHeaderActions: React.FC<TaskDetailHeaderActionsProps> = ({
-  canReplay,
   canMerge,
   mergeLoading,
   discardLoading,
@@ -43,32 +39,12 @@ const TaskDetailHeaderActions: React.FC<TaskDetailHeaderActionsProps> = ({
   mergeButtonTitle,
   strategyRef,
   t,
-  onReplay,
   onMerge,
   onDiscard,
   onToggleStrategy,
   onSelectStrategy,
 }) => (
   <div className="flex items-center gap-px">
-    {canReplay && (
-      <Button
-        size="small"
-        variant="tertiary"
-        onClick={onReplay}
-        title={t("kanban.replay.replaySession")}
-        icon={
-          <HugeiconsIcon
-            icon={PlayIcon}
-            data-icon="play"
-            size={14}
-            fill="currentColor"
-            strokeWidth={0}
-          />
-        }
-      >
-        {t("kanban.replay.replaySession")}
-      </Button>
-    )}
     {canMerge && (
       <>
         <div className="relative flex items-center" ref={strategyRef}>

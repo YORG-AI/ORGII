@@ -3,6 +3,7 @@ import React from "react";
 import { LIST_PANEL_SECTION_HEADER } from "@src/components/ListPanel/tokens";
 
 import { useMobileRemote } from "../app";
+import { MobileTopBar } from "../components/MobileTopBar";
 import { SessionListItem } from "../components/SessionListItem";
 import { DesktopPresenceLabel } from "../components/badges/DesktopPresenceLabel";
 import { OfflineBanner } from "../components/banners/OfflineBanner";
@@ -18,12 +19,14 @@ export function SessionsScreen({ onSelectSession }: SessionsScreenProps) {
 
   return (
     <>
-      <header className="flex h-12 shrink-0 items-center border-b border-border-2 px-3">
-        <DesktopPresenceLabel
-          desktopName={connection.desktopName ?? "Desktop"}
-          presence={connection.presence}
-        />
-      </header>
+      <MobileTopBar
+        leading={
+          <DesktopPresenceLabel
+            desktopName={connection.desktopName ?? "Desktop"}
+            presence={connection.presence}
+          />
+        }
+      />
       {offline ? (
         <div className="px-3 pt-3">
           <OfflineBanner desktopName={connection.desktopName} />

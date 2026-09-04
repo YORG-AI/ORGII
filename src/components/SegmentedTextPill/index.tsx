@@ -19,7 +19,8 @@ export interface SegmentedTextPillProps<T extends string> {
   onChange: (value: T) => void;
   options: SegmentedTextPillOption<T>[];
   size?: SegmentedTextPillSize;
-  value: T;
+  /** When null, no segment is shown as selected (e.g. custom value outside presets). */
+  value: T | null;
 }
 
 const CONTAINER_SIZE_CLASSES: Record<SegmentedTextPillSize, string> = {
@@ -50,7 +51,7 @@ export default function SegmentedTextPill<T extends string>({
       role="group"
     >
       {options.map((option) => {
-        const selected = option.value === value;
+        const selected = value != null && option.value === value;
 
         const button = (
           <button
@@ -58,7 +59,7 @@ export default function SegmentedTextPill<T extends string>({
             type="button"
             className={`rounded-full py-0 transition-colors ${BUTTON_SIZE_CLASSES[size]} ${
               selected
-                ? "bg-bg-2 text-text-1 shadow-xs"
+                ? "bg-bg-2 font-medium text-text-1 shadow-dropdown-soft"
                 : "text-text-3 hover:text-text-1"
             } ${option.disabled ? "cursor-not-allowed opacity-50" : ""}`}
             disabled={option.disabled}

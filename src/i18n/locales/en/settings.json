@@ -68,7 +68,7 @@
       "connections": "Connections",
       "git": "Git",
       "databases": "Databases",
-      "housekeeper": "MiniCPM Housekeeper"
+      "housekeeper": "Local Intelligence"
     }
   },
   "security": {
@@ -83,7 +83,7 @@
   },
   "mobileRemote": {
     "enabled": "Mobile Remote",
-    "enabledDesc": "Let a paired phone drive agent sessions on this desktop over your LAN (Phase 0) or via relay (Phase 1)",
+    "enabledDesc": "Let a paired phone drive agent sessions on this desktop over the same Wi‑Fi LAN or via the public relay",
     "securityNotice": "Anyone on your network with the connection URL and token can control sessions when LAN exposure is on. Regenerate the token if you think it leaked",
     "outdoorTitle": "Outdoor connection",
     "outdoorDesc": "Connect the desktop outbound to a public relay so your phone works over 4G, 5G, or another network",
@@ -91,8 +91,18 @@
     "relayEnabledDesc": "The desktop opens an outbound WSS connection; no router port forwarding is needed",
     "relayUrl": "Relay address",
     "relayUrlDesc": "Enter the deployed ws:// or wss:// URL, such as wss://relay.example.com/v1/mobile/ws",
+    "relayPresetAria": "Select relay environment preset",
+    "relayPresetLocal": "Local",
+    "relayPresetProduction": "Production",
     "desktopToken": "Desktop access key",
-    "desktopTokenDesc": "Must match ORGII_RELAY_DESKTOP_TOKEN on the relay and contain at least 24 characters",
+    "desktopTokenDesc": "For local relay only — must match ORGII_RELAY_DESKTOP_TOKEN on the relay and contain at least 24 characters",
+    "cloudLoginTitle": "ORG2 Cloud login",
+    "cloudLoginDescSignedIn": "Signed in as {{identity}} — the relay uses this account for outdoor pairing",
+    "cloudLoginDescSignedOut": "Sign in to ORG2 Cloud before pairing over the public relay",
+    "openGeneralSettings": "Open General settings",
+    "relayStatusCloudLoginRequired": "Sign in to ORG2 Cloud in Settings → General, then refresh relay status",
+    "relayStatusAuthFailedSignedIn": "Relay rejected the connection — sign out and sign in again under Settings → General",
+    "relayStatusLocalTokenInvalid": "Desktop access key does not match the local relay — check ORGII_RELAY_DESKTOP_TOKEN",
     "relayStatus": "Relay status",
     "relayStatus_online": "Connected",
     "relayStatus_connecting": "Connecting",
@@ -118,7 +128,8 @@
     "pairingConfirmed": "Phone paired",
     "pairingFailed": "Could not create pairing",
     "revokeDevice": "Revoke",
-    "relaySetupNotice": "This is the self-hosted production path. Deploy the relay first, then enter its public URL and matching desktop key",
+    "relaySetupNotice": "Outdoor relay uses your ORG2 Cloud login — sign in under Settings → General before pairing",
+    "relaySetupNoticeLocal": "Local relay dev uses a shared desktop access key — set ORGII_RELAY_DESKTOP_TOKEN when starting the relay",
     "lanAdvanced": "LAN fallback",
     "lanAdvancedDesc": "Connect directly on the same Wi-Fi without using the public relay",
     "allowLanExposure": "Allow LAN connections",
@@ -143,19 +154,26 @@
     "noDevicesDesc": "Generate an outdoor pairing code, then scan or paste it in the Mobile Remote PWA",
     "deviceLabel": "Device",
     "deviceTier": "Tier",
-    "deviceLastSeen": "Last seen"
+    "deviceTierFull": "Full access",
+    "deviceTierReadOnly": "Read-only",
+    "deviceLastSeen": "Last seen",
+    "devicePairedAt": "Paired {{time}}",
+    "deviceLastSeenValue": "Last seen {{time}}",
+    "deviceNeverSeen": "Never connected",
+    "deviceOnline": "Online",
+    "deviceOffline": "Offline"
   },
   "myRoles": {
     "currentStatus": "My current status",
     "tabs": {
       "presence": "Presence",
-      "profile": "My profiles"
+      "profile": "My profile"
     },
     "presence": {
       "instructionForAgent": "Instruction for Agent"
     },
     "profile": {
-      "title": "My profiles",
+      "title": "My profile",
       "techSavvy": "Tech-savvy level",
       "techSavvyDescription": "Helps the agent calibrate how much it explains and assumes",
       "techSavvyPlaceholder": "Select a level…",
@@ -178,7 +196,9 @@
     }
   },
   "general": {
+    "login": "Login",
     "tabGeneral": "General",
+    "tabSelfHosted": "Self-hosted",
     "loginStatus": "Login Status",
     "loggedIn": "Logged in",
     "notLoggedIn": "Not logged in",
@@ -233,7 +253,6 @@
     "sidebarEdgeDepth": "Sidebar edge depth",
     "selectedItemTransparency": "Selected item transparency",
     "spotlightPlacement": "Spotlight position",
-    "spotlightPlacementDesc": "Choose where the Spotlight command palette opens",
     "spotlightPlacementOptions": {
       "top": "Top",
       "center": "Page center"
@@ -286,7 +305,6 @@
     "darkSkin": "Dark skin",
     "lightAccent": "Light accent",
     "darkAccent": "Dark accent",
-    "accentDesc": "Match skin uses the accent the selected skin declares",
     "skinGroups": {
       "orgii": "ORGII",
       "codex": "Codex"
@@ -298,8 +316,6 @@
       "monochrome": "Monochrome"
     },
     "translucentSidebar": "Translucent sidebar",
-    "translucentSidebarDesc": "Let the sidebar blur and tint what sits behind it. Turn off for a solid panel",
-    "sidebarOpacityDesc": "How much of the background shows through",
     "skin": "Skin",
     "accent": "Accent",
     "linkSkinVariants": "Link light and dark",

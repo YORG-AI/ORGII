@@ -26,4 +26,12 @@ describe("detail panel width tokens", () => {
       DETAIL_PANEL_WIDTH_TOKENS.contentMaxWidth
     );
   });
+
+  it("shares PR-style thread padding between loaded and loading details", () => {
+    expect(DETAIL_PANEL_TOKENS.headerHeight).toBe("h-9");
+    expect(DETAIL_PANEL_TOKENS.headerHeightPx).toBe(36);
+    expect(DETAIL_PANEL_TOKENS.tabRowPadding).toBe("pr-[7px] pl-4");
+    expect(DETAIL_PANEL_TOKENS.flowHeaderPadding).toBe("px-4 pt-5");
+    expect(DETAIL_PANEL_TOKENS.threadContentPadding).toBe("px-4 py-4");
+  });
 });

@@ -48,8 +48,6 @@ export interface SidebarLinearWorkItem {
   source: "linear";
 }
 
-export type SidebarAnyWorkItem = SidebarWorkItem | SidebarLinearWorkItem;
-
 export interface LinearOrgRecord {
   id: string;
   connectionId: string;

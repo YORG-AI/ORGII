@@ -5,14 +5,13 @@ import Checkbox from "@src/components/Checkbox";
 import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import IntegrationIcon from "@src/components/IntegrationIcon";
 import { Placeholder } from "@src/components/Placeholder";
-import type { SettingsTableSelectFilter } from "@src/components/SettingsTable";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { HugeiconsIcon, ListTodoIcon } from "@src/icons";
+import WorkItemsCompactList from "@src/modules/ProjectManager/WorkItems/components/WorkItemsCompactList";
 import { MultiSelectBar } from "@src/modules/ProjectManager/WorkItems/components/WorkItemsFooterBars";
 import WorkItemsPageHeader from "@src/modules/ProjectManager/WorkItems/components/WorkItemsPageHeader";
-import WorkItemsStatusFilterSelect from "@src/modules/ProjectManager/WorkItems/components/WorkItemsStatusFilterSelect";
 import type {
   StatusCounts,
   StatusFilterType,
@@ -40,23 +39,35 @@ import { useProjectManagerWorkItemsTabBarRegistration } from "@src/modules/Proje
 import { PROJECT_MANAGER_PLACEHOLDER_PLACEMENT } from "@src/modules/ProjectManager/shared/placeholderTokens";
 import { WORKSPACE_SOURCE } from "@src/modules/ProjectManager/workspaceAggregate";
 import { WorkManagementAssigneeCell } from "@src/modules/shared/components/WorkManagementAssigneeCell";
+import { WorkManagementSearchInput } from "@src/modules/shared/components/WorkManagementSearchInput";
 import {
   WorkManagementTable,
   type WorkManagementTableRow,
 } from "@src/modules/shared/components/WorkManagementTable";
+import DetailPaneLayout, {
+  DetailPanePlaceholder,
+} from "@src/modules/shared/layouts/DetailPaneLayout";
+import InboxListDetailLayout from "@src/modules/shared/layouts/InboxListDetailLayout";
+import SplitListFullscreenButton from "@src/modules/shared/layouts/SplitListFullscreenButton";
 import type { WorkItemStatus } from "@src/types/core/workItem";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import { STORY_WORK_ITEMS_VISIBLE_TABS } from "./ProjectWorkItemsTabContentConstants";
 import type {
+  AggregatedWorkItem,
   ProjectWorkItemsTabContentProps,
   ProjectWorkItemsViewTab,
   WorkspaceSourceMode,
 } from "./ProjectWorkItemsTabContentTypes";
+import { toProjectWorkItemSelection } from "./projectWorkItemSelection";
 import { useProjectWorkItemsTabContentInteractions } from "./useProjectWorkItemsTabContentInteractions";
 import { useProjectWorkItemsTabContentWorkspaceData } from "./useProjectWorkItemsTabContentWorkspaceData";
 
 const KanbanBoard = React.lazy(() => import("@src/features/KanbanBoard"));
+const WorkItemDetail = React.lazy(
+  () =>
+    import("@src/modules/ProjectManager/WorkItems/components/WorkItemDetail")
+);
 
 export type {
   ProjectWorkItemSelection,
@@ -69,6 +80,7 @@ export const ProjectWorkItemsTabContent: React.FC<
   breadcrumbSegments,
   workStationTabId,
   workstationHeaderHost = "project",
+  sidebarToggleDisabled = false,
   onOpenProjects,
   onCreateProject,
   onCreateWorkItem,
@@ -77,12 +89,18 @@ export const ProjectWorkItemsTabContent: React.FC<
   allowExternalSources = false,
   onOpenWorkItem,
   orgSurfaceControls,
+  splitHeaderLeading,
 }) => {
   const { t } = useTranslation("projects");
   const [activeViewTab, setActiveViewTab] =
     useState<ProjectWorkItemsViewTab>("List");
   const [statusFilter, setStatusFilter] = useState<StatusFilterType>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedWorkItemId, setSelectedWorkItemId] = useState<string | null>(
+    null
+  );
+  const [listFullscreen, setListFullscreen] = useState(false);
+  const useSplitListHeader = activeViewTab === "List" && !listFullscreen;
   const [kanbanGroupBy, setKanbanGroupBy] = useState<WorkItemsKanbanGroup>(
     WORK_ITEMS_KANBAN_GROUP.STATUS
   );
@@ -148,6 +166,12 @@ export const ProjectWorkItemsTabContent: React.FC<
   );
   const completedStatusSelected =
     effectiveStatusFilter === "done" || effectiveStatusFilter === "closed";
+  const handlePresentWorkItem = useCallback(
+    (selection: Parameters<typeof onOpenWorkItem>[0]) => {
+      setSelectedWorkItemId(selection.workItem.session_id);
+    },
+    []
+  );
 
   const {
     kanbanTasks,
@@ -175,10 +199,60 @@ export const ProjectWorkItemsTabContent: React.FC<
     kanbanGroupBy,
     loadWorkItems,
     onOpenLinearProject,
-    onOpenWorkItem,
+    onOpenWorkItem: handlePresentWorkItem,
     onCreateWorkItem,
     t,
   });
+  const handleSelectWorkItemAndShowDetail = useCallback(
+    (workItemId: string) => {
+      // Selecting from the expanded List must restore the adjacent detail.
+      setListFullscreen(false);
+      handleSelectWorkItem(workItemId);
+    },
+    [handleSelectWorkItem]
+  );
+
+  const selectedWorkItem = useMemo(
+    () =>
+      selectedWorkItemId
+        ? (workItemsByProject.find(
+            (entry) => entry.item.session_id === selectedWorkItemId
+          ) ?? null)
+        : null,
+    [selectedWorkItemId, workItemsByProject]
+  );
+  const detailOpen = selectedWorkItem !== null;
+  const handleCloseDetail = useCallback(() => {
+    setSelectedWorkItemId(null);
+  }, []);
+  const visibleDetailEntries = useMemo<AggregatedWorkItem[]>(() => {
+    const entriesById = new Map(
+      workItemsByProject.map((entry) => [entry.item.session_id, entry])
+    );
+    return visibleWorkItems
+      .map((workItem) => entriesById.get(workItem.session_id))
+      .filter(
+        (entry): entry is AggregatedWorkItem =>
+          Boolean(entry) &&
+          entry?.item.workspaceSource?.source !== WORKSPACE_SOURCE.LINEAR
+      );
+  }, [visibleWorkItems, workItemsByProject]);
+  const selectedDetailIndex = selectedWorkItem
+    ? visibleDetailEntries.findIndex(
+        (entry) => entry.item.session_id === selectedWorkItem.item.session_id
+      )
+    : -1;
+  const handleDetailNavigate = useCallback(
+    (direction: "prev" | "next") => {
+      const nextIndex =
+        direction === "prev"
+          ? selectedDetailIndex - 1
+          : selectedDetailIndex + 1;
+      const nextEntry = visibleDetailEntries[nextIndex];
+      if (nextEntry) setSelectedWorkItemId(nextEntry.item.session_id);
+    },
+    [selectedDetailIndex, visibleDetailEntries]
+  );
 
   const settingsRows = useMemo<WorkManagementTableRow[]>(
     () =>
@@ -302,12 +376,12 @@ export const ProjectWorkItemsTabContent: React.FC<
               {formatRelativeTime(workItem.updated_time, "nano") || "—"}
             </span>
           ),
-          onClick: () => handleSelectWorkItem(workItem.session_id),
+          onClick: () => handleSelectWorkItemAndShowDetail(workItem.session_id),
         };
       }),
     [
       handleCheckedChange,
-      handleSelectWorkItem,
+      handleSelectWorkItemAndShowDetail,
       handleUpdateWorkItem,
       selectedWorkItemIds,
       t,
@@ -356,6 +430,7 @@ export const ProjectWorkItemsTabContent: React.FC<
   const handleWorkItemsViewChange = useCallback((key: string) => {
     if (key === "List" || key === "Kanban") {
       setActiveViewTab(key);
+      if (key !== "List") setListFullscreen(false);
     }
   }, []);
 
@@ -416,95 +491,55 @@ export const ProjectWorkItemsTabContent: React.FC<
     workspaceSourceTabs,
   ]);
 
-  const tableSelectFilters = useMemo<SettingsTableSelectFilter[]>(() => {
-    const filters: SettingsTableSelectFilter[] = [
-      {
-        key: "status",
-        value: effectiveStatusFilter,
-        defaultValue: "all",
-        options: statusFilterKeys.map((key) => {
-          const label = t(`workItems.statusFilters.${key}`);
-          return {
-            value: key,
-            label: (
-              <span className="flex items-center gap-2 whitespace-nowrap">
-                <span>{label}</span>
-                <span className="text-text-3 tabular-nums">
-                  {statusCounts[key] ?? 0}
-                </span>
-              </span>
-            ),
-            triggerLabel: label,
-          };
-        }),
-        onChange: (value) => setStatusFilter(value as StatusFilterType),
-        minWidth: 172,
-        appearance: "default",
-      },
-    ];
-    if (allowExternalSources) {
-      filters.push({
-        key: "source",
-        value: workspaceSourceMode,
-        defaultValue: "local_only",
-        options: workspaceSourceTabs.map((tab) => ({
-          value: tab.key,
-          label: tab.label,
-        })),
-        onChange: (value) =>
-          setWorkspaceSourceMode(value as WorkspaceSourceMode),
-        minWidth: 150,
-        appearance: "default",
-      });
-    }
-    return filters;
-  }, [
-    allowExternalSources,
-    setWorkspaceSourceMode,
-    statusCounts,
-    effectiveStatusFilter,
-    statusFilterKeys,
-    t,
-    workspaceSourceMode,
-    workspaceSourceTabs,
-  ]);
-
   const headerLeadingControls = useMemo(
     () => (
       <div className="contents">
-        {activeViewTab === "Kanban" ? (
-          <>
-            <WorkItemsStatusFilterSelect
-              value={effectiveStatusFilter}
-              onChange={setStatusFilter}
-              statusCounts={statusCounts}
-              filterKeys={statusFilterKeys}
-              dropdownAlign="left"
-            />
-            <HeaderSectionSeparator />
-            {orgSurfaceControls}
-            {orgSurfaceControls && <HeaderSectionSeparator />}
-          </>
-        ) : null}
+        {orgSurfaceControls}
+        {orgSurfaceControls && <HeaderSectionSeparator />}
         {workItemsViewSwitch}
         {kanbanGroupSwitch && <HeaderSectionSeparator />}
         {kanbanGroupSwitch}
-        {activeViewTab === "Kanban" && sourceModeSwitch ? (
-          <HeaderSectionSeparator />
-        ) : null}
-        {activeViewTab === "Kanban" ? sourceModeSwitch : null}
+        {sourceModeSwitch && <HeaderSectionSeparator />}
+        {sourceModeSwitch}
       </div>
     ),
     [
-      activeViewTab,
       kanbanGroupSwitch,
       orgSurfaceControls,
       sourceModeSwitch,
-      statusCounts,
-      effectiveStatusFilter,
-      statusFilterKeys,
       workItemsViewSwitch,
     ]
+  );
+  const headerTrailingControls = useMemo(
+    () => (
+      <div
+        className={`flex min-w-0 items-center gap-1 overflow-visible ${
+          useSplitListHeader ? "flex-1" : ""
+        }`.trim()}
+      >
+        <WorkManagementSearchInput
+          value={searchQuery}
+          onChange={setSearchQuery}
+          fillWidth={useSplitListHeader}
+          dataTestId="workspace-work-items-search"
+        />
+      </div>
+    ),
+    [searchQuery, useSplitListHeader]
+  );
+  const headerEndControls = useMemo(
+    () =>
+      activeViewTab === "List" ? (
+        <SplitListFullscreenButton
+          isFullscreen={listFullscreen}
+          onToggle={() => setListFullscreen((current) => !current)}
+        />
+      ) : null,
+    [activeViewTab, listFullscreen]
+  );
+  const handleStatusFilterChange = useCallback(
+    (value: string) => setStatusFilter(value as StatusFilterType),
+    []
   );
 
   useProjectManagerWorkItemsTabBarRegistration({
@@ -518,35 +553,130 @@ export const ProjectWorkItemsTabContent: React.FC<
     onAddWorkItem: onCreateWorkItem ?? null,
   });
 
-  if (loading && !loaded) {
-    return (
-      <Placeholder
-        variant="loading"
-        placement={PROJECT_MANAGER_PLACEHOLDER_PLACEMENT}
-        title={t("projects.loading")}
-        fillParentHeight
-      />
-    );
-  }
-
-  if (error && workItems.length === 0) {
-    return (
-      <Placeholder
-        variant="error"
-        placement={PROJECT_MANAGER_PLACEHOLDER_PLACEMENT}
-        title={error}
-        onRetry={handleRefresh}
-        fillParentHeight
-      />
-    );
-  }
-
-  return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <WorkItemsPageHeader
-        projectName={t("projects.columns.workItems")}
+  const showInitialLoading = loading && !loaded;
+  const showInitialError = error && workItems.length === 0;
+  const listContent = showInitialLoading ? (
+    <Placeholder
+      variant="loading"
+      placement={PROJECT_MANAGER_PLACEHOLDER_PLACEMENT}
+      title={t("projects.loading")}
+      fillParentHeight
+    />
+  ) : showInitialError ? (
+    <Placeholder
+      variant="error"
+      placement={PROJECT_MANAGER_PLACEHOLDER_PLACEMENT}
+      title={error ?? ""}
+      onRetry={handleRefresh}
+      fillParentHeight
+    />
+  ) : activeViewTab === "Kanban" ? (
+    <div className="h-full min-h-0">
+      <React.Suspense
+        fallback={<Placeholder variant="loading" fillParentHeight />}
+      >
+        <KanbanBoard
+          tasks={kanbanTasks}
+          columnOrder={kanbanColumns}
+          allowColumnReorder={false}
+          allowTaskDrag={kanbanGroupBy === WORK_ITEMS_KANBAN_GROUP.STATUS}
+          onTaskMove={handleKanbanTaskMove}
+          onTaskClick={handleKanbanTaskClick}
+          onAddTask={handleAddKanbanTask}
+          showAddButton={
+            kanbanGroupBy === WORK_ITEMS_KANBAN_GROUP.STATUS &&
+            Boolean(onCreateWorkItem)
+          }
+          className="kanban-board--linear"
+        />
+      </React.Suspense>
+    </div>
+  ) : (
+    <WorkManagementTable
+      rows={settingsRows}
+      pageSize={25}
+      pageSizeOptions={[10, 25, 50, 100]}
+      loading={completedStatusSelected && completedItemsLoading}
+      testId="workspace-work-items-table"
+      noDataElement={
+        completedStatusSelected && completedItemsLoading ? (
+          <Placeholder
+            variant="loading"
+            placement={PROJECT_MANAGER_PLACEHOLDER_PLACEMENT}
+            title={t("projects.loading")}
+            fillParentHeight
+          />
+        ) : completedStatusSelected && completedItemsError ? (
+          <Placeholder
+            variant="error"
+            placement={PROJECT_MANAGER_PLACEHOLDER_PLACEMENT}
+            title={completedItemsError}
+            onRetry={() => void loadCompletedWorkItems()}
+            fillParentHeight
+          />
+        ) : workItems.length === 0 ? (
+          <Placeholder
+            variant="empty"
+            placement={PROJECT_MANAGER_PLACEHOLDER_PLACEMENT}
+            title={t("workItems.noWorkItems")}
+            subtitle={t("workItems.noWorkItemsSubtitle")}
+            action={
+              onCreateWorkItem
+                ? {
+                    label: t("workItems.addFirstWorkItem"),
+                    onClick: onCreateWorkItem,
+                  }
+                : undefined
+            }
+            fillParentHeight
+          />
+        ) : (
+          <Placeholder
+            variant="no-results"
+            placement={PROJECT_MANAGER_PLACEHOLDER_PLACEMENT}
+            title={t("workItems.noResults")}
+            fillParentHeight
+          />
+        )
+      }
+    />
+  );
+  const detailContent = selectedWorkItem ? (
+    <React.Suspense
+      fallback={
+        <DetailPaneLayout
+          onClose={handleCloseDetail}
+          closeTestId="work-item-close-detail"
+        >
+          <DetailPanePlaceholder variant="loading" />
+        </DetailPaneLayout>
+      }
+    >
+      <WorkItemDetail
+        workItem={selectedWorkItem.item}
+        onClose={handleCloseDetail}
+        onOpenInNewTab={() =>
+          onOpenWorkItem(toProjectWorkItemSelection(selectedWorkItem))
+        }
+        onNavigate={handleDetailNavigate}
+        hasPrev={selectedDetailIndex > 0}
+        hasNext={
+          selectedDetailIndex >= 0 &&
+          selectedDetailIndex < visibleDetailEntries.length - 1
+        }
+        onUpdateWorkItem={(updates) =>
+          handleUpdateWorkItem(selectedWorkItem.item.session_id, updates)
+        }
+        availableProjects={projectOptions.map(({ id, name }) => ({ id, name }))}
+        availableMembers={workItemPeople}
+        projectSlug={selectedWorkItem.project?.slug}
+        orgId={selectedWorkItem.orgId}
+        shortId={selectedWorkItem.shortId}
         breadcrumbSegments={breadcrumbSegments}
-        identityIcon={
+        breadcrumbProjectName={
+          selectedWorkItem.project?.meta.name ?? t("projects.columns.workItems")
+        }
+        breadcrumbIcon={
           <HugeiconsIcon
             icon={ListTodoIcon}
             data-icon="list-todo"
@@ -554,99 +684,74 @@ export const ProjectWorkItemsTabContent: React.FC<
             strokeWidth={1.75}
           />
         }
-        onOpenProjects={onOpenProjects}
-        activeTab={activeViewTab}
-        statusCounts={statusCounts}
-        onAddProject={onCreateProject}
-        onAddWorkItem={onCreateWorkItem}
-        onRefresh={handleRefresh}
-        refreshLoading={loading}
-        leadingControls={headerLeadingControls}
-        publishToWorkstationHeader={!!workStationTabId}
-        workstationHeaderHost={workstationHeaderHost}
       />
+    </React.Suspense>
+  ) : (
+    <DetailPaneLayout>
+      <DetailPanePlaceholder
+        variant="empty"
+        title={t("common:teamInbox.empty.selectTitle")}
+        subtitle={t("common:teamInbox.empty.selectSubtitle")}
+      />
+    </DetailPaneLayout>
+  );
+  const workItemsHeader = (
+    <WorkItemsPageHeader
+      projectName={t("projects.columns.workItems")}
+      breadcrumbSegments={breadcrumbSegments}
+      identityIcon={
+        <HugeiconsIcon
+          icon={ListTodoIcon}
+          data-icon="list-todo"
+          size={HEADER_ICON_SIZE.sm}
+          strokeWidth={1.75}
+        />
+      }
+      onOpenProjects={onOpenProjects}
+      activeTab={activeViewTab}
+      statusFilter={effectiveStatusFilter}
+      onStatusFilterChange={handleStatusFilterChange}
+      statusCounts={statusCounts}
+      statusFilterKeys={statusFilterKeys}
+      onAddProject={onCreateProject}
+      onAddWorkItem={onCreateWorkItem}
+      onRefresh={handleRefresh}
+      refreshLoading={loading}
+      leadingControls={headerLeadingControls}
+      trailingControls={headerTrailingControls}
+      endControls={headerEndControls}
+      splitListHeader={useSplitListHeader}
+      splitHeaderLeading={splitHeaderLeading}
+      publishToWorkstationHeader={!!workStationTabId}
+      workstationHeaderHost={workstationHeaderHost}
+      sidebarToggleDisabled={sidebarToggleDisabled}
+    />
+  );
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      {!useSplitListHeader && workItemsHeader}
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {activeViewTab === "Kanban" ? (
-          <div className="h-full min-h-0">
-            <React.Suspense
-              fallback={<Placeholder variant="loading" fillParentHeight />}
-            >
-              <KanbanBoard
-                tasks={kanbanTasks}
-                columnOrder={kanbanColumns}
-                allowColumnReorder={false}
-                allowTaskDrag={kanbanGroupBy === WORK_ITEMS_KANBAN_GROUP.STATUS}
-                onTaskMove={handleKanbanTaskMove}
-                onTaskClick={handleKanbanTaskClick}
-                onAddTask={handleAddKanbanTask}
-                showAddButton={
-                  kanbanGroupBy === WORK_ITEMS_KANBAN_GROUP.STATUS &&
-                  Boolean(onCreateWorkItem)
-                }
-                className="kanban-board--linear"
-              />
-            </React.Suspense>
-          </div>
-        ) : (
-          <WorkManagementTable
-            rows={settingsRows}
-            searchBar={{
-              searchValue: searchQuery,
-              searchPlaceholder: t("workItems.searchPlaceholder"),
-              onSearchChange: setSearchQuery,
-              onSearchClear: () => setSearchQuery(""),
-            }}
-            selectFilters={tableSelectFilters}
-            selectFiltersExtra={orgSurfaceControls}
-            pageSize={25}
-            pageSizeOptions={[10, 25, 50, 100]}
-            maxWidth="wide"
-            loading={completedStatusSelected && completedItemsLoading}
-            testId="workspace-work-items-table"
-            noDataElement={
-              completedStatusSelected && completedItemsLoading ? (
-                <Placeholder
-                  variant="loading"
-                  placement={PROJECT_MANAGER_PLACEHOLDER_PLACEMENT}
-                  title={t("projects.loading")}
-                  fillParentHeight
-                />
-              ) : completedStatusSelected && completedItemsError ? (
-                <Placeholder
-                  variant="error"
-                  placement={PROJECT_MANAGER_PLACEHOLDER_PLACEMENT}
-                  title={completedItemsError}
-                  onRetry={() => void loadCompletedWorkItems()}
-                  fillParentHeight
-                />
-              ) : workItems.length === 0 ? (
-                <Placeholder
-                  variant="empty"
-                  placement={PROJECT_MANAGER_PLACEHOLDER_PLACEMENT}
-                  title={t("workItems.noWorkItems")}
-                  subtitle={t("workItems.noWorkItemsSubtitle")}
-                  action={
-                    onCreateWorkItem
-                      ? {
-                          label: t("workItems.addFirstWorkItem"),
-                          onClick: onCreateWorkItem,
-                        }
-                      : undefined
-                  }
-                  fillParentHeight
-                />
-              ) : (
-                <Placeholder
-                  variant="no-results"
-                  placement={PROJECT_MANAGER_PLACEHOLDER_PLACEMENT}
-                  title={t("workItems.noResults")}
-                  fillParentHeight
-                />
-              )
-            }
-          />
-        )}
+        <InboxListDetailLayout
+          detailOpen={detailOpen}
+          defaultSplit={activeViewTab === "List"}
+          listFullscreen={activeViewTab === "List" && listFullscreen}
+          listHeader={useSplitListHeader ? workItemsHeader : undefined}
+          fullContent={listContent}
+          listContent={
+            <WorkItemsCompactList
+              items={visibleWorkItems}
+              selectedWorkItemId={selectedWorkItemId}
+              onSelectWorkItem={handleSelectWorkItemAndShowDetail}
+              title={t("projects.columns.workItems")}
+              loading={loading || completedItemsLoading}
+              testId="workspace-work-items-compact-list"
+            />
+          }
+          detailContent={detailContent}
+          testId="workspace-work-items-list-detail-layout"
+        />
       </div>
 
       <MultiSelectBar

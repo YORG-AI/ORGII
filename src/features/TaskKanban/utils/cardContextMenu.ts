@@ -28,7 +28,7 @@ export interface KanbanCardContextMenuPlan {
 export interface PlanKanbanCardContextMenuOptions {
   task: KanbanTask;
   /**
-   * True for teammate cloud cards. Their transcript only exists after a replay
+   * True for teammate cloud cards. Their transcript only exists after a remote
    * import that the board itself hosts — handing them to a Chat Pane tab
    * unmounts Work Management (and the import's abort controller with it), so
    * these cards only get the floating preview.

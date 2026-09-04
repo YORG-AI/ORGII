@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use base64::Engine;
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 use tauri::Manager;
@@ -23,6 +24,8 @@ use super::external_send;
 const MAX_CONCURRENT_SUBSCRIPTIONS: usize = 4;
 const MAX_MOBILE_HISTORY_EVENTS: usize = 1_000;
 const MAX_MOBILE_SEND_CONTENT_BYTES: usize = 64 * 1024;
+const MAX_MOBILE_ATTACHMENTS: usize = 5;
+const MAX_MOBILE_ATTACHMENT_DECODED_BYTES: usize = 2 * 1024 * 1024;
 const MAX_MOBILE_UPSERT_BYTES: usize = 512 * 1024;
 const MAX_MOBILE_MESSAGE_TEXT_BYTES: usize = 16 * 1024;
 const MAX_MOBILE_TOOL_TEXT_BYTES: usize = 2 * 1024;
@@ -46,6 +49,7 @@ pub struct SessionSendParams {
     pub content: String,
     pub turn_intent_id: Option<String>,
     pub model: Option<String>,
+    pub images: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,7 +98,7 @@ struct MobileUpsertBudget {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MobileSessionExecution {
+pub(crate) enum MobileSessionExecution {
     ManagedCli,
     ImportedHistory,
     NativeAgent,
@@ -106,7 +110,7 @@ enum MobileSessionExecution {
 /// through `cli_agent_message`; they intentionally have no `agent_sessions`
 /// row. Imported provider history has its own continuation bridge, while the
 /// remaining native sessions are owned by agent-core.
-fn mobile_session_execution(session_id: &str) -> MobileSessionExecution {
+pub(crate) fn mobile_session_execution(session_id: &str) -> MobileSessionExecution {
     if session_id.starts_with(core_types::session::CLI_SESSION_PREFIX) {
         MobileSessionExecution::ManagedCli
     } else if orgtrack_core::sources::imported_history::is_imported_history_session_id(session_id) {
@@ -131,6 +135,7 @@ fn managed_cli_mobile_message_request(
         // placeholder in the desktop process. The accepted turn must create
         // its authoritative user row before the CLI can emit a response.
         materialize_user_message_event: true,
+        images: (!parsed.images.is_empty()).then(|| parsed.images.clone()),
         ..Default::default()
     }
 }
@@ -202,13 +207,17 @@ pub fn parse_session_send_params(params: &Value) -> Result<SessionSendParams, Rp
     let content = params
         .get("content")
         .and_then(|value| value.as_str())
-        .ok_or_else(|| RpcError::invalid_params("content is required"))?
+        .unwrap_or("")
         .to_string();
-    if content.trim().is_empty() {
-        return Err(RpcError::invalid_params("content must not be empty"));
-    }
     if content.len() > MAX_MOBILE_SEND_CONTENT_BYTES {
         return Err(RpcError::invalid_params("content is too large"));
+    }
+
+    let images = parse_mobile_send_attachments(params)?;
+    if content.trim().is_empty() && images.is_empty() {
+        return Err(RpcError::invalid_params(
+            "content or attachments are required",
+        ));
     }
 
     let turn_intent_id = params
@@ -230,7 +239,50 @@ pub fn parse_session_send_params(params: &Value) -> Result<SessionSendParams, Rp
         content,
         turn_intent_id,
         model,
+        images,
     })
+}
+
+fn parse_mobile_send_attachments(params: &Value) -> Result<Vec<String>, RpcError> {
+    let Some(attachments) = params.get("attachments") else {
+        return Ok(Vec::new());
+    };
+    let items = attachments.as_array().ok_or_else(|| {
+        RpcError::invalid_params("attachments must be an array")
+    })?;
+    if items.len() > MAX_MOBILE_ATTACHMENTS {
+        return Err(RpcError::invalid_params("too many attachments"));
+    }
+
+    let mut images = Vec::with_capacity(items.len());
+    for item in items {
+        let data_url = item
+            .get("dataUrl")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| RpcError::invalid_params("attachment dataUrl is required"))?;
+        if !data_url.starts_with("data:image/") {
+            return Err(RpcError::invalid_params(
+                "attachment dataUrl must be an image data URL",
+            ));
+        }
+        let Some((_, payload)) = data_url.split_once(";base64,") else {
+            return Err(RpcError::invalid_params("attachment dataUrl is invalid"));
+        };
+        if payload.is_empty() {
+            return Err(RpcError::invalid_params("attachment dataUrl is invalid"));
+        }
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(payload)
+        .map_err(|_| RpcError::invalid_params("attachment dataUrl is invalid"))?;
+        if decoded.len() > MAX_MOBILE_ATTACHMENT_DECODED_BYTES {
+            return Err(RpcError::invalid_params("attachment is too large"));
+        }
+        images.push(data_url.to_string());
+    }
+
+    Ok(images)
 }
 
 /// Validate `session/cancel` params without touching desktop state.
@@ -417,6 +469,7 @@ pub async fn session_send(params: &Value) -> Result<Value, RpcError> {
                 parsed.content,
                 Some(turn_intent_id.clone()),
                 parsed.model,
+                (!parsed.images.is_empty()).then(|| parsed.images.clone()),
             )
             .await
             .map_err(|err| RpcError::new(RpcErrorCode::InvalidRequest, err))?;
@@ -1647,13 +1700,28 @@ mod tests {
     }
 
     #[test]
-    fn parse_session_send_params_rejects_empty_content() {
+    fn parse_session_send_params_rejects_empty_content_without_attachments() {
         let err = parse_session_send_params(&json!({
             "sessionId": "sde-1",
             "content": "   "
         }))
         .unwrap_err();
-        assert!(err.message.contains("content"));
+        assert!(err.message.contains("content or attachments"));
+    }
+
+    #[test]
+    fn parse_session_send_params_accepts_image_only_send() {
+        let parsed = parse_session_send_params(&json!({
+            "sessionId": "sde-1",
+            "content": "   ",
+            "attachments": [{
+                "dataUrl": "data:image/png;base64,iVBORw0KGgo=",
+                "fileName": "photo.png"
+            }]
+        }))
+        .expect("params");
+        assert_eq!(parsed.images.len(), 1);
+        assert!(parsed.content.trim().is_empty());
     }
 
     #[test]
@@ -1953,6 +2021,7 @@ mod tests {
                 content: "mobile question".to_string(),
                 turn_intent_id: Some("intent-mobile".to_string()),
                 model: Some("model-a".to_string()),
+                images: Vec::new(),
             },
             "intent-mobile".to_string(),
         );

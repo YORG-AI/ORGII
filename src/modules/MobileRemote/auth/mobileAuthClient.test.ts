@@ -25,7 +25,7 @@ describe("mobileAuthClient", () => {
     mocks.createClient.mockReturnValue({ auth: mocks });
   });
 
-  it("uses the same GitHub provider and scopes as the desktop login", async () => {
+  it("persists the PKCE verifier and uses the desktop GitHub scopes", async () => {
     mocks.signInWithOAuth.mockResolvedValue({
       data: { url: "https://github.example/oauth" },
       error: null,
@@ -52,7 +52,7 @@ describe("mobileAuthClient", () => {
         auth: {
           autoRefreshToken: false,
           detectSessionInUrl: false,
-          persistSession: false,
+          persistSession: true,
           flowType: "pkce",
           storage: sessionStorage,
         },

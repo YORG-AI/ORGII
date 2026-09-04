@@ -30,16 +30,20 @@ export function ConnectingLiveBridge({
     startedRef.current = false;
   }, [pendingConfig]);
 
+  // The demo timer and the live connect are separate attempts with separate
+  // inputs. Keeping them in one effect put demoMode in the live path's
+  // dependencies, and connectLive clears demoMode partway through pairing:
+  // the resulting re-run cancelled the in-flight attempt through its cleanup,
+  // then refused to retry because startedRef was already set, stranding the
+  // user on the connecting screen.
   useEffect(() => {
-    if (startedRef.current) return;
+    if (startedRef.current || pendingConfig || !demoMode) return;
+    startedRef.current = true;
+    return runDemoConnecting();
+  }, [demoMode, pendingConfig, runDemoConnecting]);
 
-    if (!pendingConfig) {
-      if (demoMode) {
-        startedRef.current = true;
-        return runDemoConnecting();
-      }
-      return;
-    }
+  useEffect(() => {
+    if (startedRef.current || !pendingConfig) return;
 
     startedRef.current = true;
     let cancelled = false;
@@ -57,7 +61,7 @@ export function ConnectingLiveBridge({
     return () => {
       cancelled = true;
     };
-  }, [connectLive, demoMode, onComplete, pendingConfig, runDemoConnecting]);
+  }, [connectLive, onComplete, pendingConfig]);
 
   return <ConnectingScreen />;
 }

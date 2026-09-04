@@ -74,6 +74,7 @@ const SettingsContainerRenderer: React.FC<SettingsContainerRendererProps> = ({
         return (
           <SectionRow
             key={row.id}
+            settingsSearchKeys={row.key}
             label={t(row.labelKey)}
             description={row.descriptionKey ? t(row.descriptionKey) : undefined}
             indent={row.indent}

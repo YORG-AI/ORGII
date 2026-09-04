@@ -5,7 +5,6 @@
  * Includes icon definitions, menu items, and keyboard shortcuts.
  */
 import {
-  ArrowLeft02Icon,
   ArrowRight02Icon,
   Clock01Icon,
   File01Icon,
@@ -36,7 +35,7 @@ export type MenuItemId =
   | "workitem"
   | "browser";
 
-export type SecondLayerId = "files" | "sessions" | "projects";
+export type SecondLayerId = "files" | "sessions";
 
 export interface MenuItem {
   id: MenuItemId;
@@ -64,7 +63,6 @@ export const ICON_CONFIG = {
   sessions: WorkHistoryIcon,
   projects: ListChecksIcon,
   arrow: ArrowRight02Icon,
-  arrowBack: ArrowLeft02Icon,
   search: Search01Icon,
   loading: Loading03Icon,
   empty: File01Icon,
@@ -90,11 +88,6 @@ export const SECOND_LAYER_CONFIG: Record<SecondLayerId, SecondLayerConfig> = {
     title: "Session",
     translationKey: "creator.contextMenu.session",
     icon: ICON_CONFIG.sessions,
-  },
-  projects: {
-    title: "Work Items",
-    translationKey: "creator.contextMenu.workItems",
-    icon: ICON_CONFIG.projects,
   },
 };
 
@@ -122,7 +115,7 @@ export const MENU_ITEMS: MenuItem[] = [
     label: "Work Items",
     translationKey: "creator.contextMenu.workItems",
     icon: ICON_CONFIG.projects,
-    hasSecondLayer: true,
+    hasSecondLayer: false,
   },
 ];
 

@@ -599,7 +599,7 @@
     "unknown": "Unknown error",
     "agentRequestFailed": "Agent request failed",
     "codexLoginExpired": "Codex sign-in expired",
-    "codexLoginExpiredDescription": "Reconnect Codex to repair this account. You will return to this session after the new sign-in is saved.",
+    "codexLoginExpiredDescription": "Reconnect Codex to repair this account. You will return to this session after the new sign-in is saved",
     "reconnectCodex": "Reconnect Codex",
     "technicalDetails": "Technical details",
     "failedToCopy": "Failed to copy",
@@ -973,6 +973,7 @@
     "switchLocalBranchTooltip": "Switch local branch",
     "sessionEnvCloud": "Cloud",
     "sessionEnvLocal": "Local",
+    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Git actions",
     "switchToSessionRepo": "Switch to {{name}}",
     "embeddingProgress": "Embedding: {{count}} chunks processed",
@@ -1212,7 +1213,7 @@
       "loadingConversation": "Loading…",
       "reviewNoBody": "Left review comments.",
       "submitReview": "Submit review",
-      "reviewHeadNotice": "The review applies only if the displayed head commit still matches.",
+      "reviewHeadNotice": "The review applies only if the displayed head commit still matches",
       "reviewDecision": "Review decision",
       "reviewComment": "Review comment",
       "reviewCommentPlaceholder": "Add a comment…",
@@ -1311,7 +1312,14 @@
       },
       "commits": {
         "backToList": "All commits",
-        "none": "No commits"
+        "none": "No commits",
+        "onDate": "Commits on {{date}}",
+        "unknownDate": "Unknown date",
+        "viewCommit": "View commit {{sha}}: {{summary}}",
+        "committed": "committed",
+        "verified": "Verified",
+        "copySha": "Copy commit SHA",
+        "viewDetails": "View commit details"
       },
       "changes": {
         "title": "Files changed",
@@ -1483,7 +1491,21 @@
       },
       "reAuthRequired": "GitHub Authorization Required",
       "reAuthDescription": "Your GitHub token has expired. Go to Settings → Connections to reconnect.",
-      "goToSettings": "Go to Settings"
+      "goToSettings": "Go to Settings",
+      "timelineErrorTitle": "GitHub activity unavailable",
+      "tabs": {
+        "relatedItems": "Related items"
+      },
+      "relatedItems": {
+        "emptyTitle": "No related items",
+        "emptyDescription": "GitHub issues and pull requests mentioned in this conversation will appear here.",
+        "loading": "Loading related items",
+        "count_one": "{{count}} related item",
+        "count_other": "{{count}} related items",
+        "unavailable": "Details unavailable",
+        "unavailableCount_one": "{{count}} related item could not be resolved",
+        "unavailableCount_other": "{{count}} related items could not be resolved"
+      }
     },
     "commit": {
       "copySha": "Copy SHA",
@@ -1843,6 +1865,12 @@
         },
         "createWorkItem": {
           "label": "Create work item"
+        },
+        "createOrganization": {
+          "label": "Create ORG"
+        },
+        "joinOrganization": {
+          "label": "Join ORG"
         }
       },
       "toast": {
@@ -1905,6 +1933,10 @@
     "openAgentStation": "Go to Agent Station",
     "openKanban": "Go to Kanban",
     "changeLanguage": "Change language",
+    "changeTheme": "Change theme",
+    "changeSkin": "Change skin",
+    "searchThemes": "Search themes...",
+    "searchSkins": "Search skins...",
     "switchToSystemTheme": "Follow system theme",
     "detectUpdate": "Detect update",
     "recentlyUsed": "Recently used"
@@ -2341,8 +2373,7 @@
     },
     "sections": {
       "reviewRequested": "Review requested",
-      "authoredByMe": "Authored by me",
-      "otherTodos": "Other todos"
+      "authoredByMe": "Authored by me"
     },
     "status": {
       "read": "Read",
@@ -2356,20 +2387,9 @@
       "multipleBody": "Open Team Inbox to review assignments and mentions."
     },
     "row": {
-      "assignedSummary": "{{status}} · {{priority}}",
       "issueSource": "{{repository}} issue",
       "issueSourceFallback": "Issue",
       "ariaLabel": "{{title}}, {{status}}"
-    },
-    "search": {
-      "placeholder": "Search inbox",
-      "ariaLabel": "Search Team Inbox"
-    },
-    "groups": {
-      "today": "Today",
-      "yesterday": "Yesterday",
-      "thisWeek": "This week",
-      "earlier": "Earlier"
     },
     "empty": {
       "title": "Nothing here yet",
@@ -2393,13 +2413,10 @@
     "drop": {
       "title": "Drop to create a Work Item",
       "subtitle": "Review the Session snapshot, then create or hand off the Work Item.",
-      "processing": "Creating a Work Item from “{{title}}”…",
       "processingHint": "Reading the Session and resolving destination members.",
       "success": "Work Item created",
       "reused": "Existing Work Item updated",
       "failed": "Couldn’t create the Work Item",
-      "error": "Unable to create a Work Item from this Session.",
-      "open": "Open",
       "dismiss": "Dismiss"
     },
     "handoff": {
@@ -2414,10 +2431,6 @@
       "todoCount_other": "{{count}} to-dos",
       "workItemTitle": "Work Item title",
       "assignTo": "Assign to",
-      "status": "Status",
-      "priority": "Priority",
-      "dueDate": "Due date",
-      "noDueDate": "No due date",
       "note": "Handoff note",
       "notePlaceholder": "Share what is ready, what is unresolved, and what should happen next.",
       "selfHint": "Assigning this to yourself creates a normal Work Item without a handoff request.",
@@ -2470,6 +2483,7 @@
       "pullRequestsPartialLoadHelp": "Available items are still shown; refresh to try loading the missing pull requests again",
       "workItemContext": "Some project context is unavailable. The work item remains usable.",
       "workItemLoad": "Unable to load this work item. Try again.",
+      "githubIssueLoad": "This work item's GitHub issue could not be loaded. Local work item details are still shown.",
       "workItemUpdate": "Unable to save the latest work item change. Try again."
     },
     "detail": {
@@ -2483,18 +2497,7 @@
     "actions": {
       "markRead": "Mark as read",
       "markUnread": "Mark as unread",
-      "openWorkItem": "Open work item",
-      "openSession": "Open session"
-    },
-    "fields": {
-      "status": "Status",
-      "priority": "Priority",
-      "assignee": "Assignee",
-      "workItemId": "Work item ID",
-      "session": "Session",
-      "comments": "Comments",
-      "threadId": "Thread ID",
-      "commentId": "Comment ID"
+      "openWorkItem": "Open work item"
     },
     "workItemStatus": {
       "backlog": "Backlog",
@@ -2549,7 +2552,7 @@
     "downloadingAndInstalling": "Downloading and installing update (v{{version}})…"
   },
   "clientOrigin": {
-    "officialApp": "Official app",
+    "officialApp": "App",
     "cli": "CLI",
     "thirdParty": "Third party"
   }

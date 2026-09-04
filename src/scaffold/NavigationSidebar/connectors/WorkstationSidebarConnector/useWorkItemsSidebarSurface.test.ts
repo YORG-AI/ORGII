@@ -81,7 +81,6 @@ describe("persistent work-item sidebar surface", () => {
   let container: HTMLDivElement;
   let surface: ReturnType<typeof useWorkItemsSidebarSurface>;
   const activateDetail = vi.fn();
-  const activateProjects = vi.fn();
   const reset = vi.fn();
   const openLinkedSession = vi.fn();
   const loadLinear = vi.fn();
@@ -93,7 +92,6 @@ describe("persistent work-item sidebar surface", () => {
       enabled,
       activeProjectOrgId: orgId,
       activateMyStationRouteForProjectTabContent: activateDetail,
-      activateMyStationRouteForProjectsContent: activateProjects,
       resetWorkManagementStateForProjectsContent: reset,
       handleOpenLinkedWorkItemSession: openLinkedSession,
     });
@@ -200,8 +198,8 @@ describe("persistent work-item sidebar surface", () => {
     expect(openLinearWorkItem).toHaveBeenCalledWith(linearWorkItem);
     click(row("projects-linear-load:linear-a"));
     expect(loadLinear).toHaveBeenCalledWith("linear-a");
-    expect(activateProjects).toHaveBeenCalledTimes(3);
-    expect(activateDetail).toHaveBeenCalledTimes(2);
+    expect(activateDetail).toHaveBeenCalledTimes(5);
+    expect(reset).not.toHaveBeenCalled();
   });
 
   it("keeps linked-session row keys and creator organization context", () => {
@@ -213,7 +211,7 @@ describe("persistent work-item sidebar surface", () => {
     click(linked);
     expect(openLinkedSession).toHaveBeenCalledWith(linked);
     expect(surface.selectedMenuItemId).toBe(linked.key);
-    expect(activateProjects).not.toHaveBeenCalled();
+    expect(activateDetail).not.toHaveBeenCalled();
     click(row(`${PROJECTS_NEW_WORK_ITEM_MENU_ITEM_ID}:org-a`));
     expect(mocks.openCreator).toHaveBeenCalledWith({
       target: CHAT_PANEL_CREATE_TARGET.WORK_ITEM,

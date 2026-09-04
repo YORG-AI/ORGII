@@ -2,11 +2,10 @@
  * Spotlight Settings Action Builders
  *
  * State-dependent builder functions that produce spotlight action lists for
- * theme and chat-panel-layout settings. Each label/icon/actionId flips based
+ * chat-panel-layout settings. Each label/icon/actionId flips based
  * on the current setting value passed in by the caller. Split out of
  * `spotlightActionDefinitions.ts`.
  *
- * - `buildThemeActions`             — theme-switch actions (system/light/dark/high-contrast).
  * - `buildChatPanelSettingsActions` — chat panel position, pagination, and
  *   model-picker style toggles.
  */
@@ -14,60 +13,13 @@ import { ACTION_ID } from "@src/ActionSystem";
 import {
   ArrowLeftBigIcon,
   ArrowRightBigIcon,
-  ComputerSettingsIcon,
   LayoutTopIcon,
   Menu01Icon,
-  MoonIcon,
   PanelLeftIcon,
   SparklesIcon,
-  Sun01Icon,
 } from "@src/icons";
 
 import type { SpotlightStaticActionDefinition } from "./spotlightActionDefinitions.types";
-
-export function buildThemeActions(
-  currentThemeId: string
-): SpotlightStaticActionDefinition[] {
-  const actions: SpotlightStaticActionDefinition[] = [];
-
-  if (currentThemeId !== "system") {
-    actions.push({
-      id: "set-system-theme",
-      labelKey: "common:spotlightActions.switchToSystemTheme",
-      icon: ComputerSettingsIcon,
-      keywords: ["system theme", "follow system", "theme", "appearance"],
-      actionId: ACTION_ID.THEME_SET_SYSTEM,
-      payload: {},
-      closeOnSuccess: false,
-    });
-  }
-
-  if (currentThemeId !== "light") {
-    actions.push({
-      id: "set-light-theme",
-      labelKey: "common:spotlightActions.switchToLightTheme",
-      icon: Sun01Icon,
-      keywords: ["light theme", "light mode", "theme", "appearance"],
-      actionId: ACTION_ID.THEME_SET_LIGHT,
-      payload: {},
-      closeOnSuccess: false,
-    });
-  }
-
-  if (currentThemeId !== "dark") {
-    actions.push({
-      id: "set-dark-theme",
-      labelKey: "common:spotlightActions.switchToDarkTheme",
-      icon: MoonIcon,
-      keywords: ["dark theme", "dark mode", "theme", "appearance"],
-      actionId: ACTION_ID.THEME_SET_DARK,
-      payload: {},
-      closeOnSuccess: false,
-    });
-  }
-
-  return actions;
-}
 
 export function buildChatPanelSettingsActions({
   chatPanelPosition,

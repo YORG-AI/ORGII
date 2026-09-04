@@ -86,6 +86,32 @@ function formatGptTierLabel(tier: string): string {
 
 const CURSOR_TIER_MODELS = new Set(["default", "auto", "premium"]);
 
+export const CURSOR_HOSTED_MODEL_PREFIX = "cursor-";
+
+/** Strip KeyVault's `cursor-` hosted prefix before family/variant parsing. */
+export function stripCursorHostedModelPrefix(modelName: string): {
+  isCursorHosted: boolean;
+  coreModelName: string;
+} {
+  const lower = modelName.toLowerCase();
+  if (lower.startsWith(CURSOR_HOSTED_MODEL_PREFIX)) {
+    return {
+      isCursorHosted: true,
+      coreModelName: modelName.slice(CURSOR_HOSTED_MODEL_PREFIX.length),
+    };
+  }
+  return { isCursorHosted: false, coreModelName: modelName };
+}
+
+export function withCursorHostedModelPrefix(
+  coreModelName: string,
+  isCursorHosted: boolean
+): string {
+  return isCursorHosted
+    ? `${CURSOR_HOSTED_MODEL_PREFIX}${coreModelName}`
+    : coreModelName;
+}
+
 function formatCursorTierLabel(modelName: string): string {
   return modelName.charAt(0).toUpperCase() + modelName.slice(1);
 }
@@ -191,7 +217,8 @@ function parseClaude(rest: string): ParsedGroup {
 
 /** Parse a model name and extract a group label + sortable version number. */
 function parseModelGroup(modelName: string): ParsedGroup {
-  const lower = modelName.toLowerCase();
+  const { coreModelName } = stripCursorHostedModelPrefix(modelName);
+  const lower = coreModelName.toLowerCase();
   const cleaned = lower.replace(/-\d{8}$/, "").replace(/-latest$/, "");
 
   if (CURSOR_TIER_MODELS.has(cleaned)) {
@@ -351,7 +378,8 @@ const FAMILY_TO_PROVIDER: Record<string, string> = {
  * Returns e.g. "Claude", "OpenAI", "Gemini", "Cursor", or "Other".
  */
 export function getModelFamily(modelName: string): string {
-  const lower = modelName.toLowerCase();
+  const { coreModelName } = stripCursorHostedModelPrefix(modelName);
+  const lower = coreModelName.toLowerCase();
   const cleaned = lower.replace(/-\d{8}$/, "").replace(/-latest$/, "");
 
   if (CURSOR_TIER_MODELS.has(cleaned)) {

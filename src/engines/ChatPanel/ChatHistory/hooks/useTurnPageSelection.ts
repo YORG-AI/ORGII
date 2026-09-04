@@ -18,6 +18,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { getTurnNavigationLabel } from "@src/components/TurnNavigationToolbar/turnNavigationLabels";
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
 import { transcriptReplaceEpochAtom } from "@src/engines/SessionCore/core/atoms/metadata";
 import {
@@ -379,10 +380,12 @@ export function useTurnPageNavigation({
     pageCount > 0 &&
     !currentPageHasUnloadedTurn;
 
-  const currentTurnPageLabel =
-    !turnPaginationReady || currentPageIndex >= pageCount - 1
-      ? t("common:pagination.latestRound")
-      : t("common:pagination.round", { current: currentPageIndex + 1 });
+  const currentTurnPageLabel = getTurnNavigationLabel({
+    ready: turnPaginationReady,
+    currentIndex: currentPageIndex,
+    pageCount,
+    t,
+  });
 
   const currentTurnPageTimeLabel = useMemo(() => {
     const page = pages[currentPageIndex];

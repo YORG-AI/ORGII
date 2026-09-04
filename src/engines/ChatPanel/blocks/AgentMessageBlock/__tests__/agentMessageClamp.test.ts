@@ -8,18 +8,14 @@ import AgentMessageBlock, {
 } from "../index";
 
 describe("resolveAgentMessageClampEligibility", () => {
-  it("clamps non-final rounds", () => {
-    expect(resolveAgentMessageClampEligibility(false, false)).toBe(true);
-  });
-
-  it("clamps the latest round too (the streaming tail is exempted by the caller)", () => {
+  it("clamps messages rendered inside a turn context", () => {
     expect(resolveAgentMessageClampEligibility(true, false)).toBe(true);
     expect(resolveAgentMessageClampEligibility(true, true)).toBe(true);
   });
 
   it("uses the host fallback outside a turn context", () => {
-    expect(resolveAgentMessageClampEligibility(null, true)).toBe(true);
-    expect(resolveAgentMessageClampEligibility(null, false)).toBe(false);
+    expect(resolveAgentMessageClampEligibility(false, true)).toBe(true);
+    expect(resolveAgentMessageClampEligibility(false, false)).toBe(false);
   });
 });
 

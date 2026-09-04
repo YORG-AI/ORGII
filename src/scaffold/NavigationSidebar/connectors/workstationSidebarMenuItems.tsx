@@ -67,6 +67,7 @@ function buildTeamInboxMenuItem({
     icon: InboxIcon,
     iconName: "inbox",
     dataTestId: "sidebar-team-inbox",
+    opensChatPanelTab: true,
     // The count reads as part of the label, so it rides the text's trailing
     // edge rather than the row's — a right-aligned badge floated far from
     // "Inbox" and looked like an unrelated row control.
@@ -103,6 +104,7 @@ export function buildPinnedMenuItems({
       iconName: "message-add",
       shortcut: newSessionShortcut,
       dataTestId: "sidebar-new-session",
+      opensChatPanelTab: true,
     },
     {
       id: KANBAN_MENU_ITEM_ID,
@@ -111,6 +113,7 @@ export function buildPinnedMenuItems({
       icon: KanbanIcon,
       iconName: "kanban",
       shortcut: kanbanShortcut,
+      opensChatPanelTab: true,
     },
     {
       id: RUNTIME_MENU_ITEM_ID,
@@ -120,6 +123,7 @@ export function buildPinnedMenuItems({
       iconName: "gauge",
       dataTestId: "sidebar-runtime",
       tourTarget: GENERAL_LAYOUT_TOUR_TARGETS.runtimeNavigation,
+      opensChatPanelTab: true,
     },
     buildTeamInboxMenuItem({
       teamInboxLabel,
@@ -147,6 +151,7 @@ export function buildProjectsPinnedMenuItems({
       icon: PencilEdit02Icon,
       iconName: "square-pen",
       dataTestId: "sidebar-create-work-item",
+      opensChatPanelTab: true,
     },
     {
       id: PROJECTS_NEW_PROJECT_MENU_ITEM_ID,
@@ -155,6 +160,7 @@ export function buildProjectsPinnedMenuItems({
       icon: DeliveryBox01Icon,
       iconName: "box",
       dataTestId: "sidebar-create-project",
+      opensChatPanelTab: true,
     },
     {
       id: PROJECTS_IMPORT_GITHUB_ISSUES_MENU_ITEM_ID,
@@ -213,6 +219,7 @@ export function buildDraftMenuItems({
         }),
         shortcut: formatRelativeTime(draft.createdAt, "nano"),
         openContextMenuOnSelectedClick: true,
+        opensChatPanelTab: true,
         iconBadge: (
           <span className="h-1.5 w-1.5 rounded-full border border-border-3 bg-transparent" />
         ),

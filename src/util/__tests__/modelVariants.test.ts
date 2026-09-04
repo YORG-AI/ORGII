@@ -205,6 +205,26 @@ describe("parseModelVariant", () => {
     });
   });
 
+  it("keeps the fable minor version out of the variant suffix", () => {
+    expect(parseModelVariant("claude-fable-5-1-ultracode")).toEqual({
+      model: "claude-fable-5-1-ultracode",
+      baseModel: "claude-fable-5-1",
+      reasoning: MODEL_REASONING_LEVEL.ULTRACODE,
+      thinking: false,
+      fast: false,
+      rawSuffix: "ultracode",
+    });
+    expect(parseModelVariant("claude-fable-5-1-xhigh")).toEqual({
+      model: "claude-fable-5-1-xhigh",
+      baseModel: "claude-fable-5-1",
+      reasoning: MODEL_REASONING_LEVEL.EXTRA_HIGH,
+      thinking: false,
+      fast: false,
+      rawSuffix: "xhigh",
+    });
+    expect(parseModelVariant("claude-fable-5-1")).toBeUndefined();
+  });
+
   it("parses O-series reasoning variants", () => {
     expect(parseModelVariant("o5.5-high")).toEqual({
       model: "o5.5-high",
@@ -327,6 +347,25 @@ describe("parseModelVariant", () => {
     // Bare provider ids carry no encoded variant → baseline (undefined).
     expect(parseModelVariant("glm-5.2")).toBeUndefined();
     expect(parseModelVariant("grok-4.5")).toBeUndefined();
+  });
+
+  it("parses cursor-hosted grok effort suffixes", () => {
+    expect(parseModelVariant("cursor-grok-4.6-medium")).toEqual({
+      model: "cursor-grok-4.6-medium",
+      baseModel: "cursor-grok-4.6",
+      reasoning: MODEL_REASONING_LEVEL.MEDIUM,
+      thinking: false,
+      fast: false,
+      rawSuffix: "medium",
+    });
+    expect(parseModelVariant("cursor-grok-4.6-high-fast")).toEqual({
+      model: "cursor-grok-4.6-high-fast",
+      baseModel: "cursor-grok-4.6",
+      reasoning: MODEL_REASONING_LEVEL.HIGH,
+      thinking: false,
+      fast: true,
+      rawSuffix: "high",
+    });
   });
 
   it("prefers frontend parse over stale backend model variant metadata", () => {

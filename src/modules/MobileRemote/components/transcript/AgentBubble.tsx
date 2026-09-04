@@ -1,9 +1,8 @@
-import React, { useMemo } from "react";
+import React from "react";
 
 import { ChatAssistantMessageBody } from "@src/components/ChatBubble";
-import { normalizeAssistantMessageText } from "@src/engines/ChatPanel/ChatItems/normalizeAssistantMessageText";
 
-import PortableMarkdown from "./PortableMarkdown";
+import PortableAgentMessageContent from "./PortableAgentMessageContent";
 
 export interface AgentBubbleProps {
   text: string;
@@ -11,17 +10,12 @@ export interface AgentBubbleProps {
 }
 
 export function AgentBubble({ text, streaming }: AgentBubbleProps) {
-  const normalizedText = useMemo(
-    () => normalizeAssistantMessageText(text),
-    [text]
-  );
-
   return (
     <ChatAssistantMessageBody
       testId="mobile-agent-message"
       className="text-left"
     >
-      <PortableMarkdown textContent={normalizedText} />
+      <PortableAgentMessageContent text={text} />
       {streaming ? <span className="ml-1 animate-pulse">▍</span> : null}
     </ChatAssistantMessageBody>
   );

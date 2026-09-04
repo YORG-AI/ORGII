@@ -41,8 +41,6 @@ import { SplitViewLayout } from "@src/modules/shared/layouts";
   listContent={<ItemList />}
   mainContent={<ItemDetail />}
   listWidth={320}
-  resizable={true}
-  collapsible={true}
 />;
 ```
 

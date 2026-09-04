@@ -20,7 +20,14 @@ export interface UnloadedTurnMeta {
 export interface ChatGroupMeta {
   turnId: string | null;
   durationMs: number;
+  /** Rendered rows in the turn body. A grouped stack counts as one row. */
   itemCount: number;
+  /**
+   * Session events the turn body stands for, expanding grouped rows. Always
+   * >= `itemCount`; the two differ whenever the item pipeline folded several
+   * tool calls into a single row.
+   */
+  bodyEventCount: number;
   previewText: string;
   startMs: number | null;
   endMs: number | null;
@@ -189,6 +196,41 @@ function parseEpochMs(iso: string | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
+/**
+ * How many session events one rendered row stands for.
+ *
+ * The item pipeline folds consecutive tool calls into a SINGLE row —
+ * `readFileGroup`, `actionSummaryGroup`, and `activityStackGroup`, the last
+ * of which stacks terminal and edit activity from one event up
+ * (`minTerminalActivitiesToGroup: 1`). A round that ran nothing but shell
+ * commands therefore reaches the projection as one item, so counting rows
+ * alone reports a "trivial" body no matter how much work it holds.
+ *
+ * Floored at 1 so a row always weighs at least itself: this count only ever
+ * raises the old row count, never lowers it.
+ */
+function countItemBodyEvents(item: OptimizedChatItem): number {
+  if (item.readFileEvents) {
+    return Math.max(1, item.readFileEvents.length);
+  }
+  if (item.actionSummaryItems) {
+    return Math.max(1, item.actionSummaryItems.length);
+  }
+  if (item.actionSummaryEntries) {
+    return Math.max(
+      1,
+      item.actionSummaryEntries.reduce(
+        (total, entry) => total + entry.events.length,
+        0
+      )
+    );
+  }
+  if (item.activityStackGroup) {
+    return Math.max(1, item.activityStackGroup.events.length);
+  }
+  return 1;
+}
+
 export function isTurnCollapseEligible(
   meta: ChatGroupMeta | undefined,
   groupIndex: number,
@@ -199,9 +241,12 @@ export function isTurnCollapseEligible(
   } = {}
 ): boolean {
   if (!meta || meta.turnId === null) return false;
-  const bodyItemCount = meta.unloadedTurn?.bodyEventCount ?? meta.itemCount;
-  // Loaded turns render their items inline, so a trivial (≤1 item) body has
-  // nothing to collapse. An UNLOADED turn renders nothing inline — the
+  const bodyItemCount =
+    meta.unloadedTurn?.bodyEventCount ?? meta.bodyEventCount;
+  // Loaded turns render their items inline, so a trivial (≤1 event) body has
+  // nothing to collapse. Measured in EVENTS, not rendered rows: a round whose
+  // whole body is one grouped tool stack renders as a single row but still
+  // holds every command in it. An UNLOADED turn renders nothing inline — the
   // collapse bar is its only expand affordance (and, with turn pagination
   // off, the only way to fetch the body at all), so any nonzero count must
   // show it. Zero means the source measured a genuinely bodyless round.
@@ -293,6 +338,10 @@ export function projectChatGroups(
       turnId,
       durationMs: unloadedTurn?.durationMs ?? durationMs,
       itemCount: group.items.length,
+      bodyEventCount: group.items.reduce(
+        (total, item) => total + countItemBodyEvents(item),
+        0
+      ),
       previewText: headerEvent?.displayText ?? "",
       startMs: unloadedStartMs ?? startMs,
       endMs: unloadedEndMs ?? endMs,

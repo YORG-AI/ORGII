@@ -224,20 +224,27 @@ describe("EffortSlider", () => {
     ).toHaveLength(0);
   });
 
-  it("goes directly from Extra High to purple Ultra in the Codex picker", () => {
+  it("places Max between Extra High and purple Ultra in the Codex picker", () => {
     const onChange = vi.fn();
     const options = buildVariantEditOptions(
       ["low", "medium", "high", "xhigh", "max", "ultra"].map(
         (level) => `gpt-5.6-sol-${level}`
       )
     );
-    const levels = options.getAvailableLevels(MODEL_REASONING_LEVEL.EXTRA_HIGH);
+    const levels = options.availableLevels;
     render({ levels, value: MODEL_REASONING_LEVEL.EXTRA_HIGH, onChange });
     expect(range().getAttribute("aria-valuetext")).toBe("Extra High");
-    expect(range().max).toBe("4");
-    expect(container.textContent).not.toContain("Max");
+    expect(levels.slice(-3)).toEqual([
+      MODEL_REASONING_LEVEL.EXTRA_HIGH,
+      MODEL_REASONING_LEVEL.MAX,
+      MODEL_REASONING_LEVEL.ULTRA,
+    ]);
+    expect(range().max).toBe("5");
     expect(container.querySelector(".text-purple-6")).toBeNull();
     changeValue("4");
+    expect(onChange).toHaveBeenCalledWith(MODEL_REASONING_LEVEL.MAX);
+    onChange.mockClear();
+    changeValue("5");
     expect(onChange).toHaveBeenCalledWith(MODEL_REASONING_LEVEL.ULTRA);
     render({
       levels,
@@ -256,10 +263,9 @@ describe("EffortSlider", () => {
     expect(
       container.querySelector<HTMLElement>(".effort-slider")?.dataset.fast
     ).toBe("true");
-    // Saved Max remains honest when reopening its editor; it is never
-    // silently relabeled as Ultra or Light, and it keeps the blue accent.
+    // Max is a normal selectable rung and keeps the blue accent.
     render({
-      levels: options.getAvailableLevels(MODEL_REASONING_LEVEL.MAX),
+      levels,
       value: MODEL_REASONING_LEVEL.MAX,
     });
     expect(range().getAttribute("aria-valuetext")).toBe("Max");

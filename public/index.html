@@ -463,6 +463,25 @@
         border-radius: var(--border-radius-window);
         overflow: hidden;
       }
+      /*
+       * macOS detached windows settle on native vibrancy, not on a solid
+       * plate (see the `html[data-host-desktop="macos"]` rule in
+       * src/index.scss). Painting --splash-bg here would cover the material
+       * the window already has behind the webview for the whole bundle boot
+       * — an opaque white rectangle on a light theme, with the splash mark
+       * suppressed, on a window that ends up transparent. Compositing onto
+       * the material from the first frame is the honest pre-paint surface.
+       *
+       * Scoped to macOS on purpose: Windows and Linux secondary windows are
+       * opaque (`transparent(true)` in open_session_window is macOS-only),
+       * so there is nothing behind their webview but the builder's
+       * background colour, and they still need the splash plate.
+       */
+      html[data-host-desktop="macos"][data-orgii-secondary-window],
+      html[data-host-desktop="macos"][data-orgii-secondary-window] body,
+      html[data-host-desktop="macos"][data-orgii-secondary-window] #root {
+        background: transparent;
+      }
       /* Remove border radius in fullscreen mode */
       html.fullscreen,
       html.fullscreen body,

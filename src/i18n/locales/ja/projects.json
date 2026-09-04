@@ -93,7 +93,7 @@
     "loadingConnections": "GitHub 接続を読み込み中...",
     "noConnectionTitle": "GitHub 接続が見つかりません",
     "noConnectionDescription": "先に Integrations で GitHub 接続を追加してから、ここに戻って GitHub Issues をインポートしてください。",
-    "linkedRepoHint": "この Project は現在の Workspace repo にもリンクされます: {{repoName}}。",
+    "linkedRepoHint": "この Project は現在の Workspace repo にもリンクされます: {{repoName}}",
     "errors": {
       "invalidRepo": "owner/repo または GitHub リポジトリ URL を使用してください。"
     },
@@ -225,6 +225,7 @@
     "noWorkItems": "ワークアイテムがありません",
     "noWorkItemsSubtitle": "最初のワークアイテムを作成して始めましょう",
     "addFirstWorkItem": "最初のワークアイテムを追加",
+    "addSelected": "{{count}}件追加",
     "deleteItems": "{{count}} 件を削除",
     "untitledProject": "無題のProject",
     "untitledWorkItem": "無題の作業項目",

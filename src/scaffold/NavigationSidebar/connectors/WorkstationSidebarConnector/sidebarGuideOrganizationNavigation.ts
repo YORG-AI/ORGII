@@ -1,12 +1,8 @@
 import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
-import {
-  CHAT_PANEL_COLLAB_ORG_MODE,
-  CHAT_PANEL_COLLAB_ORG_SOURCE,
-  type ChatPanelCollabOrgCreateIntent,
-} from "@src/store/ui/chatPanelAtom";
+import type { SpotlightCollabOrgContext } from "@src/store/ui/uiAtom";
 
 interface SidebarGuideOrganizationNavigation {
-  createIntent: ChatPanelCollabOrgCreateIntent;
+  context: SpotlightCollabOrgContext;
   spotlight: {
     targetId: typeof GUIDE_TARGETS.COLLAB_ORG_NAME_INPUT;
     messageKey: "sidebar.guide.createOrganizationHint";
@@ -14,14 +10,11 @@ interface SidebarGuideOrganizationNavigation {
 }
 
 /** Build the one-shot form preset and delayed spotlight for the guide action. */
-export function resolveSidebarGuideOrganizationNavigation(
-  requestId: number
-): SidebarGuideOrganizationNavigation {
+export function resolveSidebarGuideOrganizationNavigation(): SidebarGuideOrganizationNavigation {
   return {
-    createIntent: {
-      requestId,
-      source: CHAT_PANEL_COLLAB_ORG_SOURCE.CLOUD,
-      mode: CHAT_PANEL_COLLAB_ORG_MODE.CREATE,
+    context: {
+      source: "cloud",
+      mode: "create",
     },
     spotlight: {
       targetId: GUIDE_TARGETS.COLLAB_ORG_NAME_INPUT,

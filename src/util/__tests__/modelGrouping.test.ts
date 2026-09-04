@@ -93,6 +93,20 @@ describe("groupModels", () => {
     });
   });
 
+  it("groups claude-fable-5-1 as its own newer Fable 5.1 group", () => {
+    const groups = groupModels(["claude-fable-5", "claude-fable-5-1"]);
+    expect(groups).toHaveLength(2);
+    expect(groups.map((group) => group.label)).toEqual([
+      "Fable 5.1",
+      "Fable 5",
+    ]);
+    expect(groups[0]).toMatchObject({
+      label: "Fable 5.1",
+      sortVersion: 501,
+      models: ["claude-fable-5-1"],
+    });
+  });
+
   it("treats mythos as a Claude sub-family (claude-mythos-5 → Mythos 5)", () => {
     const groups = groupModels(["claude-mythos-5"]);
     expect(groups).toHaveLength(1);

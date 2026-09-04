@@ -23,7 +23,10 @@ async fn pairing_routes_opaque_rpc_and_revoke_closes_the_phone() {
     let config = RelayConfig {
         listen_addr: address,
         database_path: directory.path().join("relay.sqlite3"),
-        desktop_token: DESKTOP_TOKEN.to_string(),
+        desktop_token: Some(DESKTOP_TOKEN.to_string()),
+        desktop_token_fallback: true,
+        supabase_url: "https://fpdyejwbiriliuqqcjoy.supabase.co".to_string(),
+        supabase_anon_key: "sb_publishable_FpHAgMYJFGb20HunqnhciA_-2nt9eYU".to_string(),
         public_ws_url: format!("ws://{address}/v1/mobile/ws"),
         public_app_url: format!("http://{address}/orgii/mobile"),
         pairing_ttl_seconds: 120,

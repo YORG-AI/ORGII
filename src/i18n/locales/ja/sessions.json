@@ -88,12 +88,6 @@
       "openAsFloatingPane": "フローティングパネルで開く"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "ファイルパスでセッションを検索",
-      "noResults": "一致するファイルを変更したセッションはありません"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "現在のKanban",
     "view": {
       "list": "リスト",
       "diary": "日誌",
@@ -358,9 +352,6 @@
       "merge": "マージ",
       "merging": "マージ中…",
       "merged": "マージ済み"
-    },
-    "replay": {
-      "replaySession": "リプレイ"
     },
     "discard": {
       "discard": "破棄",
@@ -886,6 +877,8 @@
       "positionUp": "上",
       "positionDown": "下",
       "uiControls": "UI コントロール",
+      "showQuickActions": "クイックアクションを表示",
+      "showSkills": "Skills を表示",
       "showCliUpdate": "CLI の更新を表示",
       "title": "何をしますか？",
       "back": "スタートページに戻る",
@@ -997,6 +990,7 @@
     "fullScreenChat": "Chat パネルにフォーカス（Workstation を非表示）",
     "maximizeChatPanel": "Chat パネルを最大化",
     "showWorkstation": "Workstation を表示",
+    "workstationUnavailableForPage": "このページでは Workstation を利用できません",
     "hideWorkstation": "Workstation を非表示",
     "restoreSplitView": "Workstation を表示",
     "shrinkToWorkstation": "Chat パネルを縮小（Workstation を表示）",
@@ -1114,7 +1108,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~残り {{eta}}",
     "rateLimitHintTitle": "APIレート制限",
-    "rateLimitHintBody": "現在のモデルがレート制限されています。待機中は別のウィンドウに切り替えて作業を続けることができます。",
+    "rateLimitHintBody": "現在のモデルがレート制限されています。待機中は別のウィンドウに切り替えて作業を続けることができます",
     "feedbackPending": "フィードバック待ち",
     "executionThreads": "実行スレッド",
     "allThreads": "すべて",

@@ -93,7 +93,7 @@
     "loadingConnections": "Carregando conexões GitHub...",
     "noConnectionTitle": "Nenhuma conexão GitHub encontrada",
     "noConnectionDescription": "Adicione primeiro uma conexão GitHub em Integrations e depois volte aqui para importar GitHub Issues.",
-    "linkedRepoHint": "Este Project também será vinculado ao repo do Workspace atual: {{repoName}}.",
+    "linkedRepoHint": "Este Project também será vinculado ao repo do Workspace atual: {{repoName}}",
     "errors": {
       "invalidRepo": "Use owner/repo ou uma URL de repositório GitHub."
     },
@@ -225,6 +225,7 @@
     "noWorkItems": "Nenhum item de trabalho ainda",
     "noWorkItemsSubtitle": "Crie seu primeiro item de trabalho para começar",
     "addFirstWorkItem": "Adicionar primeiro item de trabalho",
+    "addSelected": "Adicionar {{count}}",
     "deleteItems": "Excluir {{count}} itens",
     "untitledProject": "História sem título",
     "untitledWorkItem": "Item de Trabalho sem título",

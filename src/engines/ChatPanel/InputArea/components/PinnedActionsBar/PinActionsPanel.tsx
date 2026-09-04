@@ -19,7 +19,11 @@ import {
 import FileTreePreview from "@src/components/FileTreePreview";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { ArrowUp02Icon, HugeiconsIcon, PinIcon, PinOffIcon } from "@src/icons";
-import type { PinnedAction } from "@src/store/session/pinnedActionsAtom";
+import {
+  type PinnedAction,
+  getPinnedActionKey,
+  slashItemToPinnedAction,
+} from "@src/store/session/pinnedActionsAtom";
 import type { SlashItem } from "@src/types/extensions";
 import { fuzzyMatch, fuzzyScore } from "@src/util/search/fuzzy";
 import { getViewportSize } from "@src/util/ui/window/viewport";
@@ -28,44 +32,6 @@ import { getViewportSize } from "@src/util/ui/window/viewport";
 const SETUP_REPO_SKILL_NAME = "setup-repo";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * Stable identity key for a pinned action or slash item.
- *
- * Skills are keyed by `skillName` (the backend token) rather than `source`
- * (the display group label) because the group label can change across
- * installs/renames while `skillName` stays constant.  Using `source` in the
- * key was causing pinned skills to never match their available-item
- * counterpart whenever the resolved group label differed from the label that
- * was originally persisted.
- *
- * Tools are keyed by server name + tool name (both stable identifiers).
- * Built-in actions are keyed by category + name.
- */
-function actionKey(a: PinnedAction | SlashItem): string {
-  if (a.category === "skill") {
-    // skillName is the canonical identifier; fall back to name if absent
-    // (covers legacy stored PinnedActions that pre-date the skillName field).
-    const token = a.skillName ?? a.name;
-    return `skill|${token}`;
-  }
-  if (a.category === "tool") {
-    return `tool|${a.serverName ?? a.source}|${a.name}`;
-  }
-  // "action" and any future categories
-  return `${a.category}|${a.name}`;
-}
-
-function slashItemToAction(item: SlashItem): PinnedAction {
-  return {
-    name: item.name,
-    skillName: item.skillName,
-    skillPath: item.skillPath,
-    category: item.category,
-    source: item.source,
-    serverName: item.serverName,
-  };
-}
 
 // ── component ─────────────────────────────────────────────────────────────────
 
@@ -129,7 +95,7 @@ const PinActionsPanel: React.FC<PinActionsPanelProps> = memo(
       }
     }, [visible]);
 
-    const pinnedKeys = new Set(pinnedActions.map(actionKey));
+    const pinnedKeys = new Set(pinnedActions.map(getPinnedActionKey));
 
     // Exclude the `setup-repo` skill because the `Setup Repo` action pill
     // already covers it.  Showing both creates a confusing duplicate.
@@ -159,14 +125,14 @@ const PinActionsPanel: React.FC<PinActionsPanelProps> = memo(
 
     const handleToggle = useCallback(
       (item: SlashItem) => {
-        onTogglePin(slashItemToAction(item));
+        onTogglePin(slashItemToPinnedAction(item));
       },
       [onTogglePin]
     );
 
     const handleInsert = useCallback(
       (item: SlashItem) => {
-        onInsert(slashItemToAction(item));
+        onInsert(slashItemToPinnedAction(item));
       },
       [onInsert]
     );
@@ -226,7 +192,7 @@ const PinActionsPanel: React.FC<PinActionsPanelProps> = memo(
     }
 
     const renderItem = (item: SlashItem) => {
-      const key = actionKey(item);
+      const key = getPinnedActionKey(item);
       const isPinned = pinnedKeys.has(key);
       const renderKey = `${key}|${item.skillPath ?? item.source}`;
       return (
@@ -381,5 +347,4 @@ const PinActionsPanel: React.FC<PinActionsPanelProps> = memo(
 
 PinActionsPanel.displayName = "PinActionsPanel";
 
-export { actionKey, slashItemToAction };
 export default PinActionsPanel;

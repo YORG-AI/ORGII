@@ -4,7 +4,7 @@ import {
   _resetToolRegistry,
   _setBuiltinIconIdMap,
 } from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
-import { BookOpen02Icon } from "@src/icons";
+import { BookOpen02Icon, Search01Icon, Wrench01Icon } from "@src/icons";
 
 import { getEventIconComponent, getToolIconComponent } from "./toolIcons";
 
@@ -18,5 +18,14 @@ describe("read-file icons", () => {
 
     expect(getToolIconComponent("read_file")).toBe(BookOpen02Icon);
     expect(getEventIconComponent("read_file")).toBe(BookOpen02Icon);
+  });
+
+  it("keeps common builtin icons available before init_tool_registry runs", () => {
+    _resetToolRegistry();
+
+    expect(getToolIconComponent("read_file")).toBe(BookOpen02Icon);
+    expect(getToolIconComponent("code_search")).toBe(Search01Icon);
+    expect(getToolIconComponent("grep")).toBe(Search01Icon);
+    expect(getToolIconComponent("tool")).toBe(Wrench01Icon);
   });
 });

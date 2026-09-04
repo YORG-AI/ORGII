@@ -142,7 +142,6 @@ function createRefs(editor: ComposerInputRef): InputAreaRefs {
     containerRef: { current: null },
     contextMenuKeyboardHandlerRef: { current: null },
     slashCommandKeyboardHandlerRef: { current: null },
-    plusSlashCommandKeyboardHandlerRef: { current: null },
     hasContentRef: { current: true },
     setHasContent: vi.fn(),
   };

@@ -338,6 +338,7 @@ function createDefaultRuntime(): MobileRemoteRuntimePort {
     clearTimeout: (timeoutId) =>
       globalThis.document.defaultView!.clearTimeout(timeoutId),
     isHidden: () => globalThis.document.hidden,
+    portalContainer: () => globalThis.document.body,
     subscribeVisibility(listener) {
       globalThis.document.addEventListener("visibilitychange", listener);
       return () =>

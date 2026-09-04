@@ -27,7 +27,7 @@ describe("planKanbanCardContextMenu", () => {
   });
 
   it("keeps a teammate cloud card on the floating preview only", () => {
-    // Its replay import is hosted by the board; a Chat Pane tab would unmount
+    // Its remote import is hosted by the board; a Chat Pane tab would unmount
     // Work Management mid-import and leave the new tab empty.
     const plan = planKanbanCardContextMenu({
       task: task({ id: "cloud-remote:row-1" }),

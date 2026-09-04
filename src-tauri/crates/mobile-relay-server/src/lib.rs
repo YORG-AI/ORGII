@@ -1,4 +1,5 @@
 pub mod config;
+mod desktop_auth;
 mod handlers;
 pub mod state;
 pub mod store;

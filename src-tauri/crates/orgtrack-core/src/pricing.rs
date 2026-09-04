@@ -330,6 +330,28 @@ mod tests {
         );
     }
 
+    /// `claude-fable-5-1` is priced identically to Fable 5 ($10 / $50), but it
+    /// needs its own row: without one, the longest-prefix fallback would quietly
+    /// hand 5.1 traffic whatever Fable 5's row says, and the two would drift
+    /// apart the first time Anthropic reprices either line.
+    #[test]
+    fn fable_5_1_has_its_own_row() {
+        let pricing = resolve_pricing(Some("claude-fable-5-1"));
+        assert_eq!(pricing.input_per_mtok, 10.0);
+        assert_eq!(pricing.output_per_mtok, 50.0);
+        assert_eq!(pricing.cache_creation_per_mtok, 12.5);
+        assert_eq!(pricing.cache_read_per_mtok, 1.0);
+
+        // Effort-suffixed variant ids reach the same row via prefix fallback,
+        // and must not collapse onto the shorter `claude-fable-5` entry.
+        assert_eq!(resolve_pricing(Some("claude-fable-5-1-ultracode")), pricing);
+        assert_eq!(
+            resolve_pricing(Some("anthropic/claude-fable-5-1-xhigh")),
+            pricing
+        );
+        assert_eq!(normalize_model_id("claude-fable-5-1"), "claude-fable-5-1");
+    }
+
     #[test]
     fn prefix_family_fallback() {
         // `gpt-5-chat` is not an exact entry -> falls back to `gpt-5` family.

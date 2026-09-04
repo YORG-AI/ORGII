@@ -39,6 +39,12 @@ import DropdownSelectedCheck from "./DropdownSelectedCheck";
 import { DROPDOWN_CLASSES, DROPDOWN_ITEM } from "./tokens";
 
 export interface DropdownItemProps {
+  /** DOM id, used by comboboxes for aria-activedescendant. */
+  id?: string;
+
+  /** Index hook used by shared dropdown keyboard navigation autoscroll. */
+  dataDropdownItemIndex?: number;
+
   /**
    * Item content/label
    */
@@ -156,6 +162,8 @@ export interface DropdownItemProps {
 const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
   (
     {
+      id,
+      dataDropdownItemIndex,
       children,
       icon,
       suffix,
@@ -216,7 +224,9 @@ const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
     return (
       <div
         ref={ref}
+        id={id}
         className={itemClasses}
+        data-dropdown-item-index={dataDropdownItemIndex}
         data-testid={dataTestId}
         style={style}
         onClick={handleClick}

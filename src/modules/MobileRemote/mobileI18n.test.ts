@@ -37,5 +37,36 @@ describe("mobileI18n", () => {
       "主桌面"
     );
     expect(mobileI18n.t("actions.close", { ns: "common" })).toBe("关闭");
+    expect(mobileI18n.t("actions.back")).toBe("返回");
+    expect(mobileI18n.t("actions.search")).toBe("搜索");
+    expect(mobileI18n.t("selectors.modelProperties.model")).toBe("模型");
+  });
+
+  it("resolves shared desktop component keys via the common default namespace", async () => {
+    await mobileI18nReady;
+    await mobileI18n.changeLanguage("en");
+    expect(mobileI18n.t("actions.back")).toBe("Back");
+    expect(mobileI18n.t("actions.search")).toBe("Search");
+    expect(mobileI18n.t("selectors.modelProperties.settings")).toBe(
+      "Model settings"
+    );
+    expect(mobileI18n.t("pagination.round", { current: 2 })).toBe("Round 2");
+    expect(mobileI18n.t("common:tooltips.startVoiceInput")).toBe(
+      "Start voice input"
+    );
+    expect(
+      mobileI18n.t("input.voiceErrorPermissionIosPwa", { ns: "sessions" })
+    ).toContain("ORGII Mobile");
+  });
+
+  it("resolves voice permission copy in Chinese", async () => {
+    await mobileI18nReady;
+    await mobileI18n.changeLanguage("zh");
+    expect(
+      mobileI18n.t("input.voiceErrorPermissionIosPwa", { ns: "sessions" })
+    ).toContain("ORGII Mobile");
+    expect(
+      mobileI18n.t("input.voicePermissionSheetTitle", { ns: "sessions" })
+    ).toBe("需要麦克风权限");
   });
 });

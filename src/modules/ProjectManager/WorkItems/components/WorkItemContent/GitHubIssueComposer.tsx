@@ -151,7 +151,8 @@ const GitHubIssueComposer: React.FC<GitHubIssueComposerProps> = ({
           onChange={(markdown) => setCommentBody(markdown)}
           onSubmit={() => void handleComment()}
           placeholder={t("git.issues.composer.commentPlaceholder")}
-          minHeight={100}
+          minHeight={64}
+          minRows={2}
           maxHeight={500}
           appearance="plain"
           editable={interaction.canComment && !interaction.submittingComment}

@@ -13,15 +13,30 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { isTauriProduction } from "@src/config/serviceAuth";
 import { createLogger } from "@src/hooks/logger";
 
+import {
+  mapGetUserMediaError,
+  queryMicrophonePermission,
+} from "./requestMicrophoneAccess";
 import {
   type SpeechRecognitionErrorEvent,
   type SpeechRecognitionEvent,
   type SpeechRecognitionLike,
   getSpeechRecognitionCtor,
 } from "./speechRecognitionTypes";
+
+function isTauriProduction(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.location.origin.startsWith("tauri://");
+}
+
+function isTauriRuntime(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
+  );
+}
 
 const logger = createLogger("VoiceInput");
 
@@ -159,6 +174,7 @@ export function useVoiceInput(
   const shouldCommitRef = useRef<boolean>(true);
   const startTimeRef = useRef<number>(0);
   const tickIntervalRef = useRef<number | null>(null);
+  const startSessionRef = useRef(0);
 
   const [isRecording, setIsRecording] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
@@ -166,7 +182,11 @@ export function useVoiceInput(
 
   const [isSupported] = useState<boolean>(() => {
     probeSpeechRecognitionOnce();
-    return !isTauriProduction() || getSpeechRecognitionCtor() != null;
+    // Tauri dev shows a preview UI even without a native recognizer.
+    if (isTauriRuntime() && !isTauriProduction()) {
+      return true;
+    }
+    return getSpeechRecognitionCtor() != null;
   });
 
   const clearTimer = useCallback(() => {
@@ -191,10 +211,105 @@ export function useVoiceInput(
     }
   }, [clearTimer]);
 
+  const beginRecognition = useCallback(
+    (Ctor: NonNullable<ReturnType<typeof getSpeechRecognitionCtor>>) => {
+      const recognition = new Ctor();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+      const detectedLang =
+        typeof navigator !== "undefined" ? navigator.language : undefined;
+      recognition.lang = lang ?? detectedLang ?? "en-US";
+
+      transcriptRef.current = "";
+      shouldCommitRef.current = true;
+      setLiveTranscript("");
+
+      recognition.onstart = () => {
+        startTimeRef.current = Date.now();
+        setIsRecording(true);
+        setElapsedSeconds(0);
+        tickIntervalRef.current = window.setInterval(() => {
+          const elapsed = Math.floor(
+            (Date.now() - startTimeRef.current) / 1000
+          );
+          setElapsedSeconds(elapsed);
+        }, 250);
+        logger.debug("recognition started", { lang: recognition.lang });
+      };
+
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        let finalText = transcriptRef.current;
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const result = event.results[i];
+          const alt = result[0];
+          if (!alt) continue;
+          if (result.isFinal) {
+            finalText += alt.transcript;
+          } else {
+            interim += alt.transcript;
+          }
+        }
+        transcriptRef.current = finalText;
+        setLiveTranscript((finalText + interim).trim());
+      };
+
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        const code = mapErrorCode(event.error);
+        logger.warn("recognition error", event.error, event.message);
+        shouldCommitRef.current = false;
+        onError?.({ code, message: event.message || event.error });
+      };
+
+      recognition.onend = () => {
+        const final = transcriptRef.current.trim();
+        const commit = shouldCommitRef.current;
+        logger.debug("recognition ended", { commit, length: final.length });
+        teardown();
+        if (commit && final.length > 0) {
+          onCommit(final);
+        } else if (!commit) {
+          onCancel?.();
+        }
+      };
+
+      recognitionRef.current = recognition;
+      // Diagnostic breadcrumb written BEFORE the native call so it persists
+      // to ~/.orgii/logs/frontend.log even if start() SIGABRTs the process.
+      // If you see "about to call start()" with no following "started" or
+      // error line, the kill came from outside the JS layer (TCC, signal,
+      // process crash). Pair with `~/Library/Logs/DiagnosticReports/` to
+      // identify the framework.
+      logger.warn("about to call recognition.start()", {
+        lang: recognition.lang,
+        continuous: recognition.continuous,
+        interimResults: recognition.interimResults,
+      });
+      try {
+        recognition.start();
+        logger.warn("recognition.start() returned synchronously");
+      } catch (err) {
+        const name =
+          err && typeof err === "object" && "name" in err
+            ? String((err as { name: unknown }).name)
+            : "";
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error("failed to start recognition", { name, message, err });
+        onError?.({
+          code: "unknown",
+          message,
+        });
+        teardown();
+      }
+    },
+    [lang, onCancel, onCommit, onError, teardown]
+  );
+
   const start = useCallback(() => {
     if (isRecording) return;
 
-    if (!isTauriProduction()) {
+    if (isTauriRuntime() && !isTauriProduction()) {
       startTimeRef.current = Date.now();
       setIsRecording(true);
       setElapsedSeconds(0);
@@ -217,98 +332,64 @@ export function useVoiceInput(
       return;
     }
 
-    const recognition = new Ctor();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-    const detectedLang =
-      typeof navigator !== "undefined" ? navigator.language : undefined;
-    recognition.lang = lang ?? detectedLang ?? "en-US";
+    const sessionId = startSessionRef.current + 1;
+    startSessionRef.current = sessionId;
 
-    transcriptRef.current = "";
-    shouldCommitRef.current = true;
-    setLiveTranscript("");
+    // iOS Safari and other mobile browsers require getUserMedia on the user
+    // gesture before webkitSpeechRecognition can open the microphone.
+    const micPermissionPromise =
+      typeof navigator !== "undefined" &&
+      navigator.mediaDevices?.getUserMedia != null
+        ? navigator.mediaDevices.getUserMedia({ audio: true })
+        : null;
 
-    recognition.onstart = () => {
-      startTimeRef.current = Date.now();
-      setIsRecording(true);
-      setElapsedSeconds(0);
-      tickIntervalRef.current = window.setInterval(() => {
-        const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-        setElapsedSeconds(elapsed);
-      }, 250);
-      logger.debug("recognition started", { lang: recognition.lang });
-    };
+    void (async () => {
+      const permissionState = await queryMicrophonePermission();
+      if (startSessionRef.current !== sessionId) return;
+      if (permissionState === "denied") {
+        onError?.({
+          code: "permission-denied",
+          message: "Microphone permission denied.",
+        });
+        return;
+      }
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let finalText = transcriptRef.current;
-      let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const result = event.results[i];
-        const alt = result[0];
-        if (!alt) continue;
-        if (result.isFinal) {
-          finalText += alt.transcript;
-        } else {
-          interim += alt.transcript;
+      if (micPermissionPromise) {
+        try {
+          const stream = await micPermissionPromise;
+          stream.getTracks().forEach((track) => track.stop());
+        } catch (err) {
+          if (startSessionRef.current !== sessionId) return;
+          const access = mapGetUserMediaError(err);
+          if (access === "denied") {
+            onError?.({
+              code: "permission-denied",
+              message: "Microphone permission denied.",
+            });
+            return;
+          }
+          if (access === "unsupported") {
+            onError?.({
+              code: "audio-capture",
+              message: "No microphone detected.",
+            });
+            return;
+          }
         }
       }
-      transcriptRef.current = finalText;
-      setLiveTranscript((finalText + interim).trim());
-    };
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      const code = mapErrorCode(event.error);
-      logger.warn("recognition error", event.error, event.message);
-      shouldCommitRef.current = false;
-      onError?.({ code, message: event.message || event.error });
-    };
-
-    recognition.onend = () => {
-      const final = transcriptRef.current.trim();
-      const commit = shouldCommitRef.current;
-      logger.debug("recognition ended", { commit, length: final.length });
-      teardown();
-      if (commit && final.length > 0) {
-        onCommit(final);
-      } else if (!commit) {
-        onCancel?.();
-      }
-    };
-
-    recognitionRef.current = recognition;
-    // Diagnostic breadcrumb written BEFORE the native call so it persists
-    // to ~/.orgii/logs/frontend.log even if start() SIGABRTs the process.
-    // If you see "about to call start()" with no following "started" or
-    // error line, the kill came from outside the JS layer (TCC, signal,
-    // process crash). Pair with `~/Library/Logs/DiagnosticReports/` to
-    // identify the framework.
-    logger.warn("about to call recognition.start()", {
-      lang: recognition.lang,
-      continuous: recognition.continuous,
-      interimResults: recognition.interimResults,
-    });
-    try {
-      recognition.start();
-      logger.warn("recognition.start() returned synchronously");
-    } catch (err) {
-      const name =
-        err && typeof err === "object" && "name" in err
-          ? String((err as { name: unknown }).name)
-          : "";
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error("failed to start recognition", { name, message, err });
-      onError?.({
-        code: "unknown",
-        message,
-      });
-      teardown();
-    }
-  }, [isRecording, lang, onCancel, onCommit, onError, teardown]);
+      if (startSessionRef.current !== sessionId) return;
+      beginRecognition(Ctor);
+    })();
+  }, [beginRecognition, isRecording, onError]);
 
   const stop = useCallback(() => {
     if (!recognitionRef.current) {
-      if (isRecording) teardown();
+      if (!isRecording) {
+        startSessionRef.current += 1;
+        return;
+      }
+      teardown();
       return;
     }
     shouldCommitRef.current = true;
@@ -322,10 +403,12 @@ export function useVoiceInput(
 
   const cancel = useCallback(() => {
     if (!recognitionRef.current) {
-      if (isRecording) {
-        teardown();
-        onCancel?.();
+      if (!isRecording) {
+        startSessionRef.current += 1;
+        return;
       }
+      teardown();
+      onCancel?.();
       return;
     }
     shouldCommitRef.current = false;

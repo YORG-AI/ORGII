@@ -16,6 +16,7 @@ const labels: ChatPanelTabDisplayLabels = {
   teamInbox: "Inbox",
   workManagement: {
     kanban: "Kanban",
+    inbox: "Inbox",
     work: "Work Items",
   },
   sessionFallback: "Chat",
@@ -68,8 +69,26 @@ describe("resolveChatPanelTabDisplayTitle", () => {
 
   it("keeps Work datasets under one localized tab title", () => {
     expect(
-      resolveChatPanelTabDisplayTitle(tab("work-management"), null, labels)
+      resolveChatPanelTabDisplayTitle(
+        tab("work-management", "Inbox"),
+        null,
+        labels
+      )
+    ).toBe("Inbox");
+    expect(
+      resolveChatPanelTabDisplayTitle(
+        tab("work-management", "Ignored", WORK_MANAGEMENT_SECTION.KANBAN),
+        null,
+        labels
+      )
     ).toBe("Kanban");
+    expect(
+      resolveChatPanelTabDisplayTitle(
+        tab("work-management", "Ignored", WORK_MANAGEMENT_SECTION.INBOX),
+        null,
+        labels
+      )
+    ).toBe("Inbox");
     expect(
       resolveChatPanelTabDisplayTitle(
         tab("work-management", "Ignored", WORK_MANAGEMENT_SECTION.PROJECTS),

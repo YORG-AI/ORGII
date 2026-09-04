@@ -22,7 +22,10 @@ import {
   type GitHubWorkItemsSort,
   sortManagedGitHubItems,
 } from "./githubWorkItemsSort";
-import type { GitHubRepoSource } from "./githubWorkItemsTypes";
+import {
+  type GitHubRepoSource,
+  resolveSingleGitHubRepoSource,
+} from "./githubWorkItemsTypes";
 import {
   EMPTY_REPO_ISSUES,
   EMPTY_REPO_PRS,
@@ -41,8 +44,6 @@ export interface GitHubWorkItemsDerivedStateInput {
   selectedRepo: string;
   selectedRepoPath: string | null;
   currentPage: number;
-  allReposValue: string;
-  currentWorkstationValue: string;
   sort?: GitHubWorkItemsSort;
 }
 
@@ -54,25 +55,15 @@ export function deriveGitHubWorkItemsState({
   selectedRepo,
   selectedRepoPath,
   currentPage,
-  allReposValue,
-  currentWorkstationValue,
   sort,
 }: GitHubWorkItemsDerivedStateInput) {
-  const selectedWorkstationRepoSource =
-    repoSources.find((source) => source.repoPath === selectedRepoPath) ?? null;
-  const effectiveSelectedRepo =
-    selectedRepo === currentWorkstationValue
-      ? (selectedWorkstationRepoSource?.repoFullName ?? allReposValue)
-      : selectedRepo === allReposValue ||
-          repoSources.some((source) => source.repoFullName === selectedRepo)
-        ? selectedRepo
-        : (selectedWorkstationRepoSource?.repoFullName ?? allReposValue);
-  const selectedRepoSourceForCreate =
-    effectiveSelectedRepo === allReposValue
-      ? selectedWorkstationRepoSource
-      : (repoSources.find(
-          (source) => source.repoFullName === effectiveSelectedRepo
-        ) ?? null);
+  const selectedRepoSource = resolveSingleGitHubRepoSource(
+    repoSources,
+    selectedRepo,
+    selectedRepoPath
+  );
+  const effectiveSelectedRepo = selectedRepoSource?.repoFullName ?? "";
+  const selectedRepoSourceForCreate = selectedRepoSource;
   const issues = repoSources.flatMap((source) => {
     const sourceIssues =
       repoIssueMap[getRepoIssueMapKey(source)] ?? EMPTY_REPO_ISSUES;
@@ -97,17 +88,12 @@ export function deriveGitHubWorkItemsState({
   );
   const queryFilteredItems = allItems.filter(
     (item) =>
-      managedItemMatchesRepo(item, effectiveSelectedRepo, allReposValue) &&
+      managedItemMatchesRepo(item, effectiveSelectedRepo) &&
       managedItemMatchesQuery(item, parsedSearchQuery)
   );
   const filteredItems = queryFilteredItems;
   const pageStates = getIssuePageStatesForQuery(parsedSearchQuery);
-  const paginatedSources =
-    effectiveSelectedRepo === allReposValue
-      ? repoSources
-      : repoSources.filter(
-          (source) => source.repoFullName === effectiveSelectedRepo
-        );
+  const paginatedSources = selectedRepoSource ? [selectedRepoSource] : [];
   const hasMoreFilteredIssues = paginatedSources.some((source) => {
     const state = repoIssueMap[getRepoIssueMapKey(source)];
     return Boolean(
@@ -121,7 +107,7 @@ export function deriveGitHubWorkItemsState({
   const pagedItems = getGitHubWorkItemsPage(filteredItems, currentPage);
   const issueStateCounts = issues.reduce(
     (counts, issue) => {
-      if (managedItemMatchesRepo(issue, effectiveSelectedRepo, allReposValue)) {
+      if (managedItemMatchesRepo(issue, effectiveSelectedRepo)) {
         counts[issue.state] += 1;
       }
       return counts;
@@ -143,13 +129,13 @@ export function deriveGitHubWorkItemsState({
   const openPrCount = pullRequests.filter(
     (pr) =>
       pr.state === GITHUB_QUERY_STATE.OPEN &&
-      managedItemMatchesRepo(pr, effectiveSelectedRepo, allReposValue)
+      managedItemMatchesRepo(pr, effectiveSelectedRepo)
   ).length;
   const closedPrCount = pullRequests.filter(
     (pr) =>
       (pr.state === GITHUB_QUERY_STATE.CLOSED ||
         pr.state === GITHUB_QUERY_STATE.MERGED) &&
-      managedItemMatchesRepo(pr, effectiveSelectedRepo, allReposValue)
+      managedItemMatchesRepo(pr, effectiveSelectedRepo)
   ).length;
   const openPrLoaded =
     hasPaginatedSources &&
@@ -190,8 +176,6 @@ export function useGitHubWorkItemsDerivedState({
   selectedRepo,
   selectedRepoPath,
   currentPage,
-  allReposValue,
-  currentWorkstationValue,
   sort,
 }: GitHubWorkItemsDerivedStateInput) {
   return useMemo(
@@ -204,14 +188,10 @@ export function useGitHubWorkItemsDerivedState({
         selectedRepo,
         selectedRepoPath,
         currentPage,
-        allReposValue,
-        currentWorkstationValue,
         sort,
       }),
     [
-      allReposValue,
       currentPage,
-      currentWorkstationValue,
       parsedSearchQuery,
       repoIssueMap,
       repoPrMap,

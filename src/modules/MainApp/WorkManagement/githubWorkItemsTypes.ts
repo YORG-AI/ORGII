@@ -18,6 +18,26 @@ export interface GitHubRepoSource {
   authScope?: string | null;
 }
 
+/**
+ * Resolves selection to exactly one repository. Obsolete or automatic values
+ * fall back to the active repository, then the first available repository.
+ */
+export function resolveSingleGitHubRepoSource(
+  sources: readonly GitHubRepoSource[],
+  selectedRepo: string,
+  selectedRepoPath: string | null
+): GitHubRepoSource | null {
+  const directlySelected = sources.find(
+    (source) => source.repoFullName === selectedRepo
+  );
+  if (directlySelected) return directlySelected;
+
+  const currentWorkstationSource = sources.find(
+    (source) => source.repoPath === selectedRepoPath
+  );
+  return currentWorkstationSource ?? sources[0] ?? null;
+}
+
 export function getGitHubListCacheKey(source: GitHubRepoSource): string {
   const identity =
     source.authScope ||
