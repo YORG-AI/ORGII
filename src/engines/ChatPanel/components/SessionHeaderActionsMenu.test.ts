@@ -38,10 +38,10 @@ vi.mock("@src/api/tauri/externalHistory/appOpen", () => ({
   externalHistoryOpenInApp: mocks.openInApp,
 }));
 // Webpack loads SVGs as components; Vitest otherwise treats them as URLs.
-vi.mock("@src/assets/modelIcons/claude.svg", () => ({
-  default: (props: SVGProps<SVGSVGElement>) =>
-    createElement("svg", { ...props, "data-brand": "claude" }),
-}));
+// claude.svg is brand artwork imported as a URL asset (`?url`) and rendered
+// through <img>; Vite resolves it to a path containing the file name, which is
+// the brand marker the rows below assert on. openai.svg is a currentColor
+// glyph and stays an svgr component, mocked here with a data-brand tag.
 vi.mock("@src/assets/modelIcons/openai.svg", () => ({
   default: (props: SVGProps<SVGSVGElement>) =>
     createElement("svg", { ...props, "data-brand": "openai" }),
@@ -675,9 +675,15 @@ describe("SessionHeaderActionsMenu native app action", () => {
       expect(row.closest('[role="menu"]')).toBe(
         props.headerActionsDropdownRef.current
       );
-      const icon = row.firstElementChild?.querySelector("svg");
+      // Brand marks render as <img> (URL asset, brand in the src path) or
+      // <svg> (currentColor glyph, brand in data-brand).
+      const icon = row.firstElementChild?.querySelector("svg, img");
       expect(icon?.getAttribute("data-icon")).toBe(iconId);
-      expect(icon?.getAttribute("data-brand")).toBe(brand);
+      const brandMarker =
+        icon?.tagName === "IMG"
+          ? icon.getAttribute("src")
+          : icon?.getAttribute("data-brand");
+      expect(brandMarker).toContain(brand);
       const arrow = row.lastElementChild?.querySelector("svg");
       expect(arrow?.getAttribute("data-icon")).toBe("arrow-up-right");
       expect(arrow?.querySelector("path")?.getAttribute("d")).toBe(

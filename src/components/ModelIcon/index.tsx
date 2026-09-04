@@ -124,8 +124,8 @@ const ModelIcon: React.FC<ModelIconProps> = memo(
     // Get numeric size
     const numericSize = typeof size === "number" ? size : SIZE_MAP[size] || 20;
 
-    // Get icon component
-    const Icon = ICON_MAP[iconProvider];
+    // Get icon source: asset URL (brand artwork) or svgr component (currentColor)
+    const iconSource = ICON_MAP[iconProvider];
 
     // Determine if icon uses currentColor (themeable)
     const isThemeable = THEMEABLE_ICONS.has(iconProvider);
@@ -148,7 +148,7 @@ const ModelIcon: React.FC<ModelIconProps> = memo(
       isThemeable || monochrome ? "" : DECORATIVE_ICON_CLASS;
 
     // No icon found
-    if (!Icon) {
+    if (!iconSource) {
       if (fallback) {
         return <>{fallback}</>;
       }
@@ -165,11 +165,30 @@ const ModelIcon: React.FC<ModelIconProps> = memo(
       );
     }
 
+    const iconClassName =
+      `${colorClass} ${monochromeClass} ${decorativeClass} ${className}`.trim();
+
+    if (typeof iconSource === "string") {
+      return (
+        <img
+          src={iconSource}
+          width={numericSize}
+          height={numericSize}
+          className={iconClassName}
+          style={style}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+        />
+      );
+    }
+
+    const Icon = iconSource;
     return (
       <Icon
         width={numericSize}
         height={numericSize}
-        className={`${colorClass} ${monochromeClass} ${decorativeClass} ${className}`.trim()}
+        className={iconClassName}
         style={style}
       />
     );

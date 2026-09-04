@@ -8,75 +8,81 @@
  * - `IconProvider` (UI layer) → direct icon lookup
  * - Model name string → icon inference via `getIconProviderFromModelName()`
  */
-import type { FC, SVGProps } from "react";
+import {
+  type FC,
+  type Ref,
+  type SVGProps,
+  createElement,
+  forwardRef,
+} from "react";
 
 import type { ModelType } from "@src/api/types/keys";
-import AiderIcon from "@src/assets/modelIcons/aider.svg";
-import AiHubMixIcon from "@src/assets/modelIcons/aihubmix.svg";
-import AmpIcon from "@src/assets/modelIcons/amp.svg";
-import AntigravityIcon from "@src/assets/modelIcons/antigravity.svg";
+import AiderIcon from "@src/assets/modelIcons/aider.svg?url";
+import AiHubMixIcon from "@src/assets/modelIcons/aihubmix.svg?url";
+import AmpIcon from "@src/assets/modelIcons/amp.svg?url";
+import AntigravityIcon from "@src/assets/modelIcons/antigravity.svg?url";
 import AtlasCloudIcon from "@src/assets/modelIcons/atlascloud.svg";
 import AugmentIcon from "@src/assets/modelIcons/augment.svg";
 import AutoHandIcon from "@src/assets/modelIcons/autohand.svg";
 import AWSIcon from "@src/assets/modelIcons/aws.svg";
-import AzureIcon from "@src/assets/modelIcons/azure.svg";
-import BaichuanIcon from "@src/assets/modelIcons/baichuan.svg";
-import ByteDanceIcon from "@src/assets/modelIcons/bytedance.svg";
-import CherryInIcon from "@src/assets/modelIcons/cherryin.svg";
-import ClaudeIcon from "@src/assets/modelIcons/claude.svg";
+import AzureIcon from "@src/assets/modelIcons/azure.svg?url";
+import BaichuanIcon from "@src/assets/modelIcons/baichuan.svg?url";
+import ByteDanceIcon from "@src/assets/modelIcons/bytedance.svg?url";
+import CherryInIcon from "@src/assets/modelIcons/cherryin.svg?url";
+import ClaudeIcon from "@src/assets/modelIcons/claude.svg?url";
 import ClineIcon from "@src/assets/modelIcons/cline.svg";
-import CohereIcon from "@src/assets/modelIcons/cohere.svg";
+import CohereIcon from "@src/assets/modelIcons/cohere.svg?url";
 import ContinueIcon from "@src/assets/modelIcons/continue.svg";
 import CopilotIcon from "@src/assets/modelIcons/copilot.svg";
 import CursorIcon from "@src/assets/modelIcons/cursor.svg";
 import CustomGatewayIcon from "@src/assets/modelIcons/custom.svg";
-import DeepSeekIcon from "@src/assets/modelIcons/deepseek.svg";
-import DevinIcon from "@src/assets/modelIcons/devin.svg";
-import DoubaoIcon from "@src/assets/modelIcons/doubao.svg";
+import DeepSeekIcon from "@src/assets/modelIcons/deepseek.svg?url";
+import DevinIcon from "@src/assets/modelIcons/devin.svg?url";
+import DoubaoIcon from "@src/assets/modelIcons/doubao.svg?url";
 import DroidIcon from "@src/assets/modelIcons/droid.svg";
 import GeminiIcon from "@src/assets/modelIcons/gemini";
 import GooseIcon from "@src/assets/modelIcons/goose.svg";
 import GrokIcon from "@src/assets/modelIcons/grok.svg";
 import GroqIcon from "@src/assets/modelIcons/groq.svg";
 import HermesIcon from "@src/assets/modelIcons/hermes.svg";
-import HunyuanIcon from "@src/assets/modelIcons/hunyuan.svg";
+import HunyuanIcon from "@src/assets/modelIcons/hunyuan.svg?url";
 import InfinityAgentIcon from "@src/assets/modelIcons/infinity-agent.svg";
 import KiloIcon from "@src/assets/modelIcons/kilo.svg";
-import KimiIcon from "@src/assets/modelIcons/kimi.svg";
-import KiroIcon from "@src/assets/modelIcons/kiro.svg";
-import LlamaCppIcon from "@src/assets/modelIcons/llama-cpp.svg";
+import KimiIcon from "@src/assets/modelIcons/kimi.svg?url";
+import KiroIcon from "@src/assets/modelIcons/kiro.svg?url";
+import LlamaCppIcon from "@src/assets/modelIcons/llama-cpp.svg?url";
 import LmStudioIcon from "@src/assets/modelIcons/lmstudio.svg";
 import LongCatIcon from "@src/assets/modelIcons/longcat.svg";
-import MetaIcon from "@src/assets/modelIcons/meta.svg";
-import MinimaxIcon from "@src/assets/modelIcons/minimax.svg";
-import MistralIcon from "@src/assets/modelIcons/mistral.svg";
-import ModelScopeIcon from "@src/assets/modelIcons/modelscope.svg";
-import NvidiaIcon from "@src/assets/modelIcons/nvidia.svg";
+import MetaIcon from "@src/assets/modelIcons/meta.svg?url";
+import MinimaxIcon from "@src/assets/modelIcons/minimax.svg?url";
+import MistralIcon from "@src/assets/modelIcons/mistral.svg?url";
+import ModelScopeIcon from "@src/assets/modelIcons/modelscope.svg?url";
+import NvidiaIcon from "@src/assets/modelIcons/nvidia.svg?url";
 import OllamaIcon from "@src/assets/modelIcons/ollama.svg";
-import OmpIcon from "@src/assets/modelIcons/omp.svg";
+import OmpIcon from "@src/assets/modelIcons/omp.svg?url";
 import OpenAIIcon from "@src/assets/modelIcons/openai.svg";
-import OpenClawIcon from "@src/assets/modelIcons/openclaw.svg";
+import OpenClawIcon from "@src/assets/modelIcons/openclaw.svg?url";
 import OpenCodeIcon from "@src/assets/modelIcons/opencode.svg";
 import OpenRouterIcon from "@src/assets/modelIcons/openrouter.svg";
-import OrgiiIcon from "@src/assets/modelIcons/org2-session.svg";
-import PerplexityIcon from "@src/assets/modelIcons/perplexity.svg";
-import PiIcon from "@src/assets/modelIcons/pi.svg";
+import OrgiiIcon from "@src/assets/modelIcons/org2-session.svg?url";
+import PerplexityIcon from "@src/assets/modelIcons/perplexity.svg?url";
+import PiIcon from "@src/assets/modelIcons/pi.svg?url";
 import QoderIcon from "@src/assets/modelIcons/qoder.svg";
-import QwenIcon from "@src/assets/modelIcons/qwen.svg";
-import RovoIcon from "@src/assets/modelIcons/rovo.svg";
-import SiliconFlowIcon from "@src/assets/modelIcons/siliconflow.svg";
+import QwenIcon from "@src/assets/modelIcons/qwen.svg?url";
+import RovoIcon from "@src/assets/modelIcons/rovo.svg?url";
+import SiliconFlowIcon from "@src/assets/modelIcons/siliconflow.svg?url";
 import TraeIcon from "@src/assets/modelIcons/trae.svg";
-import VllmIcon from "@src/assets/modelIcons/vllm.svg";
-import VolcengineIcon from "@src/assets/modelIcons/volcengine.svg";
+import VllmIcon from "@src/assets/modelIcons/vllm.svg?url";
+import VolcengineIcon from "@src/assets/modelIcons/volcengine.svg?url";
 import WarpIcon from "@src/assets/modelIcons/warp.svg";
 import WindsurfIcon from "@src/assets/modelIcons/windsurf.svg";
-import WorkBuddyIcon from "@src/assets/modelIcons/workbuddy.svg";
+import WorkBuddyIcon from "@src/assets/modelIcons/workbuddy.svg?url";
 import XaiIcon from "@src/assets/modelIcons/xai.svg";
-import XiaomiIcon from "@src/assets/modelIcons/xiaomi.svg";
+import XiaomiIcon from "@src/assets/modelIcons/xiaomi.svg?url";
 import YiIcon from "@src/assets/modelIcons/yi.svg";
 import ZcodeIcon from "@src/assets/modelIcons/zcode.svg";
 import ZenMuxIcon from "@src/assets/modelIcons/zenmux.svg";
-import ZhipuIcon from "@src/assets/modelIcons/zhipu.svg";
+import ZhipuIcon from "@src/assets/modelIcons/zhipu.svg?url";
 
 // ============================================
 // Types
@@ -167,11 +173,16 @@ export type IconProvider =
 // Icon Map
 // ============================================
 
-/** Maps icon providers to their corresponding SVG icon components */
-export const ICON_MAP: Record<
-  IconProvider,
-  FC<SVGProps<SVGSVGElement>> | undefined
-> = {
+/**
+ * A provider glyph is either a URL to brand artwork with its own palette,
+ * drawn through `<img>` so it costs no JS module, or, for marks authored in
+ * `currentColor`, the svgr component that inherits the surrounding text color.
+ * `config.test.ts` checks each import against the SVG's own content.
+ */
+export type ModelIconSource = string | FC<SVGProps<SVGSVGElement>>;
+
+/** Maps icon providers to their glyph source (asset URL or svgr component) */
+export const ICON_MAP: Record<IconProvider, ModelIconSource | undefined> = {
   // CLI agents (active)
   cursor: CursorIcon,
   windsurf: WindsurfIcon,
@@ -418,7 +429,59 @@ export function isIconProvider(value: string): value is IconProvider {
 export function getIconComponent(
   provider: IconProvider
 ): FC<SVGProps<SVGSVGElement>> | undefined {
-  return ICON_MAP[provider];
+  const source = ICON_MAP[provider];
+  return source === undefined ? undefined : toIconComponent(source);
+}
+
+const urlIconComponents = new Map<string, FC<SVGProps<SVGSVGElement>>>();
+
+/**
+ * Adapt a glyph source to the svgr component shape callers already render
+ * (`<Icon width height className style />`). URL sources get a memoized
+ * `<img>` component so identity stays stable across renders.
+ */
+export function toIconComponent(
+  source: ModelIconSource
+): FC<SVGProps<SVGSVGElement>> {
+  if (typeof source !== "string") return source;
+  const cached = urlIconComponents.get(source);
+  if (cached) return cached;
+  // Pass the remaining props through so wrappers that tag the glyph
+  // (`agentIcons.tsx` sets data-icon / data-brand) keep working; only the
+  // SVG-paint props that mean nothing on an <img> are dropped.
+  const UrlIcon = forwardRef<SVGSVGElement, SVGProps<SVGSVGElement>>(
+    (
+      {
+        width,
+        height,
+        className,
+        style,
+        fill: _fill,
+        stroke: _stroke,
+        strokeWidth: _strokeWidth,
+        color: _color,
+        viewBox: _viewBox,
+        ...rest
+      },
+      ref
+    ) =>
+      createElement("img", {
+        ...rest,
+        src: source,
+        width,
+        height,
+        className,
+        style,
+        alt: "",
+        "aria-hidden": "true",
+        draggable: false,
+        ref: ref as unknown as Ref<HTMLImageElement>,
+      })
+  );
+  UrlIcon.displayName = "UrlModelIcon";
+  const component = UrlIcon as unknown as FC<SVGProps<SVGSVGElement>>;
+  urlIconComponents.set(source, component);
+  return component;
 }
 
 /**
