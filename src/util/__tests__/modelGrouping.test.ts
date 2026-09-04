@@ -7,6 +7,19 @@ import {
 } from "../modelGrouping";
 
 describe("groupModels", () => {
+  it("groups Astra separately from other GPT tiers and keeps it current", () => {
+    const models = [
+      "gpt-6-astra",
+      "gpt-6-astra-high",
+      "gpt-6-astra-ultra-fast",
+    ];
+    const groups = groupModels([...models, "gpt-5.6-sol", "gpt-6"]);
+    const astra = groups.find((group) => group.label === "GPT 6 Astra");
+    expect(astra).toMatchObject({ sortVersion: 600, models });
+    expect(isLegacyGroup(astra!)).toBe(false);
+    expect(groups).toHaveLength(3);
+  });
+
   it("groups Claude models by version (claude-3-5-sonnet-20241022 → Sonnet 3.5)", () => {
     const groups = groupModels(["claude-3-5-sonnet-20241022"]);
     expect(groups).toHaveLength(1);

@@ -59,6 +59,7 @@ const GPT_TIER_PREFIXES = [
   "nano",
   "mini",
   "codex",
+  "astra",
   "sol",
   "terra",
   "luna",

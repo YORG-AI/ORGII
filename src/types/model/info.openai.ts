@@ -1,7 +1,7 @@
 /**
  * Model Info — OpenAI (GPT & o-series)
  *
- * Pattern-matched registry entries for GPT-4.x/5.x and the o1/o3/o4 reasoning line.
+ * Pattern-matched registry entries for GPT-4.x/5.x/6 and the o1/o3/o4 reasoning line.
  *
  * Extracted verbatim from `info.ts` during modularization; consumed by
  * `getModelInfo` in `@src/types/model/info`. See that file for the
@@ -11,6 +11,20 @@ import type { ModelInfoEntry } from "@src/types/model/info.types";
 
 export const OPENAI_MODEL_INFO_ENTRIES: ModelInfoEntry[] = [
   // ─── OpenAI (GPT & o-series) ──────────────────────────────
+  // https://developers.openai.com/api/docs/models/gpt-6-astra
+  {
+    pattern: "gpt-6-astra",
+    info: {
+      provider: "OpenAI",
+      providerKey: "openai",
+      contextWindow: 1050,
+      maxOutput: 128,
+      vision: true,
+      reasoning: true,
+      strengthKeys: ["longContext", "reasoning", "coding"],
+      pricingTier: "premium",
+    },
+  },
   {
     pattern: "gpt-5.5",
     info: {

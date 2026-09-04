@@ -353,6 +353,86 @@ fn codex_key_info_exposes_requested_gpt_effort_and_speed_variants() {
 }
 
 #[test]
+fn astra_fallback_catalog_and_saved_account_expose_the_same_efforts() {
+    use crate::commands::crud::KeyInfo;
+    use crate::commands::validate::{resolved_oauth_catalog, OAuthModelCatalogSource};
+    use crate::key_store::{AuthMethod, ModelKey, ModelType};
+
+    let catalog = resolved_oauth_catalog("codex", vec![], OAuthModelCatalogSource::Fallback)
+        .expect("fallback catalog");
+    assert!(catalog.models.iter().any(|model| model == "gpt-6-astra"));
+    let mut key = ModelKey::new(ModelType::Codex);
+    key.auth_method = AuthMethod::Oauth;
+    key.available_models = catalog.models.clone();
+    let saved = KeyInfo::from(key);
+
+    for variants in [&catalog.model_variants, &saved.model_variants] {
+        let astra: Vec<_> = variants
+            .iter()
+            .filter(|variant| variant.base_model == "gpt-6-astra")
+            .collect();
+        assert_eq!(astra.len(), 12);
+        for fast in [false, true] {
+            assert_eq!(
+                astra
+                    .iter()
+                    .filter(|variant| variant.fast == fast)
+                    .map(|variant| variant.reasoning.as_deref().unwrap())
+                    .collect::<Vec<_>>(),
+                vec!["low", "medium", "high", "xhigh", "max", "ultra"]
+            );
+        }
+    }
+    for defaults in [&catalog.default_variants, &saved.default_variants] {
+        assert!(defaults
+            .iter()
+            .any(|variant| variant.base_model == "gpt-6-astra"
+                && variant.model == "gpt-6-astra-medium"));
+    }
+}
+
+#[test]
+fn astra_live_catalog_keeps_provider_efforts_context_and_default() {
+    use crate::commands::validate::{resolved_oauth_catalog, OAuthModelCatalogSource};
+    use crate::types::DiscoveredModel;
+
+    let catalog = resolved_oauth_catalog(
+        "codex",
+        vec![DiscoveredModel {
+            id: "gpt-6-astra".to_string(),
+            context_window: Some(256_000),
+            supported_efforts: vec!["low".to_string(), "high".to_string()],
+            default_effort: Some("high".to_string()),
+            ..DiscoveredModel::default()
+        }],
+        OAuthModelCatalogSource::Live,
+    )
+    .unwrap();
+    assert_eq!(
+        catalog
+            .models
+            .iter()
+            .filter(|model| *model == "gpt-6-astra")
+            .count(),
+        1
+    );
+    let variants: Vec<_> = catalog
+        .model_variants
+        .iter()
+        .filter(|variant| variant.base_model == "gpt-6-astra")
+        .collect();
+    assert_eq!(variants.len(), 4);
+    assert!(variants
+        .iter()
+        .all(|variant| variant.context_window == Some(256_000)
+            && matches!(variant.reasoning.as_deref(), Some("low" | "high"))));
+    assert!(catalog
+        .default_variants
+        .iter()
+        .any(|variant| variant.base_model == "gpt-6-astra" && variant.model == "gpt-6-astra-high"));
+}
+
+#[test]
 fn codex_gpt_5_6_exposes_max_and_limits_ultra_to_sol_and_terra() {
     use crate::commands::crud::KeyInfo;
     use crate::key_store::{AuthMethod, ModelKey, ModelType};

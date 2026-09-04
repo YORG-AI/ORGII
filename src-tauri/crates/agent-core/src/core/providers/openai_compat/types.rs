@@ -51,6 +51,7 @@ pub(crate) fn chat_token_limit_field_hint(
 ) -> crate::providers::openai_policy::ChatTokenLimitField {
     let model_lower = model.to_lowercase();
     if model_lower.starts_with("gpt-5")
+        || model_lower.starts_with("gpt-6-astra")
         || model_lower.starts_with("o1")
         || model_lower.starts_with("o3")
         || model_lower.starts_with("o4")

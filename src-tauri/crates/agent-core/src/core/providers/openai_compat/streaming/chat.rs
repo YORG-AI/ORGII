@@ -270,7 +270,7 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
-    async fn gpt_5_6_upper_efforts_reach_both_chat_transports() {
+    async fn gpt_upper_efforts_reach_both_chat_transports() {
         crate::test_support::install_crypto_provider_for_tests();
         let server = MockServer::start().await;
         Mock::given(method("POST"))
@@ -290,7 +290,7 @@ mod tests {
                     }))
                 }
             })
-            .expect(12)
+            .expect(16)
             .mount(&server)
             .await;
 
@@ -305,7 +305,12 @@ mod tests {
             "gpt-5.6-sol".to_string(),
         );
         let messages = [serde_json::json!({"role": "user", "content": "hello"})];
-        for base in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] {
+        for base in [
+            "gpt-6-astra",
+            "gpt-5.6-sol",
+            "gpt-5.6-terra",
+            "gpt-5.6-luna",
+        ] {
             for effort in ["xhigh", "max"] {
                 for stream in [false, true] {
                     let model = format!("{base}-{effort}");
@@ -329,6 +334,9 @@ mod tests {
                         stream
                     );
                     assert!(body.get("thinking").is_none());
+                    assert!(body.get("temperature").is_none());
+                    assert!(body.get("max_tokens").is_none());
+                    assert_eq!(body["max_completion_tokens"], 1024);
                 }
             }
         }

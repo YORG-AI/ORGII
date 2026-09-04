@@ -245,6 +245,12 @@ const FAMILY_RULES: &[FamilyRule] = &[
         thinking: ThinkingSupport::AlwaysOn,
     },
     // ── OpenAI ──
+    // https://developers.openai.com/api/docs/models/gpt-6-astra
+    FamilyRule {
+        pattern: "gpt-6-astra",
+        context_window: 1_050_000,
+        thinking: ThinkingSupport::AlwaysOn,
+    },
     FamilyRule {
         pattern: "gpt-5.6",
         context_window: 1_050_000,
@@ -692,6 +698,7 @@ pub enum ModelFamily {
 const FAMILY_TABLE: &[(&str, ModelFamily)] = &[
     ("claude", ModelFamily::Anthropic),
     ("glm", ModelFamily::Zhipu),
+    ("gpt-6-astra", ModelFamily::OpenAi),
     ("gpt-5", ModelFamily::OpenAi),
     ("o1", ModelFamily::OpenAi),
     ("o3", ModelFamily::OpenAi),

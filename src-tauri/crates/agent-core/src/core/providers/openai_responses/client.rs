@@ -156,6 +156,10 @@ mod tests {
     #[test]
     fn build_responses_request_preserves_upper_efforts_on_the_wire() {
         for (base, efforts) in [
+            (
+                "gpt-6-astra",
+                &["low", "medium", "high", "xhigh", "max"][..],
+            ),
             ("gpt-5.4", &["xhigh"][..]),
             ("gpt-5.5", &["xhigh"][..]),
             ("gpt-5.6-sol", &["xhigh", "max"][..]),
@@ -176,6 +180,8 @@ mod tests {
                     assert_eq!(body["model"], base);
                     assert_eq!(body["reasoning"]["effort"], *effort);
                     assert_eq!(body["stream"], stream);
+                    assert!(body.get("temperature").is_none());
+                    assert!(body.get("top_p").is_none());
                 }
             }
         }

@@ -114,7 +114,12 @@ impl CodexNativeClient {
     fn codex_supports_fast_service_tier(model: &str) -> bool {
         matches!(
             model,
-            "gpt-5.6-sol" | "gpt-5.6-terra" | "gpt-5.6-luna" | "gpt-5.5" | "gpt-5.4"
+            "gpt-6-astra"
+                | "gpt-5.6-sol"
+                | "gpt-5.6-terra"
+                | "gpt-5.6-luna"
+                | "gpt-5.5"
+                | "gpt-5.4"
         )
     }
 
@@ -353,7 +358,12 @@ mod tests {
     #[test]
     fn build_responses_request_preserves_effort_and_ultra_mode_on_the_wire() {
         let messages = [json!({"role": "system", "content": "Keep workspace edits scoped."})];
-        for base in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] {
+        for base in [
+            "gpt-6-astra",
+            "gpt-5.6-sol",
+            "gpt-5.6-terra",
+            "gpt-5.6-luna",
+        ] {
             let efforts: &[&str] = if base == "gpt-5.6-luna" {
                 &["low", "medium", "high", "xhigh", "max"]
             } else {
