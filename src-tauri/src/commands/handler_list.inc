@@ -16,7 +16,6 @@ app_window::commands::set_window_vibrancy,
 app_window::commands::set_main_webview_zoom,
 app_window::commands::set_webview_zoom,
 app_window::commands::remove_window_background,
-app_window::commands::set_window_root_tint,
 app_window::commands::main_window_chrome_is_acrylic,
 app_window::commands::open_session_window,
 // Optional sidecar commands - lazy install after first paint
