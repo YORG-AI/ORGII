@@ -1,9 +1,9 @@
 //! CLI command building and parser creation for each CLI agent type (ModelType).
 
-use crate::agent_sessions::cli::parsers::antigravity::AntigravityParser;
 use crate::agent_sessions::cli::parsers::claude_code::ClaudeCodeParser;
 use crate::agent_sessions::cli::parsers::codex::CodexParser;
 use crate::agent_sessions::cli::parsers::cursor::CursorParser;
+use crate::agent_sessions::cli::parsers::plain_text::PlainTextParser;
 use crate::agent_sessions::cli::parsers::CliAgentParser;
 use crate::agent_sessions::cli::session_runner::launch_profiles::{
     defaults_for_agent, static_args_to_vec, uses_codex_app_server, ResolvedCliLaunchProfile,
@@ -221,7 +221,8 @@ pub(super) fn build_command_with_launch_profile(
         | ModelType::Omp
         | ModelType::Pi
         | ModelType::QoderCli
-        | ModelType::TraeCli => {
+        | ModelType::TraeCli
+        | ModelType::DeepseekHarness => {
             if !task.is_empty() {
                 cmd.push(task.into());
             }
@@ -401,7 +402,9 @@ pub(super) fn create_parser(agent: &ModelType, session_id: &str) -> Box<dyn CliA
         ModelType::CursorCli => Box::new(CursorParser::new(session_id)),
         ModelType::ClaudeCode => Box::new(ClaudeCodeParser::new(session_id)),
         ModelType::Codex => Box::new(CodexParser::new(session_id)),
-        ModelType::Antigravity => Box::new(AntigravityParser::new(session_id)),
+        ModelType::Antigravity | ModelType::DeepseekHarness => {
+            Box::new(PlainTextParser::new(session_id))
+        }
         other => panic!(
             "ModelType::{:?} does not use CliAgentParser (Copilot/Kiro/OpenCode use ACP; API providers are not CLI agents)",
             other

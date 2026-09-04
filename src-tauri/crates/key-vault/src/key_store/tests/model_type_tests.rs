@@ -19,6 +19,7 @@ fn cli_agents_are_cli_agents() {
         ModelType::OpenCode,
         ModelType::QoderCli,
         ModelType::TraeCli,
+        ModelType::DeepseekHarness,
     ];
     for t in &cli_types {
         assert!(t.is_cli_agent(), "{:?} should be a CLI agent", t);
@@ -127,6 +128,7 @@ fn as_str_round_trips_through_from_str() {
         ModelType::OpenCode,
         ModelType::QoderCli,
         ModelType::TraeCli,
+        ModelType::DeepseekHarness,
         ModelType::AnthropicApi,
         ModelType::OpenaiApi,
         ModelType::AtlascloudApi,

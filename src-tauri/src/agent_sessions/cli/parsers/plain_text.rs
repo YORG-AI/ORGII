@@ -1,21 +1,21 @@
-//! Antigravity CLI `--print` output parser.
+//! Plain-text CLI output parser.
 //!
-//! Antigravity's non-interactive mode writes the final assistant response as
-//! plain text. It does not expose Gemini CLI's former `stream-json` protocol,
-//! so buffer stdout and emit one complete assistant chunk when the process
-//! exits.
+//! Some non-interactive harness profiles, including Antigravity `--print` and
+//! DeepSeek Harness `--profile headless`, write only the final assistant
+//! response to stdout. Buffer it and emit one complete assistant chunk when
+//! the process exits.
 
 use core_types::activity::ActivityChunk;
 
 use super::types::TokenUsage;
 use super::CliAgentParser;
 
-pub struct AntigravityParser {
+pub struct PlainTextParser {
     session_id: String,
     output: String,
 }
 
-impl AntigravityParser {
+impl PlainTextParser {
     pub fn new(session_id: &str) -> Self {
         Self {
             session_id: session_id.to_string(),
@@ -24,7 +24,7 @@ impl AntigravityParser {
     }
 }
 
-impl CliAgentParser for AntigravityParser {
+impl CliAgentParser for PlainTextParser {
     fn parse_line(&mut self, line: &str) -> Vec<ActivityChunk> {
         if !self.output.is_empty() {
             self.output.push('\n');
@@ -68,7 +68,7 @@ mod tests {
 
     #[test]
     fn buffers_plain_text_until_exit() {
-        let mut parser = AntigravityParser::new("session-1");
+        let mut parser = PlainTextParser::new("session-1");
         assert!(parser.parse_line("First line").is_empty());
         assert!(parser.parse_line("Second line").is_empty());
 

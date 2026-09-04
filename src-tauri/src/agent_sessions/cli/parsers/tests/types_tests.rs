@@ -74,6 +74,7 @@ fn cli_agent_type_parse_roundtrip() {
         CliAgentType::Copilot,
         CliAgentType::QoderCli,
         CliAgentType::TraeCli,
+        CliAgentType::DeepseekHarness,
     ] {
         assert_eq!(
             CliAgentType::parse(platform.as_str()),

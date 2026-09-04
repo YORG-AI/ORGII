@@ -156,13 +156,18 @@ pub(crate) fn cli_env_config(name: &str) -> Option<AgentEnvConfig> {
             // MiMo's hosted Anthropic-compatible endpoint.
             Some("https://api.xiaomimimo.com/anthropic"),
         )),
+        "deepseek_harness" => Some(cfg(
+            "DEEPSEEK_API_KEY",
+            Some("DEEPSEEK_BASE_URL"),
+            true,
+            "codeAccounts.apiKeyPlaceholder.deepseek_harness",
+            Some("https://api.deepseek.com"),
+        )),
         // Agents without a single universal API-key env var for ORGII to inject.
         // Some are subscription-token based, while others require provider-specific
         // config files or auth stores instead of one standard env-config path.
         "aug" | "droid" | "autohand" | "omp" | "pi" | "open_claw" | "openclaw" | "antigravity"
-        | "opencode" | "qoder_cli" | "trae_cli" => {
-            None
-        }
+        | "opencode" | "qoder_cli" | "trae_cli" => None,
         // The caller iterates `cli_agent_registry()` entries, so a CLI
         // agent that ships in the registry but has no env config here
         // would silently let the API-key dialog render with no env-var

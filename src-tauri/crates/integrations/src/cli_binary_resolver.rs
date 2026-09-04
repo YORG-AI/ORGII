@@ -44,6 +44,7 @@ pub enum CliBinaryId {
     Pi,
     QoderCli,
     TraeCli,
+    DeepseekHarness,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -310,6 +311,13 @@ const CLI_BINARY_METADATA: &[CliBinaryMetadata] = &[
         command: "trae-cli",
         launchable: true,
     },
+    CliBinaryMetadata {
+        id: CliBinaryId::DeepseekHarness,
+        row_id: "deepseek-harness",
+        display_name: "DeepSeek Harness",
+        command: "dsh",
+        launchable: true,
+    },
 ];
 
 pub fn all_cli_binary_metadata() -> &'static [CliBinaryMetadata] {
@@ -361,6 +369,7 @@ pub fn id_for_registry_name(name: &str) -> Option<CliBinaryId> {
         "pi" => Some(CliBinaryId::Pi),
         "qoder_cli" => Some(CliBinaryId::QoderCli),
         "trae_cli" => Some(CliBinaryId::TraeCli),
+        "deepseek_harness" => Some(CliBinaryId::DeepseekHarness),
         _ => None,
     }
 }
@@ -900,9 +909,10 @@ mod tests {
     }
 
     #[test]
-    fn qoder_and_trae_use_their_published_executable_names() {
+    fn recent_cli_agents_use_their_published_executable_names() {
         assert_eq!(metadata_for_id(CliBinaryId::QoderCli).command, "qodercli");
         assert_eq!(metadata_for_id(CliBinaryId::TraeCli).command, "trae-cli");
+        assert_eq!(metadata_for_id(CliBinaryId::DeepseekHarness).command, "dsh");
     }
 
     #[test]

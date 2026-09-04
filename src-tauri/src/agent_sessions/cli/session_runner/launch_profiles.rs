@@ -144,6 +144,7 @@ pub fn cli_binary_id_for_agent(agent: &ModelType) -> Option<CliBinaryId> {
         ModelType::Pi => Some(CliBinaryId::Pi),
         ModelType::QoderCli => Some(CliBinaryId::QoderCli),
         ModelType::TraeCli => Some(CliBinaryId::TraeCli),
+        ModelType::DeepseekHarness => Some(CliBinaryId::DeepseekHarness),
         _ => None,
     }
 }
@@ -385,6 +386,11 @@ pub const CLI_LAUNCH_PROFILE_DEFAULTS: &[CliLaunchProfileDefaults] = &[
         command_args: &["interactive"],
         mode_defaults: mode_defaults![Manual => (&[], &[])],
     },
+    CliLaunchProfileDefaults {
+        agent_type: ModelType::DeepseekHarness,
+        command_args: &["--profile", "headless"],
+        mode_defaults: mode_defaults![Manual => (&[], &[])],
+    },
 ];
 
 pub fn defaults_for_agent(agent_type: &ModelType) -> Option<&'static CliLaunchProfileDefaults> {
@@ -498,6 +504,17 @@ mod tests {
     fn trae_cli_starts_in_interactive_mode() {
         let defaults = defaults_for_agent(&ModelType::TraeCli).expect("Trae CLI defaults");
         assert_eq!(defaults.command_args, &["interactive"]);
+        assert_eq!(
+            supported_permission_modes(defaults),
+            vec![CliPermissionMode::Manual]
+        );
+    }
+
+    #[test]
+    fn deepseek_harness_uses_the_headless_profile_for_gui_runs() {
+        let defaults =
+            defaults_for_agent(&ModelType::DeepseekHarness).expect("DeepSeek Harness defaults");
+        assert_eq!(defaults.command_args, &["--profile", "headless"]);
         assert_eq!(
             supported_permission_modes(defaults),
             vec![CliPermissionMode::Manual]
