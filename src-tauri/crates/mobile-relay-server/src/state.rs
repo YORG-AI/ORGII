@@ -122,13 +122,6 @@ impl RelayState {
         }
     }
 
-    pub fn desktop_token_matches(&self, candidate: &str) -> bool {
-        constant_time_eq(
-            hash_token(&self.config.desktop_token).as_bytes(),
-            hash_token(candidate).as_bytes(),
-        )
-    }
-
     pub async fn create_pairing(
         &self,
         desktop_id: String,
@@ -372,7 +365,10 @@ mod tests {
         let config = RelayConfig {
             listen_addr: "127.0.0.1:0".parse().expect("listen address"),
             database_path: directory.path().join("relay.sqlite3"),
-            desktop_token: "123456789012345678901234".to_string(),
+            desktop_token: Some("123456789012345678901234".to_string()),
+            desktop_token_fallback: true,
+            supabase_url: "https://project.supabase.co".to_string(),
+            supabase_anon_key: "anon".to_string(),
             public_ws_url: "ws://127.0.0.1:8787/v1/mobile/ws".to_string(),
             public_app_url: "http://127.0.0.1:8787/orgii/mobile".to_string(),
             pairing_ttl_seconds: 120,

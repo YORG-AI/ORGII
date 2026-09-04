@@ -41,7 +41,8 @@ export const MOBILE_REMOTE_SETTINGS_REGISTRY = {
   "mobileRemote.desktopToken": {
     schema: z.string(),
     default: "",
-    description: "Desktop access token configured on the self-hosted relay",
+    description:
+      "Legacy desktop access token for local orgii-mobile-relay dev. Production relay auth uses ORG2 Cloud login instead.",
     category: "mobileRemote",
   },
   "mobileRemote.allowLanExposure": {

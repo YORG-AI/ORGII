@@ -7,16 +7,22 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use axum::http::header::AUTHORIZATION;
 use futures_util::{SinkExt, StreamExt};
 use mobile_relay_protocol::{PermissionTier, RelayWireFrame, DESKTOP_WS_PATH};
 use serde::Serialize;
 use serde_json::Value;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+use tokio_tungstenite::tungstenite::http::HeaderValue;
+use tokio_tungstenite::tungstenite::http::StatusCode;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_util::sync::CancellationToken;
+use tauri::Emitter;
 
 use super::auth::{self, MobileRemoteSettings};
+use super::org2_cloud_auth::{self, SESSION_EXPIRED_MESSAGE};
 use super::fanout;
 use super::rpc::{self, MobileTier, RpcContext};
 
@@ -25,6 +31,7 @@ const RELAY_OUTBOUND_CAPACITY: usize = 256;
 const MAX_RELAY_FRAME_BYTES: usize = 1024 * 1024;
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 const MAX_BACKOFF_SECONDS: u64 = 30;
+pub const RELAY_AUTH_REFRESH_EVENT: &str = "mobile-relay-auth-refresh-needed";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelaySettings {
@@ -32,7 +39,13 @@ pub struct RelaySettings {
     pub relay_enabled: bool,
     pub relay_url: String,
     pub desktop_id: String,
-    pub desktop_token: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RelayConnectionPlan {
+    ws_url: String,
+    desktop_id: String,
+    access_token: String,
 }
 
 impl RelaySettings {
@@ -42,7 +55,6 @@ impl RelaySettings {
             relay_enabled: bool_setting(value, "mobileRemote.relayEnabled"),
             relay_url: string_setting(value, "mobileRemote.relayUrl"),
             desktop_id: string_setting(value, "mobileRemote.desktopId"),
-            desktop_token: string_setting(value, "mobileRemote.desktopToken"),
         }
     }
 
@@ -52,16 +64,14 @@ impl RelaySettings {
             .unwrap_or_else(|_| Self::from_value(&Value::Null))
     }
 
-    fn connection_url(&self) -> Result<String, String> {
+    fn connection_plan(&self) -> Result<RelayConnectionPlan, String> {
         if self.relay_url.trim().is_empty() {
             return Err("relay URL is required".to_string());
         }
         if self.desktop_id.trim().is_empty() {
             return Err("desktop identity is not configured".to_string());
         }
-        if self.desktop_token.trim().len() < 24 {
-            return Err("desktop relay token must contain at least 24 characters".to_string());
-        }
+        let access_token = org2_cloud_auth::current_access_token()?;
         let mut url = url::Url::parse(self.relay_url.trim())
             .map_err(|err| format!("invalid relay URL: {err}"))?;
         if !matches!(url.scheme(), "ws" | "wss") {
@@ -70,9 +80,12 @@ impl RelaySettings {
         url.set_path(DESKTOP_WS_PATH);
         url.set_query(None);
         url.query_pairs_mut()
-            .append_pair("desktopId", self.desktop_id.trim())
-            .append_pair("token", self.desktop_token.trim());
-        Ok(url.to_string())
+            .append_pair("desktopId", self.desktop_id.trim());
+        Ok(RelayConnectionPlan {
+            ws_url: url.to_string(),
+            desktop_id: self.desktop_id.trim().to_string(),
+            access_token,
+        })
     }
 }
 
@@ -108,6 +121,7 @@ impl Default for RelayStatus {
 }
 
 static SETTINGS_TX: OnceLock<watch::Sender<RelaySettings>> = OnceLock::new();
+static CLOUD_AUTH_TX: OnceLock<watch::Sender<u64>> = OnceLock::new();
 static STATUS: OnceLock<Arc<RwLock<RelayStatus>>> = OnceLock::new();
 static SHUTDOWN: OnceLock<CancellationToken> = OnceLock::new();
 
@@ -116,14 +130,16 @@ pub fn start() {
         return;
     }
     let (settings_tx, settings_rx) = watch::channel(RelaySettings::load());
+    let (cloud_auth_tx, cloud_auth_rx) = watch::channel(0_u64);
     if SETTINGS_TX.set(settings_tx).is_err() {
         return;
     }
+    let _ = CLOUD_AUTH_TX.set(cloud_auth_tx);
     let status = STATUS
         .get_or_init(|| Arc::new(RwLock::new(RelayStatus::default())))
         .clone();
     let shutdown = SHUTDOWN.get_or_init(CancellationToken::new).clone();
-    tauri::async_runtime::spawn(supervise(settings_rx, status, shutdown));
+    tauri::async_runtime::spawn(supervise(settings_rx, cloud_auth_rx, status, shutdown));
 }
 
 pub fn shutdown() {
@@ -138,6 +154,19 @@ pub fn notify_settings_changed(value: &Value) {
     }
 }
 
+pub fn notify_cloud_auth_changed() {
+    if let Some(sender) = CLOUD_AUTH_TX.get() {
+        sender.send_modify(|generation| *generation = generation.saturating_add(1));
+    }
+}
+
+pub fn request_auth_refresh() {
+    if let Some(handle) = crate::api::get_app_handle() {
+        let _ = handle.emit(RELAY_AUTH_REFRESH_EVENT, ());
+    }
+    notify_cloud_auth_changed();
+}
+
 pub fn current_status() -> RelayStatus {
     STATUS
         .get_or_init(|| Arc::new(RwLock::new(RelayStatus::default())))
@@ -148,6 +177,7 @@ pub fn current_status() -> RelayStatus {
 
 async fn supervise(
     mut settings_rx: watch::Receiver<RelaySettings>,
+    mut cloud_auth_rx: watch::Receiver<u64>,
     status: Arc<RwLock<RelayStatus>>,
     shutdown: CancellationToken,
 ) {
@@ -164,17 +194,19 @@ async fn supervise(
             set_status(&status, RelayPhase::Disabled, None, 0, None);
             tokio::select! {
                 _ = settings_rx.changed() => continue,
+                _ = cloud_auth_rx.changed() => continue,
                 _ = shutdown.cancelled() => continue,
             }
         }
 
-        let connection_url = match current.connection_url() {
-            Ok(url) => url,
+        let connection_plan = match current.connection_plan() {
+            Ok(plan) => plan,
             Err(message) => {
                 reconnect_attempt = 0;
                 set_status(&status, RelayPhase::ConfigError, Some(message), 0, None);
                 tokio::select! {
                     _ = settings_rx.changed() => continue,
+                    _ = cloud_auth_rx.changed() => continue,
                     _ = shutdown.cancelled() => continue,
                 }
             }
@@ -187,10 +219,11 @@ async fn supervise(
             reconnect_attempt,
             None,
         );
-        let run = run_connection(connection_url, current.desktop_id.clone(), status.clone());
+        let run = run_connection(connection_plan, status.clone());
         let error = tokio::select! {
             result = run => Some(result.err().unwrap_or_else(|| "relay connection closed".to_string())),
             _ = settings_rx.changed() => None,
+            _ = cloud_auth_rx.changed() => None,
             _ = shutdown.cancelled() => None,
         };
         if error.is_none() {
@@ -207,21 +240,27 @@ async fn supervise(
         tokio::select! {
             _ = tokio::time::sleep(delay) => {}
             _ = settings_rx.changed() => reconnect_attempt = 0,
+            _ = cloud_auth_rx.changed() => reconnect_attempt = 0,
             _ = shutdown.cancelled() => {}
         }
     }
 }
 
 async fn run_connection(
-    connection_url: String,
-    desktop_id: String,
+    plan: RelayConnectionPlan,
     status: Arc<RwLock<RelayStatus>>,
 ) -> Result<(), String> {
-    let (socket, _) = tokio_tungstenite::connect_async(connection_url)
+    let request = build_websocket_request(&plan)?;
+    let (socket, response) = tokio_tungstenite::connect_async(request)
         .await
         .map_err(|err| format!("connect to relay: {err}"))?;
+    if response.status() == StatusCode::UNAUTHORIZED {
+        request_auth_refresh();
+        return Err(SESSION_EXPIRED_MESSAGE.to_string());
+    }
     set_status(&status, RelayPhase::Online, None, 0, Some(now_ms()));
 
+    let desktop_id = plan.desktop_id;
     let (mut writer, mut reader) = socket.split();
     let (outbound_tx, mut outbound_rx) = mpsc::channel::<Message>(RELAY_OUTBOUND_CAPACITY);
     let mut actors: HashMap<String, MobileActor> = HashMap::new();
@@ -401,6 +440,25 @@ async fn send_desktop_frame(
         .map_err(|_| ())
 }
 
+fn build_websocket_request(
+    plan: &RelayConnectionPlan,
+) -> Result<tokio_tungstenite::tungstenite::http::Request<()>, String> {
+    let mut url = url::Url::parse(&plan.ws_url).map_err(|err| format!("invalid relay URL: {err}"))?;
+    url.query_pairs_mut()
+        .append_pair("token", plan.access_token.trim());
+    let mut request = url
+        .as_str()
+        .into_client_request()
+        .map_err(|err| format!("build relay websocket request: {err}"))?;
+    let bearer = format!("Bearer {}", plan.access_token.trim());
+    request.headers_mut().insert(
+        AUTHORIZATION,
+        HeaderValue::from_str(&bearer)
+            .map_err(|err| format!("invalid ORG2 Cloud access token: {err}"))?,
+    );
+    Ok(request)
+}
+
 fn enabled_rpc_settings() -> MobileRemoteSettings {
     let mut settings = auth::load_settings();
     settings.enabled = true;
@@ -465,29 +523,67 @@ fn string_setting(value: &Value, key: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    const VALID_AUTH: &str = r#"{
+        "kind":"org2_cloud",
+        "supabaseUrl":"https://example.supabase.co",
+        "supabaseAnonKey":"anon",
+        "userId":"user-1",
+        "accessToken":"cloud-access-token",
+        "refreshToken":"refresh",
+        "expiresAt":4102444800
+    }"#;
+
+    fn write_auth_store(dir: &TempDir) {
+        let store = serde_json::json!({
+            org2_cloud_auth::ORG2_CLOUD_AUTH_STORAGE_KEY: VALID_AUTH,
+        });
+        fs::write(
+            dir.path().join("shared-service-auth.json"),
+            store.to_string(),
+        )
+        .expect("write store");
+        std::env::set_var(
+            "ORGII_TEST_SHARED_AUTH_STORE",
+            dir.path().join("shared-service-auth.json"),
+        );
+    }
 
     #[test]
     fn settings_are_flat_keys_like_the_settings_registry() {
+        let dir = TempDir::new().expect("tempdir");
+        write_auth_store(&dir);
         let value = serde_json::json!({
             "mobileRemote.enabled": true,
             "mobileRemote.relayEnabled": true,
             "mobileRemote.relayUrl": "wss://relay.example.com/v1/mobile/ws",
             "mobileRemote.desktopId": "desktop-a",
-            "mobileRemote.desktopToken": "123456789012345678901234",
         });
         let settings = RelaySettings::from_value(&value);
         assert!(settings.enabled);
         assert!(settings.relay_enabled);
         assert_eq!(settings.desktop_id, "desktop-a");
-        let url = settings.connection_url().expect("connection URL");
-        assert!(url.starts_with("wss://relay.example.com/v1/desktop/ws?"));
-        assert!(url.contains("desktopId=desktop-a"));
+        let plan = settings.connection_plan().expect("connection plan");
+        assert!(plan.ws_url.starts_with("wss://relay.example.com/v1/desktop/ws?"));
+        assert!(plan.ws_url.contains("desktopId=desktop-a"));
+        assert_eq!(plan.access_token, "cloud-access-token");
+        let request = build_websocket_request(&plan).expect("request");
+        assert_eq!(
+            request
+                .headers()
+                .get(AUTHORIZATION)
+                .and_then(|value| value.to_str().ok()),
+            Some("Bearer cloud-access-token")
+        );
+        std::env::remove_var("ORGII_TEST_SHARED_AUTH_STORE");
     }
 
     #[test]
-    fn disabled_or_incomplete_settings_do_not_form_connection_url() {
+    fn disabled_or_incomplete_settings_do_not_form_connection_plan() {
         let settings = RelaySettings::from_value(&Value::Null);
-        assert!(settings.connection_url().is_err());
+        assert!(settings.connection_plan().is_err());
     }
 
     #[test]

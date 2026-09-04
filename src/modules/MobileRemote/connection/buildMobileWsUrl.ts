@@ -13,6 +13,9 @@ export function buildMobileWsUrl(config: MobileConnectionConfig): string {
     if (config.pairingCode?.trim()) {
       url.searchParams.set("pairingCode", config.pairingCode.trim());
     }
+    if (config.deviceLabel?.trim()) {
+      url.searchParams.set("deviceLabel", config.deviceLabel.trim());
+    }
     return url.toString();
   }
   const host = config.host?.trim();

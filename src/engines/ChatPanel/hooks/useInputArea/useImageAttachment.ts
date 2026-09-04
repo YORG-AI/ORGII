@@ -23,26 +23,13 @@ import {
 } from "@src/store/ui/chatImageAtom";
 import { optimizeImage } from "@src/util/optimization/imageOptimizer";
 
+import {
+  isChatImageFile,
+  prepareChatImageFile,
+  resolveChatImageMimeType,
+} from "./imageExtensions";
+
 const log = createLogger("ImageAttachment");
-
-/** Accepted image MIME types */
-const ACCEPTED_IMAGE_TYPES = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/jpg",
-  "image/gif",
-  "image/webp",
-]);
-
-/** Map file extension → MIME type for Tauri-dropped paths (no File.type). */
-const EXTENSION_MIME: Record<string, string> = {
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  gif: "image/gif",
-  webp: "image/webp",
-  svg: "image/svg+xml",
-};
 
 function basename(path: string): string {
   const parts = path.split(/[/\\]/).filter(Boolean);
@@ -50,9 +37,7 @@ function basename(path: string): string {
 }
 
 function mimeFromPath(path: string): string | undefined {
-  const match = path.toLowerCase().match(/\.([a-z0-9]+)$/);
-  if (!match) return undefined;
-  return EXTENSION_MIME[match[1]];
+  return resolveChatImageMimeType(new File([], basename(path))) ?? undefined;
 }
 
 export function useImageAttachment(ownerId?: string) {
@@ -102,8 +87,11 @@ export function useImageAttachment(ownerId?: string) {
       const newAttachments: ChatImageAttachment[] = [];
 
       for (const file of filesToProcess) {
+        const prepared = prepareChatImageFile(file);
+        if (!prepared) continue;
+
         try {
-          const result = await optimizeImage(file, {
+          const result = await optimizeImage(prepared, {
             maxWidth: 1920,
             maxHeight: 1080,
             quality: 0.85,
@@ -113,7 +101,7 @@ export function useImageAttachment(ownerId?: string) {
           newAttachments.push({
             id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             dataUrl: result.dataUrl,
-            fileName: file.name || "pasted-image.png",
+            fileName: prepared.name || "pasted-image.png",
             size: result.optimizedSize,
             width: result.finalDimensions.width,
             height: result.finalDimensions.height,
@@ -134,9 +122,7 @@ export function useImageAttachment(ownerId?: string) {
 
   const handleImagePaste = useCallback(
     async (files: File[]) => {
-      const validFiles = files.filter((file) =>
-        ACCEPTED_IMAGE_TYPES.has(file.type)
-      );
+      const validFiles = files.filter(isChatImageFile);
       await ingestFiles(validFiles);
     },
     [ingestFiles]
@@ -218,9 +204,9 @@ export function useImageAttachment(ownerId?: string) {
   const handleImagePath = useCallback(
     async (path: string, fileName?: string) => {
       const mime = mimeFromPath(path);
-      if (!mime || !ACCEPTED_IMAGE_TYPES.has(mime)) {
+      if (!mime) {
         // Silently ignore unsupported image types (e.g. .svg) — matches the
-        // paste path, which also filters by ACCEPTED_IMAGE_TYPES.
+        // paste path, which also filters by chat image support.
         return;
       }
 

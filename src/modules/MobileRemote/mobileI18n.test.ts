@@ -54,5 +54,19 @@ describe("mobileI18n", () => {
     expect(mobileI18n.t("common:tooltips.startVoiceInput")).toBe(
       "Start voice input"
     );
+    expect(
+      mobileI18n.t("input.voiceErrorPermissionIosPwa", { ns: "sessions" })
+    ).toContain("ORGII Mobile");
+  });
+
+  it("resolves voice permission copy in Chinese", async () => {
+    await mobileI18nReady;
+    await mobileI18n.changeLanguage("zh");
+    expect(
+      mobileI18n.t("input.voiceErrorPermissionIosPwa", { ns: "sessions" })
+    ).toContain("ORGII Mobile");
+    expect(
+      mobileI18n.t("input.voicePermissionSheetTitle", { ns: "sessions" })
+    ).toBe("需要麦克风权限");
   });
 });

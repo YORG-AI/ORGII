@@ -20,6 +20,7 @@ import {
   createMobileRpcClient,
   toMobileRpcError,
 } from "../connection/mobileRpcClient";
+import { resolveMobileDeviceLabel } from "../connection/resolveMobileDeviceLabel";
 import type {
   InitializeResult,
   MobileConnectionConfig,
@@ -639,7 +640,10 @@ export function MobileRemoteProviders({
 
   const establishConnection = useCallback(
     async (config: MobileConnectionConfig, generation: number) => {
-      const socket = new WebSocket(buildMobileWsUrl(config));
+      const deviceLabel =
+        config.deviceLabel?.trim() || resolveMobileDeviceLabel();
+      const transportConfig = { ...config, deviceLabel };
+      const socket = new WebSocket(buildMobileWsUrl(transportConfig));
       let authenticated = false;
       let intentionalClose = false;
       socketRef.current = socket;
@@ -665,7 +669,7 @@ export function MobileRemoteProviders({
           protocolVersion: 1,
           clientInfo: { name: "orgii-mobile-pwa", version: "0.1.0" },
           capabilities: { interactions: ["permission"], streaming: true },
-          deviceLabel: config.deviceLabel ?? "ORGII Mobile",
+          deviceLabel,
         });
         if (generation !== generationRef.current) {
           intentionalClose = true;

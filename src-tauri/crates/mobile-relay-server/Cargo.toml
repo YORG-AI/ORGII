@@ -10,11 +10,13 @@ axum = { workspace = true }
 base64 = { workspace = true }
 futures-util = "0.3"
 mobile-relay-protocol = { path = "../mobile-relay-protocol" }
+reqwest = { workspace = true }
 rusqlite = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 tokio = { workspace = true }
+tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "tls12", "ring"] }
 tower-http = { version = "0.6", features = ["cors", "limit", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }

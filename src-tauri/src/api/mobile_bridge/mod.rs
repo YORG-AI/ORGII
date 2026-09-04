@@ -3,6 +3,7 @@
 pub mod adapters;
 pub mod auth;
 pub mod commands;
+pub mod org2_cloud_auth;
 pub mod fanout;
 pub mod relay;
 pub mod rpc;

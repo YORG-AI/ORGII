@@ -390,6 +390,7 @@ api::mobile_bridge::commands::mobile_remote_set_primary_desktop,
 api::mobile_bridge::commands::mobile_remote_set_relay_url,
 api::mobile_bridge::commands::mobile_remote_get_relay_url,
 api::mobile_bridge::commands::mobile_remote_relay_status,
+api::mobile_bridge::commands::mobile_remote_notify_cloud_auth_changed,
 api::mobile_bridge::commands::mobile_remote_sync_sidebar_sessions,
 // Code session commands (spawn CLI agents, manage sessions)
 agent_sessions::cli::commands::cli_agent_create,
