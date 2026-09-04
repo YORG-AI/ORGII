@@ -74,8 +74,14 @@ pub fn needs_prompt_title_repair(text: &str) -> bool {
     is_generated_prompt_envelope(text) || text.contains(ATTACHED_IMAGE_INSTRUCTION)
 }
 
-/// Project transport-generated prompt wrappers to the user-authored request.
-pub fn project_user_request_text(text: &str) -> String {
+/// Strip transport-generated prompt wrappers and return the user-authored
+/// request body **with its original formatting intact**.
+///
+/// Replayed message bodies are rendered as markdown, so line breaks,
+/// indentation, and fenced code blocks the user typed are load-bearing and
+/// must survive. Callers that need a one-line label want
+/// [`project_user_request_text`] instead.
+pub fn extract_user_request_body(text: &str) -> String {
     let mut projected = strip_internal_context_blocks(text).to_string();
     for (open_prefix, close_tag) in GENERATED_CONTEXT_TAGS {
         while let Some(start) = projected.find(open_prefix) {
@@ -103,7 +109,20 @@ pub fn project_user_request_text(text: &str) -> String {
         .find(ATTACHED_IMAGE_INSTRUCTION)
         .map(|index| &body[..index])
         .unwrap_or(body);
-    body.split_whitespace().collect::<Vec<_>>().join(" ")
+    body.trim().to_string()
+}
+
+/// Project transport-generated prompt wrappers to a single-line title.
+///
+/// Titles render on one line, so every whitespace run — including the user's
+/// own newlines — is collapsed to a single space. This is correct for session
+/// names and wrong for message bodies; use [`extract_user_request_body`] for
+/// anything the user reads back as their own prompt.
+pub fn project_user_request_text(text: &str) -> String {
+    extract_user_request_body(text)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Resolve a provider sidebar name while preserving real user-set titles.
@@ -1097,5 +1116,41 @@ mod impact_tests {
             .with_result(json!({"success": true, "status": "failed"}));
 
         assert_eq!(impact_from_edit_chunks(&[failed]).files_changed, 0);
+    }
+}
+
+#[cfg(test)]
+mod user_request_projection_tests {
+    use super::*;
+
+    const MULTI_LINE_PROMPT: &str =
+        "Update the loader.\n\n```rust\nfn load() {\n    todo!();\n}\n```\n\n  keep this indented";
+
+    #[test]
+    fn body_extraction_keeps_user_formatting_while_dropping_the_envelope() {
+        let wrapped = format!(
+            "<orgii_cli_exec_mode_bridge>\nbriefing\n</orgii_cli_exec_mode_bridge>\n## My request:\n{MULTI_LINE_PROMPT}"
+        );
+
+        assert_eq!(extract_user_request_body(&wrapped), MULTI_LINE_PROMPT);
+        // An unwrapped prompt is returned untouched apart from edge trimming.
+        assert_eq!(
+            extract_user_request_body(MULTI_LINE_PROMPT),
+            MULTI_LINE_PROMPT
+        );
+    }
+
+    #[test]
+    fn title_projection_still_collapses_the_request_to_one_line() {
+        let wrapped = "<orgii_cli_exec_mode_bridge>\nbriefing\n</orgii_cli_exec_mode_bridge>\n## My request:\nUpdate the loader.\n\n```rust\nfn load() {}\n```";
+
+        assert_eq!(
+            project_user_request_text(wrapped),
+            "Update the loader. ```rust fn load() {} ```"
+        );
+        assert_eq!(
+            resolve_imported_session_name(wrapped, "", "fallback", 80),
+            "Update the loader. ```rust fn load() {} ```"
+        );
     }
 }
