@@ -15,6 +15,8 @@ import CodeMirror from "@uiw/react-codemirror";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { KeyboardShortcut } from "@src/components/KeyboardShortcut";
+import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import type { TableInfo } from "@src/engines/DatabaseCore";
 import { createLogger } from "@src/hooks/logger";
 import {
@@ -254,8 +256,7 @@ export const SqlQueryEditor: React.FC<SqlQueryEditorProps> = memo(
         {/* Keyboard hint */}
         <div className="absolute right-3 bottom-2 flex items-center gap-1 text-xs text-text-4">
           <span>{t("sqlEditor.press")}</span>
-          <kbd className="rounded bg-fill-2 px-1.5 py-0.5">⌘</kbd>
-          <kbd className="rounded bg-fill-2 px-1.5 py-0.5">↵</kbd>
+          <KeyboardShortcut shortcut={getShortcutKeys("db_run_query")} />
           <span>{t("sqlEditor.toRun")}</span>
         </div>
       </div>

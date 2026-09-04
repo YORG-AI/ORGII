@@ -22,6 +22,26 @@ describe("KeyboardShortcut", () => {
 
     expect(markup).toContain("Ctrl");
   });
+
+  it("renders every key in a chord inside one rounded pill", async () => {
+    setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)");
+    const { KeyboardShortcut } = await import("./index");
+
+    const markup = renderToStaticMarkup(
+      createElement(KeyboardShortcut, {
+        shortcut: "Cmd+2",
+        className: "external-spacing",
+      })
+    );
+
+    expect(markup.match(/<kbd/g)).toHaveLength(1);
+    expect(markup).toContain(
+      '<div class="flex items-center external-spacing"><kbd'
+    );
+    expect(markup).toContain("rounded-full");
+    expect(markup).toContain('data-icon="command"');
+    expect(markup).toContain(">2</span>");
+  });
 });
 
 describe("KeyboardShortcutTooltipContent", () => {

@@ -13,7 +13,6 @@ import {
   KEYBOARD_SHORTCUT_VARIANT,
   KeyboardShortcut,
 } from "@src/components/KeyboardShortcut";
-import { ArrowDown02Icon, ArrowUp02Icon, HugeiconsIcon } from "@src/icons";
 
 // ============ TYPES ============
 
@@ -69,25 +68,10 @@ export const SpotlightFooter: React.FC<SpotlightFooterProps> = ({
   const inner = (
     <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 px-4 py-2 text-[11px] text-text-2">
       <span className="flex items-center gap-1.5">
-        {/* `↑↓` stays as a hand-rolled paired pill: the shared
-            KeyboardShortcut component renders one pill per key, but the
-            macOS convention is to show navigation arrows joined inside a
-            single pill. Background/height match the spotlightFooter
-            variant so the look is consistent. */}
-        <kbd className="flex h-[18px] items-center gap-0.5 rounded bg-fill-3 px-1.5 leading-none font-medium text-text-2">
-          <HugeiconsIcon
-            icon={ArrowUp02Icon}
-            data-icon="arrow-up"
-            size={10}
-            strokeWidth={2}
-          />
-          <HugeiconsIcon
-            icon={ArrowDown02Icon}
-            data-icon="arrow-down"
-            size={10}
-            strokeWidth={2}
-          />
-        </kbd>
+        <KeyboardShortcut
+          shortcut="up down"
+          variant={KEYBOARD_SHORTCUT_VARIANT.spotlightFooter}
+        />
         <span>{t("selectors.spotlightFooter.navigate")}</span>
       </span>
 

@@ -25,43 +25,6 @@ const MAC_MODIFIERS = new Set(["⌘", "⌥", "⇧", "⌃"]);
 const DEFAULT_ICON_SIZE = 14;
 
 /**
- * Tokens (case-insensitive) that `renderKeyContent` renders as an icon glyph.
- * These always get the square 24×24 pill regardless of token length, so
- * `"Enter"` and `"↵"` render identically.
- */
-const ICON_RENDERED_TOKENS = new Set([
-  "↑",
-  "↓",
-  "←",
-  "→",
-  "arrowup",
-  "arrowdown",
-  "arrowleft",
-  "arrowright",
-  "enter",
-  "return",
-  "↵",
-  "⏎",
-  "⮐",
-  "⌫",
-  "backspace",
-  "delete",
-  "space",
-  "⌘",
-  "command",
-  "cmd",
-  "⌥",
-  "option",
-  "opt",
-  "alt",
-  "⇧",
-  "shift",
-  "⌃",
-  "control",
-  "ctrl",
-]);
-
-/**
  * Render special keys with icon glyphs
  */
 function renderKeyContent(
@@ -249,13 +212,11 @@ interface KeyBadgeProps {
   keys: string;
   /** Icon size for modifier keys */
   iconSize?: number;
-  /** Single pill (toolbar) vs multiple kbd elements (settings table) */
+  /** Compact inherited styling vs the settings-table presentation */
   variant?: "compact" | "default";
   /**
-   * Render a visible `+` between adjacent key pills (e.g. `⌘ + ⌥ + →`).
-   * Defaults to `true` for the legible toolbar look; set `false` when the
-   * surrounding context already makes the chord obvious (e.g. the
-   * Settings Shortcuts table).
+   * Render a visible `+` between tokens inside the joined shortcut pill.
+   * Set `false` for the compact Codex-style chord presentation.
    */
   showSeparator?: boolean;
   className?: string;
@@ -294,6 +255,7 @@ const KeyBadge: React.FC<KeyBadgeProps> = ({
   }
 
   const keyParts = parseKeys(keys);
+  if (keyParts.length === 0) return null;
 
   if (variant === "compact") {
     return (
@@ -312,27 +274,16 @@ const KeyBadge: React.FC<KeyBadgeProps> = ({
     );
   }
 
-  // Per-pill sizing: tokens that render as an icon glyph, plus any
-  // single-character key, get a fixed 24×24 square. Multi-character text
-  // labels (`Esc`, `Tab`) get horizontal padding instead. Keeping these
-  // two rules in sync with `ICON_RENDERED_TOKENS` ensures `"Enter"` and
-  // `"↵"` always render in the same pill shape.
-  const isIconPill = (part: string): boolean =>
-    ICON_RENDERED_TOKENS.has(part.toLowerCase()) || part.length === 1;
-
   return (
-    <div className="inline-flex items-center gap-0.5">
+    <kbd
+      className={`inline-flex h-6 shrink-0 items-center justify-center gap-0.5 rounded-full bg-fill-2 px-2 text-xs leading-none font-medium text-text-2 ${className ?? ""}`}
+      style={style}
+    >
       {keyParts.map((part, index) => (
         <React.Fragment key={index}>
-          <kbd
-            className={
-              isIconPill(part)
-                ? "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-border-2 bg-bg-2 text-xs font-medium text-text-1"
-                : "inline-flex h-6 min-w-[24px] items-center justify-center rounded border border-border-2 bg-bg-2 px-1.5 text-xs font-medium text-text-1"
-            }
-          >
+          <span className="inline-flex items-center justify-center">
             {renderKeyContent(part, iconSize)}
-          </kbd>
+          </span>
           {showSeparator &&
             index < keyParts.length - 1 &&
             keyParts[index + 1] !== "+" && (
@@ -340,7 +291,7 @@ const KeyBadge: React.FC<KeyBadgeProps> = ({
             )}
         </React.Fragment>
       ))}
-    </div>
+    </kbd>
   );
 };
 
