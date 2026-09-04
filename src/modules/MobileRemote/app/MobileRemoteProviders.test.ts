@@ -1022,4 +1022,208 @@ describe("MobileRemoteProviders send lifecycle", () => {
       await pendingSend;
     });
   });
+  describe("permission prompts", () => {
+    /** Flat wire event: no `payload` wrapper, `origin` on the envelope. */
+    function flatPermissionEnvelope(
+      requestId: string,
+      origin: "cli_hook" | "acp" = "cli_hook",
+      sessionId = "session-a"
+    ) {
+      return {
+        type: "permission:request",
+        session_id: sessionId,
+        sessionId,
+        requestId,
+        toolName: "Bash",
+        toolCallId: requestId,
+        toolArgs: { command: "pnpm test" },
+        origin,
+      };
+    }
+
+    function emitPermission(envelope: Record<string, unknown>) {
+      act(() => {
+        mocks.notificationHandler?.("orgii/event", {
+          channel: "bus",
+          sessionId: envelope.sessionId,
+          envelope,
+        });
+      });
+    }
+
+    function respondCalls() {
+      return mocks.call.mock.calls.filter(
+        ([method]) => method === "interaction/respond_permission"
+      );
+    }
+
+    it.each(["cli_hook", "acp"] as const)(
+      "surfaces a flat %s prompt and answers it with its origin",
+      async (origin) => {
+        emitPermission(flatPermissionEnvelope("perm-flat", origin));
+
+        expect(latestContext?.activePermission).toMatchObject({
+          requestId: "perm-flat",
+          sessionId: "session-a",
+          toolName: "Bash",
+          origin,
+        });
+
+        await act(async () => {
+          await latestContext!.respondPermission("allow");
+        });
+
+        expect(respondCalls()).toEqual([
+          [
+            "interaction/respond_permission",
+            {
+              sessionId: "session-a",
+              requestId: "perm-flat",
+              response: "allow",
+              origin,
+            },
+          ],
+        ]);
+        expect(latestContext?.activePermission).toBeNull();
+      }
+    );
+
+    it("answers a wrapped native prompt as rust_agent", async () => {
+      emitPermission({
+        type: "permission:request",
+        payload: {
+          sessionId: "session-a",
+          requestId: "perm-native",
+          toolName: "run_shell",
+          toolCallId: "call-native",
+          toolArgs: {},
+        },
+      });
+
+      await act(async () => {
+        await latestContext!.respondPermission("deny");
+      });
+
+      expect(respondCalls()[0]?.[1]).toMatchObject({
+        requestId: "perm-native",
+        response: "deny",
+        origin: "rust_agent",
+      });
+    });
+
+    it("ignores a second tap while the first answer is in flight", async () => {
+      const respondResult = deferred<{ accepted: boolean }>();
+      const baseCall = mocks.call.getMockImplementation()!;
+      mocks.call.mockImplementation(
+        (method: string, params?: Record<string, unknown>) =>
+          method === "interaction/respond_permission"
+            ? respondResult.promise
+            : baseCall(method, params)
+      );
+
+      emitPermission(flatPermissionEnvelope("hookperm-1"));
+      emitPermission(flatPermissionEnvelope("hookperm-2"));
+      expect(latestContext?.permissionQueueDepth).toBe(2);
+
+      // One button, two taps: both use the callback rendered for the head.
+      const respond = latestContext!.respondPermission;
+      let first!: Promise<void>;
+      let second!: Promise<void>;
+      await act(async () => {
+        first = respond("allow");
+        second = respond("allow");
+        await Promise.resolve();
+      });
+
+      expect(respondCalls()).toHaveLength(1);
+      expect(latestContext?.permissionSubmitting).toBe(true);
+      await act(async () => {
+        await second;
+      });
+      expect(latestContext?.permissionQueueDepth).toBe(2);
+
+      await act(async () => {
+        respondResult.resolve({ accepted: true });
+        await first;
+      });
+
+      expect(respondCalls()).toHaveLength(1);
+      expect(latestContext?.permissionQueueDepth).toBe(1);
+      expect(latestContext?.activePermission?.requestId).toBe("hookperm-2");
+      expect(latestContext?.permissionSubmitting).toBe(false);
+    });
+
+    it("keeps a prompt queued when its answer fails", async () => {
+      const respondResult = deferred<{ accepted: boolean }>();
+      const baseCall = mocks.call.getMockImplementation()!;
+      mocks.call.mockImplementation(
+        (method: string, params?: Record<string, unknown>) =>
+          method === "interaction/respond_permission"
+            ? respondResult.promise
+            : baseCall(method, params)
+      );
+      emitPermission(flatPermissionEnvelope("hookperm-retry"));
+
+      let pending!: Promise<void>;
+      await act(async () => {
+        pending = latestContext!.respondPermission("allow");
+        void pending.catch(() => undefined);
+        await Promise.resolve();
+      });
+      await act(async () => {
+        respondResult.reject(new Error("Relay rejected the answer"));
+        await expect(pending).rejects.toThrow("Relay rejected the answer");
+      });
+
+      expect(latestContext?.permissionSubmitting).toBe(false);
+      expect(latestContext?.activePermission?.requestId).toBe("hookperm-retry");
+    });
+
+    it("hides a prompt raised for another session and dismisses a stale head", () => {
+      emitPermission(
+        flatPermissionEnvelope("hookperm-other", "cli_hook", "session-b")
+      );
+      expect(latestContext?.activePermission).toBeNull();
+
+      emitPermission(flatPermissionEnvelope("hookperm-mine"));
+      expect(latestContext?.activePermission?.requestId).toBe("hookperm-mine");
+      expect(latestContext?.permissionQueueDepth).toBe(1);
+
+      act(() => latestContext?.dismissPermissionHead());
+      expect(latestContext?.activePermission).toBeNull();
+      expect(respondCalls()).toEqual([]);
+    });
+
+    it("drops a native prompt the desktop finalized", () => {
+      emitPermission({
+        type: "permission:request",
+        payload: {
+          sessionId: "session-a",
+          requestId: "perm-native",
+          toolName: "run_shell",
+          toolCallId: "call-native",
+          toolArgs: {},
+        },
+      });
+      expect(latestContext?.activePermission).not.toBeNull();
+
+      act(() => {
+        mocks.notificationHandler?.("orgii/event", {
+          channel: "bus",
+          sessionId: "session-a",
+          envelope: {
+            type: "agent:interaction_finalized",
+            payload: {
+              sessionId: "session-a",
+              toolCallId: "call-native",
+              tool: "run_shell",
+              status: "answered",
+            },
+          },
+        });
+      });
+
+      expect(latestContext?.activePermission).toBeNull();
+    });
+  });
 });

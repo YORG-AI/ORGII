@@ -36,3 +36,27 @@ pub fn resolve_agent_mode(mode: Option<&str>) -> Result<crate::session::AgentExe
             .ok_or_else(|| format!("Unknown agent exec mode: {value:?}")),
     }
 }
+
+/// Wire mode a Mobile Remote send should submit, given the session's persisted
+/// `agent_exec_mode`.
+///
+/// The phone has no ModePill, so unlike the desktop composer — which always
+/// sends the session's persisted mode — it has no mode of its own to send.
+/// Passing `None` straight through to [`resolve_agent_mode`] would take the
+/// historical `Build` wire default, which is wrong twice over: a session the
+/// user deliberately parked in `Plan` / `Ask` would run the phone's turn with
+/// full write access, and `send_message_impl` would then overwrite
+/// `last_non_plan_mode_cache` with `Build` and corrupt the desktop's
+/// plan-restore target. Inherit the persisted mode instead.
+///
+/// A missing, blank, or unparseable stored value falls back to `None` so the
+/// historical wire default still applies — an unrecognized DB string must not
+/// hard-fail a send the way an unrecognized wire value does, because the phone
+/// never chose it.
+pub(super) fn mobile_remote_wire_mode(persisted_agent_exec_mode: Option<&str>) -> Option<String> {
+    persisted_agent_exec_mode
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .and_then(crate::session::AgentExecMode::parse)
+        .map(|mode| mode.as_str().to_string())
+}

@@ -196,6 +196,26 @@ impl DeviceStore {
         .await
         .map_err(|err| format!("touch device task: {err}"))?
     }
+
+    pub async fn update_label(
+        &self,
+        device_id: String,
+        label: String,
+    ) -> Result<bool, String> {
+        let store = self.clone();
+        tokio::task::spawn_blocking(move || {
+            store.with_connection(|conn| {
+                conn.execute(
+                    "UPDATE paired_devices SET label = ?2
+                      WHERE device_id = ?1 AND revoked_at_ms IS NULL",
+                    params![device_id, label],
+                )
+                .map(|changed| changed > 0)
+            })
+        })
+        .await
+        .map_err(|err| format!("update device label task: {err}"))?
+    }
 }
 
 pub fn hash_token(raw_token: &str) -> String {
@@ -276,6 +296,27 @@ mod tests {
             .await
             .expect("lookup revoked")
             .is_none());
+    }
+
+    #[tokio::test]
+    async fn update_label_changes_active_device_name() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let store = DeviceStore::open(dir.path().join("relay.sqlite3")).expect("store");
+        store
+            .activate_device(device("device-1"), "raw-secret".to_string())
+            .await
+            .expect("activate");
+
+        assert!(store
+            .update_label("device-1".to_string(), "iPhone".to_string())
+            .await
+            .expect("update"));
+
+        let listed = store
+            .list_active("desktop-a".to_string())
+            .await
+            .expect("list");
+        assert_eq!(listed[0].label, "iPhone");
     }
 
     #[test]

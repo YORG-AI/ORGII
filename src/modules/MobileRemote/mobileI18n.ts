@@ -51,9 +51,23 @@ const enSupport = {
       permissionPrompt: "Your permission is needed",
       commandConfirmTitle: "Command Requires Approval",
       remoteExecutionNotice: "This action will run on {{desktopName}}.",
+      permissionDismiss: "Dismiss on this device",
       allow: "Allow",
       deny: "Deny",
       alwaysAllow: "Always Allow",
+    },
+    input: {
+      voiceErrorPermission:
+        "Microphone permission denied. Enable it in your OS settings.",
+      voiceErrorPermissionIosSafari:
+        "Microphone access denied. Open Settings → Safari → Microphone, then return and try again.",
+      voiceErrorPermissionIosPwa:
+        "Microphone access denied. Open Settings → ORGII Mobile → Microphone, then return and try again.",
+      voiceErrorUnsupported: "Voice input is not supported in this build.",
+      voiceErrorAudio: "No microphone detected.",
+      voiceErrorGeneric: "Voice input failed. Please try again.",
+      voicePermissionSheetTitle: "Microphone access needed",
+      voicePermissionSheetRetry: "Try again",
     },
   },
 };
@@ -119,9 +133,22 @@ const zhSupport = {
       permissionPrompt: "需要你的授权",
       commandConfirmTitle: "命令需要审批",
       remoteExecutionNotice: "此操作将在 {{desktopName}} 上运行。",
+      permissionDismiss: "在此设备上忽略",
       allow: "允许",
       deny: "拒绝",
       alwaysAllow: "始终允许",
+    },
+    input: {
+      voiceErrorPermission: "麦克风权限被拒绝。请在系统设置中启用。",
+      voiceErrorPermissionIosSafari:
+        "麦克风权限被拒绝。请打开 设置 → Safari → 麦克风，然后返回重试。",
+      voiceErrorPermissionIosPwa:
+        "麦克风权限被拒绝。请打开 设置 → ORGII Mobile → 麦克风，然后返回重试。",
+      voiceErrorUnsupported: "当前版本不支持语音输入。",
+      voiceErrorAudio: "未检测到麦克风。",
+      voiceErrorGeneric: "语音输入失败，请重试。",
+      voicePermissionSheetTitle: "需要麦克风权限",
+      voicePermissionSheetRetry: "重试",
     },
   },
 };

@@ -45,10 +45,12 @@ export function SessionChatScreen({
     sendStatus,
     activePermission,
     permissionQueueDepth,
+    permissionSubmitting,
     sessionModel,
     sendMessage,
     openSessionFileInDesktop,
     respondPermission,
+    dismissPermissionHead,
     subscribeSession,
     unsubscribeSession,
     selectRound,
@@ -123,16 +125,18 @@ export function SessionChatScreen({
     }
   }, [activeRoundId, retrySelectedRound, sessionId, subscribeSession]);
 
+  // A failed answer leaves the prompt queued so the user can tap again;
+  // swallow the rejection rather than leaking an unhandled promise.
   const handleAllow = useCallback(() => {
-    void respondPermission("allow");
+    void respondPermission("allow").catch(() => undefined);
   }, [respondPermission]);
 
   const handleDeny = useCallback(() => {
-    void respondPermission("deny");
+    void respondPermission("deny").catch(() => undefined);
   }, [respondPermission]);
 
   const handleAlwaysAllow = useCallback(() => {
-    void respondPermission("always_allow");
+    void respondPermission("always_allow").catch(() => undefined);
   }, [respondPermission]);
 
   const handleSelectModel = useCallback(
@@ -222,10 +226,11 @@ export function SessionChatScreen({
         request={permissionOpen ? activePermission : null}
         desktopName={connection.desktopName}
         queueDepth={permissionQueueDepth}
-        submitting={!writable}
+        submitting={!writable || permissionSubmitting}
         onAllow={handleAllow}
         onDeny={handleDeny}
         onAlwaysAllow={handleAlwaysAllow}
+        onDismiss={permissionSubmitting ? undefined : dismissPermissionHead}
       />
     </>
   );

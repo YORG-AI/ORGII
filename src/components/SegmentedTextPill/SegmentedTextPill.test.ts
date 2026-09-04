@@ -36,4 +36,24 @@ describe("SegmentedTextPill", () => {
     expect(markup).toContain("h-5 px-2");
     expect(markup).toContain('aria-label="Position"');
   });
+
+  it("renders no selected segment when value is null", () => {
+    const markup = renderToStaticMarkup(
+      createElement(SegmentedTextPill, {
+        ariaLabel: "Position",
+        onChange: () => undefined,
+        options,
+        value: null,
+      })
+    );
+
+    expect(markup).not.toContain('aria-pressed="true"');
+  });
+
+  it("uses the shared dropdown-soft shadow for the selected segment", () => {
+    const markup = renderPill();
+
+    expect(markup).toContain("shadow-dropdown-soft");
+    expect(markup).toContain("font-medium");
+  });
 });

@@ -12,6 +12,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::org2_cloud_auth::{self, SESSION_EXPIRED_MESSAGE};
 use super::relay::{self, RelaySettings, RelayStatus};
 
 const MAX_MOBILE_SIDEBAR_SESSIONS: usize = 200;
@@ -222,6 +223,12 @@ pub async fn mobile_remote_relay_status() -> Result<RelayStatus, String> {
     Ok(relay::current_status())
 }
 
+#[tauri::command]
+pub async fn mobile_remote_notify_cloud_auth_changed() -> Result<(), String> {
+    relay::notify_cloud_auth_changed();
+    Ok(())
+}
+
 async fn ensure_desktop_identity() -> Result<RelaySettings, String> {
     let current = RelaySettings::load();
     if !current.desktop_id.is_empty() {
@@ -259,16 +266,14 @@ where
     R: DeserializeOwned,
 {
     let endpoint = relay_http_endpoint(config, path)?;
-    if config.desktop_token.len() < 24 {
-        return Err("desktop relay token must contain at least 24 characters".to_string());
-    }
+    let access_token = org2_cloud_auth::current_access_token()?;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .build()
         .map_err(|err| format!("create relay client: {err}"))?;
     let mut request = client
         .request(method, endpoint)
-        .bearer_auth(&config.desktop_token);
+        .bearer_auth(&access_token);
     if let Some(body) = body {
         request = request.json(body);
     }
@@ -281,6 +286,10 @@ where
         .bytes()
         .await
         .map_err(|err| format!("read relay response: {err}"))?;
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        relay::request_auth_refresh();
+        return Err(SESSION_EXPIRED_MESSAGE.to_string());
+    }
     if !status.is_success() {
         let message = serde_json::from_slice::<Value>(&bytes)
             .ok()
@@ -322,7 +331,6 @@ mod tests {
             relay_enabled: true,
             relay_url: url.to_string(),
             desktop_id: "desktop-a".to_string(),
-            desktop_token: "123456789012345678901234".to_string(),
         }
     }
 

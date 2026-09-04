@@ -34,7 +34,7 @@ pnpm run tauri:dev
 
 Tauri starts the webpack dev server through its `beforeDevCommand`, so use the Tauri scripts for normal desktop development.
 
-To try **Mobile Remote** (phone PWA + local relay), see [Mobile Remote dev & production guide](../docs/mobile-remote-dev-prod-guide.md).
+To try **Mobile Remote** in production (phone PWA + Cloudflare Relay), see the [colleague experience guide](../docs/mobile-remote-colleague-guide.md). For local relay / Workers deployment, see [Mobile Remote dev & production guide](../docs/mobile-remote-dev-prod-guide.md).
 
 Copy `config/env.example` to the repository-root `.env` only when you need local configuration. `.env` is gitignored; never commit real secrets.
 

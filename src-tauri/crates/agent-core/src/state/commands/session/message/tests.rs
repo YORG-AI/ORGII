@@ -5,7 +5,9 @@
 //! sessions + a controlled task), so the exec-mode and org-wake helpers are
 //! exercised together here rather than split across their two modules.
 
-use super::exec_mode::{resolve_agent_mode, restore_mode_before_plan_entry};
+use super::exec_mode::{
+    mobile_remote_wire_mode, resolve_agent_mode, restore_mode_before_plan_entry,
+};
 use super::org_wake::{
     promote_agent_org_direct_session_to_running, promote_agent_org_wake_session_to_running,
     resolve_agent_org_wake_mode,
@@ -320,6 +322,62 @@ fn plan_entry_without_prior_non_plan_mode_restores_to_plan() {
 fn plan_entry_after_build_restores_to_build() {
     assert_eq!(
         restore_mode_before_plan_entry(Some(AgentExecMode::Build)),
+        AgentExecMode::Build
+    );
+}
+
+/// A phone send must never promote a session the user parked in a read-only
+/// mode to Build just because the wire payload carries no mode.
+#[test]
+fn mobile_remote_send_inherits_persisted_read_only_mode() {
+    for (persisted, expected) in [
+        ("plan", AgentExecMode::Plan),
+        ("ask", AgentExecMode::Ask),
+        ("review", AgentExecMode::Review),
+        // DB values are parsed case-insensitively and normalized back to the
+        // canonical lowercase wire form.
+        ("Plan", AgentExecMode::Plan),
+    ] {
+        let wire = mobile_remote_wire_mode(Some(persisted));
+        assert_eq!(
+            wire.as_deref(),
+            Some(expected.as_str()),
+            "persisted {persisted:?} should reach the wire as {:?}",
+            expected.as_str()
+        );
+        let resolved = resolve_agent_mode(wire.as_deref()).unwrap();
+        assert_eq!(resolved, expected);
+        assert_ne!(
+            resolved,
+            AgentExecMode::Build,
+            "persisted {persisted:?} must not resolve to Build"
+        );
+    }
+}
+
+/// Sessions with no stored mode keep the historical `Build` wire default.
+#[test]
+fn mobile_remote_send_without_persisted_mode_keeps_build_default() {
+    assert_eq!(mobile_remote_wire_mode(None), None);
+    assert_eq!(
+        resolve_agent_mode(mobile_remote_wire_mode(None).as_deref()).unwrap(),
+        AgentExecMode::Build
+    );
+}
+
+/// A blank or unrecognized DB value is not a mode the phone chose, so it falls
+/// back to the wire default instead of hard-failing the send.
+#[test]
+fn mobile_remote_send_ignores_blank_or_unparseable_persisted_mode() {
+    for persisted in ["", "   ", "plann"] {
+        assert_eq!(
+            mobile_remote_wire_mode(Some(persisted)),
+            None,
+            "persisted {persisted:?} should not reach the wire"
+        );
+    }
+    assert_eq!(
+        resolve_agent_mode(mobile_remote_wire_mode(Some("plann")).as_deref()).unwrap(),
         AgentExecMode::Build
     );
 }

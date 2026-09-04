@@ -153,6 +153,11 @@ export async function getRelayStatus(): Promise<RelayStatus> {
   return result as RelayStatus;
 }
 
+/** Ask the relay supervisor to re-read ORG2 Cloud auth and reconnect. */
+export async function notifyCloudAuthChanged(): Promise<void> {
+  await invoke<unknown>("mobile_remote_notify_cloud_auth_changed");
+}
+
 /**
  * Publish the desktop Sidebar's current local/My Sessions window for mobile.
  * Returns whether the app-lifetime snapshot changed.
@@ -175,6 +180,7 @@ export const mobileRemoteApi = {
   setRelayUrl,
   getRelayUrl,
   getRelayStatus,
+  notifyCloudAuthChanged,
   syncSidebarSessions,
 };
 

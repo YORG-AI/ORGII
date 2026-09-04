@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import BottomSheet from "@src/components/BottomSheet";
 import ComposerBarLayout from "@src/components/ComposerBar/ComposerBarLayout";
 import ComposerSubmitButton from "@src/components/ComposerBar/ComposerSubmitButton";
 import ComposerShell from "@src/components/ComposerShell";
@@ -17,6 +18,7 @@ import {
   INPUT_AREA_EDITOR_HEIGHT,
 } from "@src/config/inputAreaTokens";
 import { type VoiceInputError, useVoiceInput } from "@src/hooks/voice";
+import { resolveVoicePermissionErrorMessage } from "@src/hooks/voice/voicePermissionMessages";
 import type { MobileSendAttachment } from "@src/modules/MobileRemote/connection/types";
 
 import { MobileComposerAttachmentButton } from "./MobileComposerAttachmentButton";
@@ -51,11 +53,14 @@ export function MobileComposer({
   modelPicker,
 }: MobileComposerProps) {
   const { t } = useTranslation("sessions");
+  const { t: tCommon } = useTranslation("common");
   const { t: tVoice } = useTranslation("sessions", { keyPrefix: "input" });
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string>();
   const [voiceError, setVoiceError] = useState<string>();
+  const [voicePermissionSheetOpen, setVoicePermissionSheetOpen] =
+    useState(false);
 
   const handleVoiceCommit = useCallback((transcript: string) => {
     const trimmed = transcript.trim();
@@ -71,9 +76,8 @@ export function MobileComposer({
   const handleVoiceError = useCallback(
     (err: VoiceInputError) => {
       if (err.code === "permission-denied") {
-        setVoiceError(
-          tVoice("voiceErrorPermission", "Microphone permission denied.")
-        );
+        setVoiceError(resolveVoicePermissionErrorMessage(tVoice));
+        setVoicePermissionSheetOpen(true);
       } else if (err.code === "unsupported") {
         setVoiceError(
           tVoice("voiceErrorUnsupported", "Voice input is not supported here.")
@@ -95,6 +99,12 @@ export function MobileComposer({
     onCommit: handleVoiceCommit,
     onError: handleVoiceError,
   });
+
+  const handleVoiceStart = useCallback(() => {
+    setVoiceError(undefined);
+    setVoicePermissionSheetOpen(false);
+    voice.start();
+  }, [voice]);
 
   const attachments = useMobileComposerImages();
 
@@ -121,7 +131,10 @@ export function MobileComposer({
   }, [attachments, disabled, draft, onSend, submitting, t]);
 
   const visibleStatus =
-    attachments.error ?? voiceError ?? submitError ?? statusMessage;
+    attachments.error ??
+    (voicePermissionSheetOpen ? undefined : voiceError) ??
+    submitError ??
+    statusMessage;
   const visibleStatusTone =
     attachments.error || voiceError || submitError ? "error" : statusTone;
   const trimmedDraft = draft.trim();
@@ -218,7 +231,7 @@ export function MobileComposer({
               rightContent={
                 <div className="flex h-7 items-center gap-0.5">
                   <VoiceInputButton
-                    onPressStart={voice.start}
+                    onPressStart={handleVoiceStart}
                     onPressEnd={voice.stop}
                     disabled={disabled || !voice.isSupported}
                   />
@@ -237,6 +250,27 @@ export function MobileComposer({
           </>
         )}
       </ComposerShell>
+      <BottomSheet
+        open={voicePermissionSheetOpen}
+        onClose={() => setVoicePermissionSheetOpen(false)}
+        title={tVoice("voicePermissionSheetTitle", "Microphone access needed")}
+        showCloseButton
+        closeLabel={tCommon("actions.close", "Close")}
+        footer={
+          <button
+            type="button"
+            className="w-full rounded-lg bg-primary-6 px-4 py-2.5 text-sm font-medium text-white"
+            onClick={() => {
+              setVoicePermissionSheetOpen(false);
+              handleVoiceStart();
+            }}
+          >
+            {tVoice("voicePermissionSheetRetry", "Try again")}
+          </button>
+        }
+      >
+        <p className="text-sm leading-relaxed text-text-2">{voiceError}</p>
+      </BottomSheet>
     </div>
   );
 }

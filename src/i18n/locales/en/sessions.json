@@ -875,6 +875,7 @@
     "editingQueuedMessage": "Editing queued message",
     "editingSentMessage": "Editing sent message",
     "voiceErrorPermission": "Microphone permission denied. Enable it in your OS settings.",
+    "voiceErrorPermissionIos": "Microphone access denied. On iPhone: Settings → Safari → Microphone, or Settings → this app if added to Home Screen.",
     "voiceErrorUnsupported": "Voice input is not supported in this build.",
     "voiceErrorAudio": "No microphone detected.",
     "voiceErrorGeneric": "Voice input failed. Please try again.",

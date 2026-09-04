@@ -1,17 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { prepareChatImageFile } from "@src/engines/ChatPanel/hooks/useInputArea/imageExtensions";
 import type { MobileSendAttachment } from "@src/modules/MobileRemote/connection/types";
 import { MAX_CHAT_IMAGES } from "@src/store/ui/chatImageAtom";
 import { optimizeImage } from "@src/util/optimization/imageOptimizer";
-
-const ACCEPTED_IMAGE_TYPES = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/jpg",
-  "image/gif",
-  "image/webp",
-]);
 
 export interface MobileComposerImage {
   id: string;
@@ -30,9 +23,9 @@ export function useMobileComposerImages() {
 
   const ingestFiles = useCallback(
     async (files: File[]) => {
-      const validFiles = files.filter((file) =>
-        ACCEPTED_IMAGE_TYPES.has(file.type)
-      );
+      const validFiles = files
+        .map(prepareChatImageFile)
+        .filter((file): file is File => file !== null);
       if (validFiles.length === 0) {
         if (files.length > 0) {
           setError(t("composer.attachments.unsupportedType"));

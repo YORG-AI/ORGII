@@ -32,6 +32,13 @@ export interface PermissionSheetProps {
   onDeny: () => void;
   onAllow: () => void;
   onAlwaysAllow: () => void;
+  /**
+   * Removes this prompt from the client queue without answering it — the
+   * escape hatch for a prompt the desktop already resolved, cancelled, or
+   * timed out. The managed CLI and ACP registries broadcast nothing when that
+   * happens, so a stale prompt would otherwise sit here indefinitely.
+   */
+  onDismiss?: () => void;
 }
 
 export function PermissionSheet({
@@ -43,6 +50,7 @@ export function PermissionSheet({
   onDeny,
   onAllow,
   onAlwaysAllow,
+  onDismiss,
 }: PermissionSheetProps) {
   const { t } = useTranslation("sessions");
 
@@ -108,6 +116,15 @@ export function PermissionSheet({
         argsPreview={viewModel.argsPreview as PermissionArgPreview[]}
         footerNote={footerNote || undefined}
       />
+      {onDismiss ? (
+        <button
+          type="button"
+          className="mt-3 w-full text-center text-xs text-text-3"
+          onClick={onDismiss}
+        >
+          {t("chat.permissionDismiss", "Dismiss on this device")}
+        </button>
+      ) : null}
     </BottomSheet>
   );
 }

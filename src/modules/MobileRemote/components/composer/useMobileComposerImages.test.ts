@@ -86,6 +86,34 @@ describe("useMobileComposerImages", () => {
     ]);
   });
 
+  it("ingests gallery photos when the browser omits file.type", async () => {
+    await mountHarness();
+    const file = new File(["pixels"], "IMG_0001.JPG", { type: "" });
+
+    await act(async () => {
+      await hookApi().ingestFiles([file]);
+    });
+
+    expect(hookApi().hasImages).toBe(true);
+    expect(hookApi().images).toHaveLength(1);
+    expect(hookApi().error).toBeUndefined();
+  });
+
+  it("ingests HEIC photos from mobile camera roll", async () => {
+    await mountHarness();
+    const file = new File(["pixels"], "IMG_0001.HEIC", {
+      type: "image/heic",
+    });
+
+    await act(async () => {
+      await hookApi().ingestFiles([file]);
+    });
+
+    expect(hookApi().hasImages).toBe(true);
+    expect(hookApi().images).toHaveLength(1);
+    expect(hookApi().error).toBeUndefined();
+  });
+
   it("rejects unsupported file types", async () => {
     await mountHarness();
     const file = new File(["text"], "notes.txt", { type: "text/plain" });
