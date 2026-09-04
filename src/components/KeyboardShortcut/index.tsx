@@ -266,20 +266,14 @@ function SpecialKey({
   }
 }
 
-// All variants render a chip with the glyph centered both axes. Icon glyphs
-// (modifier + single-char special) get a fixed 18×18 square so ⌘/⇧/⌥/⌃ stay
-// uniform with letter keys; multi-character text labels (`esc`, `⇥`) keep
-// horizontal padding so they don't get clipped. Per-variant differences are
-// limited to background shade and text color.
-//
-// Letter chips bump to 13px / semibold so a glyph like "N" matches the
-// optical weight of the adjacent 13px icon glyphs (otherwise "⌘N" reads
-// as a big symbol next to a tiny letter). `leading-none` + flex centering
-// keeps the cap-height glyph perfectly centered in the 18×18 box.
+// A shortcut chord is one joined pill, matching the compact presentation used
+// by Codex. Individual tokens only own their typography; the shared `kbd`
+// owns the background, height, padding, and rounded capsule shape.
 const KEY_CAP_BASE =
-  "inline-flex h-[18px] shrink-0 items-center justify-center rounded font-medium leading-none";
-const KEY_CAP_SQUARE = "w-[18px] text-[13px] font-semibold";
-const KEY_CAP_TEXT = "min-w-[18px] px-1 text-[12px]";
+  "inline-flex h-[18px] shrink-0 items-center justify-center gap-0.5 rounded-full px-1.5 font-medium leading-none";
+const KEY_TOKEN_GLYPH =
+  "inline-flex items-center justify-center text-[13px] font-semibold";
+const KEY_TOKEN_TEXT = "inline-flex items-center justify-center text-[12px]";
 const KEY_CAP_ICON_SIZE = 13;
 
 const KEY_CAP_STYLES: Record<
@@ -317,32 +311,35 @@ export const KeyboardShortcut = memo<KeyboardShortcutProps>(
     const cap = KEY_CAP_STYLES[variant];
 
     return (
-      <div className={`flex items-center gap-0.5 ${className}`}>
-        {tokens.map((token, index) => {
-          const isTextCtrl =
-            token.type === "modifier" && token.modifier === "ctrl" && !IS_MAC;
-          const isSquareGlyph =
-            (token.type === "modifier" && !isTextCtrl) ||
-            (token.type === "special" &&
-              token.special !== "esc" &&
-              token.special !== "tab") ||
-            (token.type === "key" && token.label.length === 1);
-          const shapeClass = isSquareGlyph ? KEY_CAP_SQUARE : KEY_CAP_TEXT;
-          return (
-            <kbd key={index} className={`${cap.kbd} ${shapeClass}`}>
-              {token.type === "modifier" && (
-                <ModifierKey
-                  modifier={token.modifier}
-                  iconSize={cap.iconSize}
-                />
-              )}
-              {token.type === "special" && (
-                <SpecialKey special={token.special} iconSize={cap.iconSize} />
-              )}
-              {token.type === "key" && token.label}
-            </kbd>
-          );
-        })}
+      <div className={`flex items-center ${className}`}>
+        <kbd className={cap.kbd}>
+          {tokens.map((token, index) => {
+            const isTextToken =
+              (token.type === "modifier" &&
+                token.modifier === "ctrl" &&
+                !IS_MAC) ||
+              (token.type === "special" &&
+                (token.special === "esc" || token.special === "tab")) ||
+              (token.type === "key" && token.label.length > 1);
+            return (
+              <span
+                key={index}
+                className={isTextToken ? KEY_TOKEN_TEXT : KEY_TOKEN_GLYPH}
+              >
+                {token.type === "modifier" && (
+                  <ModifierKey
+                    modifier={token.modifier}
+                    iconSize={cap.iconSize}
+                  />
+                )}
+                {token.type === "special" && (
+                  <SpecialKey special={token.special} iconSize={cap.iconSize} />
+                )}
+                {token.type === "key" && token.label}
+              </span>
+            );
+          })}
+        </kbd>
       </div>
     );
   }
