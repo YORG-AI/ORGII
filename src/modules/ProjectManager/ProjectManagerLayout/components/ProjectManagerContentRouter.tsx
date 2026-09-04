@@ -1,6 +1,7 @@
 import React, { Suspense, useMemo } from "react";
 
 import { Placeholder } from "@src/components/Placeholder";
+import { useKeepAliveWindow } from "@src/hooks/ui/useKeepAliveWindow";
 import { UnifiedTabContent } from "@src/modules/WorkStation/TabContent/UnifiedTabContent";
 import { NoTabsPlaceholder } from "@src/modules/WorkStation/shared";
 
@@ -27,16 +28,31 @@ export const STORY_MANAGER_SUSPENSE_LOADING_FALLBACK = (
  *
  * Two concerns stay in this host and are deliberately NOT routed through the
  * dispatcher:
- *   - The persistent "keep-alive trio" (project-workitems /
- *     project-linear-projects / project-linear-work-items) is still mounted for
- *     every open trio tab and hidden with `display:none` when inactive, so those
- *     surfaces retain their in-tab state across tab switches. Each pane still
- *     renders through `UnifiedTabContent`.
+ *   - The "keep-alive trio" (project-workitems / project-linear-projects /
+ *     project-linear-work-items) is mounted for the active trio tab plus a
+ *     bounded window of recently active ones (`PROJECT_TRIO_KEEP_ALIVE`),
+ *     hidden with `display:none` when inactive, so flipping between two lists
+ *     keeps their in-tab state and scroll position. Older trio tabs unmount:
+ *     each one is a full non-virtualized table, and every open one used to stay
+ *     resident for the life of the host. Each pane still renders through
+ *     `UnifiedTabContent`; the list data itself lives in atoms and survives.
  *   - `chat-session` and `git-commit-detail` keep bespoke inline branches: the
  *     project host needs `<ChatView secondary />` (the unified chat renderer
  *     uses `readOnly`, which is wrong here), and git-commit-detail is mounted
  *     directly from tab data.
  */
+/**
+ * Two warm trio tabs cover the "compare two lists" flip; a tab left for 60 s
+ * is rebuilt from its atoms on the next visit.
+ */
+export const PROJECT_TRIO_KEEP_ALIVE = { graceMs: 60_000, maxWarm: 2 } as const;
+
+const TRIO_TAB_TYPES = new Set([
+  "project-workitems",
+  "project-linear-projects",
+  "project-linear-work-items",
+]);
+
 export function ProjectManagerContentRouter({
   repoPath,
   tabs,
@@ -45,14 +61,19 @@ export function ProjectManagerContentRouter({
 }: ProjectManagerContentRouterProps) {
   const hasNoTabs = tabs.length === 0;
   const persistentWorkItemTabs = useMemo(
-    () =>
-      tabs.filter(
-        (tab) =>
-          tab.type === "project-workitems" ||
-          tab.type === "project-linear-projects" ||
-          tab.type === "project-linear-work-items"
-      ),
+    () => tabs.filter((tab) => TRIO_TAB_TYPES.has(tab.type)),
     [tabs]
+  );
+  const trioTabIds = useMemo(
+    () => persistentWorkItemTabs.map((tab) => tab.id),
+    [persistentWorkItemTabs]
+  );
+  const activeTrioTabId =
+    activeTab && TRIO_TAB_TYPES.has(activeTab.type) ? activeTab.id : null;
+  const mountedTrioTabIds = useKeepAliveWindow(
+    activeTrioTabId,
+    trioTabIds,
+    PROJECT_TRIO_KEEP_ALIVE
   );
 
   const activeContent = renderActiveContent({
@@ -76,6 +97,7 @@ export function ProjectManagerContentRouter({
       )}
 
       {persistentWorkItemTabs.map((tab) => {
+        if (!mountedTrioTabIds.has(tab.id)) return null;
         const isActiveTab = activeTab?.id === tab.id;
         return (
           <div
