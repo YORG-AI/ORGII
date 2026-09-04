@@ -2,6 +2,16 @@ import { normalizePrStatus } from "@src/shared/pr/prStatus";
 
 const WORKSTATION_PR_STORAGE_PREFIX = "orgii.workstation.pr";
 
+/**
+ * How many remembered branch -> PR links survive.
+ *
+ * The key space is repo x branch, and branches are unbounded: every feature
+ * branch and worktree a user has ever pushed leaves a key behind. Nothing
+ * removed them, so the prefix grew for the life of the profile. `updatedAt`
+ * already rides along in each record, so the oldest links are the ones to drop.
+ */
+export const MAX_STORED_WORKSTATION_PRS = 64;
+
 export interface WorkstationPrRecord {
   url: string;
   status?: string;
@@ -60,6 +70,38 @@ export function getStoredWorkstationPr(
   }
 }
 
+/**
+ * Drop the least-recently-updated stored PR links beyond the cap.
+ *
+ * Exported for the regression test; callers should just use
+ * {@link setStoredWorkstationPr}, which prunes on every write. Writes happen
+ * once per branch/PR association, so the full-prefix scan is not on a hot path.
+ */
+export function pruneStoredWorkstationPrs(
+  maxEntries: number = MAX_STORED_WORKSTATION_PRS
+): void {
+  const stored: Array<{ key: string; updatedAt: number }> = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key?.startsWith(`${WORKSTATION_PR_STORAGE_PREFIX}:`)) continue;
+    let updatedAt = 0;
+    try {
+      const parsed = JSON.parse(
+        localStorage.getItem(key) ?? "{}"
+      ) as WorkstationPrRecord;
+      updatedAt = parsed?.updatedAt ?? 0;
+    } catch {
+      // Unparseable: leave updatedAt at 0 so it sorts oldest and is swept.
+    }
+    stored.push({ key, updatedAt });
+  }
+  if (stored.length <= maxEntries) return;
+  stored.sort((left, right) => left.updatedAt - right.updatedAt);
+  for (const { key } of stored.slice(0, stored.length - maxEntries)) {
+    localStorage.removeItem(key);
+  }
+}
+
 export function setStoredWorkstationPr(
   repoPath: string,
   branch: string,
@@ -75,6 +117,7 @@ export function setStoredWorkstationPr(
     buildWorkstationPrStorageKey(repoPath, branch),
     JSON.stringify(payload)
   );
+  pruneStoredWorkstationPrs();
 }
 
 export function isWorkstationPrEligible(

@@ -10,6 +10,7 @@ import type {
   PrReviewEvent,
   PullRequestMergeMethod,
 } from "@src/api/tauri/github";
+import { BoundedMap } from "@src/util/collections/BoundedMap";
 
 import { workstationRepoScopeKey } from "./workstationPrAtom";
 
@@ -195,3 +196,46 @@ export const workstationPrDetailCallbackAtomFamily = atomFamily(
     return scopedAtom;
   }
 );
+
+/**
+ * How many PR detail scopes keep their atoms.
+ *
+ * These three families are keyed per repo **and PR number**, so unlike the
+ * repo-scoped PR atoms they grow with every pull request the user has ever
+ * opened. `jotai-family` pins each key forever, so nothing was ever released.
+ *
+ * Releasing on panel unmount would be wrong: the main pane renders only the
+ * active tab, so switching tabs unmounts the panel, and dropping the scope
+ * there would reset the active detail sub-tab every time the user came back.
+ * An LRU keeps recently visited PRs intact and only forgets the ones the user
+ * has moved well past.
+ *
+ * Nothing here holds unsaved user input — the PR commit-message draft lives in
+ * `workstationPrCommitMessageAtomFamily`, which is repo-scoped and therefore
+ * already bounded, and is deliberately not touched by this eviction.
+ */
+export const MAX_RETAINED_PR_DETAIL_SCOPES = 16;
+
+const retainedPrDetailScopes = new BoundedMap<string, true>({
+  maxSize: MAX_RETAINED_PR_DETAIL_SCOPES,
+  name: "workstationPrDetailScopes",
+  onEvict: (scopeKey) => {
+    workstationSelectedPrAtomFamily.remove(scopeKey);
+    workstationPrDetailTabAtomFamily.remove(scopeKey);
+    workstationPrDetailCallbackAtomFamily.remove(scopeKey);
+  },
+});
+
+/**
+ * Mark a PR detail scope as in use, evicting the least recently used scope's
+ * atoms once the cap is exceeded. Called by `useWorkstationPrDetail` whenever
+ * it binds to a scope.
+ */
+export function retainWorkstationPrDetailScope(scopeKey: string): void {
+  retainedPrDetailScopes.set(scopeKey, true);
+}
+
+/** Test seam: forget every retained scope without firing eviction. */
+export function __resetRetainedPrDetailScopes(): void {
+  retainedPrDetailScopes.clear();
+}

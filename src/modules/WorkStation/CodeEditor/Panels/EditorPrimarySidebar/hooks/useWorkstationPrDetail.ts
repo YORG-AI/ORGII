@@ -28,6 +28,7 @@ import { readRequestedReviewers } from "@src/shared/pr/prLevelActions";
 import {
   type PrIdentity,
   initialSelectedPrState,
+  retainWorkstationPrDetailScope,
   workstationPrDetailCallbackAtomFamily,
   workstationPrScopeKey,
   workstationSelectedPrAtomFamily,
@@ -59,6 +60,12 @@ export function useWorkstationPrDetail({
   const setCallbacks = useSetAtom(
     workstationPrDetailCallbackAtomFamily(scopeKey)
   );
+
+  // Mark this scope as in use so the LRU forgets older PRs' atoms instead of
+  // pinning one set per pull request ever opened.
+  useEffect(() => {
+    retainWorkstationPrDetailScope(scopeKey);
+  }, [scopeKey]);
 
   const mountedRef = useRef(true);
   useEffect(() => {

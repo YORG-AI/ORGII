@@ -22,6 +22,13 @@ const OBSOLETE_BROWSER_CACHE_KEYS = new Set([
 
 const GITHUB_CACHE_PREFIX = "orgii.ghcache.";
 const DEV_RECORD_CACHE_PREFIX = "orgii:devRecord:cache:v1:";
+/**
+ * Remembered branch -> PR links. Regenerable: the association is re-derived
+ * from GitHub the next time the branch's PR is looked up, so losing it costs a
+ * lookup, not user data. Its own writer caps the prefix; this makes the keys
+ * reclaimable under quota pressure too.
+ */
+const WORKSTATION_PR_CACHE_PREFIX = "orgii.workstation.pr:";
 
 export type BrowserStorageCleanupMode =
   | "obsolete"
@@ -86,10 +93,15 @@ function isRegenerableDevRecordCache(key: string): boolean {
   return key.startsWith(DEV_RECORD_CACHE_PREFIX);
 }
 
+function isRegenerableWorkstationPrCache(key: string): boolean {
+  return key.startsWith(WORKSTATION_PR_CACHE_PREFIX);
+}
+
 function isDisposableBrowserCacheKey(key: string): boolean {
   return (
     isRegenerableGitHubCache(key) ||
     isRegenerableDevRecordCache(key) ||
+    isRegenerableWorkstationPrCache(key) ||
     key === BROWSER_CACHE_STORAGE_KEYS.sessionList
   );
 }
