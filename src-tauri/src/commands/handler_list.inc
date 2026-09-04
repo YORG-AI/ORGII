@@ -16,6 +16,7 @@ app_window::commands::set_window_vibrancy,
 app_window::commands::set_main_webview_zoom,
 app_window::commands::set_webview_zoom,
 app_window::commands::remove_window_background,
+app_window::commands::set_window_root_tint,
 app_window::commands::main_window_chrome_is_acrylic,
 app_window::commands::open_session_window,
 // Optional sidecar commands - lazy install after first paint
@@ -347,6 +348,8 @@ key_vault::get_all_keys_for_agent,
 key_vault::clipboard_write_text,
 // Auto-detection commands
 key_vault::auto_detect_key,
+key_vault::list_credential_suggestions,
+key_vault::import_credential_suggestions,
 key_vault::scan_cli_version,
 // Proxy commands (ORGII proxy token allocation + MITM proxy for Cursor/Kiro/Copilot)
 // Hosted service proxy (bypasses WebView CORS for hosted backend calls)

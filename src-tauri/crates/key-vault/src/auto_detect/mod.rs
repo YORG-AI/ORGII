@@ -14,11 +14,17 @@ mod cursor;
 pub(crate) mod helpers;
 mod kiro;
 mod opencode;
+pub mod suggestions;
 
 use serde::{Deserialize, Serialize};
 
 use crate::key_store::ModelType;
 use crate::types::UsageItem;
+
+pub use suggestions::{
+    probe_credential_suggestions, resolve_generic_secret, resolves_via_detector,
+    secret_fingerprint, CredentialSuggestion, SuggestionSourceKind,
+};
 
 // ============================================
 // Types

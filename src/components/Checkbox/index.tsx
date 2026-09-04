@@ -89,10 +89,10 @@ function getCheckboxIconClassName(options: {
       isDark ? "bg-fill-3 border-border-2" : "bg-fill-2 border-border-2",
     ].join(" ");
   }
-  if (isDark) {
-    return [...base, "bg-bg-2 border-border-2 hover:border-border-3"].join(" ");
-  }
-  return [...base, "bg-bg-1 border-border-2 hover:border-border-3"].join(" ");
+  // Same surface as regular inputs (`bg-bg-2`, see Input's `.input-inner`)
+  // in both themes. `bg-bg-1` is the recessed page background, which reads
+  // as a grey, disabled-looking box on light surfaces.
+  return [...base, "bg-bg-2 border-border-2 hover:border-border-3"].join(" ");
 }
 
 function getCheckboxSvgClassName(isOn: boolean): string {

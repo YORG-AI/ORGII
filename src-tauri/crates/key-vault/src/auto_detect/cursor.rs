@@ -78,34 +78,44 @@ struct CursorDbTokens {
 
 /// Get the path to Cursor's state database
 fn get_cursor_state_db_path() -> Option<std::path::PathBuf> {
+    let home = dirs::home_dir()?;
+    let path = cursor_state_db_path_in(&home);
+    path.exists().then_some(path)
+}
+
+/// Platform-specific location of Cursor's `state.vscdb` under `home`.
+/// Existence is not checked here.
+pub(super) fn cursor_state_db_path_in(home: &std::path::Path) -> std::path::PathBuf {
     #[cfg(target_os = "macos")]
     {
-        let home = dirs::home_dir()?;
-        let path = home.join("Library/Application Support/Cursor/User/globalStorage/state.vscdb");
-        if path.exists() {
-            return Some(path);
-        }
+        home.join("Library/Application Support/Cursor/User/globalStorage/state.vscdb")
     }
-
     #[cfg(target_os = "windows")]
     {
-        let home = dirs::home_dir()?;
-        let path = home.join("AppData/Roaming/Cursor/User/globalStorage/state.vscdb");
-        if path.exists() {
-            return Some(path);
-        }
+        home.join("AppData/Roaming/Cursor/User/globalStorage/state.vscdb")
     }
-
-    #[cfg(target_os = "linux")]
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let home = dirs::home_dir()?;
-        let path = home.join(".config/Cursor/User/globalStorage/state.vscdb");
-        if path.exists() {
-            return Some(path);
-        }
+        home.join(".config/Cursor/User/globalStorage/state.vscdb")
     }
+}
 
-    None
+/// Read only the raw access-token JWT from Cursor's state database, opened
+/// read-only. Used by the offline suggestion probe; the full detector goes
+/// through [`read_cursor_tokens_from_db`].
+pub(super) fn read_cursor_access_token(db_path: &std::path::Path) -> Result<Option<String>, String> {
+    use rusqlite::{Connection, OpenFlags};
+
+    let conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|e| format!("Failed to open Cursor database: {}", e))?;
+    let access_token: Option<String> = conn
+        .query_row(
+            "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'",
+            [],
+            |row| row.get(0),
+        )
+        .ok();
+    Ok(access_token.filter(|token| !token.is_empty()))
 }
 
 /// Read Cursor tokens from the SQLite state database.

@@ -19,6 +19,8 @@ import type {
   CliVersionSnapshot,
   CodexOauthExchangeResponse,
   CodexOauthStartResponse,
+  CredentialImportReport,
+  CredentialSuggestion,
   CursorBillingUsagePage,
   CursorBillingUsageSnapshot,
   DefaultVariantInfo,
@@ -46,6 +48,10 @@ export type {
   ModelType,
   AuthMethod,
   AutoDetectResult,
+  CredentialImportItemReport,
+  CredentialImportReport,
+  CredentialSuggestion,
+  SuggestionSourceKind,
   CliVersionSnapshot,
   ClaudeCodeOauthExchangeResponse,
   ClaudeCodeOauthStartResponse,
@@ -506,6 +512,26 @@ export async function autoDetectKey(
   agentType: ModelType
 ): Promise<AutoDetectResult> {
   return rpc.validation.autoDetectKey({ agentType });
+}
+
+/**
+ * Offline probe for credentials other coding tools have left on this
+ * machine (env vars, shell profiles, login stores). Cheap; no network.
+ */
+export async function listCredentialSuggestions(): Promise<
+  CredentialSuggestion[]
+> {
+  return rpc.validation.listCredentialSuggestions();
+}
+
+/**
+ * Import selected suggestions. Secrets are re-read and validated on the
+ * Rust side; the per-item report keeps partial failures visible.
+ */
+export async function importCredentialSuggestions(
+  selections: CredentialSuggestion[]
+): Promise<CredentialImportReport> {
+  return rpc.validation.importCredentialSuggestions({ selections });
 }
 
 /** Scan the installed/latest version of one explicitly selected CLI. */

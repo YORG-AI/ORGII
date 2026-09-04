@@ -125,6 +125,15 @@ export const validation = {
     .output(schemas.validation.AutoDetectResultSchema)
     .build(),
 
+  listCredentialSuggestions: defineProcedure("list_credential_suggestions")
+    .output(z.array(schemas.validation.CredentialSuggestionSchema))
+    .build(),
+
+  importCredentialSuggestions: defineProcedure("import_credential_suggestions")
+    .input(schemas.validation.ImportCredentialSuggestionsInput)
+    .output(schemas.validation.CredentialImportReportSchema)
+    .build(),
+
   scanCliVersion: defineProcedure("scan_cli_version")
     .input(schemas.validation.ScanCliVersionInput)
     .output(schemas.validation.CliVersionSnapshotSchema)

@@ -7,7 +7,7 @@
 //! - `commands` — `#[tauri::command]` fns that query the registry at runtime
 
 mod commands;
-mod data;
+pub(crate) mod data;
 
 use data::{AcpSupport, CliConfigFormat};
 

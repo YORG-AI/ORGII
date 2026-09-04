@@ -56,6 +56,44 @@ export const AutoDetectResultSchema = z.object({
   keys: z.array(DetectedKeySchema),
 });
 
+// ============================================================================
+// Credential suggestions (offline probe — mirrors `auto_detect/suggestions.rs`)
+// ============================================================================
+
+export const SuggestionSourceKindSchema = z.enum([
+  "env",
+  "shell_profile",
+  "config_file",
+  "oauth_store",
+  "keychain",
+  "state_db",
+]);
+
+/** One importable credential found on the local machine. Never carries the secret. */
+export const CredentialSuggestionSchema = z.object({
+  id: z.string(),
+  agentType: z.string(),
+  authMethod: AuthMethodSchema,
+  sourceKind: SuggestionSourceKindSchema,
+  sourceLabel: z.string(),
+  sourcePath: z.string().nullable().optional(),
+  fingerprint: z.string().nullable().optional(),
+  alreadyImported: z.boolean(),
+});
+
+export const CredentialImportItemReportSchema = z.object({
+  id: z.string(),
+  agentType: z.string(),
+  sourceLabel: z.string(),
+  status: z.enum(["imported", "failed"]),
+  keyId: z.string().nullable().optional(),
+  error: z.string().nullable().optional(),
+});
+
+export const CredentialImportReportSchema = z.object({
+  items: z.array(CredentialImportItemReportSchema),
+});
+
 export const CliVersionSnapshotSchema = z.object({
   agent_type: CliAgentTypeSchema,
   installed_version: z.string().nullable(),

@@ -18,10 +18,14 @@ import {
   AvailableApiProviderSchema,
   CliInstallMethodSchema,
   CliVersionSnapshotSchema,
+  CredentialImportItemReportSchema,
+  CredentialImportReportSchema,
+  CredentialSuggestionSchema,
   DetectedKeySchema,
   DetectedQuotaInfoSchema,
   ProviderConfigSchema,
   ProviderEndpointSchema,
+  SuggestionSourceKindSchema,
 } from "./validationDiscovery";
 import {
   ApiProviderTypeSchema,
@@ -98,6 +102,14 @@ export type FullKeyResponse = z.infer<typeof FullKeyResponseSchema>;
 export type SaveKeyRequest = z.infer<typeof SaveKeyRequestSchema>;
 export type DetectedKey = z.infer<typeof DetectedKeySchema>;
 export type AutoDetectResult = z.infer<typeof AutoDetectResultSchema>;
+export type SuggestionSourceKind = z.infer<typeof SuggestionSourceKindSchema>;
+export type CredentialSuggestion = z.infer<typeof CredentialSuggestionSchema>;
+export type CredentialImportItemReport = z.infer<
+  typeof CredentialImportItemReportSchema
+>;
+export type CredentialImportReport = z.infer<
+  typeof CredentialImportReportSchema
+>;
 export type CliVersionSnapshot = z.infer<typeof CliVersionSnapshotSchema>;
 export type AvailableAgent = z.infer<typeof AvailableAgentSchema>;
 export type AvailableApiProvider = z.infer<typeof AvailableApiProviderSchema>;
