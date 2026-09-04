@@ -14,6 +14,7 @@ import {
 } from "vitest";
 
 import PersistentDetailTabPanel, {
+  DETAIL_TAB_PANEL_GRACE_MS,
   type PersistentDetailTabPanelProps,
 } from "./PersistentDetailTabPanel";
 
@@ -43,7 +44,7 @@ describe("PersistentDetailTabPanel", () => {
     Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
   });
 
-  it("mounts on first visit and stays mounted while hidden", () => {
+  it("mounts on first visit and stays mounted while hidden within the grace window", () => {
     const mounted = vi.fn();
     const unmounted = vi.fn();
 
@@ -100,6 +101,56 @@ describe("PersistentDetailTabPanel", () => {
       container.querySelector<HTMLElement>('[role="tabpanel"]')?.scrollTop
     ).toBe(72);
     expect(mounted).toHaveBeenCalledTimes(1);
+  });
+  it("unmounts a panel hidden for longer than the grace window and remounts it fresh", () => {
+    vi.useFakeTimers();
+    try {
+      const mounted = vi.fn();
+      const unmounted = vi.fn();
+      const StatefulContent = () => {
+        useEffect(() => {
+          mounted();
+          return () => {
+            unmounted();
+          };
+        }, []);
+        return createElement("input", { defaultValue: "preserved" });
+      };
+      const render = (active: boolean) =>
+        act(() => {
+          root.render(
+            createElement(
+              PersistentDetailTabPanel,
+              {
+                active,
+                id: "detail-tabpanel-changes",
+                ariaLabelledBy: "detail-tab-changes",
+              } as PersistentDetailTabPanelProps,
+              createElement(StatefulContent)
+            )
+          );
+        });
+      render(true);
+      container.querySelector<HTMLInputElement>("input")!.value = "edited";
+      render(false);
+      act(() => {
+        vi.advanceTimersByTime(DETAIL_TAB_PANEL_GRACE_MS - 1);
+      });
+      expect(container.querySelector("input")?.value).toBe("edited");
+      expect(unmounted).not.toHaveBeenCalled();
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(container.querySelector('[role="tabpanel"]')).toBeNull();
+      expect(unmounted).toHaveBeenCalledTimes(1);
+      render(true);
+      expect(container.querySelector<HTMLInputElement>("input")?.value).toBe(
+        "preserved"
+      );
+      expect(mounted).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
