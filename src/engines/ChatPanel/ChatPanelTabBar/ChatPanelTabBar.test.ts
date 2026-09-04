@@ -27,6 +27,13 @@ vi.mock("@src/components/IntegrationIcon", () => ({
     }),
 }));
 
+vi.mock("../components/SessionIdentityIcon", () => ({
+  default: ({ sessionId }: { sessionId: string }) =>
+    createElement("span", { "data-session-identity-icon": sessionId }),
+  SessionIdentityIconById: ({ sessionId }: { sessionId: string }) =>
+    createElement("span", { "data-session-identity-icon": sessionId }),
+}));
+
 vi.mock(
   "@src/modules/ProjectManager/WorkItems/components/WorkItemHoverCard",
   () => ({
@@ -319,6 +326,15 @@ describe("ChatPanelTabBar", () => {
         onNewProject: vi.fn(),
         onNewWorkItem: vi.fn(),
         onOpenSideChat: vi.fn(),
+        recentlyClosedTabs: [
+          {
+            id: "closed-chat",
+            type: "session",
+            title: "Closed chat",
+            sessionId: "codexapp-closed-chat",
+          },
+        ],
+        onRestoreTab: vi.fn(),
         onClose: vi.fn(),
       })
     );
@@ -328,5 +344,11 @@ describe("ChatPanelTabBar", () => {
     expect(markup).toContain("sessions:creator.createTarget.project");
     expect(markup).toContain("chat.startPage.newWorkItem.title");
     expect(markup).toContain("sessions:chat.sideChat.title");
+    expect(markup).toContain("navigation:workstation.plusMenu.recentlyClosed");
+    expect(markup).toContain('data-recently-closed-tab-id="closed-chat"');
+    expect(markup).toContain(
+      'data-session-identity-icon="codexapp-closed-chat"'
+    );
+    expect(markup).not.toContain('data-icon="work-history"');
   });
 });

@@ -11,6 +11,7 @@ import {
 } from "@src/store/ui/chatPanelAtom";
 import type { WorkManagementSection } from "@src/store/workstation";
 
+import { recordRecentlyClosedChatPanelTabsAtom } from "./chatPanelRecentlyClosedTabs";
 import {
   buildDefaultLaunchpadTab,
   getChatPanelWorkItemTabKey,
@@ -431,10 +432,18 @@ export const closeAndDestroyChatPanelTabAtom = atom(
   async (get, set, tabId: string): Promise<void> => {
     const state = get(chatPanelTabsAtom);
     const tab = state.tabs.find((candidate) => candidate.id === tabId);
+    const closesSoleStartPage =
+      state.tabs.length === 1 && tab?.type === "start-page";
     // Destroy PTY before removing the tab so the terminal session ID is still
     // reachable during cleanup.
     if (tab?.type === "terminal" && tab.terminalSessionId) {
       await set(destroyChatPanelTerminalAtom, tab.terminalSessionId);
+    }
+    const tabStillOpen = get(chatPanelTabsAtom).tabs.some(
+      (candidate) => candidate.id === tab?.id
+    );
+    if (tab && tabStillOpen && !closesSoleStartPage) {
+      set(recordRecentlyClosedChatPanelTabsAtom, [tab]);
     }
     set(closeChatPanelTabAtom, tabId);
   }
@@ -460,7 +469,10 @@ export const closeOtherChatPanelTabsAtom = atom(
       )
     );
 
-    for (const tab of tabsToClose) {
+    const openIds = new Set(get(chatPanelTabsAtom).tabs.map((tab) => tab.id));
+    const tabsStillOpen = tabsToClose.filter((tab) => openIds.has(tab.id));
+    set(recordRecentlyClosedChatPanelTabsAtom, tabsStillOpen);
+    for (const tab of tabsStillOpen) {
       set(closeChatPanelTabAtom, tab.id);
     }
 

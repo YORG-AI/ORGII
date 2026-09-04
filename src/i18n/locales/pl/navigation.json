@@ -347,7 +347,8 @@
       "newBrowserTab": "Nowa karta przeglądarki",
       "newPrivateBrowserTab": "Nowa prywatna karta przeglądarki",
       "workItems": "Elementy pracy",
-      "projects": "Projekty"
+      "projects": "Projekty",
+      "recentlyClosed": "Ostatnie"
     }
   },
   "collaboration": {

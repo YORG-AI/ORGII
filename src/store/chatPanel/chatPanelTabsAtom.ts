@@ -96,3 +96,8 @@ export {
   moveChatPanelTabToWorkstationAtom,
   moveWorkstationPrTabToChatPanelAtom,
 } from "./chatPanelTabPlacementAtom";
+export {
+  recentlyClosedChatPanelTabsAtom,
+  recordRecentlyClosedChatPanelTabsAtom,
+  restoreRecentlyClosedChatPanelTabAtom,
+} from "./chatPanelRecentlyClosedTabs";

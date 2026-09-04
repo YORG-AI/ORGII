@@ -347,7 +347,8 @@
       "newBrowserTab": "新しいブラウザタブ",
       "newPrivateBrowserTab": "新しいプライベートブラウザタブ",
       "workItems": "作業項目",
-      "projects": "プロジェクト"
+      "projects": "プロジェクト",
+      "recentlyClosed": "最近"
     }
   },
   "collaboration": {

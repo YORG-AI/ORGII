@@ -347,7 +347,8 @@
       "newBrowserTab": "새 브라우저 탭",
       "newPrivateBrowserTab": "새 시크릿 브라우저 탭",
       "workItems": "작업 항목",
-      "projects": "프로젝트"
+      "projects": "프로젝트",
+      "recentlyClosed": "최근"
     }
   },
   "collaboration": {
