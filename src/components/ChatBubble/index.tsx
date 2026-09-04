@@ -13,11 +13,11 @@ import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Message from "@src/components/Message";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 import { Copy01Icon, HugeiconsIcon } from "@src/icons";
 
 export const CHAT_BUBBLE_WIDTH_TOKENS = {
-  row: `mx-auto flex w-full min-w-0 gap-3 overflow-hidden ${DETAIL_PANEL_TOKENS.contentMaxWidth}`,
+  row: `mx-auto flex w-full min-w-0 gap-3 overflow-hidden ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`,
   content: "w-full min-w-0 max-w-full overflow-hidden",
   body: "inline-block min-w-0 max-w-full overflow-hidden",
   userBody: "inline-block min-w-0 max-w-full overflow-hidden",

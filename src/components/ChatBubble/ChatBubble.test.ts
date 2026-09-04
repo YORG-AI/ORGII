@@ -2,13 +2,25 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
+
 import {
+  CHAT_BUBBLE_WIDTH_TOKENS,
   CHAT_SESSION_USER_BUBBLE_CLASS,
   ChatAssistantMessageBody,
   ChatBubbleBody,
 } from "./index";
 
 describe("session chat message surfaces", () => {
+  it("keeps the bubble row on the chat reading measure", () => {
+    // The conversation column is 800px. A merge once rebound this row to
+    // the 900px detail-panel measure, which left bubbles wider than the
+    // header and pager they sit under.
+    expect(CHAT_BUBBLE_WIDTH_TOKENS.row).toContain(
+      CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth
+    );
+  });
+
   it("keeps assistant content transparent and on the shared chat typography", () => {
     // Keep the repository's `.test.ts` placement while passing children via
     // React's dedicated argument rather than the discouraged `children` prop.
