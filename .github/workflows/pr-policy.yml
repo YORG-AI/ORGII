@@ -1,8 +1,10 @@
 name: PR policy
 
+# Unfiltered by base branch: .github/PR_RULES.md binds every pull request, and
+# a `branches:` allowlist exempted stacked pull requests (#1220, #1222) that
+# target another feature branch from the contract entirely.
 on:
   pull_request_target:
-    branches: [develop, release, master]
     types:
       - opened
       - edited

@@ -1,4 +1,4 @@
-# CI — runs on every pull request to develop / release / master.
+# CI — runs on every pull request, whatever branch it targets.
 #
 # Frontend starts immediately. A lightweight scope job decides whether the
 # Rust job is relevant; frontend and ordinary Markdown documentation diffs
@@ -15,12 +15,16 @@
 
 name: "CI"
 
+# Deliberately unfiltered by base branch. A `branches:` allowlist skipped the
+# whole of CI for stacked pull requests -- a chain like #1220 -> #1222, where
+# each part targets the previous part's branch rather than develop, produced
+# zero typecheck/lint/test/clippy evidence and only ever showed the
+# base-branch-agnostic attribution check. The scope job below already bounds
+# cost per diff, and a stacked pull request's base..head diff is the increment
+# alone, so the cheap parts stay cheap and the macOS Rust job still only starts
+# when the increment touches Rust.
 on:
   pull_request:
-    branches:
-      - develop
-      - release
-      - master
 
 # A new push makes an older run for the same PR obsolete. Cancel it before it
 # can consume one of the organization's limited hosted-runner slots.
