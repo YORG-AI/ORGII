@@ -198,6 +198,7 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
       () =>
         createInputHandler({
           host: () => hostRef.current,
+          isComposing: () => isComposingRef.current,
           reconcilePillsFromDom: ops.reconcilePillsFromDom,
           commitHistoryBoundary: ops.commitHistoryBoundary,
           clearHost: ops.clearHost,

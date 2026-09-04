@@ -61,12 +61,26 @@ export function useComposerNativeEvents({
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    // IME input (Chinese, Japanese, Korean, dead keys) never reaches the
+    // per-keystroke `beforeinput` → `input` boundary pair: `beforeinput`
+    // bails while composing and the intermediate `input` events describe an
+    // unfinished string. Treat the whole composition as one transaction:
+    // mark at compositionstart, let the input handler skip its commit while
+    // composing, and commit once the IME confirms. Without this, composed
+    // text never entered the structured history, and because the composer
+    // always cancels browser-native undo (it cannot restore pills), Cmd+Z
+    // could not undo IME-typed text at all.
     const handleCompositionStart = () => {
       isComposingRef.current = true;
+      markHistoryBoundary();
     };
     const handleCompositionEnd = () => {
       isComposingRef.current = false;
       compositionEndedAtRef.current = performance.now();
+      // The confirmed text is already in the DOM whether the final `input`
+      // event fired before this (Chromium order) or fires after it (an
+      // `input` after commit finds no boundary and is a no-op).
+      commitHistoryBoundary();
     };
     const handleBeforeInput = (event: InputEvent) => {
       if (isComposingRef.current || event.isComposing) return;
