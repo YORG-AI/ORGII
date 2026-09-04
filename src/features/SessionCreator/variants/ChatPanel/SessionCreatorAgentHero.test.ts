@@ -37,4 +37,20 @@ describe("SessionCreatorAgentHero", () => {
     expect(markup).toContain("whitespace-normal");
     expect(markup).not.toContain("truncate");
   });
+
+  it("does not underline the Launchpad agent name on hover", () => {
+    const markup = renderToStaticMarkup(
+      createElement(SessionCreatorAgentHero, {
+        name: "SDE Agent",
+        description: "Software development agent",
+        avatarIcon: createElement("span", null, "SDE"),
+        question: "What do you want to build with",
+        questionSuffix: "?",
+        onClick: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain("group-hover/pill:text-text-1!");
+    expect(markup).not.toContain("group-hover/pill:underline");
+  });
 });

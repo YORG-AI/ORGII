@@ -67,7 +67,7 @@ const SessionCreatorAgentHero = memo(
                     ? "text-primary-6!"
                     : active
                       ? "text-text-1! underline underline-offset-4"
-                      : "text-text-2! group-hover/pill:text-text-1! group-hover/pill:underline group-hover/pill:underline-offset-4"
+                      : "text-text-2! group-hover/pill:text-text-1!"
                 }`}
                 chevronClassName={`transition-colors ${
                   danger
