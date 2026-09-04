@@ -1,15 +1,24 @@
+// @vitest-environment jsdom
 import { createStore } from "jotai";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   beginOrg2CloudOrgsRequest,
   commitOrg2CloudOrgsRequest,
+  failOrg2CloudOrgsRequest,
   getSidebarActiveCloudOrg,
   isOrg2CloudOrgsConverging,
+  markOrg2CloudOrgsRequestRetrying,
   org2CloudOrgsAtom,
+  org2CloudOrgsLoadStateAtom,
   org2CloudOrgsLoadedAtom,
   queueOrg2CloudOrgsConvergence,
+  scheduleVisibleOrg2CloudOrgsRetry,
 } from "./org2CloudOrgsAtom";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("org2 cloud roster request ordering", () => {
   it("resolves sharing controls only for the exact active cloud org", () => {
@@ -45,6 +54,7 @@ describe("org2 cloud roster request ordering", () => {
       "team",
     ]);
     expect(store.get(org2CloudOrgsLoadedAtom)).toBe(true);
+    expect(store.get(org2CloudOrgsLoadStateAtom)).toBe("ready");
   });
 
   it("invalidates an in-flight roster read when auth is cleared", () => {
@@ -61,6 +71,64 @@ describe("org2 cloud roster request ordering", () => {
     ).toBe(false);
     expect(store.get(org2CloudOrgsAtom)).toEqual([]);
     expect(store.get(org2CloudOrgsLoadedAtom)).toBe(false);
+  });
+
+  it("exposes retrying and terminal failure without authorizing an empty roster", () => {
+    const store = createStore();
+    const request = beginOrg2CloudOrgsRequest(store);
+
+    expect(store.get(org2CloudOrgsLoadStateAtom)).toBe("loading");
+    expect(markOrg2CloudOrgsRequestRetrying(store, request)).toBe(true);
+    expect(store.get(org2CloudOrgsLoadStateAtom)).toBe("retrying");
+    expect(failOrg2CloudOrgsRequest(store, request)).toBe(true);
+    expect(store.get(org2CloudOrgsLoadStateAtom)).toBe("error");
+    expect(store.get(org2CloudOrgsLoadedAtom)).toBe(false);
+    expect(store.get(org2CloudOrgsAtom)).toEqual([]);
+  });
+
+  it("does not let a stale failure overwrite a newer successful roster", () => {
+    const store = createStore();
+    const staleRequest = beginOrg2CloudOrgsRequest(store);
+    const currentRequest = beginOrg2CloudOrgsRequest(store);
+
+    commitOrg2CloudOrgsRequest(store, currentRequest, [
+      { orgId: "team", name: "Team", role: "member" },
+    ]);
+
+    expect(failOrg2CloudOrgsRequest(store, staleRequest)).toBe(false);
+    expect(store.get(org2CloudOrgsLoadStateAtom)).toBe("ready");
+    expect(store.get(org2CloudOrgsAtom)).toHaveLength(1);
+  });
+
+  it("pauses a first-load retry while hidden and revalidates once on return", () => {
+    vi.useFakeTimers();
+    let visibilityState: DocumentVisibilityState = "hidden";
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      "visibilityState"
+    );
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => visibilityState,
+    });
+    const retry = vi.fn();
+
+    const dispose = scheduleVisibleOrg2CloudOrgsRetry(2_000, retry);
+    vi.advanceTimersByTime(10_000);
+    expect(retry).not.toHaveBeenCalled();
+
+    visibilityState = "visible";
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(retry).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(10_000);
+    expect(retry).toHaveBeenCalledTimes(1);
+
+    dispose();
+    if (originalDescriptor) {
+      Object.defineProperty(document, "visibilityState", originalDescriptor);
+    } else {
+      Reflect.deleteProperty(document, "visibilityState");
+    }
   });
 
   it("serializes mutation convergence and exposes its priority window", async () => {

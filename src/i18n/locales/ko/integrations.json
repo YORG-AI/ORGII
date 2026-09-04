@@ -20,7 +20,7 @@
     "confirmRemoveMessage": "로컬 자격 증명이 제거됩니다. 이 작업은 되돌릴 수 없습니다.",
     "toasts": {
       "refreshed": "{{name}} 새로고침 완료",
-      "refreshError": "{{name}} 새로고침 실패",
+      "refreshError": "{{name}} 새로고침 실패: {{error}}",
       "localRemoved": "{{name}} 제거됨",
       "deleteError": "{{name}} 삭제 실패"
     },

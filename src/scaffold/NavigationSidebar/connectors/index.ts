@@ -5,3 +5,7 @@
  */
 
 export { WorkstationSidebarConnector } from "./WorkstationSidebarConnector";
+export {
+  default as SidebarOrgSelector,
+  type SidebarOrgSelectorProps,
+} from "./SidebarOrgSelector";

@@ -52,8 +52,6 @@
     "questionIgnored": "已忽略该问题",
     "addedAsContext": "已将 {{name}} 添加为上下文",
     "addedFilesAsContext": "已添加 {{count}} 个文件作为上下文",
-    "chooseExecutionAgentAi": "使用 AI 创建前请先选择一个 Agent 负责人。",
-    "autoExecuteRequiresExecutionAgent": "自动执行需要指定一个 Agent 负责人。",
     "openSessionBeforeLinking": "请先打开一个会话再关联工作项。",
     "sessionLinkedToWorkItem": "会话已关联到工作项。",
     "sessionLinkFailed": "关联会话失败：{{message}}",
@@ -66,7 +64,9 @@
     "workspaceImportFailed": "导入工作区失败",
     "chooseFolderCloneRepo": "选择用于克隆仓库的文件夹",
     "repositoryCloned": "仓库已克隆",
-    "repositoryCloneFailed": "克隆仓库失败"
+    "repositoryCloneFailed": "克隆仓库失败",
+    "chooseExecutionAgentAi": "使用 AI 创建前请先选择一个 Agent 负责人。",
+    "autoExecuteRequiresExecutionAgent": "自动执行需要指定一个 Agent 负责人。"
   },
   "previews": {
     "noCanvasAvailable": "暂无画布",
@@ -958,10 +958,6 @@
     "switchWorkspaceTooltip": "切换工作区",
     "switchWorktreeTooltip": "切换 Worktree",
     "switchBranchTooltip": "切换分支",
-    "switchLocalBranchTooltip": "切换本地分支",
-    "sessionEnvCloud": "云",
-    "sessionEnvLocal": "本地",
-    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Git 操作",
     "switchToSessionRepo": "切换到 {{name}}",
     "embeddingProgress": "嵌入：已处理 {{count}} 个 chunk",
@@ -981,11 +977,11 @@
       "unknownProcess": "未知进程",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "在浏览器中打开",
+      "openAddress": "打开 {{address}}",
       "copyAddress": "复制地址",
       "stopProcess": "停止进程",
       "searchPlaceholder": "搜索端口…",
       "noSearchResults": "没有匹配的端口",
-      "openAddress": "打开 {{address}}",
       "rescan": "重新扫描",
       "rescanning": "扫描中…",
       "rescanTooltip": "重新扫描正在监听的端口",
@@ -995,15 +991,15 @@
       "openPullRequest": "在 GitHub 中打开 Pull Request",
       "viewDetails": "查看检查详情",
       "refresh": "刷新检查",
-      "refreshing": "刷新中…",
-      "lastFetchedAt": "上次获取于 {{time}}",
       "unavailable": "无法读取检查状态",
       "sections": {
         "failed": "失败",
         "running": "运行中",
         "skipped": "已跳过",
         "passed": "已通过"
-      }
+      },
+      "refreshing": "刷新中…",
+      "lastFetchedAt": "上次获取于 {{time}}"
     },
     "noLanguageServicesActive": "没有活跃的 Language Service",
     "linesSelected": "已选择 {{count}} 行",
@@ -1092,7 +1088,11 @@
     },
     "unsavedChangesTitle": "未保存的更改",
     "prkPlaceholder": "PRJ",
-    "gitSyncMenuTitle": "Git 同步操作"
+    "gitSyncMenuTitle": "Git 同步操作",
+    "switchLocalBranchTooltip": "切换本地分支",
+    "sessionEnvCloud": "云",
+    "sessionEnvLocal": "本地",
+    "sessionHarness": "{{name}} Harness"
   },
   "git": {
     "loading": "正在加载 Git 状态...",
@@ -1244,6 +1244,36 @@
       "summary": {
         "label": "pull request 摘要"
       },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "想要将 {{count}} 个提交合并到",
+        "wantsToMergeCommitsInto_other": "想要将 {{count}} 个提交合并到",
+        "mergedCommitsInto_one": "已将 {{count}} 个提交合并到",
+        "mergedCommitsInto_other": "已将 {{count}} 个提交合并到",
+        "from": "来自",
+        "copyHeadBranch": "复制分支名",
+        "branchCopied": "已复制分支名"
+      },
+      "sidebar": {
+        "reviewers": "评审人",
+        "requestReviewers": "请求评审",
+        "awaitingReview": "等待评审",
+        "noReviews": "暂无评审",
+        "assignees": "指派人",
+        "noAssignees": "暂无指派",
+        "labels": "标签",
+        "noLabels": "暂无",
+        "actions": "操作",
+        "editAssignees": "编辑指派人",
+        "searchAssignees": "搜索成员",
+        "noAssigneeCandidates": "暂无可用成员",
+        "assigneesLoadFailed": "无法加载成员",
+        "assigneesUpdated": "已更新指派人",
+        "editLabels": "编辑标签",
+        "searchLabels": "搜索标签",
+        "noLabelCandidates": "暂无可用标签",
+        "labelsLoadFailed": "无法加载标签",
+        "labelsUpdated": "已更新标签"
+      },
       "tabs": {
         "conversation": "对话",
         "commits": "提交",
@@ -1287,36 +1317,6 @@
         "merged": "已合并",
         "closed": "已关闭",
         "draft": "草稿"
-      },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "想要将 {{count}} 个提交合并到",
-        "wantsToMergeCommitsInto_other": "想要将 {{count}} 个提交合并到",
-        "mergedCommitsInto_one": "已将 {{count}} 个提交合并到",
-        "mergedCommitsInto_other": "已将 {{count}} 个提交合并到",
-        "from": "来自",
-        "copyHeadBranch": "复制分支名",
-        "branchCopied": "已复制分支名"
-      },
-      "sidebar": {
-        "reviewers": "评审人",
-        "requestReviewers": "请求评审",
-        "awaitingReview": "等待评审",
-        "noReviews": "暂无评审",
-        "assignees": "指派人",
-        "noAssignees": "暂无指派",
-        "labels": "标签",
-        "noLabels": "暂无",
-        "actions": "操作",
-        "editAssignees": "编辑指派人",
-        "searchAssignees": "搜索成员",
-        "noAssigneeCandidates": "暂无可用成员",
-        "assigneesLoadFailed": "无法加载成员",
-        "assigneesUpdated": "已更新指派人",
-        "editLabels": "编辑标签",
-        "searchLabels": "搜索标签",
-        "noLabelCandidates": "暂无可用标签",
-        "labelsLoadFailed": "无法加载标签",
-        "labelsUpdated": "已更新标签"
       }
     },
     "messages": {
@@ -1488,9 +1488,9 @@
       "chooseKey": "选择密钥",
       "noCompatibleAccounts": "无兼容密钥",
       "chooseModelHint": "使用键盘导航，或用鼠标点击模型",
+      "selectAccount": "选择账号",
       "chooseKeyHint": "使用键盘导航，或用鼠标点击密钥",
-      "noModelsForKey": "该密钥未启用任何模型",
-      "selectAccount": "选择账号"
+      "noModelsForKey": "该密钥未启用任何模型"
     },
     "modelProperties": {
       "effort": "Effort",
@@ -1660,16 +1660,16 @@
       "select": "选择",
       "switchColumn": "切换栏",
       "switchSection": "切换分区",
-      "showPath": "显示路径",
-      "keyFirst": "密钥优先",
-      "showBranchInfo": "显示分支信息",
       "compatibleKeys": "兼容",
       "planSupport": "Plan",
       "byokSupport": "Keys",
       "incompatible": "不兼容",
       "manageModels": "管理模型",
       "manageKeys": "管理密钥",
-      "manageAgents": "管理 Agent"
+      "manageAgents": "管理 Agent",
+      "showPath": "显示路径",
+      "keyFirst": "密钥优先",
+      "showBranchInfo": "显示分支信息"
     },
     "editorSpotlight": {
       "searchPlaceholder": "搜索命令...",
@@ -1851,7 +1851,6 @@
     "theme": "主题",
     "sidebarPosition": "侧边栏位置",
     "modelPickerStyle": "选择器样式",
-    "paginateChatHistory": "将聊天记录分页",
     "modelPickerSpotlight": "Spotlight",
     "modelPickerMenu": "菜单",
     "replaySession": "Replay 会话",
@@ -1881,7 +1880,8 @@
     "ramHydratedEvents": "已 hydrate 事件",
     "ramTurnBodies": "历史懒加载",
     "ramFileTrees": "文件树",
-    "ramCodeMirrors": "文件渲染"
+    "ramCodeMirrors": "文件渲染",
+    "paginateChatHistory": "将聊天记录分页"
   },
   "spotlightActions": {
     "switchToLightTheme": "切换到浅色主题",
@@ -1897,13 +1897,13 @@
     "openAgentStation": "前往 Agent 工作站",
     "openKanban": "前往 Kanban",
     "changeLanguage": "更改语言",
+    "switchToSystemTheme": "跟随系统主题",
+    "detectUpdate": "检查更新",
+    "recentlyUsed": "最近使用",
     "changeTheme": "更改主题",
     "changeSkin": "更改皮肤",
     "searchThemes": "搜索主题...",
-    "searchSkins": "搜索皮肤...",
-    "switchToSystemTheme": "跟随系统主题",
-    "detectUpdate": "检查更新",
-    "recentlyUsed": "最近使用"
+    "searchSkins": "搜索皮肤..."
   },
   "commands": {
     "showBottomPanel": "显示底部面板",
@@ -2418,8 +2418,8 @@
       "pullRequestsPartialLoadHelp": "当前可用事项仍会保留显示；请刷新以重新加载缺少的 pull request",
       "workItemContext": "部分项目上下文暂不可用，工作项仍可继续查看和操作。",
       "workItemLoad": "无法加载此工作项，请重试。",
-      "githubIssueLoad": "无法加载该工作项的 GitHub issue，仍显示本地工作项信息。",
-      "workItemUpdate": "无法保存刚才的工作项修改，请重试。"
+      "workItemUpdate": "无法保存刚才的工作项修改，请重试。",
+      "githubIssueLoad": "无法加载该工作项的 GitHub issue，仍显示本地工作项信息。"
     },
     "detail": {
       "assignedSubtitle": "分配给你的工作项",
@@ -2484,6 +2484,138 @@
     "downloadedOfTotal": "{{downloaded}} / {{total}}",
     "preparingDownload": "正在准备下载…",
     "downloadingAndInstalling": "正在下载并安装更新 (v{{version}})…"
+  },
+  "gitDialogs": {
+    "common": {
+      "cancel": "取消",
+      "ok": "确定",
+      "currentBranch": "当前分支",
+      "gitSaid": "Git 提示：{{message}}"
+    },
+    "operations": {
+      "push": "推送",
+      "pull": "拉取",
+      "fetch": "获取远程更新",
+      "checkout": "切换分支",
+      "sync": "同步",
+      "merge": "合并",
+      "rebase": "变基",
+      "commit": "提交",
+      "clone": "克隆",
+      "other": "{{operation}}"
+    },
+    "checkoutBlocked": {
+      "worktreeTitle": "该分支已在另一个工作树中打开",
+      "mergeTitle": "请先完成合并",
+      "rebaseTitle": "请先完成变基",
+      "cherryPickTitle": "请先完成拣选提交",
+      "branchNotFoundTitle": "未找到分支",
+      "cannotSwitchTitle": "无法切换分支",
+      "worktreeMessage": "无法切换到“{{branchName}}”，因为 Git 显示该分支已在另一个工作树中检出。\n\n请从源代码管理中打开那个工作树，或为此工作区选择其他分支。",
+      "mergeMessage": "合并正在进行，无法切换到“{{branchName}}”。\n\n请先解决冲突，然后继续或中止合并，再切换分支。",
+      "rebaseMessage": "变基正在进行，无法切换到“{{branchName}}”。\n\n请先继续或中止变基，再切换分支。",
+      "cherryPickMessage": "拣选提交正在进行，无法切换到“{{branchName}}”。\n\n请先继续或中止拣选提交，再切换分支。",
+      "branchNotFoundMessage": "未找到分支“{{branchName}}”。请获取远程分支后重试。",
+      "cannotSwitchMessage": "无法切换到“{{branchName}}”。"
+    },
+    "checkoutConflict": {
+      "title": "切换分支冲突",
+      "message": "切换到“{{branchName}}”会覆盖本地更改。",
+      "stashAndCheckout": "暂存更改并切换",
+      "discardAndCheckout": "丢弃更改并切换"
+    },
+    "detachedHead": {
+      "title": "分离 HEAD 状态",
+      "message": "当前处于提交 {{shortHash}} 的分离 HEAD 状态。\n\n你目前不在任何分支上。如果未先创建新分支就切换到其他分支，在此所做的提交可能会丢失。\n\n⚠️ 分离 HEAD 状态下的提交可能会被 Git 垃圾回收。",
+      "createBranch": "创建分支",
+      "continueWithoutBranch": "不创建分支并继续"
+    },
+    "largePush": {
+      "title": "检测到大量推送",
+      "message_one": "即将向 {{remoteName}}/{{branchName}} 推送 {{count}} 个提交。\n\n此次推送数量较多，确定要继续吗？\n\n💡 建议将大型更改拆分为更小、更聚焦的提交。",
+      "message_other": "即将向 {{remoteName}}/{{branchName}} 推送 {{count}} 个提交。\n\n此次推送数量较多，确定要继续吗？\n\n💡 建议将大型更改拆分为更小、更聚焦的提交。",
+      "pushAllCommits": "推送所有提交"
+    },
+    "protectedBranch": {
+      "title": "受保护分支",
+      "message": "{{remoteName}} 上的分支“{{branchName}}”受保护，无法直接推送。\n\n对受保护分支的更改必须通过 Pull Request 提交。",
+      "createPullRequest": "创建 Pull Request"
+    },
+    "pullConflict": {
+      "title": "存在本地更改，无法拉取",
+      "message": "来自“{{branchName}}”的新更改会覆盖本地更改。{{fileInfo}}\n\n请选择处理方式：",
+      "affectedFiles_one": "（影响 {{count}} 个文件）",
+      "affectedFiles_other": "（影响 {{count}} 个文件）",
+      "stashAndPull": "暂存更改并拉取",
+      "discardAndPull": "丢弃更改并拉取"
+    },
+    "pushRejected": {
+      "title": "推送被拒绝",
+      "message": "无法推送到 {{remoteName}}/{{branchName}}。\n\n远程分支包含本地尚未拥有的提交。{{behindInfo}}\n\n⚠️ 强制推送会永久覆盖远程更改。",
+      "behindInfo_one": "（落后 {{count}} 个提交）",
+      "behindInfo_other": "（落后 {{count}} 个提交）",
+      "pullAndPush": "拉取后推送",
+      "forcePush": "强制推送"
+    },
+    "rebaseConflict": {
+      "mergeTitle": "合并冲突",
+      "rebaseTitle": "变基冲突",
+      "progress": "（第 {{currentStep}} / {{totalSteps}} 步）",
+      "conflictingFiles_one": "\n\n{{count}} 个文件存在冲突。",
+      "conflictingFiles_other": "\n\n{{count}} 个文件存在冲突。",
+      "mergeMessage": "合并“{{targetBranch}}”时发生冲突。{{progressInfo}}{{fileInfo}}\n\n⚠️ 中止操作将取消合并并恢复当前分支。",
+      "rebaseMessage": "变基到“{{targetBranch}}”时发生冲突。{{progressInfo}}{{fileInfo}}\n\n⚠️ 中止操作会将当前分支恢复到变基前的状态。",
+      "resolveConflicts": "解决冲突",
+      "abortMerge": "中止合并",
+      "abortRebase": "中止变基"
+    },
+    "remoteBranchDeleted": {
+      "title": "远程分支已删除",
+      "message": "远程跟踪分支“{{remoteName}}/{{branchName}}”已被删除，但本地分支仍然存在。\n\n⚠️ 删除本地分支会丢弃所有尚未推送的提交。",
+      "switchTo": "切换到 {{branchName}}",
+      "deleteLocalBranch": "删除本地分支",
+      "keepLocalBranch": "保留本地分支"
+    },
+    "gitError": {
+      "titles": {
+        "none": "Git：操作已完成",
+        "nonFastForward": "Git：推送被拒绝",
+        "protectedBranch": "Git：受保护分支",
+        "authenticationFailed": "Git：身份验证失败",
+        "remoteBranchDeleted": "Git：远程分支已删除",
+        "uncommittedChanges": "Git：存在未提交的更改",
+        "networkError": "Git：网络错误",
+        "mergeConflicts": "Git：合并冲突",
+        "permissionDenied": "Git：权限不足",
+        "unknown": "Git：操作失败"
+      },
+      "messages": {
+        "none": "Git 操作已成功完成。",
+        "nonFastForward": "远程分支包含更新的提交，因此推送被拒绝。",
+        "protectedBranch": "目标分支受保护，无法通过此操作更新。",
+        "authenticationFailed": "无法通过远程仓库的身份验证。请检查凭据后重试。",
+        "remoteBranchDeleted": "远程分支似乎已被删除或不再可用。",
+        "uncommittedChanges": "本地更改将被覆盖。请先提交或暂存这些更改再重试。",
+        "networkError": "无法连接到远程仓库。请检查网络连接。",
+        "mergeConflicts": "此操作产生了需要解决的合并冲突。",
+        "permissionDenied": "此仓库操作被拒绝。请检查你的仓库访问权限。",
+        "unknown": "Git 操作意外失败。请查看日志了解详情。"
+      },
+      "operationFailed": "{{operation}}操作失败",
+      "dialogMessage": "{{operation}}失败：{{baseMessage}}\n\n{{detailMessage}}",
+      "stashHint": "\n\n提示：“暂存更改并继续”会暂存本地更改（包括未跟踪文件），重试该操作，然后询问是否恢复这些更改。",
+      "stashAndContinue": "暂存更改并继续",
+      "openGitLog": "打开 Git 日志",
+      "showCommandOutput": "显示命令输出"
+    },
+    "gitAction": {
+      "title": "Git",
+      "transportError": "无法连接到本地 Git 服务。请等待应用启动完成后重试；如果问题持续存在，请重启 ORGII。"
+    }
+  },
+  "destructiveDialog": {
+    "discard": "丢弃",
+    "cancel": "取消"
   },
   "clientOrigin": {
     "officialApp": "应用",

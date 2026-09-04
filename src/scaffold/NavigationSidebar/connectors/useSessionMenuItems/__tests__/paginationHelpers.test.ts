@@ -12,9 +12,11 @@ import {
 import {
   UNIFIED_LOAD_MORE_ID,
   appendSessionGroup,
-  getUnifiedLoadMoreState,
+  executeSessionPaginationPlan,
+  getUnifiedPaginationPlan,
+  hasSessionPaginationPlan,
   isUnifiedLoadMoreId,
-  loadUnifiedReadyCategories,
+  shouldRenderBackendPagination,
   unifiedLoadMoreRow,
 } from "../paginationHelpers";
 
@@ -93,52 +95,86 @@ describe("appendSessionGroup", () => {
 });
 
 describe("unified backend load-more helpers", () => {
+  it("hides ready pagination when the current sidebar scope has no session rows", () => {
+    const readyCategory = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
+    const pagination = makePagination({
+      [readyCategory]: streamState("ready"),
+    });
+
+    expect(
+      shouldRenderBackendPagination(pagination[readyCategory], false)
+    ).toBe(false);
+    expect(getUnifiedPaginationPlan(pagination, false)).toBeNull();
+  });
+
+  it("keeps an empty scope retryable when its backend stream failed", () => {
+    const failedCategory = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
+    const pagination = makePagination({
+      [failedCategory]: streamState("error"),
+    });
+
+    expect(
+      shouldRenderBackendPagination(pagination[failedCategory], false)
+    ).toBe(true);
+    const plan = getUnifiedPaginationPlan(pagination, false);
+    expect(plan).toEqual({
+      targets: [{ category: failedCategory, phase: "error" }],
+    });
+    const row = unifiedLoadMoreRow(plan!, "Retry");
+    expect(hasSessionPaginationPlan(row)).toBe(true);
+    expect(row.sessionPaginationPlan).toBe(plan);
+  });
+
   it("returns all ready categories while exposing one visible unified state", () => {
     const firstCategory = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
     const secondCategory = SESSION_LIST_CATEGORIES[1] as SessionListCategory;
-    const state = getUnifiedLoadMoreState(
+    const plan = getUnifiedPaginationPlan(
       makePagination({
         [firstCategory]: streamState("ready"),
         [secondCategory]: streamState("ready"),
-      })
+      }),
+      true
     );
 
-    expect(state).toEqual({
-      visible: true,
-      loading: false,
-      error: false,
-      disabled: false,
-      readyCategories: [firstCategory, secondCategory],
+    expect(plan).toEqual({
+      targets: [
+        { category: firstCategory, phase: "ready" },
+        { category: secondCategory, phase: "ready" },
+      ],
     });
   });
 
   it("excludes loading categories from ready categories and marks unified state loading", () => {
     const loadingCategory = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
     const readyCategory = SESSION_LIST_CATEGORIES[1] as SessionListCategory;
-    const state = getUnifiedLoadMoreState(
+    const plan = getUnifiedPaginationPlan(
       makePagination({
         [loadingCategory]: streamState("loading"),
         [readyCategory]: streamState("ready"),
-      })
+      }),
+      true
     );
 
-    expect(state.visible).toBe(true);
-    expect(state.loading).toBe(true);
-    expect(state.disabled).toBe(true);
-    expect(state.readyCategories).toEqual([readyCategory]);
+    expect(plan).toEqual({
+      targets: [
+        { category: loadingCategory, phase: "loading" },
+        { category: readyCategory, phase: "ready" },
+      ],
+    });
   });
 
   it("disables the unified row while any category is loading", () => {
     const readyCategory = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
-    const state = getUnifiedLoadMoreState(
+    const plan = getUnifiedPaginationPlan(
       makePagination({
         [readyCategory]: streamState("ready"),
         [SESSION_LIST_CATEGORIES[1] as SessionListCategory]: {
           ...streamState("loading"),
         },
-      })
+      }),
+      true
     );
-    const row = unifiedLoadMoreRow(state, "Loading");
+    const row = unifiedLoadMoreRow(plan!, "Loading");
 
     expect(row.id).toBe(UNIFIED_LOAD_MORE_ID);
     expect(row.key).toBe(UNIFIED_LOAD_MORE_ID);
@@ -149,14 +185,17 @@ describe("unified backend load-more helpers", () => {
 
   it("disables the unified row when every remaining category is already loading", () => {
     const loadingCategory = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
-    const state = getUnifiedLoadMoreState(
+    const plan = getUnifiedPaginationPlan(
       makePagination({
         [loadingCategory]: streamState("loading"),
-      })
+      }),
+      true
     );
-    const row = unifiedLoadMoreRow(state, "Loading");
+    const row = unifiedLoadMoreRow(plan!, "Loading");
 
-    expect(state.disabled).toBe(true);
+    expect(plan).toEqual({
+      targets: [{ category: loadingCategory, phase: "loading" }],
+    });
     expect(row.disabled).toBe(true);
   });
 
@@ -172,11 +211,15 @@ describe("unified backend load-more helpers", () => {
       SESSION_LIST_CATEGORIES[2] as SessionListCategory;
     const loadCategory = vi.fn(() => Promise.resolve());
 
-    const result = loadUnifiedReadyCategories({
-      pagination: makePagination({
+    const plan = getUnifiedPaginationPlan(
+      makePagination({
         [firstReadyCategory]: streamState("ready"),
         [secondReadyCategory]: streamState("ready"),
       }),
+      true
+    );
+    const result = executeSessionPaginationPlan({
+      plan: plan!,
       loadCategory,
     });
 
@@ -192,11 +235,15 @@ describe("unified backend load-more helpers", () => {
     const readyCategory = SESSION_LIST_CATEGORIES[1] as SessionListCategory;
     const loadCategory = vi.fn(() => Promise.resolve());
 
-    const result = loadUnifiedReadyCategories({
-      pagination: makePagination({
+    const plan = getUnifiedPaginationPlan(
+      makePagination({
         [loadingCategory]: streamState("loading"),
         [readyCategory]: streamState("ready"),
       }),
+      true
+    );
+    const result = executeSessionPaginationPlan({
+      plan: plan!,
       loadCategory,
     });
 
@@ -220,8 +267,9 @@ describe("unified backend load-more helpers", () => {
       active -= 1;
     });
 
-    const result = loadUnifiedReadyCategories({
-      pagination: makePagination(ready),
+    const plan = getUnifiedPaginationPlan(makePagination(ready), true);
+    const result = executeSessionPaginationPlan({
+      plan: plan!,
       loadCategory,
     });
     await result;
@@ -230,19 +278,29 @@ describe("unified backend load-more helpers", () => {
     expect(maxActive).toBe(4);
   });
 
-  it("does not load categories when the unified row is disabled", () => {
-    const readyCategory = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
+  it("executes only the categories captured by the visible empty-scope retry", async () => {
+    const failedCategory = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
+    const hiddenReadyCategory =
+      SESSION_LIST_CATEGORIES[1] as SessionListCategory;
     const loadCategory = vi.fn(() => Promise.resolve());
-
-    const result = loadUnifiedReadyCategories({
-      disabled: true,
-      pagination: makePagination({
-        [readyCategory]: streamState("ready"),
+    const plan = getUnifiedPaginationPlan(
+      makePagination({
+        [failedCategory]: streamState("error"),
+        [hiddenReadyCategory]: streamState("ready"),
       }),
+      false
+    );
+
+    expect(plan).toEqual({
+      targets: [{ category: failedCategory, phase: "error" }],
+    });
+    const result = executeSessionPaginationPlan({
+      plan: plan!,
       loadCategory,
     });
 
-    expect(result).toBeNull();
-    expect(loadCategory).not.toHaveBeenCalled();
+    await result;
+    expect(loadCategory).toHaveBeenCalledOnce();
+    expect(loadCategory).toHaveBeenCalledWith(failedCategory);
   });
 });

@@ -20,7 +20,7 @@
     "confirmRemoveMessage": "Thông tin xác thực cục bộ sẽ bị xóa. Hành động này không thể hoàn tác.",
     "toasts": {
       "refreshed": "{{name}} đã làm mới thành công",
-      "refreshError": "Không thể làm mới {{name}}",
+      "refreshError": "Không thể làm mới {{name}}: {{error}}",
       "localRemoved": "{{name}} đã xóa",
       "deleteError": "Không thể xóa {{name}}"
     },

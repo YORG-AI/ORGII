@@ -2,6 +2,7 @@ node_modules/
 .pnpm-store/
 /dist/
 /build/
+/build-web/
 /build-mobile-native/
 coverage/
 .DS_Store

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
+import {
+  SESSION_LIST_CATEGORIES,
+  type SessionListCategory,
+} from "@src/store/session";
 
+import { attachSessionPaginationPlan } from "../useSessionMenuItems/paginationHelpers";
 import {
   CLOUD_MY_SESSIONS_LOAD_MORE_ID,
   CLOUD_MY_SESSIONS_SECTION_ID,
@@ -10,6 +15,34 @@ import {
 } from "./cloudScopedMenuItems";
 
 describe("buildCloudScopedMenuItems", () => {
+  const category = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
+  const backendPager = (phase: "ready" | "loading" | "error", label: string) =>
+    attachSessionPaginationPlan(
+      {
+        id: "load-more-unified",
+        key: "load-more-unified",
+        label,
+      },
+      {
+        targets: [{ category, phase }],
+      }
+    );
+  const streamPager = (
+    targetCategory: SessionListCategory,
+    phase: "ready" | "loading" | "error",
+    label: string
+  ) =>
+    attachSessionPaginationPlan(
+      {
+        id: `load-more-${targetCategory}`,
+        key: `load-more-${targetCategory}`,
+        label,
+      },
+      {
+        targets: [{ category: targetCategory, phase }],
+      }
+    );
+
   const localSections: NavigationMenuItem[] = [
     { id: "separator-today", key: "separator-today", label: "Today" },
     { id: "session-today", key: "session-today", label: "Today session" },
@@ -255,6 +288,169 @@ describe("buildCloudScopedMenuItems", () => {
     expect(
       result.some((item) => item.id === `separator-${CLOUD_PINNED_SECTION_ID}`)
     ).toBe(false);
+  });
+
+  it("does not leave a normal pager in My sessions when every local row is pinned", () => {
+    const result = buildCloudScopedMenuItems({
+      cloudMenuItems: [
+        {
+          id: "separator-cloud-team-sessions",
+          key: "separator-cloud-team-sessions",
+          label: "Team sessions",
+        },
+      ],
+      sessionMenuItems: [
+        {
+          id: "session-pinned",
+          key: "session-pinned",
+          label: "Pinned one",
+          pinned: true,
+        },
+        backendPager("ready", "Load more"),
+      ],
+      mySessionsLabel: "My sessions",
+      pinnedLabel: "Pinned",
+    });
+
+    expect(result.map((item) => item.id)).toEqual([
+      `separator-${CLOUD_PINNED_SECTION_ID}`,
+      "session-pinned",
+      "separator-cloud-team-sessions",
+      `separator-${CLOUD_MY_SESSIONS_SECTION_ID}`,
+    ]);
+  });
+
+  it("keeps a failed backend page retryable when My sessions is empty", () => {
+    const result = buildCloudScopedMenuItems({
+      cloudMenuItems: [
+        {
+          id: "separator-cloud-team-sessions",
+          key: "separator-cloud-team-sessions",
+          label: "Team sessions",
+        },
+      ],
+      sessionMenuItems: [backendPager("error", "Retry")],
+      mySessionsLabel: "My sessions",
+    });
+
+    expect(result.at(-1)).toMatchObject({
+      id: CLOUD_MY_SESSIONS_LOAD_MORE_ID,
+      label: "Retry",
+      disabled: false,
+      sessionPaginationPlan: {
+        targets: [{ category, phase: "error" }],
+      },
+    });
+  });
+
+  it("removes ordinary ready targets from a pinned-only retry plan", () => {
+    const failedCategory = SESSION_LIST_CATEGORIES[1] as SessionListCategory;
+    const mixedPager = attachSessionPaginationPlan(
+      {
+        id: "load-more-unified",
+        key: "load-more-unified",
+        label: "Retry",
+      },
+      {
+        targets: [
+          { category, phase: "ready" },
+          { category: failedCategory, phase: "error" },
+        ],
+      }
+    );
+    const result = buildCloudScopedMenuItems({
+      cloudMenuItems: [
+        {
+          id: "separator-cloud-team-sessions",
+          key: "separator-cloud-team-sessions",
+          label: "Team sessions",
+        },
+      ],
+      sessionMenuItems: [
+        {
+          id: "session-pinned",
+          key: "session-pinned",
+          label: "Pinned one",
+          pinned: true,
+        },
+        mixedPager,
+      ],
+      mySessionsLabel: "My sessions",
+    });
+
+    expect(result.at(-1)).toMatchObject({
+      id: CLOUD_MY_SESSIONS_LOAD_MORE_ID,
+      label: "Retry",
+      sessionPaginationPlan: {
+        targets: [{ category: failedCategory, phase: "error" }],
+      },
+    });
+  });
+
+  it("combines every backend stream target into the cloud pager plan", () => {
+    const secondCategory = SESSION_LIST_CATEGORIES[1] as SessionListCategory;
+    const result = buildCloudScopedMenuItems({
+      cloudMenuItems: [
+        {
+          id: "separator-cloud-team-sessions",
+          key: "separator-cloud-team-sessions",
+          label: "Team sessions",
+        },
+      ],
+      sessionMenuItems: [
+        { id: "session-one", key: "session-one", label: "Session one" },
+        streamPager(category, "ready", "Load more"),
+        streamPager(secondCategory, "error", "Retry"),
+      ],
+      mySessionsLabel: "My sessions",
+    });
+
+    expect(result.at(-1)).toMatchObject({
+      id: CLOUD_MY_SESSIONS_LOAD_MORE_ID,
+      label: "Retry",
+      disabled: false,
+      sessionPaginationPlan: {
+        targets: [
+          { category, phase: "ready" },
+          { category: secondCategory, phase: "error" },
+        ],
+      },
+    });
+  });
+
+  it("keeps local rows expandable while a backend stream is loading", () => {
+    const localRows = Array.from(
+      { length: 11 },
+      (_, index): NavigationMenuItem => ({
+        id: `session-${index}`,
+        key: `session-${index}`,
+        label: `Session ${index}`,
+      })
+    );
+    const result = buildCloudScopedMenuItems({
+      cloudMenuItems: [
+        {
+          id: "separator-cloud-team-sessions",
+          key: "separator-cloud-team-sessions",
+          label: "Team sessions",
+        },
+      ],
+      sessionMenuItems: [
+        ...localRows,
+        streamPager(category, "loading", "Loading"),
+      ],
+      mySessionsLabel: "My sessions",
+      loadMoreLabel: "Load more",
+    });
+
+    expect(result.at(-1)).toMatchObject({
+      id: CLOUD_MY_SESSIONS_LOAD_MORE_ID,
+      label: "Load more",
+      disabled: false,
+      sessionPaginationPlan: {
+        targets: [{ category, phase: "loading" }],
+      },
+    });
   });
 
   it("does not mistake a date group's own pager for a backend stream pager", () => {

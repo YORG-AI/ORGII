@@ -2,7 +2,7 @@
  * Shared utilities for slash-menu item construction.
  * Used by useSlashItemsCache, useSlashCommand, and PinnedActionsBar.
  */
-import type { ComposerInputRef } from "@src/components/ComposerInput";
+import type { ComposerInputRef } from "@src/components/ComposerInput/types";
 import { type InstalledSkill, SLASH_ACTIONS } from "@src/types/extensions";
 
 /**

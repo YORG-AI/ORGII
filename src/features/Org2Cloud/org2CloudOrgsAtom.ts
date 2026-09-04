@@ -13,7 +13,7 @@
  * Cleared to `[]` on sign-out. Offline / fetch failure degrades to `[]` (no
  * crash, no stale cache).
  */
-import { atom, createStore, useAtom, useStore } from "jotai";
+import { atom, createStore, useAtom, useAtomValue, useStore } from "jotai";
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
 import { createLogger } from "@src/hooks/logger";
@@ -95,6 +95,57 @@ export interface RefetchOrg2CloudOrgsOptions {
   maxAttempts?: number;
 }
 
+/**
+ * Keep the bounded first-load retry dormant while the document is hidden,
+ * then revalidate once immediately on return. The returned disposer owns
+ * both the timeout and visibility listener.
+ */
+export function scheduleVisibleOrg2CloudOrgsRetry(
+  delayMs: number,
+  retry: () => void
+): () => void {
+  let disposed = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const ownerDocument = typeof document === "undefined" ? null : document;
+
+  const clearTimer = () => {
+    if (timer === null) return;
+    clearTimeout(timer);
+    timer = null;
+  };
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    clearTimer();
+    ownerDocument?.removeEventListener("visibilitychange", onVisibilityChange);
+  };
+  const run = () => {
+    if (disposed) return;
+    dispose();
+    retry();
+  };
+  const scheduleTimer = () => {
+    if (disposed || timer !== null) return;
+    timer = setTimeout(run, delayMs);
+  };
+  function onVisibilityChange(): void {
+    if (ownerDocument?.visibilityState === "hidden") {
+      clearTimer();
+      return;
+    }
+    run();
+  }
+
+  if (ownerDocument) {
+    ownerDocument.addEventListener("visibilitychange", onVisibilityChange);
+    if (ownerDocument.visibilityState !== "hidden") scheduleTimer();
+  } else {
+    scheduleTimer();
+  }
+
+  return dispose;
+}
+
 export const org2CloudOrgsAtom = atom<Org2CloudOrg[]>([]);
 org2CloudOrgsAtom.debugLabel = "org2CloudOrgsAtom";
 
@@ -110,6 +161,25 @@ org2CloudOrgsAtom.debugLabel = "org2CloudOrgsAtom";
  */
 export const org2CloudOrgsLoadedAtom = atom<boolean>(false);
 org2CloudOrgsLoadedAtom.debugLabel = "org2CloudOrgsLoadedAtom";
+
+/**
+ * User-visible lifecycle of the authoritative cloud-org roster request.
+ *
+ * `org2CloudOrgsLoadedAtom` remains the membership safety gate: it only turns
+ * true after a successful server response. This state adds the missing
+ * presentation distinction between an in-flight/retrying request and a
+ * terminal transport failure, so Web never turns a failed first load into a
+ * permanent spinner or an authoritatively empty roster.
+ */
+export type Org2CloudOrgsLoadState =
+  | "idle"
+  | "loading"
+  | "retrying"
+  | "ready"
+  | "error";
+
+export const org2CloudOrgsLoadStateAtom = atom<Org2CloudOrgsLoadState>("idle");
+org2CloudOrgsLoadStateAtom.debugLabel = "org2CloudOrgsLoadStateAtom";
 
 /**
  * Monotonic request generation for every `list_my_orgs` caller. Realtime can
@@ -166,6 +236,7 @@ export async function queueOrg2CloudOrgsConvergence<T>(
 export function beginOrg2CloudOrgsRequest(store: JotaiStore): number {
   const epoch = store.get(org2CloudOrgsRequestEpochAtom) + 1;
   store.set(org2CloudOrgsRequestEpochAtom, epoch);
+  store.set(org2CloudOrgsLoadStateAtom, "loading");
   return epoch;
 }
 
@@ -184,6 +255,25 @@ export function commitOrg2CloudOrgsRequest(
   if (!isCurrentOrg2CloudOrgsRequest(store, epoch)) return false;
   store.set(org2CloudOrgsAtom, orgs);
   store.set(org2CloudOrgsLoadedAtom, true);
+  store.set(org2CloudOrgsLoadStateAtom, "ready");
+  return true;
+}
+
+export function markOrg2CloudOrgsRequestRetrying(
+  store: JotaiStore,
+  epoch: number
+): boolean {
+  if (!isCurrentOrg2CloudOrgsRequest(store, epoch)) return false;
+  store.set(org2CloudOrgsLoadStateAtom, "retrying");
+  return true;
+}
+
+export function failOrg2CloudOrgsRequest(
+  store: JotaiStore,
+  epoch: number
+): boolean {
+  if (!isCurrentOrg2CloudOrgsRequest(store, epoch)) return false;
+  store.set(org2CloudOrgsLoadStateAtom, "error");
   return true;
 }
 
@@ -254,6 +344,8 @@ export function parseCloudOrgSelectorValue(value: string): string | null {
  */
 export function useOrg2CloudOrgs(): void {
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
+  const orgsLoaded = useAtomValue(org2CloudOrgsLoadedAtom);
+  const orgsLoadState = useAtomValue(org2CloudOrgsLoadStateAtom);
   const store = useStore();
   const refetchOrgs = useRefetchOrg2CloudOrgs();
   const authRef = useRef(auth);
@@ -270,12 +362,13 @@ export function useOrg2CloudOrgs(): void {
     beginOrg2CloudOrgsRequest(store);
     store.set(org2CloudOrgsAtom, []);
     store.set(org2CloudOrgsLoadedAtom, false);
+    store.set(org2CloudOrgsLoadStateAtom, authIdentityKey ? "loading" : "idle");
   }, [authIdentityKey, store]);
 
   useEffect(() => {
     if (!authIdentityKey) return;
     let cancelled = false;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelRetrySchedule: (() => void) | null = null;
     // Bounded auto-retry with backoff. A TRANSIENT token-refresh /
     // list_my_orgs failure otherwise degrades the roster to `[]` with the
     // loaded flag stuck FALSE — cloud orgs SILENTLY vanish from the org
@@ -289,11 +382,18 @@ export function useOrg2CloudOrgs(): void {
       const current = authRef.current;
       if (!current || cancelled) return;
       const requestEpoch = beginOrg2CloudOrgsRequest(store);
-      const retry = (): void => {
-        if (cancelled || attempt >= RETRY_DELAYS_MS.length) return;
-        retryTimer = setTimeout(() => {
-          void runAttempt(attempt + 1);
-        }, RETRY_DELAYS_MS[attempt]);
+      const retry = (): boolean => {
+        if (cancelled || attempt >= RETRY_DELAYS_MS.length) return false;
+        markOrg2CloudOrgsRequestRetrying(store, requestEpoch);
+        cancelRetrySchedule?.();
+        cancelRetrySchedule = scheduleVisibleOrg2CloudOrgsRetry(
+          RETRY_DELAYS_MS[attempt],
+          () => {
+            cancelRetrySchedule = null;
+            void runAttempt(attempt + 1);
+          }
+        );
+        return true;
       };
       let refreshRejected = false;
       const fresh = await ensureFreshSession(current, {
@@ -321,7 +421,9 @@ export function useOrg2CloudOrgs(): void {
       }
       if (!fresh) {
         log.warn("cloud org fetch skipped: token refresh failed");
-        if (!refreshRejected) retry();
+        if (!refreshRejected && !retry()) {
+          failOrg2CloudOrgsRequest(store, requestEpoch);
+        }
         return;
       }
       commitRefreshedAuth(setAuth, current, fresh);
@@ -343,7 +445,7 @@ export function useOrg2CloudOrgs(): void {
         // membership-pending — blocked from an unarbitrated start), and
         // retry so it recovers without waiting for the next sign-in.
         store.set(org2CloudOrgsAtom, []);
-        retry();
+        if (!retry()) failOrg2CloudOrgsRequest(store, requestEpoch);
         return;
       }
       if (!commitOrg2CloudOrgsRequest(store, requestEpoch, orgs)) return;
@@ -360,19 +462,26 @@ export function useOrg2CloudOrgs(): void {
     void runAttempt(0);
     return () => {
       cancelled = true;
-      if (retryTimer) clearTimeout(retryTimer);
+      cancelRetrySchedule?.();
     };
   }, [authIdentityKey, setAuth, store]);
 
   useEffect(() => {
-    if (!authIdentityKey) return undefined;
+    // The first-load retry owner above is the only requester until it reaches
+    // success or a terminal error. Starting the focus/visibility convergence
+    // owner during backoff would let the same visibility edge launch two
+    // equivalent roster reads. After either terminal state, the shared
+    // refetch coordinator owns all ongoing/manual convergence requests.
+    if (!authIdentityKey || (!orgsLoaded && orgsLoadState !== "error")) {
+      return undefined;
+    }
     return startOrg2CloudRosterConvergence({
       refresh: refetchOrgs,
       onError: (error) => {
         log.warn("cloud org convergence refresh failed", error);
       },
     });
-  }, [authIdentityKey, refetchOrgs]);
+  }, [authIdentityKey, orgsLoadState, orgsLoaded, refetchOrgs]);
 }
 
 /**
@@ -407,6 +516,7 @@ export function useRefetchOrg2CloudOrgs(): (
           if (!current) {
             store.set(org2CloudOrgsAtom, []);
             store.set(org2CloudOrgsLoadedAtom, false);
+            store.set(org2CloudOrgsLoadStateAtom, "idle");
             return [];
           }
           const fresh = await ensureFreshSession(current);
@@ -414,6 +524,7 @@ export function useRefetchOrg2CloudOrgs(): (
             latest = store.get(org2CloudOrgsAtom);
           } else if (!fresh) {
             log.warn("cloud org refetch skipped: token refresh failed");
+            failOrg2CloudOrgsRequest(store, requestEpoch);
             latest = [];
           } else {
             commitRefreshedAuth(setAuth, current, fresh);
@@ -421,6 +532,7 @@ export function useRefetchOrg2CloudOrgs(): (
             if (!isCurrentOrg2CloudOrgsRequest(store, requestEpoch)) {
               latest = store.get(org2CloudOrgsAtom);
             } else if (orgs === null) {
+              failOrg2CloudOrgsRequest(store, requestEpoch);
               latest = [];
             } else if (commitOrg2CloudOrgsRequest(store, requestEpoch, orgs)) {
               latest = orgs;

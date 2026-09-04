@@ -103,8 +103,8 @@
       "pullRequestsPartialLoadHelp": "利用可能な項目は引き続き表示されます。更新して不足している pull request の再読み込みを試してください",
       "workItemContext": "一部のプロジェクト情報が利用できません。作業項目は引き続き使用できます。",
       "workItemLoad": "この作業項目を読み込めませんでした。再試行してください。",
-      "githubIssueLoad": "この作業項目の GitHub issue を読み込めませんでした。ローカルの作業項目情報は引き続き表示されます。",
-      "workItemUpdate": "作業項目への最新の変更を保存できませんでした。再試行してください。"
+      "workItemUpdate": "作業項目への最新の変更を保存できませんでした。再試行してください。",
+      "githubIssueLoad": "この作業項目の GitHub issue を読み込めませんでした。ローカルの作業項目情報は引き続き表示されます。"
     },
     "detail": {
       "assignedSubtitle": "割り当てられた作業項目",
@@ -188,8 +188,6 @@
     "questionIgnored": "質問を無視しました",
     "addedAsContext": "{{name}} をコンテキストに追加しました",
     "addedFilesAsContext": "{{count}} 個のファイルをコンテキストに追加しました",
-    "chooseExecutionAgentAi": "AI で作成する前に担当エージェントを選択してください。",
-    "autoExecuteRequiresExecutionAgent": "自動実行には担当エージェントが必要です。",
     "openSessionBeforeLinking": "作業項目をリンクする前にセッションを開いてください。",
     "sessionLinkedToWorkItem": "セッションを作業項目にリンクしました。",
     "sessionLinkFailed": "セッションのリンクに失敗しました：{{message}}",
@@ -202,7 +200,9 @@
     "workspaceImportFailed": "ワークスペースのインポートに失敗しました",
     "chooseFolderCloneRepo": "リポジトリをクローンするフォルダーを選択",
     "repositoryCloned": "リポジトリをクローンしました",
-    "repositoryCloneFailed": "リポジトリのクローンに失敗しました"
+    "repositoryCloneFailed": "リポジトリのクローンに失敗しました",
+    "chooseExecutionAgentAi": "AI で作成する前に担当エージェントを選択してください。",
+    "autoExecuteRequiresExecutionAgent": "自動実行には担当エージェントが必要です。"
   },
   "previews": {
     "noCanvasAvailable": "キャンバスがありません",
@@ -1069,10 +1069,6 @@
     "switchWorkspaceTooltip": "Workspace を切り替え",
     "switchWorktreeTooltip": "Worktree を切り替え",
     "switchBranchTooltip": "ブランチを切り替え",
-    "switchLocalBranchTooltip": "ローカルブランチを切り替え",
-    "sessionEnvCloud": "クラウド",
-    "sessionEnvLocal": "ローカル",
-    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Git アクション",
     "switchToSessionRepo": "{{name}} に切り替え",
     "embeddingProgress": "Embedding: {{count}} チャンク処理済み",
@@ -1092,11 +1088,11 @@
       "unknownProcess": "不明なプロセス",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "ブラウザで開く",
+      "openAddress": "{{address}} を開く",
       "copyAddress": "アドレスをコピー",
       "stopProcess": "プロセスを停止",
       "searchPlaceholder": "ポートを検索…",
       "noSearchResults": "一致するポートがありません",
-      "openAddress": "{{address}} を開く",
       "rescan": "再スキャン",
       "rescanning": "スキャン中…",
       "rescanTooltip": "待ち受けポートを再検出します",
@@ -1186,7 +1182,11 @@
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
-    "gitSyncMenuTitle": "Git sync actions"
+    "gitSyncMenuTitle": "Git sync actions",
+    "switchLocalBranchTooltip": "ローカルブランチを切り替え",
+    "sessionEnvCloud": "クラウド",
+    "sessionEnvLocal": "ローカル",
+    "sessionHarness": "{{name}} Harness"
   },
   "git": {
     "loading": "Git ステータスを読み込み中...",
@@ -1227,6 +1227,10 @@
       "compareBranch": "ブランチを比較"
     },
     "rail": {
+      "openTabs": "開いているタブ",
+      "closeItem": "{{label}} を閉じる",
+      "expand": "ワークステーション情報を展開",
+      "collapse": "ワークステーション情報を折りたたむ",
       "subagents": "subagent",
       "subagentsCount_one": "subagent {{count}}件",
       "subagentsCount_other": "subagents {{count}}件",
@@ -1235,10 +1239,6 @@
       "subagentPending": "待機中",
       "subagentCompleted": "完了",
       "subagentFailed": "失敗",
-      "openTabs": "開いているタブ",
-      "closeItem": "{{label}} を閉じる",
-      "expand": "ワークステーション情報を展開",
-      "collapse": "ワークステーション情報を折りたたむ",
       "restoreWidth": "元の幅に戻す（{{width}}px）",
       "setMinimumWidth": "現在の幅を最小値に設定（{{width}}px）",
       "widerWidth": "広げる（{{width}}px）",
@@ -1284,6 +1284,36 @@
       },
       "summary": {
         "label": "pull request の概要"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "が {{count}} 件のコミットをマージしようとしています:",
+        "wantsToMergeCommitsInto_other": "が {{count}} 件のコミットをマージしようとしています:",
+        "mergedCommitsInto_one": "が {{count}} 件のコミットをマージしました:",
+        "mergedCommitsInto_other": "が {{count}} 件のコミットをマージしました:",
+        "from": "←",
+        "copyHeadBranch": "ブランチ名をコピー",
+        "branchCopied": "ブランチ名をコピーしました"
+      },
+      "sidebar": {
+        "reviewers": "レビュアー",
+        "requestReviewers": "レビュアーをリクエスト",
+        "awaitingReview": "レビュー待ち",
+        "noReviews": "レビューはありません",
+        "assignees": "担当者",
+        "noAssignees": "担当者なし",
+        "labels": "ラベル",
+        "noLabels": "まだありません",
+        "actions": "操作",
+        "editAssignees": "担当者を編集",
+        "searchAssignees": "ユーザーを検索",
+        "noAssigneeCandidates": "利用可能なユーザーがいません",
+        "assigneesLoadFailed": "ユーザーを読み込めませんでした",
+        "assigneesUpdated": "担当者を更新しました",
+        "editLabels": "ラベルを編集",
+        "searchLabels": "ラベルを検索",
+        "noLabelCandidates": "利用可能なラベルがありません",
+        "labelsLoadFailed": "ラベルを読み込めませんでした",
+        "labelsUpdated": "ラベルを更新しました"
       },
       "tabs": {
         "conversation": "会話",
@@ -1341,6 +1371,8 @@
         "removedFromQueue": "マージキューから削除しました",
         "autoMergeEnabled": "自動マージを有効にしました",
         "autoMergeDisabled": "自動マージを無効にしました",
+        "convertToDraft": "下書きに戻す",
+        "convertedToDraft": "pull request を下書きに変換しました",
         "confirmCloseTitle": "pull request を閉じますか？",
         "confirmCloseMessage": "pull request は引き続き利用でき、後で再度開くことができます。",
         "closeSuccess": "pull request を閉じました",
@@ -1375,39 +1407,7 @@
           "checksFailed": "マージする前に必須チェックに合格する必要があります",
           "checksPending": "必須チェックを待つか、自動マージを有効にしてください",
           "mergeBlocked": "GitHub から未達成のマージ要件が報告されています"
-        },
-        "convertToDraft": "下書きに戻す",
-        "convertedToDraft": "pull request を下書きに変換しました"
-      },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "が {{count}} 件のコミットをマージしようとしています:",
-        "wantsToMergeCommitsInto_other": "が {{count}} 件のコミットをマージしようとしています:",
-        "mergedCommitsInto_one": "が {{count}} 件のコミットをマージしました:",
-        "mergedCommitsInto_other": "が {{count}} 件のコミットをマージしました:",
-        "from": "←",
-        "copyHeadBranch": "ブランチ名をコピー",
-        "branchCopied": "ブランチ名をコピーしました"
-      },
-      "sidebar": {
-        "reviewers": "レビュアー",
-        "requestReviewers": "レビュアーをリクエスト",
-        "awaitingReview": "レビュー待ち",
-        "noReviews": "レビューはありません",
-        "assignees": "担当者",
-        "noAssignees": "担当者なし",
-        "labels": "ラベル",
-        "noLabels": "まだありません",
-        "actions": "操作",
-        "editAssignees": "担当者を編集",
-        "searchAssignees": "ユーザーを検索",
-        "noAssigneeCandidates": "利用可能なユーザーがいません",
-        "assigneesLoadFailed": "ユーザーを読み込めませんでした",
-        "assigneesUpdated": "担当者を更新しました",
-        "editLabels": "ラベルを編集",
-        "searchLabels": "ラベルを検索",
-        "noLabelCandidates": "利用可能なラベルがありません",
-        "labelsLoadFailed": "ラベルを読み込めませんでした",
-        "labelsUpdated": "ラベルを更新しました"
+        }
       }
     },
     "messages": {
@@ -1577,9 +1577,9 @@
       "chooseKey": "キーを選択",
       "noCompatibleAccounts": "互換性のあるキーがありません",
       "chooseModelHint": "キーボードで移動するか、マウスでモデルをクリックしてください",
+      "selectAccount": "アカウントを選択",
       "chooseKeyHint": "キーボードで移動するか、マウスでキーをクリックしてください",
-      "noModelsForKey": "このキーで有効なモデルはありません",
-      "selectAccount": "アカウントを選択"
+      "noModelsForKey": "このキーで有効なモデルはありません"
     },
     "modelProperties": {
       "effort": "Effort",
@@ -1739,16 +1739,16 @@
       "select": "選択",
       "switchColumn": "列を切り替え",
       "switchSection": "セクションを切り替え",
-      "showPath": "パスを表示",
-      "keyFirst": "キー優先",
-      "showBranchInfo": "ブランチ情報を表示",
       "compatibleKeys": "互換性あり",
       "planSupport": "Plan",
       "byokSupport": "Keys",
       "incompatible": "非対応",
       "manageModels": "モデルを管理",
       "manageKeys": "キーを管理",
-      "manageAgents": "Agent を管理"
+      "manageAgents": "Agent を管理",
+      "showPath": "パスを表示",
+      "keyFirst": "キー優先",
+      "showBranchInfo": "ブランチ情報を表示"
     },
     "editorSpotlight": {
       "searchPlaceholder": "コマンドを検索...",
@@ -1930,7 +1930,6 @@
     "theme": "テーマ",
     "sidebarPosition": "サイドバーの位置",
     "modelPickerStyle": "ピッカー",
-    "paginateChatHistory": "チャット履歴をページ分割",
     "modelPickerSpotlight": "Spotlight",
     "modelPickerMenu": "メニュー",
     "replaySession": "Replay セッション",
@@ -1960,7 +1959,8 @@
     "ramHydratedEvents": "Hydrated イベント",
     "ramTurnBodies": "履歴 lazy load",
     "ramFileTrees": "ファイルツリー",
-    "ramCodeMirrors": "ファイルレンダリング"
+    "ramCodeMirrors": "ファイルレンダリング",
+    "paginateChatHistory": "チャット履歴をページ分割"
   },
   "spotlightActions": {
     "switchToLightTheme": "ライトテーマに切り替え",
@@ -1976,13 +1976,13 @@
     "openAgentStation": "Agent Station に移動",
     "openKanban": "Kanban に移動",
     "changeLanguage": "言語を変更",
+    "switchToSystemTheme": "システムテーマに従う",
+    "detectUpdate": "アップデートを確認",
+    "recentlyUsed": "最近使用した項目",
     "changeTheme": "テーマを変更",
     "changeSkin": "スキンを変更",
     "searchThemes": "テーマを検索...",
-    "searchSkins": "スキンを検索...",
-    "switchToSystemTheme": "システムテーマに従う",
-    "detectUpdate": "アップデートを確認",
-    "recentlyUsed": "最近使用した項目"
+    "searchSkins": "スキンを検索..."
   },
   "commands": {
     "showBottomPanel": "ボトムパネルを表示",
@@ -2350,6 +2350,16 @@
       "untitled": "タイトルなし"
     },
     "statusBar": {}
+  },
+  "notifications": {
+    "backgroundSession": "バックグラウンドセッション",
+    "taskCompletedTitle": "タスク完了",
+    "taskCompletedBody": "「{{name}}」が完了しました。レビューできます",
+    "taskCompletedToast": "「{{name}}」が完了しました。セッションを開いて結果を確認してください。",
+    "openSessionAction": "セッションを開く",
+    "taskFailedTitle": "タスク失敗",
+    "taskFailedBody": "「{{name}}」は失敗しました{{detail}}",
+    "taskCancelledToast": "「{{name}}」はキャンセルされました"
   },
   "globalToolbar": {},
   "quitConfirmation": {

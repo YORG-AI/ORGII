@@ -20,7 +20,7 @@
     "confirmRemoveMessage": "Cela supprimera les identifiants locaux. Cette action est irréversible.",
     "toasts": {
       "refreshed": "{{name}} actualisé avec succès",
-      "refreshError": "Échec de l'actualisation de {{name}}",
+      "refreshError": "Échec de l'actualisation de {{name}} : {{error}}",
       "localRemoved": "{{name}} supprimé",
       "deleteError": "Échec de la suppression de {{name}}"
     },

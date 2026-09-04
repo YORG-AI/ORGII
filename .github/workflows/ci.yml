@@ -133,6 +133,14 @@ jobs:
         if: steps.lint_scope.outputs.lint_mode == 'all'
         run: pnpm lint
 
+      - name: i18n contracts
+        run: pnpm check:i18n:contracts
+
+      - name: Web production build
+        run: pnpm build:web
+        env:
+          NODE_OPTIONS: "--max-old-space-size=6144"
+
       # nightly-full-checks.yml relints the whole tree once a day, so a rule
       # that starts failing on untouched files still surfaces within 24h.
       - name: Lint (changed files)

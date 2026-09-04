@@ -113,9 +113,7 @@
     }
   },
   "general": {
-    "login": "Entrar",
     "tabGeneral": "Geral",
-    "tabSelfHosted": "Auto-hospedado",
     "loginStatus": "Status do Login",
     "loggedIn": "Conectado",
     "notLoggedIn": "Não conectado",
@@ -230,7 +228,9 @@
     "presenceGuidanceOnlineDefault": "Estou ao teclado. Podes fazer perguntas de esclarecimento a qualquer momento e confirmar comigo qualquer ação destrutiva antes de a executar",
     "presenceGuidanceInvisibleDefault": "Estou por perto, mas a aparecer offline. Por padrão, trabalha de forma autónoma e avisa-me apenas sobre ações de alto risco ou refatorações significativas; junta as outras perguntas num único resumo em vez de as fazer uma a uma",
     "presenceGuidanceAwayDefault": "Estou longe do teclado. Não fiques bloqueado à minha espera; toma a melhor decisão com a informação disponível, termina o que conseguires e deixa um resumo breve do que aconteceu e das perguntas em aberto para quando eu voltar",
-    "followSystem": "Seguir o sistema"
+    "followSystem": "Seguir o sistema",
+    "login": "Entrar",
+    "tabSelfHosted": "Auto-hospedado"
   },
   "background": {
     "title": "Plano de fundo",
@@ -729,7 +729,8 @@
       "sent": "Notificação de teste enviada",
       "permissionWarning": "Falha ao enviar notificação de teste. Verifique as permissões.",
       "sendFailed": "Não foi possível enviar a notificação de teste. Verifique suas permissões de notificação e tente novamente.",
-      "soundFailed": "Não foi possível reproduzir o som de notificação. Verifique o volume do sistema."
+      "soundFailed": "Não foi possível reproduzir o som de notificação. Verifique o volume do sistema.",
+      "body": "Esta é uma notificação de teste do ORGII"
     }
   },
   "editor": {

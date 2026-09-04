@@ -10,11 +10,13 @@
     "dev:mobile-native": "ORGII_MOBILE_REMOTE_NATIVE=true node scripts/dev/webpack-server.js",
     "dev:frontend:rspack": "node scripts/dev/rspack-server.js",
     "dev:frontend:light": "ORGII_LIGHT_DEV=true FAST_DEV=true DEV_SOURCEMAPS=false node scripts/dev/webpack-server.js",
+    "dev:web": "WEBPACK_DEV_SERVER_PORT=1999 webpack serve --config webpack.web.config.js --mode development",
     "dev:cpu-monitor": "bash scripts/dev/cpu-monitor.sh",
     "diag:process": "node tools/org2-diagnostics/cli.mjs process",
     "diag:memory": "node tools/org2-diagnostics/cli.mjs memory",
     "diag:test": "node --test tools/org2-diagnostics/test/*.test.mjs",
     "build": "webpack --config config/webpack.config.js --mode production",
+    "build:web": "webpack --config webpack.web.config.js --mode production",
     "build:mobile-native": "ORGII_MOBILE_REMOTE_NATIVE=true webpack --config config/webpack.config.js --mode production",
     "download": "python3 scripts/tools/download.py",
     "download:sidecars": "python3 scripts/tools/download_sidecars.py",
@@ -67,7 +69,10 @@
     "check:unused-exports": "knip",
     "check:unused-exports:all": "knip --include files,dependencies,devDependencies,exports,types,nsExports,nsTypes",
     "check:e2e-oauth-guards": "node scripts/quality/check-e2e-oauth-guards.mjs",
-    "check:i18n:cloud": "node scripts/quality/check-missing-i18n-keys.mjs --namespace navigation --prefix cloud && node scripts/quality/check-missing-i18n-keys.mjs --namespace navigation --prefix collaboration.forkImported"
+    "check:i18n:cloud": "node scripts/quality/check-missing-i18n-keys.mjs --namespace navigation --prefix cloud && node scripts/quality/check-missing-i18n-keys.mjs --namespace navigation --prefix collaboration.forkImported",
+    "check:i18n:calls": "node scripts/quality/check-i18n-callsite-keys.mjs",
+    "check:i18n:quality": "node scripts/quality/check-i18n-resource-quality.mjs",
+    "check:i18n:contracts": "pnpm check:i18n:calls && pnpm check:i18n:quality"
   },
   "keywords": [
     "orgii",

@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { _resetToolRegistry } from "@src/engines/SessionCore/rendering/registry";
 
 import { convertToFileOperation, parseFilePath } from "../fileConverter";
 
@@ -238,5 +239,33 @@ describe("convertToFileOperation", () => {
       result: {},
     });
     expect(convertToFileOperation(event, false)).toBeNull();
+  });
+
+  it("classifies read/edit via uiCanonical when the tool registry is empty", () => {
+    _resetToolRegistry();
+    const read = minimalSessionEvent({
+      functionName: "Read",
+      uiCanonical: "read_file",
+      args: { path: "/repo/src/app.ts" },
+      result: {
+        output: { success: { content: "export const ok = true;" } },
+      },
+    });
+    const edit = minimalSessionEvent({
+      functionName: "edit_file_by_replace",
+      uiCanonical: "edit_file",
+      args: { path: "/repo/src/app.ts" },
+      result: {
+        output: {
+          success: {
+            beforeFullFileContent: "a",
+            afterFullFileContent: "b",
+          },
+        },
+      },
+    });
+
+    expect(convertToFileOperation(read, false)?.type).toBe("read");
+    expect(convertToFileOperation(edit, false)?.type).toBe("write");
   });
 });

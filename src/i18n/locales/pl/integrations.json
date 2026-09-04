@@ -21,7 +21,7 @@
     "confirmRemoveMessage": "To usunie lokalnie zapisany klucz. Tej operacji nie można cofnąć.",
     "toasts": {
       "refreshed": "{{name}} odświeżono pomyślnie",
-      "refreshError": "Nie udało się odświeżyć {{name}}",
+      "refreshError": "Nie udało się odświeżyć {{name}}: {{error}}",
       "localRemoved": "{{name}} usunięto",
       "deleteError": "Nie udało się usunąć {{name}}"
     },

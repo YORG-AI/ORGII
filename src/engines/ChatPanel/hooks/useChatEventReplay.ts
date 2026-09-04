@@ -13,6 +13,7 @@ import { useAtomCallback } from "jotai/utils";
 import { useCallback } from "react";
 
 import { REPLAY_CONFIG } from "@src/config/workspace/replayConfig";
+import { useSessionTranscriptRuntime } from "@src/engines/ChatPanel/SessionTranscriptRuntimeContext";
 import {
   currentEventIdAtom,
   eventIndexAtom,
@@ -28,6 +29,7 @@ import {
   isPlanDisplayEvent,
   planAliasesContain,
 } from "@src/engines/SessionCore/derived/planDisplayEvents";
+import { resolveReplayEventLookup } from "@src/engines/SessionCore/replay/resolveReplayEventLookup";
 import { createLogger } from "@src/hooks/logger";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import {
@@ -60,15 +62,16 @@ export interface UseChatEventReplayReturn {
  * filtered from chat but still need to be navigable in the simulator.
  */
 export function useChatEventReplay(): UseChatEventReplayReturn {
+  const runtime = useSessionTranscriptRuntime();
   // Only subscribe to a boolean flag that flips once (empty → non-empty).
   // Reading the live event/replay atoms here would re-render every subscriber
   // (every chat block via `useBlockLocate`) on each streamed event.
-  const canReplay = useAtomValue(hasReplayableEventsAtom);
+  const canReplayFromStore = useAtomValue(hasReplayableEventsAtom);
 
   // Read the live atoms lazily at click time via the jotai store instead of
   // subscribing. This keeps `replayEventById` stable and decouples chat block
   // re-renders from the streaming event list / replay time range.
-  const replayEventById = useAtomCallback(
+  const replayEventViaStore = useAtomCallback(
     useCallback((get, set, eventId: string) => {
       if (!eventId) {
         log.warn("[ChatEventReplay] No event_id provided");
@@ -80,31 +83,30 @@ export function useChatEventReplay(): UseChatEventReplayReturn {
       const eventSecondaryLookup = get(eventSecondaryLookupAtom);
       const timeRange = get(replayTimeRangeAtom);
 
-      // Extract original ID if prefixed (e.g., "group:stageoutput:intake:uuid")
-      let lookupId = eventId;
-      if (eventId.startsWith("group:stageoutput:")) {
-        const parts = eventId.split(":");
-        if (parts.length >= 4) {
-          lookupId = parts.slice(3).join(":");
-        }
-      }
-
-      let event = eventIndex.get(lookupId);
+      let event = resolveReplayEventLookup(sortedEvents, eventId);
       if (!event) {
+        const lookupId = eventId.startsWith("group:stageoutput:")
+          ? eventId.split(":").slice(3).join(":")
+          : eventId;
         const secondaryEventId =
           eventSecondaryLookup.chunkIdToEventId.get(lookupId) ??
           eventSecondaryLookup.callIdToEventId.get(lookupId);
-        event = secondaryEventId ? eventIndex.get(secondaryEventId) : undefined;
+        event = secondaryEventId
+          ? (eventIndex.get(secondaryEventId) ?? null)
+          : null;
       }
-      event ??= sortedEvents.find((candidate) => {
-        if (!isPlanDisplayEvent(candidate)) return false;
-        return planAliasesContain(getPlanEventAliases(candidate), lookupId);
-      });
+      event ??=
+        sortedEvents.find((candidate) => {
+          if (!isPlanDisplayEvent(candidate)) return false;
+          const lookupId = eventId.startsWith("group:stageoutput:")
+            ? eventId.split(":").slice(3).join(":")
+            : eventId;
+          return planAliasesContain(getPlanEventAliases(candidate), lookupId);
+        }) ?? null;
 
       if (!event) {
         log.warn(
-          `[ChatEventReplay] Event not found: ${lookupId}`,
-          eventId !== lookupId ? `(extracted from: ${eventId})` : "",
+          `[ChatEventReplay] Event not found: ${eventId}`,
           `| total events: ${sortedEvents.length}`
         );
         return;
@@ -130,7 +132,7 @@ export function useChatEventReplay(): UseChatEventReplayReturn {
       // `event.source === "user"`.
       if (process.env.NODE_ENV === "development" && event.functionName) {
         log.debug(
-          `[ChatEventReplay] Event ${lookupId}: ${event.functionName} → follow dock`
+          `[ChatEventReplay] Event ${resolvedEventId}: ${event.functionName} → follow dock`
         );
       }
 
@@ -172,8 +174,19 @@ export function useChatEventReplay(): UseChatEventReplayReturn {
     }, [])
   );
 
+  const replayEventById = useCallback(
+    (eventId: string) => {
+      if (runtime?.onNavigateToEvent) {
+        runtime.onNavigateToEvent(eventId);
+        return;
+      }
+      replayEventViaStore(eventId);
+    },
+    [replayEventViaStore, runtime]
+  );
+
   return {
     replayEventById,
-    canReplay,
+    canReplay: runtime?.onNavigateToEvent ? true : canReplayFromStore,
   };
 }

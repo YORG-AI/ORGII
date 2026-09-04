@@ -103,8 +103,8 @@
       "pullRequestsPartialLoadHelp": "Các mục khả dụng vẫn được hiển thị; hãy làm mới để thử tải lại các pull request còn thiếu",
       "workItemContext": "Một phần ngữ cảnh dự án không khả dụng. Mục công việc vẫn có thể sử dụng được.",
       "workItemLoad": "Không thể tải mục công việc này. Hãy thử lại.",
-      "githubIssueLoad": "Không thể tải GitHub issue của hạng mục công việc này. Thông tin cục bộ vẫn được hiển thị.",
-      "workItemUpdate": "Không thể lưu thay đổi mới nhất của mục công việc. Hãy thử lại."
+      "workItemUpdate": "Không thể lưu thay đổi mới nhất của mục công việc. Hãy thử lại.",
+      "githubIssueLoad": "Không thể tải GitHub issue của hạng mục công việc này. Thông tin cục bộ vẫn được hiển thị."
     },
     "detail": {
       "assignedSubtitle": "Mục công việc được giao",
@@ -188,8 +188,6 @@
     "questionIgnored": "Đã bỏ qua câu hỏi",
     "addedAsContext": "Đã thêm {{name}} làm ngữ cảnh",
     "addedFilesAsContext": "Đã thêm {{count}} tệp làm ngữ cảnh",
-    "chooseExecutionAgentAi": "Hãy chọn một agent phụ trách trước khi tạo bằng AI.",
-    "autoExecuteRequiresExecutionAgent": "Thực thi tự động cần một agent phụ trách.",
     "openSessionBeforeLinking": "Hãy mở một phiên trước khi liên kết hạng mục công việc.",
     "sessionLinkedToWorkItem": "Đã liên kết phiên với hạng mục công việc.",
     "sessionLinkFailed": "Không thể liên kết phiên: {{message}}",
@@ -202,7 +200,9 @@
     "workspaceImportFailed": "Không thể nhập không gian làm việc",
     "chooseFolderCloneRepo": "Chọn thư mục để sao chép kho lưu trữ",
     "repositoryCloned": "Đã sao chép kho lưu trữ",
-    "repositoryCloneFailed": "Không thể sao chép kho lưu trữ"
+    "repositoryCloneFailed": "Không thể sao chép kho lưu trữ",
+    "chooseExecutionAgentAi": "Hãy chọn một agent phụ trách trước khi tạo bằng AI.",
+    "autoExecuteRequiresExecutionAgent": "Thực thi tự động cần một agent phụ trách."
   },
   "previews": {
     "noCanvasAvailable": "Không có canvas",
@@ -1069,10 +1069,6 @@
     "switchWorkspaceTooltip": "Chuyển Workspace",
     "switchWorktreeTooltip": "Chuyển Worktree",
     "switchBranchTooltip": "Chuyển nhánh",
-    "switchLocalBranchTooltip": "Chuyển nhánh cục bộ",
-    "sessionEnvCloud": "Đám mây",
-    "sessionEnvLocal": "Cục bộ",
-    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Thao tác Git",
     "switchToSessionRepo": "Chuyển sang {{name}}",
     "embeddingProgress": "Embedding: đã xử lý {{count}} chunk",
@@ -1092,11 +1088,11 @@
       "unknownProcess": "Tiến trình không xác định",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Mở trong trình duyệt",
+      "openAddress": "Mở {{address}}",
       "copyAddress": "Sao chép địa chỉ",
       "stopProcess": "Dừng tiến trình",
       "searchPlaceholder": "Tìm cổng…",
       "noSearchResults": "Không có cổng khớp",
-      "openAddress": "Mở {{address}}",
       "rescan": "Quét lại",
       "rescanning": "Đang quét…",
       "rescanTooltip": "Tìm lại các cổng đang lắng nghe",
@@ -1186,7 +1182,11 @@
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
-    "gitSyncMenuTitle": "Git sync actions"
+    "gitSyncMenuTitle": "Git sync actions",
+    "switchLocalBranchTooltip": "Chuyển nhánh cục bộ",
+    "sessionEnvCloud": "Đám mây",
+    "sessionEnvLocal": "Cục bộ",
+    "sessionHarness": "{{name}} Harness"
   },
   "git": {
     "loading": "Đang tải trạng thái Git...",
@@ -1227,6 +1227,10 @@
       "compareBranch": "So sánh nhánh"
     },
     "rail": {
+      "openTabs": "Các tab đang mở",
+      "closeItem": "Đóng {{label}}",
+      "expand": "Mở rộng thông tin không gian làm việc",
+      "collapse": "Thu gọn thông tin không gian làm việc",
       "subagents": "Subagent",
       "subagentsCount_one": "{{count}} subagent",
       "subagentsCount_other": "{{count}} subagents",
@@ -1235,10 +1239,6 @@
       "subagentPending": "Đang chờ",
       "subagentCompleted": "Đã hoàn thành",
       "subagentFailed": "Thất bại",
-      "openTabs": "Các tab đang mở",
-      "closeItem": "Đóng {{label}}",
-      "expand": "Mở rộng thông tin không gian làm việc",
-      "collapse": "Thu gọn thông tin không gian làm việc",
       "restoreWidth": "Khôi phục chiều rộng ban đầu ({{width}} px)",
       "setMinimumWidth": "Đặt chiều rộng hiện tại làm mức tối thiểu ({{width}} px)",
       "widerWidth": "Rộng hơn ({{width}} px)",
@@ -1284,6 +1284,36 @@
       },
       "summary": {
         "label": "Tóm tắt pull request"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "muốn merge {{count}} commit vào",
+        "wantsToMergeCommitsInto_other": "muốn merge {{count}} commit vào",
+        "mergedCommitsInto_one": "đã merge {{count}} commit vào",
+        "mergedCommitsInto_other": "đã merge {{count}} commit vào",
+        "from": "từ",
+        "copyHeadBranch": "Sao chép tên nhánh",
+        "branchCopied": "Đã sao chép tên nhánh"
+      },
+      "sidebar": {
+        "reviewers": "Người review",
+        "requestReviewers": "Yêu cầu review",
+        "awaitingReview": "Đang chờ review",
+        "noReviews": "Chưa có review",
+        "assignees": "Người được giao",
+        "noAssignees": "Chưa giao cho ai",
+        "labels": "Nhãn",
+        "noLabels": "Chưa có",
+        "actions": "Thao tác",
+        "editAssignees": "Sửa người được giao",
+        "searchAssignees": "Tìm người",
+        "noAssigneeCandidates": "Không có người khả dụng",
+        "assigneesLoadFailed": "Không tải được danh sách người",
+        "assigneesUpdated": "Đã cập nhật người được giao",
+        "editLabels": "Sửa nhãn",
+        "searchLabels": "Tìm nhãn",
+        "noLabelCandidates": "Không có nhãn khả dụng",
+        "labelsLoadFailed": "Không tải được nhãn",
+        "labelsUpdated": "Đã cập nhật nhãn"
       },
       "tabs": {
         "conversation": "Thảo luận",
@@ -1341,6 +1371,8 @@
         "removedFromQueue": "Đã xóa khỏi hàng đợi hợp nhất",
         "autoMergeEnabled": "Đã bật tự động hợp nhất",
         "autoMergeDisabled": "Đã tắt tự động hợp nhất",
+        "convertToDraft": "Chuyển thành bản nháp",
+        "convertedToDraft": "Đã chuyển pull request thành bản nháp",
         "confirmCloseTitle": "Đóng pull request?",
         "confirmCloseMessage": "Pull request vẫn sẽ khả dụng và có thể được mở lại sau.",
         "closeSuccess": "Đã đóng pull request",
@@ -1375,39 +1407,7 @@
           "checksFailed": "Các kiểm tra bắt buộc phải đạt trước khi hợp nhất",
           "checksPending": "Chờ kiểm tra bắt buộc hoặc bật tự động hợp nhất",
           "mergeBlocked": "GitHub báo cáo các yêu cầu hợp nhất chưa được đáp ứng"
-        },
-        "convertToDraft": "Chuyển thành bản nháp",
-        "convertedToDraft": "Đã chuyển pull request thành bản nháp"
-      },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "muốn merge {{count}} commit vào",
-        "wantsToMergeCommitsInto_other": "muốn merge {{count}} commit vào",
-        "mergedCommitsInto_one": "đã merge {{count}} commit vào",
-        "mergedCommitsInto_other": "đã merge {{count}} commit vào",
-        "from": "từ",
-        "copyHeadBranch": "Sao chép tên nhánh",
-        "branchCopied": "Đã sao chép tên nhánh"
-      },
-      "sidebar": {
-        "reviewers": "Người review",
-        "requestReviewers": "Yêu cầu review",
-        "awaitingReview": "Đang chờ review",
-        "noReviews": "Chưa có review",
-        "assignees": "Người được giao",
-        "noAssignees": "Chưa giao cho ai",
-        "labels": "Nhãn",
-        "noLabels": "Chưa có",
-        "actions": "Thao tác",
-        "editAssignees": "Sửa người được giao",
-        "searchAssignees": "Tìm người",
-        "noAssigneeCandidates": "Không có người khả dụng",
-        "assigneesLoadFailed": "Không tải được danh sách người",
-        "assigneesUpdated": "Đã cập nhật người được giao",
-        "editLabels": "Sửa nhãn",
-        "searchLabels": "Tìm nhãn",
-        "noLabelCandidates": "Không có nhãn khả dụng",
-        "labelsLoadFailed": "Không tải được nhãn",
-        "labelsUpdated": "Đã cập nhật nhãn"
+        }
       }
     },
     "messages": {
@@ -1577,9 +1577,9 @@
       "chooseKey": "Chọn một khóa",
       "noCompatibleAccounts": "Không có khóa tương thích",
       "chooseModelHint": "Dùng bàn phím để điều hướng hoặc dùng chuột nhấp vào một mô hình",
+      "selectAccount": "Chọn tài khoản",
       "chooseKeyHint": "Dùng bàn phím để điều hướng hoặc dùng chuột nhấp vào một khóa",
-      "noModelsForKey": "Khóa này chưa bật mô hình nào",
-      "selectAccount": "Chọn tài khoản"
+      "noModelsForKey": "Khóa này chưa bật mô hình nào"
     },
     "modelProperties": {
       "effort": "Effort",
@@ -1739,16 +1739,16 @@
       "select": "Chọn",
       "switchColumn": "Đổi cột",
       "switchSection": "Đổi phần",
-      "showPath": "Hiện đường dẫn",
-      "keyFirst": "Chọn khóa trước",
-      "showBranchInfo": "Hiện thông tin nhánh",
       "compatibleKeys": "Tương thích",
       "planSupport": "Plan",
       "byokSupport": "Keys",
       "incompatible": "Không tương thích",
       "manageModels": "Quản lý mô hình",
       "manageKeys": "Quản lý khóa",
-      "manageAgents": "Quản lý Agents"
+      "manageAgents": "Quản lý Agents",
+      "showPath": "Hiện đường dẫn",
+      "keyFirst": "Chọn khóa trước",
+      "showBranchInfo": "Hiện thông tin nhánh"
     },
     "editorSpotlight": {
       "searchPlaceholder": "Tìm lệnh...",
@@ -1930,7 +1930,6 @@
     "theme": "Giao diện",
     "sidebarPosition": "Vị trí thanh bên",
     "modelPickerStyle": "Bộ chọn",
-    "paginateChatHistory": "Phân trang lịch sử trò chuyện",
     "modelPickerSpotlight": "Spotlight",
     "modelPickerMenu": "Menu",
     "left": "Trái",
@@ -1955,7 +1954,8 @@
     "ramHydratedEvents": "Sự kiện hydrated",
     "ramTurnBodies": "Tải lazy lịch sử",
     "ramFileTrees": "Cây tệp",
-    "ramCodeMirrors": "File rendering"
+    "ramCodeMirrors": "File rendering",
+    "paginateChatHistory": "Phân trang lịch sử trò chuyện"
   },
   "spotlightActions": {
     "switchToLightTheme": "Chuyển sang giao diện sáng",
@@ -1971,13 +1971,13 @@
     "openAgentStation": "Đi tới Agent Station",
     "openKanban": "Đi tới Kanban",
     "changeLanguage": "Thay đổi ngôn ngữ",
+    "switchToSystemTheme": "Theo chủ đề hệ thống",
+    "detectUpdate": "Kiểm tra cập nhật",
+    "recentlyUsed": "Đã dùng gần đây",
     "changeTheme": "Thay đổi giao diện",
     "changeSkin": "Thay đổi phong cách",
     "searchThemes": "Tìm kiếm giao diện...",
-    "searchSkins": "Tìm kiếm phong cách...",
-    "switchToSystemTheme": "Theo chủ đề hệ thống",
-    "detectUpdate": "Kiểm tra cập nhật",
-    "recentlyUsed": "Đã dùng gần đây"
+    "searchSkins": "Tìm kiếm phong cách..."
   },
   "commands": {
     "showBottomPanel": "Hiện bảng dưới",
@@ -2345,6 +2345,16 @@
       "untitled": "Chưa đặt tên"
     },
     "statusBar": {}
+  },
+  "notifications": {
+    "backgroundSession": "Phiên chạy nền",
+    "taskCompletedTitle": "Tác vụ đã hoàn tất",
+    "taskCompletedBody": "“{{name}}” đã hoàn tất — sẵn sàng để xem xét",
+    "taskCompletedToast": "“{{name}}” đã hoàn tất. Mở phiên để xem xét kết quả.",
+    "openSessionAction": "Mở phiên",
+    "taskFailedTitle": "Tác vụ thất bại",
+    "taskFailedBody": "“{{name}}” đã thất bại{{detail}}",
+    "taskCancelledToast": "“{{name}}” đã bị hủy"
   },
   "globalToolbar": {},
   "quitConfirmation": {

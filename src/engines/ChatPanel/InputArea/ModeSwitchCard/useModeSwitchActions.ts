@@ -24,6 +24,7 @@ import { sessionByIdAtom, upsertSession } from "@src/store/session/sessionAtom";
 import { activeSessionIdAtom } from "@src/store/session/viewAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 import { resolveModelForMessage } from "@src/util/session/resolveModelForMessage";
+import { selectionFromSession } from "@src/util/session/selectionFromSession";
 import { isAgentSession } from "@src/util/session/sessionDispatch";
 
 // ============================================
@@ -172,17 +173,7 @@ async function switchAgentMode(
   // user row — so the new-mode run stays inside the original round.
   const sessionForSend = store.get(sessionByIdAtom(sessionId));
   const fallback = store.get(creatorDefaultModelSelectionAtom);
-  const lastModelSelection = sessionForSend?.model
-    ? {
-        ...fallback,
-        keySource: sessionForSend.keySource ?? fallback?.keySource,
-        model: sessionForSend.model,
-        selectedAccountId:
-          sessionForSend.accountId ?? fallback?.selectedAccountId,
-        cliAgentType: sessionForSend.cliAgentType ?? fallback?.cliAgentType,
-        tier: sessionForSend.tier ?? fallback?.tier,
-      }
-    : fallback;
+  const lastModelSelection = selectionFromSession(sessionForSend, fallback);
   const { model, accountId } = resolveModelForMessage(lastModelSelection);
 
   // Mode-switch re-runs bypass useMessageDispatch, so set the optimistic

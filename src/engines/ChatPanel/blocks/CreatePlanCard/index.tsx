@@ -62,7 +62,6 @@ const PLAN_ICON_SIZE = 14;
 // Generous bound: approval does plan-file IO + may register a session before
 // returning; normal completion is <1s, the timeout only guards a wedged IPC.
 const PLAN_APPROVAL_RPC_TIMEOUT_MS = 30_000;
-
 function deriveDisplayTitle(title: string, content: string): string {
   const trimmedTitle = title.trim();
   if (trimmedTitle) return trimmedTitle;

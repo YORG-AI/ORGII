@@ -349,6 +349,7 @@
       "button": "Refresh models",
       "failed": "Refresh models failed: {{error}}"
     },
+    "authentication": "Authentication",
     "revalidate": "Revalidate"
   },
   "integrations": {
@@ -627,7 +628,8 @@
       "modelPlaceholder": "Select a model",
       "groupPerUser": "Isolate group chat sessions per user",
       "groupPerUserDesc": "Each participant in a group chat gets their own session context."
-    }
+    },
+    "emailProtocol": "Protocol"
   },
   "tabs": {
     "current": "Current",
@@ -864,7 +866,22 @@
   "gitConnections": {
     "github": "GitHub",
     "methodScan": "Auto Detect",
-    "methodOAuth": "Sign in with GitHub"
+    "methodOAuth": "Sign in with GitHub",
+    "methodPickerDesc": "Pick how you want to authenticate to GitHub.",
+    "oauthDeviceDesc": "Open the verification URL and enter this code to authorize GitHub.",
+    "scanGhCli": "GitHub CLI (gh)",
+    "scanCredHelper": "Git credential helper ({{name}})",
+    "scanSshKey": "SSH key — {{name}}",
+    "scanning": "Scanning…",
+    "scanningDesc": "Looking for gh CLI tokens, credential helpers, and SSH keys on this machine.",
+    "scanEmpty": "Nothing detected",
+    "scanEmptyDesc": "No gh CLI tokens, credential helpers, or SSH keys were found. Pick another method above.",
+    "scanResults": "Detected credentials",
+    "scanResultsDesc": "Pick one to import. We validate tokens against GitHub before saving.",
+    "sshKeyPath": "SSH key path",
+    "sshKeyPathDesc": "Absolute path to the private key (e.g. ~/.ssh/id_ed25519). The matching public key must already be registered on GitHub.",
+    "scanSelectRequired": "Pick a detected credential to import.",
+    "sshKeyPathRequired": "SSH key path is required."
   },
   "builtInTools": {
     "title": "Built-in tools",
@@ -2200,10 +2217,10 @@
     "queuedMessages": "Queued Messages",
     "fileReview": "File Review",
     "terminalProcesses": "Terminal Processes",
-    "chatPreview": "Chat Preview",
-    "scenario": "Scenario",
+    "sessionSimulation": "Session Simulation",
     "selectScenario": "Select a scenario",
-    "sessionSimulation": "Session Simulation"
+    "scenario": "Scenario",
+    "chatPreview": "Chat Preview"
   },
   "agentTools": {
     "enabled": "Enabled",
@@ -2280,7 +2297,12 @@
     "fireHistory": "Run history",
     "noFires": "No runs yet",
     "openSession": "Open session",
-    "openWorkItem": "Open work item"
+    "openWorkItem": "Open work item",
+    "openSessionError": "Could not open the session",
+    "openWorkItemError": "Could not open the Work Item",
+    "fireStarted": "Routine run started",
+    "fireAccepted": "Run {{status}}",
+    "fireError": "Could not start the Routine: {{detail}}"
   },
   "localModels": {
     "title": "On prem",

@@ -21,7 +21,7 @@
     "confirmRemoveMessage": "Isso removerá a chave salva localmente. Esta ação não pode ser desfeita.",
     "toasts": {
       "refreshed": "{{name}} atualizado com sucesso",
-      "refreshError": "Falha ao atualizar {{name}}",
+      "refreshError": "Falha ao atualizar {{name}}: {{error}}",
       "localRemoved": "{{name}} removido",
       "deleteError": "Falha ao excluir {{name}}"
     },

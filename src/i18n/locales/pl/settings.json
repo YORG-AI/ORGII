@@ -113,9 +113,7 @@
     }
   },
   "general": {
-    "login": "Logowanie",
     "tabGeneral": "Ogólne",
-    "tabSelfHosted": "Hostowane samodzielnie",
     "loginStatus": "Status logowania",
     "loggedIn": "Zalogowano",
     "notLoggedIn": "Niezalogowano",
@@ -230,7 +228,9 @@
     "presenceGuidanceOnlineDefault": "Jestem przy klawiaturze. Możesz w każdej chwili zadawać pytania doprecyzowujące i potwierdzać ze mną działania destrukcyjne przed ich uruchomieniem",
     "presenceGuidanceInvisibleDefault": "Jestem w pobliżu, ale widoczny jako offline. Domyślnie działaj autonomicznie i powiadamiaj mnie tylko o działaniach wysokiego ryzyka lub dużych refaktoryzacjach; pozostałe pytania zbierz w jednym podsumowaniu zamiast zadawać je pojedynczo",
     "presenceGuidanceAwayDefault": "Jestem z dala od klawiatury. Nie blokuj się, czekając na mnie; podejmij najlepszą decyzję na podstawie dostępnych informacji, dokończ co się da i zostaw krótkie podsumowanie oraz otwarte pytania na mój powrót",
-    "followSystem": "Zgodnie z systemem"
+    "followSystem": "Zgodnie z systemem",
+    "login": "Logowanie",
+    "tabSelfHosted": "Hostowane samodzielnie"
   },
   "background": {
     "title": "Tło",
@@ -729,7 +729,8 @@
       "sent": "Wysłano testowe powiadomienie",
       "permissionWarning": "Nie udało się wysłać testowego powiadomienia. Sprawdź uprawnienia.",
       "sendFailed": "Nie można wysłać testowego powiadomienia. Sprawdź uprawnienia do powiadomień i spróbuj ponownie.",
-      "soundFailed": "Nie można odtworzyć dźwięku powiadomienia. Sprawdź głośność systemu."
+      "soundFailed": "Nie można odtworzyć dźwięku powiadomienia. Sprawdź głośność systemu.",
+      "body": "To jest powiadomienie testowe od ORGII"
     }
   },
   "editor": {

@@ -20,7 +20,7 @@
     "confirmRemoveMessage": "ローカル認証情報が削除されます。この操作は元に戻せません。",
     "toasts": {
       "refreshed": "{{name}} の更新が完了しました",
-      "refreshError": "{{name}} の更新に失敗しました",
+      "refreshError": "{{name}} の更新に失敗しました：{{error}}",
       "localRemoved": "{{name}} を削除しました",
       "deleteError": "{{name}} の削除に失敗しました"
     },

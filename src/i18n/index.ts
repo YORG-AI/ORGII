@@ -140,18 +140,30 @@ function isLanguagePreference(value: string): value is LanguagePreference {
   return value === LANGUAGE_PREFERENCE.SYSTEM || isSupportedLanguage(value);
 }
 
-function resolveSystemLanguage(): SupportedLanguage {
+export function resolveSystemLanguage(): SupportedLanguage {
   if (typeof navigator === "undefined") return DEFAULT_LANGUAGE;
   const browserLanguages = [navigator.language, ...navigator.languages].filter(
     Boolean
   );
 
   for (const browserLanguage of browserLanguages) {
-    if (isSupportedLanguage(browserLanguage)) {
-      return browserLanguage;
+    const normalizedLanguage = browserLanguage.trim().replace(/_/g, "-");
+    const subtags = normalizedLanguage.toLowerCase().split("-");
+    const baseLanguage = subtags[0];
+
+    if (baseLanguage === "zh") {
+      const script = subtags.find(
+        (subtag: string) => subtag === "hans" || subtag === "hant"
+      );
+      if (script === "hant") return "zh-Hant";
+      if (script === "hans") return "zh";
+
+      const region = subtags.find((subtag: string) =>
+        ["tw", "hk", "mo"].includes(subtag)
+      );
+      return region ? "zh-Hant" : "zh";
     }
 
-    const baseLanguage = browserLanguage.split("-")[0];
     if (isSupportedLanguage(baseLanguage)) {
       return baseLanguage;
     }

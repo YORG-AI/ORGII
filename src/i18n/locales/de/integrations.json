@@ -20,7 +20,7 @@
     "confirmRemoveMessage": "Die lokalen Anmeldedaten werden entfernt. Diese Aktion kann nicht rückgängig gemacht werden.",
     "toasts": {
       "refreshed": "{{name}} erfolgreich aktualisiert",
-      "refreshError": "{{name}} konnte nicht aktualisiert werden",
+      "refreshError": "{{name}} konnte nicht aktualisiert werden: {{error}}",
       "localRemoved": "{{name}} entfernt",
       "deleteError": "{{name}} konnte nicht gelöscht werden"
     },

@@ -9,8 +9,14 @@ import {
   extractFileData,
   stripLineNumberPrefixes,
 } from "@src/engines/SessionCore/rendering/props";
-import { APP_SUBTOOL } from "@src/engines/SessionCore/rendering/registry";
-import { getAppSubtool } from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
+import {
+  APP_SUBTOOL,
+  type AppSubtool,
+} from "@src/engines/SessionCore/rendering/registry";
+import {
+  getAppSubtool,
+  getCliUiCanonical,
+} from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
 import { isDeleteTool } from "@src/engines/SessionCore/rendering/registry/toolRegistryDomain";
 import type { EventStatus } from "@src/engines/SessionCore/rendering/types/universalProps";
 import { getEventStatus } from "@src/util/data/converters/eventStatus";
@@ -108,6 +114,29 @@ function parseUnifiedDiffPayload(
 
 export { shouldTrustDiffStartLines } from "@src/util/diff/startLines";
 
+function resolveFileSubtool(event: SessionEvent): AppSubtool | null {
+  const functionName = event.functionName || "";
+  const fromRegistry = getAppSubtool(functionName);
+  if (
+    fromRegistry === APP_SUBTOOL.FILE_READ ||
+    fromRegistry === APP_SUBTOOL.FILE_WRITE
+  ) {
+    return fromRegistry;
+  }
+
+  const uiCanonical =
+    event.uiCanonical || getCliUiCanonical(functionName) || functionName;
+  if (uiCanonical === "read_file") return APP_SUBTOOL.FILE_READ;
+  if (uiCanonical === "edit_file" || uiCanonical === "delete_file") {
+    return APP_SUBTOOL.FILE_WRITE;
+  }
+
+  if (event.extracted?.kind === "file") return APP_SUBTOOL.FILE_READ;
+  if (event.extracted?.kind === "edit") return APP_SUBTOOL.FILE_WRITE;
+
+  return fromRegistry;
+}
+
 export function parseFilePath(path: string): {
   fileName: string;
   directory: string;
@@ -127,7 +156,7 @@ export function convertToFileOperation(
   isCurrent: boolean
 ): FileOperationEntry | null {
   const eventType = event.functionName;
-  const subtool = getAppSubtool(eventType);
+  const subtool = resolveFileSubtool(event);
   const isRead = subtool === APP_SUBTOOL.FILE_READ;
   const isWrite = subtool === APP_SUBTOOL.FILE_WRITE;
 

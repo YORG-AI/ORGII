@@ -1,4 +1,16 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+
+import i18n, { i18nReady } from "@src/i18n";
+import zhCommon from "@src/i18n/locales/zh/common.json";
 
 import { formatRelativeTime } from "../formatRelativeTime";
 
@@ -31,9 +43,22 @@ const OLD_INSTANT = Date.parse("2026-07-30T00:00:00Z");
 /** Far enough past OLD_INSTANT to land in the ">7 days" date fallback. */
 const NOW = Date.parse("2026-08-20T00:00:00Z");
 
+beforeAll(() => {
+  i18n.addResourceBundle("zh", "common", zhCommon, true, true);
+});
+
+afterAll(async () => {
+  await i18n.changeLanguage("en");
+});
+
 afterEach(() => {
   vi.useRealTimers();
   getCurrentTimezoneMock.mockReturnValue("auto");
+});
+
+beforeEach(async () => {
+  await i18nReady;
+  await i18n.changeLanguage("en");
 });
 
 describe("formatRelativeTime date fallback", () => {
@@ -74,6 +99,28 @@ describe("formatRelativeTime date fallback", () => {
     expect(formatRelativeTime(OLD_INSTANT, "short")).toBe("2 days ago");
   });
 
+  it("uses the resolved non-English language for relative phrasing", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(OLD_INSTANT + 2 * 24 * 60 * 60 * 1000);
+    await i18n.changeLanguage("zh");
+
+    expect(formatRelativeTime(OLD_INSTANT, "short")).toBe(
+      new Intl.RelativeTimeFormat("zh-CN", {
+        numeric: "auto",
+        style: "short",
+      }).format(-2, "day")
+    );
+  });
+
+  it("keeps English compatibility copy for unsupported explicit locales", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(OLD_INSTANT + 2 * 24 * 60 * 60 * 1000);
+
+    expect(formatRelativeTime(OLD_INSTANT, "short", "not_a_locale")).toBe(
+      "2 days ago"
+    );
+  });
+
   it("uses Intl-relative phrasing when the caller provides a locale", () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
@@ -81,7 +128,7 @@ describe("formatRelativeTime date fallback", () => {
 
     expect(formatRelativeTime(instant, "long", "zh-CN")).toBe(
       new Intl.RelativeTimeFormat("zh-CN", {
-        numeric: "always",
+        numeric: "auto",
         style: "long",
       }).format(-2, "hour")
     );

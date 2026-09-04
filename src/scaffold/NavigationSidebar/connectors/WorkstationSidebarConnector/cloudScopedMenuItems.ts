@@ -5,10 +5,23 @@ import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/compone
 
 import { DEFAULT_SESSION_GROUP_VISIBLE_COUNT } from "../types";
 import { separator } from "../useSessionMenuItems/menuItemBuilders";
+import {
+  type SessionPaginationMenuItem,
+  attachSessionPaginationPlan,
+  combineSessionPaginationPlans,
+  filterSessionPaginationPlan,
+  getLoadMoreGroupId,
+  getSessionPaginationPhase,
+  hasSessionPaginationPlan,
+  isBackendSessionPaginationId,
+  isSessionPaginationId,
+} from "../useSessionMenuItems/paginationHelpers";
 
 export const CLOUD_MY_SESSIONS_SECTION_ID = "cloud-my-sessions";
 export const CLOUD_PINNED_SECTION_ID = "cloud-pinned";
 export const CLOUD_TEAM_SESSIONS_SECTION_ID = "cloud-team-sessions";
+export const CLOUD_SESSION_SECTION_PAGE_SIZE =
+  DEFAULT_SESSION_GROUP_VISIBLE_COUNT;
 export const CLOUD_TEAM_SESSIONS_LOAD_MORE_ID = "cloud-team-sessions-next-page";
 export const CLOUD_MY_SESSIONS_LOAD_MORE_ID = "cloud-my-sessions-next-page";
 
@@ -21,29 +34,8 @@ interface BuildCloudScopedMenuItemsParams {
   loadMoreLabel?: string;
 }
 
-const LOCAL_GROUP_PAGER_PREFIX = "load-more-group-";
-
-function isSessionPaginationMenuItem(item: NavigationMenuItem): boolean {
-  return item.id.startsWith("load-more-");
-}
-
-/**
- * A backend stream pager (`load-more-<category>`), as opposed to a local
- * "show more of this group" pager (`load-more-group-<group>`), whose id also
- * begins with `load-more-`. Only the former speaks for a stream that can fetch
- * another page from Rust.
- */
-function isBackendStreamPager(item: NavigationMenuItem): boolean {
-  return (
-    isSessionPaginationMenuItem(item) &&
-    !item.id.startsWith(LOCAL_GROUP_PAGER_PREFIX)
-  );
-}
-
 export function isCloudScopedLocalRow(item: NavigationMenuItem): boolean {
-  return (
-    !item.id.startsWith("separator-") && !isSessionPaginationMenuItem(item)
-  );
+  return !item.id.startsWith("separator-") && !isSessionPaginationId(item.id);
 }
 
 export function buildCloudSectionLoadMoreItem({
@@ -94,16 +86,18 @@ export function buildCloudScopedMenuItems({
   // different section entirely.
   const pinnedItems: NavigationMenuItem[] = [];
   const localRows: NavigationMenuItem[] = [];
-  const backendPaginationItems: NavigationMenuItem[] = [];
+  const backendPaginationItems: SessionPaginationMenuItem[] = [];
   for (const item of sessionMenuItems) {
     if (item.id.startsWith("separator-")) continue;
-    if (isBackendStreamPager(item)) {
-      backendPaginationItems.push(item);
+    if (isBackendSessionPaginationId(item.id)) {
+      if (hasSessionPaginationPlan(item)) {
+        backendPaginationItems.push(item);
+      }
       continue;
     }
     // A date group's own "show more" pager is meaningless once that group is
     // flattened into My sessions — the section's own pager governs from here.
-    if (item.id.startsWith(LOCAL_GROUP_PAGER_PREFIX)) continue;
+    if (getLoadMoreGroupId(item.id) !== null) continue;
     (item.pinned ? pinnedItems : localRows).push(item);
   }
   // Team rows keep their section, except the ones the viewer pinned: pinning
@@ -115,30 +109,59 @@ export function buildCloudScopedMenuItems({
   }
   const visibleLocalRows = localRows.slice(0, mySessionsVisibleCount);
   const hasHiddenLoadedRows = localRows.length > visibleLocalRows.length;
-  const readyBackendPaginationItem = backendPaginationItems.find(
-    (item) => !item.disabled
+  // Pinning moves a row out of My sessions. A normal backend pager must move
+  // with the rows it paginates, otherwise a pinned-only scope leaves an empty
+  // section with an orphaned "Load more" control. A failed fetch remains
+  // retryable even when no ordinary row is currently visible.
+  const effectiveBackendPaginationItems = backendPaginationItems.flatMap(
+    (item) => {
+      const plan =
+        localRows.length > 0
+          ? item.sessionPaginationPlan
+          : filterSessionPaginationPlan(
+              item.sessionPaginationPlan,
+              (target) => target.phase === "error"
+            );
+      return plan ? [{ item, plan }] : [];
+    }
   );
-  const loadingBackendPaginationItem = backendPaginationItems.find(
-    (item) => item.disabled
+  const effectiveBackendPaginationPlan = combineSessionPaginationPlans(
+    effectiveBackendPaginationItems.map(({ plan }) => plan)
   );
-  const hasMore = hasHiddenLoadedRows || backendPaginationItems.length > 0;
-  const mySessionsItems = hasMore
-    ? [
-        ...visibleLocalRows,
-        buildCloudSectionLoadMoreItem({
-          id: CLOUD_MY_SESSIONS_LOAD_MORE_ID,
-          label:
-            !hasHiddenLoadedRows && !readyBackendPaginationItem
-              ? (loadingBackendPaginationItem?.label ?? loadMoreLabel)
-              : loadMoreLabel,
-          disabled:
-            !hasHiddenLoadedRows && readyBackendPaginationItem === undefined,
-          trailingElement:
-            !hasHiddenLoadedRows && readyBackendPaginationItem === undefined
-              ? loadingBackendPaginationItem?.trailingElement
-              : undefined,
-        }),
-      ]
+  const effectiveBackendPaginationPhase = effectiveBackendPaginationPlan
+    ? getSessionPaginationPhase(effectiveBackendPaginationPlan)
+    : null;
+  const phaseSourceItem = effectiveBackendPaginationPhase
+    ? effectiveBackendPaginationItems.find(
+        ({ plan }) =>
+          getSessionPaginationPhase(plan) === effectiveBackendPaginationPhase
+      )?.item
+    : undefined;
+  const hasMore =
+    hasHiddenLoadedRows || effectiveBackendPaginationPlan !== null;
+  const mySessionsLoadMoreItem = hasMore
+    ? buildCloudSectionLoadMoreItem({
+        id: CLOUD_MY_SESSIONS_LOAD_MORE_ID,
+        label: !hasHiddenLoadedRows
+          ? (phaseSourceItem?.label ?? loadMoreLabel)
+          : loadMoreLabel,
+        disabled:
+          !hasHiddenLoadedRows && effectiveBackendPaginationPhase === "loading",
+        trailingElement:
+          !hasHiddenLoadedRows && effectiveBackendPaginationPhase === "loading"
+            ? phaseSourceItem?.trailingElement
+            : undefined,
+      })
+    : null;
+  const plannedMySessionsLoadMoreItem =
+    mySessionsLoadMoreItem && effectiveBackendPaginationPlan
+      ? attachSessionPaginationPlan(
+          mySessionsLoadMoreItem,
+          effectiveBackendPaginationPlan
+        )
+      : mySessionsLoadMoreItem;
+  const mySessionsItems = plannedMySessionsLoadMoreItem
+    ? [...visibleLocalRows, plannedMySessionsLoadMoreItem]
     : visibleLocalRows;
 
   return [

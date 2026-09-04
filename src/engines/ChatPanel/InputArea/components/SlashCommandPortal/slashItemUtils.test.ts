@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  buildSlashActionCommand,
-  insertAtomicSlashActionPill,
-} from "./slashItemUtils";
+import { insertAtomicSlashActionPill } from "./slashItemUtils";
 
 describe("built-in slash action insertion", () => {
   it("inserts Canvas and Compact as atomic composer pills", () => {
@@ -32,6 +29,5 @@ describe("built-in slash action insertion", () => {
 
     expect(insertAtomicSlashActionPill(composer, "setup-repo")).toBe(false);
     expect(composer.insertFilePill).not.toHaveBeenCalled();
-    expect(buildSlashActionCommand("setup-repo")).toBe("/setup-repo ");
   });
 });

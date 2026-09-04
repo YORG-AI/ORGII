@@ -37,9 +37,6 @@ export function buildByOrgMenuItems(
   const items: NavigationMenuItem[] = [];
 
   if (!query) {
-    items.push(
-      separator("recent-projects", context.t("projects:orgs.recentProjects"))
-    );
     const recentProjects = [...context.localProjects]
       .sort((projectA, projectB) =>
         projectB.projectData.meta.updated_at.localeCompare(
@@ -47,6 +44,11 @@ export function buildByOrgMenuItems(
         )
       )
       .slice(0, SESSION_SIDEBAR_PAGE_SIZE);
+    if (recentProjects.length > 0) {
+      items.push(
+        separator("recent-projects", context.t("projects:orgs.recentProjects"))
+      );
+    }
     for (const project of recentProjects) {
       items.push(
         buildProjectRow(
@@ -61,14 +63,14 @@ export function buildByOrgMenuItems(
     return items;
   }
 
-  items.push(separator("org-search-results", context.t("projects:search")));
+  const searchResultItems: NavigationMenuItem[] = [];
   for (const project of context.localProjects) {
     const projectName = project.projectData.meta.name;
     if (
       projectName.toLowerCase().includes(query) ||
       project.orgName.toLowerCase().includes(query)
     ) {
-      items.push(
+      searchResultItems.push(
         buildProjectRow(
           context.t,
           project.projectData.slug,
@@ -79,5 +81,10 @@ export function buildByOrgMenuItems(
       );
     }
   }
-  return items;
+  return searchResultItems.length > 0
+    ? [
+        separator("org-search-results", context.t("projects:search")),
+        ...searchResultItems,
+      ]
+    : [];
 }

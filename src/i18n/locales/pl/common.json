@@ -106,8 +106,8 @@
       "pullRequestsPartialLoadHelp": "Dostępne elementy są nadal wyświetlane; odśwież, aby ponownie spróbować wczytać brakujące pull requesty",
       "workItemContext": "Część kontekstu projektu jest niedostępna. Element pracy jest nadal użyteczny.",
       "workItemLoad": "Nie można wczytać tego elementu pracy. Spróbuj ponownie.",
-      "githubIssueLoad": "Nie można załadować zgłoszenia GitHub dla tego elementu pracy. Dane lokalne są nadal wyświetlane.",
-      "workItemUpdate": "Nie można zapisać ostatniej zmiany elementu pracy. Spróbuj ponownie."
+      "workItemUpdate": "Nie można zapisać ostatniej zmiany elementu pracy. Spróbuj ponownie.",
+      "githubIssueLoad": "Nie można załadować zgłoszenia GitHub dla tego elementu pracy. Dane lokalne są nadal wyświetlane."
     },
     "detail": {
       "assignedSubtitle": "Przypisany element pracy",
@@ -194,8 +194,6 @@
     "questionIgnored": "Pytanie zignorowane",
     "addedAsContext": "Dodano {{name}} jako kontekst",
     "addedFilesAsContext": "Dodano {{count}} plik(ów) jako kontekst",
-    "chooseExecutionAgentAi": "Wybierz odpowiedzialnego agenta przed utworzeniem z użyciem AI.",
-    "autoExecuteRequiresExecutionAgent": "Automatyczne wykonanie wymaga odpowiedzialnego agenta.",
     "openSessionBeforeLinking": "Otwórz sesję przed powiązaniem elementu pracy.",
     "sessionLinkedToWorkItem": "Sesja powiązana z elementem pracy.",
     "sessionLinkFailed": "Nie udało się powiązać sesji: {{message}}",
@@ -208,7 +206,9 @@
     "workspaceImportFailed": "Nie udało się zaimportować obszaru roboczego",
     "chooseFolderCloneRepo": "Wybierz folder, aby sklonować repozytorium",
     "repositoryCloned": "Repozytorium sklonowane",
-    "repositoryCloneFailed": "Nie udało się sklonować repozytorium"
+    "repositoryCloneFailed": "Nie udało się sklonować repozytorium",
+    "chooseExecutionAgentAi": "Wybierz odpowiedzialnego agenta przed utworzeniem z użyciem AI.",
+    "autoExecuteRequiresExecutionAgent": "Automatyczne wykonanie wymaga odpowiedzialnego agenta."
   },
   "previews": {
     "noCanvasAvailable": "Brak dostępnego płótna",
@@ -1074,10 +1074,6 @@
     "switchWorkspaceTooltip": "Przełącz workspace",
     "switchWorktreeTooltip": "Przełącz worktree",
     "switchBranchTooltip": "Przełącz gałąź",
-    "switchLocalBranchTooltip": "Przełącz lokalną gałąź",
-    "sessionEnvCloud": "Cloud",
-    "sessionEnvLocal": "Lokalna",
-    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Akcje Git",
     "switchToSessionRepo": "Przełącz na {{name}}",
     "embeddingProgress": "Embedding: przetworzono {{count}} fragmentów",
@@ -1097,11 +1093,11 @@
       "unknownProcess": "Nieznany proces",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Otwórz w przeglądarce",
+      "openAddress": "Otwórz {{address}}",
       "copyAddress": "Kopiuj adres",
       "stopProcess": "Zatrzymaj proces",
       "searchPlaceholder": "Szukaj portów…",
       "noSearchResults": "Brak pasujących portów",
-      "openAddress": "Otwórz {{address}}",
       "rescan": "Skanuj ponownie",
       "rescanning": "Skanowanie…",
       "rescanTooltip": "Ponownie wyszukaj nasłuchujące porty",
@@ -1191,7 +1187,11 @@
     },
     "unsavedChangesTitle": "Niezapisane zmiany",
     "prkPlaceholder": "PRJ",
-    "gitSyncMenuTitle": "Akcje synchronizacji Git"
+    "gitSyncMenuTitle": "Akcje synchronizacji Git",
+    "switchLocalBranchTooltip": "Przełącz lokalną gałąź",
+    "sessionEnvCloud": "Cloud",
+    "sessionEnvLocal": "Lokalna",
+    "sessionHarness": "{{name}} Harness"
   },
   "git": {
     "loading": "Ładowanie statusu Git...",
@@ -1232,6 +1232,10 @@
       "compareBranch": "Porównaj gałąź"
     },
     "rail": {
+      "openTabs": "Otwarte karty",
+      "closeItem": "Zamknij {{label}}",
+      "expand": "Rozwiń informacje o obszarze roboczym",
+      "collapse": "Zwiń informacje o obszarze roboczym",
       "subagents": "Subagents",
       "subagentsCount_one": "{{count}} subagent",
       "subagentsCount_other": "{{count}} subagents",
@@ -1240,10 +1244,6 @@
       "subagentPending": "Oczekujące",
       "subagentCompleted": "Ukończone",
       "subagentFailed": "Nieudane",
-      "openTabs": "Otwarte karty",
-      "closeItem": "Zamknij {{label}}",
-      "expand": "Rozwiń informacje o obszarze roboczym",
-      "collapse": "Zwiń informacje o obszarze roboczym",
       "restoreWidth": "Przywróć pierwotną szerokość ({{width}} px)",
       "setMinimumWidth": "Ustaw bieżącą szerokość jako minimalną ({{width}} px)",
       "widerWidth": "Szerzej ({{width}} px)",
@@ -1291,6 +1291,40 @@
       },
       "summary": {
         "label": "Podsumowanie pull requestu"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "chce scalić {{count}} commit do",
+        "wantsToMergeCommitsInto_few": "chce scalić {{count}} commity do",
+        "wantsToMergeCommitsInto_many": "chce scalić {{count}} commitów do",
+        "wantsToMergeCommitsInto_other": "chce scalić {{count}} commita do",
+        "mergedCommitsInto_one": "scalono {{count}} commit do",
+        "mergedCommitsInto_few": "scalono {{count}} commity do",
+        "mergedCommitsInto_many": "scalono {{count}} commitów do",
+        "mergedCommitsInto_other": "scalono {{count}} commita do",
+        "from": "z",
+        "copyHeadBranch": "Skopiuj nazwę gałęzi",
+        "branchCopied": "Skopiowano nazwę gałęzi"
+      },
+      "sidebar": {
+        "reviewers": "Recenzenci",
+        "requestReviewers": "Poproś o recenzję",
+        "awaitingReview": "Oczekuje na recenzję",
+        "noReviews": "Brak recenzji",
+        "assignees": "Przypisani",
+        "noAssignees": "Nikt nie przypisany",
+        "labels": "Etykiety",
+        "noLabels": "Jeszcze brak",
+        "actions": "Akcje",
+        "editAssignees": "Edytuj przypisanych",
+        "searchAssignees": "Szukaj osób",
+        "noAssigneeCandidates": "Brak dostępnych osób",
+        "assigneesLoadFailed": "Nie udało się wczytać osób",
+        "assigneesUpdated": "Zaktualizowano przypisanych",
+        "editLabels": "Edytuj etykiety",
+        "searchLabels": "Szukaj etykiet",
+        "noLabelCandidates": "Brak dostępnych etykiet",
+        "labelsLoadFailed": "Nie udało się wczytać etykiet",
+        "labelsUpdated": "Zaktualizowano etykiety"
       },
       "tabs": {
         "conversation": "Dyskusja",
@@ -1348,6 +1382,8 @@
         "removedFromQueue": "Usunięto z kolejki scalania",
         "autoMergeEnabled": "Automatyczne scalanie włączone",
         "autoMergeDisabled": "Automatyczne scalanie wyłączone",
+        "convertToDraft": "Zmień w szkic",
+        "convertedToDraft": "Pull request zmieniony w szkic",
         "confirmCloseTitle": "Zamknąć pull request?",
         "confirmCloseMessage": "Pull request pozostanie dostępny i będzie można go później ponownie otworzyć.",
         "closeSuccess": "Pull request zamknięty",
@@ -1382,43 +1418,7 @@
           "checksFailed": "Wymagane kontrole muszą przejść przed scaleniem",
           "checksPending": "Poczekaj na wymagane kontrole lub włącz automatyczne scalanie",
           "mergeBlocked": "GitHub zgłasza niespełnione wymagania scalania"
-        },
-        "convertToDraft": "Zmień w szkic",
-        "convertedToDraft": "Pull request zmieniony w szkic"
-      },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "chce scalić {{count}} commit do",
-        "wantsToMergeCommitsInto_few": "chce scalić {{count}} commity do",
-        "wantsToMergeCommitsInto_many": "chce scalić {{count}} commitów do",
-        "wantsToMergeCommitsInto_other": "chce scalić {{count}} commita do",
-        "mergedCommitsInto_one": "scalono {{count}} commit do",
-        "mergedCommitsInto_few": "scalono {{count}} commity do",
-        "mergedCommitsInto_many": "scalono {{count}} commitów do",
-        "mergedCommitsInto_other": "scalono {{count}} commita do",
-        "from": "z",
-        "copyHeadBranch": "Skopiuj nazwę gałęzi",
-        "branchCopied": "Skopiowano nazwę gałęzi"
-      },
-      "sidebar": {
-        "reviewers": "Recenzenci",
-        "requestReviewers": "Poproś o recenzję",
-        "awaitingReview": "Oczekuje na recenzję",
-        "noReviews": "Brak recenzji",
-        "assignees": "Przypisani",
-        "noAssignees": "Nikt nie przypisany",
-        "labels": "Etykiety",
-        "noLabels": "Jeszcze brak",
-        "actions": "Akcje",
-        "editAssignees": "Edytuj przypisanych",
-        "searchAssignees": "Szukaj osób",
-        "noAssigneeCandidates": "Brak dostępnych osób",
-        "assigneesLoadFailed": "Nie udało się wczytać osób",
-        "assigneesUpdated": "Zaktualizowano przypisanych",
-        "editLabels": "Edytuj etykiety",
-        "searchLabels": "Szukaj etykiet",
-        "noLabelCandidates": "Brak dostępnych etykiet",
-        "labelsLoadFailed": "Nie udało się wczytać etykiet",
-        "labelsUpdated": "Zaktualizowano etykiety"
+        }
       }
     },
     "messages": {
@@ -1582,9 +1582,9 @@
       "chooseKey": "Wybierz klucz",
       "noCompatibleAccounts": "Brak zgodnych kluczy",
       "chooseModelHint": "Użyj klawiatury do nawigacji albo kliknij model myszą",
+      "selectAccount": "Wybierz konto",
       "chooseKeyHint": "Użyj klawiatury do nawigacji albo kliknij klucz myszą",
-      "noModelsForKey": "Brak włączonych modeli dla tego klucza",
-      "selectAccount": "Wybierz konto"
+      "noModelsForKey": "Brak włączonych modeli dla tego klucza"
     },
     "modelProperties": {
       "effort": "Wysiłek",
@@ -1752,16 +1752,16 @@
       "select": "Wybierz",
       "switchColumn": "Zmień kolumnę",
       "switchSection": "Zmień sekcję",
-      "showPath": "Pokaż ścieżkę",
-      "keyFirst": "Najpierw klucz",
-      "showBranchInfo": "Pokaż informacje o gałęzi",
       "compatibleKeys": "Zgodne",
       "planSupport": "Plan",
       "byokSupport": "Klucze",
       "incompatible": "Niezgodne",
       "manageModels": "Zarządzaj modelami",
       "manageKeys": "Zarządzaj kluczami",
-      "manageAgents": "Zarządzaj Agentami"
+      "manageAgents": "Zarządzaj Agentami",
+      "showPath": "Pokaż ścieżkę",
+      "keyFirst": "Najpierw klucz",
+      "showBranchInfo": "Pokaż informacje o gałęzi"
     },
     "editorSpotlight": {
       "searchPlaceholder": "Szukaj poleceń...",
@@ -1943,7 +1943,6 @@
     "theme": "Motyw",
     "sidebarPosition": "Pozycja paska bocznego",
     "modelPickerStyle": "Wybór",
-    "paginateChatHistory": "Podziel historię czatu na strony",
     "modelPickerSpotlight": "Spotlight",
     "modelPickerMenu": "Menu",
     "left": "Lewa",
@@ -1968,7 +1967,8 @@
     "ramHydratedEvents": "Hydrated zdarzenia",
     "ramTurnBodies": "Lazy load historii",
     "ramFileTrees": "Drzewa plików",
-    "ramCodeMirrors": "Renderowanie plików"
+    "ramCodeMirrors": "Renderowanie plików",
+    "paginateChatHistory": "Podziel historię czatu na strony"
   },
   "spotlightActions": {
     "switchToLightTheme": "Przełącz na jasny motyw",
@@ -1984,13 +1984,13 @@
     "openAgentStation": "Przejdź do Agent Station",
     "openKanban": "Przejdź do Kanban",
     "changeLanguage": "Zmień język",
+    "switchToSystemTheme": "Zgodnie z motywem systemu",
+    "detectUpdate": "Sprawdź aktualizacje",
+    "recentlyUsed": "Ostatnio używane",
     "changeTheme": "Zmień motyw",
     "changeSkin": "Zmień wygląd",
     "searchThemes": "Szukaj motywów...",
-    "searchSkins": "Szukaj wyglądów...",
-    "switchToSystemTheme": "Zgodnie z motywem systemu",
-    "detectUpdate": "Sprawdź aktualizacje",
-    "recentlyUsed": "Ostatnio używane"
+    "searchSkins": "Szukaj wyglądów..."
   },
   "commands": {
     "showBottomPanel": "Pokaż dolny panel",
@@ -2361,6 +2361,16 @@
       "untitled": "Bez tytułu"
     },
     "statusBar": {}
+  },
+  "notifications": {
+    "backgroundSession": "Sesja w tle",
+    "taskCompletedTitle": "Zadanie ukończone",
+    "taskCompletedBody": "„{{name}}” ukończono — gotowe do sprawdzenia",
+    "taskCompletedToast": "„{{name}}” ukończono. Otwórz sesję, aby sprawdzić wynik.",
+    "openSessionAction": "Otwórz sesję",
+    "taskFailedTitle": "Zadanie nie powiodło się",
+    "taskFailedBody": "„{{name}}” nie powiodło się{{detail}}",
+    "taskCancelledToast": "„{{name}}” anulowano"
   },
   "globalToolbar": {},
   "quitConfirmation": {

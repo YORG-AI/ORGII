@@ -221,6 +221,26 @@ describe("session menu section builders", () => {
     ]);
   });
 
+  it("does not render another category's pager below a visible agent group", () => {
+    const items = buildByAgentMenuItems({
+      unpinnedSessions: [
+        makeSession("cursoride-1", "2026-06-09T00:00:00.000Z"),
+      ],
+      appendPinnedSessions,
+      appendGroupSessions,
+      loadMoreRowFor: (category, hasVisibleSessionRows) =>
+        category === "standalone_agent" && hasVisibleSessionRows
+          ? {
+              id: "load-more-standalone_agent",
+              key: "load-more-standalone_agent",
+              label: "Load more",
+            }
+          : null,
+    });
+
+    expect(getLoadMoreItemIds(items)).toEqual([]);
+  });
+
   it("uses one shared Standalone pager after SDE, Wingman, and Custom", () => {
     const items = buildByAgentMenuItems({
       unpinnedSessions: [
@@ -230,8 +250,8 @@ describe("session menu section builders", () => {
       ],
       appendPinnedSessions,
       appendGroupSessions,
-      loadMoreRowFor: (category) =>
-        category === "standalone_agent"
+      loadMoreRowFor: (category, hasVisibleSessionRows) =>
+        category === "standalone_agent" && hasVisibleSessionRows
           ? {
               id: "load-more-standalone_agent",
               key: "load-more-standalone_agent",
@@ -257,8 +277,8 @@ describe("session menu section builders", () => {
       unpinnedSessions: [],
       appendPinnedSessions,
       appendGroupSessions,
-      loadMoreRowFor: (category) =>
-        category === "standalone_agent"
+      loadMoreRowFor: (category, hasVisibleSessionRows) =>
+        category === "standalone_agent" && !hasVisibleSessionRows
           ? {
               id: "load-more-standalone_agent",
               key: "load-more-standalone_agent",

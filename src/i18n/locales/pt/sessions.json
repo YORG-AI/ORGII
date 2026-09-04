@@ -2458,7 +2458,10 @@
       "memberSessions": "Sessões de membros",
       "pauseRun": "Pausar execução",
       "resumeRun": "Retomar execução",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "View coordinator chat history",
+      "planApproval": {
+        "title": "Plano pronto para aprovação"
+      }
     },
     "agentOrgInbox": {
       "title": "Mensagens Agent",

@@ -14,6 +14,14 @@ import RembrandtAnatomyLesson from "@src/assets/loading/Rembrandt_anatomy_lesson
 import VermeerAstronomer from "@src/assets/loading/Vermeer_astronomer.mp4";
 import VermeerGeographer from "@src/assets/loading/Vermeer_geographer.mp4";
 
+import { ONBOARDING_LOADING_VIDEO_FRAME_PX } from "./onboardingTokens";
+
+export {
+  ONBOARDING_LOADING_VIDEO_FRAME_PX,
+  ONBOARDING_LOADING_VIDEO_MAX_WIDTH_CLASS,
+  ONBOARDING_LOADING_VIDEO_WIDTH_CLASS,
+} from "./onboardingTokens";
+
 const LOADING_VIDEOS = [
   BoyleAnExperiment,
   BruegelAutumn,
@@ -25,16 +33,6 @@ const LOADING_VIDEOS = [
   VermeerAstronomer,
   VermeerGeographer,
 ];
-
-/** Square frame for the art clips (login, select-repo hero). */
-export const ONBOARDING_LOADING_VIDEO_FRAME_PX = 350;
-
-/**
- * Tailwind width utilities matching {@link ONBOARDING_LOADING_VIDEO_FRAME_PX}
- * (literal strings so JIT picks them up — update both when changing size).
- */
-export const ONBOARDING_LOADING_VIDEO_WIDTH_CLASS = "w-[350px]";
-export const ONBOARDING_LOADING_VIDEO_MAX_WIDTH_CLASS = "max-w-[350px]";
 
 export const OnboardingLoadingVideo: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);

@@ -84,11 +84,6 @@
       "byAgent": "按 Agent",
       "byWorkspace": "按工作区"
     },
-    "show": {
-      "title": "显示",
-      "recent5": "最近 5 个",
-      "recent10": "最近 10 个"
-    },
     "filters": {
       "includeExternal": "包含外部",
       "manageExternalSources": "管理外部来源…"
@@ -132,11 +127,11 @@
     },
     "settingsMenu": {
       "appearance": "外观",
-      "modifyAppearance": "修改外观",
       "language": "语言",
       "viewRam": "查看 RAM",
       "tutorials": "教程",
-      "openSettings": "打开设置"
+      "openSettings": "打开设置",
+      "modifyAppearance": "修改外观"
     },
     "empty": {
       "noItems": "暂无内容",
@@ -176,6 +171,11 @@
       "exploreProduct": "了解主要页面",
       "nextStep": "下一步",
       "dismiss": "关闭指南"
+    },
+    "show": {
+      "title": "显示",
+      "recent5": "最近 5 个",
+      "recent10": "最近 10 个"
     }
   },
   "appLauncher": {
@@ -1040,5 +1040,68 @@
       "memberNote": "由管理员开启——无需打开该组织，符合条件的会话也会在后台上传。"
     },
     "userName": "用户名"
+  },
+  "web": {
+    "title": "ORG2 Web",
+    "sessionsNav": "会话",
+    "loadingSession": "正在加载会话…",
+    "readOnly": {
+      "headerTrailing": "Cloud · 只读",
+      "barLabel": "只读",
+      "barPlaceholder": "Cloud 会话为只读模式"
+    },
+    "sessionsPage": {
+      "loadError": "无法加载会话列表",
+      "loading": "正在加载会话…",
+      "empty": "暂无已同步会话",
+      "select": "选择一个会话",
+      "emptyHint": "请先在 Desktop 中为会话开启 Cloud 同步。",
+      "selectHint": "请从侧边栏选择一个 Cloud 会话。",
+      "retry": "重试",
+      "organizationLoadErrorHint": "无法加载你的组织。请检查网络连接后重试。",
+      "organizationRetryingHint": "暂时无法连接云服务，正在自动重试…",
+      "organizationRefreshErrorHint": "无法刷新组织，正在显示上次成功加载的会话列表。",
+      "sessionRefreshErrorHint": "部分组织的会话无法刷新。",
+      "organizationSetupTitle": "连接一个组织",
+      "organizationSetupHint": "为团队创建组织，或使用邀请链接/邀请码加入已有组织。",
+      "organizationModeLabel": "组织连接方式",
+      "createOrganization": "创建组织",
+      "joinOrganization": "加入组织",
+      "organizationNamePlaceholder": "团队或组织名称",
+      "invitePlaceholder": "粘贴邀请链接或邀请码"
+    },
+    "sessionPage": {
+      "notFound": "未找到会话",
+      "notFoundHint": "该会话可能已不再共享给此账号。",
+      "loading": "正在加载会话…",
+      "workstationLoading": "正在加载工作区…",
+      "workstationEmptyTitle": "暂无会话文件",
+      "workstationEmptySubtitle": "该会话尚未包含可读取的文件或编辑内容。",
+      "workstationLoadErrorFallback": "无法加载会话文件",
+      "workstationLoadErrorSubtitle": "Agent Station 回放仍可使用。",
+      "workstationRefreshFailedBanner": "刷新失败，正在显示已从会话事件中获取的文件。",
+      "chatTab": "Chat",
+      "workstationTab": "WorkStation",
+      "forkContext": "来自 {{owner}} 会话的分支",
+      "notesButton": "会话备注",
+      "notesTitle": "会话备注",
+      "notesEmpty": "暂无会话备注。"
+    },
+    "login": {
+      "title": "登录 ORG2 Web",
+      "subtitle": "在浏览器中查看共享会话、聊天记录与回放。",
+      "continue": "使用 ORG2 Cloud 继续",
+      "hint": "使用与 Desktop 相同的 ORG2 Cloud 账号。"
+    },
+    "authCallback": {
+      "failed": "登录失败",
+      "tryAgain": "重试",
+      "completing": "正在完成登录",
+      "missingCredentials": "登录回调缺少有效凭证。",
+      "missingIdentity": "登录 token 中缺少用户身份。"
+    },
+    "sidebar": {
+      "signOut": "退出 {{name}}"
+    }
   }
 }

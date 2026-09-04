@@ -104,8 +104,8 @@
       "pullRequestsPartialLoadHelp": "Kullanılabilir öğeler gösterilmeye devam ediyor; eksik pull requestleri yeniden yüklemeyi denemek için yenileyin",
       "workItemContext": "Bazı proje bağlamı kullanılamıyor. İş öğesi kullanılabilir durumda kalır.",
       "workItemLoad": "Bu iş öğesi yüklenemedi. Tekrar deneyin.",
-      "githubIssueLoad": "Bu iş öğesinin GitHub sorunu yüklenemedi. Yerel iş öğesi ayrıntıları gösterilmeye devam ediyor.",
-      "workItemUpdate": "İş öğesindeki son değişiklik kaydedilemedi. Tekrar deneyin."
+      "workItemUpdate": "İş öğesindeki son değişiklik kaydedilemedi. Tekrar deneyin.",
+      "githubIssueLoad": "Bu iş öğesinin GitHub sorunu yüklenemedi. Yerel iş öğesi ayrıntıları gösterilmeye devam ediyor."
     },
     "detail": {
       "assignedSubtitle": "Atanan iş öğesi",
@@ -190,8 +190,6 @@
     "questionIgnored": "Soru yoksayıldı",
     "addedAsContext": "{{name}} bağlam olarak eklendi",
     "addedFilesAsContext": "{{count}} dosya bağlam olarak eklendi",
-    "chooseExecutionAgentAi": "Yapay zeka ile oluşturmadan önce sorumlu bir aracı seçin.",
-    "autoExecuteRequiresExecutionAgent": "Otomatik yürütme için sorumlu bir aracı gerekir.",
     "openSessionBeforeLinking": "Bir iş öğesini bağlamadan önce bir oturum açın.",
     "sessionLinkedToWorkItem": "Oturum iş öğesine bağlandı.",
     "sessionLinkFailed": "Oturum bağlanamadı: {{message}}",
@@ -204,7 +202,9 @@
     "workspaceImportFailed": "Çalışma alanı içe aktarılamadı",
     "chooseFolderCloneRepo": "Depoyu klonlamak için klasör seçin",
     "repositoryCloned": "Depo klonlandı",
-    "repositoryCloneFailed": "Depo klonlanamadı"
+    "repositoryCloneFailed": "Depo klonlanamadı",
+    "chooseExecutionAgentAi": "Yapay zeka ile oluşturmadan önce sorumlu bir aracı seçin.",
+    "autoExecuteRequiresExecutionAgent": "Otomatik yürütme için sorumlu bir aracı gerekir."
   },
   "previews": {
     "noCanvasAvailable": "Kullanılabilir tuval yok",
@@ -1071,10 +1071,6 @@
     "switchWorkspaceTooltip": "Workspace değiştir",
     "switchWorktreeTooltip": "Worktree değiştir",
     "switchBranchTooltip": "Dal değiştir",
-    "switchLocalBranchTooltip": "Yerel dalı değiştir",
-    "sessionEnvCloud": "Cloud",
-    "sessionEnvLocal": "Yerel",
-    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Git eylemleri",
     "switchToSessionRepo": "{{name}} konumuna geç",
     "embeddingProgress": "Embedding: {{count}} chunk işlendi",
@@ -1094,11 +1090,11 @@
       "unknownProcess": "Bilinmeyen süreç",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Tarayıcıda aç",
+      "openAddress": "{{address}} adresini aç",
       "copyAddress": "Adresi kopyala",
       "stopProcess": "Süreci durdur",
       "searchPlaceholder": "Port ara…",
       "noSearchResults": "Eşleşen port yok",
-      "openAddress": "{{address}} adresini aç",
       "rescan": "Yeniden tara",
       "rescanning": "Taranıyor…",
       "rescanTooltip": "Dinlenen bağlantı noktalarını yeniden tara",
@@ -1188,7 +1184,11 @@
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
-    "gitSyncMenuTitle": "Git sync actions"
+    "gitSyncMenuTitle": "Git sync actions",
+    "switchLocalBranchTooltip": "Yerel dalı değiştir",
+    "sessionEnvCloud": "Cloud",
+    "sessionEnvLocal": "Yerel",
+    "sessionHarness": "{{name}} Harness"
   },
   "git": {
     "loading": "Git durumu yükleniyor...",
@@ -1229,6 +1229,10 @@
       "compareBranch": "Dalı karşılaştır"
     },
     "rail": {
+      "openTabs": "Açık sekmeler",
+      "closeItem": "{{label}} öğesini kapat",
+      "expand": "Çalışma alanı bilgilerini genişlet",
+      "collapse": "Çalışma alanı bilgilerini daralt",
       "subagents": "Subagents",
       "subagentsCount_one": "{{count}} subagent",
       "subagentsCount_other": "{{count}} subagents",
@@ -1237,10 +1241,6 @@
       "subagentPending": "Beklemede",
       "subagentCompleted": "Tamamlandı",
       "subagentFailed": "Başarısız",
-      "openTabs": "Açık sekmeler",
-      "closeItem": "{{label}} öğesini kapat",
-      "expand": "Çalışma alanı bilgilerini genişlet",
-      "collapse": "Çalışma alanı bilgilerini daralt",
       "restoreWidth": "Özgün genişliği geri yükle ({{width}} px)",
       "setMinimumWidth": "Geçerli genişliği en küçük değer yap ({{width}} px)",
       "widerWidth": "Daha geniş ({{width}} px)",
@@ -1286,6 +1286,36 @@
       },
       "summary": {
         "label": "Pull request özeti"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "{{count}} commit'i şuraya birleştirmek istiyor:",
+        "wantsToMergeCommitsInto_other": "{{count}} commit'i şuraya birleştirmek istiyor:",
+        "mergedCommitsInto_one": "{{count}} commit'i şuraya birleştirdi:",
+        "mergedCommitsInto_other": "{{count}} commit'i şuraya birleştirdi:",
+        "from": "şuradan:",
+        "copyHeadBranch": "Dal adını kopyala",
+        "branchCopied": "Dal adı kopyalandı"
+      },
+      "sidebar": {
+        "reviewers": "İnceleyenler",
+        "requestReviewers": "İnceleyen iste",
+        "awaitingReview": "İnceleme bekleniyor",
+        "noReviews": "İnceleme yok",
+        "assignees": "Atananlar",
+        "noAssignees": "Kimse atanmadı",
+        "labels": "Etiketler",
+        "noLabels": "Henüz yok",
+        "actions": "İşlemler",
+        "editAssignees": "Atananları düzenle",
+        "searchAssignees": "Kişi ara",
+        "noAssigneeCandidates": "Kullanılabilir kişi yok",
+        "assigneesLoadFailed": "Kişiler yüklenemedi",
+        "assigneesUpdated": "Atananlar güncellendi",
+        "editLabels": "Etiketleri düzenle",
+        "searchLabels": "Etiket ara",
+        "noLabelCandidates": "Kullanılabilir etiket yok",
+        "labelsLoadFailed": "Etiketler yüklenemedi",
+        "labelsUpdated": "Etiketler güncellendi"
       },
       "tabs": {
         "conversation": "Konuşma",
@@ -1343,6 +1373,8 @@
         "removedFromQueue": "Birleştirme kuyruğundan çıkarıldı",
         "autoMergeEnabled": "Otomatik birleştirme etkinleştirildi",
         "autoMergeDisabled": "Otomatik birleştirme devre dışı bırakıldı",
+        "convertToDraft": "Taslağa dönüştür",
+        "convertedToDraft": "Pull request taslağa dönüştürüldü",
         "confirmCloseTitle": "Pull request kapatılsın mı?",
         "confirmCloseMessage": "Pull request erişilebilir kalacak ve daha sonra yeniden açılabilecek.",
         "closeSuccess": "Pull request kapatıldı",
@@ -1377,39 +1409,7 @@
           "checksFailed": "Birleştirmeden önce gerekli kontroller geçmelidir",
           "checksPending": "Gerekli kontrolleri bekleyin veya otomatik birleştirmeyi etkinleştirin",
           "mergeBlocked": "GitHub karşılanmamış birleştirme gereksinimleri bildiriyor"
-        },
-        "convertToDraft": "Taslağa dönüştür",
-        "convertedToDraft": "Pull request taslağa dönüştürüldü"
-      },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "{{count}} commit'i şuraya birleştirmek istiyor:",
-        "wantsToMergeCommitsInto_other": "{{count}} commit'i şuraya birleştirmek istiyor:",
-        "mergedCommitsInto_one": "{{count}} commit'i şuraya birleştirdi:",
-        "mergedCommitsInto_other": "{{count}} commit'i şuraya birleştirdi:",
-        "from": "şuradan:",
-        "copyHeadBranch": "Dal adını kopyala",
-        "branchCopied": "Dal adı kopyalandı"
-      },
-      "sidebar": {
-        "reviewers": "İnceleyenler",
-        "requestReviewers": "İnceleyen iste",
-        "awaitingReview": "İnceleme bekleniyor",
-        "noReviews": "İnceleme yok",
-        "assignees": "Atananlar",
-        "noAssignees": "Kimse atanmadı",
-        "labels": "Etiketler",
-        "noLabels": "Henüz yok",
-        "actions": "İşlemler",
-        "editAssignees": "Atananları düzenle",
-        "searchAssignees": "Kişi ara",
-        "noAssigneeCandidates": "Kullanılabilir kişi yok",
-        "assigneesLoadFailed": "Kişiler yüklenemedi",
-        "assigneesUpdated": "Atananlar güncellendi",
-        "editLabels": "Etiketleri düzenle",
-        "searchLabels": "Etiket ara",
-        "noLabelCandidates": "Kullanılabilir etiket yok",
-        "labelsLoadFailed": "Etiketler yüklenemedi",
-        "labelsUpdated": "Etiketler güncellendi"
+        }
       }
     },
     "messages": {
@@ -1579,9 +1579,9 @@
       "chooseKey": "Bir anahtar seçin",
       "noCompatibleAccounts": "Uyumlu anahtar yok",
       "chooseModelHint": "Gezinmek için klavyeyi kullanın veya fareyle bir modele tıklayın",
+      "selectAccount": "Hesap seç",
       "chooseKeyHint": "Gezinmek için klavyeyi kullanın veya fareyle bir anahtara tıklayın",
-      "noModelsForKey": "Bu anahtar için etkin model yok",
-      "selectAccount": "Hesap seç"
+      "noModelsForKey": "Bu anahtar için etkin model yok"
     },
     "modelProperties": {
       "effort": "Çaba",
@@ -1741,16 +1741,16 @@
       "select": "Seç",
       "switchColumn": "Sütun değiştir",
       "switchSection": "Bölüm değiştir",
-      "showPath": "Yolu göster",
-      "keyFirst": "Önce anahtar",
-      "showBranchInfo": "Dal bilgilerini göster",
       "compatibleKeys": "Uyumlu",
       "planSupport": "Plan",
       "byokSupport": "Keys",
       "incompatible": "Uyumsuz",
       "manageModels": "Modelleri yönet",
       "manageKeys": "Anahtarları yönet",
-      "manageAgents": "Agents yönet"
+      "manageAgents": "Agents yönet",
+      "showPath": "Yolu göster",
+      "keyFirst": "Önce anahtar",
+      "showBranchInfo": "Dal bilgilerini göster"
     },
     "editorSpotlight": {
       "searchPlaceholder": "Komut ara...",
@@ -1933,7 +1933,6 @@
     "theme": "Tema",
     "sidebarPosition": "Kenar çubuğu konumu",
     "modelPickerStyle": "Seçici",
-    "paginateChatHistory": "Sohbet geçmişini sayfalandır",
     "captionPlacement": "Altyazı satırı",
     "modelPickerSpotlight": "Spotlight",
     "modelPickerMenu": "Menü",
@@ -1961,7 +1960,8 @@
     "ramHydratedEvents": "Hydrated olaylar",
     "ramTurnBodies": "Geçmiş lazy load",
     "ramFileTrees": "Dosya ağaçları",
-    "ramCodeMirrors": "File rendering"
+    "ramCodeMirrors": "File rendering",
+    "paginateChatHistory": "Sohbet geçmişini sayfalandır"
   },
   "spotlightActions": {
     "switchToLightTheme": "Açık temaya geç",
@@ -1977,13 +1977,13 @@
     "openAgentStation": "Agent Station'a git",
     "openKanban": "Kanban'e git",
     "changeLanguage": "Dili değiştir",
+    "switchToSystemTheme": "Sistem temasını izle",
+    "detectUpdate": "Güncellemeleri denetle",
+    "recentlyUsed": "Son kullanılanlar",
     "changeTheme": "Temayı değiştir",
     "changeSkin": "Görünümü değiştir",
     "searchThemes": "Tema ara...",
-    "searchSkins": "Görünüm ara...",
-    "switchToSystemTheme": "Sistem temasını izle",
-    "detectUpdate": "Güncellemeleri denetle",
-    "recentlyUsed": "Son kullanılanlar"
+    "searchSkins": "Görünüm ara..."
   },
   "commands": {
     "showBottomPanel": "Alt paneli göster",
@@ -2352,6 +2352,16 @@
       "untitled": "Başlıksız"
     },
     "statusBar": {}
+  },
+  "notifications": {
+    "backgroundSession": "Arka plan oturumu",
+    "taskCompletedTitle": "Görev tamamlandı",
+    "taskCompletedBody": "“{{name}}” tamamlandı — incelemeye hazır",
+    "taskCompletedToast": "“{{name}}” tamamlandı. Sonucu incelemek için oturumu açın.",
+    "openSessionAction": "Oturumu aç",
+    "taskFailedTitle": "Görev başarısız oldu",
+    "taskFailedBody": "“{{name}}” başarısız oldu{{detail}}",
+    "taskCancelledToast": "“{{name}}” iptal edildi"
   },
   "globalToolbar": {},
   "quitConfirmation": {

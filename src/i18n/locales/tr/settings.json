@@ -113,9 +113,7 @@
     }
   },
   "general": {
-    "login": "Giriş",
     "tabGeneral": "Genel",
-    "tabSelfHosted": "Kendi kendine barındırılan",
     "loginStatus": "Giriş Durumu",
     "loggedIn": "Giriş yapıldı",
     "notLoggedIn": "Giriş yapılmadı",
@@ -230,7 +228,9 @@
     "presenceGuidanceOnlineDefault": "Klavyenin başındayım. İstediğin zaman netleştirici sorular sorabilir ve yıkıcı işlemleri çalıştırmadan önce bana onaylatabilirsin",
     "presenceGuidanceInvisibleDefault": "Yakındayım ama çevrimdışı görünüyorum. Varsayılan olarak otonom ilerle ve yalnızca yüksek riskli işlemler ya da önemli refaktörler için beni bilgilendir; diğer soruları tek tek sormak yerine tek bir özette topla",
     "presenceGuidanceAwayDefault": "Klavyeden uzaktayım. Beni bekleyip takılma; elindeki bilgilerle en iyi kararı ver, bitirebildiklerini bitir ve döndüğümde bakmam için olanları ve açık soruları kısa bir özet olarak bırak",
-    "followSystem": "Sistemi izle"
+    "followSystem": "Sistemi izle",
+    "login": "Giriş",
+    "tabSelfHosted": "Kendi kendine barındırılan"
   },
   "background": {
     "title": "Arka Plan",
@@ -729,7 +729,8 @@
       "sent": "Test bildirimi gönderildi",
       "permissionWarning": "Test bildirimi gönderilemedi. İzinleri kontrol edin.",
       "sendFailed": "Test bildirimi gönderilemiyor. Bildirim izinlerinizi kontrol edip yeniden deneyin.",
-      "soundFailed": "Bildirim sesi çalınamıyor. Sistem ses düzeyini kontrol edin."
+      "soundFailed": "Bildirim sesi çalınamıyor. Sistem ses düzeyini kontrol edin.",
+      "body": "Bu, ORGII tarafından gönderilen bir test bildirimidir"
     }
   },
   "editor": {

@@ -104,8 +104,8 @@
       "pullRequestsPartialLoadHelp": "Los elementos disponibles se siguen mostrando; actualiza para intentar cargar de nuevo las pull requests que faltan",
       "workItemContext": "Parte del contexto del proyecto no está disponible. El elemento de trabajo sigue siendo utilizable.",
       "workItemLoad": "No se pudo cargar este elemento de trabajo. Inténtalo de nuevo.",
-      "githubIssueLoad": "No se pudo cargar la incidencia de GitHub de este elemento de trabajo. Se siguen mostrando los detalles locales.",
-      "workItemUpdate": "No se pudo guardar el último cambio del elemento de trabajo. Inténtalo de nuevo."
+      "workItemUpdate": "No se pudo guardar el último cambio del elemento de trabajo. Inténtalo de nuevo.",
+      "githubIssueLoad": "No se pudo cargar la incidencia de GitHub de este elemento de trabajo. Se siguen mostrando los detalles locales."
     },
     "detail": {
       "assignedSubtitle": "Elemento de trabajo asignado",
@@ -190,8 +190,6 @@
     "questionIgnored": "Pregunta ignorada",
     "addedAsContext": "{{name}} añadido como contexto",
     "addedFilesAsContext": "{{count}} archivo(s) añadido(s) como contexto",
-    "chooseExecutionAgentAi": "Elige un agente responsable antes de crear con IA.",
-    "autoExecuteRequiresExecutionAgent": "La ejecución automática requiere un agente responsable.",
     "openSessionBeforeLinking": "Abre una sesión antes de vincular un elemento de trabajo.",
     "sessionLinkedToWorkItem": "Sesión vinculada al elemento de trabajo.",
     "sessionLinkFailed": "No se pudo vincular la sesión: {{message}}",
@@ -204,7 +202,9 @@
     "workspaceImportFailed": "No se pudo importar el espacio de trabajo",
     "chooseFolderCloneRepo": "Elegir carpeta para clonar el repositorio",
     "repositoryCloned": "Repositorio clonado",
-    "repositoryCloneFailed": "No se pudo clonar el repositorio"
+    "repositoryCloneFailed": "No se pudo clonar el repositorio",
+    "chooseExecutionAgentAi": "Elige un agente responsable antes de crear con IA.",
+    "autoExecuteRequiresExecutionAgent": "La ejecución automática requiere un agente responsable."
   },
   "previews": {
     "noCanvasAvailable": "No hay lienzo disponible",
@@ -1070,10 +1070,6 @@
     "switchWorkspaceTooltip": "Cambiar de espacio de trabajo",
     "switchWorktreeTooltip": "Cambiar de worktree",
     "switchBranchTooltip": "Cambiar de rama",
-    "switchLocalBranchTooltip": "Cambiar de rama local",
-    "sessionEnvCloud": "Nube",
-    "sessionEnvLocal": "Local",
-    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Acciones de Git",
     "switchToSessionRepo": "Cambiar a {{name}}",
     "embeddingProgress": "Embedding: {{count}} chunks procesados",
@@ -1093,11 +1089,11 @@
       "unknownProcess": "Proceso desconocido",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Abrir en el navegador",
+      "openAddress": "Abrir {{address}}",
       "copyAddress": "Copiar dirección",
       "stopProcess": "Detener proceso",
       "searchPlaceholder": "Buscar puertos…",
       "noSearchResults": "No hay puertos coincidentes",
-      "openAddress": "Abrir {{address}}",
       "rescan": "Volver a escanear",
       "rescanning": "Escaneando…",
       "rescanTooltip": "Buscar de nuevo puertos en escucha",
@@ -1187,7 +1183,11 @@
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
-    "gitSyncMenuTitle": "Acciones de sincronización Git"
+    "gitSyncMenuTitle": "Acciones de sincronización Git",
+    "switchLocalBranchTooltip": "Cambiar de rama local",
+    "sessionEnvCloud": "Nube",
+    "sessionEnvLocal": "Local",
+    "sessionHarness": "{{name}} Harness"
   },
   "git": {
     "loading": "Cargando estado de Git...",
@@ -1228,6 +1228,10 @@
       "compareBranch": "Comparar rama"
     },
     "rail": {
+      "openTabs": "Pestañas abiertas",
+      "closeItem": "Cerrar {{label}}",
+      "expand": "Expandir la información del espacio de trabajo",
+      "collapse": "Contraer la información del espacio de trabajo",
       "subagents": "Subagents",
       "subagentsCount_one": "{{count}} subagent",
       "subagentsCount_other": "{{count}} subagents",
@@ -1236,10 +1240,6 @@
       "subagentPending": "Pendiente",
       "subagentCompleted": "Completado",
       "subagentFailed": "Fallido",
-      "openTabs": "Pestañas abiertas",
-      "closeItem": "Cerrar {{label}}",
-      "expand": "Expandir la información del espacio de trabajo",
-      "collapse": "Contraer la información del espacio de trabajo",
       "restoreWidth": "Restaurar ancho original ({{width}} px)",
       "setMinimumWidth": "Fijar el ancho actual como mínimo ({{width}} px)",
       "widerWidth": "Más ancho ({{width}} px)",
@@ -1285,6 +1285,36 @@
       },
       "summary": {
         "label": "Resumen de la pull request"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "quiere fusionar {{count}} commit en",
+        "wantsToMergeCommitsInto_other": "quiere fusionar {{count}} commits en",
+        "mergedCommitsInto_one": "fusionó {{count}} commit en",
+        "mergedCommitsInto_other": "fusionó {{count}} commits en",
+        "from": "desde",
+        "copyHeadBranch": "Copiar nombre de la rama",
+        "branchCopied": "Nombre de la rama copiado"
+      },
+      "sidebar": {
+        "reviewers": "Revisores",
+        "requestReviewers": "Solicitar revisores",
+        "awaitingReview": "Revisión pendiente",
+        "noReviews": "Sin revisiones",
+        "assignees": "Asignados",
+        "noAssignees": "Nadie asignado",
+        "labels": "Etiquetas",
+        "noLabels": "Ninguna todavía",
+        "actions": "Acciones",
+        "editAssignees": "Editar asignados",
+        "searchAssignees": "Buscar personas",
+        "noAssigneeCandidates": "No hay personas disponibles",
+        "assigneesLoadFailed": "No se pudieron cargar las personas",
+        "assigneesUpdated": "Asignados actualizados",
+        "editLabels": "Editar etiquetas",
+        "searchLabels": "Buscar etiquetas",
+        "noLabelCandidates": "No hay etiquetas disponibles",
+        "labelsLoadFailed": "No se pudieron cargar las etiquetas",
+        "labelsUpdated": "Etiquetas actualizadas"
       },
       "tabs": {
         "conversation": "Conversación",
@@ -1342,6 +1372,8 @@
         "removedFromQueue": "Eliminado de la cola de fusión",
         "autoMergeEnabled": "Fusión automática activada",
         "autoMergeDisabled": "Fusión automática desactivada",
+        "convertToDraft": "Convertir en borrador",
+        "convertedToDraft": "Pull request convertido en borrador",
         "confirmCloseTitle": "¿Cerrar el pull request?",
         "confirmCloseMessage": "El pull request seguirá disponible y podrá reabrirse más adelante.",
         "closeSuccess": "Pull request cerrado",
@@ -1376,39 +1408,7 @@
           "checksFailed": "Las comprobaciones obligatorias deben superarse antes de fusionar",
           "checksPending": "Espera las comprobaciones obligatorias o activa la fusión automática",
           "mergeBlocked": "GitHub informa de requisitos de fusión pendientes"
-        },
-        "convertToDraft": "Convertir en borrador",
-        "convertedToDraft": "Pull request convertido en borrador"
-      },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "quiere fusionar {{count}} commit en",
-        "wantsToMergeCommitsInto_other": "quiere fusionar {{count}} commits en",
-        "mergedCommitsInto_one": "fusionó {{count}} commit en",
-        "mergedCommitsInto_other": "fusionó {{count}} commits en",
-        "from": "desde",
-        "copyHeadBranch": "Copiar nombre de la rama",
-        "branchCopied": "Nombre de la rama copiado"
-      },
-      "sidebar": {
-        "reviewers": "Revisores",
-        "requestReviewers": "Solicitar revisores",
-        "awaitingReview": "Revisión pendiente",
-        "noReviews": "Sin revisiones",
-        "assignees": "Asignados",
-        "noAssignees": "Nadie asignado",
-        "labels": "Etiquetas",
-        "noLabels": "Ninguna todavía",
-        "actions": "Acciones",
-        "editAssignees": "Editar asignados",
-        "searchAssignees": "Buscar personas",
-        "noAssigneeCandidates": "No hay personas disponibles",
-        "assigneesLoadFailed": "No se pudieron cargar las personas",
-        "assigneesUpdated": "Asignados actualizados",
-        "editLabels": "Editar etiquetas",
-        "searchLabels": "Buscar etiquetas",
-        "noLabelCandidates": "No hay etiquetas disponibles",
-        "labelsLoadFailed": "No se pudieron cargar las etiquetas",
-        "labelsUpdated": "Etiquetas actualizadas"
+        }
       }
     },
     "messages": {
@@ -1578,9 +1578,9 @@
       "chooseKey": "Elige una clave",
       "noCompatibleAccounts": "Sin claves compatibles",
       "chooseModelHint": "Usa el teclado para navegar o haz clic en un modelo con el mouse",
+      "selectAccount": "Seleccionar una cuenta",
       "chooseKeyHint": "Usa el teclado para navegar o haz clic en una clave con el mouse",
-      "noModelsForKey": "No hay modelos habilitados para esta clave",
-      "selectAccount": "Seleccionar una cuenta"
+      "noModelsForKey": "No hay modelos habilitados para esta clave"
     },
     "modelProperties": {
       "effort": "Esfuerzo",
@@ -1740,16 +1740,16 @@
       "select": "Seleccionar",
       "switchColumn": "Cambiar columna",
       "switchSection": "Cambiar sección",
-      "showPath": "Mostrar ruta",
-      "keyFirst": "Clave primero",
-      "showBranchInfo": "Mostrar información de rama",
       "compatibleKeys": "Compatible",
       "planSupport": "Plan",
       "byokSupport": "Keys",
       "incompatible": "Incompatible",
       "manageModels": "Gestionar modelos",
       "manageKeys": "Gestionar claves",
-      "manageAgents": "Gestionar Agents"
+      "manageAgents": "Gestionar Agents",
+      "showPath": "Mostrar ruta",
+      "keyFirst": "Clave primero",
+      "showBranchInfo": "Mostrar información de rama"
     },
     "editorSpotlight": {
       "searchPlaceholder": "Buscar comandos...",
@@ -1931,7 +1931,6 @@
     "theme": "Tema",
     "sidebarPosition": "Posición de la barra lateral",
     "modelPickerStyle": "Selector",
-    "paginateChatHistory": "Paginar historial del chat",
     "modelPickerSpotlight": "Spotlight",
     "modelPickerMenu": "Menú",
     "left": "Izquierda",
@@ -1956,7 +1955,8 @@
     "ramHydratedEvents": "Eventos hydrated",
     "ramTurnBodies": "Cargas lazy de historial",
     "ramFileTrees": "Árboles de archivos",
-    "ramCodeMirrors": "Renderizado de archivos"
+    "ramCodeMirrors": "Renderizado de archivos",
+    "paginateChatHistory": "Paginar historial del chat"
   },
   "spotlightActions": {
     "switchToLightTheme": "Cambiar al tema claro",
@@ -1972,13 +1972,13 @@
     "openAgentStation": "Ir a Agent Station",
     "openKanban": "Ir a Kanban",
     "changeLanguage": "Cambiar idioma",
+    "switchToSystemTheme": "Seguir el tema del sistema",
+    "detectUpdate": "Buscar actualizaciones",
+    "recentlyUsed": "Usados recientemente",
     "changeTheme": "Cambiar tema",
     "changeSkin": "Cambiar apariencia",
     "searchThemes": "Buscar temas...",
-    "searchSkins": "Buscar apariencias...",
-    "switchToSystemTheme": "Seguir el tema del sistema",
-    "detectUpdate": "Buscar actualizaciones",
-    "recentlyUsed": "Usados recientemente"
+    "searchSkins": "Buscar apariencias..."
   },
   "commands": {
     "showBottomPanel": "Mostrar panel inferior",
@@ -2347,6 +2347,16 @@
       "untitled": "Sin título"
     },
     "statusBar": {}
+  },
+  "notifications": {
+    "backgroundSession": "Sesión en segundo plano",
+    "taskCompletedTitle": "Tarea completada",
+    "taskCompletedBody": "La tarea «{{name}}» se completó — lista para revisión",
+    "taskCompletedToast": "La tarea «{{name}}» se completó. Abre la sesión para revisar el resultado.",
+    "openSessionAction": "Abrir sesión",
+    "taskFailedTitle": "Tarea fallida",
+    "taskFailedBody": "La tarea «{{name}}» falló{{detail}}",
+    "taskCancelledToast": "La tarea «{{name}}» se canceló"
   },
   "globalToolbar": {},
   "quitConfirmation": {

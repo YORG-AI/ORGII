@@ -76,6 +76,7 @@ interface ChatHistoryViewProps {
   search: UseChatSearchReturn;
   surfaceBgClass: string;
   turnPaginationEnabled: boolean;
+  turnMetadataEnabled: boolean;
   viewport: ViewportModel;
 }
 
@@ -111,6 +112,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
   search,
   surfaceBgClass,
   turnPaginationEnabled,
+  turnMetadataEnabled,
   viewport,
 }) => {
   const {
@@ -478,11 +480,13 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
               <div className="h-full w-full">
                 {activeProjectionHistory.length > 0 ? (
                   <>
-                    <TurnMetadataLoader
-                      sessionId={activeId}
-                      reloadKey={turnMetadataReloadKey}
-                      turnIds={displayTurnIds}
-                    />
+                    {turnMetadataEnabled && (
+                      <TurnMetadataLoader
+                        sessionId={activeId}
+                        reloadKey={turnMetadataReloadKey}
+                        turnIds={displayTurnIds}
+                      />
+                    )}
                     <PlanningIndicatorBridge
                       planningIndicatorScope={planningIndicatorScope}
                       planningIndicatorEnabled={planningIndicatorEnabled}

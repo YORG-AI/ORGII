@@ -113,9 +113,7 @@
     }
   },
   "general": {
-    "login": "登錄",
     "tabGeneral": "通用",
-    "tabSelfHosted": "自託管",
     "loginStatus": "登錄狀態",
     "loggedIn": "已登錄",
     "notLoggedIn": "未登錄",
@@ -230,7 +228,9 @@
     "presenceGuidanceOnlineDefault": "我在電腦前。你可以隨時向我提出澄清問題，執行任何破壞性操作前請先讓我確認",
     "presenceGuidanceInvisibleDefault": "我在附近但顯示為離線。預設自主執行；只有高風險操作或重大重構才通知我，其他問題請彙總成一段摘要，不要逐個詢問",
     "presenceGuidanceAwayDefault": "我暫時不在電腦前。不要等我回覆；根據現有資訊做出最佳判斷，完成能完成的事項，並留下簡明總結和待我回來處理的問題",
-    "followSystem": "跟隨系統"
+    "followSystem": "跟隨系統",
+    "login": "登錄",
+    "tabSelfHosted": "自託管"
   },
   "background": {
     "title": "背景",
@@ -729,7 +729,8 @@
       "sent": "測試通知已發送",
       "permissionWarning": "測試通知發送失敗，請檢查權限。",
       "sendFailed": "無法發送測試通知。請檢查通知權限後重試。",
-      "soundFailed": "無法播放通知音效，請檢查系統音量。"
+      "soundFailed": "無法播放通知音效，請檢查系統音量。",
+      "body": "這是一則來自 ORGII 的測試通知"
     }
   },
   "editor": {

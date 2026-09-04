@@ -106,8 +106,8 @@
       "pullRequestsPartialLoadHelp": "Доступные элементы по-прежнему отображаются; обновите список, чтобы повторно загрузить отсутствующие pull requests",
       "workItemContext": "Часть контекста проекта недоступна. Рабочая задача остаётся доступной для использования.",
       "workItemLoad": "Не удалось загрузить эту рабочую задачу. Повторите попытку.",
-      "githubIssueLoad": "Не удалось загрузить задачу GitHub для этого рабочего элемента. Локальные сведения по-прежнему показаны.",
-      "workItemUpdate": "Не удалось сохранить последнее изменение рабочей задачи. Повторите попытку."
+      "workItemUpdate": "Не удалось сохранить последнее изменение рабочей задачи. Повторите попытку.",
+      "githubIssueLoad": "Не удалось загрузить задачу GitHub для этого рабочего элемента. Локальные сведения по-прежнему показаны."
     },
     "detail": {
       "assignedSubtitle": "Назначенная рабочая задача",
@@ -194,8 +194,6 @@
     "questionIgnored": "Вопрос пропущен",
     "addedAsContext": "{{name}} добавлен в контекст",
     "addedFilesAsContext": "Добавлено файлов в контекст: {{count}}",
-    "chooseExecutionAgentAi": "Выберите ответственного агента перед созданием с помощью ИИ.",
-    "autoExecuteRequiresExecutionAgent": "Для автоматического выполнения требуется ответственный агент.",
     "openSessionBeforeLinking": "Откройте сессию перед привязкой рабочего элемента.",
     "sessionLinkedToWorkItem": "Сессия привязана к рабочему элементу.",
     "sessionLinkFailed": "Не удалось привязать сессию: {{message}}",
@@ -208,7 +206,9 @@
     "workspaceImportFailed": "Не удалось импортировать рабочую область",
     "chooseFolderCloneRepo": "Выберите папку для клонирования репозитория",
     "repositoryCloned": "Репозиторий клонирован",
-    "repositoryCloneFailed": "Не удалось клонировать репозиторий"
+    "repositoryCloneFailed": "Не удалось клонировать репозиторий",
+    "chooseExecutionAgentAi": "Выберите ответственного агента перед созданием с помощью ИИ.",
+    "autoExecuteRequiresExecutionAgent": "Для автоматического выполнения требуется ответственный агент."
   },
   "previews": {
     "noCanvasAvailable": "Холст недоступен",
@@ -1074,10 +1074,6 @@
     "switchWorkspaceTooltip": "Сменить workspace",
     "switchWorktreeTooltip": "Сменить worktree",
     "switchBranchTooltip": "Сменить ветку",
-    "switchLocalBranchTooltip": "Сменить локальную ветку",
-    "sessionEnvCloud": "Облако",
-    "sessionEnvLocal": "Локально",
-    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Действия Git",
     "switchToSessionRepo": "Переключиться на {{name}}",
     "embeddingProgress": "Embedding: обработано чанков — {{count}}",
@@ -1097,11 +1093,11 @@
       "unknownProcess": "Неизвестный процесс",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Открыть в браузере",
+      "openAddress": "Открыть {{address}}",
       "copyAddress": "Копировать адрес",
       "stopProcess": "Остановить процесс",
       "searchPlaceholder": "Поиск портов…",
       "noSearchResults": "Нет подходящих портов",
-      "openAddress": "Открыть {{address}}",
       "rescan": "Пересканировать",
       "rescanning": "Сканирование…",
       "rescanTooltip": "Снова найти прослушиваемые порты",
@@ -1191,7 +1187,11 @@
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
-    "gitSyncMenuTitle": "Действия Git sync"
+    "gitSyncMenuTitle": "Действия Git sync",
+    "switchLocalBranchTooltip": "Сменить локальную ветку",
+    "sessionEnvCloud": "Облако",
+    "sessionEnvLocal": "Локально",
+    "sessionHarness": "{{name}} Harness"
   },
   "git": {
     "loading": "Загрузка статуса Git...",
@@ -1232,6 +1232,10 @@
       "compareBranch": "Сравнить ветку"
     },
     "rail": {
+      "openTabs": "Открытые вкладки",
+      "closeItem": "Закрыть {{label}}",
+      "expand": "Развернуть сведения о рабочей области",
+      "collapse": "Свернуть сведения о рабочей области",
       "subagents": "Subagents",
       "subagentsCount_one": "{{count}} subagent",
       "subagentsCount_other": "{{count}} subagents",
@@ -1240,10 +1244,6 @@
       "subagentPending": "В ожидании",
       "subagentCompleted": "Завершено",
       "subagentFailed": "Ошибка",
-      "openTabs": "Открытые вкладки",
-      "closeItem": "Закрыть {{label}}",
-      "expand": "Развернуть сведения о рабочей области",
-      "collapse": "Свернуть сведения о рабочей области",
       "restoreWidth": "Восстановить исходную ширину ({{width}} px)",
       "setMinimumWidth": "Сделать текущую ширину минимальной ({{width}} px)",
       "widerWidth": "Шире ({{width}} px)",
@@ -1291,6 +1291,40 @@
       },
       "summary": {
         "label": "Сводка pull request"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "хочет слить {{count}} коммит в",
+        "wantsToMergeCommitsInto_few": "хочет слить {{count}} коммита в",
+        "wantsToMergeCommitsInto_many": "хочет слить {{count}} коммитов в",
+        "wantsToMergeCommitsInto_other": "хочет слить {{count}} коммита в",
+        "mergedCommitsInto_one": "слито {{count}} коммит в",
+        "mergedCommitsInto_few": "слито {{count}} коммита в",
+        "mergedCommitsInto_many": "слито {{count}} коммитов в",
+        "mergedCommitsInto_other": "слито {{count}} коммита в",
+        "from": "из",
+        "copyHeadBranch": "Скопировать имя ветки",
+        "branchCopied": "Имя ветки скопировано"
+      },
+      "sidebar": {
+        "reviewers": "Рецензенты",
+        "requestReviewers": "Запросить рецензентов",
+        "awaitingReview": "Ожидает рецензии",
+        "noReviews": "Нет рецензий",
+        "assignees": "Исполнители",
+        "noAssignees": "Никто не назначен",
+        "labels": "Метки",
+        "noLabels": "Пока нет",
+        "actions": "Действия",
+        "editAssignees": "Изменить исполнителей",
+        "searchAssignees": "Поиск людей",
+        "noAssigneeCandidates": "Нет доступных людей",
+        "assigneesLoadFailed": "Не удалось загрузить людей",
+        "assigneesUpdated": "Исполнители обновлены",
+        "editLabels": "Изменить метки",
+        "searchLabels": "Поиск меток",
+        "noLabelCandidates": "Нет доступных меток",
+        "labelsLoadFailed": "Не удалось загрузить метки",
+        "labelsUpdated": "Метки обновлены"
       },
       "tabs": {
         "conversation": "Обсуждение",
@@ -1348,6 +1382,8 @@
         "removedFromQueue": "Удалено из очереди слияния",
         "autoMergeEnabled": "Автоматическое слияние включено",
         "autoMergeDisabled": "Автоматическое слияние отключено",
+        "convertToDraft": "Перевести в черновик",
+        "convertedToDraft": "Pull request переведён в черновик",
         "confirmCloseTitle": "Закрыть pull request?",
         "confirmCloseMessage": "Pull request останется доступным, и его можно будет открыть снова.",
         "closeSuccess": "Pull request закрыт",
@@ -1382,43 +1418,7 @@
           "checksFailed": "Перед слиянием необходимо пройти обязательные проверки",
           "checksPending": "Дождитесь обязательных проверок или включите автоматическое слияние",
           "mergeBlocked": "GitHub сообщает о невыполненных требованиях для слияния"
-        },
-        "convertToDraft": "Перевести в черновик",
-        "convertedToDraft": "Pull request переведён в черновик"
-      },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "хочет слить {{count}} коммит в",
-        "wantsToMergeCommitsInto_few": "хочет слить {{count}} коммита в",
-        "wantsToMergeCommitsInto_many": "хочет слить {{count}} коммитов в",
-        "wantsToMergeCommitsInto_other": "хочет слить {{count}} коммита в",
-        "mergedCommitsInto_one": "слито {{count}} коммит в",
-        "mergedCommitsInto_few": "слито {{count}} коммита в",
-        "mergedCommitsInto_many": "слито {{count}} коммитов в",
-        "mergedCommitsInto_other": "слито {{count}} коммита в",
-        "from": "из",
-        "copyHeadBranch": "Скопировать имя ветки",
-        "branchCopied": "Имя ветки скопировано"
-      },
-      "sidebar": {
-        "reviewers": "Рецензенты",
-        "requestReviewers": "Запросить рецензентов",
-        "awaitingReview": "Ожидает рецензии",
-        "noReviews": "Нет рецензий",
-        "assignees": "Исполнители",
-        "noAssignees": "Никто не назначен",
-        "labels": "Метки",
-        "noLabels": "Пока нет",
-        "actions": "Действия",
-        "editAssignees": "Изменить исполнителей",
-        "searchAssignees": "Поиск людей",
-        "noAssigneeCandidates": "Нет доступных людей",
-        "assigneesLoadFailed": "Не удалось загрузить людей",
-        "assigneesUpdated": "Исполнители обновлены",
-        "editLabels": "Изменить метки",
-        "searchLabels": "Поиск меток",
-        "noLabelCandidates": "Нет доступных меток",
-        "labelsLoadFailed": "Не удалось загрузить метки",
-        "labelsUpdated": "Метки обновлены"
+        }
       }
     },
     "messages": {
@@ -1590,9 +1590,9 @@
       "chooseKey": "Выберите ключ",
       "noCompatibleAccounts": "Нет совместимых ключей",
       "chooseModelHint": "Используйте клавиатуру для навигации или щелкните модель мышью",
+      "selectAccount": "Выберите аккаунт",
       "chooseKeyHint": "Используйте клавиатуру для навигации или щелкните ключ мышью",
-      "noModelsForKey": "Для этого ключа нет включённых моделей",
-      "selectAccount": "Выберите аккаунт"
+      "noModelsForKey": "Для этого ключа нет включённых моделей"
     },
     "modelProperties": {
       "effort": "Усилие",
@@ -1752,16 +1752,16 @@
       "select": "Выбрать",
       "switchColumn": "Сменить колонку",
       "switchSection": "Сменить раздел",
-      "showPath": "Показывать путь",
-      "keyFirst": "Сначала ключ",
-      "showBranchInfo": "Показывать информацию о ветках",
       "compatibleKeys": "Совместимые",
       "planSupport": "Plan",
       "byokSupport": "Keys",
       "incompatible": "Несовместимые",
       "manageModels": "Управление моделями",
       "manageKeys": "Управление ключами",
-      "manageAgents": "Управление Agents"
+      "manageAgents": "Управление Agents",
+      "showPath": "Показывать путь",
+      "keyFirst": "Сначала ключ",
+      "showBranchInfo": "Показывать информацию о ветках"
     },
     "editorSpotlight": {
       "searchPlaceholder": "Поиск команд...",
@@ -1943,7 +1943,6 @@
     "theme": "Тема",
     "sidebarPosition": "Положение панели",
     "modelPickerStyle": "Селектор",
-    "paginateChatHistory": "Разбивать историю чата на страницы",
     "modelPickerSpotlight": "Spotlight",
     "modelPickerMenu": "Меню",
     "left": "Слева",
@@ -1968,7 +1967,8 @@
     "ramHydratedEvents": "Hydrated события",
     "ramTurnBodies": "Lazy-загрузки истории",
     "ramFileTrees": "Деревья файлов",
-    "ramCodeMirrors": "File rendering"
+    "ramCodeMirrors": "File rendering",
+    "paginateChatHistory": "Разбивать историю чата на страницы"
   },
   "spotlightActions": {
     "switchToLightTheme": "Переключиться на светлую тему",
@@ -1984,13 +1984,13 @@
     "openAgentStation": "Перейти в Agent Station",
     "openKanban": "Перейти в Kanban",
     "changeLanguage": "Изменить язык",
+    "switchToSystemTheme": "Следовать системной теме",
+    "detectUpdate": "Проверить обновления",
+    "recentlyUsed": "Недавно использованные",
     "changeTheme": "Изменить тему",
     "changeSkin": "Изменить оформление",
     "searchThemes": "Поиск тем...",
-    "searchSkins": "Поиск вариантов оформления...",
-    "switchToSystemTheme": "Следовать системной теме",
-    "detectUpdate": "Проверить обновления",
-    "recentlyUsed": "Недавно использованные"
+    "searchSkins": "Поиск вариантов оформления..."
   },
   "commands": {
     "showBottomPanel": "Показать нижнюю панель",
@@ -2361,6 +2361,16 @@
       "untitled": "Без названия"
     },
     "statusBar": {}
+  },
+  "notifications": {
+    "backgroundSession": "Фоновая сессия",
+    "taskCompletedTitle": "Задача завершена",
+    "taskCompletedBody": "«{{name}}» завершена — можно проверить",
+    "taskCompletedToast": "«{{name}}» завершена. Откройте сессию, чтобы проверить результат.",
+    "openSessionAction": "Открыть сессию",
+    "taskFailedTitle": "Ошибка задачи",
+    "taskFailedBody": "«{{name}}» завершилась с ошибкой{{detail}}",
+    "taskCancelledToast": "«{{name}}» отменена"
   },
   "globalToolbar": {},
   "quitConfirmation": {

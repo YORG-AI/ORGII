@@ -10,6 +10,7 @@ import {
   Org2CloudAuthStateSchema,
   clearRejectedAuth,
   commitRefreshedAuth,
+  isSameOrg2CloudSession,
   org2CloudAuthAtom,
 } from "./org2CloudAuthAtom";
 import { ensureFreshSession } from "./org2CloudClient";
@@ -111,9 +112,11 @@ function boundSetter(store: ReturnType<typeof createStore>) {
 }
 
 describe("commitRefreshedAuth", () => {
-  it("commits the rotated session into the atom", () => {
+  it("commits the rotated session after storage rehydrates an equivalent object", () => {
     const store = createStore();
-    store.set(org2CloudAuthAtom, VALID_STATE);
+    const rehydrated = { ...VALID_STATE };
+    expect(rehydrated).not.toBe(VALID_STATE);
+    store.set(org2CloudAuthAtom, rehydrated);
     const rotated: Org2CloudAuthState = {
       ...VALID_STATE,
       accessToken: "at-2",
@@ -126,6 +129,15 @@ describe("commitRefreshedAuth", () => {
     );
 
     expect(store.get(org2CloudAuthAtom)).toBe(rotated);
+  });
+
+  it("treats an endpoint switch as a different session even if ids and tokens match", () => {
+    const switchedEndpoint: Org2CloudAuthState = {
+      ...VALID_STATE,
+      supabaseUrl: "https://other.supabase.co",
+    };
+
+    expect(isSameOrg2CloudSession(switchedEndpoint, VALID_STATE)).toBe(false);
   });
 
   it("no-ops when ensureFreshSession returned the same object (token still valid)", () => {

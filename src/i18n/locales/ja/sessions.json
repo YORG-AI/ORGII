@@ -2148,7 +2148,7 @@
     "searchModels": "モデルを検索...",
     "newItem": "新しいアイテム",
     "solveWorkItem": "作業項目を解決",
-    "launchpadQuestion": "",
+    "launchpadQuestion": "選択した",
     "launchpadQuestionSuffix": "で何を作りますか？",
     "manualLaunchpadQuestion": "何を作りますか？",
     "planLaunchpadQuestion": "",
@@ -2433,7 +2433,10 @@
       "memberSessions": "メンバーセッション",
       "pauseRun": "実行を一時停止",
       "resumeRun": "実行を再開",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "View coordinator chat history",
+      "planApproval": {
+        "title": "プランの承認待ち"
+      }
     },
     "agentOrgInbox": {
       "title": "Agent メッセージ",

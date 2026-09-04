@@ -26,10 +26,14 @@ interface SessionReadOnlyBarProps {
   pills?: React.ReactNode;
   /** Override the right-side badge text. Defaults to the i18n "Read-only" string. */
   label?: string;
+  /** Optional non-editable text row that preserves the full desktop composer silhouette. */
+  placeholder?: string;
+  /** Hide local context controls when the host has no local workspace. */
+  showContextInfo?: boolean;
 }
 
 const SessionReadOnlyBar: React.FC<SessionReadOnlyBarProps> = memo(
-  ({ pills, label }) => {
+  ({ pills, label, placeholder, showContextInfo = true }) => {
     const { t } = useTranslation("sessions");
     const badgeLabel =
       label ?? t("chat.readOnly", { defaultValue: "Read-only" });
@@ -40,9 +44,19 @@ const SessionReadOnlyBar: React.FC<SessionReadOnlyBarProps> = memo(
           hideAddButton
           showContextInfo={false}
           pills={pills}
+          editorSlot={
+            placeholder ? (
+              <div
+                className="min-h-10 w-full cursor-default px-2 py-1.5 text-sm leading-6 text-text-4 select-none"
+                aria-disabled="true"
+              >
+                {placeholder}
+              </div>
+            ) : undefined
+          }
           submitButton={
             <div className="flex items-center gap-1.5">
-              <ContextInfoButton variant="toolbar" />
+              {showContextInfo && <ContextInfoButton variant="toolbar" />}
               <div className="flex cursor-default items-center gap-1 text-text-4 opacity-60 select-none">
                 <HugeiconsIcon
                   icon={LockIcon}

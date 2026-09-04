@@ -20,7 +20,7 @@
     "confirmRemoveMessage": "Yerel kimlik bilgileri kaldırılacak. Bu işlem geri alınamaz.",
     "toasts": {
       "refreshed": "{{name}} başarıyla yenilendi",
-      "refreshError": "{{name}} yenilenemedi",
+      "refreshError": "{{name}} yenilenemedi: {{error}}",
       "localRemoved": "{{name}} kaldırıldı",
       "deleteError": "{{name}} silinemedi"
     },

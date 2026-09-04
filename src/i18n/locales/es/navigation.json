@@ -83,11 +83,6 @@
       "byAgent": "Por Agent",
       "byWorkspace": "Por Workspace"
     },
-    "show": {
-      "title": "Mostrar",
-      "recent5": "5 recientes",
-      "recent10": "10 recientes"
-    },
     "filters": {
       "includeExternal": "Include External",
       "manageExternalSources": "Gestionar fuentes…"
@@ -122,9 +117,9 @@
     },
     "folderCounts": {
       "repo": "{{count}} Repo",
-      "repo_plural": "{{count}} Repos",
       "multiRepoWorkspace": "{{count}} Workspace multi-Repo",
-      "multiRepoWorkspace_plural": "{{count}} Workspaces multi-Repo"
+      "repo_other": "{{count}} Repos",
+      "multiRepoWorkspace_other": "{{count}} Workspaces multi-Repo"
     },
     "bottomBar": {
       "settings": "Configuración",
@@ -133,11 +128,11 @@
     },
     "settingsMenu": {
       "appearance": "Apariencia",
-      "modifyAppearance": "Modificar apariencia",
       "language": "Idioma",
       "viewRam": "Ver RAM",
       "tutorials": "Tutoriales",
-      "openSettings": "Abrir configuración"
+      "openSettings": "Abrir configuración",
+      "modifyAppearance": "Modificar apariencia"
     },
     "empty": {
       "noItems": "Sin elementos",
@@ -177,6 +172,11 @@
       "exploreProduct": "Iniciar el recorrido del producto",
       "nextStep": "Siguiente paso",
       "dismiss": "Descartar guía"
+    },
+    "show": {
+      "title": "Mostrar",
+      "recent5": "5 recientes",
+      "recent10": "10 recientes"
     }
   },
   "myRole": {

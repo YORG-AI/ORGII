@@ -34,8 +34,10 @@ export {
 export { OnboardingLayout } from "./OnboardingLayout";
 export { OnboardingLoadingVideo } from "./OnboardingLoadingVideo";
 export {
+  ONBOARDING_LOGIN_TOKENS,
+  ONBOARDING_LOADING_VIDEO_FRAME_PX,
   ONBOARDING_LOADING_VIDEO_MAX_WIDTH_CLASS,
   ONBOARDING_LOADING_VIDEO_WIDTH_CLASS,
-} from "./OnboardingLoadingVideo";
+} from "./onboardingTokens";
 export { default as Section } from "./Section";
 export { default as SubpageLayout } from "./SubpageLayout";

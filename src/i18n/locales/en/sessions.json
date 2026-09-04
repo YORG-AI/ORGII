@@ -413,7 +413,9 @@
         "completed": "Completed session",
         "stillWorking": "Still working"
       }
-    }
+    },
+    "openRoutineWorkItemError": "Could not open the Work Item",
+    "runsEmpty": "No routine runs yet"
   },
   "changes": {
     "scope": {
@@ -775,7 +777,10 @@
           "readUserMessage": "Read User Message",
           "sessionFallback": "Session"
         }
-      }
+      },
+      "previous": "Previous event",
+      "next": "Next event",
+      "scrub": "Replay scrub bar"
     },
     "codeEditor": {
       "switchToListView": "Switch to list view",
@@ -902,6 +907,7 @@
     "selectedOf": "{{selected}} of {{total}} selected"
   },
   "chat": {
+    "agentFallback": "Agent",
     "planApprovedLabel": "Implementing approved plan",
     "planApprovedEditedLabel": "Implementing approved plan (edited)",
     "restoreCheckpoint": "Restore checkpoint",
@@ -1296,7 +1302,10 @@
           "otherTodos": "Other todos"
         },
         "filters": "Filters",
-        "openInGitHub": "Open in GitHub"
+        "openInGitHub": "Open in GitHub",
+        "updateIssueFailed": "Failed to update GitHub issue",
+        "assigneeUpdateNotApplied": "GitHub did not apply the assignee change",
+        "assigneeUpdateSuccess": "Assignees updated on GitHub"
       }
     },
     "sessionViews": {
@@ -1311,8 +1320,13 @@
       "fileCount_one": "{{count}} file",
       "fileCount_other": "{{count}} files",
       "turnCount_one": "{{count}} turn",
-      "turnCount_other": "{{count}} turns"
+      "turnCount_other": "{{count}} turns",
+      "inferredTiming": "End inferred from the next turn"
     },
+    "conversationNavigator": "Conversation navigator",
+    "goToConversationTurn": "Go to turn {{current}} of {{total}}: {{preview}}",
+    "session": "Session",
+    "historyNoWorkspace": "No Workspace",
     "parentAgentSender": "Parent agent"
   },
   "chatStatus": {
@@ -1460,6 +1474,10 @@
     "terminalWaitRunning": "Waiting for terminal to finish",
     "runShellFailed": "Command failed",
     "runCommands": "Run commands",
+    "runCommandRunning": "Running command",
+    "runCommandDone": "Command finished",
+    "nFiles_one": "{{count}} file",
+    "nFiles_other": "{{count}} files",
     "terminalSummary": {
       "command_one": "{{count}} command",
       "command_other": "{{count}} commands",
@@ -2400,7 +2418,8 @@
       "bulletList": "Bullet list",
       "numberedList": "Numbered list",
       "taskList": "Task list",
-      "divider": "Divider"
+      "divider": "Divider",
+      "formatting": "Text formatting"
     },
     "regionNoticeTitle": "Possible regional limitations",
     "regionNoticeBodyProvider": "You are in {{location}}. Certain models may be unavailable in your region.",
@@ -2457,7 +2476,8 @@
         "noRepo": "Select a repo — each runner needs its own worktree",
         "notEnoughRunners": "Set up at least two runnable runners"
       }
-    }
+    },
+    "mode": "Editor mode"
   },
   "planner": {
     "tabs": {
@@ -2803,7 +2823,8 @@
       "explorations_other": "{{count}} explorations",
       "otherTools_one": "{{count}} other tool call",
       "otherTools_other": "{{count}} other tool calls"
-    }
+    },
+    "triggerLabel": "Group chat"
   },
   "orgTask": {
     "create": {
@@ -2814,6 +2835,7 @@
       "failedTitle": "Task creation failed"
     },
     "update": {
+      "title": "Update {{title}}",
       "titleStatus": "Update task status",
       "titleDetail": "Update task detail",
       "markedAs": "Marked as {{status}}",
@@ -2892,7 +2914,8 @@
       "meta": {
         "sender": "From",
         "recipient": "To",
-        "subject": "Subject"
+        "subject": "Subject",
+        "status": "Status"
       },
       "broadcastTitle": {
         "running": "Sending message to multiple agents",
@@ -2969,7 +2992,11 @@
     "empty": "No content",
     "reactDisabledTitle": "React preview runs in Simulator",
     "reactDisabledDescription": "Agent JavaScript is not executed inside chat. Open it in Simulator to run the sandboxed React preview.",
-    "viewInSimulator": "View in Simulator"
+    "viewInSimulator": "View in Simulator",
+    "openUrlTitle": "Preview not embedded",
+    "openUrlDescription": "External URLs are not embedded to avoid iframe memory overhead.",
+    "titleReact": "React Preview",
+    "streaming": "streaming"
   },
   "canvasApp": {
     "empty": "No canvas rendered yet",
@@ -3025,7 +3052,16 @@
     "shareDialogError": "The Canvas link could not be created.",
     "shareDialogRetryShort": "Retry short link",
     "shareDialogRetryingShort": "Retrying…",
-    "retry": "Retry"
+    "retry": "Retry",
+    "reactArtifactFrame": "React canvas preview",
+    "recents": "Recents",
+    "untitled": "Untitled Canvas",
+    "loadingRecents": "Loading recents…",
+    "noRecentCanvases": "No recent canvases",
+    "recentsFailed": "Couldn’t load recent canvases",
+    "openFailed": "Couldn’t open this Canvas",
+    "createNew": "Create New Canvas",
+    "loadFailed": "Couldn’t load this Canvas"
   },
   "domSelection": {
     "previewTitle": "Canvas selection preview",

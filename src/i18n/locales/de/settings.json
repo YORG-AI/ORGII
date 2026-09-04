@@ -113,9 +113,7 @@
     }
   },
   "general": {
-    "login": "Anmeldung",
     "tabGeneral": "Allgemein",
-    "tabSelfHosted": "Selbstgehostet",
     "loginStatus": "Anmeldestatus",
     "loggedIn": "Angemeldet",
     "notLoggedIn": "Nicht angemeldet",
@@ -230,7 +228,9 @@
     "presenceGuidanceOnlineDefault": "Ich bin an der Tastatur. Du kannst mir jederzeit Rückfragen stellen und destruktive Aktionen vor der Ausführung von mir bestätigen lassen",
     "presenceGuidanceInvisibleDefault": "Ich bin in der Nähe, erscheine aber offline. Arbeite standardmäßig autonom und benachrichtige mich nur bei riskanten Aktionen oder größeren Refactorings; fasse alle anderen Fragen gesammelt zusammen, statt sie einzeln zu stellen",
     "presenceGuidanceAwayDefault": "Ich bin nicht an der Tastatur. Warte nicht auf mich, sondern triff mit den vorhandenen Informationen die beste Entscheidung, erledige alles Mögliche und hinterlasse eine knappe Zusammenfassung mit offenen Fragen für meine Rückkehr",
-    "followSystem": "System folgen"
+    "followSystem": "System folgen",
+    "login": "Anmeldung",
+    "tabSelfHosted": "Selbstgehostet"
   },
   "background": {
     "title": "Hintergrund",
@@ -729,7 +729,8 @@
       "sent": "Testbenachrichtigung gesendet",
       "permissionWarning": "Testbenachrichtigung konnte nicht gesendet werden. Berechtigungen prüfen.",
       "sendFailed": "Testbenachrichtigung konnte nicht gesendet werden. Bitte Berechtigungen prüfen und erneut versuchen.",
-      "soundFailed": "Der Benachrichtigungston konnte nicht wiedergegeben werden. Prüfen Sie die Systemlautstärke."
+      "soundFailed": "Der Benachrichtigungston konnte nicht wiedergegeben werden. Prüfen Sie die Systemlautstärke.",
+      "body": "Dies ist eine Testbenachrichtigung von ORGII"
     }
   },
   "editor": {

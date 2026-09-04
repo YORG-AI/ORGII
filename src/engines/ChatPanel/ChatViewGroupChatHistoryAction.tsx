@@ -40,7 +40,7 @@ export function ChatViewGroupChatHistoryAction({
           defaultValue: "History unavailable",
         })}: ${groupChatHistoryError}`}
       >
-        {t("common:retry", {
+        {t("common:actions.retry", {
           defaultValue: "Retry",
         })}
       </Button>

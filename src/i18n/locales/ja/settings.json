@@ -113,9 +113,7 @@
     }
   },
   "general": {
-    "login": "ログイン",
     "tabGeneral": "一般",
-    "tabSelfHosted": "セルフホスト",
     "loginStatus": "ログイン状態",
     "loggedIn": "ログイン済み",
     "notLoggedIn": "未ログイン",
@@ -230,7 +228,9 @@
     "presenceGuidanceOnlineDefault": "私はキーボードの前にいます。不明点はいつでも確認し、破壊的な操作を実行する前に必ず確認してください",
     "presenceGuidanceInvisibleDefault": "近くにいますがオフライン表示です。基本的には自律的に進め、高リスクな操作や大きなリファクタリングのときだけ通知してください。その他の質問は一つずつではなく、まとめてください",
     "presenceGuidanceAwayDefault": "私は席を外しています。私の返答を待たず、手元の情報で最善の判断をして、完了できることを進め、戻ったとき用に結果と未解決の質問を簡潔に残してください",
-    "followSystem": "システムに従う"
+    "followSystem": "システムに従う",
+    "login": "ログイン",
+    "tabSelfHosted": "セルフホスト"
   },
   "background": {
     "title": "背景",
@@ -729,7 +729,8 @@
       "sent": "テスト通知を送信しました",
       "permissionWarning": "テスト通知の送信に失敗しました。権限を確認してください。",
       "sendFailed": "テスト通知を送信できません。通知の権限を確認してから再試行してください。",
-      "soundFailed": "通知音を再生できません。システムの音量を確認してください。"
+      "soundFailed": "通知音を再生できません。システムの音量を確認してください。",
+      "body": "これは ORGII からのテスト通知です"
     }
   },
   "editor": {

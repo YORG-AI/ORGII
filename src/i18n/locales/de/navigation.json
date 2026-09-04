@@ -83,11 +83,6 @@
       "byAgent": "Nach Agent",
       "byWorkspace": "Nach Workspace"
     },
-    "show": {
-      "title": "Anzeigen",
-      "recent5": "Neueste 5",
-      "recent10": "Neueste 10"
-    },
     "filters": {
       "includeExternal": "Include External",
       "manageExternalSources": "Quellen verwalten…"
@@ -122,9 +117,9 @@
     },
     "folderCounts": {
       "repo": "{{count}} Repo",
-      "repo_plural": "{{count}} Repos",
       "multiRepoWorkspace": "{{count}} Multi-Repo-Workspace",
-      "multiRepoWorkspace_plural": "{{count}} Multi-Repo-Workspaces"
+      "repo_other": "{{count}} Repos",
+      "multiRepoWorkspace_other": "{{count}} Multi-Repo-Workspaces"
     },
     "bottomBar": {
       "settings": "Einstellungen",
@@ -133,11 +128,11 @@
     },
     "settingsMenu": {
       "appearance": "Darstellung",
-      "modifyAppearance": "Darstellung ändern",
       "language": "Sprache",
       "viewRam": "RAM anzeigen",
       "tutorials": "Tutorials",
-      "openSettings": "Einstellungen öffnen"
+      "openSettings": "Einstellungen öffnen",
+      "modifyAppearance": "Darstellung ändern"
     },
     "empty": {
       "noItems": "Keine Elemente",
@@ -177,6 +172,11 @@
       "exploreProduct": "Produkttour starten",
       "nextStep": "Nächster Schritt",
       "dismiss": "Anleitung ausblenden"
+    },
+    "show": {
+      "title": "Anzeigen",
+      "recent5": "Neueste 5",
+      "recent10": "Neueste 10"
     }
   },
   "myRole": {

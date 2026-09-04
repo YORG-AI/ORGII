@@ -201,9 +201,15 @@ const EMPTY_CHAT_HISTORY_SOURCE: ChatHistorySource = {
  * structural transcript version (event ids / non-token fields), not the
  * snapshot mutation counter, so streaming tokens do not resync projection.
  *
- * Implementation: a single `useAtomValue` reads a per-call selector atom.
- * Switching sessions creates a new selector; the prior family subscription
- * is released when the selector identity changes.
+ * - If a {@link ChatHistoryOverrideContext} value is present, read that array
+ *   directly without subscribing to desktop/global EventStore atoms.
+ * - Otherwise, resolve the contextual or active session and read its
+ *   `chatEventsForSessionAtomFamily` entry.
+ *
+ * Implementation: a single `useAtomValue` reads a per-call selector atom,
+ * so React only subscribes to one source at a time. Switching sessions or
+ * replacing an injected override creates a new selector and releases the
+ * prior subscription.
  */
 export const useChatHistory = () => {
   const override = useChatHistoryOverride();
@@ -211,6 +217,15 @@ export const useChatHistory = () => {
   const activeSessionId = useAtomValue(activeSessionIdAtom);
   const sessionId = contextSessionId ?? activeSessionId ?? null;
   const selectorAtom = useMemo(() => {
+    if (override !== undefined) {
+      return atom(() => ({
+        chatHistory: override,
+        sourceSessionId: contextSessionId ?? activeSessionId,
+        // The override array identity participates in selector identity, so a
+        // replacement still triggers projection without an EventStore version.
+        sourceVersion: 0,
+      }));
+    }
     if (!sessionId) {
       return atom(() => EMPTY_CHAT_HISTORY_SOURCE);
     }
@@ -235,15 +250,10 @@ export const useChatHistory = () => {
       previous = next;
       return next;
     });
-  }, [sessionId]);
+  }, [activeSessionId, contextSessionId, override, sessionId]);
   const atomSource = useAtomValue(selectorAtom);
-  // Override takes precedence: lets a parent (e.g. the subagent grid
-  // cell) inject a cursor-sliced event array so ChatHistory renders only
-  // events up to the replay timestamp without us touching the shared
-  // atom family or its `_prev` cache.
-  const chatHistory = override ?? atomSource.chatHistory;
   return {
-    chatHistory,
+    chatHistory: atomSource.chatHistory,
     sourceIsOverride: override !== undefined,
     sourceSessionId: atomSource.sourceSessionId,
     sourceVersion: atomSource.sourceVersion,

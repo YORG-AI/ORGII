@@ -2478,7 +2478,10 @@
       "memberSessions": "Сессии участников",
       "pauseRun": "Приостановить выполнение",
       "resumeRun": "Возобновить выполнение",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "View coordinator chat history",
+      "planApproval": {
+        "title": "План готов к утверждению"
+      }
     },
     "agentOrgInbox": {
       "title": "Сообщения Agent",

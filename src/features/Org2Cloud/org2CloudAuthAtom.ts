@@ -90,14 +90,34 @@ export const org2CloudAuthAtom = atomWithStorage<Org2CloudAuthState | null>(
 org2CloudAuthAtom.debugLabel = "org2CloudAuthAtom";
 
 /**
+ * Compare the persisted generation of a cloud session.
+ *
+ * Object identity cannot be used here: storage hydration parses the same
+ * JSON into a new object. The endpoint/account pair identifies who is signed
+ * in, while the refresh token is the session generation and changes after a
+ * successful rotation. This lets async work survive harmless hydration but
+ * rejects writes from a signed-out, switched, or already-rotated session.
+ */
+export function isSameOrg2CloudSession(
+  current: Org2CloudAuthState | null,
+  expected: Org2CloudAuthState
+): current is Org2CloudAuthState {
+  return (
+    current !== null &&
+    org2CloudAuthIdentityKey(current) === org2CloudAuthIdentityKey(expected) &&
+    current.refreshToken === expected.refreshToken
+  );
+}
+
+/**
  * Write a refreshed session back to the auth atom under a COMPARE-AND-SET:
  * a `ensureFreshSession` round-trip can resolve AFTER the user signed out
  * or switched endpoints mid-flight (both wipe/replace the atom). A blind
  * `set(fresh)` would then resurrect a discarded session — re-persisting
  * old-backend tokens into localStorage and flipping the UI back to
- * signed-in. Only commit when the atom is still exactly the session we
- * refreshed. `setAuth` must accept jotai's functional-updater form (both
- * `store.set` and the `useAtom`/`useSetAtom` setter do).
+ * signed-in. Only commit when the atom still contains the same persisted
+ * session generation. `setAuth` must accept jotai's functional-updater form
+ * (both `store.set` and the `useAtom`/`useSetAtom` setter do).
  */
 export function commitRefreshedAuth(
   setAuth: (
@@ -109,7 +129,7 @@ export function commitRefreshedAuth(
   if (fresh === previous) return true;
   let committed = false;
   setAuth((current) => {
-    if (current !== previous) return current;
+    if (!isSameOrg2CloudSession(current, previous)) return current;
     committed = true;
     return fresh;
   });

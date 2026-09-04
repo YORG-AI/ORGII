@@ -15,6 +15,7 @@ import { getCloudEndpoint } from "./config";
 import {
   type Org2CloudAuthState,
   commitRefreshedAuth,
+  isSameOrg2CloudSession,
 } from "./org2CloudAuthAtom";
 import { ensureFreshSession, getCloudProfile } from "./org2CloudClient";
 
@@ -85,11 +86,12 @@ export async function enrichOrg2CloudProfile(
     if (!commitRefreshedAuth(setAuth, state, fresh)) return;
   }
 
-  // Verify the same object is still current even when no refresh was needed.
-  // Endpoint switches and sign-out replace the object synchronously.
+  // Storage hydration parses the same persisted session into a new object,
+  // so reference equality would reject a legitimate profile write. Compare
+  // the stable endpoint/account plus refresh-token generation instead.
   let isCurrent = false;
   setAuth((prev) => {
-    isCurrent = prev === fresh;
+    isCurrent = isSameOrg2CloudSession(prev, fresh);
     return prev;
   });
   if (!isCurrent) return;
@@ -102,7 +104,7 @@ export async function enrichOrg2CloudProfile(
   setAuth((prev) => {
     // Only enrich the session we just created — the user may have signed
     // out (or re-signed-in as someone else) while the RPC was in flight.
-    if (prev !== fresh) return prev;
+    if (!isSameOrg2CloudSession(prev, fresh)) return prev;
     return {
       ...prev,
       profile: {

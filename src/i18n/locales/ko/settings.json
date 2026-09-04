@@ -113,9 +113,7 @@
     }
   },
   "general": {
-    "login": "로그인",
     "tabGeneral": "일반",
-    "tabSelfHosted": "자체 호스팅",
     "loginStatus": "로그인 상태",
     "loggedIn": "로그인됨",
     "notLoggedIn": "로그인되지 않음",
@@ -230,7 +228,9 @@
     "presenceGuidanceOnlineDefault": "저는 키보드 앞에 있습니다. 언제든 확인 질문을 해도 되고, 파괴적인 작업을 실행하기 전에는 저에게 확인해 주세요",
     "presenceGuidanceInvisibleDefault": "근처에 있지만 오프라인으로 표시 중입니다. 기본적으로 자율적으로 진행하고, 고위험 작업이나 큰 리팩터링일 때만 알려 주세요. 그 외 질문은 하나씩 묻지 말고 한 번에 요약해 주세요",
     "presenceGuidanceAwayDefault": "저는 자리를 비웠습니다. 제 답변을 기다리지 말고 현재 정보로 최선의 결정을 내려 완료할 수 있는 일을 마치고, 돌아왔을 때 볼 수 있도록 결과와 열린 질문을 간단히 남겨 주세요",
-    "followSystem": "시스템 설정 따르기"
+    "followSystem": "시스템 설정 따르기",
+    "login": "로그인",
+    "tabSelfHosted": "자체 호스팅"
   },
   "background": {
     "title": "배경",
@@ -729,7 +729,8 @@
       "sent": "테스트 알림 발송됨",
       "permissionWarning": "테스트 알림 전송 실패. 권한을 확인하세요.",
       "sendFailed": "테스트 알림을 보낼 수 없습니다. 알림 권한을 확인하고 다시 시도하세요.",
-      "soundFailed": "알림 소리를 재생할 수 없습니다. 시스템 볼륨을 확인하세요."
+      "soundFailed": "알림 소리를 재생할 수 없습니다. 시스템 볼륨을 확인하세요.",
+      "body": "ORGII에서 보낸 테스트 알림입니다"
     }
   },
   "editor": {

@@ -113,9 +113,7 @@
     }
   },
   "general": {
-    "login": "Đăng nhập",
     "tabGeneral": "Chung",
-    "tabSelfHosted": "Tự lưu trữ",
     "loginStatus": "Trạng thái đăng nhập",
     "loggedIn": "Đã đăng nhập",
     "notLoggedIn": "Chưa đăng nhập",
@@ -230,7 +228,9 @@
     "presenceGuidanceOnlineDefault": "Tôi đang ở bàn phím. Bạn có thể hỏi tôi để làm rõ bất cứ lúc nào và xác nhận với tôi trước khi chạy bất kỳ hành động phá hủy nào",
     "presenceGuidanceInvisibleDefault": "Tôi đang ở gần nhưng hiển thị ngoại tuyến. Mặc định hãy tự chủ thực hiện và chỉ báo cho tôi khi có hành động rủi ro cao hoặc tái cấu trúc lớn; gom các câu hỏi khác vào một bản tóm tắt thay vì hỏi từng câu",
     "presenceGuidanceAwayDefault": "Tôi đang rời bàn phím. Đừng chờ tôi; hãy đưa ra quyết định tốt nhất với thông tin hiện có, hoàn thành những gì có thể và để lại bản tóm tắt ngắn gọn về những gì đã xảy ra cùng các câu hỏi còn mở khi tôi quay lại",
-    "followSystem": "Theo hệ thống"
+    "followSystem": "Theo hệ thống",
+    "login": "Đăng nhập",
+    "tabSelfHosted": "Tự lưu trữ"
   },
   "background": {
     "title": "Hình nền",
@@ -729,7 +729,8 @@
       "sent": "Đã gửi thông báo thử nghiệm",
       "permissionWarning": "Không gửi được thông báo thử nghiệm. Kiểm tra quyền truy cập.",
       "sendFailed": "Không thể gửi thông báo thử nghiệm. Vui lòng kiểm tra quyền thông báo và thử lại.",
-      "soundFailed": "Không thể phát âm thanh thông báo. Hãy kiểm tra âm lượng hệ thống."
+      "soundFailed": "Không thể phát âm thanh thông báo. Hãy kiểm tra âm lượng hệ thống.",
+      "body": "Đây là thông báo thử nghiệm từ ORGII"
     }
   },
   "editor": {

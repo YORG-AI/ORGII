@@ -54,7 +54,12 @@ afterEach(() => {
 
 describe("enrichOrg2CloudProfile", () => {
   it("binds profile enrichment to the endpoint captured by the session", async () => {
-    const state = stateHarness(AUTH);
+    // atomWithStorage rehydrates JSON as a structurally equal but referentially
+    // different object. Profile enrichment must still recognize this as the
+    // same persisted session and write the human-readable identity.
+    const rehydrated = { ...AUTH };
+    expect(rehydrated).not.toBe(AUTH);
+    const state = stateHarness(rehydrated);
     ensureFreshSessionMock.mockResolvedValueOnce(AUTH);
     getCloudProfileMock.mockResolvedValueOnce({ displayName: "Vince" });
 

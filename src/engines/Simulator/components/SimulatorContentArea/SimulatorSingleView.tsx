@@ -12,13 +12,14 @@
  * - the floating replay controls
  * - empty-state placeholder
  */
-import React from "react";
+import React, { useContext } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { NoTabsPlaceholder } from "@src/modules/WorkStation/shared";
 
+import { ReplayControlHostContext } from "../../context/ReplayControlHostContext";
 import FloatingReplayContainer from "../FloatingReplayContainer";
 
 interface SimulatorSingleViewProps {
@@ -38,6 +39,7 @@ export const SimulatorSingleView: React.FC<SimulatorSingleViewProps> = ({
 }) => {
   const { t } = useTranslation("sessions");
   const { sessionId } = useSessionId();
+  const replayControlOwnedByHost = useContext(ReplayControlHostContext);
   const hasSession = Boolean(sessionId);
 
   const showSessionPlaceholder =
@@ -47,7 +49,10 @@ export const SimulatorSingleView: React.FC<SimulatorSingleViewProps> = ({
 
   const showRounded = !hideHeader;
   const showFloatingReplayControls =
-    hasSession && mainContentAppType && mainContentAppType !== AppType.DIFF;
+    !replayControlOwnedByHost &&
+    hasSession &&
+    mainContentAppType &&
+    mainContentAppType !== AppType.DIFF;
 
   return (
     <div

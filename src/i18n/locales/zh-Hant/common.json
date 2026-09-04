@@ -103,8 +103,8 @@
       "pullRequestsPartialLoadHelp": "現有項目仍會繼續顯示；請重新整理以再次載入缺少的 pull request",
       "workItemContext": "部分專案內容暫時無法使用，工作項目仍可繼續操作。",
       "workItemLoad": "無法載入此工作項目，請再試一次。",
-      "githubIssueLoad": "無法載入該工作項的 GitHub issue，仍顯示本機工作項資訊。",
-      "workItemUpdate": "無法儲存工作項目的最新變更，請再試一次。"
+      "workItemUpdate": "無法儲存工作項目的最新變更，請再試一次。",
+      "githubIssueLoad": "無法載入該工作項的 GitHub issue，仍顯示本機工作項資訊。"
     },
     "detail": {
       "assignedSubtitle": "已指派的工作項目",
@@ -188,8 +188,6 @@
     "questionIgnored": "已忽略該問題",
     "addedAsContext": "已將 {{name}} 加入為上下文",
     "addedFilesAsContext": "已加入 {{count}} 個檔案作為上下文",
-    "chooseExecutionAgentAi": "使用 AI 建立前請先選擇一個 Agent 負責人。",
-    "autoExecuteRequiresExecutionAgent": "自動執行需要指定一個 Agent 負責人。",
     "openSessionBeforeLinking": "請先開啟一個 Session 再連結工作項。",
     "sessionLinkedToWorkItem": "Session 已連結至工作項。",
     "sessionLinkFailed": "連結 Session 失敗：{{message}}",
@@ -202,7 +200,9 @@
     "workspaceImportFailed": "匯入工作區失敗",
     "chooseFolderCloneRepo": "選擇用於複製儲存庫的資料夾",
     "repositoryCloned": "儲存庫已複製",
-    "repositoryCloneFailed": "複製儲存庫失敗"
+    "repositoryCloneFailed": "複製儲存庫失敗",
+    "chooseExecutionAgentAi": "使用 AI 建立前請先選擇一個 Agent 負責人。",
+    "autoExecuteRequiresExecutionAgent": "自動執行需要指定一個 Agent 負責人。"
   },
   "previews": {
     "noCanvasAvailable": "暫無畫布",
@@ -1082,10 +1082,6 @@
     "switchWorkspaceTooltip": "切換工作區",
     "switchWorktreeTooltip": "切換 Worktree",
     "switchBranchTooltip": "切換分支",
-    "switchLocalBranchTooltip": "切換本地分支",
-    "sessionEnvCloud": "雲",
-    "sessionEnvLocal": "本地",
-    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Git 操作",
     "switchToSessionRepo": "切換到 {{name}}",
     "embeddingProgress": "嵌入：已處理 {{count}} 個 chunk",
@@ -1105,11 +1101,11 @@
       "unknownProcess": "未知程序",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "在瀏覽器中開啟",
+      "openAddress": "開啟 {{address}}",
       "copyAddress": "複製位址",
       "stopProcess": "停止程序",
       "searchPlaceholder": "搜尋連接埠…",
       "noSearchResults": "沒有符合的連接埠",
-      "openAddress": "開啟 {{address}}",
       "rescan": "重新掃描",
       "rescanning": "掃描中…",
       "rescanTooltip": "重新掃描正在監聽的連接埠",
@@ -1199,7 +1195,11 @@
     },
     "unsavedChangesTitle": "未保存的更改",
     "prkPlaceholder": "PRJ",
-    "gitSyncMenuTitle": "Git 同步操作"
+    "gitSyncMenuTitle": "Git 同步操作",
+    "switchLocalBranchTooltip": "切換本地分支",
+    "sessionEnvCloud": "雲",
+    "sessionEnvLocal": "本地",
+    "sessionHarness": "{{name}} Harness"
   },
   "git": {
     "loading": "正在加載 Git 狀態...",
@@ -1240,6 +1240,10 @@
       "compareBranch": "比較分支"
     },
     "rail": {
+      "openTabs": "開啟的分頁",
+      "closeItem": "關閉 {{label}}",
+      "expand": "展開工作區資訊",
+      "collapse": "收合工作區資訊",
       "subagents": "subagent",
       "subagentsCount_one": "{{count}}個subagent",
       "subagentsCount_other": "{{count}}個subagents",
@@ -1248,10 +1252,6 @@
       "subagentPending": "等待中",
       "subagentCompleted": "已完成",
       "subagentFailed": "失敗",
-      "openTabs": "開啟的分頁",
-      "closeItem": "關閉 {{label}}",
-      "expand": "展開工作區資訊",
-      "collapse": "收合工作區資訊",
       "restoreWidth": "恢復原始寬度（{{width}}px）",
       "setMinimumWidth": "將目前寬度設為最小值（{{width}}px）",
       "widerWidth": "加寬（{{width}}px）",
@@ -1297,6 +1297,36 @@
       },
       "summary": {
         "label": "pull request 摘要"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "想要將 {{count}} 個提交合併到",
+        "wantsToMergeCommitsInto_other": "想要將 {{count}} 個提交合併到",
+        "mergedCommitsInto_one": "已將 {{count}} 個提交合併到",
+        "mergedCommitsInto_other": "已將 {{count}} 個提交合併到",
+        "from": "來自",
+        "copyHeadBranch": "複製分支名稱",
+        "branchCopied": "已複製分支名稱"
+      },
+      "sidebar": {
+        "reviewers": "審查者",
+        "requestReviewers": "要求審查",
+        "awaitingReview": "等待審查",
+        "noReviews": "尚無審查",
+        "assignees": "指派人",
+        "noAssignees": "尚未指派",
+        "labels": "標籤",
+        "noLabels": "尚無",
+        "actions": "操作",
+        "editAssignees": "編輯指派人",
+        "searchAssignees": "搜尋成員",
+        "noAssigneeCandidates": "尚無可用成員",
+        "assigneesLoadFailed": "無法載入成員",
+        "assigneesUpdated": "已更新指派人",
+        "editLabels": "編輯標籤",
+        "searchLabels": "搜尋標籤",
+        "noLabelCandidates": "尚無可用標籤",
+        "labelsLoadFailed": "無法載入標籤",
+        "labelsUpdated": "已更新標籤"
       },
       "tabs": {
         "conversation": "對話",
@@ -1393,36 +1423,6 @@
           "checksPending": "等待必要檢查完成或啟用自動合併",
           "mergeBlocked": "GitHub 回報存在未滿足的合併要求"
         }
-      },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "想要將 {{count}} 個提交合併到",
-        "wantsToMergeCommitsInto_other": "想要將 {{count}} 個提交合併到",
-        "mergedCommitsInto_one": "已將 {{count}} 個提交合併到",
-        "mergedCommitsInto_other": "已將 {{count}} 個提交合併到",
-        "from": "來自",
-        "copyHeadBranch": "複製分支名稱",
-        "branchCopied": "已複製分支名稱"
-      },
-      "sidebar": {
-        "reviewers": "審查者",
-        "requestReviewers": "要求審查",
-        "awaitingReview": "等待審查",
-        "noReviews": "尚無審查",
-        "assignees": "指派人",
-        "noAssignees": "尚未指派",
-        "labels": "標籤",
-        "noLabels": "尚無",
-        "actions": "操作",
-        "editAssignees": "編輯指派人",
-        "searchAssignees": "搜尋成員",
-        "noAssigneeCandidates": "尚無可用成員",
-        "assigneesLoadFailed": "無法載入成員",
-        "assigneesUpdated": "已更新指派人",
-        "editLabels": "編輯標籤",
-        "searchLabels": "搜尋標籤",
-        "noLabelCandidates": "尚無可用標籤",
-        "labelsLoadFailed": "無法載入標籤",
-        "labelsUpdated": "已更新標籤"
       }
     },
     "messages": {
@@ -1592,9 +1592,9 @@
       "chooseKey": "選擇金鑰",
       "noCompatibleAccounts": "無相容金鑰",
       "chooseModelHint": "使用鍵盤導覽，或用滑鼠點擊模型",
+      "selectAccount": "選擇帳號",
       "chooseKeyHint": "使用鍵盤導覽，或用滑鼠點擊金鑰",
-      "noModelsForKey": "此金鑰未啟用任何模型",
-      "selectAccount": "選擇帳號"
+      "noModelsForKey": "此金鑰未啟用任何模型"
     },
     "modelProperties": {
       "effort": "Effort",
@@ -1754,16 +1754,16 @@
       "select": "選擇",
       "switchColumn": "切換欄",
       "switchSection": "切換分區",
-      "showPath": "顯示路徑",
-      "keyFirst": "金鑰優先",
-      "showBranchInfo": "顯示分支資訊",
       "compatibleKeys": "相容",
       "planSupport": "Plan",
       "byokSupport": "Keys",
       "incompatible": "不兼容",
       "manageModels": "管理模型",
       "manageKeys": "管理密鑰",
-      "manageAgents": "管理 Agent"
+      "manageAgents": "管理 Agent",
+      "showPath": "顯示路徑",
+      "keyFirst": "金鑰優先",
+      "showBranchInfo": "顯示分支資訊"
     },
     "editorSpotlight": {
       "searchPlaceholder": "搜尋命令...",
@@ -1945,7 +1945,6 @@
     "theme": "主題",
     "sidebarPosition": "側邊欄位置",
     "modelPickerStyle": "選擇器樣式",
-    "paginateChatHistory": "將聊天記錄分頁",
     "modelPickerSpotlight": "Spotlight",
     "modelPickerMenu": "選單",
     "replaySession": "Replay 會話",
@@ -1975,7 +1974,8 @@
     "ramHydratedEvents": "已 hydrate 事件",
     "ramTurnBodies": "歷史懶載入",
     "ramFileTrees": "檔案樹",
-    "ramCodeMirrors": "檔案渲染"
+    "ramCodeMirrors": "檔案渲染",
+    "paginateChatHistory": "將聊天記錄分頁"
   },
   "spotlightActions": {
     "switchToLightTheme": "切換到淺色主題",
@@ -1991,13 +1991,13 @@
     "openAgentStation": "前往 Agent 工作站",
     "openKanban": "前往 Kanban",
     "changeLanguage": "變更語言",
+    "switchToSystemTheme": "跟隨系統主題",
+    "detectUpdate": "檢查更新",
+    "recentlyUsed": "最近使用",
     "changeTheme": "變更主題",
     "changeSkin": "變更外觀",
     "searchThemes": "搜尋主題...",
-    "searchSkins": "搜尋外觀...",
-    "switchToSystemTheme": "跟隨系統主題",
-    "detectUpdate": "檢查更新",
-    "recentlyUsed": "最近使用"
+    "searchSkins": "搜尋外觀..."
   },
   "commands": {
     "showBottomPanel": "顯示底部面板",
@@ -2413,6 +2413,148 @@
       "updated": "更新時間"
     },
     "selectRow": "選擇 {{id}}"
+  },
+  "notifications": {
+    "backgroundSession": "背景工作階段",
+    "taskCompletedTitle": "任務已完成",
+    "taskCompletedBody": "「{{name}}」已完成，可以檢視結果",
+    "taskCompletedToast": "「{{name}}」已完成。請開啟工作階段以檢視結果。",
+    "openSessionAction": "開啟工作階段",
+    "taskFailedTitle": "任務失敗",
+    "taskFailedBody": "「{{name}}」失敗{{detail}}",
+    "taskCancelledToast": "「{{name}}」已取消"
+  },
+  "gitDialogs": {
+    "common": {
+      "cancel": "取消",
+      "ok": "確定",
+      "currentBranch": "目前分支",
+      "gitSaid": "Git 提示：{{message}}"
+    },
+    "operations": {
+      "push": "推送",
+      "pull": "拉取",
+      "fetch": "取得遠端更新",
+      "checkout": "切換分支",
+      "sync": "同步",
+      "merge": "合併",
+      "rebase": "變基",
+      "commit": "提交",
+      "clone": "複製儲存庫",
+      "other": "{{operation}}"
+    },
+    "checkoutBlocked": {
+      "worktreeTitle": "該分支已在另一個工作樹中開啟",
+      "mergeTitle": "請先完成合併",
+      "rebaseTitle": "請先完成變基",
+      "cherryPickTitle": "請先完成揀選提交",
+      "branchNotFoundTitle": "找不到分支",
+      "cannotSwitchTitle": "無法切換分支",
+      "worktreeMessage": "無法切換到「{{branchName}}」，因為 Git 顯示該分支已在另一個工作樹中簽出。\n\n請從原始碼控制開啟該工作樹，或為此工作區選擇其他分支。",
+      "mergeMessage": "合併正在進行，無法切換到「{{branchName}}」。\n\n請先解決衝突，然後繼續或中止合併，再切換分支。",
+      "rebaseMessage": "變基正在進行，無法切換到「{{branchName}}」。\n\n請先繼續或中止變基，再切換分支。",
+      "cherryPickMessage": "揀選提交正在進行，無法切換到「{{branchName}}」。\n\n請先繼續或中止揀選提交，再切換分支。",
+      "branchNotFoundMessage": "找不到分支「{{branchName}}」。請取得遠端分支後再試一次。",
+      "cannotSwitchMessage": "無法切換到「{{branchName}}」。"
+    },
+    "checkoutConflict": {
+      "title": "切換分支衝突",
+      "message": "切換到「{{branchName}}」會覆寫本機變更。",
+      "stashAndCheckout": "暫存變更並切換",
+      "discardAndCheckout": "捨棄變更並切換"
+    },
+    "detachedHead": {
+      "title": "分離 HEAD 狀態",
+      "message": "目前處於提交 {{shortHash}} 的分離 HEAD 狀態。\n\n你目前不在任何分支上。若未先建立新分支就切換到其他分支，在此所做的提交可能會遺失。\n\n⚠️ 分離 HEAD 狀態下的提交可能會被 Git 垃圾回收。",
+      "createBranch": "建立分支",
+      "continueWithoutBranch": "不建立分支並繼續"
+    },
+    "largePush": {
+      "title": "偵測到大量推送",
+      "message_one": "即將向 {{remoteName}}/{{branchName}} 推送 {{count}} 個提交。\n\n此次推送數量較多，確定要繼續嗎？\n\n💡 建議將大型變更拆分成較小且更聚焦的提交。",
+      "message_other": "即將向 {{remoteName}}/{{branchName}} 推送 {{count}} 個提交。\n\n此次推送數量較多，確定要繼續嗎？\n\n💡 建議將大型變更拆分成較小且更聚焦的提交。",
+      "pushAllCommits": "推送所有提交"
+    },
+    "protectedBranch": {
+      "title": "受保護分支",
+      "message": "{{remoteName}} 上的分支「{{branchName}}」受到保護，無法直接推送。\n\n對受保護分支的變更必須透過 Pull Request 提交。",
+      "createPullRequest": "建立 Pull Request"
+    },
+    "pullConflict": {
+      "title": "存在本機變更，無法拉取",
+      "message": "來自「{{branchName}}」的新變更會覆寫本機變更。{{fileInfo}}\n\n請選擇處理方式：",
+      "affectedFiles_one": "（影響 {{count}} 個檔案）",
+      "affectedFiles_other": "（影響 {{count}} 個檔案）",
+      "stashAndPull": "暫存變更並拉取",
+      "discardAndPull": "捨棄變更並拉取"
+    },
+    "pushRejected": {
+      "title": "推送遭拒",
+      "message": "無法推送到 {{remoteName}}/{{branchName}}。\n\n遠端分支包含本機尚未擁有的提交。{{behindInfo}}\n\n⚠️ 強制推送會永久覆寫遠端變更。",
+      "behindInfo_one": "（落後 {{count}} 個提交）",
+      "behindInfo_other": "（落後 {{count}} 個提交）",
+      "pullAndPush": "拉取後推送",
+      "forcePush": "強制推送"
+    },
+    "rebaseConflict": {
+      "mergeTitle": "合併衝突",
+      "rebaseTitle": "變基衝突",
+      "progress": "（第 {{currentStep}} / {{totalSteps}} 步）",
+      "conflictingFiles_one": "\n\n{{count}} 個檔案有衝突。",
+      "conflictingFiles_other": "\n\n{{count}} 個檔案有衝突。",
+      "mergeMessage": "合併「{{targetBranch}}」時發生衝突。{{progressInfo}}{{fileInfo}}\n\n⚠️ 中止操作將取消合併並還原目前分支。",
+      "rebaseMessage": "變基到「{{targetBranch}}」時發生衝突。{{progressInfo}}{{fileInfo}}\n\n⚠️ 中止操作會將目前分支還原到變基前的狀態。",
+      "resolveConflicts": "解決衝突",
+      "abortMerge": "中止合併",
+      "abortRebase": "中止變基"
+    },
+    "remoteBranchDeleted": {
+      "title": "遠端分支已刪除",
+      "message": "遠端追蹤分支「{{remoteName}}/{{branchName}}」已刪除，但本機分支仍然存在。\n\n⚠️ 刪除本機分支會捨棄所有尚未推送的提交。",
+      "switchTo": "切換到 {{branchName}}",
+      "deleteLocalBranch": "刪除本機分支",
+      "keepLocalBranch": "保留本機分支"
+    },
+    "gitError": {
+      "titles": {
+        "none": "Git：操作已完成",
+        "nonFastForward": "Git：推送遭拒",
+        "protectedBranch": "Git：受保護分支",
+        "authenticationFailed": "Git：驗證失敗",
+        "remoteBranchDeleted": "Git：遠端分支已刪除",
+        "uncommittedChanges": "Git：存在未提交的變更",
+        "networkError": "Git：網路錯誤",
+        "mergeConflicts": "Git：合併衝突",
+        "permissionDenied": "Git：權限不足",
+        "unknown": "Git：操作失敗"
+      },
+      "messages": {
+        "none": "Git 操作已成功完成。",
+        "nonFastForward": "遠端分支包含較新的提交，因此推送遭拒。",
+        "protectedBranch": "目標分支受到保護，無法透過此操作更新。",
+        "authenticationFailed": "無法通過遠端儲存庫的驗證。請檢查憑證後再試一次。",
+        "remoteBranchDeleted": "遠端分支似乎已刪除或不再可用。",
+        "uncommittedChanges": "本機變更將被覆寫。請先提交或暫存這些變更再試一次。",
+        "networkError": "無法連線到遠端儲存庫。請檢查網路連線。",
+        "mergeConflicts": "此操作產生了需要解決的合併衝突。",
+        "permissionDenied": "此儲存庫操作遭拒。請檢查你的儲存庫存取權限。",
+        "unknown": "Git 操作意外失敗。請查看記錄以瞭解詳情。"
+      },
+      "operationFailed": "{{operation}}操作失敗",
+      "dialogMessage": "{{operation}}失敗：{{baseMessage}}\n\n{{detailMessage}}",
+      "stashHint": "\n\n提示：「暫存變更並繼續」會暫存本機變更（包括未追蹤檔案），重試該操作，然後詢問是否還原這些變更。",
+      "stashAndContinue": "暫存變更並繼續",
+      "openGitLog": "開啟 Git 記錄",
+      "showCommandOutput": "顯示命令輸出"
+    },
+    "gitAction": {
+      "title": "Git",
+      "transportError": "無法連線到本機 Git 服務。請等待應用程式啟動完成後再試一次；若問題持續發生，請重新啟動 ORGII。"
+    }
+  },
+  "destructiveDialog": {
+    "discard": "捨棄",
+    "cancel": "取消"
   },
   "clientOrigin": {
     "officialApp": "應用",

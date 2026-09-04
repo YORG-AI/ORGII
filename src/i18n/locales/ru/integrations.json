@@ -20,7 +20,7 @@
     "confirmRemoveMessage": "Локальные учётные данные будут удалены. Это действие нельзя отменить.",
     "toasts": {
       "refreshed": "{{name}} успешно обновлён",
-      "refreshError": "Не удалось обновить {{name}}",
+      "refreshError": "Не удалось обновить {{name}}: {{error}}",
       "localRemoved": "{{name}} удалён",
       "deleteError": "Не удалось удалить {{name}}"
     },

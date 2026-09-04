@@ -20,7 +20,7 @@
     "confirmRemoveMessage": "Esto eliminará la credencial local. Esta acción no se puede deshacer.",
     "toasts": {
       "refreshed": "{{name}} actualizado correctamente",
-      "refreshError": "Error al actualizar {{name}}",
+      "refreshError": "Error al actualizar {{name}}: {{error}}",
       "localRemoved": "{{name}} eliminado",
       "deleteError": "Error al eliminar {{name}}"
     },
