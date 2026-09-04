@@ -12,6 +12,7 @@ import {
   vi,
 } from "vitest";
 
+import type { MobileConnectionConfig } from "../connection/types";
 import { MobileRemotePlatformProvider } from "../platform";
 import { createBrowserMobileRemotePlatform } from "../platform/browser";
 import type { MobileRemotePlatform } from "../platform/types";
@@ -53,19 +54,16 @@ function deferred() {
 
 function renderBridge(
   platform: MobileRemotePlatform,
-  pendingConfig: {
-    wsUrl: string;
-    deviceToken: string;
-    pairingCode: string;
-  },
-  onComplete: () => void
+  pendingConfig: MobileConnectionConfig | null,
+  onComplete: () => void,
+  demoMode = false
 ) {
   return React.createElement(
     TestMobileRemotePlatformProvider,
     { platform },
     React.createElement(ConnectingLiveBridge, {
       pendingConfig,
-      demoMode: false,
+      demoMode,
       onComplete,
     })
   );
@@ -131,7 +129,8 @@ describe("ConnectingLiveBridge", () => {
   it("finishes navigation when demo mode clears during the live connect", async () => {
     const connection = deferred();
     const onComplete = vi.fn();
-    const pendingConfig = {
+    const platform = createBrowserMobileRemotePlatform();
+    const pendingConfig: MobileConnectionConfig = {
       wsUrl: "wss://relay.example.com/v1/mobile/ws",
       deviceToken: "device-token",
       pairingCode: "PAIR-1",
@@ -140,25 +139,13 @@ describe("ConnectingLiveBridge", () => {
 
     // First run pairs out of the demo bootstrap, so demoMode starts true.
     await act(async () => {
-      root.render(
-        React.createElement(ConnectingLiveBridge, {
-          pendingConfig,
-          demoMode: true,
-          onComplete,
-        })
-      );
+      root.render(renderBridge(platform, pendingConfig, onComplete, true));
     });
     expect(mocks.connectLive).toHaveBeenCalledOnce();
 
     // connectLive flips connection.demoMode to false mid-attempt.
     await act(async () => {
-      root.render(
-        React.createElement(ConnectingLiveBridge, {
-          pendingConfig,
-          demoMode: false,
-          onComplete,
-        })
-      );
+      root.render(renderBridge(platform, pendingConfig, onComplete, false));
     });
 
     await act(async () => {
@@ -172,7 +159,8 @@ describe("ConnectingLiveBridge", () => {
 
   it("keeps the connecting screen when the live connect fails", async () => {
     const onComplete = vi.fn();
-    const pendingConfig = {
+    const platform = createBrowserMobileRemotePlatform();
+    const pendingConfig: MobileConnectionConfig = {
       wsUrl: "wss://relay.example.com/v1/mobile/ws",
       deviceToken: "device-token",
       pairingCode: "PAIR-1",
@@ -180,22 +168,10 @@ describe("ConnectingLiveBridge", () => {
     mocks.connectLive.mockRejectedValue(new Error("WebSocket closed"));
 
     await act(async () => {
-      root.render(
-        React.createElement(ConnectingLiveBridge, {
-          pendingConfig,
-          demoMode: true,
-          onComplete,
-        })
-      );
+      root.render(renderBridge(platform, pendingConfig, onComplete, true));
     });
     await act(async () => {
-      root.render(
-        React.createElement(ConnectingLiveBridge, {
-          pendingConfig,
-          demoMode: false,
-          onComplete,
-        })
-      );
+      root.render(renderBridge(platform, pendingConfig, onComplete, false));
     });
 
     expect(mocks.connectLive).toHaveBeenCalledOnce();
@@ -206,15 +182,10 @@ describe("ConnectingLiveBridge", () => {
     vi.useFakeTimers();
     try {
       const onComplete = vi.fn();
+      const platform = createBrowserMobileRemotePlatform();
 
       await act(async () => {
-        root.render(
-          React.createElement(ConnectingLiveBridge, {
-            pendingConfig: null,
-            demoMode: true,
-            onComplete,
-          })
-        );
+        root.render(renderBridge(platform, null, onComplete, true));
       });
       expect(mocks.connectLive).not.toHaveBeenCalled();
       expect(onComplete).not.toHaveBeenCalled();
