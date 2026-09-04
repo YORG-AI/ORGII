@@ -1,6 +1,14 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
 
-import { useStickyMount } from "@src/modules/shared/hooks/useStickyMount";
+import { useKeepAliveWindow } from "@src/hooks/ui/useKeepAliveWindow";
+
+/**
+ * How long a detail tab stays mounted-but-hidden after the user switches
+ * away. A PR's Changes tab can hold dozens of CodeMirror diff views; keeping
+ * it warm for a minute makes "glance at Checks, come back" instant while a
+ * tab abandoned for the rest of the visit stops holding its subtree.
+ */
+export const DETAIL_TAB_PANEL_GRACE_MS = 60_000;
 
 export interface PersistentDetailTabPanelProps {
   active: boolean;
@@ -13,7 +21,9 @@ export interface PersistentDetailTabPanelProps {
 
 /**
  * Lazily mounts detail-tab content on first visit, then hides it instead of
- * unmounting it so local state and native scroll positions survive tab changes.
+ * unmounting it for `DETAIL_TAB_PANEL_GRACE_MS`, so local state and native
+ * scroll positions survive quick tab changes. A panel hidden for longer than
+ * the grace window unmounts and is rebuilt on its next visit.
  */
 export default function PersistentDetailTabPanel({
   active,
@@ -23,8 +33,11 @@ export default function PersistentDetailTabPanel({
   id,
   testId,
 }: PersistentDetailTabPanelProps) {
-  const shouldRender = useStickyMount(active);
-  if (!shouldRender) return null;
+  const panelKeys = useMemo(() => [id], [id]);
+  const warmPanels = useKeepAliveWindow(active ? id : null, panelKeys, {
+    graceMs: DETAIL_TAB_PANEL_GRACE_MS,
+  });
+  if (!warmPanels.has(id)) return null;
 
   return (
     <div
