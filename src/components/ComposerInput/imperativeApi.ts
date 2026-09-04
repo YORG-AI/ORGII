@@ -31,6 +31,8 @@ export interface ImperativeApiContext {
   captureSnapshot: () => ComposerSnapshot;
   markHistoryBoundary: () => void;
   commitHistoryBoundary: () => void;
+  /** Drop all undo/redo entries (whole-document replacement). */
+  resetHistory: () => void;
   clearHost: () => void;
   focusHost: () => void;
   placeCaretAtPoint: (x: number, y: number) => boolean;
@@ -103,7 +105,15 @@ export function buildImperativeApi(
       return host ? extractPlainText(host) : "";
     },
     getSnapshot: () => ctx.captureSnapshot(),
+    // `setContent` and `clear` replace the whole document from outside the
+    // editing session (draft restore, slash-command rewrite, post-submit
+    // clear). Undo history belongs to the document it was recorded against,
+    // so it is reset here; otherwise Cmd+Z in a freshly cleared composer
+    // resurrected the message that was just sent, or walked a restored draft
+    // back into another session's text. Partial edits (`insertMentionText`,
+    // pill helpers, mention/slash consumption) keep and extend the history.
     setContent: (content) => {
+      ctx.resetHistory();
       if (typeof content === "string") {
         ctx.setHostContent(content);
       } else {
@@ -111,6 +121,7 @@ export function buildImperativeApi(
       }
     },
     clear: () => {
+      ctx.resetHistory();
       ctx.clearHost();
     },
     focus: () => {
