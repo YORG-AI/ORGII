@@ -96,39 +96,35 @@ describe("shouldMountBrowserHost", () => {
 });
 
 describe("shouldMountAgentStationHost", () => {
-  it("always mounts while Agent Station is the visible surface", () => {
+  it("mounts while Agent Station is the visible surface", () => {
     expect(
       shouldMountAgentStationHost({
         isAgentStation: true,
-        hasVisited: false,
-        hasActiveSession: false,
+        isChatPanelMaximized: false,
       })
     ).toBe(true);
   });
 
-  it("keeps the hidden simulator warm only while a session is attached", () => {
+  it("releases the simulator as soon as another surface is shown", () => {
+    // The regression this guards: the host used to stay mounted (hidden)
+    // for as long as a session was attached, so the grid's per-cell
+    // ChatHistory instances survived the whole time the user was in the
+    // code editor.
     expect(
       shouldMountAgentStationHost({
         isAgentStation: false,
-        hasVisited: true,
-        hasActiveSession: true,
-      })
-    ).toBe(true);
-    expect(
-      shouldMountAgentStationHost({
-        isAgentStation: false,
-        hasVisited: true,
-        hasActiveSession: false,
+        isChatPanelMaximized: false,
       })
     ).toBe(false);
   });
 
-  it("never mounts an unvisited, hidden simulator", () => {
+  it("releases the simulator behind a maximized chat panel", () => {
+    // A maximized chat panel hides the simulator as completely as leaving
+    // the surface does, so "mounted" must not diverge from "displayed".
     expect(
       shouldMountAgentStationHost({
-        isAgentStation: false,
-        hasVisited: false,
-        hasActiveSession: true,
+        isAgentStation: true,
+        isChatPanelMaximized: true,
       })
     ).toBe(false);
   });
