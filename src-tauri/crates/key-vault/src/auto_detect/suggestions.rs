@@ -837,15 +837,16 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
+    type EnvFn<'a> = Box<dyn Fn(&str) -> Option<String> + 'a>;
+    type KeychainFn<'a> = Box<dyn Fn(&str, Option<&str>) -> bool + 'a>;
+    /// Owned pieces a test needs to assemble a `ProbeContext`.
+    type TestProbe<'a> = (PathBuf, EnvFn<'a>, KeychainFn<'a>);
+
     fn ctx<'a>(
         home: &Path,
         env: &'a HashMap<&'static str, &'static str>,
         keychain: &'a HashSet<String>,
-    ) -> (
-        PathBuf,
-        Box<dyn Fn(&str) -> Option<String> + 'a>,
-        Box<dyn Fn(&str, Option<&str>) -> bool + 'a>,
-    ) {
+    ) -> TestProbe<'a> {
         let env_fn = move |name: &str| env.get(name).map(|v| v.to_string());
         let keychain_fn = move |service: &str, _account: Option<&str>| keychain.contains(service);
         (home.to_path_buf(), Box::new(env_fn), Box::new(keychain_fn))
