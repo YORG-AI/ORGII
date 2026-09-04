@@ -92,8 +92,8 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
     const installedSkillsRef = useRef(installedSkills);
     installedSkillsRef.current = installedSkills;
 
-    const ops = useEditorOperations();
-    const { hostRef, pillEntries } = ops;
+    const { ops, pillEntries } = useEditorOperations();
+    const { hostRef } = ops;
 
     // ===== Stale-closure-proof callback refs =====
     const onContentChangeRef = useRef(onContentChange);

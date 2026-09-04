@@ -14,12 +14,12 @@ import { hasReferenceDragData } from "@src/shared/dnd/referenceDragData";
 import { EDIT_HISTORY_EVENT } from "@src/util/dom/editHistoryCommand";
 
 import { removePillForDeleteDirection } from "./keyboard";
-import type { UseEditorOperationsResult } from "./useEditorOperations";
+import type { EditorOperations } from "./useEditorOperations";
 import { extractSerializedTextFromRange, sanitizeText } from "./utils";
 
 export interface UseComposerNativeEventsParams {
   hostRef: React.MutableRefObject<HTMLDivElement | null>;
-  ops: UseEditorOperationsResult;
+  ops: EditorOperations;
   isComposingRef: React.MutableRefObject<boolean>;
   compositionEndedAtRef: React.MutableRefObject<number>;
   handlePaste: (event: ClipboardEvent) => boolean;

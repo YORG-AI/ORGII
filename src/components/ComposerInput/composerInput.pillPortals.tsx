@@ -12,14 +12,11 @@ import { createPortal } from "react-dom";
 
 import ComposerPill from "./ComposerPill";
 import { placeCaretAfterPill } from "./selection";
-import type {
-  PillEntry,
-  UseEditorOperationsResult,
-} from "./useEditorOperations";
+import type { EditorOperations, PillEntry } from "./useEditorOperations";
 import { extractPlainText } from "./utils";
 
 export interface UseComposerPillPortalsParams {
-  ops: UseEditorOperationsResult;
+  ops: EditorOperations;
   pillEntries: PillEntry[];
   skillPathByName: Map<string, string>;
   updateEmptyState: () => void;

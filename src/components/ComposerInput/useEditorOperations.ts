@@ -95,9 +95,15 @@ export function historyCoalesceKey(
   return undefined;
 }
 
-export interface UseEditorOperationsResult {
+/**
+ * Stable editor operations. Every member is a ref or a `useCallback` with
+ * stable deps, so the object identity never changes for the life of the
+ * editor. Keeping the changing pill list out of it means a pill insert or
+ * removal does not rebuild the paste/keydown/input handlers, rewire the
+ * host's native listeners, or rebuild the imperative handle.
+ */
+export interface EditorOperations {
   hostRef: React.MutableRefObject<HTMLDivElement | null>;
-  pillEntries: PillEntry[];
   /** Insert a pill at the current caret position */
   insertPill: (attrs: ComposerPillAttrs) => void;
   /** Insert text at the current caret position (preserves newlines) */
@@ -136,6 +142,12 @@ export interface UseEditorOperationsResult {
   reconcilePillsFromDom: () => void;
   /** Re-register an existing DOM span (used by reconcile) */
   registerPillHost: (id: string, element: HTMLSpanElement) => void;
+}
+
+export interface UseEditorOperationsResult {
+  ops: EditorOperations;
+  /** Live pill registry, in registration order; changes on every pill edit. */
+  pillEntries: PillEntry[];
 }
 
 export function useEditorOperations(): UseEditorOperationsResult {
@@ -525,10 +537,9 @@ export function useEditorOperations(): UseEditorOperationsResult {
     if (changed) syncPillEntries();
   }, [syncPillEntries]);
 
-  return useMemo(
+  const ops = useMemo<EditorOperations>(
     () => ({
       hostRef,
-      pillEntries,
       insertPill,
       insertTextAtCaret,
       markHistoryBoundary,
@@ -548,7 +559,6 @@ export function useEditorOperations(): UseEditorOperationsResult {
       registerPillHost,
     }),
     [
-      pillEntries,
       insertPill,
       insertTextAtCaret,
       markHistoryBoundary,
@@ -568,4 +578,6 @@ export function useEditorOperations(): UseEditorOperationsResult {
       registerPillHost,
     ]
   );
+
+  return useMemo(() => ({ ops, pillEntries }), [ops, pillEntries]);
 }
