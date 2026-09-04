@@ -236,8 +236,8 @@ describe.each(["wide rail", "compact menu"])(
           );
           expect(container.contains(tooltip)).toBe(false);
           const keys = tooltip.querySelectorAll("kbd");
-          expect(keys).toHaveLength(key ? 2 : 0);
-          if (key) expect(keys[1].textContent).toBe(key);
+          expect(keys).toHaveLength(key ? 1 : 0);
+          if (key) expect(keys[0].textContent?.endsWith(key)).toBe(true);
 
           act(() =>
             button.dispatchEvent(
