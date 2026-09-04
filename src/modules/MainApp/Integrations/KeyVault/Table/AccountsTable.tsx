@@ -32,6 +32,7 @@ import {
 } from "../../Tables/TrademarkDisclaimer";
 import type { DetailMode } from "../../types";
 import MyAccountsTableSection from "../Accounts/Table/MyAccountsTableSection";
+import InlineCredentialImport from "../CliClients/CredentialImport/InlineCredentialImport";
 import ModelsTableSection from "../Models/Table/ModelsTableSection";
 
 const ALL_FILTER = "all";
@@ -544,6 +545,9 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
       <ScrollPreservation className={DETAIL_PANEL_TOKENS.scrollContentNoTop}>
         <div className={DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop}>
           <div className="flex flex-col gap-3">
+            {activeTab === "my-accounts" && (
+              <InlineCredentialImport onAfterImport={onRefresh} />
+            )}
             {activeTab === "models" ? (
               <ModelsTableSection
                 accounts={modelAdjustedAccounts}

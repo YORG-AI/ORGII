@@ -24,7 +24,7 @@ use std::time::Duration;
 use crate::types::ValidationResult;
 
 // Kiro token storage keys
-const KIRO_TOKEN_KEY: &str = "kirocli:odic:token";
+pub const KIRO_TOKEN_KEY: &str = "kirocli:odic:token";
 const KIRO_DEVICE_REG_KEY: &str = "kirocli:odic:device-registration";
 
 /// Kiro OAuth token structure

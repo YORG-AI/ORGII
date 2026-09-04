@@ -38,7 +38,10 @@ pub use providers::kiro;
 pub use providers::openai;
 
 // Re-export types only from auto_detect (not the function which is exposed via commands)
-pub use auto_detect::{AutoDetectResult, DetectedKey, QuotaInfo as DetectedQuotaInfo};
+pub use auto_detect::{
+    AutoDetectResult, CredentialSuggestion, DetectedKey, QuotaInfo as DetectedQuotaInfo,
+    SuggestionSourceKind,
+};
 pub use commands::*;
 pub use key_store::*;
 pub use provider_config::ProviderConfig;

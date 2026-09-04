@@ -8,6 +8,7 @@
  */
 import { z } from "zod/v4";
 
+import { CredentialSuggestionSchema } from "./validationDiscovery";
 import {
   CliAgentTypeSchema,
   HealthStatusSchema,
@@ -335,6 +336,10 @@ export const GetAllKeysForAgentInput = z.object({
 
 export const AutoDetectKeyInput = z.object({
   agentType: ModelTypeSchema,
+});
+
+export const ImportCredentialSuggestionsInput = z.object({
+  selections: z.array(CredentialSuggestionSchema),
 });
 
 export const ScanCliVersionInput = z.object({

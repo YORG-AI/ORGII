@@ -9,6 +9,7 @@ mod oauth;
 mod opencode;
 mod quota_dispatch;
 mod quota_refresh;
+mod suggestions;
 
 pub use discovery::{
     auto_detect_key, cursor_list_models_native, extract_keys_from_text, get_cursor_cli_models,
@@ -22,6 +23,10 @@ pub use oauth::{
 };
 pub use opencode::{validate_opencode_key, OPENCODE_GO_BASE_URL, OPENCODE_ZEN_BASE_URL};
 pub use quota_dispatch::fetch_key_quota;
+pub use suggestions::{
+    import_credential_suggestions, list_credential_suggestions, CredentialImportItemReport,
+    CredentialImportReport, CredentialImportStatus,
+};
 pub use quota_refresh::{
     get_key_quota_refresh_status, invalidate_key_quota_runtime, key_quota_refresh_status,
     refresh_key_quota, KeyQuotaRefreshAttemptInfo, KeyQuotaRefreshStatusInfo,

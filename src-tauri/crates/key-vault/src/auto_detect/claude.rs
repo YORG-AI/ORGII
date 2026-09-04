@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs;
-#[cfg(target_os = "macos")]
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use chrono::{Duration as ChronoDuration, Utc};
 use serde::Deserialize;
@@ -349,17 +347,43 @@ fn get_claude_credentials_paths() -> Vec<PathBuf> {
 
 #[cfg(not(windows))]
 fn get_claude_credentials_paths() -> Vec<PathBuf> {
+    claude_credentials_paths_in(
+        env::var("CLAUDE_CONFIG_DIR").ok().as_deref(),
+        get_home_dir().as_deref(),
+    )
+}
+
+/// `.credentials.json` candidates for a given `CLAUDE_CONFIG_DIR` override
+/// and home directory. Shared with the offline suggestion probe so both
+/// surfaces look in exactly the same places.
+pub(super) fn claude_credentials_paths_in(
+    config_dir: Option<&str>,
+    home: Option<&Path>,
+) -> Vec<PathBuf> {
     let mut paths = vec![];
-    if let Ok(config_dir) = env::var("CLAUDE_CONFIG_DIR") {
+    if let Some(config_dir) = config_dir {
         let trimmed = config_dir.trim();
         if !trimmed.is_empty() {
             paths.push(PathBuf::from(trimmed).join(".credentials.json"));
         }
     }
-    if let Some(home) = get_home_dir() {
-        paths.push(home.join(".claude/.credentials.json"));
+    if let Some(home) = home {
+        let path = home.join(".claude/.credentials.json");
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
     }
     paths
+}
+
+/// Access token inside a Claude Code `.credentials.json` payload, if any.
+/// Pure parsing — no validation, no network.
+pub(super) fn oauth_access_token_from_credentials_json(credentials_json: &str) -> Option<String> {
+    let credentials = parse_claude_oauth_credentials(credentials_json)?;
+    credentials
+        .access_token
+        .map(|token| token.trim().to_string())
+        .filter(|token| !token.is_empty())
 }
 
 fn parse_claude_oauth_credentials(credentials_json: &str) -> Option<ClaudeAiOauthCredentials> {
@@ -507,16 +531,8 @@ fn claude_code_account_metadata(identity: ClaudeCodeAccountIdentity) -> HashMap<
 
 #[cfg(target_os = "macos")]
 fn read_claude_keychain_credentials() -> Option<String> {
-    let config_dirs = get_claude_keychain_config_dirs();
-    let mut services = Vec::new();
-    for config_dir in config_dirs {
-        services.push(scoped_claude_keychain_service(&config_dir));
-    }
-    services.push("Claude Code-credentials".to_string());
-
-    let account = env::var("USER")
-        .or_else(|_| env::var("USERNAME"))
-        .unwrap_or_else(|_| "user".to_string());
+    let services = claude_keychain_service_candidates(&get_claude_keychain_config_dirs());
+    let account = claude_keychain_account();
     for service in services {
         if let Some(credentials) = read_macos_keychain_password(&service, &account) {
             return Some(credentials);
@@ -550,7 +566,24 @@ fn get_claude_keychain_config_dirs() -> Vec<PathBuf> {
     config_dirs
 }
 
-#[cfg(target_os = "macos")]
+/// Keychain service names Claude Code may have used, most specific first:
+/// one hashed per config dir, then the legacy unscoped name.
+pub(super) fn claude_keychain_service_candidates(config_dirs: &[PathBuf]) -> Vec<String> {
+    let mut services: Vec<String> = config_dirs
+        .iter()
+        .map(|dir| scoped_claude_keychain_service(dir))
+        .collect();
+    services.push("Claude Code-credentials".to_string());
+    services
+}
+
+/// Keychain account Claude Code stores credentials under (the login user).
+pub(super) fn claude_keychain_account() -> String {
+    env::var("USER")
+        .or_else(|_| env::var("USERNAME"))
+        .unwrap_or_else(|_| "user".to_string())
+}
+
 fn scoped_claude_keychain_service(config_dir: &Path) -> String {
     use sha2::{Digest, Sha256};
 

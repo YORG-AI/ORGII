@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::DetectedKey;
 
@@ -33,23 +33,33 @@ pub(crate) fn get_home_dir() -> Option<PathBuf> {
 }
 
 pub(crate) fn get_claude_config_paths() -> Vec<PathBuf> {
-    let mut paths = vec![];
-    if let Some(home) = get_home_dir() {
-        paths.push(home.join(".claude.json"));
-        paths.push(home.join(".claude/config.json"));
-        paths.push(home.join(".config/claude/config.json"));
-        paths.push(home.join(".config/anthropic/config.json"));
-    }
-    paths
+    get_home_dir()
+        .map(|home| claude_config_paths_in(&home))
+        .unwrap_or_default()
+}
+
+/// JSON config files that may carry an Anthropic `apiKey`, rooted at `home`.
+pub(crate) fn claude_config_paths_in(home: &Path) -> Vec<PathBuf> {
+    vec![
+        home.join(".claude.json"),
+        home.join(".claude/config.json"),
+        home.join(".config/claude/config.json"),
+        home.join(".config/anthropic/config.json"),
+    ]
 }
 
 pub(crate) fn get_openai_config_paths() -> Vec<PathBuf> {
-    let mut paths = vec![];
-    if let Some(home) = get_home_dir() {
-        paths.push(home.join(".openai/config.json"));
-        paths.push(home.join(".config/openai/config.json"));
-    }
-    paths
+    get_home_dir()
+        .map(|home| openai_config_paths_in(&home))
+        .unwrap_or_default()
+}
+
+/// JSON config files that may carry an OpenAI `api_key`, rooted at `home`.
+pub(crate) fn openai_config_paths_in(home: &Path) -> Vec<PathBuf> {
+    vec![
+        home.join(".openai/config.json"),
+        home.join(".config/openai/config.json"),
+    ]
 }
 
 // ============================================

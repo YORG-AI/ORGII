@@ -22,6 +22,7 @@ import {
   parseAgentOrgsPath,
 } from "@src/config/mainAppPaths";
 import { useKeyVault } from "@src/hooks/keyVault";
+import { loadSharedLocalKeys } from "@src/hooks/keyVault/sharedLocalKeyStore";
 import { createLogger } from "@src/hooks/logger";
 import { useWizardParam } from "@src/hooks/navigation";
 import { useCliAgents } from "@src/modules/MainApp/Integrations/KeyVault/CliClients/hooks/useCliAgents";
@@ -118,6 +119,14 @@ const AgentOrgsPage: React.FC = () => {
 
   const { accounts } = useKeyVault({ autoLoad: true });
   const cliAgentControls = useCliAgents({ enabled: activeTableTab === "clis" });
+  const fetchCliAgents = cliAgentControls.fetchAgents;
+
+  const handleCredentialImportRefresh = useCallback(async () => {
+    // Imported keys change both the vault (accounts) and the per-CLI
+    // "has keys" projection. Reload the shared key list directly rather
+    // than `useKeyVault().refresh`, which would also re-fetch every quota.
+    await Promise.all([loadSharedLocalKeys(true), fetchCliAgents()]);
+  }, [fetchCliAgents]);
 
   const { wizard, entityId, openWizard, closeWizard } = useWizardParam();
   const teamWizardMode =
@@ -321,6 +330,7 @@ const AgentOrgsPage: React.FC = () => {
             onAddAgent={handleAgentAdd}
             onDeleteAgent={handleAgentDelete}
             onAgentImportRefresh={handleAgentImportRefresh}
+            onCredentialImportRefresh={handleCredentialImportRefresh}
             onAddKey={handleKeyAdd}
           />
         </div>

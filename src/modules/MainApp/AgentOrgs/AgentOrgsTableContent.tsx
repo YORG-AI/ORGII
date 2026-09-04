@@ -2,6 +2,7 @@ import type React from "react";
 
 import type { AvailableAgent } from "@src/config/cliAgents";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
+import InlineCredentialImport from "@src/modules/MainApp/Integrations/KeyVault/CliClients/CredentialImport/InlineCredentialImport";
 import CliClientsTable from "@src/modules/MainApp/Integrations/KeyVault/CliClients/Table/CliClientsTable";
 import type { useCliAgents } from "@src/modules/MainApp/Integrations/KeyVault/CliClients/hooks/useCliAgents";
 import { CliDisclaimer } from "@src/modules/MainApp/Integrations/Tables/TrademarkDisclaimer";
@@ -27,6 +28,7 @@ interface AgentOrgsTableContentProps {
   onAddAgent: () => void;
   onDeleteAgent: (agentId: string) => Promise<void>;
   onAgentImportRefresh: () => Promise<void>;
+  onCredentialImportRefresh: () => Promise<void>;
   onAddKey: () => void;
 }
 
@@ -45,6 +47,7 @@ export function AgentOrgsTableContent({
   onAddAgent,
   onDeleteAgent,
   onAgentImportRefresh,
+  onCredentialImportRefresh,
   onAddKey,
 }: AgentOrgsTableContentProps): React.ReactNode {
   if (activeTab === "orgs") {
@@ -61,6 +64,7 @@ export function AgentOrgsTableContent({
     return (
       <div className="flex flex-col gap-3">
         <CliUpdateAlertsSettingsRow />
+        <InlineCredentialImport onAfterImport={onCredentialImportRefresh} />
         <CliClientsTable
           agents={cliAgentControls.agents as AvailableAgent[]}
           accounts={accounts}

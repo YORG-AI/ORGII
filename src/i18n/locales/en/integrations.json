@@ -2420,5 +2420,28 @@
     "deleteMessage": "Delete the profile “{{name}}”? This does not change your current global Git config.",
     "loadFailed": "Failed to load the global Git profile",
     "applyFailed": "Failed to activate the Git profile"
+  },
+  "credentialImport": {
+    "title": "Import credentials from other apps",
+    "titleWithCount": "Import credentials from other apps ({{count}} found)",
+    "itemColumn": "Credential",
+    "sourceColumn": "Found in",
+    "empty": "No credentials found to import. Looked at environment variables, shell profiles, Claude Code settings, cc-switch profiles, and the login stores of Claude Code, Codex, Cursor, GitHub CLI, Kiro, and OpenCode.",
+    "allImported": "All detected credentials have already been imported",
+    "authMethod": {
+      "api_key": "API key",
+      "oauth": "Login token"
+    },
+    "sourceKind": {
+      "env": "Environment variable",
+      "shell_profile": "Shell profile",
+      "config_file": "Config file",
+      "oauth_store": "Login store",
+      "keychain": "Keychain",
+      "state_db": "App state",
+      "cc_switch": "cc-switch"
+    },
+    "applyFailed": "Import failed: {{message}}",
+    "partialFailure": "Some credentials could not be imported:"
   }
 }
