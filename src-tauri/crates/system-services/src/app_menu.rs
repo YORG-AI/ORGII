@@ -123,9 +123,20 @@ pub fn create_app_menu(app: &AppHandle) -> Result<Menu<Wry>, tauri::Error> {
     let select_all_item =
         MenuItem::with_id(app, "edit_select_all", "Select All", true, None::<&str>)?;
 
+    // Custom Undo/Redo items instead of the built-in .undo()/.redo().
+    // The predefined items send WebKit's `undo:`/`redo:` selectors, which only
+    // replay the browser's own undo manager. ComposerInput keeps a structured
+    // history of its own (it cancels `paste` and inserts text/pills itself),
+    // and WebKit never records those edits, so Edit → Undo was a no-op right
+    // after a paste. These items emit to the focused window; the frontend
+    // offers the command to the focused editor first and falls back to
+    // `document.execCommand` for plain inputs.
+    let undo_item = MenuItem::with_id(app, "edit_undo", "Undo", true, Some("CmdOrCtrl+Z"))?;
+    let redo_item = MenuItem::with_id(app, "edit_redo", "Redo", true, Some("CmdOrCtrl+Shift+Z"))?;
+
     let edit_menu = SubmenuBuilder::new(app, "Edit")
-        .undo()
-        .redo()
+        .item(&undo_item)
+        .item(&redo_item)
         .separator()
         .cut()
         .copy()
@@ -587,6 +598,8 @@ pub fn setup_menu_events(app: &AppHandle) {
                     let _ = window.emit("menu-open-settings", ());
                 }
             }
+            "edit_undo" => emit_to_focused_window(app, "menu-undo"),
+            "edit_redo" => emit_to_focused_window(app, "menu-redo"),
             "edit_select_all" => {
                 // Emit to frontend so JS can dispatch selectAll to the focused element.
                 // This replaces the built-in .select_all() which sends a native macOS
@@ -635,6 +648,23 @@ pub fn setup_menu_events(app: &AppHandle) {
             _ => {}
         }
     });
+}
+
+/// Emit a menu event to the focused webview window, falling back to `main`.
+///
+/// Edit-menu commands act on whatever editor has focus, and detached session
+/// windows carry their own composer, so routing everything to `main` would
+/// undo in the wrong window.
+fn emit_to_focused_window(app: &AppHandle, event: &str) {
+    let windows = app.webview_windows();
+    let target = windows
+        .values()
+        .find(|window| window.is_focused().unwrap_or(false))
+        .cloned()
+        .or_else(|| app.get_webview_window("main"));
+    if let Some(window) = target {
+        let _ = window.emit(event, ());
+    }
 }
 
 /// Rebuild the menu (call after adding/removing recent items)

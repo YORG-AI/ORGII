@@ -10,6 +10,7 @@ import {
   MinusSignIcon,
   SquareIcon,
 } from "@src/icons";
+import { dispatchEditHistoryCommand } from "@src/util/dom/editHistoryCommand";
 import {
   closeWindow,
   maxWindow,
@@ -113,12 +114,12 @@ function getMenuItems(menu: NativeMenuKey, t: TFunction): NativeMenuItem[] {
         {
           type: "item",
           text: t("windowChrome.items.undo"),
-          action: () => document.execCommand("undo"),
+          action: () => void dispatchEditHistoryCommand("undo"),
         },
         {
           type: "item",
           text: t("windowChrome.items.redo"),
-          action: () => document.execCommand("redo"),
+          action: () => void dispatchEditHistoryCommand("redo"),
         },
         { type: "separator" },
         {

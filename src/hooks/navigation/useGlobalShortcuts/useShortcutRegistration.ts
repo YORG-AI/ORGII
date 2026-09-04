@@ -5,6 +5,7 @@ import { openAgentControlSpotlight } from "@src/scaffold/GlobalSpotlight/openSpo
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
+import { dispatchEditHistoryCommand } from "@src/util/dom/editHistoryCommand";
 import { isTauriDesktop } from "@src/util/platform/tauri";
 
 import { useGlobalKeydownShortcuts } from "./useGlobalKeydownShortcuts";
@@ -247,6 +248,12 @@ export function useShortcutRegistration(options: ShortcutRegistrationOptions) {
         "menu-open-settings": handleOpenSettings,
         "menu-maximize-work-station": () =>
           void WorkStationViewService.showWorkStation(),
+        // Edit → Undo/Redo are custom menu items (see `app_menu.rs`) so the
+        // command reaches editors with structured history (ComposerInput)
+        // instead of only WebKit's undo manager, which never sees the
+        // composer's programmatic paste/pill edits.
+        "menu-undo": () => void dispatchEditHistoryCommand("undo"),
+        "menu-redo": () => void dispatchEditHistoryCommand("redo"),
         "menu-select-all": () => {
           const terminalEl = document.querySelector(".terminal-core");
           if (
