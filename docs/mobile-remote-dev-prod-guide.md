@@ -1,6 +1,7 @@
 # Mobile Remote 开发与生产体验指南
 
-> 面向同事快速上手 **移动遥控（Mobile Remote）** 功能。  
+> **日常使用（生产 PWA + 公网 Relay）：** 请先阅读 [同事体验指南](./mobile-remote-colleague-guide.md)。  
+> 本文面向 **本地开发、Relay 部署与排障**。  
 > 相关 PR：[#1150](https://github.com/org2AI/ORG2/pull/1150)（分支 `junyu/mobile-remote-control`）
 
 Mobile Remote 让手机通过 PWA 遥控桌面 ORG2 上的 Agent 会话。桌面通过 **出站 WebSocket** 连接 Relay，手机经 Relay 与桌面通信，无需在路由器上开放入站端口。
