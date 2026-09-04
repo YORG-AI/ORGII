@@ -136,7 +136,7 @@ export function deriveSkinTokens(
     "--color-text-white": isLight ? "#ffffff" : seed.ink,
 
     // Borders
-    "--color-border-1": lift(isLight ? 0.1 : 0.12),
+    "--color-border-1": lift(isLight ? 0.07 : 0.16),
     "--color-border-2": lift(isLight ? 0.11 : 0.18),
     "--color-border-3": lift(isLight ? 0.22 : 0.32),
 
