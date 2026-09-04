@@ -26,6 +26,13 @@ import { PILL_DATA_ATTR, extractPlainText, pillDataAttributes } from "./utils";
 
 const PILL_ID_ATTR = "data-pill-id";
 const MAX_HISTORY_ENTRIES = 100;
+/**
+ * Consecutive commits that share a coalesce key and land within this window
+ * extend one undo entry instead of creating a new one, so a typed burst is
+ * undone as a unit (word-level, see `historyCoalesceKey`) rather than one
+ * character per Cmd+Z.
+ */
+const HISTORY_COALESCE_WINDOW_MS = 1000;
 
 let pillIdCounter = 0;
 function nextPillId(): string {
@@ -55,6 +62,39 @@ export interface PillEntry {
   attrs: ComposerPillAttrs;
 }
 
+export interface CommitHistoryOptions {
+  /**
+   * Group this commit with the previous one when both carry the same key and
+   * arrive within `HISTORY_COALESCE_WINDOW_MS`. Omit for edits that must
+   * always be their own undo step (paste, pill insert, newline).
+   */
+  coalesce?: string;
+}
+
+/**
+ * Coalesce key for a native `input` event, mirroring how native editors
+ * group undo: a run of non-whitespace characters is one step, the whitespace
+ * between words is its own step, and backspace/delete runs group separately.
+ * Returns `undefined` for everything else so those commits stand alone.
+ */
+export function historyCoalesceKey(
+  inputType: string | undefined,
+  data: string | null | undefined
+): string | undefined {
+  if (inputType === "insertText") {
+    return data && /\s/.test(data) ? "typing:whitespace" : "typing";
+  }
+  if (
+    inputType === "deleteContentBackward" ||
+    inputType === "deleteContentForward" ||
+    inputType === "deleteWordBackward" ||
+    inputType === "deleteWordForward"
+  ) {
+    return inputType;
+  }
+  return undefined;
+}
+
 export interface UseEditorOperationsResult {
   hostRef: React.MutableRefObject<HTMLDivElement | null>;
   pillEntries: PillEntry[];
@@ -65,7 +105,7 @@ export interface UseEditorOperationsResult {
   /** Capture the current document before a programmatic edit. */
   markHistoryBoundary: () => void;
   /** Store the current programmatic edit as one undoable transaction. */
-  commitHistoryBoundary: () => void;
+  commitHistoryBoundary: (options?: CommitHistoryOptions) => void;
   /** Undo the latest programmatic editor transaction. */
   undo: () => boolean;
   /** Redo the latest undone programmatic editor transaction. */
@@ -99,6 +139,8 @@ export function useEditorOperations(): UseEditorOperationsResult {
   const undoStackRef = useRef<ComposerSnapshot[]>([]);
   const redoStackRef = useRef<ComposerSnapshot[]>([]);
   const historyBoundaryRef = useRef<ComposerSnapshot | null>(null);
+  const lastCommitKeyRef = useRef<string | null>(null);
+  const lastCommitAtRef = useRef(0);
   const [pillEntries, setPillEntries] = useState<PillEntry[]>([]);
 
   const syncPillEntries = useCallback(() => {
@@ -340,15 +382,30 @@ export function useEditorOperations(): UseEditorOperationsResult {
     historyBoundaryRef.current = captureSnapshot();
   }, [captureSnapshot]);
 
-  const commitHistoryBoundary = useCallback(() => {
-    const before = historyBoundaryRef.current;
-    historyBoundaryRef.current = null;
-    if (!before) return;
-    const after = captureSnapshot();
-    if (snapshotsEqual(before, after)) return;
-    pushHistoryEntry(undoStackRef.current, before);
-    redoStackRef.current = [];
-  }, [captureSnapshot]);
+  const commitHistoryBoundary = useCallback(
+    (options?: CommitHistoryOptions) => {
+      const before = historyBoundaryRef.current;
+      historyBoundaryRef.current = null;
+      if (!before) return;
+      const after = captureSnapshot();
+      if (snapshotsEqual(before, after)) return;
+      const now = performance.now();
+      const key = options?.coalesce ?? null;
+      const extendsOpenGroup =
+        key !== null &&
+        key === lastCommitKeyRef.current &&
+        now - lastCommitAtRef.current < HISTORY_COALESCE_WINDOW_MS &&
+        undoStackRef.current.length > 0;
+      lastCommitKeyRef.current = key;
+      lastCommitAtRef.current = now;
+      redoStackRef.current = [];
+      // Extending a group keeps the entry pushed when the group opened; its
+      // "before" already predates every keystroke in the burst.
+      if (extendsOpenGroup) return;
+      pushHistoryEntry(undoStackRef.current, before);
+    },
+    [captureSnapshot]
+  );
 
   const undo = useCallback(() => {
     const previous = undoStackRef.current.pop();
@@ -358,6 +415,7 @@ export function useEditorOperations(): UseEditorOperationsResult {
     const host = hostRef.current;
     if (restored && host) placeCaretAtEnd(host);
     historyBoundaryRef.current = null;
+    lastCommitKeyRef.current = null;
     return restored;
   }, [captureSnapshot, restoreSnapshotContent]);
 
@@ -369,6 +427,7 @@ export function useEditorOperations(): UseEditorOperationsResult {
     const host = hostRef.current;
     if (restored && host) placeCaretAtEnd(host);
     historyBoundaryRef.current = null;
+    lastCommitKeyRef.current = null;
     return restored;
   }, [captureSnapshot, restoreSnapshotContent]);
 
@@ -379,6 +438,7 @@ export function useEditorOperations(): UseEditorOperationsResult {
     pillAttrsRef.current.clear();
     host.textContent = "";
     historyBoundaryRef.current = null;
+    lastCommitKeyRef.current = null;
     syncPillEntries();
   }, [syncPillEntries]);
 

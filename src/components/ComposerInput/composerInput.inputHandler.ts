@@ -15,6 +15,10 @@
 import { type MentionState, canStartSlashCommand } from "./keyboard";
 import { getInlineMentionQuery } from "./mentionQuery";
 import { caretTextOffset, rangeInsideHost } from "./selection";
+import {
+  type CommitHistoryOptions,
+  historyCoalesceKey,
+} from "./useEditorOperations";
 import { PILL_DATA_ATTR, extractPlainText } from "./utils";
 
 const TRIGGER_CLOSE_GRACE_MS = 120;
@@ -50,7 +54,7 @@ export interface InputHandlerContext {
   /** True while an IME composition is in progress (see native events). */
   isComposing: () => boolean;
   reconcilePillsFromDom: () => void;
-  commitHistoryBoundary: () => void;
+  commitHistoryBoundary: (options?: CommitHistoryOptions) => void;
   clearHost: () => void;
   updateEmptyState: () => void;
   getOnContentChange: () => ((text: string) => void) | undefined;
@@ -78,17 +82,25 @@ export function createInputHandler(ctx: InputHandlerContext) {
     const host = ctx.host();
     if (!host) return;
     ctx.reconcilePillsFromDom();
-    // A composition is one undo transaction: the boundary was marked at
-    // compositionstart and is committed at compositionend, so the
-    // intermediate `input` events must not close it early.
-    if (!ctx.isComposing()) ctx.commitHistoryBoundary();
-
-    const text = extractPlainText(host);
-    const hasPills = host.querySelector(`[${PILL_DATA_ATTR}]`) != null;
     const inputType =
       nativeEvent && "inputType" in nativeEvent
         ? String(nativeEvent.inputType)
         : undefined;
+    const inputData =
+      nativeEvent && "data" in nativeEvent
+        ? (nativeEvent.data as string | null)
+        : undefined;
+    // A composition is one undo transaction: the boundary was marked at
+    // compositionstart and is committed at compositionend, so the
+    // intermediate `input` events must not close it early.
+    if (!ctx.isComposing()) {
+      ctx.commitHistoryBoundary({
+        coalesce: historyCoalesceKey(inputType, inputData),
+      });
+    }
+
+    const text = extractPlainText(host);
+    const hasPills = host.querySelector(`[${PILL_DATA_ATTR}]`) != null;
     const isDeletion = inputType?.startsWith("delete") ?? false;
 
     if (isDeletion && !hasPills && text.trim().length === 0) {
