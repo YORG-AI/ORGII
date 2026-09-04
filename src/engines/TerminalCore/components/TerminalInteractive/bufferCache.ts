@@ -10,6 +10,7 @@ import {
   type PersistedBuffer,
   persistTerminalBuffer,
 } from "@src/services/terminal/bufferPersistence";
+import { registerCache } from "@src/util/memory/cacheRegistry";
 
 /** Maximum number of terminal buffers to cache (prevents memory leaks) */
 const MAX_CACHE_SIZE = 10;
@@ -159,3 +160,27 @@ export function getTerminalBufferCacheStats(): TerminalBufferCacheStats {
     bytes: terminalBufferCacheBytes,
   };
 }
+
+/**
+ * Memory-pressure trim. Moderate pressure halves the byte budget by evicting
+ * the least recently used buffers; critical pressure drops every buffer.
+ * Persisted copies on disk are untouched, so a reopened terminal still
+ * restores through `hydrateFromPersistence` / the Rust attach snapshot.
+ */
+function trimTerminalBufferCache(level: "moderate" | "critical"): void {
+  if (level === "critical") {
+    terminalBufferCache.clear();
+    terminalBufferCacheBytes = 0;
+    return;
+  }
+  while (terminalBufferCacheBytes > MAX_CACHE_BYTES / 2) {
+    if (!evictOldestEntry()) break;
+  }
+}
+
+registerCache({
+  id: "terminal.bufferCache",
+  tier: 1,
+  estimate: getTerminalBufferCacheStats,
+  trim: trimTerminalBufferCache,
+});

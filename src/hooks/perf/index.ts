@@ -12,6 +12,8 @@ export { formatRuntimeBytes, useRuntimeRamStats } from "./useRuntimeRamStats";
 export {
   SIDEBAR_MEMORY_KIND,
   collectWebViewRuntimeDiagnostics,
+  getLoadedScriptSourceStats,
+  type LoadedScriptSourceStats,
   type SidebarMemoryKind,
   type WebViewRuntimeDiagnostics,
 } from "./runtimeMemoryStats";

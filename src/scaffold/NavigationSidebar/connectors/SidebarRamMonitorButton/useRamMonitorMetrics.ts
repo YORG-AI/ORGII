@@ -5,9 +5,11 @@ import { getTerminalBufferCacheStats } from "@src/engines/TerminalCore/component
 import { createLogger } from "@src/hooks/logger";
 import {
   collectWebViewRuntimeDiagnostics,
+  getLoadedScriptSourceStats,
   useAppMemorySnapshot,
   useRuntimeRamStats,
 } from "@src/hooks/perf";
+import { listRegisteredCaches } from "@src/util/memory/cacheRegistry";
 
 import {
   CHEAP_METRICS_POLL_INTERVAL_MS,
@@ -73,13 +75,16 @@ export function useRamMonitorMetrics(isOpen: boolean) {
       );
       const terminalBufferStats = getTerminalBufferCacheStats();
       const webViewDiagnostics = collectWebViewRuntimeDiagnostics();
+      const scriptSources = getLoadedScriptSourceStats();
 
       setSnapshot((previousSnapshot) => ({
         ...previousSnapshot,
         memoryBreakdown,
         webViewDiagnostics,
+        scriptSources,
         terminalBufferBytes: terminalBufferStats.bytes,
         terminalBufferEntries: terminalBufferStats.entries,
+        cacheRegistry: listRegisteredCaches(),
         lastUpdatedAt: Date.now(),
         errorMessage: null,
       }));

@@ -1,6 +1,10 @@
 import type React from "react";
 
-import type { WebViewRuntimeDiagnostics } from "@src/hooks/perf";
+import type {
+  LoadedScriptSourceStats,
+  WebViewRuntimeDiagnostics,
+} from "@src/hooks/perf";
+import type { CacheRegistryEntryReport } from "@src/util/memory/cacheRegistry";
 
 export interface PtyMemoryInfo {
   session_id: string;
@@ -21,8 +25,11 @@ export interface MetricsSnapshot {
   memoryBreakdown: MemoryBreakdown | null;
   ptyMemory: PtyMemoryInfo[];
   webViewDiagnostics: WebViewRuntimeDiagnostics | null;
+  scriptSources: LoadedScriptSourceStats | null;
   terminalBufferBytes: number;
   terminalBufferEntries: number;
+  /** Live estimates from the in-webview cache registry (dev mode list). */
+  cacheRegistry: CacheRegistryEntryReport[];
   lastUpdatedAt: number | null;
   errorMessage: string | null;
 }

@@ -1,5 +1,6 @@
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { createLogger } from "@src/hooks/logger";
+import { registerCache } from "@src/util/memory/cacheRegistry";
 import {
   isCodexAppSession,
   isCursorIdeSession,
@@ -172,3 +173,12 @@ export function getLoadedTurnRegistryStats(): {
     bytes,
   };
 }
+
+registerCache({
+  id: "sessionCore.turnBodies",
+  tier: 1,
+  estimate: () => {
+    const stats = getLoadedTurnRegistryStats();
+    return { bytes: stats.bytes, entries: stats.loadedTurns };
+  },
+});
