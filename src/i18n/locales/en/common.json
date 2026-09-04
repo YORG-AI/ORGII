@@ -1526,6 +1526,8 @@
       "chooseKey": "Choose a key",
       "noCompatibleAccounts": "No compatible keys",
       "chooseModelHint": "Use the keyboard to navigate, or click a model with the mouse",
+      "chooseKeyHint": "Use the keyboard to navigate, or click a key with the mouse",
+      "noModelsForKey": "No models enabled for this key",
       "selectAccount": "Select an account"
     },
     "modelProperties": {
@@ -1705,6 +1707,7 @@
       "switchColumn": "Switch column",
       "switchSection": "Switch section",
       "showPath": "Show path",
+      "keyFirst": "Key first",
       "showBranchInfo": "Show branch info",
       "compatibleKeys": "Compatible",
       "planSupport": "Plan",

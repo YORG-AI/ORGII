@@ -1592,6 +1592,8 @@
       "chooseKey": "選擇金鑰",
       "noCompatibleAccounts": "無相容金鑰",
       "chooseModelHint": "使用鍵盤導覽，或用滑鼠點擊模型",
+      "chooseKeyHint": "使用鍵盤導覽，或用滑鼠點擊金鑰",
+      "noModelsForKey": "此金鑰未啟用任何模型",
       "selectAccount": "選擇帳號"
     },
     "modelProperties": {
@@ -1753,6 +1755,7 @@
       "switchColumn": "切換欄",
       "switchSection": "切換分區",
       "showPath": "顯示路徑",
+      "keyFirst": "金鑰優先",
       "showBranchInfo": "顯示分支資訊",
       "compatibleKeys": "相容",
       "planSupport": "Plan",

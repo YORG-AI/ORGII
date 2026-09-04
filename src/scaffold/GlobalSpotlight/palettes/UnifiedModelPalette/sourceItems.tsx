@@ -14,6 +14,18 @@ import type { SpotlightItem } from "../../types";
 import { VariantPill } from "./VariantPill";
 import type { SourceOption } from "./types";
 
+/** The {@link SourceOption} a Key Vault account is launched through. */
+export function toSourceOption(account: KeyVaultAccount): SourceOption {
+  return {
+    id: account.id,
+    label: account.name,
+    modelType: account.modelType,
+    type: KEY_SOURCE.OWN,
+    accountId: account.id,
+    nativeHarnessType: account.nativeHarnessType,
+  };
+}
+
 export function buildSourceOptions(
   modelIds: string[],
   accounts: KeyVaultAccount[],
@@ -33,14 +45,7 @@ export function buildSourceOptions(
         : false;
     const modelMatches = hasConcreteModelFilter ? hasAnyVariant : isCliAgent;
     if (modelMatches) {
-      options.push({
-        id: account.id,
-        label: account.name,
-        modelType: account.modelType,
-        type: KEY_SOURCE.OWN,
-        accountId: account.id,
-        nativeHarnessType: account.nativeHarnessType,
-      });
+      options.push(toSourceOption(account));
     }
   }
 
