@@ -2,13 +2,23 @@ import { z } from "zod";
 
 import type { SettingDefinition } from "@src/config/settingsSchema/types";
 
-/** Default LAN WebSocket port — shared with the IDE server (Phase 0). */
-export const MOBILE_REMOTE_DEFAULT_LAN_PORT = 13847;
+/**
+ * Default LAN WebSocket port of the Mobile Remote bridge.
+ *
+ * The bridge owns a listener separate from the unified IDE server so that LAN
+ * exposure can never widen the IDE server's unauthenticated `/git`, `/agent`,
+ * `/search` and `/ws` routes. This port therefore stays clear of the IDE
+ * server's per-instance range (13847 + instance offset).
+ *
+ * Must stay in sync with `DEFAULT_MOBILE_LAN_PORT` in
+ * `src-tauri/src/api/mobile_bridge/auth.rs`.
+ */
+export const MOBILE_REMOTE_DEFAULT_LAN_PORT = 13947;
 
 /**
  * Mobile Remote Control settings.
  *
- * Phase 0 uses a LAN WebSocket bridge on the IDE server. Phase 1+ adds
+ * Phase 0 uses a LAN WebSocket bridge on its own listener. Phase 1+ adds
  * relay pairing (`mobileRemoteApi`). The Settings → Mobile Remote section
  * gates LAN exposure, token display, and the paired-device list.
  */
@@ -63,7 +73,7 @@ export const MOBILE_REMOTE_SETTINGS_REGISTRY = {
     schema: z.number().int().min(1).max(65535),
     default: MOBILE_REMOTE_DEFAULT_LAN_PORT,
     description:
-      "TCP port for the Mobile Remote LAN WebSocket bridge (defaults to the IDE server port).",
+      "TCP port for the Mobile Remote LAN WebSocket bridge. The bridge listens on its own port, never on the IDE server port.",
     category: "mobileRemote",
   },
 } as const satisfies Record<string, SettingDefinition>;

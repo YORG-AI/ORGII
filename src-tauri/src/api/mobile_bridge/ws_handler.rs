@@ -2,7 +2,7 @@
 
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{Query, WebSocketUpgrade};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::HeaderMap;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use futures_util::{SinkExt, StreamExt};
@@ -21,27 +21,33 @@ pub struct MobileWsQuery {
     pub token: Option<String>,
 }
 
-/// GET /mobile/health — public liveness probe.
-pub async fn health_shallow() -> Json<Value> {
+/// GET /mobile/health — unauthenticated liveness probe.
+///
+/// Still gated on the live Mobile Remote settings so that switching the
+/// feature (or LAN exposure) off stops every bridge route answering on the
+/// next request, without waiting for the listener to be dropped at restart.
+pub async fn health_shallow() -> Response {
+    if let Err(failure) = auth::check_bridge_available(&auth::load_settings()) {
+        return failure_response(failure);
+    }
+
     Json(json!({
         "ok": true,
         "mobileBridge": true,
     }))
+    .into_response()
 }
 
 /// GET /mobile/health/deep — authenticated bridge status.
 pub async fn health_deep(headers: HeaderMap) -> Response {
     let token = auth::token_from_headers(&headers).ok_or(AuthFailure::MissingToken);
 
-    let settings = match token.and_then(|candidate| auth::validate_token(&candidate)) {
+    let settings = match token
+        .and_then(|candidate| auth::validate_token(&candidate))
+        .and_then(|settings| auth::check_bridge_available(&settings).map(|()| settings))
+    {
         Ok(settings) => settings,
-        Err(failure) => {
-            return (
-                failure.status_code(),
-                Json(json!({ "ok": false, "error": failure.message() })),
-            )
-                .into_response();
-        }
+        Err(failure) => return failure_response(failure),
     };
 
     Json(json!({
@@ -58,21 +64,23 @@ pub async fn mobile_ws_handler(
     Query(query): Query<MobileWsQuery>,
 ) -> Response {
     let Some(token) = query.token.filter(|value| !value.is_empty()) else {
-        return unauthorized_response("missing mobile token");
+        return failure_response(AuthFailure::MissingToken);
     };
 
-    let settings = match auth::validate_token(&token) {
+    let settings = match auth::validate_token(&token)
+        .and_then(|settings| auth::check_bridge_available(&settings).map(|()| settings))
+    {
         Ok(settings) => settings,
-        Err(failure) => return unauthorized_response(failure.message()),
+        Err(failure) => return failure_response(failure),
     };
 
     ws.on_upgrade(move |socket| handle_mobile_socket(socket, settings))
 }
 
-fn unauthorized_response(message: &str) -> Response {
+fn failure_response(failure: AuthFailure) -> Response {
     (
-        StatusCode::UNAUTHORIZED,
-        Json(json!({ "ok": false, "error": message })),
+        failure.status_code(),
+        Json(json!({ "ok": false, "error": failure.message() })),
     )
         .into_response()
 }
@@ -176,6 +184,7 @@ async fn handle_mobile_socket(socket: WebSocket, settings: MobileRemoteSettings)
 mod tests {
     use super::auth::{token_matches, AuthFailure, MobileRemoteSettings};
     use super::*;
+    use axum::http::StatusCode;
 
     #[test]
     fn validate_token_fails_when_feature_disabled() {

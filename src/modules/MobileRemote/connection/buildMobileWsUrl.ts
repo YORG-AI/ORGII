@@ -19,7 +19,10 @@ export function buildMobileWsUrl(config: MobileConnectionConfig): string {
     return url.toString();
   }
   const host = config.host?.trim();
-  const port = config.port ?? 13847;
+  // Keep in sync with MOBILE_REMOTE_DEFAULT_LAN_PORT in
+  // config/settingsSchema/registry/mobileRemote.ts. Inlined so the browser
+  // bundle does not pull the desktop settings registry.
+  const port = config.port ?? 13947;
   const token = config.token?.trim() ?? "";
   if (!host) {
     throw new Error("Mobile connection requires wsUrl or host");

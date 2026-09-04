@@ -18,7 +18,12 @@ export type ParseMobileRemoteWsUrlResult =
       errorKey: ParseMobileRemoteWsUrlErrorKey;
     };
 
-const DEFAULT_LAN_PORT = 13847;
+/**
+ * Keep in sync with MOBILE_REMOTE_DEFAULT_LAN_PORT in
+ * config/settingsSchema/registry/mobileRemote.ts. Inlined so the browser
+ * bundle does not pull the desktop settings registry.
+ */
+const DEFAULT_LAN_PORT = 13947;
 
 interface Phase1QrPayload {
   v?: number;
