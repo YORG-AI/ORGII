@@ -12,3 +12,6 @@ export {
 export { MenuPanel } from "./MenuPanel";
 export { default as ListPanelItem } from "./ListPanelItem";
 export type { ListPanelItemProps } from "./ListPanelItem";
+
+export { ListPanelGhostList } from "./ListPanelGhostItem";
+export type { ListPanelGhostListProps } from "./ListPanelGhostItem";

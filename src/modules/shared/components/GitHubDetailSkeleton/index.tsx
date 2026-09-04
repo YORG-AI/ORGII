@@ -1,6 +1,7 @@
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
+import GhostBar from "@src/components/Ghost";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
 import {
@@ -36,15 +37,6 @@ interface GitHubDetailSkeletonProps {
   number?: number;
 }
 
-function SkeletonBar({ className }: { className: string }): React.ReactNode {
-  return (
-    <div
-      aria-hidden
-      className={`animate-pulse rounded bg-fill-2 motion-reduce:animate-none ${className}`}
-    />
-  );
-}
-
 // The detail metadata pills and workstation-trail rows are both 26px tall.
 // Keep their placeholders at that height so loading does not make either
 // Work Item or PR detail surface look vertically compressed.
@@ -66,13 +58,11 @@ function SkeletonFlowHeader({
           ) : null}
         </h2>
       ) : (
-        <SkeletonBar className="h-7 w-full max-w-96" />
+        <GhostBar className="h-7 w-full max-w-96" />
       )}
       <div className={DETAIL_FLOW_HEADER_TOKENS.metadataRow}>
-        <SkeletonBar
-          className={`${SKELETON_CONTROL_HEIGHT} w-16 rounded-full`}
-        />
-        <SkeletonBar className="h-4 w-full max-w-72" />
+        <GhostBar className={`${SKELETON_CONTROL_HEIGHT} w-16 rounded-full`} />
+        <GhostBar className="h-4 w-full max-w-72" />
       </div>
     </div>
   );
@@ -83,17 +73,17 @@ function SkeletonDescriptionCard(): React.ReactNode {
     <TimelineCard
       header={
         <span className="flex min-w-0 items-center gap-2">
-          <SkeletonBar className="size-5 rounded-full" />
-          <SkeletonBar className="h-3 w-28" />
-          <SkeletonBar className="h-3 w-16" />
+          <GhostBar className="size-5 rounded-full" />
+          <GhostBar className="h-3 w-28" />
+          <GhostBar className="h-3 w-16" />
         </span>
       }
     >
       <div className="space-y-2.5">
-        <SkeletonBar className="block h-3 w-full" />
-        <SkeletonBar className="block h-3 w-11/12" />
-        <SkeletonBar className="block h-3 w-4/5" />
-        <SkeletonBar className="block h-3 w-2/3" />
+        <GhostBar className="h-3 w-full" />
+        <GhostBar className="h-3 w-11/12" />
+        <GhostBar className="h-3 w-4/5" />
+        <GhostBar className="h-3 w-2/3" />
       </div>
     </TimelineCard>
   );
@@ -171,9 +161,9 @@ const GitHubDetailSkeleton: React.FC<GitHubDetailSkeletonProps> = memo(
             className={`flex ${DETAIL_PANEL_TOKENS.headerHeight} shrink-0 items-center gap-3 px-4`}
             data-testid={`github-${kind}-detail-skeleton-header`}
           >
-            <SkeletonBar className="h-5 w-5 rounded-full" />
-            <SkeletonBar className="h-3 w-16" />
-            <SkeletonBar className="h-4 w-2/5" />
+            <GhostBar className="h-5 w-5 rounded-full" />
+            <GhostBar className="h-3 w-16" />
+            <GhostBar className="h-4 w-2/5" />
           </div>
         ) : null}
 
@@ -233,7 +223,7 @@ const GitHubDetailSkeleton: React.FC<GitHubDetailSkeletonProps> = memo(
                 {sidebarSections.map((label) => (
                   <WorkstationTrailSection key={label} title={label}>
                     <div className="px-2">
-                      <SkeletonBar
+                      <GhostBar
                         className={`${SKELETON_CONTROL_HEIGHT} w-24 rounded-lg`}
                       />
                     </div>

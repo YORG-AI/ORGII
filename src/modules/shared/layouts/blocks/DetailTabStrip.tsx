@@ -83,7 +83,7 @@ export default function DetailTabStrip<Key extends string>({
                 data-testid={
                   tab.countLoading ? "detail-tab-count-skeleton" : undefined
                 }
-                className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-fill-2 px-1.5 text-[10px] font-semibold text-text-2 tabular-nums ${tab.countLoading ? "animate-pulse motion-reduce:animate-none" : ""}`.trim()}
+                className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-fill-2 px-1.5 text-[10px] font-semibold text-text-2 tabular-nums"
               >
                 {tab.countLoading ? null : tab.count}
               </span>
