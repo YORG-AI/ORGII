@@ -446,9 +446,27 @@ export function toIconComponent(
   if (typeof source !== "string") return source;
   const cached = urlIconComponents.get(source);
   if (cached) return cached;
+  // Pass the remaining props through so wrappers that tag the glyph
+  // (`agentIcons.tsx` sets data-icon / data-brand) keep working; only the
+  // SVG-paint props that mean nothing on an <img> are dropped.
   const UrlIcon = forwardRef<SVGSVGElement, SVGProps<SVGSVGElement>>(
-    ({ width, height, className, style }, ref) =>
+    (
+      {
+        width,
+        height,
+        className,
+        style,
+        fill: _fill,
+        stroke: _stroke,
+        strokeWidth: _strokeWidth,
+        color: _color,
+        viewBox: _viewBox,
+        ...rest
+      },
+      ref
+    ) =>
       createElement("img", {
+        ...rest,
         src: source,
         width,
         height,
