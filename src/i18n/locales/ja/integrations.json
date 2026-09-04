@@ -639,27 +639,7 @@
     "preferred": "お気に入り",
     "comingSoon": "近日公開",
     "installedClis": "CLI クライアント",
-    "myRoles": "マイロール",
-    "modelWiki": "モデル Wiki"
-  },
-  "modelWiki": {
-    "description": "{{count}} 個の公開モデルのリファレンスカタログ。Context サイズ、出力上限、機能を掲載。",
-    "filterAllProviders": "すべてのプロバイダー",
-    "filterAllYears": "すべての年",
-    "columnProvider": "プロバイダー",
-    "columnModel": "モデル",
-    "columnContext": "Context",
-    "columnMaxTokens": "Max Tokens",
-    "columnCapabilities": "機能",
-    "columnAdded": "追加日",
-    "tipTools": "Tool 呼び出しに対応",
-    "tipNoTools": "Tool 呼び出しに非対応",
-    "tipReasoning": "Reasoning に対応",
-    "tipNoReasoning": "Reasoning に非対応",
-    "tipIncludeReasoning": "出力に Reasoning を含められます",
-    "tipNoIncludeReasoning": "出力に Reasoning を含められません",
-    "searchPlaceholder": "モデルを検索...",
-    "noMatchingModels": "一致するモデルがありません"
+    "myRoles": "マイロール"
   },
   "wizard": {
     "pickProvider": "プロバイダー",

@@ -636,27 +636,7 @@
     "preferred": "Tercih Edilen",
     "comingSoon": "Yakında",
     "installedClis": "CLI İstemcileri",
-    "myRoles": "Rollerim",
-    "modelWiki": "Model Wiki"
-  },
-  "modelWiki": {
-    "description": "Context boyutu, çıktı limitleri ve yetenekleriyle {{count}} herkese açık modelin referans kataloğu.",
-    "filterAllProviders": "Tüm sağlayıcılar",
-    "filterAllYears": "Tüm yıllar",
-    "columnProvider": "Sağlayıcı",
-    "columnModel": "Model",
-    "columnContext": "Context",
-    "columnMaxTokens": "Max Tokens",
-    "columnCapabilities": "Yetenekler",
-    "columnAdded": "Eklendi",
-    "tipTools": "Araç çağrısını destekler",
-    "tipNoTools": "Araç çağrısı desteği yok",
-    "tipReasoning": "Reasoning destekler",
-    "tipNoReasoning": "Reasoning desteği yok",
-    "tipIncludeReasoning": "Çıktıya Reasoning ekleyebilir",
-    "tipNoIncludeReasoning": "Çıktıya Reasoning ekleyemez",
-    "searchPlaceholder": "Model ara...",
-    "noMatchingModels": "Eşleşen model yok"
+    "myRoles": "Rollerim"
   },
   "wizard": {
     "pickProvider": "Sağlayıcı",

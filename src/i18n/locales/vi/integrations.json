@@ -639,27 +639,7 @@
     "preferred": "Ưu tiên",
     "comingSoon": "Sắp ra mắt",
     "installedClis": "CLI Clients",
-    "myRoles": "Vai trò của tôi",
-    "modelWiki": "Wiki mô hình"
-  },
-  "modelWiki": {
-    "description": "Danh mục tham khảo gồm {{count}} mô hình công khai với kích thước Context, giới hạn đầu ra và khả năng.",
-    "filterAllProviders": "Tất cả nhà cung cấp",
-    "filterAllYears": "Tất cả các năm",
-    "columnProvider": "Nhà cung cấp",
-    "columnModel": "Mô hình",
-    "columnContext": "Context",
-    "columnMaxTokens": "Max Tokens",
-    "columnCapabilities": "Khả năng",
-    "columnAdded": "Đã thêm",
-    "tipTools": "Hỗ trợ gọi công cụ",
-    "tipNoTools": "Không hỗ trợ gọi công cụ",
-    "tipReasoning": "Hỗ trợ Reasoning",
-    "tipNoReasoning": "Không hỗ trợ Reasoning",
-    "tipIncludeReasoning": "Có thể bao gồm Reasoning trong đầu ra",
-    "tipNoIncludeReasoning": "Không thể bao gồm Reasoning trong đầu ra",
-    "searchPlaceholder": "Tìm mô hình...",
-    "noMatchingModels": "Không có mô hình phù hợp"
+    "myRoles": "Vai trò của tôi"
   },
   "wizard": {
     "pickProvider": "Nhà cung cấp",

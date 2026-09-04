@@ -636,27 +636,7 @@
     "preferred": "선호",
     "comingSoon": "곧 출시",
     "installedClis": "CLI 클라이언트",
-    "myRoles": "내 역할",
-    "modelWiki": "모델 위키"
-  },
-  "modelWiki": {
-    "description": "{{count}}개 공개 모델의 참조 카탈로그. Context 크기, 출력 제한, 기능 포함.",
-    "filterAllProviders": "모든 제공자",
-    "filterAllYears": "모든 연도",
-    "columnProvider": "제공업체",
-    "columnModel": "모델",
-    "columnContext": "Context",
-    "columnMaxTokens": "Max Tokens",
-    "columnCapabilities": "기능",
-    "columnAdded": "추가일",
-    "tipTools": "Tool 호출 지원",
-    "tipNoTools": "Tool 호출 미지원",
-    "tipReasoning": "Reasoning 지원",
-    "tipNoReasoning": "Reasoning 미지원",
-    "tipIncludeReasoning": "출력에 Reasoning 포함 가능",
-    "tipNoIncludeReasoning": "출력에 Reasoning 포함 불가",
-    "searchPlaceholder": "모델 검색...",
-    "noMatchingModels": "일치하는 모델 없음"
+    "myRoles": "내 역할"
   },
   "wizard": {
     "pickProvider": "공급자",
