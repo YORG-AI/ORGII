@@ -134,13 +134,17 @@ export const replaceRunGroupEntryAtom = atom(
 );
 replaceRunGroupEntryAtom.debugLabel = "replaceRunGroupEntryAtom";
 
+const _runGroupByIdCache = new Map<string, Atom<RunGroup | undefined>>();
+
 export const removeRunGroupAtom = atom(null, (get, set, groupId: string) => {
   const { [groupId]: _removed, ...rest } = get(runGroupsAtom);
   set(runGroupsAtom, rest);
+  // Drop the derived atom too. Removing only the data left the per-id atom in
+  // the cache forever, so the map grew with every group ever created — the
+  // hand-rolled equivalent of an atomFamily that is never `remove`d.
+  _runGroupByIdCache.delete(groupId);
 });
 removeRunGroupAtom.debugLabel = "removeRunGroupAtom";
-
-const _runGroupByIdCache = new Map<string, Atom<RunGroup | undefined>>();
 
 /** Per-id atom so a group panel re-renders only for its own group. */
 export function runGroupByIdAtom(groupId: string): Atom<RunGroup | undefined> {
