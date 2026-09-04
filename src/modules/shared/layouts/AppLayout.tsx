@@ -36,9 +36,9 @@ import type { SessionCreatorChatPanelProps } from "@src/features/SessionCreator/
 import { dispatchWebviewLayoutChanged } from "@src/hooks/platform/useInlineWebview/webviewLayoutEvents";
 import {
   PANE_WIDTH_TRANSITION_CLASSES,
-  getChatPanelBackgroundStyle,
   getChatSlotLayoutStyle,
   getPagePanelBackgroundStyle,
+  getPrimaryPaneBackgroundStyle,
   getResizeIndicatorHostStyle,
   getWorkbenchLayoutStyle,
 } from "@src/modules/shared/layouts/viewContainerTokens";
@@ -203,11 +203,11 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
   const settingsSurfaceStyle = getPagePanelBackgroundStyle(
     backgroundConfig.pageOpacity
   );
-  const chatPanelSurfaceStyle = getChatPanelBackgroundStyle(
+  const primaryPaneSurfaceStyle = getPrimaryPaneBackgroundStyle(
     backgroundConfig.pageOpacity
   );
   const paneUnderlayStyle: React.CSSProperties = {
-    backgroundColor: chatPanelSurfaceStyle.backgroundColor,
+    backgroundColor: primaryPaneSurfaceStyle.backgroundColor,
   };
   const paneTransitionClassName = isChatPanelDragging
     ? ""

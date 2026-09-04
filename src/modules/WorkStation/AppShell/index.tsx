@@ -3,8 +3,10 @@ import React from "react";
 
 import { useCurrentTurnLastAgentMessage } from "@src/engines/Simulator/hooks/useCurrentTurnLastAgentMessage";
 import { useWorkStationPanels } from "@src/hooks/tabHost/useWorkStationPanels";
+import { getPrimaryPaneBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
 import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 import { workstationActiveSessionIdAtom } from "@src/store/session";
+import { resolvedBackgroundConfigAtom } from "@src/store/ui/backgroundConfigAtom";
 import { simulatorCaptionBarEnabledAtom } from "@src/store/ui/simulatorAtom";
 import {
   workStationFollowAgentHighlightEnabledAtom,
@@ -57,6 +59,7 @@ const AppShell = React.memo(
       workstationActiveSessionIdAtom
     );
     const activeWorkStationTab = useAtomValue(activeWorkStationTabAtom);
+    const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
     const { repoPath, repoName, pathExists, lastSeenPath } = useAppShellRepo();
     const { visitedModes } = useAppShellDock();
     // Called for its side effects on the workstation base path (station mode /
@@ -126,8 +129,15 @@ const AppShell = React.memo(
       isAgentStation,
       activeTabType: activeWorkStationTab?.type,
     });
+    const primaryPaneSurfaceStyle = React.useMemo(
+      () => getPrimaryPaneBackgroundStyle(backgroundConfig.pageOpacity),
+      [backgroundConfig.pageOpacity]
+    );
     return (
-      <div className="relative flex h-full w-full min-w-0 flex-col overflow-hidden bg-workstation-bg">
+      <div
+        className="relative flex h-full w-full min-w-0 flex-col overflow-hidden bg-workstation-bg"
+        style={isAgentStation ? undefined : primaryPaneSurfaceStyle}
+      >
         {isAgentStation && <AgentStationTopHeader />}
         <AgentStationChromeFrame
           enabled={followAgentHighlightEnabled && isAgentStation}

@@ -12,11 +12,12 @@ import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 /** Orgii Editor tab canvas — matches CodeMirror (--cm-editor-background on :root). */
 export const EDITOR_TAB_CANVAS_BG_CLASS = "bg-(--cm-editor-background)";
 
-/** Primary sidebar panel background — editor canvas from the former comfort palette. */
+/** Primary sidebar panel background — follows the host's editor/pane surface. */
 export const PRIMARY_SIDEBAR_SURFACE_BG_CLASS = EDITOR_TAB_CANVAS_BG_CLASS;
 
-/** Full-area empty / loading surfaces outside the main no-tabs placeholder. */
-export const WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS = "bg-pane-raised";
+/** Full-area empty / loading surfaces inherit the host's primary pane paint. */
+export const WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS =
+  EDITOR_TAB_CANVAS_BG_CLASS;
 
 /**
  * Shared geometry for compact content inside floating Workstation trails.

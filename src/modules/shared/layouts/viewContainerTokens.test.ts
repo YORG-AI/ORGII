@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   PANE_WIDTH_TRANSITION_CLASSES,
   getChatSlotLayoutStyle,
+  getPrimaryPaneBackgroundStyle,
   getResizeIndicatorHostStyle,
   getWorkbenchLayoutStyle,
 } from "./viewContainerTokens";
@@ -61,5 +62,18 @@ describe("pane width transitions", () => {
     ).toBe(1);
     expect(getWorkbenchLayoutStyle(true).flexGrow).toBe(0);
     expect(getWorkbenchLayoutStyle(false).flexGrow).toBe(1);
+  });
+});
+
+describe("primary pane surface", () => {
+  it("binds chat, workstation, editor, and gutter surfaces to one paint", () => {
+    const style = getPrimaryPaneBackgroundStyle(100) as Record<string, string>;
+    const surface = style.backgroundColor;
+
+    expect(surface).toContain("var(--color-primary-pane-bg)");
+    expect(style["--color-chat-pane"]).toBe(surface);
+    expect(style["--color-workstation-bg"]).toBe(surface);
+    expect(style["--cm-editor-background"]).toBe(surface);
+    expect(style["--cm-editor-gutter-bg"]).toBe(surface);
   });
 });

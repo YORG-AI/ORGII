@@ -12,7 +12,7 @@ import { ConversationParticipantsChip } from "@src/features/Org2Cloud/SessionCon
 import SessionViewersIndicator from "@src/features/Org2Cloud/SessionViewersIndicator";
 import SessionForkHeaderExtras from "@src/features/TeamCollaboration/components/SessionForkHeaderExtras";
 import { useShouldOffsetChatPanelHeader } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
-import { getChatPanelBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
+import { getPrimaryPaneBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
 import {
   chatPanelTabCountAtom,
   isChatPanelTabStationAvailable,
@@ -139,7 +139,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const chatMaxWidth = getChatMaxWidth(viewportWidth);
     const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
     const chatPanelOpacityStyle = React.useMemo(
-      () => getChatPanelBackgroundStyle(backgroundConfig.pageOpacity),
+      () => getPrimaryPaneBackgroundStyle(backgroundConfig.pageOpacity),
       [backgroundConfig.pageOpacity]
     );
     const chatWidth = clampChatWidth(rawChatWidth, viewportWidth);
