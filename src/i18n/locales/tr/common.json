@@ -1579,6 +1579,8 @@
       "chooseKey": "Bir anahtar seçin",
       "noCompatibleAccounts": "Uyumlu anahtar yok",
       "chooseModelHint": "Gezinmek için klavyeyi kullanın veya fareyle bir modele tıklayın",
+      "chooseKeyHint": "Gezinmek için klavyeyi kullanın veya fareyle bir anahtara tıklayın",
+      "noModelsForKey": "Bu anahtar için etkin model yok",
       "selectAccount": "Hesap seç"
     },
     "modelProperties": {
@@ -1740,6 +1742,7 @@
       "switchColumn": "Sütun değiştir",
       "switchSection": "Bölüm değiştir",
       "showPath": "Yolu göster",
+      "keyFirst": "Önce anahtar",
       "showBranchInfo": "Dal bilgilerini göster",
       "compatibleKeys": "Uyumlu",
       "planSupport": "Plan",

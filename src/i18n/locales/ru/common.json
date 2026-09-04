@@ -1590,6 +1590,8 @@
       "chooseKey": "Выберите ключ",
       "noCompatibleAccounts": "Нет совместимых ключей",
       "chooseModelHint": "Используйте клавиатуру для навигации или щелкните модель мышью",
+      "chooseKeyHint": "Используйте клавиатуру для навигации или щелкните ключ мышью",
+      "noModelsForKey": "Для этого ключа нет включённых моделей",
       "selectAccount": "Выберите аккаунт"
     },
     "modelProperties": {
@@ -1751,6 +1753,7 @@
       "switchColumn": "Сменить колонку",
       "switchSection": "Сменить раздел",
       "showPath": "Показывать путь",
+      "keyFirst": "Сначала ключ",
       "showBranchInfo": "Показывать информацию о ветках",
       "compatibleKeys": "Совместимые",
       "planSupport": "Plan",
