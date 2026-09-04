@@ -15,10 +15,7 @@ import type { MouseEvent, ReactNode } from "react";
 export type ResizeAxis = "x" | "y";
 
 /** Handle position relative to the resizable element */
-export type HandlePosition = "start" | "end";
-
-/** Resize direction for cursor styling */
-export type ResizeDirection = "horizontal" | "vertical";
+type HandlePosition = "start" | "end";
 
 // ============================================
 // Resize Session
@@ -91,7 +88,8 @@ export interface ResizableShellProps {
 // ============================================
 
 /** Visual variant for resize handle default (resting) state */
-export type ResizeHandleVariant = "transparent" | "border";
+type ResizeHandleVariant = "transparent" | "border";
+type ResizeHandleIndicatorPlacement = "start" | "center" | "end";
 
 export interface ResizeHandleProps {
   /** Resize axis */
@@ -108,6 +106,14 @@ export interface ResizeHandleProps {
   noAccent?: boolean;
   /** Right-click context menu handler */
   onContextMenu?: (event: MouseEvent) => void;
+  /** Contextual action shown after hovering the handle for one second */
+  tooltipLabel?: ReactNode;
+  /** Keyboard shortcut displayed beside the contextual tooltip label */
+  tooltipShortcut?: string;
+  /** Side of the divider into which the thicker center indicator extends */
+  indicatorPlacement?: ResizeHandleIndicatorPlacement;
+  /** Optional unclipped layout-boundary host for the visual indicator */
+  indicatorHost?: HTMLElement | null;
   /** Additional class name */
   className?: string;
 }
@@ -127,7 +133,7 @@ export interface GhostLayerProps {
 // Split Group Types
 // ============================================
 
-export interface SplitPaneConfig {
+interface SplitPaneConfig {
   /** Unique pane ID */
   id: string;
   /** Minimum size (pixels or percentage based on sizeUnit) */

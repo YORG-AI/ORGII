@@ -8,6 +8,7 @@ import { useSetAtom } from "jotai";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { Placeholder } from "@src/components/Placeholder";
 import { buildCloudRemoteItemId } from "@src/features/Org2Cloud/cloudRemoteItemId";
 import { useFileHistory } from "@src/hooks/git/useFileHistory";
@@ -235,7 +236,7 @@ export const TimelineContent: React.FC<TimelineContentProps> = memo(
     }
 
     return (
-      <div className="h-full overflow-y-auto pb-2 scrollbar-hide">
+      <div className="scrollbar-hide h-full overflow-y-auto pb-2">
         {!isGitTimeline && (fileSessions.length > 0 || sessionBackfill) && (
           <div
             className="py-1"
@@ -254,7 +255,8 @@ export const TimelineContent: React.FC<TimelineContentProps> = memo(
                 aria-label={t("actions.refresh")}
                 data-testid="session-blame-refresh"
               >
-                <SessionRefreshIcon
+                <AnyIcon
+                  icon={SessionRefreshIcon}
                   size={13}
                   strokeWidth={1.75}
                   className={sessionRefreshSpinClass}

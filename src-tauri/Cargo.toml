@@ -3,7 +3,6 @@ members = [
     ".",
     "crates/agent-cli",
     "crates/agent-core",
-    "crates/advanced-search",
     "crates/api-search",
     "crates/app-paths",
     "crates/app-platform",
@@ -14,7 +13,6 @@ members = [
     "crates/bin-telegram-smoke",
     "crates/browser",
     "crates/container",
-    "crates/ui-indexer",
     "crates/database",
     "crates/db-browser",
     "crates/db-clients",
@@ -26,6 +24,8 @@ members = [
     "crates/integrations",
     "crates/key-vault",
     "crates/lsp",
+    "crates/mobile-relay-protocol",
+    "crates/mobile-relay-server",
     "crates/orgtrack-cli",
     "crates/orgtrack-core",
     "crates/orgtrack-pm-cli",
@@ -162,7 +162,6 @@ default-run = "org2"
 # Tauri commands at runtime.
 [package.metadata.cargo-machete]
 ignored = [
-    "advanced_search",
     "agent_cli",
     "container",
     "db_browser",
@@ -218,13 +217,11 @@ core_types = { path = "crates/types" }
 # disk-usage report composes these paths into a per-category summary.
 app_paths = { path = "crates/app-paths" }
 
-# Small JSON file I/O helpers (read, write, merge, atomic save). Used by
-# CLI agent config modules and sensitive-token stores (auth, github,
-# extension secrets). Depends only on `app_paths` for the
-# `set_sensitive_file_permissions` chmod.
+# Small JSON file I/O helpers (read, write, merge) used by CLI agent config
+# modules, plus shared Serde defaults. No workspace-crate dependencies.
 app_utils = { path = "crates/app-utils" }
 
-# Native window helpers (macOS traffic-light positioning + liquid-glass
+# Native window helpers (macOS traffic-light positioning + menu vibrancy
 # background,
 # Windows DWM rounded corners, "Open new window" /
 # "Recreate main window" flows). Used by `app::lib`, the macOS app menu,
@@ -262,14 +259,6 @@ agent_cli = { path = "crates/agent-cli" }
 # event_pipeline_bridge, db_bridge, session_bridge}`; the wire crate fills
 # them in once at startup from `app::run()`.
 agent_core = { path = "crates/agent-core" }
-
-# Frontend-source-aware component index: parses tsx/jsx/vue/svelte to
-# build a component-name → source-location map for the Browser inspector
-# (jump-to-source from a clicked DOM element), plus token-extraction
-# Tauri commands that power the design-token panel. Pure leaf — `app`
-# only registers the commands in `commands/handler_list.inc` and
-# `.manage()`s the `UiIndexState` in `run()`.
-ui_indexer = { path = "crates/ui-indexer" }
 
 # LLM provider key vault, validation, and auto-detection. Keeps its
 # `#[tauri::command]` macros in-crate (cursor-bridge pattern); the
@@ -333,7 +322,6 @@ lsp = { path = "crates/lsp" }
 # handlers in the `api_search` crate likewise wrap them. Pure leaf — no
 # back-edges into `app`.
 search = { path = "crates/search" }
-advanced_search = { path = "crates/advanced-search" }
 
 # External-service integration adapters: OAuth token store, computer-use
 # lock, external-IDE openers, GitHub REST/gh-cli detect, and the per-session
@@ -428,6 +416,7 @@ session_persistence = { path = "crates/session-persistence" }
 # Pure leaf — no back-edges into `app`. The `app` crate just re-registers
 # the Tauri commands in `commands/handler_list.inc`.
 terminal = { path = "crates/terminal" }
+mobile_relay_protocol = { package = "mobile-relay-protocol", path = "crates/mobile-relay-protocol" }
 
 
 parking_lot = "0.12"           # Fast RwLock for state store
@@ -457,13 +446,14 @@ axum = { workspace = true }                              # Fast, ergonomic web f
 utoipa = { version = "5", features = ["axum_extras"] }  # OpenAPI code-first documentation (v5: OpenAPI 3.1 only, schemas auto-collected)
 tower-http = { version = "0.6", features = ["cors", "timeout"] }  # CORS + response timeout
 futures-util = "0.3"                                     # Stream utilities for WebSocket
+tokio-tungstenite = { workspace = true }                 # Outdoor Mobile Remote outbound relay transport
 
 # ===========================================
 # Code Search & Parsing — extracted to other crates
 # ===========================================
 #
 # Search, LSP, and browser parsing dependencies live in their owning
-# workspace crates (`search`, `ui_indexer`, `browser`). Don't add them back
+# workspace crates (`search`, `browser`). Don't add them back
 # here unless `app/src` directly imports them.
 
 # Utilities for code search
@@ -528,7 +518,6 @@ libc = "0.2"
 default = []
 # E2E WebDriver automation plugin (debug/test only). Enable with --features webdriver.
 webdriver = ["dep:tauri-plugin-webdriver-automation"]
-semantic-search = ["advanced_search/semantic-search"]
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
 tauri-plugin-single-instance = { version = "2.0.0", features = ["deep-link"] }
 
@@ -539,7 +528,6 @@ windows = { version = "0.61", features = [
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-tauri-plugin-liquid-glass = "0.1.6"
 objc2 = { workspace = true }
 objc2-foundation = { workspace = true }
 objc2-app-kit = { workspace = true }

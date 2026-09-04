@@ -4,10 +4,10 @@
  * Derives grouped project lists from a flat filtered list and a group mode.
  * Extracted to keep Projects/index.tsx under the 600-line limit.
  */
-import { CalendarClock } from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { HugeiconsIcon, TimeScheduleIcon } from "@src/icons";
 import {
   STORY_STATUS_OPTIONS,
   getProjectPriorityConfig,
@@ -72,7 +72,8 @@ export function useProjectsGrouping({
       return TARGET_DATE_GROUPS.map((group) => ({
         key: group,
         label: t(`projects.targetDateGroups.${group}`),
-        icon: React.createElement(CalendarClock, {
+        icon: React.createElement(HugeiconsIcon, {
+          icon: TimeScheduleIcon,
           size: 14,
           strokeWidth: 1.75,
         }),

@@ -45,6 +45,18 @@ interface UseProjectManagerSidebarConfigReturn {
   activePrimarySidebarConfig: PrimarySidebarConfig;
 }
 
+export function shouldDisableProjectManagerSidebar(
+  activeTab: Pick<WorkStationTab, "id" | "type"> | null,
+  embeddedWorkItemDetailTabs: Record<string, boolean>
+): boolean {
+  return Boolean(
+    activeTab?.type === "project-dashboard" ||
+    activeTab?.type === "project-work-items" ||
+    activeTab?.type === "workItem-detail" ||
+    (activeTab && embeddedWorkItemDetailTabs[activeTab.id])
+  );
+}
+
 export function useProjectManagerSidebarConfig({
   repoPath,
   repoName,
@@ -170,13 +182,13 @@ export function useProjectManagerSidebarConfig({
     [setPrimarySidebarWidth, handleCloseSidebar]
   );
 
-  const activeTabShowsIssueDetail = Boolean(
-    activeTab?.type === "workItem-detail" ||
-    (activeTab && embeddedWorkItemDetailTabs[activeTab.id])
+  const activeTabHasNoSidebar = shouldDisableProjectManagerSidebar(
+    activeTab,
+    embeddedWorkItemDetailTabs
   );
 
   return {
-    activePrimarySidebarConfig: activeTabShowsIssueDetail
+    activePrimarySidebarConfig: activeTabHasNoSidebar
       ? hiddenPrimarySidebarConfig
       : primarySidebarConfig,
   };

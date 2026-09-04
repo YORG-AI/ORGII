@@ -90,11 +90,15 @@ export function formatCliTuiCommand(
   const executable = profile.commandOverridden
     ? profile.command
     : detectedCommand;
-  // `codex exec` is the headless runner and requires a prompt. TUI launches
-  // must start Codex's interactive CLI instead, while retaining its selected
-  // permission-mode flags (which Codex also accepts at the top level).
+  // Headless-only arguments must not leak into an interactive terminal.
+  // Codex's top-level command is interactive. DeepSeek Harness delegates its
+  // terminal UI to the separately configured `tui` profile.
   const requiredArgs =
-    profile.agentName === CLI_AGENT.CODEX ? [] : profile.requiredArgs;
+    profile.agentName === CLI_AGENT.CODEX
+      ? []
+      : profile.agentName === CLI_AGENT.DEEPSEEK_HARNESS
+        ? ["--profile", "tui"]
+        : profile.requiredArgs;
   return [executable, ...requiredArgs, ...profile.args]
     .filter((part) => part.trim().length > 0)
     .map((part) => quoteShellArg(part, windows))

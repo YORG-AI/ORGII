@@ -1,4 +1,3 @@
-import { RefreshCw } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,6 +13,7 @@ import SettingsTable, {
   type SettingsTableSelectFilter,
 } from "@src/components/SettingsTable";
 import Tooltip from "@src/components/Tooltip";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import { SECTION_SUBHEADING_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
 import { formatRelativeElapsedShort } from "@src/util/data/formatters/date";
@@ -136,11 +136,11 @@ export default function UsageRoundsTable({
           );
           return (
             <div className="flex flex-col items-end">
-              <span className="tabular-nums text-text-2">
+              <span className="text-text-2 tabular-nums">
                 {formatTokensShort(record.inputTokens)}
               </span>
               {cache && (
-                <span className="text-[10px] tabular-nums text-text-3">
+                <span className="text-[10px] text-text-3 tabular-nums">
                   {cache}
                 </span>
               )}
@@ -154,7 +154,7 @@ export default function UsageRoundsTable({
         align: "right",
         width: 80,
         renderCell: (record) => (
-          <span className="tabular-nums text-text-2">
+          <span className="text-text-2 tabular-nums">
             {formatTokensShort(record.outputTokens)}
           </span>
         ),
@@ -180,7 +180,7 @@ export default function UsageRoundsTable({
               />
             }
           >
-            <span className="cursor-help tabular-nums text-text-1 underline decoration-text-3 decoration-dotted underline-offset-2">
+            <span className="cursor-help text-text-1 tabular-nums underline decoration-text-3 decoration-dotted underline-offset-2">
               {costLabel(record.costUsd)}
             </span>
           </Tooltip>
@@ -316,7 +316,13 @@ export default function UsageRoundsTable({
               loading={loading}
               loadingSpinIcon
               disabled={loading}
-              icon={<RefreshCw size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Refresh04Icon}
+                  data-icon="refresh-cw"
+                  size={14}
+                />
+              }
               aria-label={t("usage.refresh")}
               title={t("usage.refresh")}
               data-testid="usage-rounds-refresh"

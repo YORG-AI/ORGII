@@ -5,44 +5,38 @@
  * All consumers should import from mainAppPaths.ts (which re-exports everything
  * here) so import paths are stable.
  */
+import { type RenderableIcon } from "@src/components/AnyIcon";
 import {
-  Infinity as InfinityIcon,
-  Activity,
-  AppWindow,
-  BadgeCent,
-  Braces,
-  CalendarArrowUp,
-  Chromium,
-  ClipboardList,
-  Cloud,
-  Code,
-  CreditCard,
-  Database,
-  FileText,
-  FolderGit2,
-  FolderOpen,
-  Hammer,
-  Inbox,
-  Key,
-  Network,
-  Package,
-  PackageCheck,
-  Paintbrush,
-  Palette,
-  Rocket,
-  RulerDimensionLine,
-  Settings2,
-  Settings as SettingsIcon,
-  ShieldCheck,
-  Sparkles,
-  Toolbox,
-  Unplug,
-  UserRoundCog,
-  Wallet,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-
-import { McpLogoIcon } from "@src/assets/channelIcons/McpLogoIcon";
+  Activity01Icon as Activity,
+  HierarchyCircle01Icon as AgentTeams,
+  DeliveryBox01Icon as Box,
+  FirstBracketIcon as Braces,
+  InternetIcon as Chromium,
+  CodeXmlIcon as Code,
+  CursorMagicSelection04Icon as ComputerUse,
+  ContentWritingIcon as ContentWriting,
+  ContrastIcon as Contrast,
+  DatabaseIcon as Database,
+  FolderGitTwoIcon as FolderGit2,
+  FolderOpenIcon as FolderOpen,
+  LegalHammerIcon as Hammer,
+  InboxIcon as Inbox,
+  Key01Icon as Key,
+  McpServerIcon,
+  HierarchyCircle01Icon as Network,
+  PackageIcon as Package,
+  PaintBrush01Icon as Paintbrush,
+  TwentyFourHoursClockIcon as RoutineClock,
+  RulerDimensionLineIcon as RulerDimensionLine,
+  Settings02Icon as Settings2,
+  Settings01Icon as SettingsIcon,
+  SecurityCheckIcon as ShieldCheck,
+  SmartPhone01Icon as SmartPhone,
+  SparklesIcon as Sparkles,
+  ToolboxIcon as Toolbox,
+  UnplugIcon as Unplug,
+  UserRoundCogIcon as UserRoundCog,
+} from "@src/icons";
 
 // ============================================================================
 // Registry Entry Type
@@ -56,7 +50,11 @@ import { McpLogoIcon } from "@src/assets/channelIcons/McpLogoIcon";
  */
 export interface SegmentRegistryEntry {
   labelKey: string;
-  icon: LucideIcon;
+  /**
+   * Either hugeicons glyph data or a brand component (e.g. the MCP logo).
+   * Render through `AnyIcon` — never `HugeiconsIcon` directly.
+   */
+  icon: RenderableIcon;
 }
 
 // ============================================================================
@@ -71,7 +69,7 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
     labelKey: "navigation:labels.coreSettings",
     icon: SettingsIcon,
   },
-  agents: { labelKey: "navigation:labels.agentOrgs", icon: InfinityIcon },
+  agents: { labelKey: "navigation:labels.agentOrgs", icon: AgentTeams },
   org: { labelKey: "settings:sections.agentOrg", icon: Network },
   orgs: { labelKey: "settings:sections.agentOrg", icon: Network },
   clis: { labelKey: "integrations:agentOrgs.tableTabs.clis", icon: Code },
@@ -93,7 +91,7 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
   tools: { labelKey: "integrations:categories.tools", icon: Hammer },
   computerUse: {
     labelKey: "integrations:categories.computerUse",
-    icon: AppWindow,
+    icon: ComputerUse,
   },
   connections: {
     labelKey: "integrations:categories.connections",
@@ -114,7 +112,7 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
   },
   routines: {
     labelKey: "integrations:categories.routines",
-    icon: CalendarArrowUp,
+    icon: RoutineClock,
   },
   devtools: { labelKey: "integrations:categories.devtools", icon: Braces },
 
@@ -130,7 +128,7 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
   // mcp / skills (legacy segment keys + per-agent labels)
   mcp: {
     labelKey: "integrations:toolsArea.mcp",
-    icon: McpLogoIcon as unknown as LucideIcon,
+    icon: McpServerIcon,
   },
   skills: { labelKey: "integrations:categories.skills", icon: Toolbox },
   // settings root — the unified surface header
@@ -144,40 +142,29 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
 
   // settings sections
   general: { labelKey: "settings:sections.general", icon: Settings2 },
-  collaboration: {
-    labelKey: "settings:sections.collaboration",
-    icon: Cloud,
-  },
-  appearance: { labelKey: "settings:sections.appearance", icon: Palette },
+  appearance: { labelKey: "settings:sections.appearance", icon: Contrast },
   editor: { labelKey: "settings:sections.editorAndWorkspace", icon: Code },
   security: { labelKey: "settings:sections.security", icon: ShieldCheck },
+  "mobile-remote": {
+    labelKey: "settings:sections.mobileRemote",
+    icon: SmartPhone,
+  },
   update: { labelKey: "settings:sections.appUpdate", icon: Package },
   monitor: { labelKey: "settings:sections.monitor", icon: Activity },
 
   // work-station roots
   workstation: { labelKey: "navigation:labels.workspace", icon: FolderOpen },
-  code: { labelKey: "navigation:labels.codeEditor", icon: Code },
+  code: { labelKey: "navigation:labels.codeEditor", icon: ContentWriting },
   browser: { labelKey: "navigation:labels.browser", icon: Chromium },
   project: {
     labelKey: "navigation:labels.projectManager",
-    icon: ClipboardList,
+    icon: Box,
   },
   inbox: { labelKey: "navigation:labels.inbox", icon: Inbox },
   "select-repo": {
     labelKey: "navigation:routes.selectProject",
     icon: FolderOpen,
   },
-
-  // economy
-  market: { labelKey: "navigation:labels.economy", icon: BadgeCent },
-  tokens: { labelKey: "navigation:routes.tokenMarket", icon: CreditCard },
-  services: { labelKey: "navigation:routes.serviceMarket", icon: PackageCheck },
-  "agent-apps": { labelKey: "navigation:routes.agentMarket", icon: Sparkles },
-  "agent-studio": { labelKey: "navigation:routes.agentStudio", icon: Rocket },
-  wallet: { labelKey: "navigation:labels.wallet", icon: Wallet },
-  earnings: { labelKey: "navigation:labels.earnings", icon: FileText },
-  boost: { labelKey: "navigation:labels.boost", icon: Sparkles },
-  profile: { labelKey: "navigation:routes.myProfile", icon: Sparkles },
 };
 
 // ============================================================================
@@ -198,7 +185,7 @@ const BREADCRUMB_HIDDEN_SEGMENTS = new Set<string>([
 ]);
 
 /** Returns the icon for a given URL segment, or `null`. */
-export function getSegmentIcon(segment: string): LucideIcon | null {
+export function getSegmentIcon(segment: string): RenderableIcon | null {
   return SEGMENT_REGISTRY[segment]?.icon ?? null;
 }
 
@@ -211,7 +198,7 @@ export function getSegmentLabelKey(segment: string): string | null {
  * Derive the icon for a full pathname — returns the icon of the deepest
  * visible segment (Spotlight uses this so entries match sidebar glyphs).
  */
-export function getPathIcon(pathname: string): LucideIcon | null {
+export function getPathIcon(pathname: string): RenderableIcon | null {
   const cleaned = pathname.split("?")[0].split("#")[0];
   const parts = cleaned.split("/").filter((s) => s.length > 0);
   for (let i = parts.length - 1; i >= 0; i--) {

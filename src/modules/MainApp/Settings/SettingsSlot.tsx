@@ -26,7 +26,6 @@ import {
   SettingsBreadcrumb,
 } from "@/src/modules/shared/layouts/blocks";
 import { useAtomValue, useSetAtom } from "jotai";
-import { ChevronLeft, GalleryThumbnails, Maximize2 } from "lucide-react";
 import React, { Suspense, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
@@ -53,6 +52,12 @@ import { getSettingsSectionById } from "@src/config/settingsUiManifest";
 // workbench surface behaves identically across both slot occupants.
 import { useChatPanelResize } from "@src/engines/ChatPanel/hooks/useChatPanelResize";
 import { useShouldOffsetChatPanelHeader } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
+import {
+  ArrowExpand01Icon,
+  GalleryThumbnailsIcon,
+  Home01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 import IntegrationsDetailPanel from "@src/modules/MainApp/Integrations/IntegrationsDetailPanel";
 import { IntegrationsPageListColumn } from "@src/modules/MainApp/Integrations/IntegrationsPageListColumn";
 import { useIntegrationsPage } from "@src/modules/MainApp/Integrations/useIntegrationsPage";
@@ -81,6 +86,8 @@ interface SettingsSlotProps {
   position: ChatPanelPosition;
   /** True when hosted as a flex sibling (full/compact); false when inset. */
   embedded: boolean;
+  /** Unclipped boundary host for the centered resize indicator. */
+  resizeIndicatorHost?: HTMLElement | null;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -177,11 +184,9 @@ const SettingsSlotIntegrationsBody: React.FC = () => {
   const content = hasFullPageDetail ? (
     <SplitViewLayout
       className="settings-page absolute inset-0 overflow-hidden"
-      collapsible={true}
       listWidth={300}
       minListWidth={220}
       maxListWidth={400}
-      resizable={true}
       listContent={<IntegrationsPageListColumn {...listColumnProps} />}
       mainContent={<IntegrationsDetailPanel {...detailPanelProps} />}
     />
@@ -247,6 +252,7 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
   maximized,
   position,
   embedded,
+  resizeIndicatorHost,
 }) => {
   const { t } = useTranslation("settings");
   const { t: tCommon } = useTranslation("common");
@@ -316,6 +322,14 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
     >
       {!maximized && (
         <VerticalResizeHandle
+          indicatorHost={resizeIndicatorHost}
+          indicatorPlacement={
+            resizeIndicatorHost
+              ? "center"
+              : position === "left"
+                ? "start"
+                : "end"
+          }
           onMouseDown={handleMouseDown}
           variant={embedded ? "border" : "transparent"}
           noAccent={!embedded}
@@ -323,7 +337,7 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
       )}
       <div
         ref={panelRef}
-        className="relative flex h-full min-w-0 max-w-full flex-1 flex-col overflow-hidden"
+        className="relative flex h-full max-w-full min-w-0 flex-1 flex-col overflow-hidden"
         style={
           {
             // Match ChatPanel: inset/comfort mode rounds the slot; full/
@@ -337,6 +351,9 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
         }
       >
         <MainAppPageHeader
+          // With the sidebar visible, mirror the folded Chat Pane's 15px
+          // header inset. The collapsed-sidebar offset remains unchanged.
+          className={sidebarCollapsed ? "" : "pl-[15px]!"}
           style={pageOpacityStyle}
           offsetForCollapsedSidebar={offsetForCollapsedSidebar}
           breadcrumb={
@@ -350,10 +367,17 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
                   onClick={handleBack}
                   aria-label={tCommon("actions.back")}
                   title={tCommon("actions.back")}
-                  icon={<ChevronLeft size={16} strokeWidth={2} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Home01Icon}
+                      data-icon="home"
+                      size={16}
+                      strokeWidth={2}
+                    />
+                  }
                 />
               ) : null}
-              <SettingsBreadcrumb />
+              <SettingsBreadcrumb className={sidebarCollapsed ? "" : "px-1!"} />
             </>
           }
           actions={
@@ -375,9 +399,19 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
                     aria-label={maximizeLabel}
                     icon={
                       maximized ? (
-                        <GalleryThumbnails size={14} strokeWidth={2} />
+                        <HugeiconsIcon
+                          icon={GalleryThumbnailsIcon}
+                          data-icon="gallery-thumbnails"
+                          size={14}
+                          strokeWidth={2}
+                        />
                       ) : (
-                        <Maximize2 size={14} strokeWidth={2} />
+                        <HugeiconsIcon
+                          icon={ArrowExpand01Icon}
+                          data-icon="maximize-2"
+                          size={14}
+                          strokeWidth={2}
+                        />
                       )
                     }
                   />

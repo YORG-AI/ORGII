@@ -79,11 +79,8 @@ import { createGitWorktree, getGitWorktrees } from "./worktrees";
 // Re-export all types
 export * from "./types";
 
-// Re-export client utilities
-export { clearStatusCache } from "./client";
-
 // Re-export status functions
-export { getGitStatus, getGitSuggestedAction } from "./status";
+export { getGitStatus } from "./status";
 
 // Re-export worktree functions
 export {
@@ -95,28 +92,15 @@ export {
 // Re-export branch functions
 export {
   getGitBranches,
-  getGitCurrentBranch,
   getGitCurrentBranchName,
-  getGitAheadBehind,
   getGitDefaultBranch,
 } from "./branches";
 
 // Re-export commit functions
-export {
-  getGitCommits,
-  getGitLocalCommits,
-  gitCommit,
-  gitAmendCommit,
-} from "./commits";
+export { getGitCommits, gitCommit, gitAmendCommit } from "./commits";
 
 // Re-export remote functions
-export {
-  getGitRemotes,
-  addGitRemote,
-  updateGitRemote,
-  deleteGitRemote,
-  fillGitCredentials,
-} from "./remotes";
+export { getGitRemotes, fillGitCredentials } from "./remotes";
 
 // Re-export remote operations
 export { gitFetch, gitPull, gitPush } from "./operations";
@@ -138,33 +122,19 @@ export {
 } from "./staging";
 
 // Re-export branch operations
-export {
-  gitCreateBranch,
-  gitDeleteBranch,
-  gitRenameBranch,
-  gitCheckout,
-} from "./branchOps";
+export { gitCreateBranch, gitDeleteBranch, gitCheckout } from "./branchOps";
 
 // Re-export merge functions
-export { gitMerge, gitMergeAbort, gitMergeContinue } from "./merge";
+export { gitMergeAbort } from "./merge";
 
 // Re-export rebase functions
-export {
-  gitRebase,
-  gitRebaseAbort,
-  gitRebaseContinue,
-  gitRebaseSkip,
-} from "./rebase";
+export { gitRebaseAbort } from "./rebase";
 
 // Re-export cherry-pick functions
-export {
-  gitCherryPick,
-  gitCherryPickContinue,
-  gitCherryPickAbort,
-} from "./cherryPick";
+export { gitCherryPick } from "./cherryPick";
 
 // Re-export revert functions
-export { gitRevert, gitRevertAbort } from "./revert";
+export { gitRevert } from "./revert";
 
 // Re-export reset function
 export { gitReset } from "./reset";
@@ -172,13 +142,9 @@ export { gitReset } from "./reset";
 // Re-export diff functions
 export {
   getGitFileContent,
-  getGitFileDiff,
   getGitBatchFileDiffs,
-  getGitDiffNumstat,
   getGitDiffNumstatCombined,
   getGitDiffSummary,
-  getGitStagedDiff,
-  getGitStagedFileDiff,
   getGitCommitDiff,
 } from "./diff";
 

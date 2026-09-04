@@ -24,8 +24,21 @@ function createTauriArgs({ features = [], devUrl } = {}) {
   return args;
 }
 
-function createFrontendScriptName({ lightDev = false } = {}) {
-  return lightDev ? "dev:frontend:light" : "dev:frontend";
+function createFrontendScriptName({
+  lightDev = false,
+  rspack = undefined,
+  platform = process.platform,
+} = {}) {
+  // Light dev wins over rspack: the light mode's esbuild/no-HMR tradeoffs
+  // have no rspack equivalent yet.
+  if (lightDev) return "dev:frontend:light";
+  // Default: rspack everywhere except Windows. config/rspack.config.js now
+  // carries the WebKitGTK eager-App + retry-loader path Linux needs, and that
+  // path is verified against a real Tauri boot; Windows has not been exercised
+  // on rspack yet. ORGII_RSPACK=true/false (--rspack/--webpack) overrides the
+  // platform default in either direction.
+  const useRspack = rspack ?? platform !== "win32";
+  return useRspack ? "dev:frontend:rspack" : "dev:frontend";
 }
 
 function createDevUrl(env = process.env) {

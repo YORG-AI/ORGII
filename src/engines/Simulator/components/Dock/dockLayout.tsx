@@ -22,8 +22,8 @@ const DOCK_SEGMENT_DIVIDER_PADDING_TOP_PX =
 
 const DOCK_SEGMENT_LINE_CLASS = "w-px shrink-0 bg-border-2";
 
-/** Passed to Lucide icons inside dock slots */
-export const DOCK_LUCIDE_ICON_PROPS = {
+/** Passed to glyph icons inside dock slots */
+export const DOCK_ICON_PROPS = {
   size: 20,
   strokeWidth: 1.75,
 } as const;
@@ -49,7 +49,7 @@ export type DockIconTrailerMode =
   | "overflow-marker";
 
 /** Nudge Agent focus dots slightly closer to the icon; layout box unchanged (transform only). */
-const DOCK_TRAILER_DOT_NUDGE_UP_CLASS = "-translate-y-[2.5px]";
+const DOCK_TRAILER_DOT_NUDGE_UP_CLASS = "translate-y-[-2.5px]";
 
 export const DockSegmentDivider: React.FC = memo(() => (
   <div
@@ -93,7 +93,7 @@ export interface StationDockRowProps {
 
 export const StationDockRow: React.FC<StationDockRowProps> = memo(
   ({ children, trailing }) => (
-    <div className="relative flex w-full min-w-0 max-w-full items-center justify-center gap-2">
+    <div className="relative flex w-full max-w-full min-w-0 items-center justify-center gap-2">
       {children}
       {trailing ?? null}
     </div>
@@ -133,7 +133,7 @@ export const DockIconColumn: React.FC<DockIconColumnProps> = memo(
     );
 
     return (
-      <div className="group relative flex flex-col items-center gap-[1px] overflow-visible">
+      <div className="group relative flex flex-col items-center gap-px overflow-visible">
         {children}
         <div className={bottomWrapperClass}>{bottomContent}</div>
       </div>

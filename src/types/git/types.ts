@@ -50,8 +50,3 @@ export interface GitFile {
   /** All session IDs whose session-file history references this file. */
   sessionIds?: string[];
 }
-
-/**
- * Loading state for git actions (keyed by file path or operation ID)
- */
-export type ActionLoadingState = Record<string, boolean>;

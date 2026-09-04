@@ -1,13 +1,14 @@
-import {
-  GitBranch,
-  GitMerge,
-  GitPullRequest,
-  GitPullRequestClosed,
-  GitPullRequestDraft,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
+import {
+  GitMergeIcon,
+  GitPullRequestClosedIcon,
+  GitPullRequestDraftIcon,
+  GitPullRequestIcon,
+  type IconSvgElement,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import type { BranchPrSnapshot } from "@src/store/git";
 import {
   type SessionGitLinkSource,
@@ -22,25 +23,25 @@ import {
  */
 const PR_STATUS_PRESENTATION: Record<
   string,
-  { Icon: LucideIcon; color: string; label: string }
+  { Icon: IconSvgElement; color: string; label: string }
 > = {
   open: {
-    Icon: GitPullRequest,
+    Icon: GitPullRequestIcon,
     color: "var(--color-success-6)",
     label: "Open PR",
   },
   draft: {
-    Icon: GitPullRequestDraft,
+    Icon: GitPullRequestDraftIcon,
     color: "var(--color-text-3)",
     label: "Draft PR",
   },
   merged: {
-    Icon: GitMerge,
+    Icon: GitMergeIcon,
     color: "var(--color-purple-6)",
     label: "Merged PR",
   },
   closed: {
-    Icon: GitPullRequestClosed,
+    Icon: GitPullRequestClosedIcon,
     color: "var(--color-danger-6)",
     label: "Closed PR",
   },
@@ -72,7 +73,7 @@ export function renderSessionGitIndicator(
   if (!prPresentation && !link.isActiveWorktree) return null;
 
   const { Icon, color, label } = prPresentation ?? {
-    Icon: GitBranch,
+    Icon: WorkflowCircle05Icon,
     color: "var(--color-success-6)",
     label: "Worktree branch",
   };
@@ -87,7 +88,7 @@ export function renderSessionGitIndicator(
       className="inline-flex shrink-0 items-center leading-none"
       style={{ color }}
     >
-      <Icon size={11} strokeWidth={2} />
+      <AnyIcon icon={Icon} size={11} strokeWidth={2} />
     </span>
   );
 }

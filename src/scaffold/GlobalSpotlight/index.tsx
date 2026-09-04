@@ -18,6 +18,8 @@ import {
 } from "@src/store/workspace";
 
 import { SPOTLIGHT_FOOTER_ACTIVE_CHIP } from "./components";
+import CollabOrgForm from "./forms/CollabOrg/CollabOrgForm";
+import GitHubIssuesImportForm from "./forms/GitHubIssuesImport/GitHubIssuesImportForm";
 import { getEditorPaletteMode } from "./globalSpotlight.helpers";
 import {
   type AddWorkspaceModalStage,
@@ -76,9 +78,10 @@ const GlobalSpotlightInner: React.FC<
   const {
     workspacePickerMode,
     setWorkspacePickerMode,
+    collabOrgContext,
+    githubIssuesImportContext,
     embeddedBranchMode,
     setEmbeddedBranchMode,
-    embeddedWorktreeMode,
     setEmbeddedWorktreeMode,
     branchPickerOpen,
     setBranchPickerOpen,
@@ -94,6 +97,8 @@ const GlobalSpotlightInner: React.FC<
     setPendingRestoreItemId,
     restoreLastActivatedItem,
     handleOpenWorkspacePicker,
+    handleOpenCollabOrg,
+    handleOpenGitHubIssuesImport,
     handleOpenBranchPicker,
     handleOpenWorktreePicker,
     handleOpenAgentSessionSearch,
@@ -102,6 +107,8 @@ const GlobalSpotlightInner: React.FC<
     handleOpenSessionCreator,
     handleOpenEditorPalette,
     handleCloseWorkspacePicker,
+    handleCloseCollabOrg,
+    handleCloseGitHubIssuesImport,
     handleCloseBranchPicker,
     handleCloseWorktreePicker,
     handleCloseAgentSessionSearch,
@@ -158,6 +165,8 @@ const GlobalSpotlightInner: React.FC<
     isOpen:
       isOpen &&
       !workspacePickerMode &&
+      !collabOrgContext &&
+      !githubIssuesImportContext &&
       !branchPickerOpen &&
       !worktreePickerOpen &&
       !agentSessionSearchOpen &&
@@ -167,6 +176,8 @@ const GlobalSpotlightInner: React.FC<
     dispatch: spotlightDispatch,
     closeModal,
     onOpenWorkspaceLayer: handleOpenWorkspacePicker,
+    onOpenCollabOrgLayer: handleOpenCollabOrg,
+    onOpenGitHubIssuesImportLayer: handleOpenGitHubIssuesImport,
     onOpenBranchLayer: handleOpenBranchPicker,
     onOpenWorktreeLayer: handleOpenWorktreePicker,
     onOpenEditorLayer: handleOpenEditorPalette,
@@ -245,6 +256,8 @@ const GlobalSpotlightInner: React.FC<
   useEffect(() => {
     if (
       workspacePickerMode ||
+      collabOrgContext ||
+      githubIssuesImportContext ||
       branchPickerOpen ||
       worktreePickerOpen ||
       agentSessionSearchOpen ||
@@ -277,6 +290,8 @@ const GlobalSpotlightInner: React.FC<
     setPendingRestoreItemId,
     spotlight.items,
     workspacePickerMode,
+    collabOrgContext,
+    githubIssuesImportContext,
     branchPickerOpen,
     worktreePickerOpen,
     agentSessionSearchOpen,
@@ -303,6 +318,10 @@ const GlobalSpotlightInner: React.FC<
         return t("selectors.spotlight.placeholders.source");
       case "language":
         return t("settings:general.languageSearchPlaceholder");
+      case "theme":
+        return t("common:spotlightActions.searchThemes");
+      case "skin":
+        return t("common:spotlightActions.searchSkins");
       default:
         return t("selectors.spotlight.placeholders.actions");
     }
@@ -320,6 +339,8 @@ const GlobalSpotlightInner: React.FC<
   // Single SpotlightShell wraps the whole normal-mode tree.
   const hasActiveAction =
     !!workspacePickerMode ||
+    !!collabOrgContext ||
+    !!githubIssuesImportContext ||
     branchPickerOpen ||
     worktreePickerOpen ||
     agentSessionSearchOpen ||
@@ -335,14 +356,37 @@ const GlobalSpotlightInner: React.FC<
       : workspacePickerMode === "open"
         ? "add-workspace-existing"
         : null;
+  // Tab keeps switching between the list and the pinned action section in
+  // every mode that still renders one, so the hint chip must not flip to
+  // "Back" the moment a palette drills into remove mode — the footer would
+  // resize under the user mid-interaction. The branch palette's create
+  // modes are the exception: they render no pinned section at all.
   const activeActionChip =
     workspacePickerMode === "switch" ||
-    (worktreePickerOpen && embeddedWorktreeMode === "switch") ||
-    (branchPickerOpen && embeddedBranchMode === "checkout")
+    worktreePickerOpen ||
+    (branchPickerOpen &&
+      (embeddedBranchMode === "checkout" || embeddedBranchMode === "remove"))
       ? SPOTLIGHT_FOOTER_ACTIVE_CHIP.switchSection
       : undefined;
 
-  const body = workspacePickerMode ? (
+  const body = collabOrgContext ? (
+    <CollabOrgForm
+      key={`${collabOrgContext.source ?? "choose"}:${collabOrgContext.mode ?? "choose"}`}
+      initialSource={collabOrgContext.source}
+      initialMode={collabOrgContext.mode}
+      onCancel={handleCloseCollabOrg}
+      onCompleted={closeModal}
+    />
+  ) : githubIssuesImportContext ? (
+    <GitHubIssuesImportForm
+      orgId={githubIssuesImportContext.orgId}
+      repoName={githubIssuesImportContext.repoName ?? currentRepo?.name}
+      repoPath={githubIssuesImportContext.repoPath ?? currentRepoPath}
+      repoUrl={githubIssuesImportContext.repoUrl ?? currentRepo?.repo_url}
+      onCancel={handleCloseGitHubIssuesImport}
+      onImported={closeModal}
+    />
+  ) : workspacePickerMode ? (
     <WorkspacePalette
       key={workspacePickerMode}
       isOpen={isOpen}

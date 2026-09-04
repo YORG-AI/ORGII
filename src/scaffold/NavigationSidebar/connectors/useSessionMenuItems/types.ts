@@ -1,7 +1,7 @@
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { Session, SessionListCategory } from "@src/store/session";
 
-import type { GroupByMode } from "../types";
+import type { GroupByMode, SessionGroupVisibleCount } from "../types";
 
 /**
  * Per-workspace header affordances for the Organize-by-workspace view: the
@@ -54,6 +54,8 @@ export interface UseSessionMenuItemsParams {
   excludedSessionIds?: ReadonlySet<string>;
   includeExternal: boolean;
   groupVisibleCounts: ReadonlyMap<string, number>;
+  /** Initial rows shown in every local session group. */
+  defaultGroupVisibleCount: SessionGroupVisibleCount;
   /**
    * Render every session already present in each subgroup and let the caller
    * own the only visible client-side pager. Cloud scope uses this before it

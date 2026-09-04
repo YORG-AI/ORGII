@@ -1,11 +1,12 @@
 import { useAtomValue } from "jotai";
-import { Pencil, Repeat } from "lucide-react";
 import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import Avatar from "@src/components/Avatar";
+import InlineAlert from "@src/components/InlineAlert";
+import PersonAvatar from "@src/components/PersonAvatar";
 import TabPill from "@src/components/TabPill";
 import { useWorkItemImageInsert } from "@src/hooks/project";
+import { HugeiconsIcon, Pen01Icon, RepeatIcon } from "@src/icons";
 import { builtInAgentsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
 import {
   ProjectContentEditor,
@@ -30,6 +31,7 @@ import {
 import { WORK_ITEM_STATUS } from "@src/types/core/workItem";
 
 import WorkItemContentStack from "../WorkItemContentStack";
+import WorkItemFlowHeader from "../WorkItemFlowHeader";
 import WorkItemSubItems, { useWorkItemFamily } from "../WorkItemSubItems";
 import {
   WorkItemThreadLayout,
@@ -141,6 +143,16 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     teamMembers?.find((member) => member.id === workItem.user_id)?.name ||
     workItem.user_id ||
     t("workItems.activity.system");
+  const resolvedFlowHeader =
+    flowHeader !== undefined ? (
+      flowHeader
+    ) : (
+      <WorkItemFlowHeader
+        workItem={workItem}
+        shortId={shortId}
+        actorName={creatorName}
+      />
+    );
   const normalizedRawDescription =
     normalizeLegacyEscapedMarkdown(rawDescription);
   const displayedDescription = normalizeLegacyEscapedMarkdown(
@@ -162,6 +174,21 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     githubIssueTimeline?.items ?? loadedGitHubTimeline.timeline;
   const githubTimelineLoading =
     githubIssueTimeline?.loading ?? loadedGitHubTimeline.timelineLoading;
+  const githubTimelineError =
+    githubIssueTimeline?.error ?? loadedGitHubTimeline.timelineError;
+  const githubTimelineAlert =
+    isGitHubWorkItem && !githubTimelineLoading && githubTimelineError ? (
+      <InlineAlert
+        type="danger"
+        role="status"
+        dataTestId="work-item-github-timeline-alert"
+        title={t("git.issues.timelineErrorTitle", {
+          defaultValue: "GitHub activity unavailable",
+        })}
+      >
+        {githubTimelineError}
+      </InlineAlert>
+    ) : null;
   const {
     descriptionDraft,
     descriptionHasChanges,
@@ -231,7 +258,14 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   const descriptionActions =
     isThread && canEditDescription && !isEditingThreadDescription ? (
       <ActivityHeaderActionButton
-        icon={<Pencil size={12} aria-hidden />}
+        icon={
+          <HugeiconsIcon
+            icon={Pen01Icon}
+            data-icon="pencil"
+            size={12}
+            aria-hidden
+          />
+        }
         label={t("common:actions.edit")}
         onClick={beginDescriptionEdit}
         data-testid="work-item-description-edit"
@@ -257,8 +291,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         <TimelineCard
           copyBody={normalizedRawDescription}
           actions={descriptionActions}
-          className={isThread ? "shadow-sm" : undefined}
-          bodyClassName={isThread ? "px-4 py-4" : undefined}
+          className={isThread ? "shadow-xs" : undefined}
           footer={
             canEditDescription &&
             (isThread ? isEditingThreadDescription : descriptionHasChanges) ? (
@@ -296,20 +329,12 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
           header={
             <TimelineCardHeader
               avatar={
-                <Avatar
+                <PersonAvatar
                   size={18}
+                  name={creatorName}
                   src={workItem.createdBy?.avatar}
-                  style={
-                    workItem.createdBy?.color
-                      ? {
-                          backgroundColor: workItem.createdBy.color,
-                          color: "var(--color-text-white)",
-                        }
-                      : undefined
-                  }
-                >
-                  {creatorName.charAt(0).toUpperCase()}
-                </Avatar>
+                  color={workItem.createdBy?.color}
+                />
               }
               actor={creatorName}
               action={
@@ -330,7 +355,12 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
               data-testid="work-item-routine-source-chip"
               title={workItem.routineSource.firedAt}
             >
-              <Repeat size={11} className="shrink-0" />
+              <HugeiconsIcon
+                icon={RepeatIcon}
+                data-icon="repeat"
+                size={11}
+                className="shrink-0"
+              />
               <span className="truncate">
                 {t("workItems.fromRoutine", {
                   name: workItem.routineSource.routineName,
@@ -398,13 +428,14 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         <IssueTimelineItems
           timeline={githubTimeline}
           timelineLoading={githubTimelineLoading}
+          timelineError={githubTimelineError}
           navigationEnabled={isThread}
         />
       ) : null}
     </TimelineStack>
   );
 
-  const subItemsSection = (
+  const subItemsSection = !isGitHubWorkItem ? (
     <ScrollTrailTarget enabled={isThread} label={t("workItems.subItems.title")}>
       <WorkItemSubItems
         family={subItemFamily}
@@ -414,7 +445,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         onOpenWorkItem={onOpenSubItem}
       />
     </ScrollTrailTarget>
-  );
+  ) : null;
 
   const customPropertiesSection = !isGitHubWorkItem ? (
     <ScrollTrailTarget
@@ -569,7 +600,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       <WorkItemThreadLayout
         path={headerPath}
         properties={headerProperties}
-        flowHeader={flowHeader}
+        flowHeader={resolvedFlowHeader}
+        alerts={githubTimelineAlert}
         sidebar={propertiesRail}
         floatingFooter={githubIssueComposer}
       >

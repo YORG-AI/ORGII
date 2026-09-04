@@ -7,6 +7,10 @@ use super::utils::run_git;
  */
 use std::path::Path;
 
+#[cfg(test)]
+#[path = "tests/staging_tests.rs"]
+mod tests;
+
 /// Stage all files
 pub fn stage_all_files(repo_path: &Path) -> Result<(), String> {
     let output = run_git(repo_path, &["add", "-A"])?;
@@ -54,8 +58,14 @@ pub fn discard_changes(repo_path: &Path, files: &[String]) -> Result<(), String>
     // Special case: "." means discard everything
     let discard_all = files.len() == 1 && files[0] == ".";
 
-    // First, get the status of all files to determine how to handle each
-    let status_output = run_git(repo_path, &["status", "--porcelain"])?;
+    // First, get the status of all files to determine how to handle each.
+    // `-z` is load-bearing: without it, git quotes-and-escapes any non-ASCII
+    // path (default core.quotePath), so the parsed name never matched the
+    // real file — a targeted discard errored out and "discard all" silently
+    // skipped the file while reporting success. `-z` paths are verbatim and
+    // NUL-separated, and a rename's original path arrives as its own
+    // NUL-separated field instead of a literal "new -> old" string.
+    let status_output = run_git(repo_path, &["status", "--porcelain", "-z"])?;
 
     if !status_output.status.success() {
         return Err(String::from_utf8_lossy(&status_output.stderr).to_string());
@@ -72,13 +82,16 @@ pub fn discard_changes(repo_path: &Path, files: &[String]) -> Result<(), String>
     let mut staged_files: std::collections::HashSet<&str> = std::collections::HashSet::new();
     let mut conflict_files: std::collections::HashSet<&str> = std::collections::HashSet::new();
 
-    for line in status_str.lines() {
-        if line.len() < 3 {
+    let mut entries = status_str.split('\0');
+    // Not a `for` loop: a rename's original path is consumed from the same
+    // iterator inside the body.
+    while let Some(entry) = entries.next() {
+        if entry.len() < 3 {
             continue;
         }
-        let index_status = line.chars().next().unwrap_or(' ');
-        let worktree_status = line.chars().nth(1).unwrap_or(' ');
-        let file_path = line[3..].trim();
+        let index_status = entry.chars().next().unwrap_or(' ');
+        let worktree_status = entry.chars().nth(1).unwrap_or(' ');
+        let file_path = &entry[3..];
 
         // Conflict files: UU, AA, DD, AU, UA, DU, UD
         if index_status == 'U'
@@ -87,6 +100,20 @@ pub fn discard_changes(repo_path: &Path, files: &[String]) -> Result<(), String>
             || (index_status == 'D' && worktree_status == 'D')
         {
             conflict_files.insert(file_path);
+            continue;
+        }
+
+        if index_status == 'R' || index_status == 'C' {
+            // The entry names the NEW path; the ORIGINAL path follows as its
+            // own NUL field (consume it so it is not misread as an entry).
+            // Discarding a rename means deleting the new path like a staged
+            // new file and restoring the original like a staged change.
+            staged_new_files.insert(file_path);
+            if let Some(original) = entries.next() {
+                if !original.is_empty() {
+                    staged_files.insert(original);
+                }
+            }
             continue;
         }
 
@@ -99,8 +126,8 @@ pub fn discard_changes(repo_path: &Path, files: &[String]) -> Result<(), String>
                 // "A " or "AM" = staged new file (added to index but not in HEAD)
                 staged_new_files.insert(file_path);
             }
-            'M' | 'D' | 'R' => {
-                // Staged modification/deletion/rename - needs unstaging before checkout
+            'M' | 'D' => {
+                // Staged modification/deletion - needs unstaging before checkout
                 staged_files.insert(file_path);
             }
             _ => {}

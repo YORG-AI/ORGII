@@ -298,6 +298,7 @@ mod tests {
             ModelType::Pi,
             ModelType::QoderCli,
             ModelType::TraeCli,
+            ModelType::DeepseekHarness,
         ];
 
         for provider in providers {

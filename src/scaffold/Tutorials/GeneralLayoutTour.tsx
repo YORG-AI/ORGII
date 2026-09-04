@@ -1,19 +1,20 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useSetAtom } from "jotai";
-import {
-  Infinity,
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  Monitor,
-  X,
-} from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { getMaterialConfig } from "@src/components/Glass/config";
+import {
+  Infinity01Icon,
+  ArrowLeft02Icon,
+  ArrowRight02Icon,
+  Cancel01Icon,
+  HugeiconsIcon,
+  MonitorIcon,
+  Tick01Icon,
+} from "@src/icons";
 import {
   POPUP_ANIMATION,
   POPUP_SHADOW,
@@ -315,7 +316,7 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
           overlaySegments.map((segment, index) => (
             <motion.div
               key={index}
-              className="fixed z-[10000] bg-black/30 backdrop-blur-[1px]"
+              className="fixed z-10000 bg-black/30 backdrop-blur-[1px]"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -325,7 +326,7 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
           ))
         ) : (
           <motion.div
-            className="fixed inset-0 z-[10000] bg-black/30 backdrop-blur-[1px]"
+            className="fixed inset-0 z-10000 bg-black/30 backdrop-blur-[1px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -335,7 +336,7 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
 
         {highlightStyle && (
           <motion.div
-            className="pointer-events-none fixed z-[10001] border-2 border-primary-6 shadow-[0_0_0_6px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]"
+            className="pointer-events-none fixed z-10001 border-2 border-primary-6 shadow-[0_0_0_6px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]"
             layout
             style={highlightStyle}
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
@@ -344,12 +345,12 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
 
         <motion.div
           {...POPUP_ANIMATION}
-          className="fixed z-[10002] rounded-[14px] p-3"
+          className="fixed z-10002 rounded-[14px] p-3"
           style={{ ...popoverStyle, ...popoverGlassStyle }}
           onClick={(event) => event.stopPropagation()}
         >
           <div className="mb-2 flex items-center justify-between gap-3">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-primary-6">
+            <span className="text-[11px] font-medium tracking-wider text-primary-6 uppercase">
               {t("tutorials.chrome.stepProgress", {
                 current: stepIndex + 1,
                 total: TOUR_STEPS.length,
@@ -357,15 +358,15 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
             </span>
             <button
               type="button"
-              className="flex size-6 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6"
+              className="flex size-6 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1 focus-visible:ring-2 focus-visible:ring-primary-6 focus-visible:outline-none"
               aria-label={t("tutorials.chrome.close")}
               onClick={onClose}
             >
-              <X size={14} />
+              <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={14} />
             </button>
           </div>
 
-          <h3 className="mb-1.5 text-[14px] font-semibold leading-tight text-text-1">
+          <h3 className="mb-1.5 text-[14px] leading-tight font-semibold text-text-1">
             {t(`tutorials.generalLayout.steps.${currentStep.id}.title`)}
           </h3>
           <p className="mb-3 text-[12px] leading-[1.45] text-text-2">
@@ -376,7 +377,12 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
             <div className="mb-3 grid grid-cols-2 gap-2 rounded-lg border border-border-2 bg-fill-1 p-2">
               <div className="flex items-center gap-2 rounded-md bg-fill-2 px-2 py-2 text-[11px] text-text-1">
                 <span className="flex size-7 items-center justify-center rounded-md bg-primary-6 text-white">
-                  <Monitor size={14} strokeWidth={1.8} />
+                  <HugeiconsIcon
+                    icon={MonitorIcon}
+                    data-icon="monitor"
+                    size={14}
+                    strokeWidth={1.8}
+                  />
                 </span>
                 <span className="flex min-w-0 flex-col leading-tight">
                   <span className="font-semibold">
@@ -389,7 +395,12 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
               </div>
               <div className="flex items-center gap-2 rounded-md bg-fill-2 px-2 py-2 text-[11px] text-text-1">
                 <span className="flex size-7 items-center justify-center rounded-md bg-fill-3 text-text-1">
-                  <Infinity size={14} strokeWidth={1.8} />
+                  <HugeiconsIcon
+                    icon={Infinity01Icon}
+                    data-icon="infinity"
+                    size={14}
+                    strokeWidth={1.8}
+                  />
                 </span>
                 <span className="flex min-w-0 flex-col leading-tight">
                   <span className="font-semibold">
@@ -421,7 +432,13 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
               appearance="ghost"
               shape="circle"
               iconOnly
-              icon={<ArrowLeft size={13} />}
+              icon={
+                <HugeiconsIcon
+                  icon={ArrowLeft02Icon}
+                  data-icon="arrow-left"
+                  size={13}
+                />
+              }
               disabled={isFirstStep}
               aria-label={t("tutorials.chrome.previous")}
               title={t("tutorials.chrome.previous")}
@@ -435,7 +452,21 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
               variant="primary"
               shape="circle"
               iconOnly
-              icon={isLastStep ? <Check size={13} /> : <ArrowRight size={13} />}
+              icon={
+                isLastStep ? (
+                  <HugeiconsIcon
+                    icon={Tick01Icon}
+                    data-icon="check"
+                    size={13}
+                  />
+                ) : (
+                  <HugeiconsIcon
+                    icon={ArrowRight02Icon}
+                    data-icon="arrow-right"
+                    size={13}
+                  />
+                )
+              }
               aria-label={
                 isLastStep
                   ? t("tutorials.chrome.finish")

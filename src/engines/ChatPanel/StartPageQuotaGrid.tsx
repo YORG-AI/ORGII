@@ -1,4 +1,3 @@
-import { RefreshCw } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -23,6 +22,7 @@ import {
 } from "@src/hooks/keyVault/accountQuotaDisplay";
 import { createLogger } from "@src/hooks/logger";
 import { useRefreshSpin } from "@src/hooks/ui";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
@@ -57,7 +57,7 @@ function StartPageQuotaCard({
               : entry.accountName
           }
         >
-          <div className="truncate text-xs font-semibold leading-4 text-text-1">
+          <div className="truncate text-xs leading-4 font-semibold text-text-1">
             {entry.accountName}
           </div>
           <div className="truncate text-[11px] leading-4 text-text-3">
@@ -76,7 +76,7 @@ function StartPageQuotaCard({
                 <span className="min-w-0 truncate text-text-3">
                   {metric.label}
                 </span>
-                <span className="shrink-0 font-semibold tabular-nums text-text-1">
+                <span className="shrink-0 font-semibold text-text-1 tabular-nums">
                   {metric.value}
                 </span>
               </div>
@@ -323,7 +323,14 @@ export function StartPageQuotaGrid({
             aria-label={t("chat.startPage.quota.refresh")}
             title={t("chat.startPage.quota.refresh")}
             onClick={handleRefreshClick}
-            icon={<RefreshCw size={14} className={spinClass} />}
+            icon={
+              <HugeiconsIcon
+                icon={Refresh04Icon}
+                data-icon="refresh-cw"
+                size={14}
+                className={spinClass}
+              />
+            }
           >
             {t("chat.startPage.quota.refresh")}
           </Button>

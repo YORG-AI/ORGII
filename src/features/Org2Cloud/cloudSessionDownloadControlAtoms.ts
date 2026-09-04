@@ -70,6 +70,8 @@ export interface CloudPendingPlay {
   iconId: string;
   /** Safe remote workspace/branch labels retained until a local row exists. */
   sessionEnvironment?: CloudSessionEnvironmentIdentity;
+  /** Source owner retained for the rail before a local replay row exists. */
+  sessionOwner?: CloudSessionOwnerIdentity;
   /** Events the download would actually fetch (listing count minus covered). */
   pendingEvents: number;
   etaMs: number;
@@ -86,6 +88,13 @@ export interface CloudSessionEnvironmentIdentity {
   branchName?: string;
   baseBranchName?: string;
   worktreeBranchName?: string;
+}
+
+export interface CloudSessionOwnerIdentity {
+  /** Stable source identifier; display surfaces prefer displayName. */
+  identityId: string;
+  displayName?: string;
+  avatarUrl?: string;
 }
 
 /** Keyed by the LOCAL imported-session id (the Chat Pane tab's key). */

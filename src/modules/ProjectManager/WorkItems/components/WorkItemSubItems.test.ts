@@ -162,7 +162,7 @@ describe("WorkItemSubItems hierarchy UI", () => {
     expect(markup).toContain("min-h-8 w-full");
     expect(markup).toContain("px-0 py-1");
     expect(markup).toContain("max-h-64 overflow-y-auto");
-    expect(markup).not.toContain("!p-0");
+    expect(markup).not.toContain("p-0!");
     expect(markup).not.toContain("min-h-9");
     expect(markup).not.toContain("px-3 pb-3");
   });
@@ -181,9 +181,9 @@ describe("WorkItemSubItems hierarchy UI", () => {
       /<button[^>]*data-testid="work-item-sub-items-empty-add"[^>]*>(.*?)<\/button>/
     )?.[1];
 
-    expect(headerButton).toContain("lucide-plus");
+    expect(headerButton).toContain('data-icon="plus"');
     expect(headerButton).not.toContain("Add sub-item");
-    expect(emptyButton).toContain("lucide-plus");
+    expect(emptyButton).toContain('data-icon="plus"');
     expect(emptyButton).not.toContain("Add the first sub-item");
     expect(markup).toContain('aria-label="Add sub-item"');
     expect(markup).toContain('title="Add sub-item"');

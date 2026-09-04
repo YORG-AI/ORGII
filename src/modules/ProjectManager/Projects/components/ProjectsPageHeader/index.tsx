@@ -4,13 +4,6 @@
  * Header for the Projects page with breadcrumb and action buttons.
  * Uses shared WorkStation header tokens for consistent styling.
  */
-import {
-  Boxes,
-  ListChevronsDownUp,
-  Plus,
-  RefreshCw,
-  Search,
-} from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -24,15 +17,23 @@ import {
   type WorkstationTabHeaderHost,
   usePublishWorkstationTabHeader,
 } from "@src/hooks/tabHost/useWorkstationTabHeader";
-import { useRefreshSpin } from "@src/hooks/ui";
+import {
+  DeliveryBox01Icon,
+  HugeiconsIcon,
+  ListChevronsDownUpIcon,
+  PencilEdit02Icon,
+  Search01Icon,
+} from "@src/icons";
 import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
+import { WorkManagementRefreshButton } from "@src/modules/shared/components/WorkManagementRefreshButton";
+import SplitListHeader from "@src/modules/shared/layouts/SplitListHeader";
 
 // ============================================
 // Types
 // ============================================
 
-export interface ProjectsPageHeaderProps {
+interface ProjectsPageHeaderProps {
   /** Page title to display in the breadcrumb */
   title: string;
   breadcrumbSegments?: readonly ProjectManagerBreadcrumbSegment[];
@@ -47,12 +48,18 @@ export interface ProjectsPageHeaderProps {
   refreshLoading?: boolean;
   /** Additional controls shown next to the title on the left side. */
   leadingControls?: React.ReactNode;
-  /** Additional controls shown at the right end of the 40px header. */
+  /** Additional controls shown at the right end of the 36px header. */
   trailingControls?: React.ReactNode;
-  /** Publish controls into the global WorkstationTabHeader instead of rendering an inline 40px row. */
+  /** Publish controls into the global WorkstationTabHeader instead of rendering an inline 36px row. */
   publishToWorkstationHeader?: boolean;
+  /** Keep the page controls in a dedicated local 36px row below host chrome. */
+  surfaceOwnedHeader?: boolean;
+  /** Parent-owned context control leading the dedicated surface row. */
+  surfaceHeaderLeading?: React.ReactNode;
   /** Target workstation host slot for the published header. */
   workstationHeaderHost?: WorkstationTabHeaderHost;
+  /** Disable the shell sidebar toggle when this page has no sidebar. */
+  sidebarToggleDisabled?: boolean;
   /** Optional custom className */
   className?: string;
 }
@@ -72,12 +79,13 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
   leadingControls,
   trailingControls,
   publishToWorkstationHeader = false,
+  surfaceOwnedHeader = false,
+  surfaceHeaderLeading,
   workstationHeaderHost = "project",
+  sidebarToggleDisabled = false,
   className = "",
 }) => {
   const { t } = useTranslation("projects");
-  const { spinClass: refreshSpinClass, handleClick: handleRefreshClick } =
-    useRefreshSpin(onRefresh ?? (() => {}), refreshLoading);
   const resolvedBreadcrumbSegments = useMemo(() => {
     const segments = breadcrumbSegments ?? [{ label: title }];
     return segments.map((segment, index) =>
@@ -85,7 +93,12 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
         ? {
             ...segment,
             icon: segment.icon ?? (
-              <Boxes size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={DeliveryBox01Icon}
+                data-icon="box"
+                size={HEADER_ICON_SIZE.sm}
+                strokeWidth={1.75}
+              />
             ),
           }
         : segment
@@ -107,7 +120,7 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
     );
 
   const headerTrailing = (
-    <div className="flex flex-shrink-0 items-center gap-px">
+    <div className="flex shrink-0 items-center gap-px">
       {trailingControls}
       {trailingControls &&
         (onSearch || onCollapseAll || onRefresh || onAddProject) && (
@@ -121,11 +134,18 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
           iconOnly
           onClick={onSearch}
           title={t("common:actions.search")}
-          icon={<Search size={HEADER_ICON_SIZE.sm} strokeWidth={2} />}
+          icon={
+            <HugeiconsIcon
+              icon={Search01Icon}
+              data-icon="search"
+              size={HEADER_ICON_SIZE.sm}
+              strokeWidth={2}
+            />
+          }
         />
       )}
       {(onCollapseAll || onRefresh || onAddProject) && (
-        <div className="flex flex-shrink-0 items-center gap-px">
+        <div className="flex shrink-0 items-center gap-px">
           {onCollapseAll && (
             <Button
               htmlType="button"
@@ -135,7 +155,9 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
               onClick={onCollapseAll}
               title={t("common:actions.collapseAll")}
               icon={
-                <ListChevronsDownUp
+                <HugeiconsIcon
+                  icon={ListChevronsDownUpIcon}
+                  data-icon="list-chevrons-down-up"
                   size={HEADER_ICON_SIZE.md}
                   strokeWidth={2}
                 />
@@ -143,20 +165,10 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
             />
           )}
           {onRefresh && (
-            <Button
-              htmlType="button"
-              variant="tertiary"
-              size="small"
-              iconOnly
-              onClick={handleRefreshClick}
-              title={t("common:actions.refresh")}
-              icon={
-                <RefreshCw
-                  size={HEADER_ICON_SIZE.sm}
-                  strokeWidth={2}
-                  className={refreshSpinClass}
-                />
-              }
+            <WorkManagementRefreshButton
+              label={t("common:actions.refresh")}
+              loading={refreshLoading}
+              onRefresh={onRefresh}
             />
           )}
           {onAddProject && (
@@ -168,7 +180,14 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
               onClick={onAddProject}
               title={t("projects.createProject")}
               data-testid="projects-create-project"
-              icon={<Plus size={HEADER_ICON_SIZE.md} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={PencilEdit02Icon}
+                  data-icon="square-pen"
+                  size={HEADER_ICON_SIZE.md}
+                  strokeWidth={2}
+                />
+              }
             />
           )}
         </div>
@@ -178,9 +197,36 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
 
   usePublishWorkstationTabHeader({
     host: workstationHeaderHost,
-    content: { content: headerContent, trailing: headerTrailing },
+    content: surfaceOwnedHeader
+      ? { hidden: true }
+      : {
+          content: headerContent,
+          trailing: headerTrailing,
+          sidebarToggleDisabled,
+        },
     enabled: publishToWorkstationHeader,
   });
+
+  if (surfaceOwnedHeader) {
+    return (
+      <SplitListHeader
+        fullWidth
+        className={className}
+        primary={
+          <div className="flex min-w-0 flex-1 items-center gap-px">
+            {surfaceHeaderLeading}
+            {surfaceHeaderLeading && headerContent ? (
+              <HeaderSectionSeparator className="mx-0.5" />
+            ) : null}
+            {headerContent}
+            <div className="ml-auto flex shrink-0 items-center gap-px">
+              {headerTrailing}
+            </div>
+          </div>
+        }
+      />
+    );
+  }
 
   if (publishToWorkstationHeader) return null;
 

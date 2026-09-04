@@ -7,18 +7,28 @@
  * Split into wrapper components so each hook has an isolated React subtree and
  * an independent render cycle — avoids a single fat component with N hooks.
  *
- * Mounted only when ready:
+ * Mounted only when ready, in every window:
  * - GlobalDragDrop            — cross-window file drag handling
  * - DeferredWindowFocusTracking
- * - DeferredGitAutoFetch      — background git remote polling
  * - DeferredProcessReconciliation — reseed shell/PTY state from Rust
- * - AppUpdater                — Tauri auto-update poller
  * - APICallPanelProvider      — DevTools API call inspector
  * - SecretCaptureModal        — out-of-band secret capture overlay
+ *
+ * Mounted only in the main window (`isMainAppWindow`) — secondary OS windows
+ * (detached session windows) run this same component, and app-wide pollers and
+ * writers must not be duplicated per window (double git fetches contend on
+ * .git/index.lock, two updater schedulers can download concurrently, and a
+ * second terminal-buffer hydrate/flush races the first):
+ * - DeferredUserPresenceSync
+ * - DeferredUserProfileSync
+ * - DeferredGitAutoFetch      — background git remote polling
+ * - DeferredTerminalPersistence — terminal-buffer hydrate/flush
+ * - AppUpdater                — Tauri auto-update poller
  */
 import React from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import { isMainAppWindow } from "@src/util/platform/tauri/windowIdentity";
 
 const log = createLogger("TerminalPersistence");
 
@@ -158,6 +168,8 @@ export const AppDeferredServices: React.FC<{ ready: boolean }> = ({
 }) => {
   if (!ready) return null;
 
+  const mainWindow = isMainAppWindow();
+
   return (
     <>
       <DeferredServiceBoundary>
@@ -166,24 +178,34 @@ export const AppDeferredServices: React.FC<{ ready: boolean }> = ({
       <DeferredServiceBoundary>
         <DeferredWindowFocusTracking />
       </DeferredServiceBoundary>
-      <DeferredServiceBoundary>
-        <DeferredUserPresenceSync />
-      </DeferredServiceBoundary>
-      <DeferredServiceBoundary>
-        <DeferredUserProfileSync />
-      </DeferredServiceBoundary>
-      <DeferredServiceBoundary>
-        <DeferredGitAutoFetch />
-      </DeferredServiceBoundary>
+      {mainWindow && (
+        <DeferredServiceBoundary>
+          <DeferredUserPresenceSync />
+        </DeferredServiceBoundary>
+      )}
+      {mainWindow && (
+        <DeferredServiceBoundary>
+          <DeferredUserProfileSync />
+        </DeferredServiceBoundary>
+      )}
+      {mainWindow && (
+        <DeferredServiceBoundary>
+          <DeferredGitAutoFetch />
+        </DeferredServiceBoundary>
+      )}
       <DeferredServiceBoundary>
         <DeferredProcessReconciliation />
       </DeferredServiceBoundary>
-      <DeferredServiceBoundary>
-        <DeferredTerminalPersistence />
-      </DeferredServiceBoundary>
-      <DeferredServiceBoundary>
-        <AppUpdater />
-      </DeferredServiceBoundary>
+      {mainWindow && (
+        <DeferredServiceBoundary>
+          <DeferredTerminalPersistence />
+        </DeferredServiceBoundary>
+      )}
+      {mainWindow && (
+        <DeferredServiceBoundary>
+          <AppUpdater />
+        </DeferredServiceBoundary>
+      )}
       <DeferredServiceBoundary>
         <APICallPanelProvider />
       </DeferredServiceBoundary>

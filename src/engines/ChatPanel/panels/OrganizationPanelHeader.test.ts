@@ -10,7 +10,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 describe("OrganizationPanelHeader", () => {
-  it("uses the Launchpad-aligned pinned header without a published 40px row", () => {
+  it("uses the Launchpad-aligned pinned header without a published header row", () => {
     const markup = renderToStaticMarkup(
       React.createElement(
         Provider,

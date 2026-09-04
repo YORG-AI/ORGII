@@ -74,10 +74,7 @@
   },
   "selfService": {
     "hint": "Paylaşım açıkken kendi çalışma zamanınız bu organizasyonla paylaşılır.",
-    "action": "Paylaşımı durdur ve verilerimi kaldır",
-    "confirm": "Bu organizasyonla paylaşılan çalışma zamanı verileriniz kaldırılsın mı?",
-    "confirmYes": "Durdur ve kaldır",
-    "confirmNo": "İptal"
+    "action": "Paylaşımı durdur ve verilerimi kaldır"
   },
   "orgSettings": {
     "label": "Ekip çalışma zamanı paylaşımı",

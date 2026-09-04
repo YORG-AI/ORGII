@@ -2,7 +2,6 @@
  * Status, Health, and Priority field rows for ProjectPropertyFields.
  * Extracted to keep the parent component under the UI line limit.
  */
-import { Circle, Flag } from "lucide-react";
 import React from "react";
 
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
@@ -11,7 +10,9 @@ import {
   type FieldRowVariant,
   Option,
   SearchableDropdown,
+  getPropertyDropdownAlign,
 } from "@src/components/PropertyField/PropertyFieldEditable";
+import { CircleIcon, Flag01Icon, HugeiconsIcon } from "@src/icons";
 import { getProjectPriorityConfig } from "@src/modules/ProjectManager/config/manage";
 
 import { HEALTH_OPTIONS, PRIORITY_OPTIONS, STATUS_OPTIONS } from "../config";
@@ -61,12 +62,18 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
       <div
         className={
           fieldVariant === "pill"
-            ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+            ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
             : "relative flex min-h-[36px] w-full items-center"
         }
       >
         <FieldRow
-          icon={<Circle size={DROPDOWN_ITEM.iconSize} />}
+          icon={
+            <HugeiconsIcon
+              icon={CircleIcon}
+              data-icon="circle"
+              size={DROPDOWN_ITEM.iconSize}
+            />
+          }
           iconColor={currentStatus?.color}
           label={showLabels ? t("properties.status") : undefined}
           value={
@@ -81,7 +88,7 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
           <SearchableDropdown
             placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-            align={fieldVariant === "pill" ? "auto" : "left"}
+            align={getPropertyDropdownAlign(fieldVariant)}
           >
             {(searchQuery) => {
               const filtered = searchQuery
@@ -94,7 +101,13 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
               return filtered.map((option) => (
                 <Option
                   key={option.value}
-                  icon={<Circle size={DROPDOWN_ITEM.iconSize} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={CircleIcon}
+                      data-icon="circle"
+                      size={DROPDOWN_ITEM.iconSize}
+                    />
+                  }
                   iconColor={option.color}
                   label={t(option.labelKey)}
                   isSelected={project.status === option.value}
@@ -112,12 +125,18 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
       <div
         className={
           fieldVariant === "pill"
-            ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+            ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
             : "relative flex min-h-[36px] w-full items-center"
         }
       >
         <FieldRow
-          icon={<Circle size={DROPDOWN_ITEM.iconSize} />}
+          icon={
+            <HugeiconsIcon
+              icon={CircleIcon}
+              data-icon="circle"
+              size={DROPDOWN_ITEM.iconSize}
+            />
+          }
           iconColor={currentHealth?.color}
           label={showLabels ? t("properties.health") : undefined}
           value={
@@ -134,7 +153,7 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
           <SearchableDropdown
             placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-            align={fieldVariant === "pill" ? "auto" : "left"}
+            align={getPropertyDropdownAlign(fieldVariant)}
           >
             {(searchQuery) => {
               const filtered = searchQuery
@@ -147,7 +166,13 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
               return filtered.map((option) => (
                 <Option
                   key={option.value}
-                  icon={<Circle size={DROPDOWN_ITEM.iconSize} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={CircleIcon}
+                      data-icon="circle"
+                      size={DROPDOWN_ITEM.iconSize}
+                    />
+                  }
                   iconColor={option.color}
                   label={t(option.labelKey)}
                   isSelected={project.health === option.value}
@@ -165,12 +190,18 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
       <div
         className={
           fieldVariant === "pill"
-            ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+            ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
             : "relative flex min-h-[36px] w-full items-center"
         }
       >
         <FieldRow
-          icon={<Flag size={DROPDOWN_ITEM.iconSize} />}
+          icon={
+            <HugeiconsIcon
+              icon={Flag01Icon}
+              data-icon="flag"
+              size={DROPDOWN_ITEM.iconSize}
+            />
+          }
           iconColor={currentPriority?.color}
           label={showLabels ? t("properties.priority") : undefined}
           value={
@@ -187,7 +218,7 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
           <SearchableDropdown
             placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-            align={fieldVariant === "pill" ? "auto" : "left"}
+            align={getPropertyDropdownAlign(fieldVariant)}
           >
             {(searchQuery) => {
               const filtered = searchQuery

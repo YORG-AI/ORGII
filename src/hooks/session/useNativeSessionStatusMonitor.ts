@@ -18,7 +18,11 @@
  *
  * It also owns transition-based native notifications. Foreground turns may
  * play sound, while sessions outside user attention may additionally raise
- * system notifications or quiet-hours summaries.
+ * system notifications or quiet-hours summaries. Notification delivery is
+ * main-window-owned: detached session windows mount this hook with
+ * `{ notifications: false }`, which skips ONLY the native notification
+ * delivery while every atom write (status, rename, account switch, turn
+ * lifecycle) still applies, so a terminal turn never notifies twice.
  */
 import { listen } from "@tauri-apps/api/event";
 import { useAtomValue } from "jotai";
@@ -35,11 +39,14 @@ import {
   toTurnTerminalStatus,
 } from "@src/engines/SessionCore/control/turnLifecycle";
 import {
+  toCliSessionStatus,
+  toSessionListStatus,
+} from "@src/engines/SessionCore/sync/sessionSyncUtils";
+import {
   deliverSessionTerminalNotification,
   shouldDeliverSessionTerminalNotification,
 } from "@src/hooks/session/sessionTerminalNotifications";
 import {
-  type SessionStatus,
   activeSessionIdAtom,
   sessionByIdAtom,
   updateSessionStatus,
@@ -69,7 +76,12 @@ interface SessionRenamedPayload {
   name: string;
 }
 
-export function useNativeSessionStatusMonitor(): void {
+export function useNativeSessionStatusMonitor(options?: {
+  /** `false` skips native notification delivery (detached session windows);
+   *  every atom write still applies. Defaults to delivering. */
+  notifications?: boolean;
+}): void {
+  const notificationsEnabled = options?.notifications !== false;
   const { t } = useTranslation();
   const notificationSettings = useAtomValue(notificationSettingsAtom);
   const activeSessionId = useAtomValue(activeSessionIdAtom);
@@ -111,7 +123,7 @@ export function useNativeSessionStatusMonitor(): void {
         const notificationBoundary =
           completedBoundary ||
           shouldDeliverSessionTerminalNotification(session?.status, status);
-        if (session && notificationBoundary) {
+        if (notificationsEnabled && session && notificationBoundary) {
           const outsideActiveSession =
             session.background === true ||
             activeSessionIdRef.current !== sessionId;
@@ -130,7 +142,15 @@ export function useNativeSessionStatusMonitor(): void {
             translationRef.current
           );
         }
-        updateSessionStatus(sessionId, status as SessionStatus);
+        // `status` is the raw wire string off the Tauri event payload and is
+        // written straight into the session-list row that drives sidebar
+        // grouping, Kanban lanes and every terminal-status predicate. Narrow
+        // it against the Rust enum mirror, then map it onto `SessionStatus`,
+        // instead of laundering it through `as SessionStatus`.
+        updateSessionStatus(
+          sessionId,
+          toSessionListStatus(toCliSessionStatus(status))
+        );
       }
     );
 
@@ -186,5 +206,5 @@ export function useNativeSessionStatusMonitor(): void {
       unlistenRenamePromise.then((unlisten) => unlisten());
       unlistenAccountPromise.then((unlisten) => unlisten());
     };
-  }, []);
+  }, [notificationsEnabled]);
 }

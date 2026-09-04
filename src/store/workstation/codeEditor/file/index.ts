@@ -84,42 +84,10 @@ export const fileHasUnsavedChangesAtom = atom((get) => {
 });
 fileHasUnsavedChangesAtom.debugLabel = "fileHasUnsavedChangesAtom";
 
-/** Combined loading state */
-export const fileLoadingAtom = atom((get) => {
-  return (
-    get(fileLoadingTreeAtom) ||
-    get(fileLoadingContentAtom) ||
-    get(fileSavingAtom)
-  );
-});
-
-// ============================================
-// Action Atoms
-// ============================================
-
-/** Select a file */
-export const fileSelectAtom = atom(null, (_get, set, path: string | null) => {
-  set(fileSelectedPathAtom, path);
-});
-
-/** Update file content (editor typing) */
-export const fileUpdateContentAtom = atom(
-  null,
-  (_get, set, content: string) => {
-    set(fileContentAtom, content);
-  }
-);
-
 /** Mark file as saved */
 export const fileMarkSavedAtom = atom(null, (get, set) => {
   const content = get(fileContentAtom);
   set(fileSavedContentAtom, content);
-});
-
-/** Discard changes */
-export const fileDiscardChangesAtom = atom(null, (get, set) => {
-  const saved = get(fileSavedContentAtom);
-  set(fileContentAtom, saved);
 });
 
 // ============================================

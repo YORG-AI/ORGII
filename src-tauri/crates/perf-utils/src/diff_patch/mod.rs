@@ -8,7 +8,6 @@
 mod conversion;
 mod merge;
 mod patch;
-mod structured;
 mod types;
 mod unified;
 
@@ -22,7 +21,6 @@ use conversion::convert_patch_to_unified_impl;
 use merge::collect_changes;
 pub(crate) use patch::parse_patch;
 use patch::{apply_hunk_at, extract_context_lines, failed_hunk_result, find_best_match};
-use structured::{compute_structured_diff_internal, generate_split_rows, group_into_hunks};
 
 // ============================================
 // Diff Command
@@ -410,136 +408,6 @@ pub fn compute_structured_diff(
     result
 }
 
-/// Compute aligned diff for split-view (replaces JS `computeAlignedDiff`).
-#[command]
-pub fn compute_aligned_diff(old_text: String, new_text: String) -> Vec<AlignedDiffLine> {
-    let diff = TextDiff::from_lines(&old_text, &new_text);
-
-    struct RawLine {
-        tag: ChangeTag,
-        content: String,
-        old_num: usize,
-        new_num: usize,
-    }
-
-    let mut raw: Vec<RawLine> = Vec::new();
-    let mut old_line: usize = 1;
-    let mut new_line: usize = 1;
-
-    for change in diff.iter_all_changes() {
-        let content = change
-            .as_str()
-            .unwrap_or("")
-            .trim_end_matches('\n')
-            .to_string();
-        match change.tag() {
-            ChangeTag::Equal => {
-                raw.push(RawLine {
-                    tag: ChangeTag::Equal,
-                    content,
-                    old_num: old_line,
-                    new_num: new_line,
-                });
-                old_line += 1;
-                new_line += 1;
-            }
-            ChangeTag::Delete => {
-                raw.push(RawLine {
-                    tag: ChangeTag::Delete,
-                    content,
-                    old_num: old_line,
-                    new_num: 0,
-                });
-                old_line += 1;
-            }
-            ChangeTag::Insert => {
-                raw.push(RawLine {
-                    tag: ChangeTag::Insert,
-                    content,
-                    old_num: 0,
-                    new_num: new_line,
-                });
-                new_line += 1;
-            }
-        }
-    }
-
-    let mut result = Vec::new();
-    let mut idx = 0;
-    let mut raw_idx = 0;
-
-    while raw_idx < raw.len() {
-        let entry = &raw[raw_idx];
-
-        match entry.tag {
-            ChangeTag::Equal => {
-                result.push(AlignedDiffLine {
-                    old_line: Some(AlignedSide {
-                        number: entry.old_num,
-                        content: entry.content.clone(),
-                        side_type: "context",
-                    }),
-                    new_line: Some(AlignedSide {
-                        number: entry.new_num,
-                        content: entry.content.clone(),
-                        side_type: "context",
-                    }),
-                    index: idx,
-                });
-                idx += 1;
-                raw_idx += 1;
-            }
-            ChangeTag::Delete => {
-                if raw_idx + 1 < raw.len() && raw[raw_idx + 1].tag == ChangeTag::Insert {
-                    let next = &raw[raw_idx + 1];
-                    result.push(AlignedDiffLine {
-                        old_line: Some(AlignedSide {
-                            number: entry.old_num,
-                            content: entry.content.clone(),
-                            side_type: "remove",
-                        }),
-                        new_line: Some(AlignedSide {
-                            number: next.new_num,
-                            content: next.content.clone(),
-                            side_type: "add",
-                        }),
-                        index: idx,
-                    });
-                    idx += 1;
-                    raw_idx += 2;
-                } else {
-                    result.push(AlignedDiffLine {
-                        old_line: Some(AlignedSide {
-                            number: entry.old_num,
-                            content: entry.content.clone(),
-                            side_type: "remove",
-                        }),
-                        new_line: None,
-                        index: idx,
-                    });
-                    idx += 1;
-                    raw_idx += 1;
-                }
-            }
-            ChangeTag::Insert => {
-                result.push(AlignedDiffLine {
-                    old_line: None,
-                    new_line: Some(AlignedSide {
-                        number: entry.new_num,
-                        content: entry.content.clone(),
-                        side_type: "add",
-                    }),
-                    index: idx,
-                });
-                idx += 1;
-                raw_idx += 1;
-            }
-        }
-    }
-
-    result
-}
-
 // ============================================
 // Dirty Diff Command
 // ============================================
@@ -618,12 +486,11 @@ pub fn compute_dirty_diff_markers(
 }
 
 // ============================================
-// Patch Conversion Command
+// Patch Conversion
 // ============================================
 
 /// Convert "*** Begin Patch / *** Add File: / *** Modify File:" syntax
 /// into unified diff format with statistics.
-#[command]
 pub fn convert_patch_to_unified(patch_text: String) -> PatchConversionResult {
     convert_patch_to_unified_impl(&patch_text)
 }
@@ -631,39 +498,6 @@ pub fn convert_patch_to_unified(patch_text: String) -> PatchConversionResult {
 // ============================================
 // Diff with Hunks Command
 // ============================================
-
-/// Compute diff with hunks and split rows in one call.
-#[command]
-pub fn compute_diff_with_hunks(
-    old_text: String,
-    new_text: String,
-    context_lines: Option<usize>,
-) -> DiffWithHunksResult {
-    let context = context_lines.unwrap_or(3);
-
-    let lines = compute_structured_diff_internal(&old_text, &new_text);
-
-    let additions = lines.iter().filter(|l| l.line_type == "add").count();
-    let deletions = lines.iter().filter(|l| l.line_type == "remove").count();
-
-    let old_lines = old_text.split('\n').count();
-    let new_lines = new_text.split('\n').count();
-    let max_line_number = old_lines.max(new_lines);
-
-    let hunks = group_into_hunks(&lines, context);
-    let split_rows = generate_split_rows(&hunks);
-
-    DiffWithHunksResult {
-        hunks,
-        split_rows,
-        stats: DiffWithHunksStats {
-            additions,
-            deletions,
-            total_changes: additions + deletions,
-        },
-        max_line_number,
-    }
-}
 
 // ============================================
 // Tests

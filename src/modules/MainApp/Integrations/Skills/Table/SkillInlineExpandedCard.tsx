@@ -77,7 +77,7 @@ const SkillInlineExpandedCard: React.FC<SkillInlineExpandedCardProps> = ({
     <InlineInfoCard>
       <div className="flex min-w-0 flex-col gap-3">
         {description && (
-          <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-text-2">
+          <p className="text-xs leading-relaxed wrap-break-word whitespace-pre-wrap text-text-2">
             {description}
           </p>
         )}
@@ -146,7 +146,7 @@ const SkillInlineExpandedCard: React.FC<SkillInlineExpandedCardProps> = ({
               )}
               {skill.path && (
                 <InfoRow label={t("skillPreview.location")}>
-                  <span className="break-all text-[11px] text-text-2">
+                  <span className="text-[11px] break-all text-text-2">
                     {skill.path}
                   </span>
                 </InfoRow>

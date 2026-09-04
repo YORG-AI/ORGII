@@ -8,7 +8,7 @@
  */
 import React from "react";
 
-import Avatar from "@src/components/Avatar";
+import DetailFlowHeader from "@src/modules/shared/components/DetailFlowHeader";
 
 export interface GitHubFlowHeaderActor {
   login: string;
@@ -41,48 +41,17 @@ export function GitHubFlowHeader({
   testIdPrefix,
 }: GitHubFlowHeaderProps): React.ReactNode {
   return (
-    <section
-      data-testid={`${testIdPrefix}-header`}
-      aria-label={ariaLabel}
-      className="flex min-w-0 flex-col gap-2"
+    <DetailFlowHeader
+      title={title}
+      identifier={`#${number}`}
+      status={status}
+      actor={actor}
+      unknownActorLabel={unknownActorLabel}
+      ariaLabel={ariaLabel}
+      testIdPrefix={testIdPrefix}
     >
-      <h2
-        data-testid={`${testIdPrefix}-title`}
-        className="min-w-0 select-text text-[20px] font-semibold leading-7 text-text-1"
-      >
-        {title}{" "}
-        <span className="whitespace-nowrap font-normal text-text-3">
-          #{number}
-        </span>
-      </h2>
-      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
-        <span
-          data-testid={`${testIdPrefix}-status`}
-          className="inline-flex shrink-0"
-        >
-          {status}
-        </span>
-        <span
-          data-testid={`${testIdPrefix}-subline`}
-          className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-text-2"
-        >
-          <span
-            className="inline-flex min-w-0 items-center gap-1.5"
-            title={actor?.login}
-          >
-            {actor ? (
-              <Avatar size={16} src={actor.avatarUrl}>
-                {actor.login.charAt(0).toUpperCase()}
-              </Avatar>
-            ) : null}
-            <span className="max-w-[160px] truncate font-medium text-text-1">
-              {actor?.login ?? unknownActorLabel}
-            </span>
-          </span>
-          {children}
-        </span>
-      </div>
-    </section>
+      {children}
+    </DetailFlowHeader>
   );
 }
 

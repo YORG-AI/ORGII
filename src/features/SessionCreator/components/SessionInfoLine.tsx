@@ -44,7 +44,6 @@ import { BranchDropdown } from "@src/scaffold/GlobalSpotlight/palettes/BranchPal
 import { WorkspacePalette } from "@src/scaffold/GlobalSpotlight/palettes/WorkspacePalette";
 import { WorkspaceDropdown } from "@src/scaffold/GlobalSpotlight/palettes/WorkspacePalette/WorkspaceDropdown";
 import { runGuardedCheckout } from "@src/services/git/operations/guardedCheckout";
-import { reposAtom } from "@src/store/repo";
 import { REPO_KIND, type RepoKind } from "@src/store/repo/types";
 import type {
   WorktreeLaunchSelection,
@@ -132,6 +131,8 @@ export interface SessionInfoLineProps {
   worktreeSource?: WorktreeLaunchSource | null;
   onWorktreeLocationChange?: (location: RunningLocation) => void;
   onWorktreeSourceSelect?: (selection: WorktreeLaunchSelection) => void;
+  /** Optional control rendered before the repository, location, and branch pills. */
+  leadingContent?: React.ReactNode;
 }
 
 const LOCATION_ROWS: LocationRow[] = RUNNING_LOCATIONS.map((entry) => ({
@@ -275,6 +276,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   worktreeSource,
   onWorktreeLocationChange,
   onWorktreeSourceSelect,
+  leadingContent,
   disabled = false,
   hideBranch = false,
 }) => {
@@ -374,18 +376,11 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   const systemPathSourceItems = useSystemPathRepoItems(includeSystemPaths, t);
   const branchRepoPath = selectedWorktreePath ?? repoPath ?? "";
 
+  // The org scope predicate no longer hides or reassigns the selection:
+  // the pickers group rows into "This org" / "Outside this org" instead,
+  // and out-of-scope repos are legitimate picks (they simply launch
+  // without the org tag — autoTagLaunchedSessionToActiveCloudOrg guards).
   const orgScopeRepoFilter = useActiveCloudOrgRepoFilter();
-  const centralRepos = useAtomValue(reposAtom);
-  useEffect(() => {
-    // onRepoSelect only — onRepoChange would persist a global default repo.
-    if (!orgScopeRepoFilter || disabled || !onRepoSelect) return;
-    if (!repoId || centralRepos.length === 0) return;
-    const current = centralRepos.find((repo) => repo.id === repoId);
-    if (!current || orgScopeRepoFilter(current)) return;
-    const fallback = centralRepos.find((repo) => orgScopeRepoFilter(repo));
-    if (!fallback) return;
-    queueMicrotask(() => onRepoSelect(fallback.id, fallback));
-  }, [orgScopeRepoFilter, disabled, repoId, centralRepos, onRepoSelect]);
 
   const handleBranchSelect = useCallback(
     async (branch: string) => {
@@ -430,7 +425,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
 
   const handleBranchPaletteSelect = useCallback(
     async (branch: string) => {
-      await handleBranchSelect(branch);
+      return handleBranchSelect(branch);
     },
     [handleBranchSelect]
   );
@@ -615,9 +610,24 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
     return segment;
   });
 
+  const sessionInfoPills = (
+    <PillGroup segments={segments} className="flex-wrap" strongSurface />
+  );
+
   return (
     <>
-      <PillGroup segments={segments} className="flex-wrap" strongSurface />
+      {leadingContent ? (
+        <div className="inline-flex flex-wrap items-center gap-0">
+          {leadingContent}
+          <span
+            aria-hidden
+            className="inline-flex h-3 w-px shrink-0 bg-border-2"
+          />
+          {sessionInfoPills}
+        </div>
+      ) : (
+        sessionInfoPills
+      )}
 
       {/* Repo Selector */}
       {useDropdownPicker ? (

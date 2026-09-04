@@ -1,8 +1,8 @@
-import { ChevronRight } from "lucide-react";
 import React from "react";
 
 import { formatModelAgentType, isApiKeyProvider } from "@src/assets/providers";
 import ModelIcon from "@src/components/ModelIcon";
+import { ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 
 export function getAccountSourceBreadcrumbParent(modelType: string): string {
   const brand = formatModelAgentType(modelType);
@@ -27,7 +27,13 @@ export const AccountSourceBreadcrumb: React.FC<
       <ModelIcon agentType={modelType} size="small" className="shrink-0" />
       <span className="flex min-w-0 items-center gap-1 text-xs">
         <span className="shrink-0 text-text-2">{parent}</span>
-        <ChevronRight size={12} className="shrink-0 text-text-4" aria-hidden />
+        <HugeiconsIcon
+          icon={ArrowRight01Icon}
+          data-icon="chevron-right"
+          size={12}
+          className="shrink-0 text-text-4"
+          aria-hidden
+        />
         <span className="min-w-0 truncate font-medium text-text-1">
           {accountName}
         </span>

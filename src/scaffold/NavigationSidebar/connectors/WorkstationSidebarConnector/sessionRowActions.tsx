@@ -1,13 +1,13 @@
-import {
-  ChevronsDownUp,
-  ChevronsUpDown,
-  MoreHorizontal,
-  Pin,
-  PinOff,
-  X,
-} from "lucide-react";
 import React, { useCallback } from "react";
 
+import {
+  Cancel01Icon,
+  ChevronsDownUpIcon,
+  MoreHorizontalIcon,
+  PinIcon,
+  PinOffIcon,
+  UnfoldMoreIcon,
+} from "@src/icons";
 import type {
   NavigationMenuItem,
   NavigationMenuRowAction,
@@ -67,7 +67,7 @@ export function useDecorateSessionRowActions({
             showMoreActions: true,
             rowActions: [
               {
-                icon: X,
+                icon: Cancel01Icon,
                 label: tCommon("sessions:sidebar.removeDraft", "Remove draft"),
                 onClick: () => deleteSessionCreatorDraft(draftId),
               },
@@ -87,7 +87,7 @@ export function useDecorateSessionRowActions({
         if (hasSubagentChildren) {
           const expanded = expandedSubagentParentIds.has(item.id);
           rowActions.push({
-            icon: expanded ? ChevronsDownUp : ChevronsUpDown,
+            icon: expanded ? ChevronsDownUpIcon : UnfoldMoreIcon,
             label: expanded
               ? tCommon("sessions:sidebar.hideSubagents", "Hide subagents")
               : tCommon("sessions:sidebar.showSubagents", "Show subagents"),
@@ -96,7 +96,7 @@ export function useDecorateSessionRowActions({
         }
         if (!isChildSession && !isChatPanelTuiSessionId(item.id)) {
           rowActions.push({
-            icon: session.pinned ? PinOff : Pin,
+            icon: session.pinned ? PinOffIcon : PinIcon,
             label: session.pinned ? unpinLabel : pinLabel,
             onClick: () => {
               void handleTogglePin(item.id);
@@ -105,7 +105,7 @@ export function useDecorateSessionRowActions({
         }
         if (!isCursorIdeSession(item.id)) {
           rowActions.push({
-            icon: MoreHorizontal,
+            icon: MoreHorizontalIcon,
             label: tCommon("actions.more"),
             active: activeSessionMoreMenuId === item.id,
             dataTestId: `sidebar-session-more-${item.id}`,

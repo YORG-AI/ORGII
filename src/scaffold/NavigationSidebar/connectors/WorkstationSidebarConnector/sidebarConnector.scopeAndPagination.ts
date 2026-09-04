@@ -19,13 +19,13 @@ import type { Session } from "@src/store/session";
 
 import {
   sidebarGroupByAtom,
+  sidebarGroupVisibleCountAtom,
   sidebarIncludeExternalAtom,
 } from "../sidebarGroupByAtom";
 import {
   buildRepoPathToName,
   sortSessionsByActivity,
 } from "../workstationSidebarData";
-import { CLOUD_SESSION_SECTION_PAGE_SIZE } from "./cloudScopedMenuItems";
 import { resetScopedSectionPagination } from "./sectionPagination";
 import { useChatPanelTuiSidebarSessions } from "./sidebarMenuCollections";
 import { useSidebarSessionRefreshEffects } from "./sidebarSessionRefresh";
@@ -35,12 +35,10 @@ const logger = createLogger("WorkstationSidebar");
 
 interface UseWorkstationSidebarScopeAndPaginationParams {
   sessions: Session[];
-  workstationSearchQuery: string;
 }
 
 export function useWorkstationSidebarScopeAndPagination({
   sessions,
-  workstationSearchQuery,
 }: UseWorkstationSidebarScopeAndPaginationParams) {
   useSidebarSessionRefreshEffects();
 
@@ -58,6 +56,7 @@ export function useWorkstationSidebarScopeAndPagination({
     handleCloudSessionFilterChange,
     manageableCloudOrg,
     manageableLocalOrg,
+    orgSelectorLoading,
     orgSelectorOptions,
     personalHiddenCloudTaggedIds,
     sessionFilterOrgIds,
@@ -67,36 +66,42 @@ export function useWorkstationSidebarScopeAndPagination({
   const repoPathToName = useMemo(() => buildRepoPathToName(repoMap), [repoMap]);
 
   const [groupByMode, setGroupByMode] = useAtom(sidebarGroupByAtom);
+  const [groupVisibleCount, setGroupVisibleCount] = useAtom(
+    sidebarGroupVisibleCountAtom
+  );
   const [includeExternal, setIncludeExternal] = useAtom(
     sidebarIncludeExternalAtom
   );
   const cloudMyPaginationScopeKey = activeCloudOrgId
     ? [
         activeCloudOrgId,
-        workstationSearchQuery,
         groupByMode,
         includeExternal ? "external" : "native",
       ].join("\u001f")
     : "";
-  const [cloudMyPagination, setCloudMyPagination] = useState({
+  const [cloudMyPagination, setCloudMyPagination] = useState<{
+    scopeKey: string;
+    visibleCount: number;
+  }>({
     scopeKey: "",
-    visibleCount: CLOUD_SESSION_SECTION_PAGE_SIZE,
+    visibleCount: groupVisibleCount,
   });
   const resetCloudMyPagination = useCallback(() => {
     setCloudMyPagination((current) =>
-      resetScopedSectionPagination(current, CLOUD_SESSION_SECTION_PAGE_SIZE)
+      resetScopedSectionPagination(current, groupVisibleCount)
     );
-  }, []);
+  }, [groupVisibleCount]);
   const cloudMySessionsVisibleCount =
     cloudMyPagination.scopeKey === cloudMyPaginationScopeKey
       ? cloudMyPagination.visibleCount
-      : CLOUD_SESSION_SECTION_PAGE_SIZE;
+      : groupVisibleCount;
   const cloudAuth = useAtomValue(org2CloudAuthAtom);
   const cloudSignedInIdentity = cloudAuth
     ? (cloudAuth.profile?.displayName ??
       cloudAuth.profile?.primaryEmail ??
       cloudAuth.userId)
     : null;
+  const cloudSignedInAvatarUrl = cloudAuth?.profile?.avatarUrl;
   const handleCloudSignIn = useCallback(() => {
     openUrl(buildOrg2CloudLoginUrl()).catch((error: unknown) => {
       logger.error("failed to open ORG2 Cloud login in system browser", error);
@@ -113,6 +118,7 @@ export function useWorkstationSidebarScopeAndPagination({
     handleCloudSessionFilterChange,
     manageableCloudOrg,
     manageableLocalOrg,
+    orgSelectorLoading,
     orgSelectorOptions,
     personalHiddenCloudTaggedIds,
     sessionFilterOrgIds,
@@ -120,12 +126,15 @@ export function useWorkstationSidebarScopeAndPagination({
     repoPathToName,
     groupByMode,
     setGroupByMode,
+    groupVisibleCount,
+    setGroupVisibleCount,
     includeExternal,
     setIncludeExternal,
     cloudMyPaginationScopeKey,
     cloudMySessionsVisibleCount,
     setCloudMyPagination,
     resetCloudMyPagination,
+    cloudSignedInAvatarUrl,
     cloudSignedInIdentity,
     handleCloudSignIn,
   };

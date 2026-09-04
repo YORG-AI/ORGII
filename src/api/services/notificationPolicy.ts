@@ -100,8 +100,7 @@ export interface NotificationPolicyDecision {
     | "category-disabled"
     | "critical-only"
     | "foreground-session"
-    | "quiet-hours"
-    | "session-muted";
+    | "quiet-hours";
 }
 
 interface NotificationAttentionDocument {
@@ -227,16 +226,6 @@ export function evaluateNotificationPolicy(
       sendSystemNotification: false,
       playSound: false,
       reason: "category-disabled",
-    };
-  }
-
-  const sessionId = request.context?.sessionId;
-  if (sessionId && settings.mutedSessionIds.includes(sessionId)) {
-    return {
-      disposition: "suppress",
-      sendSystemNotification: false,
-      playSound: false,
-      reason: "session-muted",
     };
   }
 

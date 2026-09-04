@@ -508,17 +508,6 @@ export function createDomComponentPreviewTab(
 // Singleton Tabs
 // ============================================
 
-export const settingsTabFactory = defineTabFactory<Record<string, never>>({
-  tabType: "settings",
-  idStrategy: { type: "singleton", id: "settings:main" },
-  getTitle: () => "Settings",
-  icon: "Settings",
-});
-
-export function createSettingsTab(): WorkStationTab {
-  return settingsTabFactory({});
-}
-
 export const aiImpactTabFactory = defineTabFactory<Record<string, never>>({
   tabType: "ai-impact",
   idStrategy: { type: "singleton", id: "ai-impact:main" },
@@ -544,7 +533,7 @@ export const searchSessionsTabFactory = defineTabFactory<Record<string, never>>(
     tabType: "search-sessions",
     idStrategy: { type: "singleton", id: "search-sessions:main" },
     getTitle: () => "Kanban",
-    icon: "LayoutGrid",
+    icon: "Kanban",
   }
 );
 

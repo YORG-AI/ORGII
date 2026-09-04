@@ -16,7 +16,7 @@ const PanelFooterAction = ({
   buttonVariant = "primary",
 }: PanelFooterActionProps) => {
   return (
-    <div className="flex-shrink-0 p-3">
+    <div className="shrink-0 p-3">
       <Button
         variant={buttonVariant}
         size="large"

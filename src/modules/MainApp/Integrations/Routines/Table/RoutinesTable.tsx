@@ -1,4 +1,3 @@
-import { ExternalLink } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +12,7 @@ import SettingsTable, {
 import Switch from "@src/components/Switch";
 import TabPill from "@src/components/TabPill";
 import { useRoutineResultNavigation } from "@src/hooks/navigation";
+import { HugeiconsIcon, SquareArrowUpRight02Icon } from "@src/icons";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
@@ -133,7 +133,11 @@ const RoutineFireHistory: React.FC<{ routine: RoutineDefinition }> = ({
               }}
             >
               {t("routineFields.openSession")}
-              <ExternalLink size={11} />
+              <HugeiconsIcon
+                icon={SquareArrowUpRight02Icon}
+                data-icon="external-link"
+                size={11}
+              />
             </button>
           )}
           {fire.workItemId && (
@@ -155,11 +159,15 @@ const RoutineFireHistory: React.FC<{ routine: RoutineDefinition }> = ({
               }}
             >
               {t("routineFields.openWorkItem")}
-              <ExternalLink size={11} />
+              <HugeiconsIcon
+                icon={SquareArrowUpRight02Icon}
+                data-icon="external-link"
+                size={11}
+              />
             </button>
           )}
           {fire.error && (
-            <span className="w-full break-words pl-4 text-danger-6">
+            <span className="w-full pl-4 wrap-break-word text-danger-6">
               {fire.error}
             </span>
           )}
@@ -415,7 +423,7 @@ export const RoutinesTable: React.FC<RoutinesTableProps> = ({
                                 label={t("routineFields.prompt")}
                                 layout="vertical"
                               >
-                                <span className="break-words text-[12px] text-text-2">
+                                <span className="text-[12px] wrap-break-word text-text-2">
                                   {routine.runTemplate.prompt}
                                 </span>
                               </InfoRow>

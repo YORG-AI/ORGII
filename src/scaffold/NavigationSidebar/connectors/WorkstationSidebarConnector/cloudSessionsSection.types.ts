@@ -10,6 +10,20 @@ import type { Org2CloudPresenceEntry } from "@src/features/Org2Cloud/org2CloudPr
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session";
+import type { NativeMenuItemOptions } from "@src/util/platform/tauri/nativeMenuPopup";
+
+import type { SidebarTabDisposition } from "../sidebarTabNavigation";
+import type { SessionGroupVisibleCount } from "../types";
+
+type CloudSessionOpenDestination =
+  | SidebarTabDisposition
+  | "my-station"
+  | "new-window";
+
+interface CloudSessionDestinationOptions {
+  sessionId: string;
+  title: string;
+}
 
 export interface UseCloudSessionsSectionParams {
   /** Active cloud org id (bare, not `cloud:`-prefixed); null ⇒ no section. */
@@ -21,8 +35,15 @@ export interface UseCloudSessionsSectionParams {
   activeSessionId: string;
   /** Demand bound for exact local hydration in the My Conversations section. */
   localSessionHydrationLimit: number;
+  /** Initial rows and Load-more increment for Team and My session sections. */
+  groupVisibleCount: SessionGroupVisibleCount;
   /** One exact Team Session row temporarily revealed by cross-surface nav. */
   revealedMenuItemId?: string;
+  /** Places an imported/local Team Conversation on the requested surface. */
+  openSessionAtDestination: (
+    destination: CloudSessionOpenDestination,
+    options: CloudSessionDestinationOptions
+  ) => void;
   onFilterChange: (filter: CloudSessionFilter) => void;
 }
 
@@ -36,11 +57,16 @@ export interface UseCloudSessionsSectionResult {
   /** Cloud row key corresponding to the active replay/import surface. */
   selectedCloudMenuItemId: string | null;
   /** Click resolver for Team rows and the Team section's pagination row. */
-  handleCloudSessionItemClick: (item: NavigationMenuItem) => boolean;
+  handleCloudSessionItemClick: (
+    item: NavigationMenuItem,
+    disposition: SidebarTabDisposition
+  ) => boolean;
   /** Forget any extra Team rows revealed with Load more. */
   resetCloudTeamPagination: () => void;
-  /** Locally hide a teammate cloud row and discard its replay cache. */
-  handleCloudRemoteItemRemove: (item: NavigationMenuItem) => boolean;
+  /** Canonical Team Conversation menu shared by secondary-click and ellipsis. */
+  buildCloudRemoteItemMenuItems: (
+    item: NavigationMenuItem
+  ) => NativeMenuItemOptions[];
   /** Member-filter dropdown portal — render once next to the sidebar. */
   cloudMemberFilterDropdown: React.ReactNode;
   /**

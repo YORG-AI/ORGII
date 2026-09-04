@@ -9,14 +9,6 @@
  * - Labels: add/edit/remove work item labels
  * (more sections can be added here)
  */
-import {
-  Cable,
-  type LucideIcon,
-  Settings,
-  Tags,
-  User,
-  Users,
-} from "lucide-react";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +17,15 @@ import {
   getListIconClasses,
   getListItemClasses,
 } from "@src/components/ListPanel/tokens";
+import {
+  HugeiconsIcon,
+  type IconSvgElement,
+  Settings01Icon,
+  TagsIcon,
+  UsbIcon,
+  UserIcon,
+  UserMultipleIcon,
+} from "@src/icons";
 import SplitViewLayout from "@src/modules/shared/layouts/SplitViewLayout";
 import { SUBPAGE_CONTENT_WRAPPER_CLASSES } from "@src/modules/shared/layouts/SubpageLayout/tokens";
 import type { Label, Person } from "@src/types/core/shared";
@@ -56,7 +57,7 @@ export type SettingsSectionId =
 // Types
 // ============================================
 
-export interface WorkItemsSettingsProps {
+interface WorkItemsSettingsProps {
   members: MemberEntry[];
   onUpdateMembers: (members: MemberEntry[]) => Promise<void>;
   labels: Label[];
@@ -111,7 +112,7 @@ export function advanceSettingsSectionState(
 interface SettingsSectionConfig {
   id: SettingsSectionId;
   labelKey: string;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   render: (props: WorkItemsSettingsProps) => React.ReactNode;
 }
 
@@ -119,7 +120,7 @@ const SECTIONS: SettingsSectionConfig[] = [
   {
     id: SETTINGS_SECTION_IDS.GENERAL,
     labelKey: "settings.sidebarGeneral",
-    icon: Settings,
+    icon: Settings01Icon,
     render: (props) => (
       <GeneralSection
         projectName={props.projectName}
@@ -133,7 +134,7 @@ const SECTIONS: SettingsSectionConfig[] = [
   {
     id: SETTINGS_SECTION_IDS.PROFILE,
     labelKey: "settings.sidebarMyProfile",
-    icon: User,
+    icon: UserIcon,
     render: (props) => (
       <MyProfileSection
         members={props.members}
@@ -144,7 +145,7 @@ const SECTIONS: SettingsSectionConfig[] = [
   {
     id: SETTINGS_SECTION_IDS.MEMBERS,
     labelKey: "settings.sidebarMembers",
-    icon: Users,
+    icon: UserMultipleIcon,
     render: (props) => (
       <MembersSection
         members={props.members}
@@ -157,7 +158,7 @@ const SECTIONS: SettingsSectionConfig[] = [
   {
     id: SETTINGS_SECTION_IDS.LABELS,
     labelKey: "settings.sidebarLabels",
-    icon: Tags,
+    icon: TagsIcon,
     render: (props) => (
       <LabelsSection
         labels={props.labels}
@@ -168,7 +169,7 @@ const SECTIONS: SettingsSectionConfig[] = [
   {
     id: SETTINGS_SECTION_IDS.SYNC,
     labelKey: "settings.sidebarSync",
-    icon: Cable,
+    icon: UsbIcon,
     render: (props) => <SyncSection slug={props.slug} />,
   },
 ];
@@ -184,18 +185,18 @@ const SettingsSidebar: React.FC<{
   const { t } = useTranslation("projects");
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2 scrollbar-hide">
+    <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-2 py-2">
       <div className="flex flex-col gap-0.5 pb-2">
         {SECTIONS.map((section) => {
           const isActive = activeSection === section.id;
-          const Icon = section.icon;
           return (
             <button
               key={section.id}
               className={`w-full text-left ${getListItemClasses(isActive, "wideGap")}`}
               onClick={() => onSectionClick(section.id)}
             >
-              <Icon
+              <HugeiconsIcon
+                icon={section.icon}
                 size={16}
                 strokeWidth={1.75}
                 className={getListIconClasses(isActive)}
@@ -270,8 +271,6 @@ const WorkItemsSettings: React.FC<WorkItemsSettingsProps> = ({
     <div className="flex h-full flex-col overflow-hidden">
       <SplitViewLayout
         className="min-h-0 flex-1 overflow-hidden"
-        resizable={true}
-        collapsible={true}
         hideBreadcrumbWhenSidebarCollapsed={true}
         mainContentClassName=""
         listPanelBackgroundClassName=""
@@ -285,7 +284,7 @@ const WorkItemsSettings: React.FC<WorkItemsSettingsProps> = ({
           />
         }
         mainContent={
-          <div className="h-full min-h-0 overflow-y-auto px-4 scrollbar-hide">
+          <div className="scrollbar-hide h-full min-h-0 overflow-y-auto px-4">
             <div className={SUBPAGE_CONTENT_WRAPPER_CLASSES}>{content}</div>
           </div>
         }

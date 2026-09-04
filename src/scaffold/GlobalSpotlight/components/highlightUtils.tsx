@@ -11,7 +11,7 @@ const SEPARATOR_CHARS_RE = /[\s\-_.]+/g;
  * Build a regex that matches the query with separators treated as interchangeable.
  * "gpt 5.2" matches "gpt-5.2", "gpt_5.2", "gpt.5.2", etc.
  */
-export function buildSeparatorAwarePattern(query: string): RegExp | null {
+function buildSeparatorAwarePattern(query: string): RegExp | null {
   const trimmed = query.trim();
   if (!trimmed) return null;
 

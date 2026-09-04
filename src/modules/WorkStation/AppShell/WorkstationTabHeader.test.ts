@@ -41,7 +41,55 @@ function activateSourceControlTab(store: ReturnType<typeof createStore>) {
   store.set(workstationTabsStateAtom, state);
 }
 
+function activateLaunchpadTab(store: ReturnType<typeof createStore>) {
+  const tab: WorkStationTab = {
+    id: "start",
+    type: "start",
+    title: "Launchpad",
+    data: {},
+  };
+  const state = emptyWorkstationTabsState();
+  state.globalWorkspace = {
+    tabs: [tab],
+    activeTabRef: { partition: "workspace", tabId: tab.id },
+    tabOrder: [{ partition: "workspace", tabId: tab.id }],
+  };
+  store.set(workstationTabsStateAtom, state);
+}
+
 describe("WorkstationTabHeader", () => {
+  it("does not reserve the empty 36px row on the Launchpad", () => {
+    const store = createStore();
+    store.set(activeStatusBarAppAtom, "code");
+    activateLaunchpadTab(store);
+
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(WorkstationTabHeader)
+      )
+    );
+
+    expect(markup).toBe("");
+  });
+
+  it("does not reserve the shell-wide row when an active split owns its header", () => {
+    const store = createStore();
+    store.set(activeStatusBarAppAtom, "code");
+    store.set(workstationTabHeaderAtomByHost.code, { hidden: true });
+
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(WorkstationTabHeader)
+      )
+    );
+
+    expect(markup).toBe("");
+  });
+
   it("removes the unused shell-leading gutter for self-contained surfaces", () => {
     const store = createStore();
     store.set(activeStatusBarAppAtom, "code");
@@ -60,7 +108,7 @@ describe("WorkstationTabHeader", () => {
 
     expect(markup).toContain("Work Items");
     expect(markup).toContain("pl-0");
-    expect(markup).not.toContain("lucide-list");
+    expect(markup).not.toContain('data-icon="list"');
   });
 
   it("removes the published-header gutter for Source Control", () => {

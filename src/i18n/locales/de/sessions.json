@@ -88,12 +88,6 @@
       "openAsFloatingPane": "Als schwebendes Fenster öffnen"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "Sitzungen nach Dateipfad suchen",
-      "noResults": "Keine Sitzung hat eine passende Datei geändert"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "Aktuelles Kanban",
     "view": {
       "list": "Liste",
       "diary": "Tagebuch",
@@ -358,9 +352,6 @@
       "merging": "Zusammenführen…",
       "merged": "Zusammengeführt"
     },
-    "replay": {
-      "replaySession": "Wiedergeben"
-    },
     "discard": {
       "discard": "Verwerfen",
       "discarding": "Verwerfen…",
@@ -465,7 +456,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "Panel ausblenden",
         "expandPanel": "Trajectory- und Todo-Panel einblenden",
         "placeholderTrajectoryTitle": "Noch keine Ereignisse",
         "placeholderTrajectorySubtitle": "Sitzungsaktivität erscheint hier, sobald der Agent läuft",
@@ -766,9 +756,7 @@
       "showSidebar": "Seitenleiste anzeigen",
       "hideSidebar": "Seitenleiste ausblenden",
       "showBottomPanel": "Unteres Panel anzeigen",
-      "hideBottomPanel": "Unteres Panel ausblenden",
-      "showDevTools": "DevTools anzeigen",
-      "hideDevTools": "DevTools ausblenden"
+      "hideBottomPanel": "Unteres Panel ausblenden"
     },
     "multiTask": {
       "monitoringProgress": "Überwacht den Fortschritt von {{count}} Subagents",
@@ -799,7 +787,8 @@
       "current": "Aktuell"
     },
     "agentSentMessageCaption": "{{subject}} hat dir eine Nachricht gesendet",
-    "userSentMessageCaption": "Du hast Agent eine Nachricht gesendet"
+    "userSentMessageCaption": "Du hast Agent eine Nachricht gesendet",
+    "thoughtSentMessageCaption": "{{subject}} denkt nach"
   },
   "terminal": {
     "findInTerminal": "Im Terminal suchen",
@@ -879,8 +868,17 @@
     "multipleChoice": "Mehrfachauswahl",
     "typeYourAnswer": "Geben Sie Ihre Antwort ein…",
     "newSession": "Neue Sitzung",
-    "muteNotifications": "Benachrichtigungen stummschalten",
     "startPage": {
+      "inputPosition": "Eingabe",
+      "positionBottom": "Unten",
+      "positionMiddle": "Mitte",
+      "trailPosition": "Kontextleiste",
+      "positionUp": "Oben",
+      "positionDown": "Unten",
+      "uiControls": "UI-Steuerung",
+      "showQuickActions": "Schnellaktionen anzeigen",
+      "showSkills": "Skills anzeigen",
+      "showCliUpdate": "CLI-Updates anzeigen",
       "title": "Was möchtest du tun?",
       "back": "Zurück zur Startseite",
       "newSession": {
@@ -991,6 +989,7 @@
     "fullScreenChat": "Chat-Panel fokussieren (Workstation ausblenden)",
     "maximizeChatPanel": "Chat-Panel maximieren",
     "showWorkstation": "Workstation anzeigen",
+    "workstationUnavailableForPage": "Workstation ist auf dieser Seite nicht verfügbar",
     "hideWorkstation": "Workstation ausblenden",
     "restoreSplitView": "Workstation anzeigen",
     "shrinkToWorkstation": "Chat-Panel verkleinern (Workstation anzeigen)",
@@ -1006,9 +1005,12 @@
       "openInSideChat": "Im Seitenchat öffnen"
     },
     "collapseAll": "Alle einklappen",
+    "copyAndExport": "Kopieren & Exportieren",
     "copyEventJson": "Event-JSON kopieren",
     "copyEventJsonCopied": "Kopiert!",
     "copyEventJsonFailed": "Kopieren fehlgeschlagen",
+    "moveTo": "Seite verschieben nach…",
+    "projectLinks": "Projektverknüpfungen",
     "moveToWorkstation": "In meine Workstation verschieben",
     "moveToChatPanel": "In das Chat-Panel verschieben",
     "rawTranscript": {
@@ -1105,7 +1107,7 @@
     "hudThroughput": "~{{rate}} Tok/s",
     "hudEta": "~{{eta}} übrig",
     "rateLimitHintTitle": "API-Ratenlimit",
-    "rateLimitHintBody": "Das aktuelle Modell wird ratenbegrenzt. Sie können zu einem anderen Fenster wechseln, um während der Wartezeit weiterzuarbeiten.",
+    "rateLimitHintBody": "Das aktuelle Modell wird ratenbegrenzt. Sie können zu einem anderen Fenster wechseln, um während der Wartezeit weiterzuarbeiten",
     "feedbackPending": "Feedback ausstehend",
     "executionThreads": "Ausführungs-Threads",
     "allThreads": "Alle",
@@ -1137,6 +1139,7 @@
       "exportTitle": "Session JSON exportieren",
       "importTitle": "Session JSON importieren",
       "exportAction": "Exportieren",
+      "exportJson": "JSON exportieren",
       "importAction": "Session importieren",
       "exportDescription": "Exportiert die aktive Session als portablen JSON-Snapshot",
       "importDescription": "Importiert einen Session-JSON-Snapshot in die Seitenleiste.",
@@ -1242,7 +1245,8 @@
       "fileCount_other": "{{count}} Dateien",
       "turnCount_one": "{{count}} Runde",
       "turnCount_other": "{{count}} Runden"
-    }
+    },
+    "parentAgentSender": "Übergeordneter Agent"
   },
   "chatStatus": {
     "approved": "Genehmigt",
@@ -1357,9 +1361,7 @@
     },
     "editFileFailedNoName": "Bearbeitungsversuch",
     "file": "Datei",
-    "runShellRunning": "Befehl wird ausgeführt",
     "terminalWaitRunning": "Warten, bis das Terminal fertig ist",
-    "runShellDone": "Befehl ausgeführt",
     "runShellFailed": "Befehl fehlgeschlagen",
     "runCommands": "Befehle ausführen",
     "terminalSummary": {
@@ -1424,8 +1426,8 @@
     "categorySearch": "Suche",
     "categoryGlob": "Glob",
     "categoryList": "Liste",
-    "subagentFailed": "Sub Agent fehlgeschlagen",
-    "subagentDefaultName": "Sub Agent",
+    "subagentFailed": "Subagent fehlgeschlagen",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "Aufgabe an Subagent zugewiesen",
     "subagentRunning": "Subagent läuft",
     "subagentDone": "Subagent abgeschlossen",
@@ -1435,9 +1437,9 @@
     "createPlanRunning": "Plan wird erstellt",
     "createPlanDone": "Plan erstellt",
     "createPlanFailed": "Planerstellung fehlgeschlagen",
-    "subagentResultTabFallbackTitle": "Sub Agent Ergebnis",
+    "subagentResultTabFallbackTitle": "Subagent Ergebnis",
     "openResultInTab": "In Tab öffnen",
-    "openSubagentChatInTab": "Sub Agent Details im Editor öffnen",
+    "openSubagentChatInTab": "Subagent Details im Editor öffnen",
     "executing": "Wird ausgeführt",
     "argumentsLabel": "Argumente",
     "resultLabel": "Ergebnis",
@@ -1492,8 +1494,6 @@
     "killProcessFailed": "Prozess konnte nicht beendet werden",
     "listDirCount_one": "{{count}} Ordner",
     "listDirCount_other": "{{count}} Ordner",
-    "listFileCount_one": "{{count}} Datei",
-    "listFileCount_other": "{{count}} Dateien",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (für die Anzeige gekürzt)",
     "repeatedErrorNotice": "Gleicher Fehler {{count}}-mal aufgetreten, Agent wiederholt den Versuch",
@@ -1692,7 +1692,7 @@
     "awaitOutputSummaryUnknown_one": "eine Hintergrundaufgabe",
     "awaitOutputSummaryUnknown_other": "{{count}} Hintergrundaufgaben",
     "awaitOutputSummaryMixed": "{{shell}}, {{subagent}}",
-    "runningSubagent": "Wird an Unteragent delegiert...",
+    "runningSubagent": "Wird an Subagent delegiert...",
     "subagentStatusCompleted": "Abgeschlossen",
     "subagentStatusError": "Fehlgeschlagen",
     "openSubagentSessionTab": "Session-Wiedergabe öffnen",
@@ -2082,7 +2082,11 @@
     "orgSendMessageRunning": "Nachricht wird an {{recipient}} gesendet",
     "orgSendMessageDone": "Nachricht an {{recipient}} gesendet",
     "orgSendMessageFailed": "Senden der Nachricht an {{recipient}} fehlgeschlagen",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Befehl wird ausgeführt",
+    "runCommandDone": "Befehl ausgeführt",
+    "nFiles_one": "{{count}} Datei",
+    "nFiles_other": "{{count}} Dateien"
   },
   "hoverCard": {
     "commits": "Commits",
@@ -2102,7 +2106,6 @@
     },
     "createTarget": {
       "agentSession": "Agent-Sitzung",
-      "manageAgents": "Agents / Skills verwalten",
       "project": "Projekt erstellen",
       "parallelRun": "Parallellauf",
       "workItem": "Work Item erstellen"
@@ -2147,6 +2150,9 @@
     "launchpadQuestion": "Was möchtest du mit",
     "launchpadQuestionSuffix": "erstellen?",
     "manualLaunchpadQuestion": "Was möchtest du erstellen?",
+    "planLaunchpadQuestion": "Was möchtest du mit",
+    "planLaunchpadQuestionSuffix": "planen?",
+    "manualPlanLaunchpadQuestion": "Was möchtest du planen?",
     "start": "Starten",
     "assign": "Zuweisen",
     "send": "Senden",
@@ -2537,7 +2543,16 @@
       "Arbeite daran, dauert länger als üblich...",
       "Überlege, was als Nächstes kommt, dauert länger als üblich..."
     ],
-    "compacting": "Kontext wird komprimiert..."
+    "compacting": "Kontext wird komprimiert...",
+    "statusTrail": {
+      "agentWorking": "Agent arbeitet",
+      "agentWorkingFor": "Agent arbeitet seit {{value}}",
+      "runningTask_one": "{{count}} laufende Aufgabe",
+      "runningTask_other": "{{count}} laufende Aufgaben",
+      "idle": "Agent ist inaktiv",
+      "lastRefreshed": "Zuletzt aktualisiert {{value}}",
+      "asking": "Wartet auf deine Antwort"
+    }
   },
   "revertConfirm": {
     "title": "Nicht gespeicherte Dateiänderungen",
@@ -2683,7 +2698,8 @@
     "update": {
       "titleStatus": "Aufgabenstatus aktualisieren",
       "titleDetail": "Aufgabendetails aktualisieren",
-      "markedAs": "Markiert als {{status}}"
+      "markedAs": "Markiert als {{status}}",
+      "title": "Aufgabe aktualisiert"
     },
     "get": {
       "title": "Aufgabendetails anzeigen"
@@ -2839,5 +2855,15 @@
       "skipped": "Übersprungen",
       "pending": "Startet"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
+  },
+  "tooltips": {
+    "hidePanel": "Panel ausblenden"
+  },
+  "titleBar": {
+    "showDevTools": "DevTools anzeigen",
+    "hideDevTools": "DevTools ausblenden"
   }
 }

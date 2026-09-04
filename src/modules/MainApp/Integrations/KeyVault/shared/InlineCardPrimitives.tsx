@@ -78,7 +78,7 @@ export function InlineCardSectionLabel({
   return (
     <div
       className={cn(
-        "text-[11px] font-medium uppercase tracking-wide text-text-3",
+        "text-[11px] font-medium tracking-wide text-text-3 uppercase",
         className
       )}
     >
@@ -188,11 +188,11 @@ export function InlineSplitNavRow({
         }
       }}
     >
-      <span className="min-w-0 flex-1 truncate font-medium leading-none text-text-1">
+      <span className="min-w-0 flex-1 truncate leading-none font-medium text-text-1">
         {label}
       </span>
       {meta ? (
-        <span className="shrink-0 font-normal tabular-nums text-text-2">
+        <span className="shrink-0 font-normal text-text-2 tabular-nums">
           {meta}
         </span>
       ) : null}

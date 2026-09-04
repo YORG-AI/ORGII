@@ -86,7 +86,7 @@ const LazyPagesPreview = React.lazy(
 // Types
 // ============================================
 
-export interface GitDiffContentProps {
+interface GitDiffContentProps {
   /** Selected git file with diff content */
   gitFile: GitFile | null;
   /** Loading state */

@@ -1,7 +1,7 @@
 import { useAtomValue } from "jotai";
 import React, { memo, useCallback } from "react";
 
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 import { CHAT_ITEM_PADDING_X } from "@src/engines/ChatPanel/blocks/primitives/config";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms";
 import {
@@ -16,7 +16,9 @@ import type { OptimizedChatItem } from "../chatItemPipeline/types";
 import { CHAT_FOOTER_SPACER } from "../config/chatFooterSpacer";
 import {
   type ChatGroupMeta,
+  type TailTurnPhase,
   isTurnCollapseEligible,
+  resolveTurnDefaultCollapsed,
 } from "../hooks/useChatGroups";
 
 const log = createLogger("GroupHeaderRenderer");
@@ -46,6 +48,7 @@ function sameMeta(
     left.turnId === right.turnId &&
     left.durationMs === right.durationMs &&
     left.itemCount === right.itemCount &&
+    left.bodyEventCount === right.bodyEventCount &&
     left.previewText === right.previewText &&
     left.startMs === right.startMs &&
     left.endMs === right.endMs &&
@@ -82,8 +85,9 @@ function sameGroupHeaderProps(
     previous.collapseLabelVariant === next.collapseLabelVariant &&
     previous.hideCollapseTimeRange === next.hideCollapseTimeRange &&
     previous.suppressRoundGap === next.suppressRoundGap &&
-    previous.collapseTailWhenIdle === next.collapseTailWhenIdle &&
+    previous.tailTurnPhase === next.tailTurnPhase &&
     previous.hideUserMessage === next.hideUserMessage &&
+    previous.compactUserMessage === next.compactUserMessage &&
     previous.defaultTurnCollapsed === next.defaultTurnCollapsed &&
     previous.renderPart === next.renderPart &&
     previous.turnCollapseInteractionAtRef ===
@@ -110,8 +114,12 @@ export interface GroupHeaderRendererProps {
   hideCollapseTimeRange?: boolean;
   /** Suppresses the inter-round top gap for headers rendered outside the list. */
   suppressRoundGap?: boolean;
-  /** Allows the latest turn to show the collapse bar after the session idles. */
-  collapseTailWhenIdle?: boolean;
+  /**
+   * Lifecycle phase of the tail turn: "complete" renders its "Agent worked
+   * for X" bar immediately (still expanded by default); "stale" also
+   * defaults it to collapsed like a historical turn.
+   */
+  tailTurnPhase?: TailTurnPhase;
   /**
    * Skip rendering the per-turn user-message card. The `TurnCollapsePinBar`
    * ("Agent worked for X") still renders. Subagent cells use this so each
@@ -119,6 +127,8 @@ export interface GroupHeaderRendererProps {
    * the pagination row.
    */
   hideUserMessage?: boolean;
+  /** Use the short user-message preview in paginated/pinned turn headers. */
+  compactUserMessage?: boolean;
   /** Default collapse state for eligible turns when no explicit override exists. */
   defaultTurnCollapsed?: boolean;
   renderPart?: GroupHeaderRenderPart;
@@ -149,8 +159,9 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
     collapseLabelVariant = "agent",
     hideCollapseTimeRange = false,
     suppressRoundGap = false,
-    collapseTailWhenIdle = false,
+    tailTurnPhase = "running",
     hideUserMessage = false,
+    compactUserMessage = true,
     defaultTurnCollapsed = false,
     renderPart = "all",
     turnCollapseInteractionAtRef,
@@ -214,14 +225,18 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
     if (!header) return <div />;
 
     // Show the "Agent worked for …" pin bar on collapse-eligible turns.
-    // The latest turn joins after the session has idled long enough.
+    // The latest turn joins as soon as its round ends (phase "complete").
     const showCollapseBar = isTurnCollapseEligible(
       meta,
       collapseGroupIndex,
       collapseGroupCount,
-      {
-        collapseTailWhenIdle,
-      }
+      { tailTurnPhase }
+    );
+    // Same helper as projectChatGroups, so the chevron's default always
+    // matches what the projection actually folded.
+    const turnDefaultCollapsed = resolveTurnDefaultCollapsed(
+      collapseGroupIndex === collapseGroupCount - 1,
+      { defaultTurnCollapsed, tailTurnPhase }
     );
 
     const showUserPart = renderPart !== "collapse" && !hideUserMessage;
@@ -236,12 +251,13 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
 
     return (
       <div
-        className={`group/turn ${CHAT_ITEM_PADDING_X} ${DETAIL_PANEL_TOKENS.contentWidth} ${headerPaddingBottomClass}`.trim()}
+        className={`group/turn ${CHAT_ITEM_PADDING_X} ${CHAT_PANEL_WIDTH_TOKENS.contentWidth} ${headerPaddingBottomClass}`.trim()}
         style={roundGap > 0 ? { marginTop: roundGap } : undefined}
       >
         {showUserPart ? (
           <UserChatItem
             chatItem={header}
+            compactPreview={compactUserMessage}
             onEditSubmit={onEditSubmit ? handleEdit : undefined}
             onRestoreCheckpoint={
               onRestoreCheckpoint ? handleRestoreCheckpoint : undefined
@@ -256,7 +272,7 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
             endMs={meta?.endMs ?? null}
             showTimeRange={!hideCollapseTimeRange}
             labelVariant={collapseLabelVariant}
-            defaultCollapsed={defaultTurnCollapsed}
+            defaultCollapsed={turnDefaultCollapsed}
             turnCollapseInteractionAtRef={turnCollapseInteractionAtRef}
             onExpand={
               canExpandUnloadedTurn ? handleExpandUnloadedTurn : undefined

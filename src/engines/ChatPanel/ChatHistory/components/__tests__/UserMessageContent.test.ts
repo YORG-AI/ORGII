@@ -8,6 +8,15 @@ import UserMessageContent, {
 } from "../UserMessageContent";
 
 describe("external-history Markdown URL pills", () => {
+  it("renders sent text without a blank first line and preserves paragraph spacing", () => {
+    const html = renderToStaticMarkup(
+      createElement(UserMessageContent, {
+        text: "\n \t\n    first line\n\n  next line\n",
+      })
+    );
+    expect(html).toContain(">    first line\n\n  next line\n</span>");
+  });
+
   it("normalizes a self-labelled GitHub issue link to the native issue pill", () => {
     const url = "https://github.com/org2AI/ORG2/issues/556";
 

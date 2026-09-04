@@ -7,7 +7,7 @@
  * ## ID Patterns
  *
  * Three types of ID generation:
- * 1. **Singleton** - Fixed ID like "settings:main" (only one instance)
+ * 1. **Singleton** - Fixed ID like "project-settings:main" (only one instance)
  * 2. **Data-keyed** - ID from data like "file:/path/to/file" (deduped by key)
  * 3. **Unique** - Timestamp-based like "search:1234567890-abc123" (always new)
  *
@@ -45,7 +45,7 @@ export interface TabFactoryConfig<TData> {
   idStrategy: TabIdStrategy<TData>;
   /** Get display title from data */
   getTitle: (data: TData) => string;
-  /** Optional icon (Lucide icon name) */
+  /** Optional icon (lucide-era icon name) */
   icon?: string;
   /** Whether tab is closable (default: true) */
   closable?: boolean;
@@ -82,7 +82,6 @@ const DEFAULT_CATEGORY_BY_TYPE: Record<
   "terminal-content": "terminal",
   "dom-component-preview": "preview",
   terminal: "terminal",
-  settings: "settings",
   search: "search",
   "ai-impact": "ai-impact",
   "search-sessions": "search-sessions",
@@ -117,10 +116,10 @@ const DEFAULT_CATEGORY_BY_TYPE: Record<
  *
  * @example
  * // Singleton tab (only one instance)
- * const settingsTabFactory = defineTabFactory({
- *   tabType: "settings",
- *   idStrategy: { type: "singleton", id: "settings:main" },
- *   getTitle: () => "Settings",
+ * const projectSettingsTabFactory = defineTabFactory({
+ *   tabType: "project-settings",
+ *   idStrategy: { type: "singleton", id: "project-settings:main" },
+ *   getTitle: () => "Project settings",
  *   icon: "Settings",
  * });
  *

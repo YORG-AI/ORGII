@@ -101,12 +101,6 @@
       "openAsFloatingPane": "Open as Floating Pane"
     },
     "sessions": "Sessions",
-    "fileSearch": {
-      "placeholder": "Search sessions by file path",
-      "noResults": "No sessions touched a matching file"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "Current Kanban",
     "view": {
       "list": "List",
       "diary": "Diary",
@@ -392,9 +386,6 @@
       "discarding": "Discarding…",
       "confirmMessage": "Discard all changes in this worktree? This cannot be undone."
     },
-    "replay": {
-      "replaySession": "Replay"
-    },
     "detailView": {
       "trajectory": "Trajectory",
       "touchedFiles": "Touched files",
@@ -495,7 +486,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "Hide panel",
         "expandPanel": "Show trajectory and todo panel",
         "placeholderTrajectoryTitle": "No events yet",
         "placeholderTrajectorySubtitle": "Session activity will appear here once the agent runs",
@@ -823,9 +813,7 @@
       "showSidebar": "Show sidebar",
       "hideSidebar": "Hide sidebar",
       "showBottomPanel": "Show bottom panel",
-      "hideBottomPanel": "Hide bottom panel",
-      "showDevTools": "Show DevTools",
-      "hideDevTools": "Hide DevTools"
+      "hideBottomPanel": "Hide bottom panel"
     },
     "multiTask": {
       "monitoringProgress": "Monitoring the progress of {{count}} subagents",
@@ -856,7 +844,8 @@
       "current": "Current"
     },
     "agentSentMessageCaption": "{{subject}} sent you a message",
-    "userSentMessageCaption": "You sent Agent a message"
+    "userSentMessageCaption": "You sent Agent a message",
+    "thoughtSentMessageCaption": "{{subject}} is thinking"
   },
   "terminal": {
     "findInTerminal": "Find in terminal",
@@ -891,6 +880,7 @@
     "editingQueuedMessage": "Editing queued message",
     "editingSentMessage": "Editing sent message",
     "voiceErrorPermission": "Microphone permission denied. Enable it in your OS settings.",
+    "voiceErrorPermissionIos": "Microphone access denied. On iPhone: Settings → Safari → Microphone, or Settings → this app if added to Home Screen.",
     "voiceErrorUnsupported": "Voice input is not supported in this build.",
     "voiceErrorAudio": "No microphone detected.",
     "voiceErrorGeneric": "Voice input failed. Please try again.",
@@ -942,8 +932,17 @@
     "multipleChoice": "Multiple Choice",
     "typeYourAnswer": "Type your answer…",
     "newSession": "New Session",
-    "muteNotifications": "Mute notifications",
     "startPage": {
+      "inputPosition": "Input",
+      "positionBottom": "Bottom",
+      "positionMiddle": "Middle",
+      "trailPosition": "Trail",
+      "positionUp": "Up",
+      "positionDown": "Down",
+      "uiControls": "UI controls",
+      "showQuickActions": "Show quick actions",
+      "showSkills": "Show Skills",
+      "showCliUpdate": "Show CLI update",
       "title": "What would you like to do?",
       "back": "Back to start page",
       "newSession": {
@@ -1054,6 +1053,7 @@
     "fullScreenChat": "Focus Chat Panel (Hide Workstation)",
     "maximizeChatPanel": "Maximize Chat Panel",
     "showWorkstation": "Show Workstation",
+    "workstationUnavailableForPage": "Workstation is not available on this page",
     "hideWorkstation": "Hide Workstation",
     "restoreSplitView": "Show Workstation",
     "shrinkToWorkstation": "Shrink Chat Panel (Show Workstation)",
@@ -1069,9 +1069,12 @@
       "openInSideChat": "Open in Side Chat"
     },
     "collapseAll": "Collapse all",
+    "copyAndExport": "Copy & Export",
     "copyEventJson": "Copy event JSON",
     "copyEventJsonCopied": "Copied!",
     "copyEventJsonFailed": "Copy failed",
+    "moveTo": "Move page to…",
+    "projectLinks": "Project links",
     "moveToWorkstation": "Move to My Station",
     "moveToChatPanel": "Move to Chat Panel",
     "rawTranscript": {
@@ -1090,11 +1093,11 @@
       "length": "{{length}} chars"
     },
     "trackAsProject": {
-      "menuItem": "Track as Project",
+      "menuItem": "Track as project",
       "success": "Session is now tracked as a Project"
     },
     "linkWorkItem": {
-      "menuItem": "Link to Work Item…",
+      "menuItem": "Link to work item…",
       "title": "Link session to Work Item",
       "description": "Select the Work Item that should show this session.",
       "searchPlaceholder": "Search by Work Item ID, title, status, or project",
@@ -1172,7 +1175,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~{{eta}} left",
     "rateLimitHintTitle": "API Rate Limited",
-    "rateLimitHintBody": "The current model is being rate-limited. You can switch to another window to continue working while waiting.",
+    "rateLimitHintBody": "The current model is being rate-limited. You can switch to another window to continue working while waiting",
     "feedbackPending": "Feedback Pending",
     "executionThreads": "Execution Threads",
     "allThreads": "All",
@@ -1204,6 +1207,7 @@
       "exportTitle": "Export Session JSON",
       "importTitle": "Import Session JSON",
       "exportAction": "Export",
+      "exportJson": "Export JSON",
       "importAction": "Import Session",
       "exportDescription": "Export the active Session as a portable JSON snapshot",
       "importDescription": "Import a Session JSON snapshot into the sidebar.",
@@ -1322,7 +1326,8 @@
     "conversationNavigator": "Conversation navigator",
     "goToConversationTurn": "Go to turn {{current}} of {{total}}: {{preview}}",
     "session": "Session",
-    "historyNoWorkspace": "No Workspace"
+    "historyNoWorkspace": "No Workspace",
+    "parentAgentSender": "Parent agent"
   },
   "chatStatus": {
     "approved": "Approved",
@@ -1363,7 +1368,16 @@
       "Working on it, taking longer than usual...",
       "Thinking it through, taking longer than usual..."
     ],
-    "compacting": "Compacting context..."
+    "compacting": "Compacting context...",
+    "statusTrail": {
+      "agentWorking": "Agent working",
+      "agentWorkingFor": "Agent working for {{value}}",
+      "runningTask_one": "{{count}} running task",
+      "runningTask_other": "{{count}} running tasks",
+      "idle": "Agent is idle",
+      "lastRefreshed": "Last refreshed {{value}}",
+      "asking": "Waiting for your reply"
+    }
   },
   "tools": {
     "noResultsFound": "No results found",
@@ -1399,6 +1413,10 @@
       "title": "Replay turn",
       "play": "Play replay",
       "duration": "{{value}}",
+      "segmentAria": "Replay turn {{number}}",
+      "turnTrackAria": "Replay turn track",
+      "segmentTooltip": "Turn {{number}} · {{duration}} · {{start}}–{{end}}",
+      "segmentTooltipNoRange": "Turn {{number}} · {{duration}}",
       "toolCalls": "{{count}} tool calls",
       "toolCalls_one": "{{count}} tool call",
       "filesChanged": "{{count}} files changed",
@@ -1453,9 +1471,7 @@
     },
     "editFileFailedNoName": "Attempted to edit",
     "file": "file",
-    "runShellRunning": "Running command",
     "terminalWaitRunning": "Waiting for terminal to finish",
-    "runShellDone": "Ran command",
     "runShellFailed": "Command failed",
     "runCommands": "Run commands",
     "runCommandRunning": "Running command",
@@ -1604,8 +1620,6 @@
     "killProcessFailed": "Failed to kill process",
     "listDirCount_one": "{{count}} dir",
     "listDirCount_other": "{{count}} dirs",
-    "listFileCount_one": "{{count}} file",
-    "listFileCount_other": "{{count}} files",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (truncated for display)",
     "repeatedErrorNotice": "Same error occurred {{count}} times, agent retrying",
@@ -2179,7 +2193,11 @@
     "orgSendMessageRunning": "Sending message to {{recipient}}",
     "orgSendMessageDone": "Sent message to {{recipient}}",
     "orgSendMessageFailed": "Failed to send message to {{recipient}}",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Running command",
+    "runCommandDone": "Ran command",
+    "nFiles_one": "{{count}} file",
+    "nFiles_other": "{{count}} files"
   },
   "hoverCard": {
     "commits": "Commits",
@@ -2200,7 +2218,6 @@
     },
     "createTarget": {
       "agentSession": "Agent session",
-      "manageAgents": "Manage agents / skills",
       "project": "Create project",
       "parallelRun": "Parallel run",
       "workItem": "Create work item"
@@ -2250,6 +2267,9 @@
     "launchpadQuestion": "What do you want to build with",
     "launchpadQuestionSuffix": "?",
     "manualLaunchpadQuestion": "What do you want to build?",
+    "planLaunchpadQuestion": "What do you want to plan with",
+    "planLaunchpadQuestionSuffix": "?",
+    "manualPlanLaunchpadQuestion": "What do you want to plan?",
     "start": "Start",
     "assign": "Assign",
     "send": "Send",
@@ -2552,8 +2572,8 @@
         "feedbackLabel": "Plan revision feedback",
         "feedbackPlaceholder": "Tell the Planner exactly what must change…",
         "paused": "Resume the run before responding to this plan.",
-        "staleError": "This plan was already resolved or replaced. Refresh to see the latest revision.",
-        "submitFailed": "The plan response could not be saved. Please try again."
+        "staleError": "This plan was already resolved or replaced. Refresh to see the latest revision",
+        "submitFailed": "The plan response could not be saved. Please try again"
       },
       "phase": {
         "coordinating": "Coordinating",
@@ -2821,7 +2841,8 @@
       "markedAs": "Marked as {{status}}",
       "runningTitle": "Updating task",
       "rejectedTitle": "Task update needs correction",
-      "failedTitle": "Task update failed"
+      "failedTitle": "Task update failed",
+      "title": "Updated task"
     },
     "get": {
       "title": "View task details"
@@ -3093,5 +3114,15 @@
     "imagesUnsupported": "Team chat messages cannot include images",
     "participantsTooltip": "Conversation participants and discussion messages",
     "mentionGroup": "Teammates"
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
+  },
+  "tooltips": {
+    "hidePanel": "Hide panel"
+  },
+  "titleBar": {
+    "showDevTools": "Show DevTools",
+    "hideDevTools": "Hide DevTools"
   }
 }

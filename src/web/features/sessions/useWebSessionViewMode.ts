@@ -1,4 +1,3 @@
-import { Braces, FileDiff, GanttChart, MessagesSquare } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -12,14 +11,22 @@ import {
   resolveSessionViewMode,
 } from "@src/engines/ChatPanel/hooks/useSessionViewMode";
 import type { SessionEvent } from "@src/engines/SessionCore";
+import {
+  ChartGanttIcon,
+  CodeXmlIcon,
+  FileDiffIcon,
+  HugeiconsIcon,
+  type IconSvgElement,
+  MessagesSquareIcon,
+} from "@src/icons";
 
 import { useWebSessionRawTranscript } from "./useWebSessionRawTranscript";
 
-const MODE_ICONS: Record<SessionViewMode, typeof MessagesSquare> = {
-  gui: MessagesSquare,
-  timeline: GanttChart,
-  changes: FileDiff,
-  raw: Braces,
+const MODE_ICONS: Record<SessionViewMode, IconSvgElement> = {
+  gui: MessagesSquareIcon,
+  timeline: ChartGanttIcon,
+  changes: FileDiffIcon,
+  raw: CodeXmlIcon,
 };
 
 const MODE_ICON_SIZE = 14;
@@ -54,13 +61,14 @@ export function useWebSessionViewMode({
   const options = useMemo<SelectOption[]>(
     () =>
       SESSION_VIEW_MODES.map((value) => {
-        const Icon = MODE_ICONS[value];
+        const icon = MODE_ICONS[value];
         return {
           value,
           label: t(`chat.sessionViews.${value}`, {
             defaultValue: SESSION_VIEW_FALLBACK_LABELS[value],
           }),
-          icon: React.createElement(Icon, {
+          icon: React.createElement(HugeiconsIcon, {
+            icon,
             size: MODE_ICON_SIZE,
             strokeWidth: 1.75,
           }),

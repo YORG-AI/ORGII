@@ -74,6 +74,25 @@ export function isSyntheticUserInputEvent(
   );
 }
 
+/**
+ * Canonical user-intent id carried by a user turn, or null when the turn
+ * never crossed the frontend submit boundary.
+ *
+ * `agent_send_message` mints an id for every turn it accepts and persists it
+ * on the `user_message` row, so the id survives a reload. Turns started
+ * inside the agent runtime — the orchestrator's subagent launch, which passes
+ * an empty intent id — carry none. Legacy rows written before ids existed
+ * also read as null.
+ */
+export function turnIntentIdOf(
+  event: Pick<UserEventIdentityFields, "source" | "result">
+): string | null {
+  if (event.source !== "user") return null;
+  const intent = (event.result as { turnIntentId?: unknown } | undefined)
+    ?.turnIntentId;
+  return typeof intent === "string" && intent.length > 0 ? intent : null;
+}
+
 export function isBackendUserMessageEvent(
   event: UserEventIdentityFields
 ): boolean {
@@ -108,31 +127,76 @@ export function createMergedThinkingId(firstChunkId: string): string {
 }
 
 /**
+ * Monotonic nonce for the TS-side streaming placeholder ids.
+ *
+ * A bare `Date.now()` nonce is NOT unique: two placeholders minted for the
+ * same session inside one millisecond get byte-identical ids, and the event
+ * store UPSERTs on id — so the second stream overwrites the first stream's
+ * row instead of creating its own, merging two logically distinct streams
+ * into one transcript event. A fast `reset()` → next-delta sequence hits this
+ * routinely. Rust solved the same hazard the same way for its authoritative
+ * ids (see `foundation/streaming.rs::stream_event_id`, whose `segment_counters`
+ * comment describes the identical upsert-overwrite failure).
+ *
+ * Shared by both lanes and never reset, so uniqueness does not depend on the
+ * wall clock moving forward — a clock that stalls, or steps backwards across a
+ * DST/NTP adjustment, still yields distinct ids.
+ */
+let streamPlaceholderSeq = 0;
+
+/**
+ * Zero-padded so ids sort lexicographically in creation order.
+ *
+ * `compareChatEvents` (core/store/snapshotMaterialization.orderMembership)
+ * breaks `createdAt` ties with `id.localeCompare`, and two same-millisecond
+ * placeholders routinely share a `createdAt`. Unpadded, "…-10" would sort
+ * before "…-2". Past 999_999 nonces in one process the width grows and that
+ * tie-break ordering degrades; uniqueness is unaffected.
+ */
+function nextStreamPlaceholderNonce(): string {
+  streamPlaceholderSeq += 1;
+  return String(streamPlaceholderSeq).padStart(6, "0");
+}
+
+/**
  * Generate a per-turn unique ID for the TS-side streaming thinking placeholder.
  *
- * Uses a timestamp nonce so the placeholder never collides with the previous
- * turn's completed thinking event. When `agent:streaming_complete` arrives,
- * the caller is responsible for removing this placeholder and inserting
- * Rust's authoritative event (ID = `stream-think-{sessionId}`).
+ * Uses a timestamp plus a monotonic counter so the placeholder never collides
+ * with the previous turn's completed thinking event — nor with another
+ * placeholder minted in the same millisecond. When `agent:streaming_complete`
+ * arrives, the caller is responsible for removing this placeholder and
+ * inserting Rust's authoritative event (ID = `stream-think-{sessionId}`).
+ *
+ * The `stream-think-ts-` prefix is load-bearing: Rust filters these live-only
+ * rows out of persistence by prefix (`session-persistence/src/crud.rs::
+ * is_ts_placeholder_id`, `subagent_handler/persistence.rs`), and the e2e suite
+ * uses it to tell TS placeholders from Rust's authoritative `stream-think-`
+ * events. The id must also stay colon-free so `parseActivityId` keeps
+ * classifying it as an opaque legacy id rather than a `prefix:source:id`
+ * triple (same constraint as `TeamCollaboration/copyEventId.ts`).
  *
  * @param sessionId - Current session ID
  */
 export function createStreamThinkingId(sessionId: string): string {
-  return `stream-think-ts-${sessionId}-${Date.now()}`;
+  return `stream-think-ts-${sessionId}-${Date.now()}-${nextStreamPlaceholderNonce()}`;
 }
 
 /**
  * Generate a per-turn unique ID for the TS-side streaming message placeholder.
  *
- * Uses a timestamp nonce so the placeholder never collides with the previous
- * turn's completed assistant message. When `agent:streaming_complete` arrives,
- * the caller is responsible for removing this placeholder and inserting
- * Rust's authoritative event (ID = `stream-msg-{sessionId}`).
+ * Uses a timestamp plus a monotonic counter so the placeholder never collides
+ * with the previous turn's completed assistant message — nor with another
+ * placeholder minted in the same millisecond. When `agent:streaming_complete`
+ * arrives, the caller is responsible for removing this placeholder and
+ * inserting Rust's authoritative event (ID = `stream-msg-{sessionId}`).
+ *
+ * See `createStreamThinkingId` for why the `stream-msg-ts-` prefix and the
+ * colon-free shape are load-bearing.
  *
  * @param sessionId - Current session ID
  */
 export function createStreamMessageId(sessionId: string): string {
-  return `stream-msg-ts-${sessionId}-${Date.now()}`;
+  return `stream-msg-ts-${sessionId}-${Date.now()}-${nextStreamPlaceholderNonce()}`;
 }
 
 /**

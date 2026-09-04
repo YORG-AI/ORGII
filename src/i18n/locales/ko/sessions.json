@@ -88,12 +88,6 @@
       "openAsFloatingPane": "플로팅 패널로 열기"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "파일 경로로 세션 검색",
-      "noResults": "일치하는 파일을 수정한 세션이 없습니다"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "현재 Kanban",
     "view": {
       "list": "List",
       "diary": "다이어리",
@@ -318,8 +312,8 @@
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
       "removeDraft": "초안 제거",
-      "showSubagents": "하위 에이전트 표시",
-      "hideSubagents": "하위 에이전트 숨기기"
+      "showSubagents": "subagent 표시",
+      "hideSubagents": "subagent 숨기기"
     },
     "resultStatus": {
       "completed": "완료",
@@ -358,9 +352,6 @@
       "merge": "병합",
       "merging": "병합 중…",
       "merged": "병합됨"
-    },
-    "replay": {
-      "replaySession": "리플레이"
     },
     "discard": {
       "discard": "버리기",
@@ -466,7 +457,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "패널 숨기기",
         "expandPanel": "Trajectory 및 Todo 패널 표시",
         "placeholderTrajectoryTitle": "아직 이벤트 없음",
         "placeholderTrajectorySubtitle": "Agent가 실행되면 세션 활동이 여기에 표시됩니다",
@@ -767,9 +757,7 @@
       "showSidebar": "사이드바 표시",
       "hideSidebar": "사이드바 숨기기",
       "showBottomPanel": "하단 패널 표시",
-      "hideBottomPanel": "하단 패널 숨기기",
-      "showDevTools": "DevTools 표시",
-      "hideDevTools": "DevTools 숨기기"
+      "hideBottomPanel": "하단 패널 숨기기"
     },
     "multiTask": {
       "monitoringProgress": "{{count}}개 Subagent의 진행 상황 모니터링 중",
@@ -800,7 +788,8 @@
       "current": "현재"
     },
     "agentSentMessageCaption": "{{subject}}가 메시지를 보냈습니다",
-    "userSentMessageCaption": "Agent에게 메시지를 보냈습니다"
+    "userSentMessageCaption": "Agent에게 메시지를 보냈습니다",
+    "thoughtSentMessageCaption": "{{subject}}가 생각하는 중입니다"
   },
   "terminal": {
     "findInTerminal": "터미널에서 검색",
@@ -880,8 +869,17 @@
     "multipleChoice": "다중 선택",
     "typeYourAnswer": "답변을 입력하세요…",
     "newSession": "새 세션",
-    "muteNotifications": "알림 음소거",
     "startPage": {
+      "inputPosition": "입력창",
+      "positionBottom": "하단",
+      "positionMiddle": "중앙",
+      "trailPosition": "컨텍스트 바",
+      "positionUp": "위",
+      "positionDown": "아래",
+      "uiControls": "UI 컨트롤",
+      "showQuickActions": "빠른 작업 표시",
+      "showSkills": "Skills 표시",
+      "showCliUpdate": "CLI 업데이트 표시",
       "title": "무엇을 할까요?",
       "back": "시작 페이지로 돌아가기",
       "newSession": {
@@ -992,6 +990,7 @@
     "fullScreenChat": "Chat 패널 포커스 (Workstation 숨기기)",
     "maximizeChatPanel": "Chat 패널 최대화",
     "showWorkstation": "Workstation 표시",
+    "workstationUnavailableForPage": "이 페이지에서는 Workstation을 사용할 수 없습니다",
     "hideWorkstation": "Workstation 숨기기",
     "restoreSplitView": "Workstation 표시",
     "shrinkToWorkstation": "Chat 패널 축소 (Workstation 표시)",
@@ -1007,9 +1006,12 @@
       "openInSideChat": "사이드 채팅에서 열기"
     },
     "collapseAll": "모두 접기",
+    "copyAndExport": "복사 및 내보내기",
     "copyEventJson": "이벤트 JSON 복사",
     "copyEventJsonCopied": "복사됨!",
     "copyEventJsonFailed": "복사 실패",
+    "moveTo": "페이지를 다음으로 이동…",
+    "projectLinks": "프로젝트 연결",
     "moveToWorkstation": "내 Workstation으로 이동",
     "moveToChatPanel": "채팅 패널로 이동",
     "rawTranscript": {
@@ -1106,7 +1108,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~{{eta}} 남음",
     "rateLimitHintTitle": "API 속도 제한",
-    "rateLimitHintBody": "현재 모델이 속도 제한을 받고 있습니다. 대기 중 다른 창으로 전환하여 작업을 계속할 수 있습니다.",
+    "rateLimitHintBody": "현재 모델이 속도 제한을 받고 있습니다. 대기 중 다른 창으로 전환하여 작업을 계속할 수 있습니다",
     "feedbackPending": "피드백 대기 중",
     "executionThreads": "실행 스레드",
     "allThreads": "전체",
@@ -1138,6 +1140,7 @@
       "exportTitle": "Session JSON 내보내기",
       "importTitle": "Session JSON 가져오기",
       "exportAction": "내보내기",
+      "exportJson": "JSON 내보내기",
       "importAction": "Session 가져오기",
       "exportDescription": "활성 Session을 휴대용 JSON 스냅샷으로 내보냅니다",
       "importDescription": "Session JSON 스냅샷을 사이드바로 가져옵니다.",
@@ -1243,7 +1246,8 @@
       "fileCount_other": "파일 {{count}}개",
       "turnCount_one": "턴 {{count}}개",
       "turnCount_other": "턴 {{count}}개"
-    }
+    },
+    "parentAgentSender": "상위 에이전트"
   },
   "chatStatus": {
     "approved": "승인됨",
@@ -1358,9 +1362,7 @@
     },
     "editFileFailedNoName": "편집 시도",
     "file": "파일",
-    "runShellRunning": "명령 실행 중",
     "terminalWaitRunning": "터미널 완료 대기 중",
-    "runShellDone": "명령 실행됨",
     "runShellFailed": "명령 실행 실패",
     "runCommands": "명령 실행",
     "terminalSummary": {
@@ -1425,8 +1427,8 @@
     "categorySearch": "검색",
     "categoryGlob": "Glob",
     "categoryList": "목록",
-    "subagentFailed": "Sub Agent 실패",
-    "subagentDefaultName": "Sub Agent",
+    "subagentFailed": "Subagent 실패",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "작업을 Subagent에 할당함",
     "subagentRunning": "Subagent 실행 중",
     "subagentDone": "Subagent 완료",
@@ -1436,9 +1438,9 @@
     "createPlanRunning": "Plan 생성 중",
     "createPlanDone": "Plan 생성됨",
     "createPlanFailed": "Plan 생성 실패",
-    "subagentResultTabFallbackTitle": "Sub Agent 결과",
+    "subagentResultTabFallbackTitle": "Subagent 결과",
     "openResultInTab": "탭에서 열기",
-    "openSubagentChatInTab": "에디터에서 Sub Agent 상세 열기",
+    "openSubagentChatInTab": "에디터에서 Subagent 상세 열기",
     "executing": "실행 중",
     "argumentsLabel": "인수",
     "resultLabel": "결과",
@@ -1493,8 +1495,6 @@
     "killProcessFailed": "프로세스 종료 실패",
     "listDirCount_one": "디렉터리 {{count}}개",
     "listDirCount_other": "디렉터리 {{count}}개",
-    "listFileCount_one": "파일 {{count}}개",
-    "listFileCount_other": "파일 {{count}}개",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (표시용으로 잘림)",
     "repeatedErrorNotice": "동일한 오류 {{count}}회 발생, Agent 재시도 중",
@@ -2083,7 +2083,11 @@
     "orgSendMessageRunning": "{{recipient}} 에게 메시지를 보내는 중",
     "orgSendMessageDone": "{{recipient}} 에게 메시지를 보냈습니다",
     "orgSendMessageFailed": "{{recipient}} 에게 메시지를 보내지 못했습니다",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "명령 실행 중",
+    "runCommandDone": "명령 실행됨",
+    "nFiles_one": "파일 {{count}}개",
+    "nFiles_other": "파일 {{count}}개"
   },
   "hoverCard": {
     "commits": "커밋",
@@ -2103,7 +2107,6 @@
     },
     "createTarget": {
       "agentSession": "Agent 세션",
-      "manageAgents": "Agents / Skills 관리",
       "project": "프로젝트 만들기",
       "parallelRun": "병렬 실행",
       "workItem": "Work Item 만들기"
@@ -2148,6 +2151,9 @@
     "launchpadQuestion": "선택한",
     "launchpadQuestionSuffix": "와 함께 무엇을 만들고 싶으신가요?",
     "manualLaunchpadQuestion": "무엇을 만들고 싶으신가요?",
+    "planLaunchpadQuestion": "",
+    "planLaunchpadQuestionSuffix": "와 함께 무엇을 계획하고 싶으신가요?",
+    "manualPlanLaunchpadQuestion": "무엇을 계획하고 싶으신가요?",
     "start": "시작",
     "assign": "할당",
     "send": "보내기",
@@ -2539,7 +2545,16 @@
       "작업 중, 평소보다 오래 걸리고 있습니다...",
       "다음에 무엇을 할지 고민 중, 평소보다 오래 걸리고 있습니다..."
     ],
-    "compacting": "컨텍스트 압축 중..."
+    "compacting": "컨텍스트 압축 중...",
+    "statusTrail": {
+      "agentWorking": "Agent 작업 중",
+      "agentWorkingFor": "Agent가 {{value}} 작업 중",
+      "runningTask_one": "실행 중인 작업 {{count}}개",
+      "runningTask_other": "실행 중인 작업 {{count}}개",
+      "idle": "Agent 대기 중",
+      "lastRefreshed": "마지막 새로 고침 {{value}}",
+      "asking": "답변을 기다리는 중"
+    }
   },
   "revertConfirm": {
     "title": "저장되지 않은 파일 변경사항",
@@ -2685,7 +2700,8 @@
     "update": {
       "titleStatus": "작업 상태 업데이트",
       "titleDetail": "작업 세부 정보 업데이트",
-      "markedAs": "{{status}}(으)로 표시됨"
+      "markedAs": "{{status}}(으)로 표시됨",
+      "title": "작업 업데이트됨"
     },
     "get": {
       "title": "작업 상세 보기"
@@ -2841,5 +2857,15 @@
       "skipped": "건너뜀",
       "pending": "시작 중"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
+  },
+  "tooltips": {
+    "hidePanel": "패널 숨기기"
+  },
+  "titleBar": {
+    "showDevTools": "DevTools 표시",
+    "hideDevTools": "DevTools 숨기기"
   }
 }

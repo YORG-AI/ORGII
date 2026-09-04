@@ -18,7 +18,13 @@ import type { CollabSessionAccessMode } from "@src/store/collaboration/types";
 
 import { ORG2_CLOUD_POSTGREST_SCHEMA, getCloudEndpoint } from "./config";
 import type { OrgRuntimeTelemetry } from "./memberRuntime/types";
-import type { Org2CloudAuthState, Org2CloudProfile } from "./org2CloudAuthAtom";
+import {
+  ORG2_CLOUD_AUTH_STORAGE_KEY,
+  type Org2CloudAuthState,
+  type Org2CloudProfile,
+  org2CloudAuthIdentityKey,
+  parseStoredOrg2CloudAuth,
+} from "./org2CloudAuthAtom";
 import {
   fetchWithTransportRetry,
   runCloudRequestWithTimeout,
@@ -483,35 +489,137 @@ export interface EnsureFreshSessionOptions {
   onRefreshRejected?: () => void;
 }
 
+function hasComfortablyFreshAccessToken(
+  state: Org2CloudAuthState,
+  nowSeconds: number
+): boolean {
+  return state.expiresAt - nowSeconds > REFRESH_SKEW_SECONDS;
+}
+
+/**
+ * Cross-window mutex for the ROTATING refresh-token exchange. The per-realm
+ * `inFlightRefresh` dedupe cannot see another OS window's webview realm, and
+ * two windows racing the same rotating token make the loser permanently
+ * rejected (GoTrue reuse detection) — which signs the user out. Web Locks
+ * are shared across same-origin webviews (WKWebView / WebView2 both support
+ * them); where the API is absent the current single-window behavior stands.
+ * Callbacks passed here must not throw: a lock-manager error falls back to
+ * running the callback unserialized.
+ */
+const TOKEN_REFRESH_LOCK_NAME = "orgii:org2cloud-token-refresh";
+
+async function withCrossWindowRefreshLock<T>(
+  run: () => Promise<T>
+): Promise<T> {
+  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+  if (!locks?.request) return run();
+  try {
+    return (await locks.request(
+      TOKEN_REFRESH_LOCK_NAME,
+      { mode: "exclusive" },
+      run
+    )) as T;
+  } catch (error) {
+    log.warn("cross-window refresh lock unavailable:", error);
+    return run();
+  }
+}
+
+/** The exact persisted auth payload the auth atom writes; `null` on any
+ * parse/storage failure. */
+function readPersistedOrg2CloudAuth(): Org2CloudAuthState | null {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    return parseStoredOrg2CloudAuth(
+      localStorage.getItem(ORG2_CLOUD_AUTH_STORAGE_KEY)
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cross-window refresh short-circuit: while this realm waited on the refresh
+ * mutex, another window may have already rotated the same session and
+ * persisted the result. Returns the caller's state carrying the persisted
+ * rotation when that happened (no exchange needed); `null` means the
+ * exchange must still run. Only a persisted session for the SAME identity
+ * (endpoint + user) with a comfortably fresh access token counts — another
+ * account/endpoint or a stale persisted copy never short-circuits.
+ */
+export function adoptPersistedSessionRotation(
+  state: Org2CloudAuthState,
+  persisted: Org2CloudAuthState | null,
+  nowSeconds: number
+): Org2CloudAuthState | null {
+  if (!persisted) return null;
+  if (org2CloudAuthIdentityKey(persisted) !== org2CloudAuthIdentityKey(state)) {
+    return null;
+  }
+  if (!hasComfortablyFreshAccessToken(persisted, nowSeconds)) return null;
+  return {
+    ...state,
+    accessToken: persisted.accessToken,
+    refreshToken: persisted.refreshToken,
+    expiresAt: persisted.expiresAt,
+  };
+}
+
+interface EnsureFreshSessionOutcome {
+  session: Org2CloudAuthState | null;
+  permanentlyRejected: boolean;
+}
+
 /**
  * Return `state` unchanged while the access token is comfortably valid;
  * otherwise refresh and return the updated state. The CALLER persists the
  * returned state (this module never touches the atom). `null` means the
  * refresh failed — the caller decides whether to sign the user out.
+ *
+ * The exchange itself runs under two serialization layers: the per-realm
+ * `inFlightRefresh` single-flight, plus the cross-window Web Lock (with a
+ * persisted-rotation re-read after acquiring it, so a realm that lost the
+ * race adopts the winner's tokens instead of burning the rotated one).
  */
 export async function ensureFreshSession(
   state: Org2CloudAuthState,
   options?: EnsureFreshSessionOptions
 ): Promise<Org2CloudAuthState | null> {
-  const nowSeconds = Date.now() / 1000;
-  if (state.expiresAt - nowSeconds > REFRESH_SKEW_SECONDS) {
+  if (hasComfortablyFreshAccessToken(state, Date.now() / 1000)) {
     return state;
   }
-  const attempt = await refreshSessionAttempt(state.refreshToken, {
-    supabaseUrl: state.supabaseUrl,
-    anonKey: state.supabaseAnonKey,
-  });
-  const refreshed = attempt.tokens;
-  if (!refreshed && attempt.permanentlyRejected) {
+  const outcome = await withCrossWindowRefreshLock<EnsureFreshSessionOutcome>(
+    async () => {
+      const adopted = adoptPersistedSessionRotation(
+        state,
+        readPersistedOrg2CloudAuth(),
+        Date.now() / 1000
+      );
+      if (adopted) return { session: adopted, permanentlyRejected: false };
+      const attempt = await refreshSessionAttempt(state.refreshToken, {
+        supabaseUrl: state.supabaseUrl,
+        anonKey: state.supabaseAnonKey,
+      });
+      const refreshed = attempt.tokens;
+      return {
+        session: refreshed
+          ? {
+              ...state,
+              accessToken: refreshed.accessToken,
+              refreshToken: refreshed.refreshToken,
+              expiresAt: refreshed.expiresAt,
+            }
+          : null,
+        permanentlyRejected: attempt.permanentlyRejected,
+      };
+    }
+  );
+  // Outside the locked region: a caller-supplied handler must not be able to
+  // throw inside the lock callback (see withCrossWindowRefreshLock).
+  if (!outcome.session && outcome.permanentlyRejected) {
     options?.onRefreshRejected?.();
   }
-  if (!refreshed) return null;
-  return {
-    ...state,
-    accessToken: refreshed.accessToken,
-    refreshToken: refreshed.refreshToken,
-    expiresAt: refreshed.expiresAt,
-  };
+  return outcome.session;
 }
 
 /** Re-exported so UI code has one import site. */

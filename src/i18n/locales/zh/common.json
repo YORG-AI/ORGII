@@ -52,8 +52,6 @@
     "questionIgnored": "已忽略该问题",
     "addedAsContext": "已将 {{name}} 添加为上下文",
     "addedFilesAsContext": "已添加 {{count}} 个文件作为上下文",
-    "chooseAgentAssigneeAi": "使用 AI 创建前请先选择一个 Agent 负责人。",
-    "autoExecuteRequiresAgent": "自动执行需要指定一个 Agent 负责人。",
     "openSessionBeforeLinking": "请先打开一个会话再关联工作项。",
     "sessionLinkedToWorkItem": "会话已关联到工作项。",
     "sessionLinkFailed": "关联会话失败：{{message}}",
@@ -66,7 +64,9 @@
     "workspaceImportFailed": "导入工作区失败",
     "chooseFolderCloneRepo": "选择用于克隆仓库的文件夹",
     "repositoryCloned": "仓库已克隆",
-    "repositoryCloneFailed": "克隆仓库失败"
+    "repositoryCloneFailed": "克隆仓库失败",
+    "chooseExecutionAgentAi": "使用 AI 创建前请先选择一个 Agent 负责人。",
+    "autoExecuteRequiresExecutionAgent": "自动执行需要指定一个 Agent 负责人。"
   },
   "previews": {
     "noCanvasAvailable": "暂无画布",
@@ -84,22 +84,11 @@
     "noSlidesFound": "未找到幻灯片"
   },
   "adeManager": {
-    "enabledLabel": "Agent Control：开启",
-    "disabledLabel": "Agent Control：关闭",
-    "enableAction": "开启 Agent Control",
-    "disableAction": "关闭 Agent Control",
-    "inputMode": "控制",
-    "selectionMode": "回答",
-    "toggleMode": "切换输入模式",
     "inputPlaceholder": "管理 Agent、工作区，或控制此应用...",
-    "selectionPlaceholder": "询问任何关于 ORGII 或 ADE 设置的问题...",
     "submit": "提交 Agent Control 输入",
     "menuToggle": "ADE Manager",
     "selectModel": "选择模型",
-    "newRound": "新一轮",
-    "proposalTitle": "建议的会话",
-    "proposalTaskLabel": "任务",
-    "proposalLaunch": "启动"
+    "newRound": "新一轮"
   },
   "secretCapture": {
     "title": "请输入敏感信息",
@@ -258,11 +247,15 @@
     "skipThisVersion": "跳过此版本",
     "later": "稍后",
     "link": "链接",
-    "copyName": "复制名称"
+    "copyName": "复制名称",
+    "dismiss": "忽略",
+    "comingSoon": "即将推出",
+    "clearSelection": "清除选择",
+    "uiSettings": "界面设置",
+    "clearAll": "全部清除"
   },
   "refreshToast": {
-    "successName": "{{name}} 已刷新",
-    "cooldown": "请稍后再刷新"
+    "successName": "{{name}} 已刷新"
   },
   "status": {
     "yes": "是",
@@ -318,7 +311,6 @@
     "disabledInSettings": "在设置中已禁用",
     "diagnosticsInitializing": "正在启动诊断源...",
     "diagnosticSourceIssues": "诊断源问题",
-    "comingSoon": "即将推出",
     "copied": "已复制",
     "copyFailed": "复制失败",
     "searching": "搜索中...",
@@ -488,7 +480,7 @@
     "renowned": "知名",
     "dragToReorder": "拖拽调整消息顺序",
     "sessionBlame": "Session Blame",
-    "sessionBlameSubagent": "子代理：{{name}}",
+    "sessionBlameSubagent": "subagent：{{name}}",
     "sessionBlameMainSession": "主 Session",
     "sessionBlameAction": {
       "read": "读取",
@@ -541,24 +533,10 @@
     "appliedCommits": "Applied commits",
     "noAppliedCommit": "No linked commit yet",
     "noSessionsForFile": "No sessions found for this file",
-    "committedRate": "已提交"
+    "committedRate": "已提交",
+    "email": "邮箱"
   },
-  "searchModes": {
-    "keywordLabel": "关键词",
-    "regexLabel": "正则",
-    "rankedLabel": "排序",
-    "regexSearchLabel": "正则搜索",
-    "rankedSearchLabel": "排序搜索",
-    "regexSecondary": "快速，字面匹配",
-    "rankedSecondary": "使用 index 进行排序",
-    "keywordDescription": "全文关键词搜索 (BM25)",
-    "regexDescription": "正则表达式搜索",
-    "foundByKeyword": "由关键词搜索命中",
-    "semanticSecondary": "meaning match",
-    "hybridSecondary": "semantic + full-text",
-    "semanticDescription": "Embedding-based meaning search",
-    "hybridDescription": "Combined semantic and full-text search"
-  },
+  "searchModes": {},
   "tabs": {
     "terminal": "终端",
     "problems": "问题",
@@ -608,7 +586,7 @@
     "unknown": "未知错误",
     "agentRequestFailed": "Agent 请求失败",
     "codexLoginExpired": "Codex 登录已失效",
-    "codexLoginExpiredDescription": "重新连接 Codex 即可修复此账号；登录并保存后会返回当前会话。",
+    "codexLoginExpiredDescription": "重新连接 Codex 即可修复此账号；登录并保存后会返回当前会话",
     "reconnectCodex": "重新连接 Codex",
     "technicalDetails": "技术详情",
     "failedToCopy": "复制失败",
@@ -656,7 +634,6 @@
   },
   "confirmation": {
     "delete": "确定要删除吗？",
-    "unsavedChanges": "您有未保存的更改。确定要离开吗？",
     "discard": "放弃更改？",
     "removeTitle": "从 ORGII 中移除「{{name}}」？",
     "removeMessage": "这只会移除它与 ORGII 的关联，不会从磁盘中移除任何内容。",
@@ -664,25 +641,16 @@
     "deleteWorkspaceMessage": "仅删除工作区预设。其中包含的 Repo 和文件夹不会受到影响。",
     "deleteSelectedTitle": "从 ORGII 中移除选中的 {{count}} 项？",
     "deleteSelectedMessage": "这只会移除它们与 ORGII 的关联，不会从磁盘中移除任何内容。",
-    "disconnectTitle": "断开「{{name}}」？",
-    "disconnectMessage": "这将移除该账户对所有仓库的访问权限。",
     "dropStashTitle": "Drop stash？",
     "dropStashMessage": "这将永久删除 {{stashRef}}。此操作无法撤销。",
     "popAllStashesTitle": "Pop all stashes？",
     "popAllStashesMessage": "这将应用所有 {{count}} 个 stash 并将其从 stash 列表中移除。",
-    "removeStepTitle": "移除步骤：{{name}}",
-    "removeStepMessage": "确定要移除此步骤吗？这可能会影响 Atlas 的推理和操作。",
     "reloadFileTitle": "重新加载文件",
     "reloadFileMessage": "您有未保存的更改。重新加载将丢弃这些更改。是否继续？",
     "unsavedCloseTitle": "未保存的更改",
     "unsavedCloseMessage": "「{{name}}」有未保存的更改。不保存直接关闭？",
     "unsavedCloseMultipleMessage": "{{count}} 个文件有未保存的更改。仍然关闭？",
-    "updateTitle": "发现新版本",
-    "updateMessage": "发现新版本 {{version}}！\n\n当前版本：v{{current}}\n\n更新内容：{{body}}",
-    "undoAllChanges": "这将撤销 Agent 所做的全部 {{count}} 个文件更改。此操作不可恢复，确定继续吗？",
-    "redoAllChanges": "这将重新应用之前撤销的文件更改。确定继续吗？",
-    "removeFolderTitle": "从工作区中移除 \"{{name}}\"？",
-    "removeFolderMessage": "文件夹将从此工作区中移除，不会删除任何文件。"
+    "undoAllChanges": "这将撤销 Agent 所做的全部 {{count}} 个文件更改。此操作不可恢复，确定继续吗？"
   },
   "dateRange": {
     "1d": "1天",
@@ -691,45 +659,25 @@
     "30d": "30天",
     "1m": "1个月",
     "3m": "3个月",
-    "6m": "6个月",
     "1y": "1年"
   },
   "filters": {
     "all": "全部",
     "source": "来源",
     "local": "本地",
-    "pooling": "共享池",
-    "sourceAll": "全部",
-    "myKeys": "我的 Key",
-    "myKeysDesc": "使用自己的 API Key",
     "member": "成员",
-    "dateRange": "日期范围",
     "model": "模型",
-    "modelSource": "模型来源",
     "custom": "自定义",
     "tokenMarket": "Token Market",
     "market": "市场",
-    "yourModels": "你的模型",
-    "selectModel": "选择模型",
-    "selectSource": "选择来源",
-    "selectAgent": "选择 Agent",
     "agentOrAgentOrg": "Session agent",
     "searchAgentOrOrg": "选择 Agent 或 Agent 团队...",
     "tplSelectAgentOrOrg": "选择 {agent}",
     "cliAgent": "CLI Agent",
-    "placeholderModel": "模型",
-    "placeholderSource": "来源",
     "searchModel": "搜索模型...",
     "searchModelFor": "为 {{target}} 选择一个模型...",
-    "searchModelSource": "搜索模型来源...",
-    "placeholderAgent": "Agent",
-    "tplUseAgent": "使用 {agent}",
     "tplSelectModel": "选择 {model}",
-    "tplSelectModelFor": "为 {{target}} 选择 {model}",
-    "tplSelectSource": "选择 {source}",
-    "tplSelectSourceFor": "为 {{target}} 选择 {source}",
-    "hostedKeys": "ORGII 托管",
-    "hostedKeysDesc": "使用 ORGII 托管密钥"
+    "tplSelectModelFor": "为 {{target}} 选择 {model}"
   },
   "prerequisite": {
     "missingTitle": "缺少前置依赖",
@@ -740,21 +688,14 @@
     "you": "你",
     "session": "Session",
     "agentSession": "Agent Session",
-    "agentSessions": "Agent Session",
     "workStation": "工作站",
-    "embeddingModel": "Embedding 模型",
-    "languageServer": "Language Server",
-    "languageServers": "Language Servers",
-    "devPassport": "Dev Passport",
     "osAgent": "OS Agent",
     "coding": "Coding",
     "agentTerminal": "Agent 终端",
     "myStation": "我的工作站",
     "agentStation": "Agent的工作站",
-    "sdeAgent": "SDE Agent",
     "projectManager": "项目管理器",
     "myTerminal": "我的终端",
-    "agentTerminalInfo": "Agent 终端信息",
     "myTerminalInfo": "我的终端信息"
   },
   "pageSearch": {
@@ -769,41 +710,21 @@
   "tooltips": {
     "closeEsc": "关闭 (Esc)",
     "hidePanel": "隐藏面板 (⌘J)",
-    "maximizePanel": "最大化面板尺寸",
-    "restorePanel": "还原面板尺寸",
-    "refreshTables": "刷新表",
     "refreshTree": "刷新树",
-    "refreshTokens": "刷新 Token",
-    "refreshExtensions": "刷新扩展",
-    "refreshProps": "刷新属性",
-    "refreshSyncStatus": "刷新同步状态",
     "copy": "复制",
-    "copyFilePath": "复制文件路径",
-    "copyJson": "复制 JSON",
-    "copyCode": "复制代码",
     "previous": "上一个",
     "next": "下一个",
     "previousMatch": "上一个匹配 (Shift+Enter)",
     "nextMatch": "下一个匹配 (Enter)",
-    "previousEvent": "上一个事件",
-    "nextEvent": "下一个事件",
-    "previousShiftTab": "上一个 (Shift+Tab)",
-    "nextTab": "下一个 (Tab)",
-    "clearAll": "全部清除",
     "clearSearch": "清除搜索",
-    "clearOutput": "清除输出",
     "openInEditorTab": "在编辑器标签中打开",
     "openFile": "打开文件",
-    "openSource": "打开源代码",
     "openNativeDevTools": "打开原生浏览器开发者工具",
     "captureScreenshot": "截取当前页面并添加到聊天输入",
     "enableInspectMode": "检查元素",
     "disableInspectMode": "退出检查 (Esc)",
     "killTerminal": "终止终端",
-    "newTerminal": "新建终端",
     "showTerminalProcessInfo": "显示终端进程信息",
-    "showTimestamps": "显示时间戳",
-    "runTest": "运行测试",
     "collapseAll": "全部折叠",
     "expandAll": "全部展开",
     "resetZoom": "重置缩放 (100%)",
@@ -814,8 +735,6 @@
     "closePanel": "关闭面板",
     "showSidebar": "显示侧边栏",
     "hideSidebar": "隐藏侧边栏",
-    "resetToDefault": "重置为默认值",
-    "resetAll": "全部重置",
     "moreOptions": "更多选项",
     "zoomIn": "放大",
     "zoomOut": "缩小",
@@ -828,77 +747,37 @@
     "searchInOpenEditors": "仅在已打开的编辑器中搜索",
     "replace": "替换 (Ctrl+Shift+1)",
     "replaceAll": "全部替换 (Ctrl+Alt+Enter)",
-    "addToken": "添加 Token",
-    "addConnection": "添加连接",
     "uninstall": "卸载",
-    "closeConnection": "关闭连接",
     "dismiss": "忽略",
     "moreActions": "更多操作...",
-    "markResolved": "Mark as Resolved",
-    "pullResolved": "拉取已解决的版本",
-    "discardResolution": "放弃 Agent 的解决方案",
-    "aiResolveConflicts": "AI 解决冲突",
-    "resolveBeforePush": "推送前解决冲突",
     "formatSql": "格式化 SQL",
     "queryHistory": "查询历史",
     "executeQuery": "执行查询 (Ctrl+Enter)",
-    "executeCommand": "执行命令",
-    "startProcess": "启动进程",
     "startVoiceInput": "开始语音输入",
     "cancelRecording": "取消录制",
     "stopAndTranscribe": "停止并转录",
     "htmlPreview": "HTML 预览",
-    "chatAppearance": "聊天外观",
-    "autoDetect": "自动检测",
-    "publishToMarketplace": "发布到市场",
-    "becomeProvider": "成为提供商",
     "manual": "手动",
-    "autoExtract": "自动提取",
-    "editWorkflow": "编辑工作流",
-    "deleteWorkflow": "删除工作流",
-    "openWorkflowEditor": "打开工作流编辑器",
     "scrollLeft": "向左滚动标签",
-    "scrollRight": "向右滚动标签",
-    "signOut": "退出登录",
     "toggleFileFilters": "切换文件过滤器",
-    "playbackSpeed": "播放速度",
     "closeDevTools": "关闭开发者工具",
     "movePanelToRight": "面板移至右侧",
     "movePanelToBottom": "面板移至底部",
     "domTree": "DOM 树",
     "clearUiIndex": "清除组件索引",
-    "closeBrowser": "关闭浏览器",
-    "gridLayout": "网格布局",
-    "freestyleLayout": "自由布局",
-    "changeCoverColor": "更改封面颜色",
-    "exportPreset": "导出当前预设",
-    "importPreset": "从文件导入预设",
-    "resetDefaults": "重置所有参数为默认值",
-    "insertNewRow": "插入新行",
-    "removeFromHistory": "从历史记录中移除",
-    "runQuery": "运行查询",
     "closeSession": "关闭 Session",
-    "showDevTools": "显示开发者工具",
     "clearNetworkLogs": "清除网络日志",
     "clearConsole": "清除控制台",
-    "clearSelection": "清除选择",
     "copyToClipboard": "复制到剪贴板",
     "openDiff": "打开 Diff",
-    "previousTab": "上一个标签",
-    "nextTabNav": "下一个标签",
-    "rejectFileChanges": "拒绝文件变更",
-    "acceptFileChanges": "接受文件变更",
     "popAllStashes": "Pop All Stashes（应用并移除）",
     "applyStash": "Apply Stash（应用并保留 stash）",
     "popStash": "Pop Stash（应用并移除）",
     "dropStash": "Drop Stash（删除）",
-    "showBlame": "显示 Git Blame",
-    "hideBlame": "隐藏 Git Blame",
     "scrollToItem": "滚动到 {{name}}",
     "containsStatusFiles": "包含 {{status}} 的文件",
     "showFileList": "显示文件列表",
-    "copyValueRightClickForPath": "单击复制值，右键复制路径",
-    "searchModeCycle": "搜索模式：{{mode}}。点击循环切换模式。"
+    "copyValueRightClickForPath": "单击复制值，右键复制路径"
   },
   "placeholders": {
     "loading": "加载中...",
@@ -908,31 +787,21 @@
     "noResults": "无结果",
     "noResultsSubtitle": "请尝试其他搜索词",
     "noResultsWithFilters": "请尝试其他搜索词或调整过滤器",
-    "noRows": "无数据行",
     "noFilesFound": "未找到文件",
-    "noSqliteFiles": "项目中无 .sqlite 文件",
     "noFilesSubtitle": "请尝试其他搜索查询",
     "untitled": "未命名",
     "loadingChanges": "加载变更中...",
     "diffContentUnavailable": "Diff 内容不可用",
     "parsingSymbols": "解析符号中...",
-    "discoveringTests": "发现测试中...",
     "noTestsFound": "未找到测试",
     "noFileSelected": "选择文件以查看大纲",
     "noSymbolsFound": "未找到符号",
     "outlineNotAvailable": "此文件类型不支持大纲",
     "failedToParseSymbols": "解析符号失败",
     "outlineParseError": "此文件无法生成大纲",
-    "noActiveSession": "开始会话以查看变更",
-    "runTestsToSeeResults": "运行测试以查看结果",
     "runQueryToSeeResults": "运行查询以查看结果",
-    "noMessages": "没有消息",
-    "noPayoutsYet": "暂无付款记录",
-    "noEarningsYet": "暂无收益",
     "noProjectsFound": "未找到项目",
     "failedToLoad": "加载失败",
-    "noSessions": "暂无 Session",
-    "filterExtensions": "搜索已安装的扩展...",
     "noItems": "暂无项目",
     "nothingHereYet": "暂无内容",
     "noMatchingResults": "没有匹配的结果",
@@ -944,7 +813,6 @@
     "noItemsAvailable": "暂无可用项目",
     "loadingMore": "加载更多...",
     "scrollForMore": "滚动查看更多",
-    "noMatchingItems": "没有匹配的项目",
     "typeToSearch": "输入以搜索",
     "pleaseTryAgain": "请重试",
     "noFileOpen": "打开文件以开始编辑",
@@ -962,15 +830,9 @@
     "chatHistoryAgentWorking": "Agent 运行中",
     "chatHistoryAgentWorkingHint": "首条回复到达后会显示消息，此前工具栏可能显示空闲",
     "pleaseSelect": "请选择",
-    "noTerminalsAvailable": "打开终端以开始",
     "noSessionsFound": "未找到 Session",
-    "noBrowserTabsOpen": "打开浏览器标签页以开始",
     "noBrowsingHistory": "暂无浏览历史",
     "typeToSearchFiles": "输入以搜索文件...",
-    "noQueryHistory": "尚未执行查询",
-    "executedQueriesSubtitle": "已执行的查询将显示在这里",
-    "noOperationHistory": "暂无操作记录",
-    "noOperationHistorySubtitle": "Git 操作将显示在此处",
     "selectFileToViewChanges": "选择文件以查看变更",
     "failedToLoadHistory": "加载历史记录失败",
     "noGitHistory": "暂无 Git 历史记录",
@@ -988,7 +850,6 @@
     "includeExample": "例如 src/**/*.ts, *.json",
     "excludeExample": "例如 **/node_modules/**, **/*.min.js",
     "searchMode": "搜索模式",
-    "myDatabase": "我的数据库",
     "noTables": "未找到表",
     "connectionError": "连接错误",
     "noConnections": "添加连接以开始",
@@ -1001,20 +862,7 @@
     "unsavedChanges": "您有未保存的更改",
     "unsavedEdits": "未保存的编辑",
     "unsavedConflictResolutions": "未保存的冲突解决",
-    "noExtensionViews": "无扩展视图",
-    "loadingExtensions": "正在加载扩展...",
-    "enableExtensionsWithViews": "启用提供视图的扩展",
-    "noMatchingExtensions": "没有匹配的扩展",
-    "noExtensionsInstalled": "未安装扩展",
-    "noLintToolsInstalled": "未安装 Lint 工具",
-    "allTestsPassed": "所有测试已通过！",
-    "importFromIDE": "从其他 IDE 导入",
-    "browseMarketplace": "浏览市场",
     "canvasHidden": "画布已隐藏",
-    "noOutputChannels": "无可用输出通道",
-    "noOutputYet": "暂无输出",
-    "noOutputChannelActive": "无活跃输出通道",
-    "searching": "搜索中...",
     "noRequests": "无请求",
     "noElementSelected": "未选择元素",
     "noOutput": "无输出",
@@ -1025,18 +873,10 @@
     "indexedInspectElement": "已索引，请检查元素",
     "buildIndexToStart": "构建索引以开始",
     "noMatchingFilesFound": "未找到匹配文件",
-    "noPropsFound": "未找到属性",
-    "failedToLoadComponent": "组件加载失败",
-    "noTokensDetected": "未检测到 Token",
     "scanning": "扫描中...",
-    "categoryNotFound": "未找到分类 \"{{category}}\"",
-    "noMatchingTokens": "未找到匹配的 Token",
-    "noTokensAvailable": "无可用 Token",
     "retryToScanAgain": "重试以重新扫描",
     "noTokensFound": "未找到 Token",
     "addCssVariables": "向项目添加 CSS 变量",
-    "loadingAccountStatus": "正在加载账户状态...",
-    "noRepositorySelected": "未选择仓库",
     "noWorkspaceExplorerTitle": "未打开 Workspace",
     "noWorkspaceExplorerSubtitle": "打开工作区以查看文件",
     "cannotFindRepo": "找不到 {{repoName}}",
@@ -1054,21 +894,16 @@
     "emptyFile": "空文件",
     "invalidJson": "JSON 无效",
     "noStagedChanges": "没有已暂存的更改",
-    "previewNotAvailableInline": "预览在此视图中不可用",
     "unableToLocateFile": "无法找到文件",
     "fileMayHaveBeenDeletedOrMoved": "文件可能已被删除或移动。",
     "editorCouldNotOpenFileMissing": "无法打开编辑器，因为文件未找到或已被删除",
     "enterSearchQueryToBegin": "输入搜索查询以开始",
     "unknownTabType": "未知标签页类型",
-    "terminalPanelSessionId": "终端面板（sessionId: {{sessionId}}）",
-    "outputChannelLabel": "输出通道：{{channelName}}",
     "noWorkspaceFolders": "没有工作区文件夹",
     "noRepoSelected": "No repository selected",
-    "scanningFileExtensions": "Scanning file extensions...",
-    "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "预览不可用",
-    "selectPrCommitToViewDiff": "从顶部选择一个 PR 提交来查看 diff。",
-    "selectRepositoryFromWorkspace": "选择工作区仓库"
+    "selectRepositoryFromWorkspace": "选择工作区仓库",
+    "noData": "无数据"
   },
   "inbox": {
     "searchPlaceholder": "搜索消息...",
@@ -1091,7 +926,6 @@
     "connection": "连接",
     "policy": "政策",
     "skill": "skill",
-    "gitProvider": "Git 提供商",
     "message": "消息"
   },
   "workstation": {
@@ -1134,7 +968,7 @@
     "indexingProgressWithFile": "索引：{{processed}}/{{total}} 个文件（{{percent}}%）\n当前：{{file}}",
     "languageServices": "Language Services",
     "ports": {
-      "workspaceSection": "Workspace",
+      "workspaceSection": "当前工作区",
       "externalSection": "外部",
       "tooltip": "端口：{{workspace}} 个 Workspace，{{external}} 个外部",
       "viewPortsTooltip": "查看使用中的端口",
@@ -1147,7 +981,11 @@
       "copyAddress": "复制地址",
       "stopProcess": "停止进程",
       "searchPlaceholder": "搜索端口…",
-      "noSearchResults": "没有匹配的端口"
+      "noSearchResults": "没有匹配的端口",
+      "rescan": "重新扫描",
+      "rescanning": "扫描中…",
+      "rescanTooltip": "重新扫描正在监听的端口",
+      "lastScannedAt": "上次扫描于 {{time}}"
     },
     "ci": {
       "openPullRequest": "在 GitHub 中打开 Pull Request",
@@ -1159,7 +997,9 @@
         "running": "运行中",
         "skipped": "已跳过",
         "passed": "已通过"
-      }
+      },
+      "refreshing": "刷新中…",
+      "lastFetchedAt": "上次获取于 {{time}}"
     },
     "noLanguageServicesActive": "没有活跃的 Language Service",
     "linesSelected": "已选择 {{count}} 行",
@@ -1248,7 +1088,11 @@
     },
     "unsavedChangesTitle": "未保存的更改",
     "prkPlaceholder": "PRJ",
-    "gitSyncMenuTitle": "Git 同步操作"
+    "gitSyncMenuTitle": "Git 同步操作",
+    "switchLocalBranchTooltip": "切换本地分支",
+    "sessionEnvCloud": "云",
+    "sessionEnvLocal": "本地",
+    "sessionHarness": "{{name}} Harness"
   },
   "git": {
     "loading": "正在加载 Git 状态...",
@@ -1292,7 +1136,28 @@
       "openTabs": "打开的标签页",
       "closeItem": "关闭 {{label}}",
       "expand": "展开工作区信息",
-      "collapse": "折叠工作区信息"
+      "collapse": "折叠工作区信息",
+      "restoreWidth": "恢复原始宽度（{{width}}px）",
+      "setMinimumWidth": "将当前宽度设为最小值（{{width}}px）",
+      "widerWidth": "加宽（{{width}}px）",
+      "resizeTrail": "调整工作站栏宽度",
+      "openMiniTerminal": "打开迷你终端",
+      "hideMiniTerminal": "隐藏迷你终端",
+      "newMiniTerminal": "新建迷你终端",
+      "showMiniTerminals": "迷你终端",
+      "sessionInMiniTerminal": "正在迷你终端中运行",
+      "returnFromMiniTerminal": "在此处显示",
+      "resizeTerminal": "调整终端大小",
+      "terminalProcessCount_one": "{{count}} 个进程",
+      "terminalProcessCount_other": "{{count}} 个进程",
+      "subagents": "subagent",
+      "subagentsCount_one": "{{count}}个subagent",
+      "subagentsCount_other": "{{count}}个subagents",
+      "loadMoreSubagents": "加载更多（+{{count}}）",
+      "subagentRunning": "运行中",
+      "subagentPending": "等待中",
+      "subagentCompleted": "已完成",
+      "subagentFailed": "失败"
     },
     "pr": {
       "title": "Pull request",
@@ -1302,7 +1167,7 @@
       "loadingConversation": "正在加载…",
       "reviewNoBody": "留下了审查评论。",
       "submitReview": "提交审查",
-      "reviewHeadNotice": "仅当显示的头部提交仍然匹配时，此审查才会生效。",
+      "reviewHeadNotice": "仅当显示的头部提交仍然匹配时，此审查才会生效",
       "reviewDecision": "审查决定",
       "reviewComment": "审查评论",
       "reviewCommentPlaceholder": "添加评论…",
@@ -1431,7 +1296,14 @@
       },
       "commits": {
         "backToList": "全部提交",
-        "none": "无提交"
+        "none": "无提交",
+        "onDate": "{{date}} 的提交",
+        "unknownDate": "未知日期",
+        "viewCommit": "查看提交 {{sha}}：{{summary}}",
+        "committed": "已提交",
+        "verified": "已验证",
+        "copySha": "复制提交 SHA",
+        "viewDetails": "查看提交详情"
       },
       "changes": {
         "title": "文件更改",
@@ -1579,6 +1451,20 @@
         "commentFailed": "添加评论失败",
         "bodyUpdateFailed": "更新 issue 描述失败",
         "statusFailed": "更新 issue 状态失败"
+      },
+      "timelineErrorTitle": "无法加载 GitHub 活动",
+      "tabs": {
+        "relatedItems": "相关项目"
+      },
+      "relatedItems": {
+        "emptyTitle": "暂无相关项目",
+        "emptyDescription": "此对话中提及的 GitHub issues 和 pull requests 会显示在这里。",
+        "loading": "正在加载相关项目",
+        "count_one": "{{count}} 个相关项目",
+        "count_other": "{{count}} 个相关项目",
+        "unavailable": "详情不可用",
+        "unavailableCount_one": "无法解析 {{count}} 个相关项目",
+        "unavailableCount_other": "无法解析 {{count}} 个相关项目"
       }
     }
   },
@@ -1597,51 +1483,49 @@
     "modelSelector": {
       "recentModels": "最近模型",
       "allModels": "所有模型",
-      "noRecent": "暂无最近模型",
       "noResults": "没有匹配的模型",
-      "variantCount": "{{count}} 个版本",
       "chooseModel": "选择模型",
       "chooseKey": "选择密钥",
       "noCompatibleAccounts": "无兼容密钥",
       "chooseModelHint": "使用键盘导航，或用鼠标点击模型",
-      "variantFast": "Fast",
-      "selectAccount": "选择账号"
+      "selectAccount": "选择账号",
+      "chooseKeyHint": "使用键盘导航，或用鼠标点击密钥",
+      "noModelsForKey": "该密钥未启用任何模型"
     },
     "modelProperties": {
-      "options": "选项",
       "effort": "Effort",
       "default": "默认",
-      "faster": "更快",
-      "smarter": "更智能"
+      "settings": "模型设置",
+      "model": "模型",
+      "speed": "速度",
+      "standard": "标准",
+      "fast": "快速",
+      "thinking": "思考",
+      "on": "开启",
+      "off": "关闭"
     },
     "repo": {
       "workspaceFolders": "工作区文件夹",
-      "addRepo": "添加工作区",
       "addEntry": "更多导入选项",
-      "addRepoDescription": "打开、创建或克隆工作区",
       "sections": {
         "coding": "工作区",
-        "nonCoding": "工作区",
         "pinned": "固定",
         "current": "当前",
         "recent": "最近",
         "repo": "仓库",
         "systemPaths": "系统路径",
         "usedElsewhere": "在其他位置使用",
-        "workspace": "工作区"
+        "workspace": "工作区",
+        "thisOrg": "本组织",
+        "outsideOrg": "组织外"
       },
-      "tabs": {
-        "repositories": "代码仓库",
-        "workFolders": "工作文件夹"
-      },
+      "tabs": {},
       "addOptions": {
-        "createNewRepo": "创建新仓库",
         "cloneFromGitHubUrl": "通过 GitHub URL 克隆",
         "cloneFromMyGitHub": "从已连接的 GitHub 克隆",
         "createWorkspace": "创建新工作区"
       },
       "sources": {
-        "creatingNewRepo": "正在创建新仓库",
         "cloningFromGitHub": "正在从 GitHub 克隆",
         "cloningFromGitHubUrl": "通过 GitHub URL 克隆",
         "cloningFromMyGitHub": "从已连接的 GitHub 克隆",
@@ -1649,15 +1533,10 @@
         "creatingMultiRepoWorkspace": "正在组合多仓库工作区"
       },
       "forms": {
-        "createTitle": "新建仓库",
-        "creatingRepo": "正在创建仓库...",
-        "readyToCreate": "准备创建",
         "repoName": "仓库名称",
-        "repoNamePlaceholder": "仓库名称",
         "localPath": "本地路径",
         "chooseDestinationPath": "选择目标路径",
         "choose": "选择",
-        "initializeWithReadme": "使用 README.md 初始化",
         "createAt": "创建于 {{path}}",
         "createWorkspaceTitle": "新工作区",
         "creatingWorkspace": "正在创建工作区...",
@@ -1669,7 +1548,6 @@
         "switchTo": "切换到",
         "switchToTemplate": "切换到 {workspace}",
         "search": "搜索",
-        "searchTemplate": "搜索 {workspace}",
         "manageWorkspace": "管理工作区",
         "addBy": "通过以下方式添加工作区",
         "addByTemplate": "通过 {source} 添加工作区"
@@ -1687,30 +1565,13 @@
       }
     },
     "folder": {
-      "addFolder": "添加文件夹",
-      "addFolderDescription": "导入或创建工作文件夹",
       "path": {
-        "switchTo": "切换到",
-        "switchToTemplate": "切换到 {folder}",
-        "addBy": "通过以下方式添加文件夹",
-        "addByTemplate": "通过 {source} 添加文件夹"
+        "switchTo": "切换到"
       },
-      "addOptions": {
-        "createFolder": "创建新文件夹"
-      },
-      "sources": {
-        "creatingFolder": "创建新文件夹"
-      },
+      "addOptions": {},
+      "sources": {},
       "forms": {
-        "createTitle": "创建工作文件夹",
-        "creatingFolder": "正在创建文件夹...",
-        "readyToCreate": "准备创建",
-        "localPath": "本地路径",
-        "folderName": "文件夹名称",
-        "folderNamePlaceholder": "my-project",
-        "chooseDestinationPath": "选择目标路径...",
-        "choose": "选择",
-        "createAt": "在 {{path}} 创建"
+        "choose": "选择"
       }
     },
     "branch": {
@@ -1732,13 +1593,12 @@
         "createNew": "创建新分支",
         "createNewWithName": "创建新分支 \"{{name}}\"...",
         "createFrom": "基于分支创建",
-        "checkoutDetached": "切换到 detached...",
         "deleteBranch": "删除分支",
         "refresh": "刷新分支",
         "checkoutDetachedSuccess": "已切换到 detached HEAD 状态（当前提交）",
-        "checkoutDetachedFailed": "切换到 detached HEAD 失败",
         "removeWorktree": "移除 Worktree",
-        "newWorktree": "新建 Worktree..."
+        "newWorktree": "新建 Worktree...",
+        "refreshPullRequests": "刷新 Pull requests"
       },
       "messages": {
         "deletedCount_one": "已删除 {{count}} 个分支",
@@ -1755,30 +1615,29 @@
         "worktreeInUse": "使用中",
         "checkedOutInWorktree": "已在 Worktree 中检出：{{path}}",
         "mainWorktreeSection": "主 Worktree",
-        "linkedWorktrees": "链接 Worktree"
+        "linkedWorktrees": "链接 Worktree",
+        "noGithubRemote": "未配置 GitHub 远程仓库",
+        "prSearchScope": "搜索范围为已加载的 {{count}} 个 Pull requests",
+        "prLimit": "最多显示 {{count}} 个未关闭的 PR",
+        "noPullRequests": "没有匹配的 Pull requests"
       },
       "placeholders": {
         "checkout": "分支",
-        "add": "新分支名称",
-        "addFrom": "现有分支",
-        "remove": "分支"
+        "add": "新分支名称...",
+        "remove": "分支",
+        "pullRequests": "搜索 Pull requests..."
+      },
+      "tabs": {
+        "branches": "分支",
+        "prs": "PR"
       }
     },
     "sessionInfo": {
       "sourcePlaceholder": "选择来源",
-      "workOn": "处理",
       "start": "开始",
-      "modeAria": "选择会话模式",
-      "modeFallback": "Agent",
-      "sessionSuffix": "会话:",
       "sourceAria": "选择工作区来源",
       "on": "在",
       "branchAria": "选择分支",
-      "switchWorkspaceLabel": "切换 Human Station 到此工作区：",
-      "switchWorkspaceTemplate": "切换 Human Station 到此工作区：{answer}",
-      "switchWorkspacePlaceholder": "是 / 否",
-      "switchYes": "是的，切换到 {{name}}",
-      "switchNo": "否，仅本次会话使用",
       "switchWorkspace": "切换工作区",
       "switchBranch": "切换分支",
       "switchLocation": "切换运行位置",
@@ -1801,16 +1660,16 @@
       "select": "选择",
       "switchColumn": "切换栏",
       "switchSection": "切换分区",
-      "itemCount_one": "{{count}} 项",
-      "itemCount_other": "{{count}} 项",
-      "itemCountPaginated": "{{shown}} / {{total}} 项",
       "compatibleKeys": "兼容",
       "planSupport": "Plan",
       "byokSupport": "Keys",
       "incompatible": "不兼容",
       "manageModels": "管理模型",
       "manageKeys": "管理密钥",
-      "manageAgents": "管理 Agent"
+      "manageAgents": "管理 Agent",
+      "showPath": "显示路径",
+      "keyFirst": "密钥优先",
+      "showBranchInfo": "显示分支信息"
     },
     "editorSpotlight": {
       "searchPlaceholder": "搜索命令...",
@@ -1965,6 +1824,12 @@
         },
         "createWorkItem": {
           "label": "创建 Work Item"
+        },
+        "createOrganization": {
+          "label": "创建组织"
+        },
+        "joinOrganization": {
+          "label": "加入组织"
         }
       },
       "toast": {
@@ -1977,43 +1842,15 @@
       }
     }
   },
-  "ellipsisMenu": {
-    "fetchOrigin": "拉取远端",
-    "openInEditor": "在 {{editor}} 中打开",
-    "viewInGitHub": "在 GitHub 中查看",
-    "locateInFinder": "在 Finder 中定位",
-    "copyLocalPath": "复制本地路径",
-    "copyEventsJson": "复制 Events JSON",
-    "removeRepo": "Remove from ORGII",
-    "addRepo": "添加仓库...",
-    "simulatorView": "模拟器视图",
-    "addWorkspace": "添加工作区..."
-  },
+  "ellipsisMenu": {},
   "layoutSettings": {
-    "myStation": "我的工作站",
-    "agentStation": "Agent的工作站",
     "chatPanelLocation": "聊天面板位置",
-    "agentLayout": "Agent",
-    "newChatPanel": "聊天面板",
-    "focusChat": "专注聊天",
     "chatLeft": "左侧聊天",
     "chatRight": "右侧聊天",
-    "pageSettings": "页面设置",
-    "pageLayout": "页面布局",
-    "inset": "内嵌",
     "full": "全屏",
     "theme": "主题",
-    "primaryPanel": "侧边栏",
     "sidebarPosition": "侧边栏位置",
-    "bottomPanel": "底部面板",
-    "titleBar": "标题栏",
-    "statusBar": "状态栏",
-    "followAgentHighlight": "跟随模式高亮",
-    "followAgent": "跟随 Agent",
-    "toolLayout": "工作站",
-    "dockAutoHide": "程序坞自动隐藏",
     "modelPickerStyle": "选择器样式",
-    "chatPanelPagination": "分页",
     "modelPickerSpotlight": "Spotlight",
     "modelPickerMenu": "菜单",
     "replaySession": "Replay 会话",
@@ -2023,8 +1860,6 @@
     "pinned": "固定",
     "left": "左侧",
     "right": "右侧",
-    "ramSection": "内存与性能",
-    "ramRefresh": "刷新",
     "ramFps": "FPS",
     "ramSampling": "采样中...",
     "ramNotAvailable": "不可用",
@@ -2045,31 +1880,30 @@
     "ramHydratedEvents": "已 hydrate 事件",
     "ramTurnBodies": "历史懒加载",
     "ramFileTrees": "文件树",
-    "ramCodeMirrors": "文件渲染"
+    "ramCodeMirrors": "文件渲染",
+    "paginateChatHistory": "将聊天记录分页"
   },
   "spotlightActions": {
     "switchToLightTheme": "切换到浅色主题",
     "switchToDarkTheme": "切换到深色主题",
     "switchToHighContrastTheme": "切换到高对比度主题",
-    "moveMyStationChatLeft": "将我的工作站聊天移到左侧",
-    "moveMyStationChatRight": "将我的工作站聊天移到右侧",
-    "moveAgentStationChatLeft": "将 Agent 工作站聊天移到左侧",
-    "moveAgentStationChatRight": "将 Agent 工作站聊天移到右侧",
     "enableChatPagination": "开启聊天分页",
     "disableChatPagination": "关闭聊天分页",
     "useModelPickerSpotlight": "使用 Spotlight 模型选择器",
     "useModelPickerDropdown": "使用下拉模型选择器",
     "moveWorkstationSidebarLeft": "将工作站侧边栏移到左侧",
     "moveWorkstationSidebarRight": "将工作站侧边栏移到右侧",
-    "enableDockAutoHide": "自动隐藏工作站 Dock",
-    "disableDockAutoHide": "始终显示工作站 Dock",
     "openMyStation": "前往我的工作站",
     "openAgentStation": "前往 Agent 工作站",
     "openKanban": "前往 Kanban",
     "changeLanguage": "更改语言",
     "switchToSystemTheme": "跟随系统主题",
     "detectUpdate": "检查更新",
-    "recentlyUsed": "最近使用"
+    "recentlyUsed": "最近使用",
+    "changeTheme": "更改主题",
+    "changeSkin": "更改皮肤",
+    "searchThemes": "搜索主题...",
+    "searchSkins": "搜索皮肤..."
   },
   "commands": {
     "showBottomPanel": "显示底部面板",
@@ -2100,50 +1934,18 @@
   },
   "gitDashboard": {
     "title": "Git 仪表盘",
-    "commitActivity": "提交活动",
-    "contributors": "贡献者",
     "author": "作者",
     "commits": "提交",
     "additions": "新增",
     "deletions": "删除",
-    "lastCommit": "最近提交",
-    "noCommitData": "此时间范围内无提交数据",
-    "openDashboard": "打开仪表盘",
-    "dateRange7d": "7天",
-    "dateRange30d": "30天",
-    "dateRange90d": "90天",
-    "switchToBarChart": "切换到柱状图",
-    "switchToDotGraph": "切换到点阵图",
-    "dateRange1d": "1天",
-    "dateRange3d": "3天",
-    "dateRange1w": "1周",
-    "dateRange1m": "1个月",
-    "dateRange3m": "3个月",
     "filesChanged": "变更文件",
-    "linesChanged": "变更行数",
     "files": "文件",
-    "dailyActivity": "每日活动",
-    "excludeRenames": "排除重命名 / 移动",
     "other": "其他",
-    "lastActive": "最后活跃",
-    "filterContributors": "筛选贡献者",
     "showMore": "显示更多",
-    "showLess": "收起",
-    "viewChart": "图表",
-    "viewDots": "点阵",
-    "tabStatistics": "统计",
-    "tabActivities": "活动",
-    "aiImpact": "AI Session 影响",
-    "aiNoData": "暂无 AI Session 影响数据",
-    "aiSessions": "Session",
-    "aiFiles": "涉及文件",
-    "aiFunctions": "创建函数",
-    "aiCommits": "影响 Commit",
-    "aiLines": "归因行数"
+    "showLess": "收起"
   },
   "aiImpact": {
     "title": "AI Impact",
-    "openDashboard": "打开 AI Impact",
     "noData": "暂无 AI 会话影响数据",
     "sessions": "会话",
     "files": "涉及文件",
@@ -2152,11 +1954,6 @@
     "lines": "代码行",
     "sessionBreakdown": "会话明细",
     "human": "Human",
-    "modelsUsed": "使用模型数",
-    "tokenColumn": "Token",
-    "linesPerKToken": "行数 / 1K Token",
-    "modelBreakdown": "模型明细",
-    "tokenEfficiency": "Token 效率",
     "completed": "已完成",
     "incomplete": "未完成"
   },
@@ -2167,14 +1964,7 @@
   },
   "otherUsage": {
     "title": "其他使用",
-    "noData": "暂无 AI 使用数据",
     "sessions": "会话",
-    "modelsUsed": "使用模型数",
-    "modelBreakdown": "模型明细",
-    "viewBar": "柱状图",
-    "viewPie": "饼图",
-    "viewLine": "折线图",
-    "linesByModel": "按模型行数",
     "completed": "已完成",
     "incomplete": "未完成",
     "tabs": {
@@ -2185,114 +1975,34 @@
   },
   "devActivity": {
     "title": "编程档案",
-    "openProfile": "打开编程档案",
     "sessions": "会话",
-    "linesChanged": "行数",
-    "activeTime": "活跃时间",
-    "languagesUsed": "语言",
-    "currentStreak": "连续天数",
-    "filesTouched": "文件",
-    "activityHeatmap": "活动热力图",
-    "languageEvolution": "语言分布",
-    "focusPatterns": "专注模式",
-    "ideUsage": "IDE 使用",
-    "productivityTrends": "生产力趋势",
-    "sessionHistory": "会话历史",
-    "sessionTimeline": "会话时间线",
-    "activeIdes": "活跃 IDE",
-    "cursorSessions": "Cursor 会话",
-    "cursorAgent": "Agent 会话",
-    "cursorChat": "Chat 会话",
-    "cursorLinesChanged": "AI 代码行变更",
-    "cursorTopModel": "模型",
-    "cursorDuration": "时长",
-    "cursorAvgDuration": "平均时长",
-    "cursorTime": "时间",
-    "cursorMode": "模式",
-    "cursorName": "名称",
-    "cursorStatus": "状态",
-    "fileEdits": "文件编辑",
     "source": "来源",
-    "noData": "暂无编程活动数据",
-    "fileHotspots": "热点文件",
     "commits": "Commit 次数",
-    "terminalCmds": "终端命令",
-    "agentActions": "Agent 操作",
-    "deepWork": "深度工作",
-    "deepWorkPercent": "深度工作 %",
-    "totalDeepTime": "深度工作时间",
-    "avgDeepSession": "平均深度会话",
-    "deepSessions": "深度会话",
-    "mediumSessions": "中等会话",
-    "fragmentedSessions": "碎片化会话",
-    "bestHours": "最佳时段",
-    "longestStreak": "最长连续: {{days}}天",
-    "lastActive": "上次活跃: {{date}}",
-    "activeNow": "当前活跃: {{ides}}",
-    "active": "活跃",
-    "cliSessions": "AI CLI 会话",
-    "cliPrompt": "提示",
-    "cliMessages": "消息",
-    "cliTokens": "Token",
-    "cliTotalTokens": "总 Token",
-    "cliTool": "CLI",
-    "noCliSessions": "未找到 AI CLI 会话",
-    "noCursorSessions": "未找到 Cursor 会话",
-    "refreshSuccess": "{{count}} {{label}} 已刷新",
-    "refreshSuccessDescription": "已找到并添加",
-    "refreshError": "刷新 {{label}} 失败",
-    "refreshErrorDescription": "无法加载数据",
-    "cliWorkspace": "工作区"
+    "active": "活跃"
   },
   "devRecord": {
-    "noRepo": "未选择仓库",
-    "noRepoSubtitle": "选择一个仓库查看 Git 分析",
-    "comingSoon": "即将推出",
     "loading": "加载中…",
     "custom": "自定义",
     "startDate": "开始日期",
     "endDate": "结束日期",
     "statCards": {
       "commits": "提交",
-      "contributors": "贡献者",
       "filesChanged": "变更文件",
-      "linesChanged": "变更行数",
       "sessions": "会话",
-      "filesTouched": "文件",
-      "streak": "连续",
-      "tokensUsed": "Token 使用",
-      "modelsUsed": "模型使用",
-      "codingTime": "编码时间",
       "projects": "热力图"
     },
     "team": {
       "title": "团队活动",
-      "noData": "暂无团队活动数据",
-      "noDataSubtitle": "同步后团队成员的编码活动将显示在这里",
-      "noSyncSubtitle": "在项目管理器中启用分支同步以同步团队活动",
       "member": "成员",
       "email": "邮箱",
-      "totalTime": "总时间",
-      "linesChanged": "更改行数",
-      "currentStreak": "当前连续天数",
-      "longestStreak": "最长连续天数",
-      "lastActive": "最后活跃",
-      "topLanguages": "常用语言",
       "model": "模型",
-      "aiModels": "AI 模型",
       "sessions": "会话",
       "tokens": "Token",
-      "activityOverview": "活动概览",
-      "memberActivity": "成员活动",
-      "aiUsage": "AI 使用情况",
       "days": "天"
     }
   },
   "actionSummary": {
-    "read": "读取",
-    "searched": "搜索",
-    "globbed": "匹配",
-    "listed": "列出"
+    "read": "读取"
   },
   "sourceControl": {
     "notGitInitialized": "未初始化 Git",
@@ -2332,32 +2042,20 @@
   },
   "contextInfo": {
     "contextUsed": "上下文已使用",
-    "estimatedFromRules": "预估（来自规则）",
-    "activeRules": "已启用规则",
     "title": "Context",
     "full": "已用",
-    "contextShort": "context",
-    "estimatedFill": "约 {{pct}}% 已用",
     "ariaLabel": "Context 用量",
-    "previewNote": "会话开始前根据规则文件大小预估。",
     "categories": {
       "rules": "Rules",
       "conversation": "对话内容",
-      "systemPrompt": "系统提示",
       "tools": "工具",
       "skills": "技能",
       "mcp": "MCP",
-      "subagents": "Subagents",
-      "summarized": "已摘要对话"
+      "subagents": "Subagents"
     },
-    "warningHint": "上下文即将填满。建议尽快开始新会话以获得更好的结果。",
-    "dangerHint": "上下文几乎已满。请开始新会话，避免丢失细节。",
-    "startNewSession": "开始新会话",
     "cacheSaved": "缓存节省：读取 {{read}}，写入 {{write}}",
-    "remaining": "剩余可用：{{tokens}}",
     "cacheHero": "{{pct}}% 来自缓存 · 本轮复用约 {{tokens}}",
     "cacheHeroSub": "Prompt 缓存最多可降低约 90% 的费用",
-    "headroom": "还剩 {{tokens}} 空间",
     "autoCompactNote": "即将自动总结上下文",
     "compactBoundaryTitle": "上下文已压缩",
     "compactBoundarySubtitle": "已总结 {{count}} 条较早的消息",
@@ -2376,23 +2074,14 @@
     "manualCompactSectionTitle": "手动压缩",
     "miniCpmCompactTitle": "MiniCPM 静默自动压缩",
     "miniCpmCompactDescription": "自动异步处理旧上下文",
-    "miniCpmCompactToggleAria": "开启 MiniCPM 静默自动压缩",
-    "miniCpmCompactDisabled": "静默压缩未开启",
-    "miniCpmCompactEnabled": "静默压缩已开启",
-    "miniCpmCompactRunning": "MiniCPM 正在压缩",
-    "miniCpmCompactComplete": "本次压缩完成",
-    "miniCpmCompactBusy": "当前会话运行中",
-    "miniCpmCompactUnavailable": "MiniCPM 当前不可用",
-    "miniCpmCompactError": "MiniCPM 压缩失败",
-    "miniCpmCompactMetrics": "已维护 {{covered}} 条 · {{source}} → {{summary}} tokens",
-    "miniCpmCompactAction": "立即压缩",
-    "miniCpmCompactRunningAction": "压缩中"
+    "miniCpmCompactToggleAria": "开启 MiniCPM 静默自动压缩"
   },
   "relativeDate": {
     "today": "今天",
     "yesterday": "昨天",
     "tomorrow": "明天",
-    "daysAgo": "{{count}} 天前"
+    "last7Days": "最近7天",
+    "last30Days": "最近30天"
   },
   "cloneForm": {
     "titleCloneFromGitHub": "从 GitHub 克隆",
@@ -2508,8 +2197,7 @@
     "key": "Key",
     "image": "图片",
     "group": "分组",
-    "unknown": "未知",
-    "noContextItemsFound": "未找到上下文项"
+    "unknown": "未知"
   },
   "showMore": "展开更多",
   "showLess": "收起",
@@ -2573,21 +2261,17 @@
   },
   "ideaArea": {
     "menu": {
-      "trending": "热门",
-      "shared": "社区分享",
-      "myIdeas": "我的想法"
+      "shared": "社区分享"
     },
     "trending": {
       "title": "热门想法"
     },
     "shared": {
       "title": "社区分享",
-      "searchPlaceholder": "搜索想法...",
-      "noResults": "没有符合搜索的想法"
+      "searchPlaceholder": "搜索想法..."
     },
     "myIdeas": {
       "title": "我的想法",
-      "newIdea": "新建想法",
       "empty": "你还没有分享任何想法"
     }
   },
@@ -2601,14 +2285,7 @@
       "newTerminal": "新建终端",
       "untitled": "未命名"
     },
-    "statusBar": {
-      "workspaceSuffix": "{{name}} 工作区",
-      "repoTooltip": "仓库：{{name}}",
-      "multiRepoTooltip": "{{label}}\n{{count}} 个仓库：{{names}}",
-      "branchTooltip": "Branch：{{branch}}",
-      "branchSwitching": "（切换中...）",
-      "noRepo": "无仓库"
-    }
+    "statusBar": {}
   },
   "notifications": {
     "backgroundSession": "后台会话",
@@ -2634,8 +2311,7 @@
     },
     "sections": {
       "reviewRequested": "已请求审查",
-      "authoredByMe": "由我创建",
-      "otherTodos": "其他待办事项"
+      "authoredByMe": "由我创建"
     },
     "status": {
       "read": "已读",
@@ -2649,18 +2325,7 @@
       "multipleBody": "打开团队收件箱查看新的分配和提及。"
     },
     "row": {
-      "assignedSummary": "{{status}} · {{priority}}",
       "ariaLabel": "{{title}}，{{status}}"
-    },
-    "search": {
-      "placeholder": "搜索收件箱",
-      "ariaLabel": "搜索团队收件箱"
-    },
-    "groups": {
-      "today": "今天",
-      "yesterday": "昨天",
-      "thisWeek": "本周",
-      "earlier": "更早"
     },
     "empty": {
       "title": "暂无事项",
@@ -2684,13 +2349,10 @@
     "drop": {
       "title": "拖到这里创建工作项",
       "subtitle": "先确认会话摘要，再创建或交接工作项。",
-      "processing": "正在从「{{title}}」创建工作项…",
       "processingHint": "正在读取会话并解析目标成员。",
       "success": "工作项已创建",
       "reused": "已更新现有工作项",
       "failed": "无法创建工作项",
-      "error": "无法根据该会话创建工作项。",
-      "open": "打开",
       "dismiss": "关闭"
     },
     "handoff": {
@@ -2704,10 +2366,6 @@
       "todoCount": "{{count}} 个待办",
       "workItemTitle": "工作项标题",
       "assignTo": "分配给",
-      "status": "状态",
-      "priority": "优先级",
-      "dueDate": "截止日期",
-      "noDueDate": "无截止日期",
       "note": "交接说明",
       "notePlaceholder": "说明已经完成什么、还有哪些未决事项，以及下一步建议。",
       "selfHint": "分配给自己会创建普通工作项，不会发起交接请求。",
@@ -2760,7 +2418,8 @@
       "pullRequestsPartialLoadHelp": "当前可用事项仍会保留显示；请刷新以重新加载缺少的 pull request",
       "workItemContext": "部分项目上下文暂不可用，工作项仍可继续查看和操作。",
       "workItemLoad": "无法加载此工作项，请重试。",
-      "workItemUpdate": "无法保存刚才的工作项修改，请重试。"
+      "workItemUpdate": "无法保存刚才的工作项修改，请重试。",
+      "githubIssueLoad": "无法加载该工作项的 GitHub issue，仍显示本地工作项信息。"
     },
     "detail": {
       "assignedSubtitle": "分配给你的工作项",
@@ -2772,18 +2431,7 @@
     "actions": {
       "markRead": "标记已读",
       "markUnread": "标记未读",
-      "openWorkItem": "打开工作项",
-      "openSession": "打开会话"
-    },
-    "fields": {
-      "status": "状态",
-      "priority": "优先级",
-      "assignee": "负责人",
-      "workItemId": "工作项 ID",
-      "session": "会话",
-      "comments": "评论数",
-      "threadId": "话题 ID",
-      "commentId": "评论 ID"
+      "openWorkItem": "打开工作项"
     },
     "workItemStatus": {
       "backlog": "待办池",
@@ -2802,10 +2450,7 @@
       "urgent": "紧急"
     }
   },
-  "globalToolbar": {
-    "selectWorkspaceToStart": "选择一个工作区以开始",
-    "selectRepoToStart": "选择一个 Repo 开始"
-  },
+  "globalToolbar": {},
   "projects": {
     "title": "热力图",
     "workspace": "工作区",
@@ -2973,7 +2618,7 @@
     "cancel": "取消"
   },
   "clientOrigin": {
-    "officialApp": "官方应用",
+    "officialApp": "应用",
     "cli": "命令行",
     "thirdParty": "第三方"
   }

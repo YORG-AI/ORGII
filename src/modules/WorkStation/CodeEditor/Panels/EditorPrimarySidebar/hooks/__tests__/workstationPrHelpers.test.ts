@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  MAX_STORED_WORKSTATION_PRS,
   buildWorkstationPrStorageKey,
   filterPullRequestsByQuery,
   formatWorkstationPrTitle,
   getStoredWorkstationPr,
   isWorkstationPrEligible,
   normalizePullRequestStatus,
+  pruneStoredWorkstationPrs,
   setStoredWorkstationPr,
   shouldAutoCreateWorkstationPr,
 } from "../workstationPrHelpers";
@@ -187,14 +189,25 @@ describe("formatWorkstationPrTitle", () => {
 });
 
 describe("workstation PR storage", () => {
+  let store: Map<string, string>;
+
   beforeEach(() => {
-    const store = new Map<string, string>();
+    store = new Map<string, string>();
     vi.stubGlobal("localStorage", {
       getItem(key: string) {
         return store.get(key) ?? null;
       },
       setItem(key: string, value: string) {
         store.set(key, value);
+      },
+      removeItem(key: string) {
+        store.delete(key);
+      },
+      key(index: number) {
+        return [...store.keys()][index] ?? null;
+      },
+      get length() {
+        return store.size;
       },
     });
   });
@@ -210,6 +223,43 @@ describe("workstation PR storage", () => {
       url: "https://github.com/acme/app/pull/2",
       status: "open",
     });
+  });
+
+  it("holds at the cap instead of one key per branch ever pushed", () => {
+    // The regression this guards: the key space is repo x branch and nothing
+    // ever removed a key, so every feature branch left one behind forever.
+    for (let index = 0; index < MAX_STORED_WORKSTATION_PRS + 25; index += 1) {
+      setStoredWorkstationPr("/repo", `feat/branch-${index}`, {
+        url: `https://github.com/acme/app/pull/${index}`,
+      });
+    }
+    expect(store.size).toBe(MAX_STORED_WORKSTATION_PRS);
+  });
+
+  it("drops the least recently updated links first", () => {
+    setStoredWorkstationPr("/repo", "old", { url: "https://x/pull/1" });
+    setStoredWorkstationPr("/repo", "new", { url: "https://x/pull/2" });
+    // Force a deterministic order rather than relying on Date.now() resolution.
+    store.set(
+      buildWorkstationPrStorageKey("/repo", "old"),
+      JSON.stringify({ url: "https://x/pull/1", updatedAt: 1 })
+    );
+    store.set(
+      buildWorkstationPrStorageKey("/repo", "new"),
+      JSON.stringify({ url: "https://x/pull/2", updatedAt: 2 })
+    );
+
+    pruneStoredWorkstationPrs(1);
+
+    expect(getStoredWorkstationPr("/repo", "old")).toBeNull();
+    expect(getStoredWorkstationPr("/repo", "new")).not.toBeNull();
+  });
+
+  it("leaves unrelated keys alone", () => {
+    store.set("orgii:something-else", "keep me");
+    setStoredWorkstationPr("/repo", "a", { url: "https://x/pull/1" });
+    pruneStoredWorkstationPrs(0);
+    expect(store.get("orgii:something-else")).toBe("keep me");
   });
 });
 

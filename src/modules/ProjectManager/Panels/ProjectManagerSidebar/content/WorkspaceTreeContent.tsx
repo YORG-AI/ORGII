@@ -1,4 +1,3 @@
-import { BookOpen, Box, ListChecks } from "lucide-react";
 import React, { memo, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { VirtuosoHandle } from "react-virtuoso";
@@ -12,6 +11,7 @@ import {
   type FlattenedTreeNode,
   VirtualizedStickyTree,
 } from "@src/components/VirtualizedStickyTree";
+import { DeliveryBox01Icon, HugeiconsIcon, ListChecksIcon } from "@src/icons";
 
 export interface LinearProjectSelection {
   connectionId: string;
@@ -73,7 +73,12 @@ export const WorkspaceTreeContent: React.FC<WorkspaceTreeContentProps> = memo(
             path: LOCAL_STORIES_ID,
             type: "file",
             icon: (
-              <BookOpen size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />
+              <HugeiconsIcon
+                icon={DeliveryBox01Icon}
+                data-icon="box"
+                size={ROW_ICON_SIZE}
+                strokeWidth={ROW_ICON_STROKE}
+              />
             ),
             kind: "local-projects",
           },
@@ -86,7 +91,12 @@ export const WorkspaceTreeContent: React.FC<WorkspaceTreeContentProps> = memo(
             path: LOCAL_WORK_ITEMS_ID,
             type: "file",
             icon: (
-              <ListChecks size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />
+              <HugeiconsIcon
+                icon={ListChecksIcon}
+                data-icon="list-checks"
+                size={ROW_ICON_SIZE}
+                strokeWidth={ROW_ICON_STROKE}
+              />
             ),
             kind: "local-work-items",
           },
@@ -98,7 +108,14 @@ export const WorkspaceTreeContent: React.FC<WorkspaceTreeContentProps> = memo(
             name: t("workspace.linearProjects"),
             path: LINEAR_PROJECTS_ID,
             type: "file",
-            icon: <Box size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />,
+            icon: (
+              <HugeiconsIcon
+                icon={DeliveryBox01Icon}
+                data-icon="box"
+                size={ROW_ICON_SIZE}
+                strokeWidth={ROW_ICON_STROKE}
+              />
+            ),
             kind: "linear-projects",
           },
         },
@@ -110,7 +127,12 @@ export const WorkspaceTreeContent: React.FC<WorkspaceTreeContentProps> = memo(
             path: LINEAR_WORK_ITEMS_ID,
             type: "file",
             icon: (
-              <ListChecks size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />
+              <HugeiconsIcon
+                icon={ListChecksIcon}
+                data-icon="list-checks"
+                size={ROW_ICON_SIZE}
+                strokeWidth={ROW_ICON_STROKE}
+              />
             ),
             kind: "linear-work-items",
           },

@@ -5,17 +5,24 @@
  */
 import { useState } from "react";
 
+import { useExclusiveComposerMenuState } from "@src/hooks/input/useExclusiveComposerMenuState";
+
 import type { InputAreaState } from "./types";
 
 export function useInputAreaState(): InputAreaState {
   const [isInputFocused, setIsInputFocused] = useState(false);
 
-  // @ Mention state
-  const [showContextMenu, setShowContextMenu] = useState(false);
+  const {
+    showContextMenu,
+    setShowContextMenu,
+    showSlashMenu,
+    setShowSlashMenu,
+  } = useExclusiveComposerMenuState();
+
+  // @ Mention query
   const [atSearchQuery, setAtSearchQuery] = useState("");
 
-  // Slash command state
-  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  // Slash command query
   const [slashQuery, setSlashQuery] = useState("");
 
   return {

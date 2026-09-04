@@ -15,13 +15,16 @@ import {
   WORKSTATION_V3_SHARED_KEY,
   emptyWorkstationTabsState,
 } from "@src/store/workstation/tabs/storage";
+import { workstationNewBrowserSessionRequestAtom } from "@src/store/workstation/workstationTabBarAtoms";
 
+import { recentlyClosedWorkstationTabsAtom } from "../tabs/recentlyClosedTabs";
 import {
   closeActiveWorkStationTabAtom,
   closeOtherTabsAtom,
   closeProjectOrgWorkStationTabsAtom,
   closeSavedTabsAtom,
   closeTabAtom,
+  restoreRecentlyClosedWorkstationTabAtom,
 } from "./atoms";
 
 function tab(id: string, orgId?: string): WorkStationTab {
@@ -79,6 +82,30 @@ describe("closeTabAtom", () => {
 
     expect(store.get(chatPanelMaximizedAtom)).toBe(false);
   });
+
+  it("records and restores a closed tab in the current workspace", () => {
+    const store = createStore();
+    const closedTab = tab("project-org:recent");
+    const retainedTab = tab("project-org:retained");
+    store.set(workstationLayoutAtom, {
+      mainPane: {
+        tabs: [retainedTab, closedTab],
+        activeTabId: closedTab.id,
+      },
+    });
+
+    store.set(closeTabAtom, { tabId: closedTab.id });
+
+    expect(store.get(recentlyClosedWorkstationTabsAtom)).toEqual([closedTab]);
+    expect(
+      store.set(restoreRecentlyClosedWorkstationTabAtom, closedTab.id)
+    ).toBe(closedTab.id);
+    expect(store.get(workstationLayoutAtom).mainPane).toEqual({
+      tabs: [retainedTab, closedTab],
+      activeTabId: closedTab.id,
+    });
+    expect(store.get(recentlyClosedWorkstationTabsAtom)).toEqual([]);
+  });
 });
 
 describe("closeProjectOrgWorkStationTabsAtom", () => {
@@ -120,7 +147,7 @@ describe("live shared-resource close semantics", () => {
 
   function sharedTab(
     id: string,
-    type: "settings" | "terminal"
+    type: "project-settings" | "terminal"
   ): WorkStationTab {
     return { id, type, title: id, data: {} };
   }
@@ -128,7 +155,10 @@ describe("live shared-resource close semantics", () => {
   it("tears down a browser resource through the unified TabBar close path", () => {
     const store = createStore();
     const state = emptyWorkstationTabsState();
-    const browser = createBrowserSessionTab("browser-1", "Example");
+    const browser = createBrowserSessionTab("browser-1", "Example", {
+      url: "https://example.com/docs",
+      incognito: true,
+    });
     const local = fileTab("file:/a.ts");
     state.shared.tabs = [browser];
     state.sessionWorkspaces.A = {
@@ -159,6 +189,15 @@ describe("live shared-resource close semantics", () => {
       JSON.parse(localStorage.getItem(WORKSTATION_V3_SHARED_KEY) ?? "null")
     ).toEqual({ tabs: [] });
 
+    expect(store.get(recentlyClosedWorkstationTabsAtom)).toEqual([browser]);
+    store.set(restoreRecentlyClosedWorkstationTabAtom, browser.id);
+    expect(store.get(workstationNewBrowserSessionRequestAtom)).toEqual({
+      tick: 1,
+      url: "https://example.com/docs",
+      isPrivate: true,
+    });
+    expect(store.get(recentlyClosedWorkstationTabsAtom)).toEqual([]);
+
     store.set(workstationActiveSessionIdAtom, "B");
     expect(store.get(workstationLayoutAtom).mainPane.tabs).toEqual([]);
   });
@@ -180,7 +219,7 @@ describe("live shared-resource close semantics", () => {
     const browserA = createBrowserSessionTab("browser-1", "One");
     const browserB = createBrowserSessionTab("browser-2", "Two");
     const terminal = sharedTab("terminal:main", "terminal");
-    const settings = sharedTab("settings:main", "settings");
+    const settings = sharedTab("project-settings:main", "project-settings");
     const dirtyFile = fileTab("file:/dirty.ts", true);
     store.set(workstationLayoutAtom, {
       mainPane: {
@@ -204,7 +243,7 @@ describe("live shared-resource close semantics", () => {
     const browserA = createBrowserSessionTab("browser-1", "One");
     const browserB = createBrowserSessionTab("browser-2", "Two");
     const terminal = sharedTab("terminal:main", "terminal");
-    const settings = sharedTab("settings:main", "settings");
+    const settings = sharedTab("project-settings:main", "project-settings");
     store.set(workstationLayoutAtom, {
       mainPane: {
         tabs: [browserA, browserB, terminal, settings],

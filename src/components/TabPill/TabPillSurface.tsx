@@ -17,7 +17,7 @@ const VARIANT_CLASSES: Record<
   NonNullable<TabPillSurfaceProps["variant"]>,
   string
 > = {
-  standard: "min-w-[3.5rem] max-w-[240px] shrink-0 gap-1.5 px-2.5",
+  standard: "min-w-14 max-w-[240px] shrink-0 gap-1.5 px-2.5",
   compact: "h-8 w-8 shrink-0 justify-center",
   session: "min-w-0 max-w-[120px] shrink-0 gap-1.5 px-2.5",
 };

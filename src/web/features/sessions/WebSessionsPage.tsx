@@ -1,8 +1,8 @@
-import { PanelsTopLeft } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { Placeholder } from "@src/components/Placeholder";
+import { HugeiconsIcon, PanelsTopLeftIcon } from "@src/icons";
 
 import { WebOrganizationOnboarding } from "./WebOrganizationOnboarding";
 import { useWebSessions } from "./WebSessionsContext";
@@ -38,7 +38,14 @@ export function WebSessionsPage() {
               ? "error"
               : "empty"
         }
-        icon={<PanelsTopLeft size={22} aria-hidden />}
+        icon={
+          <HugeiconsIcon
+            icon={PanelsTopLeftIcon}
+            data-icon="panels-top-left"
+            size={22}
+            aria-hidden
+          />
+        }
         placement="detail-panel"
         title={
           status === "loading" && sessions.length === 0

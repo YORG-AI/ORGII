@@ -6,16 +6,6 @@
  * Uses TreeRowBase for file items to maintain consistency.
  */
 import { useAtomValue } from "jotai";
-import {
-  Archive,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  FileDiff,
-  Minus,
-  Plus,
-  Undo2,
-} from "lucide-react";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import { useActionSystemOptional } from "@src/ActionSystem";
@@ -31,6 +21,17 @@ import {
 } from "@src/components/TreeRow";
 import type { GitStatusInfo, TreeRowNode } from "@src/components/TreeRow";
 import { type NativeDragItem, useNativeDrag } from "@src/hooks/files";
+import {
+  Add01Icon,
+  ArchiveIcon,
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  FileDiffIcon,
+  HugeiconsIcon,
+  MinusSignIcon,
+  Tick01Icon,
+  Undo02Icon,
+} from "@src/icons";
 import {
   COUNT_BADGE,
   HEADER_BUTTON,
@@ -148,11 +149,16 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(
             }}
             title={GIT_LABELS.discardAllChanges}
           >
-            <Undo2 size={14} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={Undo02Icon}
+              data-icon="undo-2"
+              size={14}
+              strokeWidth={1.75}
+            />
           </button>
           {onStashPush && hasChangesToStash && (
             <button
-              className={`${HEADER_BUTTON.actionTreeRow} hidden flex-shrink-0 disabled:opacity-50 group-hover/header:flex`}
+              className={`${HEADER_BUTTON.actionTreeRow} hidden shrink-0 group-hover/header:flex disabled:opacity-50`}
               onClick={(event) => {
                 event.stopPropagation();
                 onStashPush();
@@ -160,18 +166,28 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(
               disabled={stashOperationLoading}
               title={GIT_LABELS.stashAllChanges}
             >
-              <Archive size={14} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={ArchiveIcon}
+                data-icon="archive"
+                size={14}
+                strokeWidth={1.75}
+              />
             </button>
           )}
           <button
-            className={`${HEADER_BUTTON.actionTreeRow} hidden flex-shrink-0 group-hover/header:flex`}
+            className={`${HEADER_BUTTON.actionTreeRow} hidden shrink-0 group-hover/header:flex`}
             onClick={(event) => {
               event.stopPropagation();
               onStageAll?.();
             }}
             title={GIT_LABELS.stageChanges}
           >
-            <Plus size={14} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={Add01Icon}
+              data-icon="plus"
+              size={14}
+              strokeWidth={1.75}
+            />
           </button>
         </>
       );
@@ -186,7 +202,12 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(
             }}
             title={`Unstage All Changes\n\nShortcut: ${SHORTCUTS.unstageAll}`}
           >
-            <Minus size={14} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={MinusSignIcon}
+              data-icon="minus"
+              size={14}
+              strokeWidth={1.75}
+            />
           </button>
           <button
             className={`${HEADER_BUTTON.actionTreeRow} opacity-0 group-hover/header:opacity-100`}
@@ -196,7 +217,12 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(
             }}
             title={GIT_LABELS.openStagedChanges}
           >
-            <FileDiff size={14} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={FileDiffIcon}
+              data-icon="file-diff"
+              size={14}
+              strokeWidth={1.75}
+            />
           </button>
         </>
       );
@@ -213,13 +239,23 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(
       >
         {/* Chevron */}
         {node.expanded ? (
-          <ChevronDown size={14} className="text-text-3" />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            size={14}
+            className="text-text-3"
+          />
         ) : (
-          <ChevronRight size={14} className="text-text-3" />
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            data-icon="chevron-right"
+            size={14}
+            className="text-text-3"
+          />
         )}
 
         {/* Title */}
-        <span className="relative min-w-0 truncate text-[11px] font-medium uppercase text-text-2">
+        <span className="relative min-w-0 truncate text-[11px] font-medium text-text-2 uppercase">
           {node.name}
           {/* Loading indicator */}
           {node.loading && (
@@ -452,7 +488,7 @@ const FileDirectoryRow: React.FC<FileDirectoryRowProps> = memo(
               {/* Discard action button */}
               {onDiscard && (
                 <TreeRowAction
-                  icon={Undo2}
+                  icon={Undo02Icon}
                   variant="danger"
                   onClick={handleDiscard}
                   title={GIT_LABELS.discardChanges}
@@ -461,7 +497,13 @@ const FileDirectoryRow: React.FC<FileDirectoryRowProps> = memo(
               {/* Stage/Unstage/Resolve action button */}
               {(onStageToggle || (isConflictFile && onStageResolved)) && (
                 <TreeRowAction
-                  icon={isConflictFile ? Check : isStaged ? Minus : Plus}
+                  icon={
+                    isConflictFile
+                      ? Tick01Icon
+                      : isStaged
+                        ? MinusSignIcon
+                        : Add01Icon
+                  }
                   variant={isConflictFile ? "success" : "default"}
                   onClick={
                     isConflictFile ? handleStageResolved : handleStageToggle

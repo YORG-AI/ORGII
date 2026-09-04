@@ -6,14 +6,6 @@
  * layout settings dropdown, and a separate caption row below the top bar.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import {
-  Captions,
-  Maximize2,
-  MessageCircle,
-  Minimize2,
-  PanelRight,
-  X,
-} from "lucide-react";
 import React, { memo, startTransition, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
@@ -27,6 +19,15 @@ import {
   getCollapsedSidebarChromeOffset,
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
+import {
+  ArrowExpand01Icon,
+  ArrowShrink01Icon,
+  BubbleChatIcon,
+  Cancel01Icon,
+  CaptionsIcon,
+  HugeiconsIcon,
+  PanelRightIcon,
+} from "@src/icons";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
@@ -43,7 +44,7 @@ import {
   simulatorCaptionBarEnabledAtom,
   simulatorEffectiveDockAppAtom,
 } from "@src/store/ui/simulatorAtom";
-import { sessionChatPositionAtom } from "@src/store/ui/workStationAtom";
+import { chatPanelPositionAtom } from "@src/store/ui/workStationAtom";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import { SimulatorAgentChip, StationModeChip } from "../shared";
@@ -53,7 +54,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
   const shouldOffsetLeftChrome = useShouldOffsetWorkStationTopBar();
   const getStationChatVisible = useAtomValue(activeStationChatVisibleAtom);
   const chatWidth = useAtomValue(chatWidthAtom);
-  const sessionChatPosition = useAtomValue(sessionChatPositionAtom);
+  const chatPanelPosition = useAtomValue(chatPanelPositionAtom);
   const toggleChatPanelMaximized = useSetAtom(toggleChatPanelMaximizedAtom);
   const isChatPanelVisible =
     getStationChatVisible("agent-station") && chatWidth > 0;
@@ -79,7 +80,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
     captionMessage?.isCurrentEvent && effectiveDockApp === AppType.CHANNELS;
   const captionText = showMessageNotice
     ? captionMessage.eventKind === "thought"
-      ? t("workStation.chat.messages.bubble.senderTitle.thought", {
+      ? t("simulator.thoughtSentMessageCaption", {
           subject: captionAgentName,
         })
       : t(
@@ -161,7 +162,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
           <SimulatorAgentChip />
         </NoDragRegion>
         <div className="min-w-0 flex-1" />
-        <NoDragRegion className="ml-auto flex h-full shrink-0 items-center gap-px pl-1 pr-2">
+        <NoDragRegion className="ml-auto flex h-full shrink-0 items-center gap-px pr-2 pl-1">
           <TabBarTrailingIconButton
             title={captionToggleLabel}
             shortcutId="toggle_captions"
@@ -169,7 +170,12 @@ const AgentStationTopHeader: React.FC = memo(() => {
             aria-pressed={captionEnabled}
             onClick={handleToggleCaption}
           >
-            <Captions size={16} strokeWidth={2} />
+            <HugeiconsIcon
+              icon={CaptionsIcon}
+              data-icon="captions"
+              size={16}
+              strokeWidth={2}
+            />
           </TabBarTrailingIconButton>
           {!isSettingsRoute && !isChatPanelVisible && (
             <TabBarTrailingIconButton
@@ -177,7 +183,12 @@ const AgentStationTopHeader: React.FC = memo(() => {
               shortcutId="maximize_work_station"
               onClick={handleToggleChatPanel}
             >
-              <Minimize2 size={14} strokeWidth={2} />
+              <HugeiconsIcon
+                icon={ArrowShrink01Icon}
+                data-icon="minimize-2"
+                size={14}
+                strokeWidth={2}
+              />
             </TabBarTrailingIconButton>
           )}
           {!isSettingsRoute && (
@@ -187,9 +198,19 @@ const AgentStationTopHeader: React.FC = memo(() => {
               onClick={handleToggleChatPanel}
             >
               {isChatPanelVisible ? (
-                <Maximize2 size={14} strokeWidth={2} />
+                <HugeiconsIcon
+                  icon={ArrowExpand01Icon}
+                  data-icon="maximize-2"
+                  size={14}
+                  strokeWidth={2}
+                />
               ) : (
-                <MessageCircle size={14} strokeWidth={2} />
+                <HugeiconsIcon
+                  icon={BubbleChatIcon}
+                  data-icon="message-circle"
+                  size={14}
+                  strokeWidth={2}
+                />
               )}
             </TabBarTrailingIconButton>
           )}
@@ -199,10 +220,20 @@ const AgentStationTopHeader: React.FC = memo(() => {
               shortcutId="maximize_chat"
               onClick={handleToggleChatPanelMaximized}
             >
-              {sessionChatPosition === "left" ? (
-                <PanelRight size={HEADER_ICON_SIZE.md} strokeWidth={2} />
+              {chatPanelPosition === "left" ? (
+                <HugeiconsIcon
+                  icon={PanelRightIcon}
+                  data-icon="panel-right"
+                  size={HEADER_ICON_SIZE.md}
+                  strokeWidth={2}
+                />
               ) : (
-                <X size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={Cancel01Icon}
+                  data-icon="x"
+                  size={HEADER_ICON_SIZE.md}
+                  strokeWidth={1.75}
+                />
               )}
             </TabBarTrailingIconButton>
           )}

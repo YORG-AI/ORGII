@@ -1,0 +1,22 @@
+# Settings search UI audit
+
+| Line                                                                                   | Element                         | Verdict          | Reason                                                                                                                                                   | Suggested change |
+| -------------------------------------------------------------------------------------- | ------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `src/scaffold/NavigationSidebar/variants/SettingsSidebar.tsx:130`                      | Global Spotlight action         | keep with reason | Retains the existing `SidebarBase` search action and shortcut tooltip; the permanent Settings search remains independent.                                | None.            |
+| `src/scaffold/NavigationSidebar/variants/SettingsSidebar.tsx:143`                      | Cross-route target reveal       | keep with reason | Navigates once, then uses the selected schema key to reveal and focus the destination control; pending work is cancelled on replacement or unmount.      | None.            |
+| `src/scaffold/NavigationSidebar/variants/SettingsSidebar.tsx:296`                      | Global search model             | keep with reason | Combines canonical destination entries, the schema-derived global control index, and active-page UI-only rows with explicit result kinds.                | None.            |
+| `src/scaffold/NavigationSidebar/variants/SettingsSidebar.tsx:419`                      | Persistent Settings search      | keep with reason | Reuses the design-system `Input`, the sidebar hover surface token, and shared dropdown; it remains fixed, left-aligned, and closed until input is typed. | None.            |
+| `src/modules/shared/layouts/SectionLayout/Row.tsx:82`                                  | Searchable row semantics        | keep with reason | The shared primitive exposes localized row text plus optional schema keys without changing its visual structure or control composition.                  | None.            |
+| `src/modules/MainApp/Settings/renderer/SettingsContainerRenderer.tsx:75`               | Declarative row key propagation | keep with reason | Manifest field rows automatically publish their canonical schema key; no per-row search entry is duplicated.                                             | None.            |
+| `src/modules/MainApp/Settings/sections/AppearanceSection.tsx:146`                      | Appearance target metadata      | keep with reason | Custom rows publish the schema keys they already control, including both light and dark keys for linked Skin and Accent rows.                            | None.            |
+| `src/modules/shared/layouts/blocks/SettingsSearchDropdown/index.tsx:177`               | Combobox filtering              | keep with reason | Preserves the design-system dropdown, combobox/listbox semantics, shared keyboard engine, Escape behavior, and positioned portal.                        | None.            |
+| `src/modules/shared/layouts/blocks/SettingsSearchDropdown/settingsControlSearch.ts:74` | Collect, reveal, and focus      | keep with reason | Active-page collection and cross-page resolution share the same semantic row boundary; schema-key matching avoids localized text ambiguity.              | None.            |
+| `src/modules/shared/layouts/blocks/SettingsBreadcrumb/index.tsx:126`                   | Breadcrumb page selector        | keep with reason | Continues using the shared dropdown shell for destination-only navigation, a distinct model with the same established visuals.                           | None.            |
+
+Verdict totals: **0 fix**, **10 keep with reason**, **0 abstract**.
+
+## Verification
+
+- Focused Vitest covers all-schema parity, global localized appearance-setting matches from another mounted page, MCP navigation, row-key resolution, delayed rendering, scrolling, focus, keyboard selection, Escape dismissal, and empty-query behavior
+- Targeted ESLint, formatting, full TypeScript compilation, test-placement validation, circular-dependency validation, and diff checks pass
+- Computer Use was not authorized, so no live-app screenshot or pointer-level visual pass was performed

@@ -7,31 +7,33 @@
  * inline via `GitCommitDetailContent`, which automatically fetches the PR ref
  * when the commit is not local yet.
  */
-import {
-  Check,
-  CheckCircle2,
-  ChevronLeft,
-  CircleDotDashed,
-  Code2,
-  Copy,
-  GitCommitHorizontal,
-  ShieldCheck,
-  XCircle,
-} from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GitCommitPerson } from "@src/api/http/git/types";
 import type { GitHubChecksSummary } from "@src/api/tauri/github";
-import Avatar from "@src/components/Avatar";
+import AnyIcon from "@src/components/AnyIcon";
 import Button from "@src/components/Button";
+import PersonAvatar from "@src/components/PersonAvatar";
 import { Placeholder } from "@src/components/Placeholder";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { useCopyCheck } from "@src/hooks/ui";
+import {
+  ArrowLeft01Icon,
+  CancelCircleIcon,
+  CheckmarkCircle01Icon,
+  CircleDotDashedIcon,
+  CodeXmlIcon,
+  Copy01Icon,
+  GitCommitHorizontalIcon,
+  HugeiconsIcon,
+  SecurityCheckIcon,
+  Tick01Icon,
+} from "@src/icons";
 import GitCommitDetailContent from "@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/GitCommitDetailContent";
 import { ActivityHeaderActionButton } from "@src/modules/shared/components/ActivityTimeline";
 import { copyText } from "@src/util/data/clipboard";
-import { formatDate } from "@src/util/data/formatters/date";
+import { formatDate, toIntlLocaleTag } from "@src/util/data/formatters/date";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 interface PrCommitRow {
@@ -105,18 +107,23 @@ function mapPrCommit(
 
 function groupCommits(
   rows: PrCommitRow[],
-  unknownDate: string
+  unknownDate: string,
+  locale: string
 ): PrCommitGroup[] {
   const groups: PrCommitGroup[] = [];
   for (const commit of rows) {
     const dateLabel = commit.author.date
-      ? formatDate(commit.author.date, {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-          hour: undefined,
-          minute: undefined,
-        })
+      ? formatDate(
+          commit.author.date,
+          {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: undefined,
+            minute: undefined,
+          },
+          locale
+        )
       : unknownDate;
     const key = commit.author.date ? dateLabel : "unknown";
     const previous = groups.at(-1);
@@ -149,7 +156,11 @@ function CommitCheckStatus({
 }): React.ReactNode {
   const isSuccess = checks.state === "success";
   const isFailure = checks.state === "failure";
-  const Icon = isSuccess ? CheckCircle2 : isFailure ? XCircle : CircleDotDashed;
+  const Icon = isSuccess
+    ? CheckmarkCircle01Icon
+    : isFailure
+      ? CancelCircleIcon
+      : CircleDotDashedIcon;
   return (
     <span
       className={`inline-flex items-center gap-1 font-medium tabular-nums ${
@@ -160,7 +171,7 @@ function CommitCheckStatus({
             : "text-warning-6"
       }`}
     >
-      <Icon size={13} strokeWidth={1.9} aria-hidden />
+      <AnyIcon icon={Icon} size={13} strokeWidth={1.9} aria-hidden />
       {checks.complete} / {checks.total}
     </span>
   );
@@ -169,18 +180,19 @@ function CommitCheckStatus({
 function PrCommitCard({
   commit,
   checks,
+  locale,
   onSelect,
 }: {
   commit: PrCommitRow;
   checks: GitHubChecksSummary | null | undefined;
+  locale: string;
   onSelect: (commit: PrCommitRow) => void;
 }): React.ReactNode {
   const { t } = useTranslation("common");
   const copySha = useCallback(() => copyText(commit.sha), [commit.sha]);
   const { copied, handleCopy } = useCopyCheck(copySha);
   const commitChecks = readCommitChecks(checks, commit.sha);
-  const relativeTime = formatRelativeTime(commit.author.date, "long");
-  const actorInitial = commit.actor.login.trim().charAt(0).toUpperCase();
+  const relativeTime = formatRelativeTime(commit.author.date, "long", locale);
 
   return (
     <article className="group flex min-w-0 items-center overflow-hidden rounded-xl border border-border-1 bg-primary-container transition-colors hover:border-border-2">
@@ -195,24 +207,26 @@ function PrCommitCard({
           summary: commit.summary,
         })}
       >
-        <span className="block break-words text-[13px] font-semibold leading-5 text-text-1">
+        <span className="block text-[13px] leading-5 font-semibold wrap-break-word text-text-1">
           {commit.summary}
         </span>
         {commit.description ? (
-          <span className="mt-1 line-clamp-2 whitespace-pre-wrap text-[12px] leading-5 text-text-2">
+          <span className="mt-1 line-clamp-2 text-[12px] leading-5 whitespace-pre-wrap text-text-2">
             {commit.description}
           </span>
         ) : null}
         <span className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-text-3">
-          <Avatar size={18} src={commit.actor.avatarUrl}>
-            {actorInitial}
-          </Avatar>
+          <PersonAvatar
+            size={18}
+            name={commit.actor.login}
+            src={commit.actor.avatarUrl}
+          />
           <span className="font-medium text-text-2">{commit.actor.login}</span>
           <span>{t("git.pr.commits.committed", "committed")}</span>
           {commit.author.date ? (
             <time
               dateTime={commit.author.date}
-              title={formatDate(commit.author.date)}
+              title={formatDate(commit.author.date, undefined, locale)}
             >
               {relativeTime}
             </time>
@@ -227,7 +241,13 @@ function PrCommitCard({
             <>
               <span aria-hidden>·</span>
               <span className="inline-flex items-center gap-1 text-success-6">
-                <ShieldCheck size={13} strokeWidth={1.9} aria-hidden />
+                <HugeiconsIcon
+                  icon={SecurityCheckIcon}
+                  data-icon="shield-check"
+                  size={13}
+                  strokeWidth={1.9}
+                  aria-hidden
+                />
                 {t("git.pr.commits.verified", "Verified")}
               </span>
             </>
@@ -242,9 +262,19 @@ function PrCommitCard({
         <ActivityHeaderActionButton
           icon={
             copied ? (
-              <Check size={13} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={Tick01Icon}
+                data-icon="check"
+                size={13}
+                strokeWidth={1.75}
+              />
             ) : (
-              <Copy size={13} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={Copy01Icon}
+                data-icon="copy"
+                size={13}
+                strokeWidth={1.75}
+              />
             )
           }
           label={
@@ -258,7 +288,14 @@ function PrCommitCard({
           }}
         />
         <ActivityHeaderActionButton
-          icon={<Code2 size={14} strokeWidth={1.75} />}
+          icon={
+            <HugeiconsIcon
+              icon={CodeXmlIcon}
+              data-icon="code-2"
+              size={14}
+              strokeWidth={1.75}
+            />
+          }
           label={t("git.pr.commits.viewDetails", "View commit details")}
           onClick={(event) => {
             event.stopPropagation();
@@ -293,7 +330,8 @@ export const PrCommitsTab: React.FC<PrCommitsTabProps> = ({
   onSelectedCommitShaChange,
   onFileSelect,
 }) => {
-  const { t } = useTranslation("common");
+  const { t, i18n } = useTranslation("common");
+  const locale = toIntlLocaleTag(i18n.resolvedLanguage);
   const [internalSelectedCommitSha, setInternalSelectedCommitSha] = useState<
     string | null
   >(null);
@@ -322,8 +360,8 @@ export const PrCommitsTab: React.FC<PrCommitsTabProps> = ({
     [commits, unknownAuthor]
   );
   const groups = useMemo(
-    () => groupCommits(rows, unknownDate),
-    [rows, unknownDate]
+    () => groupCommits(rows, unknownDate, locale),
+    [locale, rows, unknownDate]
   );
   const selected = useMemo(
     () => rows.find((commit) => commit.sha === selectedCommitSha) ?? null,
@@ -347,7 +385,14 @@ export const PrCommitsTab: React.FC<PrCommitsTabProps> = ({
             variant="tertiary"
             appearance="ghost"
             size="mini"
-            icon={<ChevronLeft size={14} strokeWidth={2} />}
+            icon={
+              <HugeiconsIcon
+                icon={ArrowLeft01Icon}
+                data-icon="chevron-left"
+                size={14}
+                strokeWidth={2}
+              />
+            }
             onClick={() => updateSelectedCommitSha(null)}
           >
             {t("git.pr.commits.backToList", "All commits")}
@@ -394,7 +439,7 @@ export const PrCommitsTab: React.FC<PrCommitsTabProps> = ({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+    <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
       <div
         className={`${DETAIL_PANEL_TOKENS.headerWidth} flex flex-col gap-5 px-4 py-4`}
       >
@@ -402,7 +447,13 @@ export const PrCommitsTab: React.FC<PrCommitsTabProps> = ({
           <section key={group.key}>
             <div className="flex h-5 items-center gap-2 text-[12px] font-medium text-text-2">
               <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-fill-2 text-text-2">
-                <GitCommitHorizontal size={13} strokeWidth={1.8} aria-hidden />
+                <HugeiconsIcon
+                  icon={GitCommitHorizontalIcon}
+                  data-icon="git-commit-horizontal"
+                  size={13}
+                  strokeWidth={1.8}
+                  aria-hidden
+                />
               </span>
               <span>
                 {t("git.pr.commits.onDate", {
@@ -411,13 +462,14 @@ export const PrCommitsTab: React.FC<PrCommitsTabProps> = ({
                 })}
               </span>
             </div>
-            <div className="relative ml-2.5 mt-2 border-l border-border-1 pl-5">
+            <div className="relative mt-2 ml-2.5 border-l border-border-1 pl-5">
               <div className="flex min-w-0 flex-col gap-2">
                 {group.commits.map((commit) => (
                   <PrCommitCard
                     key={commit.sha}
                     commit={commit}
                     checks={checks}
+                    locale={locale}
                     onSelect={handleSelect}
                   />
                 ))}

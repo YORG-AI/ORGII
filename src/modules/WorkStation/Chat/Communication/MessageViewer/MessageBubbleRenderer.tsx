@@ -1,6 +1,7 @@
 import React, { memo, useCallback } from "react";
 
 import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
+import { buildSearchTargetRowProps } from "@src/engines/ChatPanel/ChatHistory/hooks/chatSearch";
 import { isPlanDisplayEvent } from "@src/engines/SessionCore/derived/planDisplayEvents";
 
 import {
@@ -47,6 +48,8 @@ export const BubbleWrapper: React.FC<{
    * (e.g. "Planner") from `event.sessionId`.
    */
   orgMembers?: ReadonlyArray<AgentOrgRunMemberView>;
+  /** Active chat-search match event id (cross-pane sync). */
+  activeSearchEventId?: string | null;
 }> = memo(
   ({
     message,
@@ -57,6 +60,7 @@ export const BubbleWrapper: React.FC<{
     onNavigateToTodoList,
     showChrome = true,
     orgMembers,
+    activeSearchEventId = null,
   }) => {
     const handleClick = useCallback(() => {
       onMessageClick?.(message.eventId);
@@ -64,9 +68,18 @@ export const BubbleWrapper: React.FC<{
 
     const stableClick = onMessageClick ? handleClick : undefined;
     const isLatest = index === total - 1;
+    const targetRowProps = buildSearchTargetRowProps(
+      { messageId: message.eventId, eventId: message.event.id },
+      activeSearchEventId
+    );
+    const wrapSearchTarget = (content: React.ReactNode) => (
+      <div {...targetRowProps}>{content}</div>
+    );
+
+    let content: React.ReactNode = null;
     switch (viewMode) {
       case "think":
-        return (
+        content = (
           <ThinkBubble
             message={message}
             isLatest={isLatest}
@@ -74,28 +87,31 @@ export const BubbleWrapper: React.FC<{
             orgMembers={orgMembers}
           />
         );
+        break;
       case "interaction":
-        return (
+        content = (
           <>{renderInteractionWidget(message, onMessageClick, orgMembers)}</>
         );
+        break;
       case "todo":
         if (isOrgTaskEvent(message.event)) {
-          // Already in the Todo Kanban view — no navigate arrow needed.
-          return (
+          content = (
             <OrgTaskEventBubble
               message={message}
               onClick={stableClick}
               orgMembers={orgMembers}
             />
           );
+        } else {
+          content = (
+            <TodoBubble
+              message={message}
+              onClick={stableClick}
+              orgMembers={orgMembers}
+            />
+          );
         }
-        return (
-          <TodoBubble
-            message={message}
-            onClick={stableClick}
-            orgMembers={orgMembers}
-          />
-        );
+        break;
       case "chat":
         // Lazy-load placeholder for a turn whose body was windowed out of
         // the initial load (PR #561). `message.content` is the backend's
@@ -106,7 +122,7 @@ export const BubbleWrapper: React.FC<{
         // bar uses; once the body lands, `derivedSnapshotAtom` recomputes
         // and this message re-derives without `unloadedTurn` set.
         if (message.unloadedTurn) {
-          return (
+          content = (
             <UnloadedTurnBubble
               message={message}
               unloadedTurn={message.unloadedTurn}
@@ -114,9 +130,10 @@ export const BubbleWrapper: React.FC<{
               orgMembers={orgMembers}
             />
           );
+          break;
         }
         if (message.type === "think") {
-          return (
+          content = (
             <ThinkBubble
               message={message}
               isLatest={isLatest}
@@ -124,10 +141,11 @@ export const BubbleWrapper: React.FC<{
               orgMembers={orgMembers}
             />
           );
+          break;
         }
         if (message.type === "todo") {
           if (isOrgTaskEvent(message.event)) {
-            return (
+            content = (
               <OrgTaskEventBubble
                 message={message}
                 onClick={stableClick}
@@ -135,35 +153,40 @@ export const BubbleWrapper: React.FC<{
                 orgMembers={orgMembers}
               />
             );
+          } else {
+            content = <TodoBubble message={message} orgMembers={orgMembers} />;
           }
-          return <TodoBubble message={message} orgMembers={orgMembers} />;
+          break;
         }
         if (message.type === "interaction") {
-          return isPlanDisplayEvent(message.event) ? (
+          content = isPlanDisplayEvent(message.event) ? (
             renderPlanDocCard(message, orgMembers)
           ) : (
             <>{renderInteractionWidget(message, onMessageClick, orgMembers)}</>
           );
+          break;
         }
         if (message.event.functionName === "org_send_message") {
-          return (
+          content = (
             <OrgSendMessageBubble
               message={message}
               onClick={stableClick}
               orgMembers={orgMembers}
             />
           );
+          break;
         }
         if (isEmailBubbleEvent(message.event)) {
-          return (
+          content = (
             <EmailMessageBubble
               message={message}
               onClick={stableClick}
               orgMembers={orgMembers}
             />
           );
+          break;
         }
-        return (
+        content = (
           <ChatBubble
             message={message}
             index={index}
@@ -172,9 +195,12 @@ export const BubbleWrapper: React.FC<{
             orgMembers={orgMembers}
           />
         );
+        break;
       default:
-        return null;
+        content = null;
     }
+
+    return content ? wrapSearchTarget(content) : null;
   }
 );
 BubbleWrapper.displayName = "BubbleWrapper";

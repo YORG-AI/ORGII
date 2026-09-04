@@ -14,7 +14,10 @@ import { atom, type createStore } from "jotai";
 
 import { formatDurationCompact } from "@src/util/time/formatDuration";
 
-import type { CloudSessionEnvironmentIdentity } from "./cloudSessionDownloadControlAtoms";
+import type {
+  CloudSessionEnvironmentIdentity,
+  CloudSessionOwnerIdentity,
+} from "./cloudSessionDownloadControlAtoms";
 
 export interface CloudSessionDownloadProgress {
   /** Remote row id (`RemoteTeammateSessionMetadata.id`) this download serves. */
@@ -22,6 +25,8 @@ export interface CloudSessionDownloadProgress {
   orgId: string;
   /** Immutable remote labels copied from the source row for pre-import UI. */
   sessionEnvironment?: CloudSessionEnvironmentIdentity;
+  /** Immutable source-owner identity copied for the pre-import rail. */
+  sessionOwner?: CloudSessionOwnerIdentity;
   loadedEvents: number;
   /** Server-reported total events for the session; null until known. */
   totalEvents: number | null;

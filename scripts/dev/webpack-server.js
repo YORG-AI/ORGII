@@ -34,7 +34,7 @@ const WebpackDevServer = require("webpack-dev-server");
 const path = require("path");
 
 const repoRoot = path.resolve(__dirname, "..", "..");
-const webpackConfigPath = path.join(repoRoot, "webpack.config.js");
+const webpackConfigPath = path.join(repoRoot, "config", "webpack.config.js");
 
 // ============================================
 // Load Webpack Configuration
@@ -203,6 +203,20 @@ const devServerOptions = {
               `[WDS_REQUEST] ${req.method} ${req.url} -> ${res.statusCode} ${Date.now() - startedAt}ms ua="${ua}"\n`
             );
           });
+        }
+        next();
+      },
+    });
+
+    middlewares.unshift({
+      name: "orgii-mobile-auth-session-stub",
+      middleware: (req, res, next) => {
+        if (req.url?.startsWith("/v1/mobile/auth/session")) {
+          if (req.method === "POST" || req.method === "DELETE") {
+            res.statusCode = 204;
+            res.end();
+            return;
+          }
         }
         next();
       },

@@ -155,7 +155,7 @@ describe("Checkbox", () => {
     expect(input?.indeterminate).toBe(true);
     expect(input?.disabled).toBe(true);
     expect(
-      container.querySelector("[data-checkbox-icon] .lucide-minus")
+      container.querySelector('[data-checkbox-icon] [data-icon="minus"]')
     ).not.toBeNull();
 
     act(() => input?.click());

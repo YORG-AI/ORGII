@@ -7,7 +7,7 @@ import { getMyKeyFallbackNativeModels } from "@src/hooks/models/nativeHarnessAcc
 
 import type { WizardData } from "../types";
 
-export interface ApiSetupProceedOptions {
+interface ApiSetupProceedOptions {
   data: WizardData;
   isCursor: boolean;
   isCodex: boolean;
@@ -19,7 +19,7 @@ export interface ApiSetupProceedOptions {
   manualSessionToken: string;
 }
 
-export interface ApiSetupProceedState {
+interface ApiSetupProceedState {
   hasSessionToken: boolean;
   canProceed: boolean;
 }

@@ -174,4 +174,26 @@ describe("shared service auth storage", () => {
     await first;
     expect(mocks.reload).toHaveBeenCalledTimes(1);
   });
+
+  it("awaitMirroredOrg2CloudAuth persists auth before Rust can read it", async () => {
+    const {
+      SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY,
+      __SHARED_AUTH_STORAGE_INTERNALS,
+      awaitMirroredOrg2CloudAuth,
+    } = await import("./sharedAuthStorage");
+    mocks.disk.set(
+      __SHARED_AUTH_STORAGE_INTERNALS.SHARED_AUTH_SCHEMA_KEY,
+      __SHARED_AUTH_STORAGE_INTERNALS.SHARED_AUTH_SCHEMA_VERSION
+    );
+
+    await awaitMirroredOrg2CloudAuth(
+      '{"kind":"org2_cloud","accessToken":"at"}'
+    );
+    expect(mocks.disk.get(SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY)).toBe(
+      '{"kind":"org2_cloud","accessToken":"at"}'
+    );
+
+    await awaitMirroredOrg2CloudAuth(null);
+    expect(mocks.disk.has(SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY)).toBe(false);
+  });
 });

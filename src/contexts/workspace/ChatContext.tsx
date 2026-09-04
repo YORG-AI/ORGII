@@ -1,8 +1,9 @@
 /**
  * Chat Context - Chat UI State Only
  *
- * ARCHITECTURE: chatHistory is derived from the session store's eventsAtom.
- * This ensures ChatPanel and Simulator use the SAME data source.
+ * ARCHITECTURE: chatHistory is derived from
+ * `chatEventsForSessionAtomFamily`. ChatPanel and scoped surfaces share
+ * that per-session snapshot channel.
  *
  * This context contains ONLY UI-related state:
  * - Chat panel width, scroll state, unread count
@@ -33,12 +34,9 @@ import React, {
 
 import { useChatHistoryOverride } from "@src/engines/ChatPanel/ChatHistoryOverrideContext";
 import { useChatSessionId } from "@src/engines/ChatPanel/ChatSessionContext";
-import { derivedSnapshotAtom } from "@src/engines/SessionCore/core/atoms/events";
-import { chatEventsAtom } from "@src/engines/SessionCore/derived/chatEvents";
-import {
-  chatEventsForSessionAtomFamily,
-  sessionScopedPlanningMetaAtomFamily,
-} from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
+import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { createChatTranscriptVersionTracker } from "@src/engines/SessionCore/derived/chatTranscriptStructure";
+import { chatEventsForSessionAtomFamily } from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
 import { activeSessionIdAtom } from "@src/store/session";
 import { chatWidthAtom } from "@src/store/ui/chatPanelAtom";
 import { FeedBackInfo } from "@src/types/session/steps";
@@ -48,7 +46,8 @@ import { FeedBackInfo } from "@src/types/session/steps";
  *
  * chatHistory was removed from this context to prevent all consumers from
  * re-rendering on every chat event. Use useChatHistory() instead — it reads
- * directly from chatEventsAtom and only triggers the components that need it.
+ * directly from the session-scoped chat-events family and only triggers
+ * the components that need it.
  */
 export interface ChatContextType {
   // Chat UI state
@@ -180,41 +179,43 @@ export const useShowInteractArea = () => {
   return context;
 };
 
+const EMPTY_CHAT_HISTORY: never[] = [];
+
+export interface ChatHistorySource {
+  chatHistory: SessionEvent[];
+  sourceSessionId: string | null;
+  sourceVersion: number;
+}
+
+const EMPTY_CHAT_HISTORY_SOURCE: ChatHistorySource = {
+  chatHistory: EMPTY_CHAT_HISTORY,
+  sourceSessionId: null,
+  sourceVersion: 0,
+};
+
 /**
  * useChatHistory — read chat events for the active ChatHistory pipeline.
  *
- * Routing rules (prevents subagent-strip race where one cell reads another
- * cell's events):
+ * Always reads `chatEventsForSessionAtomFamily(sessionId)` so the primary
+ * ChatPanel and scoped surfaces share one derivation. `sourceVersion` is a
+ * structural transcript version (event ids / non-token fields), not the
+ * snapshot mutation counter, so streaming tokens do not resync projection.
  *
  * - If a {@link ChatHistoryOverrideContext} value is present, read that array
  *   directly without subscribing to desktop/global EventStore atoms.
- * - If a {@link ChatSessionContext} override is present *and* it differs
- *   from the globally-active session, read from
- *   `chatEventsForSessionAtomFamily(sessionId)` — each family entry owns its
- *   own snapshot subscription and `_prev` cache.
- * - Otherwise, fall back to the global `chatEventsAtom` to preserve the
- *   primary ChatPanel behavior (single source of truth bound to the active
- *   session, including the shared streaming-merge cache).
+ * - Otherwise, resolve the contextual or active session and read its
+ *   `chatEventsForSessionAtomFamily` entry.
  *
  * Implementation: a single `useAtomValue` reads a per-call selector atom,
- * so React only subscribes to one source at a time. Switching between
- * global and per-session paths (or between two subagent sessions) creates
- * a new selector atom; the prior subscription is released when the
- * selector identity changes. This avoids holding a dangling subscription
- * on a placeholder session id and keeps the per-session family entry
- * mounted only while it is actively rendered.
+ * so React only subscribes to one source at a time. Switching sessions or
+ * replacing an injected override creates a new selector and releases the
+ * prior subscription.
  */
 export const useChatHistory = () => {
   const override = useChatHistoryOverride();
   const contextSessionId = useChatSessionId();
-  // `activeSessionIdAtom` is the global chat-pipeline session — the one
-  // `chatEventsAtom` is bound to. When ChatSessionContext matches it,
-  // both routes return the same data, but the global atom carries the
-  // shared streaming-merge cache and is the canonical primary path.
   const activeSessionId = useAtomValue(activeSessionIdAtom);
-  const usePerSession = Boolean(
-    contextSessionId && contextSessionId !== activeSessionId
-  );
+  const sessionId = contextSessionId ?? activeSessionId ?? null;
   const selectorAtom = useMemo(() => {
     if (override !== undefined) {
       return atom(() => ({
@@ -225,59 +226,37 @@ export const useChatHistory = () => {
         sourceVersion: 0,
       }));
     }
-    if (usePerSession && contextSessionId) {
-      const source = chatEventsForSessionAtomFamily(contextSessionId);
-      const meta = sessionScopedPlanningMetaAtomFamily(contextSessionId);
-      return atom((get) => ({
-        chatHistory: get(source),
-        sourceSessionId: contextSessionId,
-        sourceVersion: get(meta).version,
-      }));
+    if (!sessionId) {
+      return atom(() => EMPTY_CHAT_HISTORY_SOURCE);
     }
-    return atom((get) => {
-      const snapshot = get(derivedSnapshotAtom);
-      const snapshotSessionId =
-        snapshot?.lastEvent?.sessionId ??
-        snapshot?.chatEvents[0]?.sessionId ??
-        null;
-      return {
-        chatHistory: get(chatEventsAtom),
-        // An empty freshly-cleared snapshot is still authoritative for the
-        // active pipeline. A non-empty mismatched snapshot remains identifiable
-        // so projection never renders another session during a switch.
-        sourceSessionId: snapshotSessionId ?? activeSessionId,
-        sourceVersion: snapshot?.version ?? 0,
+    const source = chatEventsForSessionAtomFamily(sessionId);
+    const versionTracker = createChatTranscriptVersionTracker();
+    let previous: ChatHistorySource | null = null;
+    return atom((get): ChatHistorySource => {
+      const chatHistory = get(source);
+      const next: ChatHistorySource = {
+        chatHistory,
+        sourceSessionId: sessionId,
+        sourceVersion: versionTracker.next(chatHistory),
       };
+      if (
+        previous &&
+        previous.chatHistory === next.chatHistory &&
+        previous.sourceSessionId === next.sourceSessionId &&
+        previous.sourceVersion === next.sourceVersion
+      ) {
+        return previous;
+      }
+      previous = next;
+      return next;
     });
-  }, [activeSessionId, contextSessionId, override, usePerSession]);
+  }, [activeSessionId, contextSessionId, override, sessionId]);
   const atomSource = useAtomValue(selectorAtom);
   return {
     chatHistory: atomSource.chatHistory,
     sourceIsOverride: override !== undefined,
     sourceSessionId: atomSource.sourceSessionId,
     sourceVersion: atomSource.sourceVersion,
-  };
-};
-
-export const useChatWidth = () => {
-  const { chatWidth, setChatWidth } = useChatContext();
-  return { chatWidth, setChatWidth };
-};
-
-export const useChatScroll = () => {
-  const {
-    isChatScrolledToBottom,
-    setIsChatScrolledToBottom,
-    chatContainerRef,
-    unreadCount,
-    setUnreadCount,
-  } = useChatContext();
-  return {
-    isChatScrolledToBottom,
-    setIsChatScrolledToBottom,
-    chatContainerRef,
-    unreadCount,
-    setUnreadCount,
   };
 };
 

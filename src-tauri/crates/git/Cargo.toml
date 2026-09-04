@@ -31,7 +31,6 @@ chrono = { workspace = true }
 tokio = { workspace = true }
 tracing = "0.1.37"
 log = "0.4"
-regex = "1"
 
 # Local-repo libgit2 bindings — only used by `bundle::calculate_ahead_behind`
 # for `graph_ahead_behind`. Feature set mirrors the root crate (vendored

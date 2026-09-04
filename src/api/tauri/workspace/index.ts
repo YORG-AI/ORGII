@@ -64,10 +64,3 @@ export async function updateWorkspace(
 export async function deleteWorkspace(workspaceId: string): Promise<boolean> {
   return invokeTauri<boolean>("server_delete_workspace", { workspaceId });
 }
-
-export const workspaceApi = {
-  listWorkspaces,
-  createWorkspace,
-  updateWorkspace,
-  deleteWorkspace,
-};

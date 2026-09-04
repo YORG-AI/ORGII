@@ -18,7 +18,6 @@
  * <Textarea autoSize maxLength={500} showWordLimit />
  * ```
  */
-import { XCircle } from "lucide-react";
 import React, {
   forwardRef,
   useCallback,
@@ -29,12 +28,13 @@ import React, {
 
 import type { FieldAppearance } from "@src/components/controlAppearance";
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
+import { CancelCircleIcon, HugeiconsIcon } from "@src/icons";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import "./index.scss";
 import { countWords } from "./wordCount";
 
-export interface TextareaProps extends Omit<
+interface TextareaProps extends Omit<
   React.TextareaHTMLAttributes<HTMLTextAreaElement>,
   "onChange"
 > {
@@ -121,6 +121,12 @@ export interface TextareaProps extends Omit<
   textareaClassName?: string;
 
   /**
+   * Keep touch browsers from zooming the page when this field receives focus.
+   * Uses a touch-only 16px font floor and does not disable pinch zoom.
+   */
+  preventMobileFocusZoom?: boolean;
+
+  /**
    * Additional style for textarea element
    */
   textareaStyle?: React.CSSProperties;
@@ -147,6 +153,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       style,
       textareaClassName = "",
       textareaStyle,
+      preventMobileFocusZoom = false,
       placeholder,
       rows = 3,
       onFocus,
@@ -226,6 +233,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       readOnly && "textarea-readonly",
       appearance === "bare" && "textarea-field-bare",
       appearance === "ghost" && "textarea-field-ghost",
+      preventMobileFocusZoom && "textarea-mobile-focus-safe",
       isDark && "textarea-dark",
       className,
     ]
@@ -343,7 +351,11 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
                   onClick={handleClear}
                   tabIndex={-1}
                 >
-                  <XCircle size={16} />
+                  <HugeiconsIcon
+                    icon={CancelCircleIcon}
+                    data-icon="xcircle"
+                    size={16}
+                  />
                 </button>
               )}
 

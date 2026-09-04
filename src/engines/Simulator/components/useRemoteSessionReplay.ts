@@ -21,9 +21,10 @@ import {
   FILE_OPERATION_TYPE,
   FILE_PANEL_VIEW_MODE,
   type FilePanelViewMode,
-  type IDEEventType,
   IDE_EVENT_TYPE,
 } from "@src/modules/WorkStation/CodeEditor/SessionReplay/types";
+
+type IDEEventType = (typeof IDE_EVENT_TYPE)[keyof typeof IDE_EVENT_TYPE];
 
 export interface UseRemoteSessionReplayOptions {
   events: SessionEvent[];

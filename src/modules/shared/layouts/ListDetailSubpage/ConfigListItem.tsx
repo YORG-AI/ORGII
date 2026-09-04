@@ -16,6 +16,7 @@ import {
   getListItemClasses,
 } from "@src/components/ListPanel/tokens";
 import Tooltip from "@src/components/Tooltip";
+import { HugeiconsIcon, type IconSvgElement } from "@src/icons";
 
 // ============================================
 // Types
@@ -24,9 +25,9 @@ import Tooltip from "@src/components/Tooltip";
 export interface ConfigListItemProps {
   /** Unique identifier for the item */
   id: string;
-  /** Lucide icon component */
-  icon?: React.FC<{ size?: number | string; className?: string }>;
-  /** Custom icon element for non-Lucide icons (takes precedence over icon) */
+  /** Icon glyph (static `@src/icons` data) */
+  icon?: IconSvgElement;
+  /** Custom icon element for non-glyph icons (takes precedence over icon) */
   iconElement?: React.ReactNode;
   /** Display label */
   label: string;
@@ -72,9 +73,15 @@ const ConfigListItem: React.FC<ConfigListItemProps> = ({
     >
       {/* Left: Icon */}
       {iconElement ? (
-        <span className="flex-shrink-0 text-text-1">{iconElement}</span>
+        <span className="shrink-0 text-text-1">{iconElement}</span>
       ) : (
-        Icon && <Icon size={16} className={getListIconClasses(isSelected)} />
+        Icon && (
+          <HugeiconsIcon
+            icon={Icon}
+            size={16}
+            className={getListIconClasses(isSelected)}
+          />
+        )
       )}
 
       {/* Middle: Label + optional subtitle */}
@@ -91,24 +98,18 @@ const ConfigListItem: React.FC<ConfigListItemProps> = ({
 
       {/* Optional trailing element */}
       {trailing && (
-        <span className="flex-shrink-0 text-[11px] text-text-3">
-          {trailing}
-        </span>
+        <span className="shrink-0 text-[11px] text-text-3">{trailing}</span>
       )}
 
       {/* Right: Status dot */}
       {statusColor && (
-        <div className="flex flex-shrink-0 items-center">
+        <div className="flex shrink-0 items-center">
           {statusTooltip ? (
             <Tooltip content={statusTooltip} position="top">
-              <div
-                className={`h-2 w-2 flex-shrink-0 rounded-full ${statusColor}`}
-              />
+              <div className={`h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
             </Tooltip>
           ) : (
-            <div
-              className={`h-2 w-2 flex-shrink-0 rounded-full ${statusColor}`}
-            />
+            <div className={`h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
           )}
         </div>
       )}

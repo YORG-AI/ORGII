@@ -12,7 +12,6 @@
  * without collapsing them into a single import destination.
  */
 import { invoke } from "@tauri-apps/api/core";
-import { Code2, ShieldAlert, User } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -27,6 +26,7 @@ import type {
   SourceAgent,
 } from "@src/api/types/externalImport";
 import { CLI_AGENT, type ModelType } from "@src/api/types/keys";
+import AnyIcon from "@src/components/AnyIcon";
 import Checkbox from "@src/components/Checkbox";
 import Dropdown from "@src/components/Dropdown";
 import Menu from "@src/components/Menu";
@@ -39,6 +39,12 @@ import {
 import SplitButton from "@src/components/SplitButton";
 import { createLogger } from "@src/hooks/logger";
 import type { CursorRepo } from "@src/hooks/policies";
+import {
+  CodeXmlIcon,
+  HugeiconsIcon,
+  ShieldAlertIcon,
+  UserIcon,
+} from "@src/icons";
 import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
 import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
 
@@ -79,7 +85,7 @@ const SOURCE_ICON_MODEL_TYPE: Record<SourceAgent, ModelType> = {
   codex: CLI_AGENT.CODEX,
 };
 
-export interface ExternalImportColumnLabels {
+interface ExternalImportColumnLabels {
   /** Header for the leftmost (item-name) column. */
   itemColumnHeader: string;
 }
@@ -427,7 +433,12 @@ export function useExternalImport({
                     }
                   )}
                 >
-                  <ShieldAlert size={12} aria-hidden />
+                  <HugeiconsIcon
+                    icon={ShieldAlertIcon}
+                    data-icon="shield-alert"
+                    size={12}
+                    aria-hidden
+                  />
                   <span>
                     {t("agentOrgs.externalImport.readonlyDowngradedBadge")}
                   </span>
@@ -451,12 +462,12 @@ export function useExternalImport({
           return labelA.localeCompare(labelB);
         },
         renderCell: (row) => {
-          const Icon = row.targetRepoPath ? Code2 : User;
+          const Icon = row.targetRepoPath ? CodeXmlIcon : UserIcon;
           return (
             <span
               className={`${SETTINGS_TABLE_CELL.muted} inline-flex items-center gap-2 whitespace-nowrap`}
             >
-              <Icon size={14} className="shrink-0" aria-hidden />
+              <AnyIcon icon={Icon} size={14} className="shrink-0" aria-hidden />
               <span>
                 {row.targetRepoPath
                   ? row.repoName || row.targetRepoPath
@@ -523,7 +534,7 @@ export function useExternalImport({
                   }
                   getPopupContainer={() => document.body}
                   avoidViewportOverflow
-                  className="z-[9999]"
+                  className="z-9999"
                   style={{ zIndex: 9999 }}
                 >
                   <div />

@@ -4,6 +4,7 @@ import {
   INPUT_AREA_CONTROL_GROUP_CLASS,
   INPUT_AREA_EDITOR_CLASS,
   INPUT_AREA_EDITOR_HEIGHT,
+  INPUT_AREA_MENU_FRAME,
 } from "./inputAreaTokens";
 
 describe("input area tokens", () => {
@@ -21,5 +22,13 @@ describe("input area tokens", () => {
     expect(INPUT_AREA_CONTROL_GROUP_CLASS).toBe(
       "flex min-w-0 items-center gap-px"
     );
+  });
+
+  it("matches composer menu width to the input with an 8px vertical gap", () => {
+    expect(INPUT_AREA_MENU_FRAME).toEqual({
+      horizontalInset: 0,
+      gap: 8,
+      placement: "up",
+    });
   });
 });

@@ -33,19 +33,23 @@ function markup(node: unknown): string {
 }
 
 describe("buildSessionMenuItem trailing accessories", () => {
-  it("renders only the status dot when the session reports no branch", () => {
-    const html = markup(buildItem({}).trailingElement);
+  it("puts the status dot on the icon when the session reports no branch", () => {
+    const item = buildItem({});
+    const html = markup(item.iconBadge);
     expect(html).toContain("rounded-full");
     expect(html).not.toContain("aria-label");
+    expect(item.trailingElement).toBeUndefined();
   });
 
   it.each([
     ["branch", { branch: "main" }],
     ["worktree branch", { worktreeBranch: "agent/feature-x" }],
   ])("does not render a %s tag", (_label, session) => {
-    const html = markup(buildItem(session).trailingElement);
+    const item = buildItem(session);
+    const html = markup(item.iconBadge);
     expect(html).toContain("rounded-full");
     expect(html).not.toContain("aria-label");
+    expect(item.trailingElement).toBeUndefined();
   });
 
   it("does not render a PR tag when the preference is disabled", () => {
@@ -60,7 +64,7 @@ describe("buildSessionMenuItem trailing accessories", () => {
       }).trailingElement
     );
 
-    expect(html).toContain("rounded-full");
+    expect(html).toBe("");
     expect(html).not.toContain("Open PR");
   });
 
@@ -70,27 +74,24 @@ describe("buildSessionMenuItem trailing accessories", () => {
       []
     );
     expect(item.trailingElement).toBeUndefined();
-    expect(markup(item.workingIndicator)).toContain('aria-label="Working"');
+    expect(markup(item.iconBadge)).toContain('aria-label="Working"');
   });
 
-  it("puts the enabled git indicator before the status dot", () => {
-    const html = markup(
-      buildItem({ branch: "main" }, ["s1"], {
-        showBranchTag: true,
-        pr: {
-          status: "open",
-          number: 1,
-          url: "https://github.com/o/r/pull/1",
-          title: "Add thing",
-        },
-      }).trailingElement
-    );
+  it("keeps the enabled git indicator separate from the icon's status dot", () => {
+    const item = buildItem({ branch: "main" }, ["s1"], {
+      showBranchTag: true,
+      pr: {
+        status: "open",
+        number: 1,
+        url: "https://github.com/o/r/pull/1",
+        title: "Add thing",
+      },
+    });
+    const html = markup(item.trailingElement);
 
-    const gitIndex = html.indexOf('aria-label="Open PR #1: main"');
-    const dotIndex = html.indexOf("rounded-full");
-    expect(gitIndex).toBeGreaterThanOrEqual(0);
-    expect(dotIndex).toBeGreaterThanOrEqual(0);
-    expect(gitIndex).toBeLessThan(dotIndex);
+    expect(html).toContain('aria-label="Open PR #1: main"');
+    expect(html).not.toContain("rounded-full");
+    expect(markup(item.iconBadge)).toContain("rounded-full");
   });
 
   it("shows no enabled marker for a branch with no pull request", () => {
@@ -98,7 +99,7 @@ describe("buildSessionMenuItem trailing accessories", () => {
       buildItem({ branch: "main" }, ["s1"], { showBranchTag: true })
         .trailingElement
     );
-    expect(html).toContain("rounded-full");
+    expect(html).toBe("");
     expect(html).not.toContain("aria-label");
   });
 
@@ -122,7 +123,7 @@ describe("buildSessionMenuItem trailing accessories", () => {
     expect(markup(item.trailingElement)).toContain(
       'aria-label="Worktree branch: feature-x"'
     );
-    expect(markup(item.workingIndicator)).toContain('aria-label="Working"');
+    expect(markup(item.iconBadge)).toContain('aria-label="Working"');
   });
 });
 

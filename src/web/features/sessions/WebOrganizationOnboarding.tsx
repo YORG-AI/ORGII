@@ -1,4 +1,3 @@
-import { Building2 } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -16,6 +15,7 @@ import {
   CloudOrgMembershipActionFailure,
   useCloudOrgMembershipActions,
 } from "@src/features/Org2Cloud/useCloudOrgMembershipActions";
+import { Building02Icon, HugeiconsIcon } from "@src/icons";
 
 type OrganizationMode = "create" | "join";
 
@@ -127,7 +127,13 @@ export function WebOrganizationOnboarding({
         aria-labelledby="web-organization-onboarding-title"
         data-testid="web-organization-onboarding"
       >
-        <Building2 size={28} className="text-text-3" aria-hidden />
+        <HugeiconsIcon
+          icon={Building02Icon}
+          data-icon="building-2"
+          size={28}
+          className="text-text-3"
+          aria-hidden
+        />
         <div>
           <h1
             id="web-organization-onboarding-title"

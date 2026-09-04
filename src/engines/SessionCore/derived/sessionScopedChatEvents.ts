@@ -29,6 +29,11 @@ import { atom } from "jotai";
 import { atomFamily } from "jotai-family";
 
 import { createLogger } from "@src/hooks/logger";
+import {
+  type QueuedMessage,
+  messageQueueAtom,
+} from "@src/store/ui/messageQueueAtom";
+import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
 import { isInteractiveTool } from "../core/interactiveTools";
 import {
@@ -42,10 +47,13 @@ import {
   isStreamingSnapshot,
 } from "../core/store/EventStoreProxy";
 import type { SessionEvent } from "../core/types";
+import { ensureCursorIdeEventsInStore } from "../sync/adapters/cursorIdeAdapter";
 import {
-  derivePlanDisplayEvents,
-  planEventContentSignature,
-} from "./planDisplayEvents";
+  appendLiveAssistantEvent,
+  filterQueuedSyntheticUserEvents,
+} from "./chatEvents";
+import { areChatTranscriptsStructurallyEqual } from "./chatTranscriptStructure";
+import { derivePlanDisplayEvents } from "./planDisplayEvents";
 
 const log = createLogger("sessionScopedChatEvents");
 
@@ -53,6 +61,8 @@ interface SnapshotState {
   snapshot: Snapshot | null;
   loadStarted: boolean;
 }
+
+export type SessionSnapshotState = SnapshotState;
 
 const EMPTY_STATE: SnapshotState = {
   snapshot: null,
@@ -103,7 +113,7 @@ function scheduleSessionFamilyRemoval(sessionId: string): void {
  * `loadFromCache` so a fresh subagent that has not been fetched yet hydrates
  * without requiring the consumer to call `useSessionEvents` separately.
  */
-const sessionSnapshotAtomFamily = atomFamily((sessionId: string) => {
+export const sessionSnapshotAtomFamily = atomFamily((sessionId: string) => {
   const a = atom<SnapshotState>(EMPTY_STATE);
   a.debugLabel = `session/${sessionId}/snapshot`;
 
@@ -128,19 +138,21 @@ const sessionSnapshotAtomFamily = atomFamily((sessionId: string) => {
       }
     );
 
-    // Best-effort hydration. If the session is already in the Rust LRU
-    // cache this triggers a `schedule_notify` and the snapshot lands via
-    // the subscription above; if it is not loaded yet, Rust loads it from
-    // SQLite. We do not await — the subscription handles the push.
-    void eventStoreProxy.loadFromCache(sessionId).catch((err: unknown) => {
-      // Swallow load errors here: the consumer (ChatHistory) is allowed
-      // to render an empty state. `useSessionEvents` already covers
-      // explicit error surfacing for callers that need it.
-      log.warn(
-        `[sessionScopedChatEvents] loadFromCache(${sessionId}) failed:`,
-        err
-      );
-    });
+    void (async () => {
+      try {
+        if (isCursorIdeSession(sessionId)) {
+          await ensureCursorIdeEventsInStore(sessionId);
+          if (disposed) return;
+        }
+        await eventStoreProxy.loadFromCache(sessionId);
+      } catch (err: unknown) {
+        if (disposed) return;
+        log.warn(
+          `[sessionScopedChatEvents] hydrate(${sessionId}) failed:`,
+          err
+        );
+      }
+    })();
 
     return () => {
       disposed = true;
@@ -152,7 +164,9 @@ const sessionSnapshotAtomFamily = atomFamily((sessionId: string) => {
   return a;
 });
 
-function extractChatEvents(snapshot: Snapshot | null): SessionEvent[] {
+export function extractSessionChatEvents(
+  snapshot: Snapshot | null
+): SessionEvent[] {
   if (!snapshot) return [];
   if (isStreamingSnapshot(snapshot)) {
     return snapshot.chatEvents;
@@ -163,28 +177,22 @@ function extractChatEvents(snapshot: Snapshot | null): SessionEvent[] {
   return [];
 }
 
-function chatEventsStable(
-  next: SessionEvent[],
-  prev: SessionEvent[],
-  streaming: boolean
-): boolean {
-  if (streaming) return false;
-  if (next.length !== prev.length) return false;
-  for (let i = 0; i < next.length; i++) {
-    if (next[i].id !== prev[i].id) return false;
-    if (next[i].displayStatus !== prev[i].displayStatus) return false;
-    if (next[i].isDelta !== prev[i].isDelta) return false;
-    const na = next[i].args as Record<string, unknown> | undefined;
-    const pa = prev[i].args as Record<string, unknown> | undefined;
-    if (na?.["action"] !== pa?.["action"]) return false;
-    if (na?.["subagentSessionId"] !== pa?.["subagentSessionId"]) return false;
-    if (
-      planEventContentSignature(next[i]) !== planEventContentSignature(prev[i])
-    ) {
-      return false;
-    }
-  }
-  return true;
+function deriveFamilyChatEvents(
+  snapshot: Snapshot | null,
+  sessionId: string,
+  queuedMessages: readonly QueuedMessage[]
+): SessionEvent[] {
+  const streaming = snapshot ? isSnapshotActivelyStreaming(snapshot) : false;
+  return appendLiveAssistantEvent(
+    derivePlanDisplayEvents(
+      filterQueuedSyntheticUserEvents(
+        extractSessionChatEvents(snapshot),
+        queuedMessages as QueuedMessage[]
+      )
+    ),
+    sessionId,
+    streaming ? "\u200b" : null
+  );
 }
 
 /**
@@ -199,11 +207,14 @@ export const chatEventsForSessionAtomFamily = atomFamily(
 
     const a = atom((get) => {
       const { snapshot } = get(sessionSnapshotAtomFamily(sessionId));
-      const next = derivePlanDisplayEvents(extractChatEvents(snapshot));
+      const queuedMessages = get(messageQueueAtom);
+      const next = deriveFamilyChatEvents(snapshot, sessionId, queuedMessages);
       const streaming = snapshot
         ? isSnapshotActivelyStreaming(snapshot)
         : false;
-      if (chatEventsStable(next, prevChatEvents, streaming)) {
+      if (
+        areChatTranscriptsStructurallyEqual(next, prevChatEvents, streaming)
+      ) {
         return prevChatEvents;
       }
       prevChatEvents = next;
@@ -249,7 +260,7 @@ export const sessionScopedPlanningMetaAtomFamily = atomFamily(
     const a = atom((get) => {
       const { snapshot } = get(sessionSnapshotAtomFamily(sessionId));
       if (!snapshot) return EMPTY_PLANNING_META;
-      const chatEvents = extractChatEvents(snapshot);
+      const chatEvents = extractSessionChatEvents(snapshot);
       const next: SessionScopedPlanningMeta = {
         version: snapshot.version,
         anyRunning: hasLiveRuntimeResourceInLatestTurn(chatEvents),

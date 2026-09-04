@@ -10,15 +10,15 @@
  * Uses useSelectorKernel for unified state management.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { Search } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { repoApi } from "@src/api/tauri/repo";
 import Message from "@src/components/Message";
-import { isSystemPathRepoItem } from "@src/features/SessionCreator/utils/systemPathSource";
+import { HugeiconsIcon } from "@src/icons";
 import { cachedReposAtom } from "@src/store/repo";
 import { addWorkspaceInitialStageAtom } from "@src/store/ui/overlayAtom";
+import { spotlightShowPathAtom } from "@src/store/ui/spotlightShowPathAtom";
 import {
   isMultiRootWorkspaceAtom,
   setWorkspaceFoldersAtom,
@@ -27,6 +27,7 @@ import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAc
 
 import {
   SPOTLIGHT_FOOTER_ACTIVE_CHIP,
+  SpotlightFooterToggle,
   SpotlightPinnedActionSection,
 } from "../../components";
 import { ICONS } from "../../config";
@@ -38,7 +39,7 @@ import {
   useSharedRepoList,
 } from "../../hooks";
 import { usePathSegment } from "../../hooks/usePathSegment";
-import { PaletteBody, SpotlightShell } from "../../shell";
+import { PaletteBody, ShellFooterAction, SpotlightShell } from "../../shell";
 import type { RepoItem, SpotlightItem } from "../../types";
 import { AddWorkspaceModalShell } from "../AddWorkspaceModalShell";
 import { REPO_PALETTE_CONFIG } from "../config";
@@ -78,6 +79,7 @@ export const WorkspacePalette: React.FC<WorkspacePaletteProps> = ({
   const [initialAddStageAtom, setInitialAddStageAtom] = useAtom(
     addWorkspaceInitialStageAtom
   );
+  const [showPath, setShowPath] = useAtom(spotlightShowPathAtom);
   const effectiveInitialStage = initialAddStageProp ?? initialAddStageAtom;
 
   // ============ LOCAL STATE ============
@@ -122,6 +124,11 @@ export const WorkspacePalette: React.FC<WorkspacePaletteProps> = ({
       sectionMultiRepoWorkspaceLabel: t(
         "workspaceForm.multiRepoWorkspace",
         "Multi-Repo Workspace"
+      ),
+      sectionThisOrgLabel: t("selectors.repo.sections.thisOrg", "This org"),
+      sectionOutsideOrgLabel: t(
+        "selectors.repo.sections.outsideOrg",
+        "Outside this org"
       ),
     }),
     [t, isManageMode, switchPathLabel]
@@ -187,11 +194,7 @@ export const WorkspacePalette: React.FC<WorkspacePaletteProps> = ({
 
   // ============ DATA ============
   const { repos, filteredRepos, repoLoading, refreshReposForce } =
-    useSharedRepoList({
-      enabled: isOpen,
-      currentRepoId,
-      searchQuery,
-    });
+    useSharedRepoList(searchQuery);
   const cachedRepos = useAtomValue(cachedReposAtom);
 
   const existingRepoPaths = useMemo(
@@ -331,7 +334,6 @@ export const WorkspacePalette: React.FC<WorkspacePaletteProps> = ({
     {
       labelOverride: paletteText.switchPathLabel,
       templateOverride: paletteText.switchPathTemplate,
-      iconOverride: isManageMode ? Search : undefined,
     }
   );
 
@@ -431,33 +433,30 @@ export const WorkspacePalette: React.FC<WorkspacePaletteProps> = ({
         className="flex items-center justify-center rounded-md p-1 text-danger-6 transition-colors hover:bg-danger-6/10"
         title={t("actions.removeFromOrgii", "Remove from ORGII")}
       >
-        <ICONS.removeRepo size={14} />
+        <HugeiconsIcon icon={ICONS.removeRepo} size={14} />
       </button>
     ),
     [handleRemoveRepo, t]
   );
 
   const mainItems = useMemo((): SpotlightItem[] => {
-    const eligible = repoFilter
-      ? (repo: RepoItem) => isSystemPathRepoItem(repo) || repoFilter(repo)
-      : null;
     return buildSectionedWorkspaceItems({
       addMenuActive: !!addMenuKind,
       sectionedAddItems,
       workspaceItems,
       openPathItem,
-      filteredRepos: eligible ? filteredRepos.filter(eligible) : filteredRepos,
-      externalRecentRepos: eligible
-        ? externalRecentRepos.filter(eligible)
-        : externalRecentRepos,
+      filteredRepos,
+      externalRecentRepos,
       recentCachedRepos: cachedRepos,
       currentRepoId,
       isMultiRoot,
       isManageMode,
-      leadingRepos: eligible ? leadingRepos.filter(eligible) : leadingRepos,
+      leadingRepos,
       selectedIds,
       searchQuery,
       paletteText,
+      orgScopeFilter: repoFilter ?? null,
+      showPath,
       onRepoAction: (repo) => {
         if (isManageMode) {
           toggleSelection(repo.id);
@@ -493,6 +492,7 @@ export const WorkspacePalette: React.FC<WorkspacePaletteProps> = ({
     searchQuery,
     sectionedAddItems,
     selectedIds,
+    showPath,
     toggleSelection,
     workspaceItems,
   ]);
@@ -630,10 +630,28 @@ export const WorkspacePalette: React.FC<WorkspacePaletteProps> = ({
       return;
     }
 
+    if (isManageMode) {
+      toggleManageMode();
+      return;
+    }
+
     handleGoBack();
   };
 
   // ============ RENDER: MAIN VIEW ============
+  // Portals next to the shell's keyboard-hint footer (and renders nothing
+  // when the palette is embedded without a shell). The add menu lists
+  // sources rather than repos, so it gets no path toggle.
+  const showPathToggle = addMenuKind ? null : (
+    <ShellFooterAction placement="inline">
+      <SpotlightFooterToggle
+        label={t("selectors.spotlightFooter.showPath", "Show path")}
+        checked={showPath}
+        onCheckedChange={setShowPath}
+      />
+    </ShellFooterAction>
+  );
+
   const body = (
     <PaletteBody
       kernel={kernel}
@@ -644,14 +662,21 @@ export const WorkspacePalette: React.FC<WorkspacePaletteProps> = ({
       path={addMenuKind ? addPathSegment : switchPathSegment}
       onRemoveSegment={handleRemovePathSegment}
       isLoading={repoLoading}
-      hideActionClose={hideActionClose}
+      hideActionClose={hideActionClose && !addMenuKind && !isManageMode}
       containerHeight={350}
       topSlot={addMenuKind ? undefined : topSlot}
       afterListSlot={pinnedActionSection}
     />
   );
 
-  if (asBody) return body;
+  const palette = (
+    <>
+      {body}
+      {showPathToggle}
+    </>
+  );
+
+  if (asBody) return palette;
 
   return (
     <SpotlightShell
@@ -660,7 +685,7 @@ export const WorkspacePalette: React.FC<WorkspacePaletteProps> = ({
       hasActiveAction={!addMenuKind && pinnedActionItems.length > 0}
       activeActionChip={SPOTLIGHT_FOOTER_ACTIVE_CHIP.switchSection}
     >
-      {body}
+      {palette}
     </SpotlightShell>
   );
 };

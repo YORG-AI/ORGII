@@ -6,11 +6,11 @@
  *
  * Used internally by Dropdown (options mode) and Select.
  */
-import { Loader2 } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Checkbox from "@src/components/Checkbox";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 
 import DropdownSelectedCheck from "./DropdownSelectedCheck";
 import { DROPDOWN_CLASSES, DROPDOWN_ITEM } from "./tokens";
@@ -52,7 +52,12 @@ const DropdownOptionsRenderer: React.FC<DropdownOptionsRendererProps> = ({
   if (loading) {
     content = (
       <div className={DROPDOWN_CLASSES.listMessage}>
-        <Loader2 size={DROPDOWN_ITEM.iconSize} className="animate-spin" />
+        <HugeiconsIcon
+          icon={Loading03Icon}
+          data-icon="loader-2"
+          size={DROPDOWN_ITEM.iconSize}
+          className="animate-spin"
+        />
         <span>{t("actions.loading")}</span>
       </div>
     );

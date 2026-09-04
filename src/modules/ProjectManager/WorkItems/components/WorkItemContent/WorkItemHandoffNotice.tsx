@@ -1,10 +1,16 @@
-import { ArrowLeft, Check, Clock3, UserRoundCheck } from "lucide-react";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { WorkItemHandoff } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import Textarea from "@src/components/Textarea";
+import {
+  ArrowLeft02Icon,
+  Clock03Icon,
+  HugeiconsIcon,
+  Tick01Icon,
+  UserRoundCheckIcon,
+} from "@src/icons";
 import Modal from "@src/scaffold/ModalSystem";
 
 interface WorkItemHandoffNoticeProps {
@@ -33,11 +39,26 @@ const WorkItemHandoffNotice: React.FC<WorkItemHandoffNoticeProps> = ({
 
   const icon =
     handoff.status === "accepted" ? (
-      <UserRoundCheck size={16} aria-hidden />
+      <HugeiconsIcon
+        icon={UserRoundCheckIcon}
+        data-icon="user-round-check"
+        size={16}
+        aria-hidden
+      />
     ) : handoff.status === "returned" ? (
-      <ArrowLeft size={16} aria-hidden />
+      <HugeiconsIcon
+        icon={ArrowLeft02Icon}
+        data-icon="arrow-left"
+        size={16}
+        aria-hidden
+      />
     ) : (
-      <Clock3 size={16} aria-hidden />
+      <HugeiconsIcon
+        icon={Clock03Icon}
+        data-icon="clock-3"
+        size={16}
+        aria-hidden
+      />
     );
   const title =
     handoff.status === "accepted"
@@ -77,7 +98,7 @@ const WorkItemHandoffNotice: React.FC<WorkItemHandoffNoticeProps> = ({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-text-1">{title}</p>
           {detail ? (
-            <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-text-3">
+            <p className="mt-1 text-xs leading-5 whitespace-pre-wrap text-text-3">
               {detail}
             </p>
           ) : null}
@@ -105,7 +126,14 @@ const WorkItemHandoffNotice: React.FC<WorkItemHandoffNoticeProps> = ({
             <Button
               variant="primary"
               size="mini"
-              icon={<Check size={14} aria-hidden />}
+              icon={
+                <HugeiconsIcon
+                  icon={Tick01Icon}
+                  data-icon="check"
+                  size={14}
+                  aria-hidden
+                />
+              }
               onClick={onAccept}
               loading={responding === "accept"}
               disabled={responding != null}

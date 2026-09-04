@@ -1,8 +1,10 @@
-import { RotateCcw } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import Button from "@src/components/Button";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { HugeiconsIcon, RotateLeft01Icon } from "@src/icons";
 import type { Person } from "@src/types/core/shared";
 import type {
   WorkItemPriority,
@@ -317,12 +319,14 @@ const WorkItemRow: React.FC<WorkItemRowProps> = React.memo(
         <div
           data-testid={`work-item-row-${workItem.session_id}`}
           className={`work-item-row group/wiRow flex items-center gap-1 bg-transparent transition-colors ${
-            variant === "table"
-              ? "rounded-none border-b border-border-1"
-              : "rounded-lg"
-          } ${compact ? "min-h-8 pl-1 pr-2" : "min-h-[40px] pl-2 pr-5"} ${
+            variant === "table" ? "rounded-none" : "rounded-lg"
+          } ${compact ? "min-h-8 pr-2 pl-1" : "min-h-10 pr-5 pl-2"} ${
             isInteractive ? "cursor-pointer hover:bg-fill-1" : "cursor-default"
-          } ${isDeleted ? "opacity-70" : ""} ${isSelected ? "bg-primary-1 hover:bg-primary-1" : ""} ${visibleContextMenu ? "bg-fill-2 hover:bg-fill-2" : ""}`}
+          } ${isDeleted ? "opacity-70" : ""} ${
+            isSelected
+              ? `${SURFACE_TOKENS.selected} ${SURFACE_TOKENS.selectedHover}`
+              : ""
+          } ${visibleContextMenu ? "bg-fill-2 hover:bg-fill-2" : ""}`}
           onClick={isInteractive ? handleClick : undefined}
           onContextMenu={handleContextMenu}
         >
@@ -350,10 +354,27 @@ const WorkItemRow: React.FC<WorkItemRowProps> = React.memo(
             />
           ) : null}
 
-          <TitleCell
-            name={workItem.name}
-            untitledLabel={t("workItems.untitledWorkItem")}
-          />
+          {isInteractive ? (
+            <button
+              type="button"
+              className="min-w-0 flex-1 text-left"
+              aria-label={workItem.name || t("workItems.untitledWorkItem")}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleClick();
+              }}
+            >
+              <TitleCell
+                name={workItem.name}
+                untitledLabel={t("workItems.untitledWorkItem")}
+              />
+            </button>
+          ) : (
+            <TitleCell
+              name={workItem.name}
+              untitledLabel={t("workItems.untitledWorkItem")}
+            />
+          )}
 
           <MetadataCells
             workItem={workItem}
@@ -386,14 +407,22 @@ const WorkItemRow: React.FC<WorkItemRowProps> = React.memo(
           />
 
           {isDeleted && onRestore && (
-            <button
-              type="button"
+            <Button
+              htmlType="button"
+              variant="tertiary"
+              size="small"
               className="ml-2 inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary-6 transition-colors hover:bg-primary-1"
               onClick={handleRestore}
+              icon={
+                <HugeiconsIcon
+                  icon={RotateLeft01Icon}
+                  data-icon="rotate-ccw"
+                  size={13}
+                />
+              }
             >
-              <RotateCcw size={13} />
               {t("workItems.restore")}
-            </button>
+            </Button>
           )}
         </div>
 

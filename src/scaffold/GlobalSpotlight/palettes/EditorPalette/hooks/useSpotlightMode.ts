@@ -13,7 +13,7 @@ const MODE_PREFIXES = EDITOR_PALETTE_CONFIG.prefixes;
 /**
  * Detect spotlight mode from query string
  */
-export function detectMode(
+function detectMode(
   query: string,
   defaultMode: EditorPaletteMode = "file"
 ): ModeDetectionResult {

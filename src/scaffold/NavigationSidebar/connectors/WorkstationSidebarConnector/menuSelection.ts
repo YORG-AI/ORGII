@@ -10,7 +10,6 @@ import {
 } from "@src/store/ui/chatPanelAtom";
 
 import {
-  COLLAB_ADD_ORG_MENU_ITEM_ID,
   KANBAN_MENU_ITEM_ID,
   RUNTIME_MENU_ITEM_ID,
   TEAM_INBOX_MENU_ITEM_ID,
@@ -70,7 +69,6 @@ export function resolveSelectedMenuItemIds({
   const sessionSelectedMenuItemId =
     chatPanelCreateTarget === CHAT_PANEL_CREATE_TARGET.PROJECT ||
     chatPanelCreateTarget === CHAT_PANEL_CREATE_TARGET.WORK_ITEM ||
-    chatPanelCreateTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG ||
     isChatPanelProjectsContentSelected
       ? ""
       : getSelectedMenuItemId({
@@ -79,14 +77,12 @@ export function resolveSelectedMenuItemIds({
           selectedDraftMenuItemId,
         });
   const resolvedProjectsSelectedMenuItemId =
-    chatPanelCreateTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
-      ? COLLAB_ADD_ORG_MENU_ITEM_ID
-      : chatPanelCreateTarget === CHAT_PANEL_CREATE_TARGET.PROJECT ||
-          chatPanelCreateTarget === CHAT_PANEL_CREATE_TARGET.WORK_ITEM ||
-          chatPanelSelectedWorkItem ||
-          chatPanelSelectedProject
-        ? projectsSelectedMenuItemId
-        : "";
+    chatPanelCreateTarget === CHAT_PANEL_CREATE_TARGET.PROJECT ||
+    chatPanelCreateTarget === CHAT_PANEL_CREATE_TARGET.WORK_ITEM ||
+    chatPanelSelectedWorkItem ||
+    chatPanelSelectedProject
+      ? projectsSelectedMenuItemId
+      : "";
   const selectedMenuItemId =
     activeChatPanelTabType === "team-inbox"
       ? TEAM_INBOX_MENU_ITEM_ID

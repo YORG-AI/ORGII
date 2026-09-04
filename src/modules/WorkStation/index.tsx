@@ -12,7 +12,7 @@ import React from "react";
 
 import AppShell from "./AppShell";
 
-export interface WorkStationPageProps {
+interface WorkStationPageProps {
   /** Whether the routed WorkStation surface is currently visible */
   isActive?: boolean;
   /** Whether the chat panel is taking over the WorkStation surface */

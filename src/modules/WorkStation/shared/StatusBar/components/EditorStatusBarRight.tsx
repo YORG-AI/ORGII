@@ -6,8 +6,9 @@
  * passed in.
  */
 import type { TFunction } from "i18next";
-import { GitCommit } from "lucide-react";
 import React from "react";
+
+import { GitCommitIcon, HugeiconsIcon } from "@src/icons";
 
 import { StatusBarSegment, StatusBarText } from "../StatusBarBase";
 import type { CommitInfo, CursorPosition } from "../types";
@@ -38,7 +39,7 @@ export const EditorStatusBarRight: React.FC<EditorStatusBarRightProps> = ({
         title={`${commitInfo.message}\n\n${commitInfo.author} · ${commitInfo.shortSha}`}
         className="text-text-1"
       >
-        <GitCommit size={13} />
+        <HugeiconsIcon icon={GitCommitIcon} data-icon="git-commit" size={13} />
         <span className="max-w-[200px] truncate">{commitInfo.author}</span>
         <span className="text-text-3">·</span>
         <span className="text-text-3">{commitInfo.time}</span>

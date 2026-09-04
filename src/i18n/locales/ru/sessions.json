@@ -88,12 +88,6 @@
       "openAsFloatingPane": "Открыть во всплывающей панели"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "Поиск сессий по пути файла",
-      "noResults": "Нет сессий, изменивших подходящий файл"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "Текущий Kanban",
     "view": {
       "list": "Список",
       "diary": "Дневник",
@@ -321,8 +315,8 @@
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
       "removeDraft": "Удалить черновик",
-      "showSubagents": "Показать субагентов",
-      "hideSubagents": "Скрыть субагентов"
+      "showSubagents": "Показать subagents",
+      "hideSubagents": "Скрыть subagents"
     },
     "resultStatus": {
       "completed": "Завершено",
@@ -361,9 +355,6 @@
       "merge": "Слить",
       "merging": "Слияние…",
       "merged": "Слито"
-    },
-    "replay": {
-      "replaySession": "Воспроизвести"
     },
     "discard": {
       "discard": "Отменить",
@@ -469,7 +460,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "Скрыть панель",
         "expandPanel": "Показать панель trajectory и todo",
         "placeholderTrajectoryTitle": "Пока нет событий",
         "placeholderTrajectorySubtitle": "Активность сессии появится здесь после запуска Agent",
@@ -772,9 +762,7 @@
       "showSidebar": "Показать боковую панель",
       "hideSidebar": "Скрыть боковую панель",
       "showBottomPanel": "Показать нижнюю панель",
-      "hideBottomPanel": "Скрыть нижнюю панель",
-      "showDevTools": "Показать DevTools",
-      "hideDevTools": "Скрыть DevTools"
+      "hideBottomPanel": "Скрыть нижнюю панель"
     },
     "multiTask": {
       "monitoringProgress": "Отслеживание прогресса {{count}} subagents",
@@ -805,7 +793,8 @@
       "current": "Текущий"
     },
     "agentSentMessageCaption": "{{subject}} отправил вам сообщение",
-    "userSentMessageCaption": "Вы отправили сообщение Agent"
+    "userSentMessageCaption": "Вы отправили сообщение Agent",
+    "thoughtSentMessageCaption": "{{subject}} думает"
   },
   "terminal": {
     "findInTerminal": "Поиск в терминале",
@@ -885,8 +874,17 @@
     "multipleChoice": "Несколько вариантов",
     "typeYourAnswer": "Введите ваш ответ…",
     "newSession": "Новая сессия",
-    "muteNotifications": "Отключить уведомления",
     "startPage": {
+      "inputPosition": "Ввод",
+      "positionBottom": "Внизу",
+      "positionMiddle": "По центру",
+      "trailPosition": "Панель контекста",
+      "positionUp": "Сверху",
+      "positionDown": "Снизу",
+      "uiControls": "Элементы интерфейса",
+      "showQuickActions": "Показывать быстрые действия",
+      "showSkills": "Показывать Skills",
+      "showCliUpdate": "Показывать обновления CLI",
       "title": "Что вы хотите сделать?",
       "back": "Назад к стартовой странице",
       "newSession": {
@@ -997,6 +995,7 @@
     "fullScreenChat": "Фокус на панели чата (скрыть Workstation)",
     "maximizeChatPanel": "Развернуть панель чата",
     "showWorkstation": "Показать Workstation",
+    "workstationUnavailableForPage": "Workstation недоступна на этой странице",
     "hideWorkstation": "Скрыть Workstation",
     "restoreSplitView": "Показать Workstation",
     "shrinkToWorkstation": "Свернуть панель чата (показать Workstation)",
@@ -1012,9 +1011,12 @@
       "openInSideChat": "Открыть в боковом чате"
     },
     "collapseAll": "Свернуть все",
+    "copyAndExport": "Копирование и экспорт",
     "copyEventJson": "Скопировать JSON событий",
     "copyEventJsonCopied": "Скопировано!",
     "copyEventJsonFailed": "Ошибка копирования",
+    "moveTo": "Переместить страницу в…",
+    "projectLinks": "Связи проекта",
     "moveToWorkstation": "Переместить в мою Workstation",
     "moveToChatPanel": "Переместить на панель чата",
     "rawTranscript": {
@@ -1111,7 +1113,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~осталось {{eta}}",
     "rateLimitHintTitle": "Лимит запросов API",
-    "rateLimitHintBody": "Текущая модель ограничена по частоте запросов. Вы можете переключиться на другое окно и продолжить работу, пока ожидаете.",
+    "rateLimitHintBody": "Текущая модель ограничена по частоте запросов. Вы можете переключиться на другое окно и продолжить работу, пока ожидаете",
     "feedbackPending": "Ожидание отзыва",
     "executionThreads": "Потоки выполнения",
     "allThreads": "Все",
@@ -1143,6 +1145,7 @@
       "exportTitle": "Экспорт Session JSON",
       "importTitle": "Импорт Session JSON",
       "exportAction": "Экспорт",
+      "exportJson": "Экспорт JSON",
       "importAction": "Импортировать Session",
       "exportDescription": "Экспортируйте активную Session как переносимый JSON-снимок",
       "importDescription": "Импортируйте JSON-снимок Session в боковую панель.",
@@ -1260,7 +1263,8 @@
       "fileCount_other": "{{count}} файлов",
       "turnCount_one": "{{count}} раунд",
       "turnCount_other": "{{count}} раундов"
-    }
+    },
+    "parentAgentSender": "Родительский агент"
   },
   "chatStatus": {
     "approved": "Одобрено",
@@ -1383,9 +1387,7 @@
     },
     "editFileFailedNoName": "Попытка отредактировать",
     "file": "файл",
-    "runShellRunning": "Выполнение команды",
     "terminalWaitRunning": "Ожидание завершения терминала",
-    "runShellDone": "Команда выполнена",
     "runShellFailed": "Ошибка выполнения команды",
     "runCommands": "Выполнить команды",
     "terminalSummary": {
@@ -1472,8 +1474,8 @@
     "categorySearch": "Поиск",
     "categoryGlob": "Glob",
     "categoryList": "Список",
-    "subagentFailed": "Sub Agent не удался",
-    "subagentDefaultName": "Sub Agent",
+    "subagentFailed": "Subagent не удался",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "Задача назначена subagent",
     "subagentRunning": "Subagent выполняется",
     "subagentDone": "Subagent завершён",
@@ -1483,9 +1485,9 @@
     "createPlanRunning": "Создание плана",
     "createPlanDone": "План создан",
     "createPlanFailed": "Не удалось создать план",
-    "subagentResultTabFallbackTitle": "Результат Sub Agent",
+    "subagentResultTabFallbackTitle": "Результат Subagent",
     "openResultInTab": "Открыть во вкладке",
-    "openSubagentChatInTab": "Открыть детали Sub Agent в редакторе",
+    "openSubagentChatInTab": "Открыть детали Subagent в редакторе",
     "executing": "Выполняется",
     "argumentsLabel": "Аргументы",
     "resultLabel": "Результат",
@@ -1536,8 +1538,6 @@
     "killProcessFailed": "Не удалось завершить процесс",
     "listDirCount_one": "{{count}} каталог",
     "listDirCount_other": "{{count}} каталогов",
-    "listFileCount_one": "{{count}} файл",
-    "listFileCount_other": "{{count}} файлов",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (сокращено для отображения)",
     "repeatedErrorNotice": "Одна и та же ошибка возникла {{count}} раз, агент повторяет попытку",
@@ -1736,7 +1736,7 @@
     "awaitOutputSummaryUnknown_one": "фоновая задача",
     "awaitOutputSummaryUnknown_other": "{{count}} фоновых задач",
     "awaitOutputSummaryMixed": "{{shell}}, {{subagent}}",
-    "runningSubagent": "Делегирование подагенту...",
+    "runningSubagent": "Делегирование subagent...",
     "subagentStatusCompleted": "Завершено",
     "subagentStatusError": "Ошибка",
     "openSubagentSessionTab": "Открыть воспроизведение сессии",
@@ -2126,7 +2126,11 @@
     "orgSendMessageRunning": "Отправка сообщения {{recipient}}",
     "orgSendMessageDone": "Сообщение отправлено {{recipient}}",
     "orgSendMessageFailed": "Не удалось отправить сообщение {{recipient}}",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Выполнение команды",
+    "runCommandDone": "Команда выполнена",
+    "nFiles_one": "{{count}} файл",
+    "nFiles_other": "{{count}} файлов"
   },
   "hoverCard": {
     "commits": "Коммиты",
@@ -2147,7 +2151,6 @@
     },
     "createTarget": {
       "agentSession": "Сессия Agent",
-      "manageAgents": "Управлять Agents / Skills",
       "project": "Создать проект",
       "parallelRun": "Параллельный запуск",
       "workItem": "Создать Work Item"
@@ -2192,6 +2195,9 @@
     "launchpadQuestion": "Что вы хотите создать с помощью",
     "launchpadQuestionSuffix": "?",
     "manualLaunchpadQuestion": "Что вы хотите создать?",
+    "planLaunchpadQuestion": "Что вы хотите запланировать с помощью",
+    "planLaunchpadQuestionSuffix": "?",
+    "manualPlanLaunchpadQuestion": "Что вы хотите запланировать?",
     "start": "Начать",
     "assign": "Назначить",
     "send": "Отправить",
@@ -2583,7 +2589,16 @@
       "Работаем над этим, занимает больше времени, чем обычно...",
       "Решаем, что делать дальше, занимает больше времени, чем обычно..."
     ],
-    "compacting": "Сжатие контекста..."
+    "compacting": "Сжатие контекста...",
+    "statusTrail": {
+      "agentWorking": "Agent работает",
+      "agentWorkingFor": "Agent работает {{value}}",
+      "runningTask_one": "{{count}} запущенная задача",
+      "runningTask_other": "{{count}} запущенных задач",
+      "idle": "Agent не занят",
+      "lastRefreshed": "Последнее обновление {{value}}",
+      "asking": "Ожидает вашего ответа"
+    }
   },
   "revertConfirm": {
     "title": "Несохранённые изменения файлов",
@@ -2729,7 +2744,8 @@
     "update": {
       "titleStatus": "Обновить статус задачи",
       "titleDetail": "Обновить детали задачи",
-      "markedAs": "Отмечено как {{status}}"
+      "markedAs": "Отмечено как {{status}}",
+      "title": "Задача обновлена"
     },
     "get": {
       "title": "Просмотр деталей задачи"
@@ -2885,5 +2901,15 @@
       "skipped": "Пропущен",
       "pending": "Запускается"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
+  },
+  "tooltips": {
+    "hidePanel": "Скрыть панель"
+  },
+  "titleBar": {
+    "showDevTools": "Показать DevTools",
+    "hideDevTools": "Скрыть DevTools"
   }
 }

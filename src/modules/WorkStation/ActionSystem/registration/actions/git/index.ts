@@ -44,50 +44,21 @@ import { gitDiff, gitStatus } from "./gitStatusActions.zod";
  * - Stash
  * - History (Amend/Cherry-pick/Revert/Reset/Conflict Resolution)
  */
-export {
-  formatDiffSummaryForLLM,
-  formatStatusForLLM,
-  gitDiff,
-  gitStatus,
-} from "./gitStatusActions.zod";
+export { gitDiff, gitStatus } from "./gitStatusActions.zod";
 
-export {
-  gitCommit,
-  gitDiscard,
-  gitDiscardAll,
-  gitStage,
-  gitUnstage,
-} from "./gitStagingActions.zod";
+export { gitCommit } from "./gitStagingActions.zod";
 
-export {
-  gitFetch,
-  gitPublish,
-  gitPull,
-  gitPush,
-  gitSync,
-} from "./gitRemoteActions.zod";
+export { gitFetch, gitPublish, gitPull, gitPush } from "./gitRemoteActions.zod";
 
 export {
   gitCheckout,
-  gitCreateBranchFromCommit,
   gitMergeAbort,
   gitRebaseAbort,
 } from "./gitBranchActions.zod";
 
-export {
-  gitStash,
-  gitStashApply,
-  gitStashDrop,
-  gitStashPop,
-} from "./gitStashActions.zod";
+export { gitStashApply, gitStashDrop } from "./gitStashActions.zod";
 
-export {
-  gitAmend,
-  gitCherryPickCommit,
-  gitResolveConflict,
-  gitResetToRef,
-  gitRevertCommit,
-} from "./gitHistoryActions.zod";
+export { gitResolveConflict } from "./gitHistoryActions.zod";
 
 export const gitZodActions = [
   gitStatus,

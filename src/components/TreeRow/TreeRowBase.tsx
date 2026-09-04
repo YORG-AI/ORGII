@@ -11,12 +11,17 @@
  * - Supports .is-dragging CSS class for drag visual feedback without re-renders
  */
 import { useAtomValue } from "jotai";
-import { ChevronDown, ChevronRight, CornerDownRight } from "lucide-react";
 import React, { forwardRef, useCallback } from "react";
 
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  CornerDownRightIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import { editorShowTreeIndentGuidesAtom } from "@src/store/ui/editorSettingsAtom";
 
 import {
@@ -155,29 +160,39 @@ export const TreeRowBase = React.memo(
               and without a real icon show nothing in the leading slot. */}
           {"icon" in node ? (
             node.icon ? (
-              <span className={`flex-shrink-0 ${getTextColorClass()}`}>
+              <span className={`shrink-0 ${getTextColorClass()}`}>
                 {node.icon}
               </span>
             ) : null
           ) : isDirectory ? (
-            <div className="flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center">
+            <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
               {isExpanded ? (
-                <ChevronDown size={CHEVRON_SIZE} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
+                  size={CHEVRON_SIZE}
+                  className="text-text-3"
+                />
               ) : (
-                <ChevronRight size={CHEVRON_SIZE} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
+                  size={CHEVRON_SIZE}
+                  className="text-text-3"
+                />
               )}
             </div>
           ) : (
             <FileTypeIcon
               fileName={node.name}
               size="small"
-              className="flex-shrink-0"
+              className="shrink-0"
             />
           )}
 
           {/* Prefix icon (e.g. file type icon for Problems panel) */}
           {prefixIcon && (
-            <span className={`flex-shrink-0 ${getTextColorClass()}`}>
+            <span className={`shrink-0 ${getTextColorClass()}`}>
               {prefixIcon}
             </span>
           )}
@@ -197,7 +212,7 @@ export const TreeRowBase = React.memo(
           >
             {showPathHint && !isDirectory && node.path.includes("/") ? (
               <>
-                <span className="min-w-0 max-w-[min(55%,14rem)] shrink truncate">
+                <span className="max-w-[min(55%,14rem)] min-w-0 shrink truncate">
                   {node.name}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-[11px] text-text-3">
@@ -214,9 +229,11 @@ export const TreeRowBase = React.memo(
 
           {/* Symlink indicator — pinned to right end */}
           {isSymlink && (
-            <CornerDownRight
+            <HugeiconsIcon
+              icon={CornerDownRightIcon}
+              data-icon="corner-down-right"
               size={12}
-              className="flex-shrink-0 text-text-3"
+              className="shrink-0 text-text-3"
               aria-label="symlink"
             />
           )}

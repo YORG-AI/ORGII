@@ -1,10 +1,12 @@
 /**
  * General Settings Section
  *
- * Hosts three tabs:
- *   - `general` — language/date, input, app behavior, update, settings file
+ * Hosts four tabs:
+ *   - `general` — ORG2 login, language/date, input, app behavior, update,
+ *     settings file
  *   - `notifications` — master toggle + advanced blocks (lazy)
  *   - `shortcuts` — keyboard shortcuts viewer (lazy)
+ *   - `self-hosted` — custom ORG2 Cloud backend endpoint
  *
  * The General tab is rendered eagerly; the heavier Notifications and
  * Shortcuts tabs are code-split so they only load when the user clicks
@@ -20,7 +22,6 @@ import {
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { useAtom } from "jotai";
-import { RefreshCw } from "lucide-react";
 import React, {
   Suspense,
   lazy,
@@ -43,6 +44,8 @@ import Message from "@src/components/Message";
 import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import Switch from "@src/components/Switch";
+import CloudEndpointCard from "@src/features/Org2Cloud/CloudEndpointCard";
+import { Org2CloudLoginRows } from "@src/features/Org2Cloud/Org2CloudSection";
 import { useTimezoneSelect } from "@src/hooks/geo";
 import {
   LANGUAGE_NAMES,
@@ -50,9 +53,11 @@ import {
   type LanguagePreference,
   SUPPORTED_LANGUAGES,
   type SupportedLanguage,
+  formatLanguageDisplayLabel,
   getFollowSystemLanguageLabel,
   resolveLanguagePreference,
 } from "@src/i18n";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import { NAV_BUTTON_PROPS } from "@src/modules/MainApp/Settings/config";
 import {
   checkForAppUpdates,
@@ -77,6 +82,7 @@ export const GENERAL_TAB_KEYS = {
   GENERAL: "general",
   NOTIFICATIONS: "notifications",
   SHORTCUTS: "shortcuts",
+  SELF_HOSTED: "self-hosted",
 } as const;
 
 export type GeneralTabKey =
@@ -110,6 +116,10 @@ const GeneralSection: React.FC<GeneralSectionProps> = ({
         <ShortcutsTab />
       </Suspense>
     );
+  }
+
+  if (activeTab === GENERAL_TAB_KEYS.SELF_HOSTED) {
+    return <CloudEndpointCard />;
   }
 
   return <GeneralTabBody />;
@@ -227,6 +237,8 @@ const GeneralTabBody: React.FC = () => {
   }, [micPermissionStatus, t]);
 
   useEffect(() => {
+    if (!devModeEnabled) return;
+
     let cancelled = false;
     invoke<string>("settings_get_path").then((path) => {
       if (!cancelled && path) {
@@ -236,7 +248,7 @@ const GeneralTabBody: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [devModeEnabled]);
 
   const handleLanguageChange = useCallback(
     (value: string | number | (string | number)[]) => {
@@ -248,7 +260,7 @@ const GeneralTabBody: React.FC = () => {
   );
 
   // Language options for the selector
-  // Format: "Translated Name · Native Name" (e.g., in French: "Anglais · English")
+  // Format: "Translated Name · Native Name" when those names differ.
   const languageOptions = useMemo(
     () => [
       {
@@ -257,15 +269,10 @@ const GeneralTabBody: React.FC = () => {
       },
       ...SUPPORTED_LANGUAGES.map((lang) => {
         const translatedName = t(`general.languageNames.${lang}`);
-        const nativeName = LANGUAGE_NAMES[lang];
-        const displayLabel =
-          translatedName === nativeName
-            ? nativeName
-            : `${translatedName} · ${nativeName}`;
 
         return {
           value: lang,
-          label: displayLabel,
+          label: formatLanguageDisplayLabel(lang, translatedName),
         };
       }),
     ],
@@ -321,6 +328,9 @@ const GeneralTabBody: React.FC = () => {
   return (
     <>
       <SectionContainer>
+        <Org2CloudLoginRows />
+      </SectionContainer>
+      <SectionContainer>
         <SectionRow label={t("common:common.language")}>
           <Select
             value={languagePreference}
@@ -360,7 +370,7 @@ const GeneralTabBody: React.FC = () => {
         {voiceInputEnabled && (
           <SectionRow label={t("general.voiceInputPermission")} indent>
             <div className="flex items-center gap-2">
-              <span className="whitespace-nowrap text-xs text-text-1">
+              <span className="text-xs whitespace-nowrap text-text-1">
                 {micStatusBadge}
               </span>
               {micPermissionStatus !== "granted" &&
@@ -424,7 +434,13 @@ const GeneralTabBody: React.FC = () => {
           <Button
             size="default"
             onClick={checkForUpdatesManually}
-            icon={<RefreshCw size={14} />}
+            icon={
+              <HugeiconsIcon
+                icon={Refresh04Icon}
+                data-icon="refresh-cw"
+                size={14}
+              />
+            }
           >
             {t("update.detectUpdate")}
           </Button>
@@ -440,20 +456,22 @@ const GeneralTabBody: React.FC = () => {
         </SectionRow>
       </SectionContainer>
 
-      <SectionContainer>
-        <PathCopyOpenRow
-          label={t("general.settingsFile")}
-          path={settingsFilePath}
-          onCopy={() => {
-            void copyText(settingsFilePath).then(() => {
-              Message.success(t("storage.copiedPath"));
-            });
-          }}
-          onOpen={() => invoke("show_in_folder", { path: settingsFilePath })}
-          copyTitle={t("common:actions.copy")}
-          openTitle={t("storage.openFolder")}
-        />
-      </SectionContainer>
+      {devModeEnabled && (
+        <SectionContainer>
+          <PathCopyOpenRow
+            label={t("general.settingsFile")}
+            path={settingsFilePath}
+            onCopy={() => {
+              void copyText(settingsFilePath).then(() => {
+                Message.success(t("storage.copiedPath"));
+              });
+            }}
+            onOpen={() => invoke("show_in_folder", { path: settingsFilePath })}
+            copyTitle={t("common:actions.copy")}
+            openTitle={t("storage.openFolder")}
+          />
+        </SectionContainer>
+      )}
     </>
   );
 };

@@ -1,12 +1,12 @@
-import { Tag } from "lucide-react";
-
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
 import {
   FieldRow,
   type FieldRowVariant,
   Option,
   SearchableDropdown,
+  getPropertyDropdownAlign,
 } from "@src/components/PropertyField/PropertyFieldEditable";
+import { HugeiconsIcon, Tag01Icon } from "@src/icons";
 import type {
   WorkItem as WorkItemExtended,
   WorkItemLabel,
@@ -75,12 +75,18 @@ export function LabelsSection({
     <div
       className={
         fieldVariant === "pill"
-          ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+          ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
           : "relative flex min-h-8 w-full items-center"
       }
     >
       <FieldRow
-        icon={<Tag size={DROPDOWN_ITEM.iconSize} />}
+        icon={
+          <HugeiconsIcon
+            icon={Tag01Icon}
+            data-icon="tag"
+            size={DROPDOWN_ITEM.iconSize}
+          />
+        }
         value={
           workItem.labels && workItem.labels.length > 0
             ? workItem.labels.map((label) => label.name).join(", ")
@@ -96,7 +102,7 @@ export function LabelsSection({
         <SearchableDropdown
           placeholder={t("common:actions.search")}
           widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-          align={fieldVariant === "pill" ? "auto" : "left"}
+          align={getPropertyDropdownAlign(fieldVariant)}
         >
           {(searchQuery) => {
             const filtered = searchQuery

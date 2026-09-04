@@ -25,7 +25,6 @@ export {
   API_BASE_URLS,
   DEFAULT_TIMEOUT,
   ERROR_CONFIG,
-  HOSTED_SERVICE_TIMEOUT,
   NOTIFICATION_DURATION,
   SERVER_ERROR_NOTIFICATION_DURATION,
 } from "./config";
@@ -54,21 +53,3 @@ export { getOrRefreshHostedToken } from "./tokenRefresh";
 // ============================================
 
 export { deleteApi, getApi, patchApi, postApi, putApi } from "./mainApi";
-
-// ============================================
-// HTTP Client Methods — Agent Backend
-// ============================================
-
-export { deleteAgentApi, getAgentApi, postAgentApi } from "./agentApi";
-
-// ============================================
-// HTTP Client Methods — Hosted Service Backend
-// ============================================
-
-export {
-  deleteHostedServiceApi,
-  getHostedServiceApi,
-  patchHostedServiceApi,
-  postHostedServiceApi,
-  putHostedServiceApi,
-} from "./hostedServiceApi";

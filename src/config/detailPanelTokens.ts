@@ -34,7 +34,7 @@ export const COLLAPSIBLE_SECTION_TOKENS = {
     size: "mini" as const,
     shape: "circle" as const,
     iconOnly: true as const,
-    className: "hover:!bg-surface-selected",
+    className: "hover:bg-surface-selected!",
   },
 } as const;
 
@@ -52,7 +52,8 @@ export const INFO_CARD_TOKENS = {
   /** Label typography */
   label: "text-[12px] text-text-2",
   /** Value typography (min-w-0 allows wrap in flex row) */
-  value: "flex min-w-0 items-center gap-1 break-words text-[12px] text-text-1",
+  value:
+    "flex min-w-0 items-center gap-1 wrap-break-word text-[12px] text-text-1",
 } as const;
 
 // ============================================
@@ -68,6 +69,20 @@ export const DETAIL_PANEL_WIDTH_TOKENS = {
   headerWidth: "mx-auto w-full max-w-[932px]",
 } as const;
 
+/**
+ * Narrow 800px content / 832px padded-shell width used by conversation
+ * surfaces — chat transcript rows, the composer column, channel and
+ * human-session messages. Same shape as `DETAIL_PANEL_WIDTH_TOKENS` so it
+ * drops into the same slots; the shorter measure keeps prose lines readable.
+ */
+export const CHAT_PANEL_WIDTH_TOKENS = {
+  contentMaxWidth: "max-w-[800px]",
+  contentWidth: "mx-auto w-full max-w-[800px]",
+  contentWidthWithPadding: "mx-auto w-full max-w-[800px] py-4 pb-[50vh]",
+  contentWidthWithPaddingNoTop: "mx-auto w-full max-w-[800px] pb-6 pb-[50vh]",
+  headerWidth: "mx-auto w-full max-w-[832px]",
+} as const;
+
 /** Wide 1200px content / 1232px padded-shell width reserved for issue surfaces. */
 export const ISSUE_PANEL_WIDTH_TOKENS = {
   contentMaxWidth: "max-w-[1200px]",
@@ -80,13 +95,23 @@ export const ISSUE_PANEL_WIDTH_TOKENS = {
 export const DETAIL_PANEL_TOKENS = {
   /** Outer container */
   container: "flex h-full flex-col",
+  /** PR-style detail chrome shared by tabs, pane headers, and loading states. */
+  headerHeight: "h-9",
+  /** Numeric form for layout calculations and contract tests. */
+  headerHeightPx: 36,
   /**
    * Detail identity rows use a roomier left inset while actions stay compact.
    * The 7px trailing inset matches the shared workspace-header action grid.
    */
-  headerPadding: "!pl-4 !pr-[7px]",
+  headerPadding: "pl-4! pr-[7px]!",
+  /** Standalone tab rows align their leading edge with 16px detail content. */
+  tabRowPadding: "pr-[7px] pl-4",
   /** Horizontal content inset (px-4) — shared by detail panels and wizards; no vertical padding so sticky headers can pin flush to the scrollport top */
   contentPadding: "px-4",
+  /** PR-style title block inset shared by loaded and loading thread details. */
+  flowHeaderPadding: "px-4 pt-5",
+  /** Conversation/Linked body inset shared by loaded and loading details. */
+  threadContentPadding: "px-4 py-4",
   /** Content bottom padding (pb-2) — reduced when footer follows */
   contentPaddingBottom: "pb-2",
   /**
@@ -124,13 +149,13 @@ export const DETAIL_PANEL_TOKENS = {
 
 export const BORDERED_SECTION_TOKENS = {
   /** Wrapper — border-top divider with equal padding, neutralises CollapsibleSection mb */
-  wrapper: "border-t border-border-2 pt-4 [&>*]:!mb-0",
+  wrapper: "border-t border-border-2 pt-4 *:mb-0!",
   /** Bottom padding on the block above the first bordered section (matches CollapsibleSection py-3) */
   precedingBlock: "pb-3",
   /** Standalone line separator between sections */
   separator: "border-t border-border-2",
   /** Content wrapper inside CollapsibleSection — horizontal padding + strip trailing child margins */
-  sectionContent: "px-4 [&>*:last-child]:!mb-0",
+  sectionContent: "px-4 [&>*:last-child]:mb-0!",
 } as const;
 
 // ============================================

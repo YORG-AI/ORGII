@@ -224,6 +224,9 @@ export function isMainAppWindowLabel(windowId: string): boolean {
   if (windowId === "main") return true;
   if (windowId === "wingman") return false;
   if (windowId.startsWith("wingman-")) return false;
+  // Capability-globbed secondary windows (detached session windows and
+  // whatever else adopts the glob) never own a repo selection.
+  if (windowId.startsWith("app-window-")) return false;
   if (windowId === "tab") return false;
   if (windowId === "welcome") return false;
   return true;

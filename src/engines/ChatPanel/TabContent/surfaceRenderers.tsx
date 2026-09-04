@@ -41,9 +41,6 @@ const WorkspaceExplorePanelView = React.lazy(
   () => import("../panels/WorkspaceExplorePanelView")
 );
 const RuntimePanelView = React.lazy(() => import("../panels/RuntimePanelView"));
-const TeamInboxView = React.lazy(
-  () => import("@src/modules/MainApp/TeamInbox")
-);
 const DiscussionChannelPanelView = React.lazy(
   () => import("@src/features/DiscussionChannels/ChannelPanelView")
 );
@@ -102,7 +99,16 @@ export function GitHubIssueSurfaceRenderer({
 }: ChatPanelSurfaceRendererProps): React.ReactNode {
   if (!tab.githubIssue) return null;
   return (
-    <Suspense fallback={<GitHubDetailSkeleton kind="issue" showHeader />}>
+    <Suspense
+      fallback={
+        <GitHubDetailSkeleton
+          kind="issue"
+          showHeader
+          title={tab.githubIssue.issueTitle}
+          number={tab.githubIssue.issueNumber}
+        />
+      }
+    >
       <GitHubIssuePanelView detail={tab.githubIssue} />
     </Suspense>
   );
@@ -158,14 +164,6 @@ export function ExploreSurfaceRenderer(): React.ReactNode {
   return (
     <Suspense fallback={null}>
       <WorkspaceExplorePanelView />
-    </Suspense>
-  );
-}
-
-export function TeamInboxSurfaceRenderer(): React.ReactNode {
-  return (
-    <Suspense fallback={null}>
-      <TeamInboxView />
     </Suspense>
   );
 }

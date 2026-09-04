@@ -9,7 +9,8 @@
  */
 import type React from "react";
 
-import type { PlanningFooterMode } from "@src/engines/ChatPanel/blocks/primitives";
+import type { PlanningIndicatorMode } from "@src/engines/ChatPanel/blocks/primitives";
+import type { AgentStatusTrailState } from "@src/engines/ChatPanel/hooks/agentStatusTrailMath";
 
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
 import type { GroupHeaderRenderPart } from "../renderers/GroupHeaderRenderer";
@@ -17,13 +18,14 @@ import type { GroupHeaderRenderPart } from "../renderers/GroupHeaderRenderer";
 export type EventSummary = NonNullable<OptimizedChatItem["event"]>;
 
 export interface ChatHistoryListHandle {
-  scrollToIndex: (options: {
-    index: number;
-    behavior?: ScrollBehavior;
-    align?: "start" | "center" | "end" | "auto";
-  }) => void;
   scrollToGroup: (options: {
     groupIndex: number;
+    behavior?: ScrollBehavior;
+  }) => void;
+  scrollToChatTarget: (options: {
+    eventId?: string;
+    itemId?: string;
+    flatIndex?: number;
     behavior?: ScrollBehavior;
   }) => void;
 }
@@ -32,18 +34,24 @@ export interface ChatHistoryListProps {
   flatItems: OptimizedChatItem[];
   groupCounts: number[];
   turnIds: (string | null)[];
-  assistantCopyEventIdsByGroup: readonly (readonly string[])[];
-  resolveAssistantTurnCopyContent: (eventIds: readonly string[]) => string;
   totalFlatItems: number;
-  lastAssistantFlatIndexPerItem: (number | null)[];
   codeBlockContainerWidth: number;
   footerSpacerHeight: number;
   bottomInset: number;
   /** Top padding keeping content clear of the floating chrome; see chatPanelHeaderLayout. */
   topPaddingPx?: number;
+  /** 1 while the agent's current activity should be named on the trail. */
   planningIndicatorCount: number;
   planningVariantIndex: number;
-  planningFooterMode: PlanningFooterMode;
+  planningFooterMode: PlanningIndicatorMode;
+  /**
+   * Live end-of-conversation status trail. It shares the planning footer's
+   * injected row rather than Virtuoso's global Footer, so it stays attached
+   * to the running turn instead of drifting onto the previous one.
+   */
+  statusTrail: AgentStatusTrailState;
+  /** Session the status trail describes; drives its agent mark. */
+  statusTrailSessionId: string | null;
   virtualListRef: React.RefObject<ChatHistoryListHandle | null>;
   virtualListDataKey: string;
   /**
@@ -112,7 +120,6 @@ export interface GroupViewportMetrics extends GroupPinMetrics {
 }
 
 export interface RowGroupMeta {
-  lastAssistantFlatIndex: number | null;
   isLastItemInGroup: boolean;
   isLastGroup: boolean;
 }

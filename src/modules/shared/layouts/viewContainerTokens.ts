@@ -31,6 +31,15 @@ interface ChatSlotLayoutStyleOptions {
   visibleWidth: string | number;
 }
 
+/** Align an even-width resize indicator with the center of the 1px divider. */
+export function getResizeIndicatorHostStyle(
+  position: "left" | "right"
+): CSSProperties {
+  return {
+    transform: `translateX(${position === "left" ? "-0.5px" : "0.5px"})`,
+  };
+}
+
 /** Normal-flow flex geometry for the chat pane at each visibility state. */
 export function getChatSlotLayoutStyle({
   maximized,
@@ -126,29 +135,30 @@ export function getSidebarSurfaceBackgroundStyle(
 }
 
 /**
- * Inline style for the chat panel root. Sets its own background and
- * rebinds `--color-chat-pane` on this subtree so every descendant Tailwind
- * `bg-chat-pane` class (sticky group headers, pagination toolbar wrapper,
- * turn-page list, loading bar, agent-org overview panel, etc.)
- * automatically inherits the same transparency.
+ * Inline style for a primary pane host (Chat Panel, My Station, or a detached
+ * session window). It paints the host once and rebinds every full-pane surface
+ * alias used by descendants, so shared views do not need host-specific
+ * background props or class branches.
  *
  * `--color-chat-container` is intentionally NOT rebound: it backs distinct
- * cards/badges that sit on top of the chat surface (region notices, pinned
- * pop-out cards, inline tool blocks). Those should read as solid surfaces
- * over the wallpaper-tinted chat pane, not also bleed through.
+ * cards/badges that sit on top of the primary surface (region notices, pinned
+ * pop-out cards, inline tool blocks). Those should read as raised surfaces
+ * over the wallpaper-tinted pane, not also bleed through.
  *
- * The mix reads the shared `--color-primary-pane-bg` token so chat and
- * settings page roots always use the same base color. `--color-chat-pane`
- * remains a consumable alias for descendants and is rebound to the mixed
- * value on this subtree.
+ * The mix reads the shared `--color-primary-pane-bg` token. The consumer
+ * aliases remain available for semantic component styling, but resolve to one
+ * host-owned paint value throughout the subtree.
  */
-export function getChatPanelBackgroundStyle(
+export function getPrimaryPaneBackgroundStyle(
   pageOpacity: number | undefined
 ): CSSProperties {
   const opacity = IS_MACOS_HOST ? 100 : sanitizePageOpacity(pageOpacity);
-  const chatPaneMix = `color-mix(in srgb, var(--color-primary-pane-bg) ${opacity}%, transparent)`;
+  const primaryPaneMix = `color-mix(in srgb, var(--color-primary-pane-bg) ${opacity}%, transparent)`;
   return {
-    backgroundColor: chatPaneMix,
-    "--color-chat-pane": chatPaneMix,
+    backgroundColor: primaryPaneMix,
+    "--color-chat-pane": primaryPaneMix,
+    "--color-workstation-bg": primaryPaneMix,
+    "--cm-editor-background": primaryPaneMix,
+    "--cm-editor-gutter-bg": primaryPaneMix,
   } as CSSProperties;
 }

@@ -2,20 +2,28 @@
  * Lead, Members, Teams, Labels, and Linked Repos field rows.
  * Extracted to keep ProjectPropertyFields under the UI line limit.
  */
-import { Code2, Plane, Tag, User, Users } from "lucide-react";
 import React from "react";
 
-import Avatar from "@src/components/Avatar";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
 } from "@src/components/Dropdown/tokens";
+import PersonAvatar from "@src/components/PersonAvatar";
 import {
   FieldRow,
   type FieldRowVariant,
   Option,
   SearchableDropdown,
+  getPropertyDropdownAlign,
 } from "@src/components/PropertyField/PropertyFieldEditable";
+import {
+  Airplane01Icon,
+  CodeXmlIcon,
+  HugeiconsIcon,
+  Tag01Icon,
+  UserIcon,
+  UserMultipleIcon,
+} from "@src/icons";
 
 import type {
   Label,
@@ -74,26 +82,25 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
       <div
         className={
           fieldVariant === "pill"
-            ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+            ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
             : "relative flex min-h-[36px] w-full items-center"
         }
       >
         <FieldRow
           icon={
             project.lead ? (
-              <Avatar
+              <PersonAvatar
                 size={DROPDOWN_ITEM.iconSize}
+                name={project.lead.name}
                 src={project.lead.avatar}
-                style={{
-                  backgroundColor: project.lead.color || "var(--color-fill-3)",
-                  color: "var(--color-text-white)",
-                  fontSize: "11px",
-                }}
-              >
-                {project.lead.name.charAt(0).toUpperCase()}
-              </Avatar>
+                color={project.lead.color}
+              />
             ) : (
-              <User size={DROPDOWN_ITEM.iconSize} />
+              <HugeiconsIcon
+                icon={UserIcon}
+                data-icon="user"
+                size={DROPDOWN_ITEM.iconSize}
+              />
             )
           }
           label={showLabels ? t("properties.lead") : undefined}
@@ -107,7 +114,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
           <SearchableDropdown
             placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-            align={fieldVariant === "pill" ? "auto" : "left"}
+            align={getPropertyDropdownAlign(fieldVariant)}
           >
             {(searchQuery) => {
               const filtered = searchQuery
@@ -121,7 +128,13 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
                 <>
                   {!searchQuery && (
                     <Option
-                      icon={<User size={DROPDOWN_ITEM.iconSize} />}
+                      icon={
+                        <HugeiconsIcon
+                          icon={UserIcon}
+                          data-icon="user"
+                          size={DROPDOWN_ITEM.iconSize}
+                        />
+                      }
                       label={t("properties.noLead")}
                       onClick={() => handleLeadChange(undefined)}
                     />
@@ -133,18 +146,12 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
                       label={person.name}
                       onClick={() => handleLeadChange(person)}
                     >
-                      <Avatar
+                      <PersonAvatar
                         size={DROPDOWN_ITEM.iconSize}
+                        name={person.name}
                         src={person.avatar}
-                        style={{
-                          backgroundColor:
-                            person.color || "var(--color-fill-3)",
-                          color: "var(--color-text-white)",
-                          fontSize: "11px",
-                        }}
-                      >
-                        {person.name.charAt(0).toUpperCase()}
-                      </Avatar>
+                        color={person.color}
+                      />
                       <span className="flex-1 truncate">{person.name}</span>
                     </Option>
                   ))}
@@ -161,12 +168,18 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
       <div
         className={
           fieldVariant === "pill"
-            ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+            ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
             : "relative flex min-h-[36px] w-full items-center"
         }
       >
         <FieldRow
-          icon={<Users size={DROPDOWN_ITEM.iconSize} />}
+          icon={
+            <HugeiconsIcon
+              icon={UserMultipleIcon}
+              data-icon="users"
+              size={DROPDOWN_ITEM.iconSize}
+            />
+          }
           label={showLabels ? t("properties.members") : undefined}
           value={
             project.members && project.members.length > 0
@@ -183,7 +196,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
           <SearchableDropdown
             placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-            align={fieldVariant === "pill" ? "auto" : "left"}
+            align={getPropertyDropdownAlign(fieldVariant)}
           >
             {(searchQuery) => {
               const filtered = searchQuery
@@ -204,17 +217,12 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
                     label={person.name}
                     onClick={() => handleMemberToggle(person)}
                   >
-                    <Avatar
+                    <PersonAvatar
                       size={DROPDOWN_ITEM.iconSize}
+                      name={person.name}
                       src={person.avatar}
-                      style={{
-                        backgroundColor: person.color || "var(--color-fill-3)",
-                        color: "var(--color-text-white)",
-                        fontSize: "11px",
-                      }}
-                    >
-                      {person.name.charAt(0).toUpperCase()}
-                    </Avatar>
+                      color={person.color}
+                    />
                     <span className="flex-1 truncate">{person.name}</span>
                   </Option>
                 );
@@ -230,12 +238,18 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
       <div
         className={
           fieldVariant === "pill"
-            ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+            ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
             : "relative flex min-h-[36px] w-full items-center"
         }
       >
         <FieldRow
-          icon={<Plane size={DROPDOWN_ITEM.iconSize} />}
+          icon={
+            <HugeiconsIcon
+              icon={Airplane01Icon}
+              data-icon="plane"
+              size={DROPDOWN_ITEM.iconSize}
+            />
+          }
           label={showLabels ? t("properties.teams") : undefined}
           value={
             project.teams && project.teams.length > 0
@@ -251,7 +265,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
           <SearchableDropdown
             placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-            align={fieldVariant === "pill" ? "auto" : "left"}
+            align={getPropertyDropdownAlign(fieldVariant)}
           >
             {(searchQuery) => {
               const filtered = searchQuery
@@ -277,7 +291,9 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
                     isSelected={isSelected}
                     onClick={() => handleTeamToggle(team)}
                   >
-                    <Plane
+                    <HugeiconsIcon
+                      icon={Airplane01Icon}
+                      data-icon="plane"
                       size={DROPDOWN_ITEM.iconSize}
                       style={{ color: team.color }}
                     />
@@ -296,12 +312,18 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
       <div
         className={
           fieldVariant === "pill"
-            ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+            ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
             : "relative flex min-h-[36px] w-full items-center"
         }
       >
         <FieldRow
-          icon={<Tag size={DROPDOWN_ITEM.iconSize} />}
+          icon={
+            <HugeiconsIcon
+              icon={Tag01Icon}
+              data-icon="tag"
+              size={DROPDOWN_ITEM.iconSize}
+            />
+          }
           label={showLabels ? t("properties.labels") : undefined}
           value={
             project.labels && project.labels.length > 0
@@ -317,7 +339,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
           <SearchableDropdown
             placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-            align={fieldVariant === "pill" ? "auto" : "left"}
+            align={getPropertyDropdownAlign(fieldVariant)}
           >
             {(searchQuery) => {
               const filtered = searchQuery
@@ -356,12 +378,18 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
         <div
           className={
             fieldVariant === "pill"
-              ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+              ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
               : "relative flex min-h-[36px] w-full items-center"
           }
         >
           <FieldRow
-            icon={<Code2 size={DROPDOWN_ITEM.iconSize} />}
+            icon={
+              <HugeiconsIcon
+                icon={CodeXmlIcon}
+                data-icon="code-2"
+                size={DROPDOWN_ITEM.iconSize}
+              />
+            }
             label={showLabels ? t("properties.repos") : undefined}
             value={linkedRepoLabel}
             isSelected={linkedRepoCount > 0}
@@ -374,7 +402,7 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
             <SearchableDropdown
               placeholder={t("common:actions.search")}
               widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-              align={fieldVariant === "pill" ? "auto" : "left"}
+              align={getPropertyDropdownAlign(fieldVariant)}
             >
               {(searchQuery) => {
                 const filtered = searchQuery
@@ -402,7 +430,9 @@ const PeopleTeamsLabelsFields: React.FC<PeopleTeamsLabelsFieldsProps> = ({
                       isSelected={isSelected}
                       onClick={() => handleLinkedRepoToggle(repo)}
                     >
-                      <Code2
+                      <HugeiconsIcon
+                        icon={CodeXmlIcon}
+                        data-icon="code-2"
                         size={DROPDOWN_ITEM.iconSize}
                         className="text-text-3"
                       />

@@ -27,7 +27,7 @@ export const ReplayTimestampSegment: React.FC = memo(() => {
   // sides rather than wobbling to one edge.
   return (
     <span
-      className={`inline-flex h-5 w-[54px] shrink-0 items-center justify-center ${STATUS_BAR_TEXT_20} tabular-nums leading-none text-text-2`}
+      className={`inline-flex h-5 w-[54px] shrink-0 items-center justify-center ${STATUS_BAR_TEXT_20} leading-none text-text-2 tabular-nums`}
     >
       {currentTimestamp}
     </span>

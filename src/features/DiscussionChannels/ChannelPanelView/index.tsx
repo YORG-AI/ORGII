@@ -14,7 +14,7 @@
  *    inert with the explanation above it, because there is no RPC to call.
  *
  * Both scopes are built from session parts, not look-alikes: the transcript is
- * `ChannelMessageList` on `DETAIL_PANEL_TOKENS.contentMaxWidth`, and the
+ * `ChannelMessageList` on `CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth`, and the
  * composer is the real `InputArea` in the absolutely positioned footer
  * `HumanSessionView` uses. Settings reuses the existing per-scope dialog —
  * this view mounts it, never reimplements it. Cloud rows go through the SAME
@@ -30,7 +30,6 @@
  * so the composer and the row actions match the local plane exactly.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { MessagesSquare } from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -45,6 +44,7 @@ import {
   useCloudChannelMessages,
 } from "@src/features/Org2Cloud/channels/useCloudChannelMessages";
 import { useOrgChannels } from "@src/features/Org2Cloud/channels/useOrgChannels";
+import { HugeiconsIcon, MessageMultiple01Icon } from "@src/icons";
 import { SESSION_TAB_DROP_TARGET_HIGHLIGHT_CLASS } from "@src/shared/dnd/sessionTabDrag";
 import type { ChatPanelSelectedChannel } from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
@@ -75,7 +75,7 @@ const EMPTY_STATE_COLUMN_CLASSES =
 
 const COMPOSER_NOTICE_CLASSES = `border border-dashed border-border-2 bg-fill-1 px-3 py-2.5 text-[12px] text-text-3 ${INPUT_AREA.borderRadiusClass}`;
 
-export interface DiscussionChannelPanelViewProps {
+interface DiscussionChannelPanelViewProps {
   channel: ChatPanelSelectedChannel;
 }
 
@@ -161,7 +161,14 @@ const LocalChannelPanel: React.FC<LocalChannelPanelProps> = ({
           variant="empty"
           placement="detail-panel"
           fillParentHeight
-          icon={<MessagesSquare size={32} strokeWidth={1.5} />}
+          icon={
+            <HugeiconsIcon
+              icon={MessageMultiple01Icon}
+              data-icon="messages-square"
+              size={32}
+              strokeWidth={1.5}
+            />
+          }
           title={t("cloud.channels.feed.missingTitle")}
           subtitle={t("cloud.channels.feed.missingSubtitle")}
         />
@@ -193,7 +200,7 @@ const LocalChannelPanel: React.FC<LocalChannelPanelProps> = ({
             role="status"
             aria-live="polite"
           >
-            <span className="rounded-md border border-border-2 bg-bg-2 px-3 py-1.5 text-xs font-medium text-text-1 shadow-sm">
+            <span className="rounded-md border border-border-2 bg-bg-2 px-3 py-1.5 text-xs font-medium text-text-1 shadow-xs">
               {t("cloud.channels.feed.dropSessionHint")}
             </span>
           </div>
@@ -203,7 +210,14 @@ const LocalChannelPanel: React.FC<LocalChannelPanelProps> = ({
             <Placeholder
               variant="empty"
               placement="detail-panel"
-              icon={<MessagesSquare size={32} strokeWidth={1.5} />}
+              icon={
+                <HugeiconsIcon
+                  icon={MessageMultiple01Icon}
+                  data-icon="messages-square"
+                  size={32}
+                  strokeWidth={1.5}
+                />
+              }
               title={t("cloud.channels.feed.emptyTitle", {
                 name: displayName,
               })}
@@ -416,7 +430,7 @@ const CloudChannelPanel: React.FC<CloudChannelPanelProps> = ({
             role="status"
             aria-live="polite"
           >
-            <span className="rounded-md border border-border-2 bg-bg-2 px-3 py-1.5 text-xs font-medium text-text-1 shadow-sm">
+            <span className="rounded-md border border-border-2 bg-bg-2 px-3 py-1.5 text-xs font-medium text-text-1 shadow-xs">
               {t("cloud.channels.feed.dropSessionHint")}
             </span>
           </div>
@@ -429,7 +443,14 @@ const CloudChannelPanel: React.FC<CloudChannelPanelProps> = ({
               <Placeholder
                 variant="empty"
                 placement="detail-panel"
-                icon={<MessagesSquare size={32} strokeWidth={1.5} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={MessageMultiple01Icon}
+                    data-icon="messages-square"
+                    size={32}
+                    strokeWidth={1.5}
+                  />
+                }
                 title={
                   gated
                     ? t("cloud.channels.feed.cloudPendingTitle")

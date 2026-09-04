@@ -6,14 +6,14 @@
  * to break the cross-feature dependency.
  */
 import {
-  Infinity,
-  Cloud,
-  FolderKanban,
-  Laptop,
-  ListTodo,
-  Search,
-  Split,
-} from "lucide-react";
+  Infinity01Icon,
+  CloudIcon,
+  DeliveryBox01Icon,
+  LaptopIcon,
+  ListTodoIcon,
+  Search01Icon,
+  SplitIcon,
+} from "@src/icons";
 
 // ============================================
 // Session Configuration
@@ -32,6 +32,14 @@ export const SESSION_CONFIG = {
   EDITOR_MAX_WIDTH: 650,
   EDITOR_MIN_HEIGHT: 100,
 } as const;
+
+export const CREATOR_COMPOSER_POSITION = {
+  BOTTOM: "bottom",
+  MIDDLE: "middle",
+} as const;
+
+export type CreatorComposerPosition =
+  (typeof CREATOR_COMPOSER_POSITION)[keyof typeof CREATOR_COMPOSER_POSITION];
 
 // ============================================
 // Agent exec mode (Rust `AgentExecMode`)
@@ -102,7 +110,7 @@ export function isAgentExecMode(value: unknown): value is AgentExecMode {
 
 export interface AgentExecModeEntry {
   id: AgentExecMode;
-  icon: typeof Infinity;
+  icon: typeof Infinity01Icon;
   i18nKey: string;
   name: string;
   description: string;
@@ -111,21 +119,21 @@ export interface AgentExecModeEntry {
 export const AGENT_EXEC_MODES: AgentExecModeEntry[] = [
   {
     id: "build",
-    icon: Infinity,
+    icon: Infinity01Icon,
     i18nKey: "planner.modes.build",
     name: "Build",
     description: "Full tool access — read, write, execute",
   },
   {
     id: "plan",
-    icon: ListTodo,
+    icon: ListTodoIcon,
     i18nKey: "planner.modes.plan",
     name: "Plan",
     description: "Draft a plan file for user review — no direct edits",
   },
   {
     id: "ask",
-    icon: Search,
+    icon: Search01Icon,
     i18nKey: "planner.modes.ask",
     name: "Ask",
     description: "Read-only research — search + read + ask",
@@ -152,7 +160,7 @@ export const PRODUCT_MODE_PROJECT = "project" as const;
 
 export interface ComposerModeEntry {
   id: AgentExecMode | typeof PRODUCT_MODE_PROJECT;
-  icon: typeof Infinity;
+  icon: typeof Infinity01Icon;
   i18nKey: string;
   name: string;
   description: string;
@@ -163,7 +171,7 @@ export const COMPOSER_MODES: ComposerModeEntry[] = [
   ...AGENT_EXEC_MODES,
   {
     id: PRODUCT_MODE_PROJECT,
-    icon: FolderKanban,
+    icon: DeliveryBox01Icon,
     i18nKey: "planner.modes.project",
     name: "Project",
     description:
@@ -188,8 +196,9 @@ export const DEFAULT_RUNNING_LOCATION: RunningLocation = "local";
 
 export interface RunningLocationEntry {
   id: RunningLocation;
-  icon: typeof Laptop;
+  icon: typeof LaptopIcon;
   iconClassName?: string;
+  /** Namespace-qualified i18n key for the display label. */
   i18nKey: string;
   name: string;
   description: string;
@@ -199,23 +208,25 @@ export interface RunningLocationEntry {
 export const RUNNING_LOCATIONS: RunningLocationEntry[] = [
   {
     id: "local",
-    icon: Laptop,
-    i18nKey: "planner.runningLocation.local",
+    icon: LaptopIcon,
+    i18nKey: "sessions:planner.runningLocation.local",
     name: "This Mac",
     description: "Run on this device",
   },
   {
     id: "worktree",
-    icon: Split,
+    icon: SplitIcon,
     iconClassName: "rotate-90",
-    i18nKey: "planner.runningLocation.worktree",
+    i18nKey: "sessions:planner.runningLocation.worktree",
     name: "New Worktree",
     description: "Run in a new git worktree",
   },
   {
     id: "cloud",
-    icon: Cloud,
-    i18nKey: "planner.runningLocation.cloud",
+    icon: CloudIcon,
+    // Shares the localized environment label with the workstation trail
+    // (`planner.runningLocation.cloud` was "Cloud" in every locale).
+    i18nKey: "common:workstation.sessionEnvCloud",
     name: "Cloud",
     description: "Run in the cloud",
     disabled: true,

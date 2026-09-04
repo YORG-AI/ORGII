@@ -201,7 +201,7 @@ export function useCloudMemberFilterDropdown({
                         {presenceEntry && (
                           <span
                             data-testid="member-online-dot"
-                            className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-success-6"
+                            className="h-1.5 w-1.5 shrink-0 rounded-full bg-success-6"
                           />
                         )}
                         <span className="min-w-0 truncate">
@@ -221,7 +221,7 @@ export function useCloudMemberFilterDropdown({
               })}
               {hiddenCountForOrg > 0 && (
                 <>
-                  <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
+                  <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
                   <DropdownItem onClick={handleShowHidden}>
                     <span className="min-w-0 truncate">
                       {t("cloud.sidebar.showHidden", {

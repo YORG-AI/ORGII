@@ -26,7 +26,13 @@ export function mapGitHubIssueToThreadWorkItem(issue: GitHubIssue): WorkItem {
 
   return {
     session_id: issue.html_url,
-    shortId: `#${issue.number}`,
+    // `shortId` is a LOCAL Work Item identity, and a remote GitHub issue has
+    // none. Synthesizing the display label `#<number>` here sent every local
+    // discussion read at an id the store can never resolve — the logged
+    // "Work item '#890' not found". Leaving it unset keeps those local paths
+    // inert, and normalizing it instead would be worse: a bare "890" would
+    // silently bind this thread to an unrelated local Work Item. The issue
+    // number still reaches the UI from `issue` itself.
     user_id: issue.user.login,
     name: issue.title,
     status: issue.state,

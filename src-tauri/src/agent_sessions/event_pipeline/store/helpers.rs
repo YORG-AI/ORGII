@@ -123,11 +123,12 @@ pub(super) fn reconcile_loaded_synthetic_transcript_placeholders(
 pub(super) fn is_turn_placeholder(event: &SessionEvent) -> bool {
     event.function_name == TURN_PLACEHOLDER_FUNCTION_NAME
         || event.id.starts_with(TURN_PLACEHOLDER_ID_PREFIX)
-        // Imported-history placeholders are built by
-        // imported_history::window::build_unloaded_turn_placeholder_chunk with
-        // function "assistant" and this id prefix; without matching them here,
-        // merge_round_window_events never strips them after their body lands.
-        || event.id.starts_with("imported-unloaded-turn-")
+        // Provider-backed history readers build assistant-shaped placeholders
+        // whose stable shared contract is `result.unloadedTurn`. Match that
+        // semantic payload rather than maintaining one prefix per provider, so
+        // a renamed or newly added provider cannot leave its final-reply
+        // preview beside the real body after a round-window merge.
+        || placeholder_turn_id(event).is_some()
 }
 
 pub(super) fn placeholder_turn_id(event: &SessionEvent) -> Option<&str> {

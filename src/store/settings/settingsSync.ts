@@ -10,7 +10,7 @@
 import { listen } from "@tauri-apps/api/event";
 import i18n from "i18next";
 import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 import {
   THEME_PREFERENCE,
@@ -62,8 +62,6 @@ export function useSettingsSync(): void {
   const settings = useAtomValue(settingsAtom);
   const setSystemColorScheme = useSetAtom(systemColorSchemeAtom);
 
-  const writingRef = useRef(false);
-
   useEffect(() => {
     let cancelled = false;
 
@@ -73,10 +71,9 @@ export function useSettingsSync(): void {
       SETTINGS_CHANGED_EVENT,
       (event) => {
         if (cancelled) return;
-        if (writingRef.current) {
-          writingRef.current = false;
-          return;
-        }
+        // Echoes of this window's own writes are neutralized inside
+        // `handleExternalChange`, which knows which keys are still in flight.
+        // A flag here could only ever suppress one event and was never armed.
         handleExternalChange(event.payload);
       }
     );
@@ -117,10 +114,17 @@ export function useSettingsSync(): void {
     const themePreference = normalizeGlobalThemePreference(
       settings["general.theme"]
     );
-    if (themePreference !== THEME_PREFERENCE.SYSTEM) return;
+    const followsSystem = themePreference === THEME_PREFERENCE.SYSTEM;
 
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleSystemThemeChange = () => {
+      // Track the OS scheme even on an explicit light/dark preference: the
+      // appearance picker labels its first entry "Follow system (Light|Dark)",
+      // and that label goes stale otherwise. Only the stylesheet swap is gated.
+      if (!followsSystem) {
+        setSystemColorScheme(getSystemColorScheme());
+        return;
+      }
       const resolvedThemeId = resolveGlobalThemePreference(themePreference);
       const selectedTheme = getGlobalTheme(resolvedThemeId);
       const cover = showThemeTransitionCover();
@@ -141,6 +145,10 @@ export function useSettingsSync(): void {
     // OS appearance twice.
     const resyncSystemTheme = () => {
       if (document.visibilityState === "hidden") return;
+      if (!followsSystem) {
+        setSystemColorScheme(getSystemColorScheme());
+        return;
+      }
       if (document.documentElement.dataset.theme === getSystemColorScheme()) {
         return;
       }

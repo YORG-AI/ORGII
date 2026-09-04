@@ -1,228 +1,366 @@
 /**
- * useChatSearch Hook
- *
- * Full-text search across chat history using the Rust EventStore.
- * The heavy search computation (text extraction, matching, snippet creation)
- * runs in Rust via Tauri IPC, avoiding O(N) JS string scanning.
- *
- * Features:
- * - Debounced search input
- * - Highlighted snippets (from Rust)
- * - Navigation to matched events
- * - Case-sensitive / regex / whole-word modes
- *
- * Usage:
- * ```tsx
- * const {
- *   query, setQuery,
- *   results,
- *   isSearching,
- *   currentResultIndex,
- *   navigateToResult,
- *   nextResult, prevResult,
- *   clearSearch
- * } = useChatSearch({ chatHistory, onNavigateToEvent });
- * ```
+ * useChatSearch — Rust-backed search with projection-aware DOM scrolling.
  */
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useRef, useState } from "react";
+import { useAtom, useSetAtom } from "jotai";
+import {
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { useEventNavigation } from "@src/engines/SessionCore";
 import { useDebouncedCallback } from "@src/hooks/perf";
+import {
+  chatFindInChatOpenAtomFamily,
+  chatSearchSyncAtomFamily,
+} from "@src/store/ui/chatPanelAtom";
+import {
+  setCollapseStateAtom,
+  setTurnCollapseOverrideAtom,
+} from "@src/store/ui/collapseStateAtom";
 
-// ============================================
-// Types
-// ============================================
+import type { OptimizedChatItem } from "../chatItemPipeline/types";
+import type { ChatHistoryListHandle } from "../components/ChatHistoryList";
+import {
+  EMPTY_CHAT_SEARCH_SYNC,
+  buildChatSearchSyncState,
+  useChatSearchPanePresentation,
+  writeChatSearchSyncState,
+} from "./chatSearch";
+import { resolveVisibleSearchResultIndex } from "./chatSearchDom";
+import {
+  type ChatSearchModes,
+  DEFAULT_CHAT_SEARCH_MODES,
+  type MappedSearchResult,
+  type RustSearchResult,
+  mapRustResultsToSearchResults,
+  searchChatHistoryLocally,
+  wrapNextSearchResultIndex,
+} from "./chatSearchHelpers";
+import {
+  buildEventIdProjectionIndex,
+  resolvePageIndexForFlatIndex,
+  toDisplayFlatIndex,
+} from "./chatSearchProjection";
+import type { ChatGroupMeta } from "./useChatGroups";
+import type { ChatTurnPage } from "./useChatTurnPagination";
 
-export interface SearchResult {
-  /** The matched event */
-  item: SessionEvent;
-  /** Index in the original chatHistory array */
-  index: number;
-  /** Search relevance score (lower = better match) */
-  score: number;
-  /** Text snippet with match highlighted */
-  snippet: string;
-}
+export type SearchResult = MappedSearchResult;
 
-interface RustSearchResult {
-  eventId: string;
-  chatIndex: number;
-  score: number;
-  snippet: string;
+interface TurnPageSelection {
+  pageIndex: number | null;
+  sessionId: string | null;
 }
 
 export interface UseChatSearchOptions {
-  /** Chat events to search within */
-  chatHistory: SessionEvent[];
-  /** Debounce delay in ms (default: 150) */
+  sessionId: string | null;
+  chatHistory: MappedSearchResult["item"][];
+  flatItems: OptimizedChatItem[];
+  groupCounts: number[];
+  groupMeta: ChatGroupMeta[];
+  pages: ChatTurnPage[];
+  turnPaginationEnabled: boolean;
+  currentPageIndex: number;
+  setTurnPageSelection: Dispatch<SetStateAction<TurnPageSelection>>;
+  virtualListRef: RefObject<ChatHistoryListHandle | null>;
+  chatContainerRef: RefObject<HTMLDivElement | null>;
   debounceMs?: number;
-  /** Max results to return (default: 100) */
   maxResults?: number;
-  /** Callback when navigating to a result (includes search query for fallback navigation) */
-  onNavigateToEvent?: (
-    eventId: string,
-    index: number,
-    searchQuery: string
-  ) => void;
 }
 
 export interface UseChatSearchReturn {
-  /** Current search query */
   query: string;
-  /** Set search query */
   setQuery: (query: string) => void;
-  /** Search results */
   results: SearchResult[];
-  /** Whether search is in progress */
   isSearching: boolean;
-  /** Whether search is active (has query) */
   isSearchActive: boolean;
-  /** Current highlighted result index */
+  isSearchVisible: boolean;
+  closeSearch: () => void;
   currentResultIndex: number;
-  /** Total result count */
   resultCount: number;
-  /** Navigate to a specific result */
-  navigateToResult: (index: number) => void;
-  /** Navigate to next result */
   nextResult: () => void;
-  /** Navigate to previous result */
   prevResult: () => void;
-  /** Clear search and results */
-  clearSearch: () => void;
-  /** Get the event ID for a result index */
-  getResultEventId: (index: number) => string | null;
-  /** Whether case-sensitive matching is enabled */
   caseSensitive: boolean;
-  /** Toggle case-sensitive matching */
   toggleCaseSensitive: () => void;
-  /** Whether regex matching is enabled */
   useRegex: boolean;
-  /** Toggle regex matching */
   toggleRegex: () => void;
-  /** Whether whole-word matching is enabled */
   wholeWord: boolean;
-  /** Toggle whole-word matching */
   toggleWholeWord: () => void;
 }
 
-// ============================================
-// SessionEvent index by event id (for Rust → TS mapping)
-// ============================================
+async function fetchChatSearchResults(
+  sessionId: string,
+  chatHistory: UseChatSearchOptions["chatHistory"],
+  query: string,
+  modes: ChatSearchModes,
+  maxResults: number
+): Promise<SearchResult[]> {
+  const trimmedQuery = query.trim();
+  let rustResults: RustSearchResult[] = [];
 
-function buildChunkIdIndex(chatHistory: SessionEvent[]): Map<string, number> {
-  const index = new Map<string, number>();
-  for (let idx = 0; idx < chatHistory.length; idx++) {
-    const eventId = chatHistory[idx].id;
-    if (eventId) {
-      index.set(eventId, idx);
-    }
+  try {
+    rustResults = await invoke<RustSearchResult[]>("es_search_chat_events", {
+      sessionId,
+      options: {
+        query: trimmedQuery,
+        caseSensitive: modes.caseSensitive,
+        useRegex: modes.useRegex,
+        wholeWord: modes.wholeWord,
+        maxResults,
+      },
+    });
+  } catch {
+    return searchChatHistoryLocally(
+      chatHistory,
+      trimmedQuery,
+      modes,
+      maxResults
+    );
   }
-  return index;
+
+  const mapped = mapRustResultsToSearchResults(rustResults, chatHistory);
+  if (mapped.length > 0) return mapped;
+
+  return searchChatHistoryLocally(chatHistory, trimmedQuery, modes, maxResults);
 }
 
-// ============================================
-// Hook Implementation
-// ============================================
+function resolveScrollContainer(
+  chatContainerRef: RefObject<HTMLDivElement | null>
+): HTMLElement | null {
+  const container = chatContainerRef.current;
+  if (!container) return null;
+  return (
+    container.querySelector<HTMLElement>(
+      '[data-testid="chat-history-scroll-container"]'
+    ) ?? container
+  );
+}
 
 export function useChatSearch(
   options: UseChatSearchOptions
 ): UseChatSearchReturn {
   const {
+    sessionId,
     chatHistory,
+    flatItems,
+    groupCounts,
+    groupMeta,
+    pages,
+    turnPaginationEnabled,
+    currentPageIndex,
+    setTurnPageSelection,
+    virtualListRef,
+    chatContainerRef,
     debounceMs = 150,
     maxResults = 100,
-    onNavigateToEvent,
   } = options;
 
-  const [query, setQuery] = useState("");
+  const sessionKey = sessionId ?? "";
+  const [isSearchVisible, setIsSearchVisible] = useAtom(
+    chatFindInChatOpenAtomFamily(sessionKey)
+  );
+  const setChatSearchSync = useSetAtom(chatSearchSyncAtomFamily(sessionKey));
+
+  const [query, setQueryState] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [currentResultIndex, setCurrentResultIndex] = useState(0);
-  const [caseSensitive, setCaseSensitive] = useState(false);
-  const [useRegex, setUseRegex] = useState(false);
-  const [wholeWord, setWholeWord] = useState(false);
+  const [modes, setModes] = useState<ChatSearchModes>(
+    DEFAULT_CHAT_SEARCH_MODES
+  );
 
-  const searchIdRef = useRef(0);
+  const searchGenerationRef = useRef(0);
+  const queryRef = useRef(query);
+  queryRef.current = query;
+  const modesRef = useRef(modes);
+  modesRef.current = modes;
+  const suppressScrollSyncRef = useRef(false);
+  const pendingScrollResultRef = useRef<SearchResult | null>(null);
+  const pendingScrollNeedsLayoutRef = useRef(false);
+
+  const { navigateToEvent } = useEventNavigation();
+  const setTurnCollapseOverride = useSetAtom(setTurnCollapseOverrideAtom);
+  const setCollapseState = useSetAtom(setCollapseStateAtom);
+
+  const projectionIndex = useMemo(
+    () => buildEventIdProjectionIndex(flatItems, groupCounts, groupMeta),
+    [flatItems, groupCounts, groupMeta]
+  );
+  const projectionIndexRef = useRef(projectionIndex);
+  projectionIndexRef.current = projectionIndex;
+
+  const pagesRef = useRef(pages);
+  pagesRef.current = pages;
+  const currentPageIndexRef = useRef(currentPageIndex);
+  currentPageIndexRef.current = currentPageIndex;
+
+  const resetLocalSearch = useCallback(() => {
+    setQueryState("");
+    setResults([]);
+    setCurrentResultIndex(0);
+    setModes(DEFAULT_CHAT_SEARCH_MODES);
+    writeChatSearchSyncState(setChatSearchSync, EMPTY_CHAT_SEARCH_SYNC);
+    searchGenerationRef.current += 1;
+  }, [setChatSearchSync]);
+
+  const finishPendingScroll = useCallback(
+    (result: SearchResult) => {
+      const eventId = result.item.id || result.item.chunk_id || "";
+      const projection = eventId
+        ? projectionIndexRef.current.get(eventId)
+        : undefined;
+
+      let targetPageIndex = currentPageIndexRef.current;
+      if (turnPaginationEnabled && projection) {
+        const resolvedPage = resolvePageIndexForFlatIndex(
+          projection.globalFlatIndex,
+          pagesRef.current
+        );
+        if (resolvedPage !== null) {
+          targetPageIndex = resolvedPage;
+        }
+      }
+
+      // Non-paginated view renders the full flat list; passing a turn page
+      // slice here would clip indices outside the first page to null.
+      const targetPage = turnPaginationEnabled
+        ? pagesRef.current[targetPageIndex]
+        : undefined;
+      const displayFlatIndex = projection
+        ? toDisplayFlatIndex(projection.globalFlatIndex, targetPage)
+        : null;
+
+      virtualListRef.current?.scrollToChatTarget({
+        eventId,
+        itemId: projection?.itemChunkId,
+        flatIndex: displayFlatIndex ?? undefined,
+        behavior: "auto",
+      });
+
+      window.setTimeout(() => {
+        suppressScrollSyncRef.current = false;
+      }, 80);
+    },
+    [turnPaginationEnabled, virtualListRef]
+  );
+
+  const scrollToSearchResult = useCallback(
+    (result: SearchResult) => {
+      const eventId = result.item.id || result.item.chunk_id || "";
+      const projection = eventId
+        ? projectionIndexRef.current.get(eventId)
+        : undefined;
+      const resolvedPage =
+        turnPaginationEnabled && projection
+          ? resolvePageIndexForFlatIndex(
+              projection.globalFlatIndex,
+              pagesRef.current
+            )
+          : null;
+      const needsFlatItemsLayout =
+        Boolean(projection?.turnId) ||
+        (resolvedPage !== null && resolvedPage !== currentPageIndexRef.current);
+
+      if (projection?.turnId) {
+        setTurnCollapseOverride({
+          turnId: projection.turnId,
+          collapsed: false,
+        });
+      }
+      if (eventId) {
+        setCollapseState({ eventId, collapsed: false });
+        navigateToEvent(eventId);
+      }
+      if (resolvedPage !== null && sessionId) {
+        setTurnPageSelection({
+          pageIndex: resolvedPage,
+          sessionId,
+        });
+      }
+
+      suppressScrollSyncRef.current = true;
+
+      if (needsFlatItemsLayout) {
+        pendingScrollResultRef.current = result;
+        pendingScrollNeedsLayoutRef.current = true;
+        return;
+      }
+
+      window.requestAnimationFrame(() => {
+        finishPendingScroll(result);
+      });
+    },
+    [
+      finishPendingScroll,
+      navigateToEvent,
+      sessionId,
+      setCollapseState,
+      setTurnCollapseOverride,
+      setTurnPageSelection,
+      turnPaginationEnabled,
+    ]
+  );
+
+  useEffect(() => {
+    if (!pendingScrollNeedsLayoutRef.current) return;
+    const result = pendingScrollResultRef.current;
+    if (!result) return;
+
+    pendingScrollNeedsLayoutRef.current = false;
+    pendingScrollResultRef.current = null;
+
+    window.requestAnimationFrame(() => {
+      finishPendingScroll(result);
+    });
+  }, [currentPageIndex, finishPendingScroll, flatItems, groupCounts]);
 
   const performSearch = useCallback(
     async (
       searchQuery: string,
-      isCaseSensitive: boolean = caseSensitive,
-      isRegex: boolean = useRegex,
-      isWholeWord: boolean = wholeWord
+      searchModes: ChatSearchModes = modesRef.current
     ) => {
       const trimmedQuery = searchQuery.trim();
-
-      if (!trimmedQuery || chatHistory.length === 0) {
+      if (!trimmedQuery || chatHistory.length === 0 || !sessionId) {
         setResults([]);
         setCurrentResultIndex(0);
+        setIsSearching(false);
         return;
       }
 
       setIsSearching(true);
-      const currentSearchId = ++searchIdRef.current;
+      const generation = ++searchGenerationRef.current;
 
       try {
-        const rustResults = await invoke<RustSearchResult[]>(
-          "es_search_chat_events",
-          {
-            options: {
-              query: trimmedQuery,
-              caseSensitive: isCaseSensitive,
-              useRegex: isRegex,
-              wholeWord: isWholeWord,
-              maxResults,
-            },
-          }
+        const searchResults = await fetchChatSearchResults(
+          sessionId,
+          chatHistory,
+          trimmedQuery,
+          searchModes,
+          maxResults
         );
 
-        if (currentSearchId !== searchIdRef.current) return;
-
-        const chunkIndex = buildChunkIdIndex(chatHistory);
-        const searchResults: SearchResult[] = [];
-
-        for (const rustResult of rustResults) {
-          const historyIndex = chunkIndex.get(rustResult.eventId);
-          if (historyIndex !== undefined) {
-            searchResults.push({
-              item: chatHistory[historyIndex],
-              index: historyIndex,
-              score: rustResult.score,
-              snippet: rustResult.snippet,
-            });
-          }
-        }
-
-        if (currentSearchId !== searchIdRef.current) return;
+        if (generation !== searchGenerationRef.current) return;
 
         setResults(searchResults);
         setCurrentResultIndex(0);
         setIsSearching(false);
 
-        if (searchResults.length > 0 && onNavigateToEvent) {
-          const firstResult = searchResults[0];
-          onNavigateToEvent(
-            firstResult.item.id || "",
-            firstResult.index,
-            trimmedQuery
-          );
-        }
+        const first = searchResults[0];
+        if (first) scrollToSearchResult(first);
       } catch {
-        if (currentSearchId !== searchIdRef.current) return;
+        if (generation !== searchGenerationRef.current) return;
         setResults([]);
         setCurrentResultIndex(0);
         setIsSearching(false);
       }
     },
-    [
-      chatHistory,
-      maxResults,
-      onNavigateToEvent,
-      caseSensitive,
-      useRegex,
-      wholeWord,
-    ]
+    [chatHistory, maxResults, scrollToSearchResult, sessionId]
   );
 
   const debouncedPerformSearch = useDebouncedCallback(
@@ -230,17 +368,21 @@ export function useChatSearch(
     debounceMs
   );
 
+  useEffect(() => {
+    resetLocalSearch();
+    debouncedPerformSearch.cancel();
+  }, [sessionId, resetLocalSearch, debouncedPerformSearch]);
+
   const handleQueryChange = useCallback(
     (newQuery: string) => {
-      setQuery(newQuery);
-
+      setQueryState(newQuery);
       if (!newQuery.trim()) {
         debouncedPerformSearch.cancel();
         setResults([]);
         setCurrentResultIndex(0);
+        setIsSearching(false);
         return;
       }
-
       debouncedPerformSearch(newQuery);
     },
     [debouncedPerformSearch]
@@ -248,73 +390,91 @@ export function useChatSearch(
 
   const navigateToResult = useCallback(
     (resultIndex: number) => {
-      if (resultIndex < 0 || resultIndex >= results.length) return;
-
-      setCurrentResultIndex(resultIndex);
       const result = results[resultIndex];
-      if (result && onNavigateToEvent) {
-        onNavigateToEvent(
-          result.item.id || "",
-          result.index,
-          query.trim().toLowerCase()
-        );
-      }
+      if (!result) return;
+      setCurrentResultIndex(resultIndex);
+      scrollToSearchResult(result);
     },
-    [results, onNavigateToEvent, query]
+    [results, scrollToSearchResult]
   );
 
   const nextResult = useCallback(() => {
     if (results.length === 0) return;
-    const nextIndex = (currentResultIndex + 1) % results.length;
-    navigateToResult(nextIndex);
-  }, [currentResultIndex, results.length, navigateToResult]);
+    navigateToResult(
+      wrapNextSearchResultIndex(currentResultIndex, results.length, 1)
+    );
+  }, [currentResultIndex, navigateToResult, results.length]);
 
   const prevResult = useCallback(() => {
     if (results.length === 0) return;
-    const prevIndex =
-      currentResultIndex === 0 ? results.length - 1 : currentResultIndex - 1;
-    navigateToResult(prevIndex);
-  }, [currentResultIndex, results.length, navigateToResult]);
+    navigateToResult(
+      wrapNextSearchResultIndex(currentResultIndex, results.length, -1)
+    );
+  }, [currentResultIndex, navigateToResult, results.length]);
 
-  const clearSearch = useCallback(() => {
-    setQuery("");
-    setResults([]);
-    setCurrentResultIndex(0);
-    searchIdRef.current++;
+  const closeSearch = useCallback(() => {
     debouncedPerformSearch.cancel();
-  }, [debouncedPerformSearch]);
+    resetLocalSearch();
+    setIsSearchVisible(false);
+  }, [debouncedPerformSearch, resetLocalSearch, setIsSearchVisible]);
 
-  const toggleCaseSensitive = useCallback(() => {
-    setCaseSensitive((prev) => {
-      const next = !prev;
-      if (query.trim()) performSearch(query, next, useRegex, wholeWord);
-      return next;
-    });
-  }, [query, performSearch, useRegex, wholeWord]);
-
-  const toggleRegex = useCallback(() => {
-    setUseRegex((prev) => {
-      const next = !prev;
-      if (query.trim()) performSearch(query, caseSensitive, next, wholeWord);
-      return next;
-    });
-  }, [query, performSearch, caseSensitive, wholeWord]);
-
-  const toggleWholeWord = useCallback(() => {
-    setWholeWord((prev) => {
-      const next = !prev;
-      if (query.trim()) performSearch(query, caseSensitive, useRegex, next);
-      return next;
-    });
-  }, [query, performSearch, caseSensitive, useRegex]);
-
-  const getResultEventId = useCallback(
-    (index: number): string | null => {
-      if (index < 0 || index >= results.length) return null;
-      return results[index].item.id || null;
+  const toggleSearchMode = useCallback(
+    (key: keyof ChatSearchModes) => {
+      setModes((previous) => {
+        const next = { ...previous, [key]: !previous[key] };
+        if (queryRef.current.trim()) {
+          void performSearch(queryRef.current, next);
+        }
+        return next;
+      });
     },
-    [results]
+    [performSearch]
   );
+
+  useChatSearchPanePresentation({
+    sessionId,
+    highlightRootRef: chatContainerRef,
+  });
+
+  useEffect(() => {
+    writeChatSearchSyncState(
+      setChatSearchSync,
+      buildChatSearchSyncState({
+        isOpen: isSearchVisible,
+        query,
+        results,
+        currentResultIndex,
+      })
+    );
+  }, [currentResultIndex, isSearchVisible, query, results, setChatSearchSync]);
+
+  useEffect(() => {
+    if (!isSearchVisible || results.length === 0) return;
+
+    const scrollRoot = resolveScrollContainer(chatContainerRef);
+    if (!scrollRoot) return;
+
+    let frame = 0;
+    const handleScroll = () => {
+      if (suppressScrollSyncRef.current) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const visibleIndex = resolveVisibleSearchResultIndex(
+          scrollRoot,
+          results.map((result) => result.item.id || result.item.chunk_id || "")
+        );
+        if (visibleIndex !== null) {
+          setCurrentResultIndex(visibleIndex);
+        }
+      });
+    };
+
+    scrollRoot.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      scrollRoot.removeEventListener("scroll", handleScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [chatContainerRef, isSearchVisible, results]);
 
   return {
     query,
@@ -322,19 +482,18 @@ export function useChatSearch(
     results,
     isSearching,
     isSearchActive: query.trim().length > 0,
+    isSearchVisible,
+    closeSearch,
     currentResultIndex,
     resultCount: results.length,
-    navigateToResult,
     nextResult,
     prevResult,
-    clearSearch,
-    getResultEventId,
-    caseSensitive,
-    toggleCaseSensitive,
-    useRegex,
-    toggleRegex,
-    wholeWord,
-    toggleWholeWord,
+    caseSensitive: modes.caseSensitive,
+    toggleCaseSensitive: () => toggleSearchMode("caseSensitive"),
+    useRegex: modes.useRegex,
+    toggleRegex: () => toggleSearchMode("useRegex"),
+    wholeWord: modes.wholeWord,
+    toggleWholeWord: () => toggleSearchMode("wholeWord"),
   };
 }
 

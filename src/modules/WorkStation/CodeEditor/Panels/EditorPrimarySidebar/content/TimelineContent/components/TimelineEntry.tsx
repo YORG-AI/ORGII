@@ -2,6 +2,7 @@ import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { HugeiconsIcon } from "@src/icons";
 import {
   HEADER_BUTTON,
   PRIMARY_SIDEBAR_HOVER,
@@ -43,8 +44,8 @@ export const TimelineEntry: React.FC<TimelineEntryProps> = memo(
         }`}
         onClick={onClick}
       >
-        <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
-          <CommitIcon size={14} className="text-text-3" />
+        <div className="flex h-4 w-4 shrink-0 items-center justify-center">
+          <HugeiconsIcon icon={CommitIcon} size={14} className="text-text-3" />
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -61,14 +62,14 @@ export const TimelineEntry: React.FC<TimelineEntryProps> = memo(
         </div>
 
         <button
-          className={`${HEADER_BUTTON.actionTreeRow} hidden flex-shrink-0 group-hover/timeline-item:flex`}
+          className={`${HEADER_BUTTON.actionTreeRow} hidden shrink-0 group-hover/timeline-item:flex`}
           onClick={(event) => {
             event.stopPropagation();
             onClick();
           }}
           title={t("tooltips.openDiff")}
         >
-          <OpenIcon size={14} />
+          <HugeiconsIcon icon={OpenIcon} size={14} />
         </button>
       </div>
     );

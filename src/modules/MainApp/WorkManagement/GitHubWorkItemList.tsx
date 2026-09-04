@@ -1,8 +1,16 @@
-import { CheckCircle2, CircleDot, RefreshCw, SquarePen } from "lucide-react";
 import type { ReactNode } from "react";
 
 import Button from "@src/components/Button";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
+import {
+  CheckmarkCircle01Icon,
+  CircleDotIcon,
+  HugeiconsIcon,
+  PencilEdit02Icon,
+} from "@src/icons";
+import { WorkManagementRefreshButton } from "@src/modules/shared/components/WorkManagementRefreshButton";
 
 export function GitHubWorkItemToolbarActions({
   refreshLabel,
@@ -20,29 +28,34 @@ export function GitHubWorkItemToolbarActions({
   onRefresh: () => void;
 }): ReactNode {
   return (
-    <>
-      <Button
-        htmlType="button"
-        variant="secondary"
-        icon={<RefreshCw size={13} />}
-        iconOnly
+    <div className="flex shrink-0 items-center gap-px">
+      <WorkManagementRefreshButton
+        label={refreshLabel}
         loading={refreshing}
-        loadingSpinIcon
-        aria-label={refreshLabel}
-        onClick={onRefresh}
+        onRefresh={onRefresh}
       />
       {createAction ? (
-        <Button
-          htmlType="button"
-          variant="secondary"
-          icon={<SquarePen size={14} strokeWidth={2} />}
-          iconOnly
-          aria-label={createAction.label}
-          onClick={createAction.onClick}
-          disabled={createAction.disabled}
-        />
+        <ToolbarTooltip label={createAction.label}>
+          <Button
+            htmlType="button"
+            variant="tertiary"
+            size="small"
+            icon={
+              <HugeiconsIcon
+                icon={PencilEdit02Icon}
+                data-icon="square-pen"
+                size={HEADER_ICON_SIZE.md}
+                strokeWidth={2}
+              />
+            }
+            iconOnly
+            aria-label={createAction.label}
+            onClick={createAction.onClick}
+            disabled={createAction.disabled}
+          />
+        </ToolbarTooltip>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -66,11 +79,23 @@ export function GitHubWorkItemStateTabs({
     icon:
       tab.key === "open" ? (
         <span className="flex items-center text-success-6">
-          <CircleDot size={14} strokeWidth={1.8} aria-hidden="true" />
+          <HugeiconsIcon
+            icon={CircleDotIcon}
+            data-icon="circle-dot"
+            size={14}
+            strokeWidth={1.8}
+            aria-hidden="true"
+          />
         </span>
       ) : (
         <span className="flex items-center text-purple-6">
-          <CheckCircle2 size={14} strokeWidth={1.8} aria-hidden="true" />
+          <HugeiconsIcon
+            icon={CheckmarkCircle01Icon}
+            data-icon="check-circle-2"
+            size={14}
+            strokeWidth={1.8}
+            aria-hidden="true"
+          />
         </span>
       ),
     dataTestId: `github-work-items-state-${tab.key}`,
@@ -84,8 +109,9 @@ export function GitHubWorkItemStateTabs({
       variant="pill"
       color="fill"
       fillWidth={false}
-      height={32}
-      buttonStyle
+      size="small"
+      height={28}
+      iconOnly
     />
   );
 }

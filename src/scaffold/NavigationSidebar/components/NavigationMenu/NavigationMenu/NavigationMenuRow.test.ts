@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { RefreshCw } from "lucide-react";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { REFRESH_ICON_TOKENS } from "@src/components/RefreshIcon/tokens";
+import { Refresh04Icon } from "@src/icons";
 
 import type { NavigationMenuItem } from "../config";
 import {
@@ -79,7 +79,8 @@ describe("NavigationMenuRow", () => {
           showMoreActions: true,
           rowActions: [
             {
-              icon: RefreshCw,
+              icon: Refresh04Icon,
+              dataIcon: "refresh-cw",
               iconClassName: REFRESH_ICON_TOKENS.oneShot,
               label: "Refresh",
               onClick: vi.fn(),
@@ -97,9 +98,10 @@ describe("NavigationMenuRow", () => {
       })
     );
 
-    expect(markup).toContain(
-      `lucide-refresh-cw ${REFRESH_ICON_TOKENS.oneShot}`
-    );
+    // Hugeicons does not stamp an icon class the way lucide did, so identity
+    // and styling are asserted separately rather than as one adjacent string.
+    expect(markup).toContain('data-icon="refresh-cw"');
+    expect(markup).toContain(REFRESH_ICON_TOKENS.oneShot);
   });
 
   it("exposes disabled leaf rows to rendered UI drivers", () => {
@@ -241,5 +243,54 @@ describe("NavigationMenuRow", () => {
     expect(clippingLayer).toBeDefined();
     expect(clippingLayer).toContain("-mr-0.5");
     expect(markup).not.toContain('class="-mr-0.5');
+  });
+  it("keeps a label badge beside the label text, not at the row edge", () => {
+    const markup = renderToStaticMarkup(
+      createElement(NavigationMenuLeafRow, {
+        item: {
+          ...baseItem,
+          label: "Inbox",
+          labelBadge: createElement("span", { "data-testid": "badge" }, "7"),
+        },
+        isChild: false,
+        isSelected: false,
+        collapsed: false,
+        t: (key: string) => key,
+        renderIcon: () => null,
+        onMenuItemClick: vi.fn(),
+        onRowMouseEnter: vi.fn(),
+        onRowActionClick: vi.fn(),
+      })
+    );
+
+    // The badge is the label span's immediate sibling inside the leading
+    // column. Routed through the trailing accessory slot instead, it would
+    // float to the row's right edge — which is what this row must not do.
+    expect(markup).toMatch(/Inbox<\/span><span data-testid="badge">7</);
+  });
+
+  it("renders a label badge on parent rows too", () => {
+    const markup = renderToStaticMarkup(
+      createElement(NavigationMenuParentRow, {
+        item: {
+          ...baseItem,
+          label: "Inbox",
+          labelBadge: createElement("span", { "data-testid": "badge" }, "7"),
+          children: [{ ...baseItem, id: "child", key: "child" }],
+        },
+        isChild: false,
+        isOpen: false,
+        submenuSelected: false,
+        collapsed: false,
+        t: (key: string) => key,
+        renderIcon: () => null,
+        renderMenuItem: () => createElement("div"),
+        onRowMouseEnter: vi.fn(),
+        onRowActionClick: vi.fn(),
+        onToggleSubmenu: vi.fn(),
+      })
+    );
+
+    expect(markup).toMatch(/Inbox<\/span><span data-testid="badge">7</);
   });
 });

@@ -3,10 +3,10 @@
  *
  * Search input component for sidebars with optional action buttons.
  */
-import { Loader2 } from "lucide-react";
 import React from "react";
 
 import Input from "@src/components/Input";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 
 import { SIDEBAR_STYLE } from "../config";
 import type { SidebarSearchProps } from "../types";
@@ -63,7 +63,7 @@ const SidebarSearch: React.FC<SidebarSearchProps> = ({
             key={action.id}
             onClick={action.onClick}
             disabled={action.disabled || action.loading}
-            className={`flex flex-shrink-0 cursor-pointer items-center justify-center rounded-[6px] border border-solid text-[14px] transition-colors ${buttonClassName}`}
+            className={`flex shrink-0 cursor-pointer items-center justify-center rounded-[6px] border border-solid text-[14px] transition-colors ${buttonClassName}`}
             style={{
               height: SIDEBAR_STYLE.actionButtonSize,
               width: SIDEBAR_STYLE.actionButtonSize,
@@ -72,7 +72,9 @@ const SidebarSearch: React.FC<SidebarSearchProps> = ({
             title={action.tooltip}
           >
             {action.loading ? (
-              <Loader2
+              <HugeiconsIcon
+                icon={Loading03Icon}
+                data-icon="loader-2"
                 size={14}
                 strokeWidth={2}
                 className={`animate-spin ${theme ? "" : "text-text-2"}`}

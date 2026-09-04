@@ -12,7 +12,9 @@ import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/compone
 import SidebarOrgSelector from "../SidebarOrgSelector";
 import { useWorkstationSidebarMenuItemRouting } from "./sidebarConnector.menuItemRouting";
 import { useWorkstationSidebarOrgSelectorActions } from "./sidebarConnector.orgSelectorActions";
+import { useSidebarTabContextMenu } from "./sidebarTabContextMenu";
 import type { WorkstationSidebarKey } from "./types";
+import type { useWorkItemsSidebarSurface } from "./useWorkItemsSidebarSurface";
 
 type SidebarOrgSelectorProps = Parameters<typeof SidebarOrgSelector>[0];
 type OrgSelectorActionsParams = Parameters<
@@ -25,8 +27,9 @@ type MenuItemRoutingParams = Parameters<
 interface UseWorkstationSidebarChromeParams {
   activeOrgId: SidebarOrgSelectorProps["value"];
   orgSelectorOptions: SidebarOrgSelectorProps["options"];
+  orgSelectorLoading: SidebarOrgSelectorProps["loading"];
   addOrgLabel: string;
-  cloudSignedInIdentity: SidebarOrgSelectorProps["cloudSignedInIdentity"];
+  cloudSignedIn: SidebarOrgSelectorProps["cloudSignedIn"];
   manageOrgLabel: string;
   handleCloudSignIn: SidebarOrgSelectorProps["onCloudSignIn"];
   activeSidebarKey: WorkstationSidebarKey;
@@ -37,9 +40,7 @@ interface UseWorkstationSidebarChromeParams {
     item: NavigationMenuItem
   ) => Promise<void>;
   // Forwarded to useWorkstationSidebarOrgSelectorActions:
-  resetWorkManagementStateForProjectsContent: OrgSelectorActionsParams["resetWorkManagementStateForProjectsContent"];
-  setProjectsSelectedMenuItemId: OrgSelectorActionsParams["setProjectsSelectedMenuItemId"];
-  openCreateTargetInStartPage: OrgSelectorActionsParams["openCreateTargetInStartPage"];
+  activateMyStationRouteForProjectTabContent: OrgSelectorActionsParams["activateMyStationRouteForProjectTabContent"];
   t: OrgSelectorActionsParams["t"];
   setSelectedOrgId: OrgSelectorActionsParams["setSelectedOrgId"];
   activeCloudOrgId: OrgSelectorActionsParams["activeCloudOrgId"];
@@ -50,8 +51,9 @@ interface UseWorkstationSidebarChromeParams {
   sessionMap: MenuItemRoutingParams["sessionMap"];
   cloudRemoteRowMap: MenuItemRoutingParams["cloudRemoteRowMap"];
   cloudRemoteViewerMap: MenuItemRoutingParams["cloudRemoteViewerMap"];
-  projectsLinearWorkItemMap: MenuItemRoutingParams["projectsLinearWorkItemMap"];
-  projectsWorkItemMap: MenuItemRoutingParams["projectsWorkItemMap"];
+  renderProjectsMenuItemWrapper: ReturnType<
+    typeof useWorkItemsSidebarSurface
+  >["renderMenuItemWrapper"];
   tSessions: MenuItemRoutingParams["tSessions"];
   setWorkManagementProjectsView: MenuItemRoutingParams["setWorkManagementProjectsView"];
   openWorkManagementTab: MenuItemRoutingParams["openWorkManagementTab"];
@@ -62,20 +64,21 @@ interface UseWorkstationSidebarChromeParams {
   handleMenuItemClick: MenuItemRoutingParams["handleMenuItemClick"];
   handleProjectsMenuItemClick: MenuItemRoutingParams["handleProjectsMenuItemClick"];
   handleOpenInNewTab: MenuItemRoutingParams["handleOpenInNewTab"];
+  closeOtherThanActiveChatPanelTabs: MenuItemRoutingParams["closeOtherThanActiveChatPanelTabs"];
+  tCommon: (key: string, defaultValue?: string) => string;
 }
 
 export function useWorkstationSidebarChrome({
   activeOrgId,
   orgSelectorOptions,
+  orgSelectorLoading,
   addOrgLabel,
-  cloudSignedInIdentity,
+  cloudSignedIn,
   manageOrgLabel,
   activeSidebarKey,
   workItemsContentVisible,
   handleMenuItemContextMenu,
-  resetWorkManagementStateForProjectsContent,
-  setProjectsSelectedMenuItemId,
-  openCreateTargetInStartPage,
+  activateMyStationRouteForProjectTabContent,
   t,
   setSelectedOrgId,
   activeCloudOrgId,
@@ -86,8 +89,7 @@ export function useWorkstationSidebarChrome({
   sessionMap,
   cloudRemoteRowMap,
   cloudRemoteViewerMap,
-  projectsLinearWorkItemMap,
-  projectsWorkItemMap,
+  renderProjectsMenuItemWrapper,
   tSessions,
   setWorkManagementProjectsView,
   openWorkManagementTab,
@@ -98,6 +100,8 @@ export function useWorkstationSidebarChrome({
   handleMenuItemClick,
   handleProjectsMenuItemClick,
   handleOpenInNewTab,
+  closeOtherThanActiveChatPanelTabs,
+  tCommon,
 }: UseWorkstationSidebarChromeParams) {
   const {
     handleOpenSpotlight,
@@ -105,9 +109,7 @@ export function useWorkstationSidebarChrome({
     handleOrgSelectorChange,
     handleManageOrg,
   } = useWorkstationSidebarOrgSelectorActions({
-    resetWorkManagementStateForProjectsContent,
-    setProjectsSelectedMenuItemId,
-    openCreateTargetInStartPage,
+    activateMyStationRouteForProjectTabContent,
     t,
     setSelectedOrgId,
     activeCloudOrgId,
@@ -118,15 +120,14 @@ export function useWorkstationSidebarChrome({
 
   const {
     renderWorkstationMenuItemWrapper,
-    renderProjectsMenuItemWrapper,
     handleSessionMenuItemClick,
+    handleSessionMenuItemOpenInNewTab,
     handleProjectsScopeMenuItemClick,
+    handleProjectsScopeMenuItemOpenInNewTab,
   } = useWorkstationSidebarMenuItemRouting({
     sessionMap,
     cloudRemoteRowMap,
     cloudRemoteViewerMap,
-    projectsLinearWorkItemMap,
-    projectsWorkItemMap,
     tSessions,
     t,
     setWorkManagementProjectsView,
@@ -139,14 +140,16 @@ export function useWorkstationSidebarChrome({
     workItemsContentVisible,
     handleProjectsMenuItemClick,
     handleOpenInNewTab,
+    closeOtherThanActiveChatPanelTabs,
   });
 
   const sidebarOrgSelector = (
     <SidebarOrgSelector
       value={activeOrgId}
       options={orgSelectorOptions}
+      loading={orgSelectorLoading}
       addOrgLabel={addOrgLabel}
-      cloudSignedInIdentity={cloudSignedInIdentity}
+      cloudSignedIn={cloudSignedIn}
       manageLabel={manageOrgLabel}
       onChange={handleOrgSelectorChange}
       onAddOrg={handleAddOrgFromSelector}
@@ -160,10 +163,16 @@ export function useWorkstationSidebarChrome({
       ? handleProjectsScopeMenuItemClick
       : handleSessionMenuItemClick;
 
-  const resolvedMenuItemContextMenu =
-    activeSidebarKey === "workstation" && !workItemsContentVisible
-      ? handleMenuItemContextMenu
-      : undefined;
+  const openMenuItemInNewTab =
+    activeSidebarKey === "projects"
+      ? handleProjectsScopeMenuItemOpenInNewTab
+      : handleSessionMenuItemOpenInNewTab;
+  const resolvedMenuItemContextMenu = useSidebarTabContextMenu({
+    sessionMap,
+    fallback: handleMenuItemContextMenu,
+    onOpenInNewTab: openMenuItemInNewTab,
+    openInNewTabLabel: tCommon("actions.openInNewTab", "Open in New Tab"),
+  });
   const resolvedRenderMenuItemWrapper =
     activeSidebarKey === "projects" || workItemsContentVisible
       ? renderProjectsMenuItemWrapper

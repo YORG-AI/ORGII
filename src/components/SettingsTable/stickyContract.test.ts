@@ -70,6 +70,39 @@ describe("SettingsTable sticky toolbar contract", () => {
     );
   });
 
+  it("uses the row hover surface for regular and pinned cell paint layers", () => {
+    expect(tableStyles).toContain(
+      "--settings-table-row-hover-surface: var(--settings-table-body-surface);"
+    );
+    expect(tableStyles).toMatch(
+      /\.table-settings\.table-settings-page-list-hover\.table-hover\s*\{\s*--settings-table-row-hover-surface:\s*var\(--color-surface-hover\);/
+    );
+    expect(tableStyles).toMatch(
+      /&\.table-settings-sticky-first-col[\s\S]*\.table-row:hover[\s\S]*> \.table-td:first-child\s*\{\s*background:\s*var\(--settings-table-row-hover-surface\);/
+    );
+    expect(tableStyles).toMatch(
+      /&\.table-hover \.table-row:hover > \.table-td:last-child,[\s\S]*background:\s*var\(--settings-table-row-hover-surface\);/
+    );
+    expect(tableStyles).toMatch(
+      /color-mix\(\s*in srgb,\s*var\(--settings-table-row-hover-surface\) 90%,\s*transparent\s*\)[\s\S]*var\(--settings-table-row-hover-surface\) 100%/
+    );
+  });
+
+  it("insets and rounds page-list row hover surfaces", () => {
+    expect(tableStyles).toMatch(
+      /\.table-settings\.table-settings-page-list-hover\.table-hover\s*\{[\s\S]*--settings-table-page-list-gutter:\s*8px;[\s\S]*\.table-container\s*\{\s*padding-inline:\s*var\(--settings-table-page-list-gutter\);/
+    );
+    expect(tableStyles).toMatch(
+      /\.table-settings\.table-settings-page-list-hover\.table-hover\s*\{[\s\S]*\.table\s*\{\s*border-collapse:\s*separate;\s*border-spacing:\s*0;/
+    );
+    expect(tableStyles).toMatch(
+      /\.table-row:hover\s*\{\s*background:\s*transparent;\s*\}[\s\S]*\.table-row:hover > \.table-td:first-child\s*\{\s*border-radius:\s*var\(--settings-table-page-list-row-radius\)/
+    );
+    expect(tableStyles).toMatch(
+      /\.table-row:hover > \.table-td:last-child\s*\{\s*border-radius:\s*0 var\(--settings-table-page-list-row-radius\)/
+    );
+  });
+
   it("keeps pagination on raised chrome", () => {
     expect(tableStyles).toMatch(
       /\.table-pagination-wrapper,[\s\S]*background:\s*var\(--settings-table-surface\);/

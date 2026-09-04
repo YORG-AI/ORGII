@@ -35,7 +35,6 @@ import { createLogger } from "@src/hooks/logger";
 import type { GoToNewSessionOptions } from "@src/hooks/navigation/useAppNavigation";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import {
-  SESSION_SIDEBAR_PAGE_SIZE,
   type Session,
   loadMoreCategory,
   removeSession,
@@ -69,7 +68,8 @@ import {
   NEW_SESSION_MENU_ITEM_ID,
   getDraftIdFromMenuItemId,
 } from "./sidebarConnectorUtils";
-import type { GroupByMode } from "./types";
+import type { SidebarTabDisposition } from "./sidebarTabNavigation";
+import type { GroupByMode, SessionGroupVisibleCount } from "./types";
 import {
   executeSessionPaginationPlan,
   getLoadMoreGroupId,
@@ -92,6 +92,7 @@ interface UseWorkstationSidebarHandlersParams {
   ) => void;
   promoteActiveSessionCreatorDraft: () => void;
   groupByMode: GroupByMode;
+  defaultGroupVisibleCount: SessionGroupVisibleCount;
   setGroupVisibleCounts: Dispatch<SetStateAction<Map<string, number>>>;
   tCommon: (key: string, defaultValue?: string) => string;
   onOpenChatPanelTab: (tabId: string) => void;
@@ -105,13 +106,20 @@ interface UseWorkstationSidebarHandlersParams {
    * Cloud-org sidebar rows that are not ordinary local session rows (remote
    * sessions and top-level section pagers). Consulted before sessionMap.
    */
-  onCloudSidebarItemClick?: (item: NavigationMenuItem) => boolean;
+  onCloudSidebarItemClick?: (
+    item: NavigationMenuItem,
+    disposition: SidebarTabDisposition
+  ) => boolean;
 }
 
 interface UseWorkstationSidebarHandlersResult {
   handleDeleteSession: (sessionId: string) => Promise<void>;
   handleExportMarkdown: (sessionId: string) => Promise<void>;
-  handleMenuItemClick: (_key: string, item: NavigationMenuItem) => void;
+  handleMenuItemClick: (
+    _key: string,
+    item: NavigationMenuItem,
+    disposition?: SidebarTabDisposition
+  ) => void;
   handleTogglePin: (sessionId: string) => Promise<void>;
 }
 
@@ -124,6 +132,7 @@ export function useWorkstationSidebarHandlers({
   openSession,
   promoteActiveSessionCreatorDraft,
   groupByMode,
+  defaultGroupVisibleCount,
   setGroupVisibleCounts,
   tCommon,
   onOpenChatPanelTab,
@@ -156,10 +165,15 @@ export function useWorkstationSidebarHandlers({
     (sessions: readonly Session[]) => {
       if (sessions.length === 0) return;
       setGroupVisibleCounts((previousCounts) =>
-        expandVisibleGroupsForSessions(previousCounts, sessions, groupByMode)
+        expandVisibleGroupsForSessions(
+          previousCounts,
+          sessions,
+          groupByMode,
+          defaultGroupVisibleCount
+        )
       );
     },
-    [groupByMode, setGroupVisibleCounts]
+    [defaultGroupVisibleCount, groupByMode, setGroupVisibleCounts]
   );
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
@@ -299,7 +313,11 @@ export function useWorkstationSidebarHandlers({
   );
 
   const handleMenuItemClick = useCallback(
-    (_key: string, item: NavigationMenuItem) => {
+    (
+      _key: string,
+      item: NavigationMenuItem,
+      disposition: SidebarTabDisposition = "default"
+    ) => {
       if (item.id === NEW_SESSION_MENU_ITEM_ID) {
         goToNewSession();
         return;
@@ -333,8 +351,8 @@ export function useWorkstationSidebarHandlers({
         setGroupVisibleCounts((previousCounts) => {
           const nextCounts = new Map(previousCounts);
           const current =
-            nextCounts.get(loadMoreGroupId) ?? SESSION_SIDEBAR_PAGE_SIZE;
-          nextCounts.set(loadMoreGroupId, current + SESSION_SIDEBAR_PAGE_SIZE);
+            nextCounts.get(loadMoreGroupId) ?? defaultGroupVisibleCount;
+          nextCounts.set(loadMoreGroupId, current + defaultGroupVisibleCount);
           return nextCounts;
         });
         return;
@@ -351,7 +369,7 @@ export function useWorkstationSidebarHandlers({
 
       // Cloud remote rows and top-level section pagers do not resolve through
       // the local sessionMap, so give their owner the first chance to handle.
-      if (onCloudSidebarItemClick?.(item)) return;
+      if (onCloudSidebarItemClick?.(item, disposition)) return;
 
       const originalSession = sessionMap.get(item.id);
       if (!originalSession) return;
@@ -371,6 +389,7 @@ export function useWorkstationSidebarHandlers({
       openSession(item.id, sessionName, originalSession.repoPath);
     },
     [
+      defaultGroupVisibleCount,
       revealLoadedSessions,
       sessionMap,
       openSession,

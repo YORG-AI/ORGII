@@ -34,6 +34,7 @@ const GITHUB_ENDPOINT = "https://github.com";
 interface BranchPullRequestStatusState extends BranchPullRequestStatusSnapshot {
   compareUrl: string | null;
   defaultBranch: string | null;
+  lastFetchedAt: number | null;
   loading: boolean;
   refreshing: boolean;
   repoFullName: string | null;
@@ -43,6 +44,7 @@ interface BranchPullRequestStatusState extends BranchPullRequestStatusSnapshot {
 const EMPTY_STATE: BranchPullRequestStatusState = {
   compareUrl: null,
   defaultBranch: null,
+  lastFetchedAt: null,
   pr: null,
   checks: null,
   checksUnavailable: false,
@@ -272,6 +274,7 @@ export function useBranchPullRequestStatus({
         pr: cached?.pr ?? null,
         checks: cached?.checks ?? null,
         checksUnavailable: cached?.checksUnavailable ?? false,
+        lastFetchedAt: cached?.fetchedAt ?? null,
         loading: !cached,
         refreshing: Boolean(cached && !cachedIsFresh),
         scopeKey,
@@ -291,12 +294,14 @@ export function useBranchPullRequestStatus({
           () => fetchStatusSnapshot(repoFullName, branchName)
         );
         if (!isCurrent()) return;
-        setCachedBranchPullRequestStatus(cacheKey, snapshot);
+        const fetchedAt = Date.now();
+        setCachedBranchPullRequestStatus(cacheKey, snapshot, fetchedAt);
         setState({
           compareUrl,
           defaultBranch,
           repoFullName,
           ...snapshot,
+          lastFetchedAt: fetchedAt,
           loading: false,
           refreshing: false,
           scopeKey,

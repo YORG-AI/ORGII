@@ -1,4 +1,4 @@
-export interface AnimationFrameScheduler {
+interface AnimationFrameScheduler {
   schedule: () => void;
   cancel: () => void;
 }

@@ -4,11 +4,11 @@
  *
  * Extracted from LaunchpadDashboard.tsx to keep it under 600 lines.
  */
-import { Expand, Play } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { ExpandIcon, HugeiconsIcon, PlayIcon } from "@src/icons";
 
 export interface LaunchpadAgentAction {
   key: string;
@@ -28,13 +28,13 @@ export const LaunchpadAgentActionStrip: React.FC<LaunchpadAgentActionStripProps>
 
     return (
       <div className="w-full min-w-0 overflow-hidden rounded-full bg-fill-1 px-2 py-1.5">
-        <div className="flex w-full min-w-0 items-center gap-1.5 overflow-x-auto scrollbar-hide">
+        <div className="scrollbar-hide flex w-full min-w-0 items-center gap-1.5 overflow-x-auto">
           <Button
             variant="primary"
             size="small"
             shape="round"
             className="shrink-0"
-            icon={<Play size={14} />}
+            icon={<HugeiconsIcon icon={PlayIcon} data-icon="play" size={14} />}
             onClick={agent.onLaunch}
           >
             {t("navigation:launchpad.actions.startSession", {
@@ -46,7 +46,9 @@ export const LaunchpadAgentActionStrip: React.FC<LaunchpadAgentActionStripProps>
             size="small"
             shape="round"
             className="shrink-0"
-            icon={<Expand size={14} />}
+            icon={
+              <HugeiconsIcon icon={ExpandIcon} data-icon="expand" size={14} />
+            }
             onClick={agent.onOpenDetails}
           >
             {t("navigation:launchpad.actions.openDetails", {

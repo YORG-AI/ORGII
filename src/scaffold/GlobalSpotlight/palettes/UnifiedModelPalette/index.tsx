@@ -3,7 +3,9 @@
  *
  * Two-column spotlight palette: a full-width "Recent" section (one-click)
  * above an "All Models" area laid out as Models (left) | Accounts (right) —
- * mirroring the Models & Keys table.
+ * mirroring the Models & Keys table. The "Key first" footer toggle
+ * (`spotlightModelKeyFirstAtom`) flips the columns to Keys (left) |
+ * Models (right).
  *
  * Keyboard: the left column is driven by the shared selector kernel.
  * Enter / ArrowRight / Tab on a model row hands focus to the right column;
@@ -11,8 +13,7 @@
  *
  * Thin UI wrapper — business logic lives in useUnifiedModelPalette.
  */
-import { useAtomValue, useSetAtom } from "jotai";
-import { Grip, RefreshCw } from "lucide-react";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import React, {
   useCallback,
   useEffect,
@@ -23,13 +24,16 @@ import React, {
 
 import { useFilteredItems } from "@src/hooks/search";
 import { useRefreshSpin } from "@src/hooks/ui";
+import { GripIcon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import { spotlightOpenAtom } from "@src/store";
 import { agentNameAtom } from "@src/store/session/creatorStateAtom";
+import { spotlightModelKeyFirstAtom } from "@src/store/ui/spotlightModelKeyFirstAtom";
 
 import {
   ManageKeysFooterAction,
   ManageModelsFooterAction,
   SPOTLIGHT_FOOTER_ACTIVE_CHIP,
+  SpotlightFooterToggle,
 } from "../../components";
 import { PaletteBody, ShellFooterAction, SpotlightShell } from "../../shell";
 import type { SpotlightItem } from "../../types";
@@ -59,6 +63,7 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
 }) => {
   const agentName = useAtomValue(agentNameAtom);
   const setDefaultSpotlightOpen = useSetAtom(spotlightOpenAtom);
+  const [keyFirst, setKeyFirst] = useAtom(spotlightModelKeyFirstAtom);
 
   const {
     activeColumn,
@@ -71,6 +76,10 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
     recentHeader,
     allHeader,
     sourceItems,
+    keyItems,
+    keyModelItems,
+    selectedKeyAccountId,
+    previewKey,
     previewModel,
     handleBack,
     accountsLoading,
@@ -85,7 +94,18 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
     onConfigChange,
     dispatchCategoryOverride,
     cliAgentTypeOverride,
+    keyFirst,
   });
+
+  // ============ COLUMN ORIENTATION ============
+  // "primary" is whatever the kernel-driven left column lists under
+  // "All Models"; "secondary" is the manual right column. Default mode
+  // is models → keys; key-first mode is keys → models.
+  const primaryItems = keyFirst ? keyItems : allModelItems;
+  const secondaryItems = keyFirst ? keyModelItems : sourceItems;
+  const hasFocusedPrimary = keyFirst
+    ? selectedKeyAccountId !== null
+    : selectedModelId !== null;
 
   // ============ SEARCH ============
   // The query is owned here so we can filter the list before handing it to
@@ -133,7 +153,7 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
   });
 
   const { filteredItems: filteredAllModelItems } = useFilteredItems({
-    items: allModelItems,
+    items: primaryItems,
     searchQuery,
     getSearchText,
   });
@@ -144,7 +164,7 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
       out.push(recentHeader);
       out.push(...filteredRecentItems);
     }
-    if (allModelItems.length > 0) {
+    if (primaryItems.length > 0) {
       out.push(allHeader);
       out.push(...filteredAllModelItems);
     }
@@ -152,7 +172,7 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
   }, [
     filteredRecentItems,
     filteredAllModelItems,
-    allModelItems.length,
+    primaryItems.length,
     recentHeader,
     allHeader,
   ]);
@@ -160,17 +180,17 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
   // ============ RIGHT-COLUMN NAVIGATION ============
   const activateSource = useCallback(() => {
     const sourceIndex = selectedSourceIndex >= 0 ? selectedSourceIndex : 0;
-    const source = sourceItems[sourceIndex];
+    const source = secondaryItems[sourceIndex];
     source?.action?.();
-  }, [sourceItems, selectedSourceIndex]);
+  }, [secondaryItems, selectedSourceIndex]);
 
   const focusSourcesColumn = useCallback(() => {
-    if (sourceItems.length === 0) return;
+    if (secondaryItems.length === 0) return;
     setSelectedSourceIndex((prev) =>
-      prev >= 0 && prev < sourceItems.length ? prev : -1
+      prev >= 0 && prev < secondaryItems.length ? prev : -1
     );
     setActiveColumn("sources");
-  }, [sourceItems.length, setActiveColumn, setSelectedSourceIndex]);
+  }, [secondaryItems.length, setActiveColumn, setSelectedSourceIndex]);
 
   /**
    * Route keyboard events between the two columns. The kernel owns the
@@ -188,14 +208,14 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
           case "ArrowDown":
             event.preventDefault();
             setSelectedSourceIndex((prev) =>
-              prev < 0 ? 0 : Math.min(prev + 1, sourceItems.length - 1)
+              prev < 0 ? 0 : Math.min(prev + 1, secondaryItems.length - 1)
             );
             return;
           case "ArrowUp":
             event.preventDefault();
             setSelectedSourceIndex((prev) =>
               prev < 0
-                ? Math.max(sourceItems.length - 1, 0)
+                ? Math.max(secondaryItems.length - 1, 0)
                 : Math.max(prev - 1, 0)
             );
             return;
@@ -219,11 +239,11 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
         }
       }
 
-      // Left (models) column: Tab is the column-switch key — it crosses
-      // over to the accounts column when a model with at least one source
-      // is focused. ArrowRight mirrors it for convenience.
+      // Left column: Tab is the column-switch key — it crosses over to
+      // the right column when the focused row (model, or key in key-first
+      // mode) has at least one option there. ArrowRight mirrors it.
       if (event.key === "Tab" || event.key === "ArrowRight") {
-        if (selectedModelId !== null && sourceItems.length > 0) {
+        if (hasFocusedPrimary && secondaryItems.length > 0) {
           event.preventDefault();
           focusSourcesColumn();
           return;
@@ -234,8 +254,8 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
     },
     [
       activeColumn,
-      sourceItems.length,
-      selectedModelId,
+      secondaryItems.length,
+      hasFocusedPrimary,
       setSelectedSourceIndex,
       activateSource,
       focusSourcesColumn,
@@ -258,29 +278,59 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
   });
   const focusModelInput = kernel.focusInput;
 
-  // Keep the keyboard-focused model previewed in the right column. The ref
-  // gate ensures previewModel (which resets the source cursor) only fires
-  // on a genuine model change, not on every render. Two cases clear the
-  // preview (right column shows the "Hover a model…" empty state):
-  //  - The focused row carries no model (search filtered the list to zero).
+  // Keep the keyboard-focused row previewed in the right column. The ref
+  // gate ensures the preview setter (which resets the right-column cursor)
+  // only fires on a genuine change, not on every render. Two cases clear
+  // the preview (right column shows the "Hover a model/key…" empty state):
+  //  - The focused row carries no model/key (search filtered the list to zero).
   //  - The focused row is in the Recent Models section — those rows are
   //    one-click launches and the two-column flow does not apply.
+  // The selection hook also resets its state (deferred to a frame) when
+  // the palette opens or the key-first toggle flips; the state checks
+  // below re-apply the preview for the row still under the cursor after
+  // such a reset, which the ref gate alone would miss.
   const hoveredItem = filteredItems[kernel.selectedIndex];
-  const previewedModelRef = useRef<string | null>(null);
+  const previewedRef = useRef<string | null>(null);
   useEffect(() => {
     const data = hoveredItem?.data as Record<string, unknown> | undefined;
     const isAllModelsRow = data?.modelSection === MODEL_SECTION.ALL;
+    if (keyFirst) {
+      const accountId = isAllModelsRow
+        ? ((data?.keyAccountId as string | undefined) ?? null)
+        : null;
+      const previewKeyId = accountId === null ? null : `key:${accountId}`;
+      if (
+        previewedRef.current !== previewKeyId ||
+        selectedKeyAccountId !== accountId
+      ) {
+        previewedRef.current = previewKeyId;
+        previewKey(accountId);
+      }
+      return;
+    }
     const modelId = isAllModelsRow
       ? ((data?.modelId as string | undefined) ?? null)
       : null;
-    if (previewedModelRef.current !== modelId) {
-      previewedModelRef.current = modelId;
+    const previewModelId = modelId === null ? null : `model:${modelId}`;
+    // Only a focused model row may re-assert itself: the CLI no-model
+    // flow parks selectedModelId at "" with no row under the cursor and
+    // must not be clobbered back to null.
+    const resetUnderCursor = modelId !== null && selectedModelId !== modelId;
+    if (previewedRef.current !== previewModelId || resetUnderCursor) {
+      previewedRef.current = previewModelId;
       const groupModelIds =
         (data?.groupModelIds as string[] | undefined) ??
         (modelId ? [modelId] : []);
       previewModel(modelId, hoveredItem?.label ?? "", groupModelIds);
     }
-  }, [hoveredItem, previewModel]);
+  }, [
+    hoveredItem,
+    keyFirst,
+    previewKey,
+    previewModel,
+    selectedKeyAccountId,
+    selectedModelId,
+  ]);
 
   useEffect(() => {
     // Never steal focus while closed — a closed palette focusing its input
@@ -313,7 +363,7 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
       buildPathSegment({
         id: "unified-model-model",
         label: selectModelLabel,
-        icon: Grip,
+        icon: GripIcon,
         template: modelTemplate,
         requiredParams: ["model"],
       }),
@@ -321,12 +371,26 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
   }, [agentName, tCommonHook, selectModelLabel]);
 
   // ============ FOOTER ACTION ============
-  const footerAction =
-    activeColumn === "sources" ? (
-      <ManageKeysFooterAction onClose={onClose} />
-    ) : (
-      <ManageModelsFooterAction onClose={onClose} />
-    );
+  // Offer "Manage Keys" while the keys column owns the cursor and
+  // "Manage Models" while the models column does — whichever side that is.
+  const keysColumnActive = keyFirst
+    ? activeColumn === "models"
+    : activeColumn === "sources";
+  const footerAction = keysColumnActive ? (
+    <ManageKeysFooterAction onClose={onClose} />
+  ) : (
+    <ManageModelsFooterAction onClose={onClose} />
+  );
+
+  const keyFirstToggle = (
+    <ShellFooterAction placement="inline">
+      <SpotlightFooterToggle
+        label={tCommonHook("selectors.spotlightFooter.keyFirst")}
+        checked={keyFirst}
+        onCheckedChange={setKeyFirst}
+      />
+    </ShellFooterAction>
+  );
 
   // Hovering a left-column row returns keyboard ownership to that column.
   const handleItemHover = useCallback(
@@ -358,10 +422,15 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
       disabled={refreshingAllModels}
       aria-label={tCommonHook("actions.refresh")}
       title={tCommonHook("actions.refresh")}
-      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1 disabled:opacity-60"
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1 disabled:opacity-60"
       data-testid="model-spotlight-refresh-button"
     >
-      <RefreshCw size={14} className={refreshSpinClass} />
+      <HugeiconsIcon
+        icon={Refresh04Icon}
+        data-icon="refresh-cw"
+        size={14}
+        className={refreshSpinClass}
+      />
     </button>
   );
 
@@ -373,16 +442,17 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
       onItemHover={handleItemHover}
       searchQuery={searchQuery}
       activeColumn={activeColumn}
-      sourceItems={sourceItems}
+      keyFirst={keyFirst}
+      sourceItems={secondaryItems}
       selectedSourceIndex={selectedSourceIndex}
-      hasFocusedModel={selectedModelId !== null}
+      hasFocusedModel={hasFocusedPrimary}
       accountsLoading={accountsLoading || refreshingAllModels}
       accountsError={accountsError}
       onRetryAccounts={() => {
         void refreshAllModels();
       }}
       onSourceSelect={(index) => {
-        const source = sourceItems[index];
+        const source = secondaryItems[index];
         source?.action?.();
       }}
       onSourceHover={(index) => {
@@ -410,6 +480,7 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
         inputTrailingSlot={refreshModelsButton}
       />
       <ShellFooterAction>{footerAction}</ShellFooterAction>
+      {keyFirstToggle}
     </SpotlightShell>
   );
 };

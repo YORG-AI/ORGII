@@ -1,11 +1,12 @@
-import { ChevronRight, Folder, GitBranch, Search, Trash2 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GitWorktreeDiffSummary } from "@src/api/http/git/types";
+import AnyIcon from "@src/components/AnyIcon";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import Dropdown from "@src/components/Dropdown";
 import DropdownItem from "@src/components/Dropdown/DropdownItem";
+import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
 import {
   DROPDOWN_CLASSES,
@@ -14,6 +15,13 @@ import {
 } from "@src/components/Dropdown/tokens";
 import IconButton from "@src/components/IconButton";
 import SelectGhostTrigger from "@src/components/Select/SelectGhostTrigger";
+import {
+  ArrowRight01Icon,
+  Delete02Icon,
+  FolderClosedIcon,
+  HugeiconsIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import {
   formatCompactStatNumber,
   formatDiffStatsLabel,
@@ -45,7 +53,7 @@ const BREADCRUMB_TONE_CLASS = {
 } as const;
 
 const SCOPE_PICKER_REMOVE_BUTTON = [
-  "absolute right-1 top-1/2 z-[1] -translate-y-1/2 bg-surface-hover",
+  "absolute right-1 top-1/2 z-1 -translate-y-1/2 bg-surface-hover",
   "pointer-events-none opacity-0 transition-opacity",
   "group-hover/scope-row:pointer-events-auto group-hover/scope-row:opacity-100",
   "group-focus-within/scope-row:pointer-events-auto group-focus-within/scope-row:opacity-100",
@@ -135,7 +143,8 @@ function ScopePickerItem({
   ]
     .filter(Boolean)
     .join("\n");
-  const ScopeIcon = kind === "worktree" ? Folder : GitBranch;
+  const ScopeIcon =
+    kind === "worktree" ? FolderClosedIcon : WorkflowCircle05Icon;
   const hasDiffStats = diffStatsFromSummary(summary) !== null;
 
   return (
@@ -144,7 +153,13 @@ function ScopePickerItem({
         selected={selected}
         showCheckmark={false}
         onClick={onSelect}
-        icon={<ScopeIcon size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />}
+        icon={
+          <AnyIcon
+            icon={ScopeIcon}
+            size={DROPDOWN_ITEM.iconSize}
+            strokeWidth={1.75}
+          />
+        }
         className="w-full"
         suffix={
           selected || hasDiffStats ? (
@@ -168,7 +183,11 @@ function ScopePickerItem({
             onRemove();
           }}
         >
-          <Trash2 size={DROPDOWN_ITEM.iconSize} />
+          <HugeiconsIcon
+            icon={Delete02Icon}
+            data-icon="trash-2"
+            size={DROPDOWN_ITEM.iconSize}
+          />
         </IconButton>
       ) : null}
     </div>
@@ -261,20 +280,13 @@ export function SourceControlScopeToolbar({
       onMouseDown={(event) => event.stopPropagation()}
     >
       {showSearch ? (
-        <div className={DROPDOWN_CLASSES.searchContainer}>
-          <Search
-            size={DROPDOWN_ITEM.iconSize}
-            className="shrink-0 text-text-3"
-          />
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder={t("sourceControl.scope.searchPlaceholder")}
-            className={DROPDOWN_CLASSES.searchInput}
-            aria-label={t("sourceControl.scope.searchPlaceholder")}
-          />
-        </div>
+        <DropdownSearch
+          type="search"
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder={t("sourceControl.scope.searchPlaceholder")}
+          ariaLabel={t("sourceControl.scope.searchPlaceholder")}
+        />
       ) : null}
       <div className={DROPDOWN_CLASSES.optionsContainerScrollbar}>
         {showMainScope ? (
@@ -297,7 +309,7 @@ export function SourceControlScopeToolbar({
             {showMainScope ? (
               <div
                 aria-hidden="true"
-                className={DROPDOWN_CLASSES.menuSeparatorInset}
+                className={DROPDOWN_CLASSES.menuGroupSeparator}
               />
             ) : null}
             {showMainScope ? (
@@ -350,7 +362,7 @@ export function SourceControlScopeToolbar({
     >
       <SelectGhostTrigger
         open={open}
-        className="w-auto min-w-0 max-w-[min(100%,32rem)]"
+        className="w-auto max-w-[min(100%,32rem)] min-w-0"
         title={`${formatScopePickerPath(activeScopePath)} · ${activeBranch}`}
         ariaLabel={triggerAriaLabel}
         value={
@@ -358,7 +370,12 @@ export function SourceControlScopeToolbar({
             {breadcrumbSegments.map((segment, index) => (
               <React.Fragment key={`${segment.label}-${index}`}>
                 {index > 0 ? (
-                  <ChevronRight size={10} className="shrink-0 text-text-4" />
+                  <HugeiconsIcon
+                    icon={ArrowRight01Icon}
+                    data-icon="chevron-right"
+                    size={10}
+                    className="shrink-0 text-text-4"
+                  />
                 ) : null}
                 <span
                   className={`truncate ${segment.tone === "primary" ? "min-w-0" : "shrink-0"} ${BREADCRUMB_TONE_CLASS[segment.tone]}`}

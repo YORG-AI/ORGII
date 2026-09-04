@@ -35,7 +35,7 @@ import {
 // Types
 // ============================================
 
-export interface WizardStepLayoutProps {
+interface WizardStepLayoutProps {
   /** Scrollable step content */
   children: React.ReactNode;
   /** Current step number (1-based) */

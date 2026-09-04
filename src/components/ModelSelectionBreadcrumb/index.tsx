@@ -4,13 +4,13 @@
  * Spotlight-style account › model breadcrumb used in model palette rows
  * and model-pill hover tooltips.
  */
-import { Brain } from "lucide-react";
 import React, { memo } from "react";
 
 import type { ModelType } from "@src/api/tauri/rpc/schemas/validation";
 import ModelIcon from "@src/components/ModelIcon";
+import { BrainIcon, HugeiconsIcon } from "@src/icons";
 
-export interface ModelSelectionBreadcrumbProps {
+interface ModelSelectionBreadcrumbProps {
   /** Key vault account name or hosted listing label */
   accountName?: string;
   /** Resolved model display label (alias or formatted id) */
@@ -44,7 +44,7 @@ export const ModelSelectionBreadcrumb: React.FC<ModelSelectionBreadcrumbProps> =
       className = "",
     }) => (
       <span
-        className={`inline-flex min-w-0 max-w-full items-center gap-1.5 text-[13px] ${
+        className={`inline-flex max-w-full min-w-0 items-center gap-1.5 text-[13px] ${
           wide ? "flex-wrap whitespace-normal" : ""
         } ${className}`}
       >
@@ -70,14 +70,21 @@ export const ModelSelectionBreadcrumb: React.FC<ModelSelectionBreadcrumbProps> =
         ) : null}
         <span
           className={`min-w-0 font-semibold text-text-1 ${
-            wide ? "whitespace-normal break-all" : "truncate"
+            wide ? "break-all whitespace-normal" : "truncate"
           }`}
         >
           {modelLabel}
         </span>
         {(thinking || variantInfo) && (
           <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-text-3">
-            {thinking && <Brain size={11} strokeWidth={1.8} />}
+            {thinking && (
+              <HugeiconsIcon
+                icon={BrainIcon}
+                data-icon="brain"
+                size={11}
+                strokeWidth={1.8}
+              />
+            )}
             {variantInfo && <span>{variantInfo}</span>}
           </span>
         )}

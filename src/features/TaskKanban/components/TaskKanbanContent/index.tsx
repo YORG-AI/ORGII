@@ -18,7 +18,7 @@ import type { FactoryViewMode } from "../FactoryViewPill";
 const DiaryView = lazy(() => import("../DiaryView"));
 const ListView = lazy(() => import("../ListView"));
 
-export interface TaskKanbanContentProps {
+interface TaskKanbanContentProps {
   viewMode: FactoryViewMode;
   visibleTasks: KanbanTask[];
   diaryTasks: KanbanTask[];
@@ -32,7 +32,7 @@ export interface TaskKanbanContentProps {
   onTaskContextMenu?: (task: KanbanTask, event: React.MouseEvent) => void;
   onAddTask: () => void;
   renderListRowAction?: (task: KanbanTask) => React.ReactNode;
-  hasFileSearchQuery: boolean;
+  hasSearchQuery: boolean;
   taskRenderWindowKey: string;
 }
 
@@ -49,21 +49,21 @@ const TaskKanbanContent: React.FC<TaskKanbanContentProps> = ({
   onTaskContextMenu,
   onAddTask,
   renderListRowAction,
-  hasFileSearchQuery,
+  hasSearchQuery,
   taskRenderWindowKey,
 }) => {
   const { t } = useTranslation("sessions");
   if (
-    hasFileSearchQuery &&
+    hasSearchQuery &&
     visibleTasks.length === 0 &&
     (viewMode === "kanban" || viewMode === "list")
   ) {
     return (
       <div
         className="absolute inset-0 flex items-center justify-center px-6 text-center text-[13px] text-text-3"
-        data-testid="kanban-file-search-empty"
+        data-testid="kanban-search-empty"
       >
-        {t("kanban.fileSearch.noResults")}
+        {t("common:status.noResults")}
       </div>
     );
   }

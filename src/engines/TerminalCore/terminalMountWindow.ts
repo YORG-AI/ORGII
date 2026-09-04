@@ -34,17 +34,24 @@ export function pushRecentTerminalId(
 /**
  * Select which sessions should be mounted: the active one always, plus
  * initialized sessions that are still inside the recent window.
+ *
+ * `suppressedSessionIds` wins over everything, including the active slot: a
+ * PTY is bound to one xterm through `TerminalView`'s `sessionKey`, so a
+ * session another host currently mounts (the terminal docked under the
+ * Workstation trail) must not be mounted here as well.
  */
 export function selectMountedTerminalSessions<T extends { id: string }>(
   sessions: readonly T[],
   activeSessionId: string,
   initializedSessionIds: ReadonlySet<string>,
-  recentTerminalIds: readonly string[]
+  recentTerminalIds: readonly string[],
+  suppressedSessionIds?: ReadonlySet<string>
 ): T[] {
   const warm = new Set(recentTerminalIds);
   return sessions.filter(
     (session) =>
-      session.id === activeSessionId ||
-      (initializedSessionIds.has(session.id) && warm.has(session.id))
+      !suppressedSessionIds?.has(session.id) &&
+      (session.id === activeSessionId ||
+        (initializedSessionIds.has(session.id) && warm.has(session.id)))
   );
 }

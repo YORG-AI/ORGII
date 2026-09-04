@@ -12,12 +12,19 @@
 import { SQLite, sql } from "@codemirror/lang-sql";
 import { EditorView, keymap } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
-import { AlignLeft, History, Play } from "lucide-react";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { KeyboardShortcut } from "@src/components/KeyboardShortcut";
+import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import type { TableInfo } from "@src/engines/DatabaseCore";
 import { createLogger } from "@src/hooks/logger";
+import {
+  HugeiconsIcon,
+  PlayIcon,
+  TextAlignLeftIcon,
+  WorkHistoryIcon,
+} from "@src/icons";
 
 import {
   BASIC_SETUP_SQL_CONFIG,
@@ -34,7 +41,7 @@ const log = createLogger("SqlEditor");
 // Types
 // ============================================
 
-export interface SqlQueryEditorProps {
+interface SqlQueryEditorProps {
   /** Default SQL query */
   defaultValue?: string;
   /** Callback when query is executed */
@@ -162,7 +169,12 @@ export const SqlQueryEditor: React.FC<SqlQueryEditorProps> = memo(
               title={t("tooltips.formatSql")}
               className="sql-query-editor__btn"
             >
-              <AlignLeft size={14} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={TextAlignLeftIcon}
+                data-icon="align-left"
+                size={14}
+                strokeWidth={1.75}
+              />
               <span>{t("sqlEditor.format")}</span>
             </button>
 
@@ -174,7 +186,12 @@ export const SqlQueryEditor: React.FC<SqlQueryEditorProps> = memo(
                   title={t("tooltips.queryHistory")}
                   className="sql-query-editor__btn"
                 >
-                  <History size={14} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={WorkHistoryIcon}
+                    data-icon="history"
+                    size={14}
+                    strokeWidth={1.75}
+                  />
                   <span>{t("labels.history")}</span>
                 </button>
 
@@ -212,7 +229,12 @@ export const SqlQueryEditor: React.FC<SqlQueryEditorProps> = memo(
               title={t("tooltips.executeQuery")}
               className="sql-query-editor__btn sql-query-editor__btn--primary"
             >
-              <Play size={14} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={PlayIcon}
+                data-icon="play"
+                size={14}
+                strokeWidth={1.75}
+              />
               <span>{loading ? t("status.running") : t("actions.run")}</span>
             </button>
           </div>
@@ -232,10 +254,9 @@ export const SqlQueryEditor: React.FC<SqlQueryEditorProps> = memo(
         </div>
 
         {/* Keyboard hint */}
-        <div className="absolute bottom-2 right-3 flex items-center gap-1 text-xs text-text-4">
+        <div className="absolute right-3 bottom-2 flex items-center gap-1 text-xs text-text-4">
           <span>{t("sqlEditor.press")}</span>
-          <kbd className="rounded bg-fill-2 px-1.5 py-0.5">⌘</kbd>
-          <kbd className="rounded bg-fill-2 px-1.5 py-0.5">↵</kbd>
+          <KeyboardShortcut shortcut={getShortcutKeys("db_run_query")} />
           <span>{t("sqlEditor.toRun")}</span>
         </div>
       </div>

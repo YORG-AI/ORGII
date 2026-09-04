@@ -2,7 +2,9 @@ import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Placeholder } from "@src/components/Placeholder";
+import DetailPaneLayout, {
+  DetailPanePlaceholder,
+} from "@src/modules/shared/layouts/DetailPaneLayout";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 import type { WorkItem } from "@src/types/core/workItem";
 
@@ -95,12 +97,12 @@ export function ProjectScopedWorkItemDetailPage({
 
   if (!workItem || workItemDeleted) {
     return (
-      <Placeholder
-        variant={projectData.loading ? "loading" : "empty"}
-        placement="detail-panel"
-        title={projectData.loading ? undefined : t("workItems.noWorkItems")}
-        fillParentHeight
-      />
+      <DetailPaneLayout>
+        <DetailPanePlaceholder
+          variant={projectData.loading ? "loading" : "empty"}
+          title={projectData.loading ? undefined : t("workItems.noWorkItems")}
+        />
+      </DetailPaneLayout>
     );
   }
 

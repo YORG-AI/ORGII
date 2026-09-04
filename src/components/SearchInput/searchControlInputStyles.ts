@@ -10,6 +10,10 @@ const WRAPPER_BASE =
 
 export const SEARCH_WRAPPER_PANE_INPUT = "bg-pane-input";
 
+/** Ghost surface — transparent at rest, restoring the regular field on focus. */
+export const SEARCH_WRAPPER_GHOST =
+  "border-0! bg-transparent! focus-within:border! focus-within:border-primary-6! focus-within:bg-pane-input! [&:not(:focus-within):hover]:border-0! [&:not(:focus-within):hover]:bg-surface-hover";
+
 /** Panel variant (px-3) — used by SearchInput panel / ReplaceInput panel */
 export const SEARCH_WRAPPER_PANEL = `${WRAPPER_BASE} gap-1.5 px-3 ${WRAPPER_FOCUS}`;
 

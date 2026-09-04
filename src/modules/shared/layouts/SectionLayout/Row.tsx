@@ -7,7 +7,7 @@
  *
  * Horizontal padding is provided by the parent SectionContainer.
  */
-import React, { memo } from "react";
+import React, { memo, useId } from "react";
 
 import {
   SECTION_DESCRIPTION_CLASSES,
@@ -21,14 +21,19 @@ import {
 export interface SectionRowProps {
   /** Stable selector for rendered tests and external UI drivers. */
   dataTestId?: string;
+  /** Schema keys represented by this row, used by global Settings search. */
+  settingsSearchKeys?: string | readonly string[];
   /** Row label (left side). Omit to render content-only (no header). */
   label?: React.ReactNode;
   /** Optional description under label */
   description?: string;
   /** Control element (right side). Omit for label-only rows. */
   children?: React.ReactNode;
-  /** Layout: 'horizontal' (default) or 'vertical' for full-width content */
-  layout?: "horizontal" | "vertical";
+  /**
+   * Layout: responsive 'horizontal' (default), full-width 'vertical', or
+   * always side-by-side 'inline' for compact label/value rows.
+   */
+  layout?: "horizontal" | "vertical" | "inline";
   /** Use lighter font weight for label (legacy alias — default labels are already normal weight) */
   light?: boolean;
   /** Indent row for sub-settings (applies SECTION_INDENT_CLASSES) */
@@ -59,6 +64,7 @@ const RequiredMark: React.FC = () => (
 const SectionRow: React.FC<SectionRowProps> = memo(
   ({
     dataTestId,
+    settingsSearchKeys,
     label,
     description,
     children,
@@ -75,6 +81,14 @@ const SectionRow: React.FC<SectionRowProps> = memo(
     truncateLabel = false,
     className = "",
   }) => {
+    const generatedId = useId();
+    const searchTargetId = `settings-row-${generatedId.replace(
+      /[^a-zA-Z0-9_-]/g,
+      ""
+    )}`;
+    const serializedSearchKeys = Array.isArray(settingsSearchKeys)
+      ? settingsSearchKeys.join(" ")
+      : settingsSearchKeys;
     const labelClass = compact
       ? SECTION_LABEL_COMPACT_CLASSES
       : light
@@ -112,15 +126,25 @@ const SectionRow: React.FC<SectionRowProps> = memo(
     if (layout === "vertical") {
       return (
         <div
+          id={searchTargetId}
+          data-settings-search-row
+          data-settings-search-keys={serializedSearchKeys}
           data-testid={dataTestId}
           className={`section-layout-row relative flex flex-col ${gapClass} ${minHeightClass} ${pyClass} ${indentClass} ${className}`}
         >
           {/* Header: Label */}
           <div>
-            <div className={`${labelClass} ${truncateLabel ? "truncate" : ""}`}>
+            <div
+              data-settings-search-label
+              className={`${labelClass} ${truncateLabel ? "truncate" : ""}`}
+            >
               {labelContent}
             </div>
-            {description && <div className={descClass}>{description}</div>}
+            {description && (
+              <div data-settings-search-description className={descClass}>
+                {description}
+              </div>
+            )}
           </div>
 
           {/* Content: Full width */}
@@ -129,29 +153,50 @@ const SectionRow: React.FC<SectionRowProps> = memo(
       );
     }
 
-    const alignClass =
-      align === "start" ? "@[480px]:items-start" : "@[480px]:items-center";
+    const inline = layout === "inline";
+    const alignClass = inline
+      ? align === "start"
+        ? "items-start"
+        : "items-center"
+      : align === "start"
+        ? "@[480px]:items-start"
+        : "@[480px]:items-center";
     const resolvedLabelAlign = labelAlign ?? align;
     const labelAlignClass =
       resolvedLabelAlign === "start" ? "items-start" : "items-center";
     const controlWidthClass = equalColumns
-      ? "w-full @[480px]:flex-1"
+      ? inline
+        ? "flex-1"
+        : "w-full @[480px]:flex-1"
       : "max-w-full";
+    const layoutClass = inline
+      ? "flex-row justify-between gap-4"
+      : `flex-col ${gapClass} @[480px]:flex-row @[480px]:justify-between @[480px]:gap-4`;
 
     return (
       <div
+        id={searchTargetId}
+        data-settings-search-row
+        data-settings-search-keys={serializedSearchKeys}
         data-testid={dataTestId}
-        className={`section-layout-row relative flex flex-col ${gapClass} ${minHeightClass} ${pyClass} @[480px]:flex-row ${alignClass} @[480px]:justify-between @[480px]:gap-4 ${indentClass} ${className}`}
+        className={`section-layout-row relative flex ${layoutClass} ${minHeightClass} ${pyClass} ${alignClass} ${indentClass} ${className}`}
       >
         {/* Label + Description */}
         <div
           className={`flex min-w-0 flex-1 ${labelAlignClass} gap-2 ${headerClassName}`}
         >
           <div className="min-w-0">
-            <div className={`${labelClass} ${truncateLabel ? "truncate" : ""}`}>
+            <div
+              data-settings-search-label
+              className={`${labelClass} ${truncateLabel ? "truncate" : ""}`}
+            >
               {labelContent}
             </div>
-            {description && <div className={descClass}>{description}</div>}
+            {description && (
+              <div data-settings-search-description className={descClass}>
+                {description}
+              </div>
+            )}
           </div>
         </div>
 

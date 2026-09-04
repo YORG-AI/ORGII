@@ -93,22 +93,12 @@
     "loadingConnections": "GitHub 연결을 불러오는 중...",
     "noConnectionTitle": "GitHub 연결을 찾을 수 없음",
     "noConnectionDescription": "먼저 Integrations에서 GitHub 연결을 추가한 다음 여기로 돌아와 GitHub Issues를 가져오세요.",
-    "linkedRepoHint": "이 Project는 현재 Workspace repo에도 연결됩니다: {{repoName}}.",
-    "createdTitle": "{{name}} 준비 완료",
-    "createdDescription": "ORGII가 {{owner}}/{{repo}}에서 GitHub Issues를 가져오는 중입니다. 동기화가 계속되는 동안 작업을 계속할 수 있습니다.",
-    "createdDescriptionFallback": "ORGII가 GitHub Issues를 가져오는 중입니다. 동기화가 계속되는 동안 작업을 계속할 수 있습니다.",
+    "linkedRepoHint": "이 Project는 현재 Workspace repo에도 연결됩니다: {{repoName}}",
     "errors": {
       "invalidRepo": "owner/repo 또는 GitHub 리포지토리 URL을 사용하세요."
     },
     "importStatus": {
       "title": "가져오기 상태",
-      "pendingDescription": "가져오기 worker가 대기열에 있으며 곧 시작됩니다.",
-      "runningDescription": "GitHub Issues를 이 Project에 work items로 가져오는 중입니다.",
-      "completedDescription": "사용 가능한 모든 GitHub Issues를 가져왔습니다.",
-      "failedDescription": "가져오기 worker가 오류를 보고했습니다. Project 동기화 설정에서 다시 시도할 수 있습니다.",
-      "cancelledDescription": "모든 GitHub Issues를 가져오기 전에 가져오기가 취소되었습니다.",
-      "progressWithTotal": "{{count}} / {{total}} GitHub Issues 가져옴",
-      "progressNoTotal": "{{count}} GitHub Issues 가져옴",
       "state": {
         "pending": "대기 중",
         "running": "실행 중",
@@ -235,6 +225,7 @@
     "noWorkItems": "작업 항목이 없습니다",
     "noWorkItemsSubtitle": "첫 번째 작업 항목을 만들어 시작하세요",
     "addFirstWorkItem": "첫 번째 작업 항목 추가",
+    "addSelected": "{{count}}개 추가",
     "deleteItems": "{{count}}개 항목 삭제",
     "untitledProject": "제목 없는 Project",
     "untitledWorkItem": "제목 없는 작업 항목",
@@ -358,9 +349,7 @@
       "hoursAgo": "{{count}}시간 전",
       "inDays": "{{count}}일 후",
       "inHours": "{{count}}시간 후",
-      "membersGroup": "멤버",
-      "agentsGroup": "Agents",
-      "orgsGroup": "조직"
+      "membersGroup": "멤버"
     },
     "history": {
       "noHistory": "아직 기록이 없습니다"
@@ -880,18 +869,14 @@
     "title": "Linear Projects",
     "open": "Open Linear Projects",
     "subtitle": "Browse and edit Linear Projects in real time without importing them into ORGII.",
-    "subtitleWithAccount": "Live Linear data from {{account}}",
     "refresh": "Refresh",
     "createProject": "Create Project",
-    "createIssue": "Create Issue",
     "archive": "Archive",
     "searchPlaceholder": "Search Linear Projects...",
     "loadingProjects": "Loading Linear Projects...",
     "loadingIssues": "Loading Linear Issues...",
     "emptyProjects": "No Linear Projects found",
     "emptyIssues": "No Linear Issues in this Project",
-    "noTeam": "No team",
-    "noDescription": "No description",
     "unknownState": "Unknown state",
     "updated": "Updated {{date}}",
     "emptyConnections": {
@@ -930,12 +915,10 @@
       }
     },
     "errors": {
-      "loadConnections": "Failed to load Linear connections",
       "loadProjects": "Failed to load Linear Projects",
       "loadIssues": "Failed to load Linear Issues",
       "createProject": "Failed to create Linear Project",
       "updateProject": "Failed to update Linear Project",
-      "archiveProject": "Failed to archive Linear Project",
       "createIssue": "Failed to create Linear Issue",
       "updateIssue": "Failed to update Linear Issue",
       "archiveIssue": "Failed to archive Linear Issue",
@@ -945,7 +928,8 @@
       "archiveWorkflowState": "Failed to archive Linear workflow state",
       "statusStateMissing": "No matching Linear workflow state exists for this status",
       "unsupportedIssueUpdate": "This Linear Issue field cannot be edited in ORGII yet"
-    }
+    },
+    "loadingConnections": "Linear 연결 로드 중..."
   },
   "gitSyncReview": {
     "breadcrumb": "Git Sync Review",

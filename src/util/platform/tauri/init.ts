@@ -32,9 +32,20 @@ type TauriListen = <T>(
   handler: (event: { payload: T }) => void
 ) => Promise<() => void>;
 
+/**
+ * Tauri's `Channel` constructor. A channel is a one-way stream from Rust into
+ * the webview; unlike an event it can carry a raw byte payload, which arrives
+ * as an `ArrayBuffer` without the base64 + JSON + JavaScript-parse round trip
+ * an event payload pays for.
+ */
+type TauriChannelCtor = new <T>(onmessage?: (message: T) => void) => {
+  onmessage: (message: T) => void;
+};
+
 interface TauriAPIs {
   invoke: TauriInvoke | null;
   listen: TauriListen | null;
+  Channel: TauriChannelCtor | null;
   isAvailable: boolean;
   isTauriEnvironment: boolean;
 }
@@ -43,6 +54,7 @@ interface TauriAPIs {
 let tauriState: TauriAPIs = {
   invoke: null,
   listen: null,
+  Channel: null,
   isAvailable: false,
   isTauriEnvironment: false,
 };
@@ -93,6 +105,7 @@ export const initializeTauriAPIs = async (): Promise<boolean> => {
 
       tauriState.invoke = core.invoke;
       tauriState.listen = event.listen as TauriListen;
+      tauriState.Channel = core.Channel as unknown as TauriChannelCtor;
       tauriState.isAvailable = true;
 
       return true;
@@ -132,6 +145,22 @@ function getTracker(): typeof import("@src/util/monitoring/apiTracker") | null {
     );
   }
   return null;
+}
+
+/**
+ * Create a Tauri channel for streaming data from Rust into the webview.
+ *
+ * Pass the returned object straight through as an `invokeTauri` argument —
+ * Tauri serializes it to the channel handle the backend needs. Throws when the
+ * APIs have not been initialized, matching `invokeTauri`.
+ */
+export function createTauriChannel<T>(onmessage: (message: T) => void): object {
+  if (!tauriState.Channel) {
+    throw new Error(
+      "Tauri Channel is not available. Make sure to call initializeTauriAPIs() first."
+    );
+  }
+  return new tauriState.Channel<T>(onmessage);
 }
 
 /**
@@ -241,6 +270,7 @@ export const resetTauriState = (): void => {
   tauriState = {
     invoke: null,
     listen: null,
+    Channel: null,
     isAvailable: false,
     isTauriEnvironment: false,
   };

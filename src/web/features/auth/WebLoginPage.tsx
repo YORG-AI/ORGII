@@ -3,7 +3,6 @@ import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate } from "react-router-dom";
 
-import AppLogo from "@src/components/AppLogo";
 import Button from "@src/components/Button";
 import { buildOrg2CloudLoginUrl } from "@src/features/Org2Cloud/config";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
@@ -38,17 +37,21 @@ export function WebLoginPage() {
             aria-labelledby="web-login-title"
           >
             <div className="flex flex-col items-center text-center">
-              <AppLogo size={80} className="rounded-2xl shadow-dropdown-soft" />
-              <p className="mb-0 mt-5 text-xs font-semibold uppercase tracking-wider text-primary-6">
+              <img
+                src="/logo.png"
+                alt="ORG2"
+                className="size-20 rounded-2xl shadow-dropdown-soft"
+              />
+              <p className="mt-5 mb-0 text-xs font-semibold tracking-wider text-primary-6 uppercase">
                 {t("cloud.title")}
               </p>
               <h1
                 id="web-login-title"
-                className="mb-0 mt-1 text-2xl font-semibold text-text-1"
+                className="mt-1 mb-0 text-2xl font-semibold text-text-1"
               >
                 {t("web.login.title")}
               </h1>
-              <p className="mb-0 mt-2 text-sm leading-relaxed text-text-3">
+              <p className="mt-2 mb-0 text-sm leading-relaxed text-text-3">
                 {t("web.login.subtitle")}
               </p>
             </div>

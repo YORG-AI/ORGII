@@ -30,7 +30,7 @@ import {
 
 const log = createLogger("EditorPalette");
 
-export interface UseFileModeOptions {
+interface UseFileModeOptions {
   repoPath: string;
   searchTerm: string;
   enabled: boolean;
@@ -39,7 +39,7 @@ export interface UseFileModeOptions {
   onFileOpen?: (path: string) => void;
 }
 
-export interface UseFileModeReturn {
+interface UseFileModeReturn {
   items: SpotlightItem[];
   isLoading: boolean;
   error: string | null;

@@ -64,33 +64,3 @@ pub fn load_and_apply_skill_env() {
         );
     }
 }
-
-/// Get all stored skill env vars.
-#[tauri::command]
-pub async fn skill_env_get() -> Result<HashMap<String, String>, String> {
-    Ok(load_skill_env())
-}
-
-/// Save skill env vars to disk and apply them to the current process immediately.
-#[tauri::command]
-pub async fn skill_env_save(vars: HashMap<String, String>) -> Result<(), String> {
-    let path = skill_env_path();
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent)
-                .map_err(|err| format!("Failed to create config directory: {}", err))?;
-        }
-    }
-
-    let json = serde_json::to_string_pretty(&vars)
-        .map_err(|err| format!("Failed to serialize env vars: {}", err))?;
-    fs::write(&path, json).map_err(|err| format!("Failed to write skill-env.json: {}", err))?;
-
-    for (key, value) in &vars {
-        if !value.is_empty() {
-            std::env::set_var(key, value);
-        }
-    }
-
-    Ok(())
-}

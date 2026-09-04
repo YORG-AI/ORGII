@@ -26,9 +26,11 @@ describe("DetailTabStrip", () => {
     expect(markup).toContain('aria-selected="true"');
     expect(markup).toContain(">3</span>");
     expect(markup).toMatch(/role="tablist"[^>]*border-b/);
+    expect(markup).toMatch(/role="tablist"[^>]*\bh-9\b/);
     expect(markup).toMatch(
       /aria-selected="true"[^>]*after:-bottom-px[^>]*after:bg-bg-2/
     );
+    expect(markup).toMatch(/aria-selected="true"[^>]*border-b-bg-2/);
     expect(markup).not.toContain("overflow-y-hidden");
   });
 
@@ -59,6 +61,7 @@ describe("DetailTabStrip", () => {
     );
 
     expect(markup).toContain(">Filter</button>");
+    expect(markup).toMatch(/role="tablist"[^>]*\bpr-\[7px\][^>]*\bpl-4\b/);
   });
 
   it("embeds tabs in a header without creating another bordered row", () => {
@@ -73,11 +76,15 @@ describe("DetailTabStrip", () => {
       })
     );
 
-    expect(markup).toContain("h-full min-w-0");
+    expect(markup).toContain("h-9");
+    expect(markup).toContain("min-w-0");
+    expect(markup).not.toContain("h-10");
+    expect(markup).not.toContain("pr-[7px]");
     expect(markup).not.toContain("overflow-x-auto");
     expect(markup).not.toMatch(/role="tablist"[^>]*border-b/);
     expect(markup).toMatch(
       /aria-selected="true"[^>]*after:-bottom-px[^>]*after:bg-bg-2/
     );
+    expect(markup).toMatch(/aria-selected="true"[^>]*border-b-bg-2/);
   });
 });

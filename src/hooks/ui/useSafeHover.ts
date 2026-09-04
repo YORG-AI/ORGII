@@ -50,34 +50,3 @@ export function useSafeHover<T extends HTMLElement = HTMLElement>(
 
   return [refCallback, isHovered];
 }
-
-/**
- * useSafeHoverCallbacks — Same safety guarantees but returns
- * `{ onMouseEnter, onMouseLeave, isHovered }` for components that
- * pass handlers as props (e.g. Glass, Reorder.Item).
- *
- * When `disabled` changes to true, onMouseEnter becomes a no-op
- * and any existing hover state is cleared on the next onMouseLeave
- * (or when the component re-renders with disabled=true and the
- * caller condition gates rendering).
- */
-export function useSafeHoverCallbacks(options?: UseSafeHoverOptions): {
-  isHovered: boolean;
-  onMouseEnter: () => void;
-  onMouseLeave: () => void;
-} {
-  const [isHovered, setIsHovered] = useState(false);
-  const disabled = options?.disabled ?? false;
-
-  const onMouseEnter = useCallback(() => {
-    if (!disabled) setIsHovered(true);
-  }, [disabled]);
-
-  const onMouseLeave = useCallback(() => {
-    setIsHovered(false);
-  }, []);
-
-  const effectiveHovered = disabled ? false : isHovered;
-
-  return { isHovered: effectiveHovered, onMouseEnter, onMouseLeave };
-}

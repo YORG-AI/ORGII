@@ -6,8 +6,6 @@
  *
  * Related submodules (also re-exported below):
  * - cacheAtom: Search result caching with TTL and stats
- * - fileTrackingAtom: Incremental indexing file tracking
- * - ignoreAtom: .gitignore / custom ignore pattern management
  * - indexingProgressAtom: Indexing progress UI state
  */
 import { atom } from "jotai";
@@ -90,15 +88,6 @@ export const searchTotalFilesAtom = atom((get) => {
 });
 searchTotalFilesAtom.debugLabel = "searchTotalFilesAtom";
 
-// ============================================
-// Action Atoms
-// ============================================
-
-/** Set search query */
-export const searchSetQueryAtom = atom(null, (_get, set, query: string) => {
-  set(searchQueryAtom, query);
-});
-
 /** Update search options */
 export const searchSetOptionsAtom = atom(
   null,
@@ -155,8 +144,6 @@ export const searchAppendResultsAtom = atom(
 // ============================================
 
 export * from "./cacheAtom";
-export * from "./fileTrackingAtom";
-export * from "./ignoreAtom";
 export type { IndexingProgress } from "./indexingProgressAtom";
 export {
   indexingProgressAtom,

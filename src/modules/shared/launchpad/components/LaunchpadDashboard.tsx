@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { RUST_AGENT_TYPE } from "@src/api/tauri/agent/types";
 import type { CliAgentType } from "@src/api/tauri/rpc/schemas/validation";
+import AnyIcon from "@src/components/AnyIcon";
 import ModelIcon from "@src/components/ModelIcon";
 import { Placeholder } from "@src/components/Placeholder";
 import { resolveAgentIcon } from "@src/config/agentIcons";
@@ -178,11 +179,14 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
         return {
           key: rustType,
           label,
-          icon: React.createElement(IconComponent, {
-            size: 30,
-            strokeWidth: 1.75,
-            className: "text-text-2",
-          }),
+          icon: (
+            <AnyIcon
+              icon={IconComponent}
+              size={30}
+              strokeWidth={1.75}
+              className="text-text-2"
+            />
+          ),
           onLaunch: () => {
             setCreatorState((prev) => ({
               ...prev,
@@ -212,11 +216,14 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
         return {
           key: definition.id,
           label: definition.name,
-          icon: React.createElement(IconComponent, {
-            size: 30,
-            strokeWidth: 1.75,
-            className: "text-text-2",
-          }),
+          icon: (
+            <AnyIcon
+              icon={IconComponent}
+              size={30}
+              strokeWidth={1.75}
+              className="text-text-2"
+            />
+          ),
           onLaunch: () => {
             setCreatorState((prev) => ({
               ...prev,
@@ -312,7 +319,7 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
 
     return (
       <div className="flex h-full min-h-0 w-full flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
           <div
             className={`flex flex-col gap-5 px-4 py-5 ${DETAIL_PANEL_TOKENS.headerWidth}`}
           >

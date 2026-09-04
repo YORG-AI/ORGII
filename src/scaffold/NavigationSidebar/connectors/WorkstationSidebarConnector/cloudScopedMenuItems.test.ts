@@ -203,6 +203,35 @@ describe("buildCloudScopedMenuItems", () => {
     ]);
   });
 
+  it("honors the five-row session-group preference in cloud scope", () => {
+    const sessionItems = Array.from(
+      { length: 7 },
+      (_, index): NavigationMenuItem => ({
+        id: `session-${index}`,
+        key: `session-${index}`,
+        label: `Session ${index}`,
+      })
+    );
+
+    const result = buildCloudScopedMenuItems({
+      cloudMenuItems: [
+        {
+          id: "separator-cloud-team-sessions",
+          key: "separator-cloud-team-sessions",
+          label: "Team sessions",
+        },
+      ],
+      sessionMenuItems: sessionItems,
+      mySessionsLabel: "My sessions",
+      mySessionsVisibleCount: 5,
+    });
+
+    expect(result.slice(-6).map((item) => item.id)).toEqual([
+      ...Array.from({ length: 5 }, (_, index) => `session-${index}`),
+      CLOUD_MY_SESSIONS_LOAD_MORE_ID,
+    ]);
+  });
+
   it("keeps the Pinned section above Team and My sessions", () => {
     const teamItems: NavigationMenuItem[] = [
       {

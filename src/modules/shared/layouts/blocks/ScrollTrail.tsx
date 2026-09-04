@@ -292,7 +292,7 @@ const ScrollTrail: React.FC<ScrollTrailProps> = ({
   const placementClass =
     placement === "rail"
       ? "left-1/2 -translate-x-1/2"
-      : "right-2 rounded-xl border border-border-2/60 bg-bg-1/90 px-1 py-2 shadow-sm backdrop-blur-sm";
+      : "right-2 rounded-xl border border-border-2/60 bg-bg-1/90 px-1 py-2 shadow-xs backdrop-blur-xs";
   const alignmentClass =
     alignment === "start" ? "top-2" : "top-1/2 -translate-y-1/2";
 
@@ -340,7 +340,7 @@ const ScrollTrail: React.FC<ScrollTrailProps> = ({
                 current: marker.targetIndex + 1,
                 total: targetCount,
               })}
-              className="group flex h-3 w-9 cursor-pointer items-center justify-center border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+              className="group flex h-3 w-9 cursor-pointer items-center justify-center border-0 bg-transparent p-0 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none"
               onClick={() => navigateToMarker(marker, markerIndex)}
               onMouseEnter={() => setPreviewMarkerIndex(markerIndex)}
               onFocus={() => setPreviewMarkerIndex(markerIndex)}
@@ -358,12 +358,12 @@ const ScrollTrail: React.FC<ScrollTrailProps> = ({
               <div
                 id={tooltipId}
                 role="tooltip"
-                className={`${DROPDOWN_CLASSES.panel} pointer-events-none absolute right-full top-1/2 mr-1 w-56 -translate-y-1/2 p-2.5 text-left`}
+                className={`${DROPDOWN_CLASSES.panel} pointer-events-none absolute top-1/2 right-full mr-1 w-56 -translate-y-1/2 p-2.5 text-left`}
               >
-                <div className="line-clamp-3 text-sm font-medium leading-5 text-text-1">
+                <div className="line-clamp-3 text-sm leading-5 font-medium text-text-1">
                   {marker.label}
                 </div>
-                <div className="mt-1 text-xs tabular-nums text-text-3">
+                <div className="mt-1 text-xs text-text-3 tabular-nums">
                   {t("navigation.sectionPosition", {
                     defaultValue: "Section {{current}} of {{total}}",
                     current: marker.targetIndex + 1,

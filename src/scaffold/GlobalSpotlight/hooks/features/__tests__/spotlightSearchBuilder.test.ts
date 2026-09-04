@@ -10,7 +10,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { SpotlightItem } from "../../../types";
-import { APP_ACTIONS } from "../spotlightActionDefinitions";
+import {
+  APP_ACTIONS,
+  ORGANIZATION_ACTIONS,
+} from "../spotlightActionDefinitions";
 import { buildSearchModeItems } from "../spotlightSearchBuilder";
 
 const DETECT_UPDATE_ID = "detect-update";
@@ -37,6 +40,23 @@ function runSearch(
     translate: echoTranslate,
     sessionItems,
     devModeEnabled,
+  });
+  return { items, onSelectStaticAction };
+}
+
+function runOrganizationSearch(searchQuery: string) {
+  const onSelectStaticAction = vi.fn();
+  const items = buildSearchModeItems({
+    searchQuery,
+    isEditorRoute: false,
+    staticCommandActions: [...ORGANIZATION_ACTIONS],
+    onSelectAction: vi.fn(),
+    onSelectStaticAction,
+    onSelectEditorAction: vi.fn(),
+    onSelectPath: vi.fn(),
+    translate: echoTranslate,
+    sessionItems: [],
+    devModeEnabled: false,
   });
   return { items, onSelectStaticAction };
 }
@@ -99,5 +119,26 @@ describe("buildSearchModeItems — app commands", () => {
       "section-search-actions",
       DETECT_UPDATE_ID,
     ]);
+  });
+});
+
+describe("buildSearchModeItems — organization commands", () => {
+  it.each([
+    ["create org", "create-organization"],
+    ["new organization", "create-organization"],
+    ["join org", "join-organization"],
+    ["invite code", "join-organization"],
+  ])("surfaces %s as %s", (query, expectedId) => {
+    const { items } = runOrganizationSearch(query);
+    expect(items.some((item) => item.id === expectedId)).toBe(true);
+  });
+
+  it("dispatches the selected organization action definition", () => {
+    const { items, onSelectStaticAction } =
+      runOrganizationSearch("join organization");
+    const item = items.find((entry) => entry.id === "join-organization");
+
+    item?.action?.();
+    expect(onSelectStaticAction).toHaveBeenCalledWith(ORGANIZATION_ACTIONS[1]);
   });
 });

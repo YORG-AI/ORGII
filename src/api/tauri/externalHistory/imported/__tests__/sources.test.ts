@@ -156,12 +156,14 @@ describe("imported history source registry", () => {
       (source) => source.appOpen
     ).map((source) => source.sourceId);
     expect(linkable).toEqual(["codex_app", "claude_code"]);
-    expect(getImportedHistoryAppOpen("claudecodeapp-abc")?.displayName).toBe(
-      "Claude"
-    );
-    expect(getImportedHistoryAppOpen("codexapp-abc")?.displayName).toBe(
-      "Codex"
-    );
+    expect(getImportedHistoryAppOpen("claudecodeapp-abc")).toEqual({
+      displayName: "Claude",
+      iconId: "claude",
+    });
+    expect(getImportedHistoryAppOpen("codexapp-abc")).toEqual({
+      displayName: "Codex",
+      iconId: "codex",
+    });
     // Cursor's IDE composers and CLI chats have no per-chat deep link.
     expect(getImportedHistoryAppOpen("cursoride-abc")).toBeUndefined();
     expect(getImportedHistoryAppOpen("cursorcliapp-abc")).toBeUndefined();

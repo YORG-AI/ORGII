@@ -8,7 +8,7 @@ import React, { forwardRef, memo } from "react";
 
 import { BUTTON_SIZE, BUTTON_VARIANT } from "@src/config/workstation/tokens";
 
-export interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   size?: keyof typeof BUTTON_SIZE;
   variant?: keyof typeof BUTTON_VARIANT;
   children: React.ReactNode;

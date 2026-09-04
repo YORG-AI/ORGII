@@ -1485,6 +1485,31 @@ fn make_turn_placeholder(turn_id: &str, next_turn_id: Option<&str>) -> SessionEv
     event
 }
 
+fn make_provider_turn_preview(
+    event_id: &str,
+    turn_id: &str,
+    next_turn_id: Option<&str>,
+    preview: &str,
+) -> SessionEvent {
+    let mut event = make_event(event_id, "assistant");
+    event.function_name = "assistant".to_string();
+    event.ui_canonical = "agent_message".to_string();
+    event.args = serde_json::json!({ "turnPreviewOnly": true });
+    event.result = serde_json::json!({
+        "observation": preview,
+        "content": preview,
+        "role": "assistant",
+        "unloadedTurn": {
+            "turnId": turn_id,
+            "bodyEventCount": 2,
+            "nextTurnId": next_turn_id,
+        }
+    });
+    event.display_text = preview.to_string();
+    event.display_variant = EventDisplayVariant::Message;
+    event
+}
+
 #[test]
 fn test_round_window_hydration_mode() {
     let mut store = EventStore::new();
@@ -1613,6 +1638,51 @@ fn test_unload_turn_body_preserves_final_reply_as_preview() {
     );
     assert!(store.get_by_id("turn-1-tool").is_none());
     assert!(store.get_by_id("turn-placeholder-turn-1").is_some());
+}
+
+#[test]
+fn test_merge_round_window_events_removes_provider_final_reply_preview() {
+    let mut store = EventStore::new();
+    store.set_round_window(vec![
+        make_user_turn_header("codex-user-1", "2026-01-01T00:00:00Z"),
+        make_provider_turn_preview(
+            "codex-unloaded-turn-codex-user-1",
+            "codex-user-1",
+            Some("codex-user-2"),
+            "Finished the work",
+        ),
+        make_user_turn_header("codex-user-2", "2026-01-01T00:01:00Z"),
+    ]);
+
+    let mut loaded_reply = make_event("codex-assistant-1", "assistant");
+    loaded_reply.function_name = "assistant".to_string();
+    loaded_reply.ui_canonical = "agent_message".to_string();
+    loaded_reply.display_variant = EventDisplayVariant::Message;
+    loaded_reply.display_text = "Finished the work".to_string();
+    loaded_reply.result = serde_json::json!({
+        "observation": "Finished the work",
+        "content": "Finished the work",
+        "role": "assistant",
+    });
+    loaded_reply.created_at = "2026-01-01T00:00:20Z".to_string();
+
+    store.merge_round_window_events(vec![
+        make_user_turn_header("codex-user-1", "2026-01-01T00:00:00Z"),
+        loaded_reply,
+    ]);
+
+    assert!(store
+        .get_by_id("codex-unloaded-turn-codex-user-1")
+        .is_none());
+    assert!(store.get_by_id("codex-assistant-1").is_some());
+    assert_eq!(
+        store
+            .events()
+            .iter()
+            .filter(|event| event.display_text == "Finished the work")
+            .count(),
+        1
+    );
 }
 
 #[test]

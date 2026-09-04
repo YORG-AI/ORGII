@@ -21,7 +21,7 @@ import {
 } from "../primitives";
 import { useBlockHeader } from "../useBlockLocate";
 
-export interface GlobBlockProps {
+interface GlobBlockProps {
   /** Glob pattern */
   pattern: string;
   /** Whether currently loading */

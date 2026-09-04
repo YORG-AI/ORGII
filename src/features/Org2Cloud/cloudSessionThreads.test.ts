@@ -1,9 +1,9 @@
-import { GitFork, MoreHorizontal } from "lucide-react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { CloudSessionHoverCardContent } from "@src/components/SessionHoverCard/CloudSessionHoverCard";
+import { GitForkIcon, MoreHorizontalIcon } from "@src/icons";
 import { NavigationMenuParentRow } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/NavigationMenu/NavigationMenuRow";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
@@ -459,8 +459,8 @@ describe("cloud fork parent hover rendering", () => {
       shortcut: "@alice · forked from @bob · 2m",
       showMoreActions: true,
       rowActions: [
-        { icon: GitFork, label: "Fork", onClick: vi.fn() },
-        { icon: MoreHorizontal, label: "More", onClick: vi.fn() },
+        { icon: GitForkIcon, label: "Fork", onClick: vi.fn() },
+        { icon: MoreHorizontalIcon, label: "More", onClick: vi.fn() },
       ],
       children: [{ id: "child", key: "child", label: "Child" }],
     });

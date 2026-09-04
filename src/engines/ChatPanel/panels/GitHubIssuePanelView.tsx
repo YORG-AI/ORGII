@@ -1,15 +1,12 @@
-import React, { useMemo } from "react";
+import React from "react";
 
 import { Placeholder } from "@src/components/Placeholder";
-import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import {
-  IssueDetailExternalLinkButton,
   IssueDetailPanel,
+  IssueDetailTabs,
 } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/IssuesContent/IssueDetailPanel";
 import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
-import GitHubIssueHeaderContent from "@src/modules/shared/components/GitHubIssueHeaderContent";
 import { useGitHubIssueDetailState } from "@src/modules/shared/hooks/useGitHubIssueDetailState";
-import { DetailHeaderTabs } from "@src/modules/shared/layouts/blocks";
 import type { GitHubIssueDetailTabData } from "@src/types/githubDetail";
 
 export function GitHubIssuePanelView({
@@ -19,35 +16,24 @@ export function GitHubIssuePanelView({
 }): React.ReactNode {
   const { selectedState, interaction, assigneeConfig } =
     useGitHubIssueDetailState(detail);
-  const issueHeaderTitle = useMemo(
-    () => (
-      <DetailHeaderTabs
-        title={
-          <GitHubIssueHeaderContent
-            issue={selectedState.issue}
-            fallbackTitle={`#${detail.issueNumber} ${detail.issueTitle}`}
-          />
-        }
-      />
-    ),
-    [detail.issueNumber, detail.issueTitle, selectedState.issue]
-  );
-  const issueHeaderAction = useMemo(
-    () =>
-      selectedState.issue ? (
-        <IssueDetailExternalLinkButton issue={selectedState.issue} />
-      ) : null,
-    [selectedState.issue]
-  );
-  const publishedHeader = useMemo(
-    () => ({ content: issueHeaderTitle, trailing: issueHeaderAction }),
-    [issueHeaderAction, issueHeaderTitle]
-  );
-  usePublishChatPanelHeader({ content: publishedHeader });
 
   if (!selectedState.issue) {
     if (!selectedState.error && (selectedState.loading || detail.remoteUrl)) {
-      return <GitHubDetailSkeleton kind="issue" showHeader={false} />;
+      return (
+        <GitHubDetailSkeleton
+          kind="issue"
+          showHeader={false}
+          title={detail.issueTitle}
+          number={detail.issueNumber}
+          tabs={
+            <IssueDetailTabs
+              activeTab="conversation"
+              conversationCountLoading
+              linkedCountLoading
+            />
+          }
+        />
+      );
     }
     return (
       <Placeholder
@@ -65,7 +51,6 @@ export function GitHubIssuePanelView({
       timeline={selectedState.timeline}
       timelineLoading={selectedState.timelineLoading}
       interaction={interaction}
-      showHeader={false}
       assigneeConfig={assigneeConfig}
     />
   );

@@ -15,6 +15,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
+import { processChatItems } from "../../chatItemPipeline/pipeline";
 import type { OptimizedChatItem } from "../../chatItemPipeline/types";
 import { useChatGroups } from "../useChatGroups";
 import {
@@ -22,6 +23,7 @@ import {
   isTurnCollapseEligible,
   isTurnPreviewItem,
   projectChatGroups,
+  resolveTurnDefaultCollapsed,
 } from "../useChatGroupsProjection";
 
 vi.mock("react", () => ({
@@ -243,7 +245,7 @@ describe("useChatGroups collapse — terminal error survival", () => {
     const result = useChatGroups(history);
 
     // The prior turn defaults to the compact summary, while the live tail
-    // remains expanded until it becomes eligible after the idle delay.
+    // remains expanded while its round is still running.
     expect(result.groupCounts).toEqual([1, 2]);
     expect(flatTexts(result.flatItems)).toEqual([
       "first reply",
@@ -283,8 +285,6 @@ describe("useChatGroups collapse — terminal error survival", () => {
     const result = useChatGroups(history);
 
     expect(result.groupMeta[0].unloadedTurn?.turnId).toBe(firstTurn.event!.id);
-    expect(result.groupMeta[0].assistantCopyEventIds).toEqual([]);
-    expect(result.lastAssistantFlatIndexPerItem[0]).toBe(0);
     expect(flatTexts(result.flatItems)).toContain("unloaded final reply");
     expect(flatTexts(result.flatItems)).not.toContain("Turn is not loaded yet");
   });
@@ -398,27 +398,6 @@ describe("useChatGroups collapse — terminal error survival", () => {
     expect(flatTexts(result.flatItems)).toContain("all done");
   });
 
-  it("retains every assistant copy source when collapse hides earlier replies", () => {
-    const firstUpdate = assistantItem("first update");
-    const finalAnswer = assistantItem("final answer");
-    const history = [
-      userItem("first turn"),
-      firstUpdate,
-      toolItem(),
-      finalAnswer,
-      userItem("second turn"),
-      assistantItem("second reply"),
-    ];
-
-    const result = useChatGroups(history, { allTurnsCollapsed: true });
-
-    expect(flatTexts(result.flatItems)).not.toContain("first update");
-    expect(result.groupMeta[0].assistantCopyEventIds).toEqual([
-      firstUpdate.event?.id,
-      finalAnswer.event?.id,
-    ]);
-  });
-
   it("maps dropped items to the surviving error's flat index", () => {
     const history = [
       userItem("first turn"), // orig 0 (header)
@@ -501,12 +480,15 @@ describe("useChatGroups collapse — terminal error survival", () => {
 
 describe("isTurnCollapseEligible — unloaded placeholder affordance", () => {
   function meta(overrides: Partial<ChatGroupMeta>): ChatGroupMeta {
+    const itemCount = overrides.itemCount ?? 0;
     return {
       turnId: "turn-1",
       durationMs: 0,
-      itemCount: 0,
+      itemCount,
+      // Ungrouped rows weigh one event each; tests that need the two to
+      // diverge pass `bodyEventCount` explicitly.
+      bodyEventCount: itemCount,
       previewText: "",
-      assistantCopyEventIds: [],
       startMs: null,
       endMs: null,
       unloadedTurn: null,
@@ -519,6 +501,28 @@ describe("isTurnCollapseEligible — unloaded placeholder affordance", () => {
       false
     );
     expect(isTurnCollapseEligible(meta({ itemCount: 2 }), 0, 3, {})).toBe(true);
+  });
+
+  it("measures the body in events, so one grouped row still collapses", () => {
+    // A round of shell commands renders as a single TerminalActivityGroup
+    // row. Counting rows called it trivial and withheld the bar.
+    expect(
+      isTurnCollapseEligible(
+        meta({ itemCount: 1, bodyEventCount: 2 }),
+        0,
+        3,
+        {}
+      )
+    ).toBe(true);
+    // A genuinely single-event body is still trivial.
+    expect(
+      isTurnCollapseEligible(
+        meta({ itemCount: 1, bodyEventCount: 1 }),
+        0,
+        3,
+        {}
+      )
+    ).toBe(false);
   });
 
   it("shows the bar for any unloaded turn with a nonzero body surrogate", () => {
@@ -535,5 +539,215 @@ describe("isTurnCollapseEligible — unloaded placeholder affordance", () => {
       unloadedTurn: { turnId: "turn-1", bodyEventCount: 0 },
     });
     expect(isTurnCollapseEligible(empty, 0, 3, {})).toBe(false);
+  });
+
+  it("shows the tail bar as soon as the round ends, with no wait or size threshold", () => {
+    const smallTail = meta({ itemCount: 2 });
+    // A running tail is never collapsible.
+    expect(isTurnCollapseEligible(smallTail, 2, 3, {})).toBe(false);
+    expect(
+      isTurnCollapseEligible(smallTail, 2, 3, { tailTurnPhase: "running" })
+    ).toBe(false);
+    // A completed tail is eligible regardless of size.
+    expect(
+      isTurnCollapseEligible(smallTail, 2, 3, { tailTurnPhase: "complete" })
+    ).toBe(true);
+    expect(
+      isTurnCollapseEligible(smallTail, 2, 3, { tailTurnPhase: "stale" })
+    ).toBe(true);
+  });
+
+  it("still hides the bar for a trivial completed tail", () => {
+    expect(
+      isTurnCollapseEligible(meta({ itemCount: 1 }), 2, 3, {
+        tailTurnPhase: "complete",
+      })
+    ).toBe(false);
+  });
+
+  it("shows the completed tail bar for a single grouped tool row", () => {
+    expect(
+      isTurnCollapseEligible(meta({ itemCount: 1, bodyEventCount: 2 }), 2, 3, {
+        tailTurnPhase: "complete",
+      })
+    ).toBe(true);
+  });
+
+  it("resolves the shared default-collapse decision per phase", () => {
+    // Non-tail turns default to collapsed.
+    expect(resolveTurnDefaultCollapsed(false, {})).toBe(true);
+    // A fresh completed tail stays expanded…
+    expect(
+      resolveTurnDefaultCollapsed(true, { tailTurnPhase: "complete" })
+    ).toBe(false);
+    // …until the session goes stale.
+    expect(resolveTurnDefaultCollapsed(true, { tailTurnPhase: "stale" })).toBe(
+      true
+    );
+    // An explicit expanded-by-default surface wins over everything.
+    expect(
+      resolveTurnDefaultCollapsed(true, {
+        defaultTurnCollapsed: false,
+        tailTurnPhase: "stale",
+      })
+    ).toBe(false);
+  });
+});
+
+describe("projectChatGroups — completed tail turn", () => {
+  function history(): OptimizedChatItem[] {
+    return [
+      userItem("first turn"),
+      toolItem(),
+      assistantItem("first reply"),
+      userItem("current turn"),
+      toolItem(),
+      assistantItem("current reply"),
+    ];
+  }
+
+  it("keeps the completed tail expanded by default", () => {
+    const result = projectChatGroups(history(), { tailTurnPhase: "complete" });
+
+    // Bar-eligible, but the tail's default stays expanded until the session
+    // goes stale.
+    expect(result.groupCounts).toEqual([1, 2]);
+    expect(flatTexts(result.flatItems)).toEqual([
+      "first reply",
+      "run_shell",
+      "current reply",
+    ]);
+  });
+
+  it("honors an explicit collapse override on the completed tail", () => {
+    const items = history();
+    const tailTurnId = items[3].event!.id;
+
+    const result = projectChatGroups(items, {
+      tailTurnPhase: "complete",
+      collapseOverrides: new Map([[tailTurnId, true]]),
+    });
+
+    expect(result.groupCounts).toEqual([1, 1]);
+    expect(flatTexts(result.flatItems)).toEqual([
+      "first reply",
+      "current reply",
+    ]);
+  });
+
+  it("ignores a tail collapse override while the round is still running", () => {
+    const items = history();
+    const tailTurnId = items[3].event!.id;
+
+    const result = projectChatGroups(items, {
+      collapseOverrides: new Map([[tailTurnId, true]]),
+    });
+
+    // A running tail is not collapse-eligible at all.
+    expect(result.groupCounts).toEqual([1, 2]);
+  });
+
+  it("defaults a stale tail to collapsed regardless of size", () => {
+    const result = projectChatGroups(history(), { tailTurnPhase: "stale" });
+
+    expect(result.groupCounts).toEqual([1, 1]);
+    expect(flatTexts(result.flatItems)).toEqual([
+      "first reply",
+      "current reply",
+    ]);
+  });
+
+  it("lets an explicit expand override beat the stale default", () => {
+    const items = history();
+    const tailTurnId = items[3].event!.id;
+
+    const result = projectChatGroups(items, {
+      tailTurnPhase: "stale",
+      collapseOverrides: new Map([[tailTurnId, false]]),
+    });
+
+    expect(result.groupCounts).toEqual([1, 2]);
+    expect(flatTexts(result.flatItems)).toEqual([
+      "first reply",
+      "run_shell",
+      "current reply",
+    ]);
+  });
+});
+
+/**
+ * Regression: a round whose entire body is shell commands renders as ONE
+ * TerminalActivityGroup row, so the row-count threshold in
+ * `isTurnCollapseEligible` classified it as trivial and withheld the
+ * "Agent worked for X" bar no matter how many commands it ran.
+ */
+describe("projectChatGroups — grouped tool rows carry their event weight", () => {
+  function shellEvent(command: string): SessionEvent {
+    return makeEvent({
+      functionName: "run_shell",
+      uiCanonical: "run_shell",
+      actionType: "tool_call",
+      args: { command },
+      result: { success: true },
+      displayText: command,
+      displayVariant: "tool_call",
+    });
+  }
+
+  function shellOnlyTurn(commandCount: number) {
+    const events = [
+      makeEvent({
+        functionName: "user_message",
+        uiCanonical: "",
+        actionType: "raw",
+        source: "user",
+        displayText: "let's git pull first",
+        displayVariant: "message",
+      }),
+      ...Array.from({ length: commandCount }, (_, index) =>
+        shellEvent(`command-${index}`)
+      ),
+    ];
+    return processChatItems(events).items;
+  }
+
+  it("folds consecutive shell commands into a single row", () => {
+    const items = shellOnlyTurn(2);
+
+    // Header + one grouped row: the shape the bug depends on.
+    expect(items).toHaveLength(2);
+    expect(items[1].type).toBe("activityStackGroup");
+    expect(items[1].activityStackGroup?.events).toHaveLength(2);
+  });
+
+  it("reports the grouped row's events in the turn's body count", () => {
+    const result = projectChatGroups(shellOnlyTurn(2));
+    const [meta] = result.groupMeta;
+
+    expect(meta.itemCount).toBe(1);
+    expect(meta.bodyEventCount).toBe(2);
+  });
+
+  it("gives a completed shell-only tail turn its collapse bar", () => {
+    const result = projectChatGroups(shellOnlyTurn(2), {
+      tailTurnPhase: "complete",
+    });
+
+    expect(
+      isTurnCollapseEligible(result.groupMeta[0], 0, result.groupMeta.length, {
+        tailTurnPhase: "complete",
+      })
+    ).toBe(true);
+  });
+
+  it("keeps a one-command turn trivial", () => {
+    const result = projectChatGroups(shellOnlyTurn(1));
+
+    expect(result.groupMeta[0].bodyEventCount).toBe(1);
+    expect(
+      isTurnCollapseEligible(result.groupMeta[0], 0, result.groupMeta.length, {
+        tailTurnPhase: "complete",
+      })
+    ).toBe(false);
   });
 });

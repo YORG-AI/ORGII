@@ -9,11 +9,11 @@
  * active app (Code Editor → bottom panel, Browser → DevTools).
  */
 import { useAtomValue } from "jotai";
-import { PanelBottom, PencilRuler } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
+import { HugeiconsIcon, PencilRulerIcon, SidebarBottomIcon } from "@src/icons";
 import {
   workStationDevToolsCollapsedAtom,
   workStationEditorSecondaryCollapsedAtom,
@@ -36,7 +36,12 @@ export const TabBarBottomPanelToggle: React.FC = memo(() => {
       title={t("simulator.titleBar.showBottomPanel")}
       onClick={() => callbacks.onToggleBottomPanel?.()}
     >
-      <PanelBottom size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />
+      <HugeiconsIcon
+        icon={SidebarBottomIcon}
+        data-icon="panel-bottom"
+        size={HEADER_ICON_SIZE.md}
+        strokeWidth={1.75}
+      />
     </TabBarTrailingIconButton>
   );
 });
@@ -56,7 +61,12 @@ export const TabBarDevToolsToggle: React.FC = memo(() => {
       shortcutId="browser_devtools"
       onClick={() => callbacks.onToggleDevTools?.()}
     >
-      <PencilRuler size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+      <HugeiconsIcon
+        icon={PencilRulerIcon}
+        data-icon="pencil-ruler"
+        size={HEADER_ICON_SIZE.sm}
+        strokeWidth={1.75}
+      />
     </TabBarTrailingIconButton>
   );
 });

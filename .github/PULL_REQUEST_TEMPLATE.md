@@ -16,7 +16,7 @@
 
 ## Submit checklist
 
-- [ ] I read and followed `PR_RULES.md`.
+- [ ] I read and followed `.github/PR_RULES.md`.
 - [ ] The PR is focused and has a scoped Conventional Commit title, such as `feat(scope): summary` or `fix(scope): summary`.
 - [ ] I ran the relevant checks, or explained why they were not run.
 - [ ] No secrets, private config, generated output, or unrelated formatting changes are included.

@@ -43,7 +43,7 @@ const log = createLogger("OutlineContent");
 // Types
 // ============================================
 
-export interface OutlineContentProps {
+interface OutlineContentProps {
   /** Current file path (absolute) */
   filePath: string | null;
   /** Callback when a symbol is clicked (navigate to line) */
@@ -307,7 +307,7 @@ export const OutlineContent: React.FC<OutlineContentProps> = memo(
     }
 
     return (
-      <div className="tree-guide-scope h-full overflow-y-auto pb-2 scrollbar-hide">
+      <div className="tree-guide-scope scrollbar-hide h-full overflow-y-auto pb-2">
         {useVirtualization ? (
           <Virtuoso
             totalCount={flattenedSymbols.length}

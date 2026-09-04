@@ -10,13 +10,15 @@
  * pulls the message off screen before it can be read. Pair this with
  * {@link useDismissibleMessage} so the strip stays until the reader closes it.
  */
-import { X } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-export type InlineBannerTone = "danger" | "warning" | "info";
+import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 
-// The semantic scales stop at 6 (see tailwind.config.js COLOR_STEPS_6); a `-7`
+type InlineBannerTone = "danger" | "warning" | "info";
+
+// The semantic scales stop at 6 (see the danger/success/warning entries in
+// src/tailwind.css); a `-7`
 // step silently produces no class and leaves the text inheriting its parent.
 const TONE_CLASSES: Record<InlineBannerTone, string> = {
   danger: "bg-danger-1 text-danger-6",
@@ -24,7 +26,7 @@ const TONE_CLASSES: Record<InlineBannerTone, string> = {
   info: "bg-fill-1 text-text-2",
 };
 
-export interface InlineBannerProps {
+interface InlineBannerProps {
   children?: React.ReactNode;
   tone?: InlineBannerTone;
   /** Renders the dismiss control. Omit for a banner the surface owns. */
@@ -49,7 +51,7 @@ export const InlineBanner: React.FC<InlineBannerProps> = ({
       className={`flex shrink-0 items-start gap-2 border-b border-border-1 px-4 py-1.5 text-[11px] ${TONE_CLASSES[tone]} ${className}`.trim()}
     >
       {/* Failure text is content worth copying — often a URL or an id. */}
-      <span className="allow-select-deep min-w-0 flex-1 select-text break-words">
+      <span className="allow-select-deep min-w-0 flex-1 wrap-break-word select-text">
         {children}
       </span>
       {onDismiss ? (
@@ -59,9 +61,15 @@ export const InlineBanner: React.FC<InlineBannerProps> = ({
           aria-label={t("actions.close", "Close")}
           title={t("actions.close", "Close")}
           data-testid={dataTestId ? `${dataTestId}-dismiss` : undefined}
-          className="-mr-1 mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded transition-colors hover:bg-fill-2"
+          className="mt-px -mr-1 flex h-4 w-4 shrink-0 items-center justify-center rounded transition-colors hover:bg-fill-2"
         >
-          <X size={12} strokeWidth={2} aria-hidden />
+          <HugeiconsIcon
+            icon={Cancel01Icon}
+            data-icon="x"
+            size={12}
+            strokeWidth={2}
+            aria-hidden
+          />
         </button>
       ) : null}
     </div>

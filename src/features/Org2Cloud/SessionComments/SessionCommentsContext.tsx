@@ -66,15 +66,13 @@ import {
   useSessionCommentTarget,
 } from "../sessionCommentTarget";
 import { useOwnedCloudCommentAgentRun } from "../useOwnedCloudCommentAgentRun";
+import type { CommentAnchorEventIdentity } from "./commentAnchorIdentities";
 
 const CLOUD_ADMIN_ROLES = new Set(["owner", "admin"]);
 const RUST_NATIVE_TRANSIENT_USER_EVENT_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-interface CommentAnchorEventIdentity {
-  id: string;
-  source?: string;
-}
+export type { CommentAnchorEventIdentity };
 
 /**
  * Build the local-render id -> durable cloud-anchor id projection once per

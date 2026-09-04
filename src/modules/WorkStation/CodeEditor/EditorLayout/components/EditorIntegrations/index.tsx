@@ -24,7 +24,7 @@ import { gitOutputIntegrationAtom } from "@src/store/workstation/codeEditor/outp
 // Types
 // ============================================
 
-export interface EditorIntegrationsProps {
+interface EditorIntegrationsProps {
   /** Repository path */
   repoPath: string;
   /** Repository ID (UUID or path) */

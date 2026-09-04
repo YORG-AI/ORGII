@@ -3,7 +3,7 @@
  *
  * Shared outer shell for all composer/input surfaces (chat panel, session
  * creator, edit mode).  Owns the border, border-radius, padding, background,
- * and focus-within ring so every surface looks identical without duplicating
+ * edge shadow, and focus-within ring without duplicating
  * token references.
  *
  * Variants
@@ -18,7 +18,7 @@ import React, { forwardRef } from "react";
 
 import { INPUT_AREA } from "@src/config/inputAreaTokens";
 
-export type ComposerShellVariant =
+type ComposerShellVariant =
   | "default"
   | "embedded"
   | "comment"
@@ -42,9 +42,9 @@ export interface ComposerShellProps {
 }
 
 const VARIANT_CLASSES: Record<ComposerShellVariant, string> = {
-  default: `${INPUT_AREA.borderRadiusClass}  px-1.5 pt-2.5 pb-1.5 gap-2`,
-  embedded: `${INPUT_AREA.borderRadiusClass}  px-1.5 pt-2.5 pb-1.5 gap-2`,
-  comment: `${INPUT_AREA.borderRadiusClass} px-1.5 py-1.5 gap-1.5`,
+  default: `composer-surface-shadow ${INPUT_AREA.borderRadiusClass} px-1.5 pt-2.5 pb-1.5 gap-2`,
+  embedded: `composer-surface-shadow ${INPUT_AREA.borderRadiusClass} px-1.5 pt-2.5 pb-1.5 gap-2`,
+  comment: `composer-surface-shadow ${INPUT_AREA.borderRadiusClass} px-1.5 py-1.5 gap-1.5`,
   // `edit` is the OUTER label strip — the inner editor card is rendered as
   // a separately-styled child (see `InputArea`). The strip itself is just
   // a padded container that hosts the label row + the inner card.

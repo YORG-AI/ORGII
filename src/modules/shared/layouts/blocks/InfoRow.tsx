@@ -31,7 +31,7 @@ export const InfoRow: React.FC<InfoRowProps> = ({
 }) => {
   const content = children ?? (
     <span
-      className={`text-[12px] text-text-1 ${layout === "vertical" ? "break-words" : "block max-w-full truncate text-right"}`}
+      className={`text-[12px] text-text-1 ${layout === "vertical" ? "wrap-break-word" : "block max-w-full truncate text-right"}`}
       title={value}
     >
       {value}
@@ -40,7 +40,7 @@ export const InfoRow: React.FC<InfoRowProps> = ({
 
   const labelBlock = (
     <span className="flex min-h-[24px] shrink-0 items-center gap-1.5 text-[12px] font-medium text-text-2">
-      {icon && <span className="flex-shrink-0">{icon}</span>}
+      {icon && <span className="shrink-0">{icon}</span>}
       {label}
       {required && <span className="ml-0.5 text-danger-6">*</span>}
     </span>

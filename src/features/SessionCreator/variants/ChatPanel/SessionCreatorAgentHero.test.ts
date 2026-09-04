@@ -26,15 +26,31 @@ describe("SessionCreatorAgentHero", () => {
       "This description is intentionally hidden in Launchpad"
     );
     expect(markup).toContain('aria-expanded="true"');
-    expect(markup).toContain("!bg-transparent");
-    expect(markup).toContain("!p-2");
-    expect(markup).toContain("!font-normal");
-    expect(markup).toContain("!font-bold");
-    expect(markup).toContain("!text-text-1");
+    expect(markup).toContain("bg-transparent!");
+    expect(markup).toContain("p-2!");
+    expect(markup).toContain("font-normal!");
+    expect(markup).toContain("font-bold!");
+    expect(markup).toContain("text-text-1!");
     expect(markup).toContain("underline underline-offset-4");
-    expect(markup).not.toContain("group-hover/pill:!text-primary-6");
-    expect(markup).toContain("lucide-chevron-up");
+    expect(markup).not.toContain("group-hover/pill:text-primary-6!");
+    expect(markup).toContain('data-icon="chevron-up"');
     expect(markup).toContain("whitespace-normal");
     expect(markup).not.toContain("truncate");
+  });
+
+  it("does not underline the Launchpad agent name on hover", () => {
+    const markup = renderToStaticMarkup(
+      createElement(SessionCreatorAgentHero, {
+        name: "SDE Agent",
+        description: "Software development agent",
+        avatarIcon: createElement("span", null, "SDE"),
+        question: "What do you want to build with",
+        questionSuffix: "?",
+        onClick: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain("group-hover/pill:text-text-1!");
+    expect(markup).not.toContain("group-hover/pill:underline");
   });
 });

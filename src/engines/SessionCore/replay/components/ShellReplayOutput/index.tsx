@@ -380,7 +380,7 @@ const ShellReplayOutputComponent: React.FC<ShellReplayOutputProps> = ({
       aria-label={displayCommand}
     >
       {!hideCommandLine ? (
-        <div className="mb-1 min-w-0 max-w-full">
+        <div className="mb-1 max-w-full min-w-0">
           <TerminalCommand
             command={displayCommand}
             prefix="$"
@@ -405,7 +405,7 @@ const ShellReplayOutputComponent: React.FC<ShellReplayOutputProps> = ({
 
       {displayOutput ? (
         <pre
-          className="simulator-shell-plain-pre m-0 min-w-0 max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+          className="simulator-shell-plain-pre m-0 max-w-full min-w-0 wrap-anywhere wrap-break-word whitespace-pre-wrap"
           style={{ color: foreground }}
         >
           {displayOutput}
@@ -437,7 +437,7 @@ const ShellReplayOutputComponent: React.FC<ShellReplayOutputProps> = ({
           className="simulator-shell-loading mt-1 inline-flex items-center gap-1.5"
           style={typography}
         >
-          <span className="animate-shimmer-text bg-gradient-to-r from-primary-6/60 via-primary-6 to-primary-6/60 bg-[length:260%_100%] bg-clip-text font-bold text-transparent">
+          <span className="animate-shimmer-text bg-linear-to-r from-primary-6/60 via-primary-6 to-primary-6/60 bg-size-[260%_100%] bg-clip-text font-bold text-transparent">
             {t("simulator.replay.ide.shell.outputInProgress")}
           </span>
           <span className="simulator-shell-loading__dots" aria-hidden="true">

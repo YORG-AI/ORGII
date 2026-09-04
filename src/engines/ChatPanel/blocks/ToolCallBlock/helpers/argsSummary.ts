@@ -32,6 +32,30 @@ export function extractScreenshotIds(text: string): string[] {
   return ids;
 }
 
+/**
+ * Rewrite simple grep alternation (`foo|bar`) into a readable comma list.
+ * Leaves general regex patterns unchanged.
+ */
+function humanizeGrepAlternation(query: string): string {
+  if (!query.includes("|") || query.includes("\\|")) return query;
+  const parts = query
+    .split("|")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length < 2) return query;
+  if (parts.every((part) => /^[\w.-]+$/.test(part))) {
+    return parts.join(", ");
+  }
+  return query;
+}
+
+/** One-line subtitle for grep / code-search tool headers. */
+export function formatSearchQuerySubtitle(query: string): string {
+  const normalized = humanizeGrepAlternation(query.trim());
+  if (!normalized) return "";
+  return `"${truncate(normalized, 40, { ellipsis: "..." })}"`;
+}
+
 function formatSearchArgsSummary(
   _action: string,
   args: Record<string, unknown>
@@ -39,7 +63,7 @@ function formatSearchArgsSummary(
   const pattern =
     (args.pattern as string | undefined) || (args.query as string | undefined);
   if (pattern) {
-    return `"${truncate(pattern, 40, { ellipsis: "..." })}"`;
+    return formatSearchQuerySubtitle(pattern);
   }
   const path = args.path as string | undefined;
   if (path) return path;

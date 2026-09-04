@@ -1,47 +1,18 @@
-/**
- * Atomic row components for SlashCommandMenu.
- * Each renders one list entry, taking its own data and shared active/hover state.
- */
-import { ChevronRight, ImageIcon } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
+import Button from "@src/components/Button";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
 } from "@src/components/Dropdown/tokens";
-import type {
-  AgentExecMode,
-  ComposerModeEntry,
-} from "@src/config/sessionCreatorConfig";
+import { HugeiconsIcon, PinIcon, PinOffIcon } from "@src/icons";
 import { MenuItemRow } from "@src/scaffold/ContextMenu/ResultItems";
-import type { SlashItem, SlashItemCategory } from "@src/types/extensions";
+import type { SlashItem } from "@src/types/extensions";
 
-import { categoryIcon } from "./constants";
+import { SLASH_SKILL_ICON } from "./constants";
 
-// ── Shared ────────────────────────────────────────────────────────────────────
-
-function rowClass(isActive: boolean, isSelected = false): string {
-  const bgClass = isActive || isSelected ? "bg-fill-2" : "hover:bg-fill-2";
-  return `${DROPDOWN_CLASSES.item} group cursor-pointer ${bgClass}`;
-}
-
-function iconClass(isSelected: boolean, extra = ""): string {
-  return isSelected ? `text-primary-6 ${extra}` : `text-text-2 ${extra}`;
-}
-
-function labelClass(isSelected: boolean): string {
-  return `text-[13px] ${isSelected ? "text-primary-6" : "text-text-1"}`;
-}
-
-// ── SectionHeaderRow ─────────────────────────────────────────────────────────
-
-interface SectionHeaderRowProps {
-  label: string;
-}
-
-export const SectionHeaderRow: React.FC<SectionHeaderRowProps> = React.memo(
+export const SectionHeaderRow: React.FC<{ label: string }> = React.memo(
   ({ label }) => (
     <div className={`${DROPDOWN_CLASSES.sectionLabel} first:pt-1`}>{label}</div>
   )
@@ -49,141 +20,21 @@ export const SectionHeaderRow: React.FC<SectionHeaderRowProps> = React.memo(
 
 SectionHeaderRow.displayName = "SectionHeaderRow";
 
-// ── ImageRow ──────────────────────────────────────────────────────────────────
-
-interface ImageRowProps {
-  isActive: boolean;
-  onMouseEnter: () => void;
-  onMouseDown: () => void;
-}
-
-export const ImageRow: React.FC<ImageRowProps> = React.memo(
-  ({ isActive, onMouseEnter, onMouseDown }) => {
-    const { t } = useTranslation("sessions");
-    return (
-      <div
-        data-slash-flat
-        data-testid="slash-command-image-upload"
-        className={rowClass(isActive)}
-        onMouseEnter={onMouseEnter}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          onMouseDown();
-        }}
-      >
-        <ImageIcon
-          size={DROPDOWN_ITEM.iconSize}
-          strokeWidth={1.75}
-          className={iconClass(false)}
-        />
-        <span className={labelClass(false)}>
-          {t("creator.slashMenu.uploadImage", { defaultValue: "Upload image" })}
-        </span>
-      </div>
-    );
-  }
-);
-
-ImageRow.displayName = "ImageRow";
-
-// ── ModeRow ───────────────────────────────────────────────────────────────────
-
-interface ModeRowProps {
-  mode: ComposerModeEntry;
-  isActive: boolean;
-  isCurrent: boolean;
-  onMouseEnter: () => void;
-  onMouseDown: () => void;
-}
-
-export const ModeRow: React.FC<ModeRowProps> = React.memo(
-  ({ mode, isActive, isCurrent, onMouseEnter, onMouseDown }) => {
-    const { t } = useTranslation("sessions");
-    const ModeIcon = mode.icon;
-    return (
-      <div
-        data-slash-flat
-        data-testid={`slash-command-mode-option-${mode.id}`}
-        className={`${rowClass(isActive)} justify-between`}
-        onMouseEnter={onMouseEnter}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          onMouseDown();
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <ModeIcon
-            size={DROPDOWN_ITEM.iconSize}
-            strokeWidth={1.75}
-            className={iconClass(isCurrent)}
-          />
-          <span className={labelClass(isCurrent)}>{t(mode.i18nKey)}</span>
-        </div>
-        {isCurrent && <DropdownSelectedCheck />}
-      </div>
-    );
-  }
-);
-
-ModeRow.displayName = "ModeRow";
-
-// ── FlyoutTriggerRow ──────────────────────────────────────────────────────────
-
-interface FlyoutTriggerRowProps {
-  category: SlashItemCategory;
-  label: string;
-  isActive: boolean;
-  isOpen: boolean;
-  onMouseEnter: (event: React.MouseEvent<HTMLDivElement>) => void;
-  onMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void;
-}
-
-export const FlyoutTriggerRow: React.FC<FlyoutTriggerRowProps> = React.memo(
-  ({ category, label, isActive, isOpen, onMouseEnter, onMouseDown }) => {
-    return (
-      <div
-        data-slash-flat
-        className={`${rowClass(isActive, isOpen)} justify-between`}
-        onMouseEnter={onMouseEnter}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          onMouseDown(e);
-        }}
-      >
-        <div className="flex items-center gap-2">
-          {React.createElement(categoryIcon(category), {
-            size: 14,
-            strokeWidth: 1.75,
-            className: iconClass(isOpen),
-          })}
-          <span className={labelClass(isOpen)}>{label}</span>
-        </div>
-        <ChevronRight
-          size={DROPDOWN_ITEM.iconSize}
-          strokeWidth={1.75}
-          className={isOpen ? "text-primary-6" : "text-text-3"}
-        />
-      </div>
-    );
-  }
-);
-
-FlyoutTriggerRow.displayName = "FlyoutTriggerRow";
-
-// ── SlashItemRow ──────────────────────────────────────────────────────────────
-
 interface SlashItemRowProps {
   item: SlashItem;
   isActive: boolean;
+  isPinned: boolean;
   onMouseEnter: () => void;
   onClick: (event?: React.MouseEvent<HTMLElement>) => void;
+  onTogglePin: () => void;
 }
 
 export const SlashItemRow: React.FC<SlashItemRowProps> = React.memo(
-  ({ item, isActive, onMouseEnter, onClick }) => {
-    const Icon = categoryIcon(item.category);
+  ({ item, isActive, isPinned, onMouseEnter, onClick, onTogglePin }) => {
+    const { t } = useTranslation("sessions");
     const description =
       item.category === "tool" && item.serverName ? item.serverName : undefined;
+    const pinLabel = `${t("common:selectors.repo.sections.pinned")} ${item.name}`;
     return (
       <div
         data-slash-flat
@@ -193,12 +44,46 @@ export const SlashItemRow: React.FC<SlashItemRowProps> = React.memo(
         data-slash-source={item.source}
       >
         <MenuItemRow
-          icon={Icon}
+          icon={SLASH_SKILL_ICON}
           label={item.name}
           description={description}
           isActive={isActive}
           onClick={onClick}
           onMouseEnter={onMouseEnter}
+          trailingContent={
+            <Button
+              variant="tertiary"
+              appearance="ghost"
+              size="mini"
+              shape="square"
+              iconOnly
+              icon={
+                <HugeiconsIcon
+                  icon={isPinned ? PinOffIcon : PinIcon}
+                  data-icon={isPinned ? "pin-off" : "pin"}
+                  size={DROPDOWN_ITEM.iconSize}
+                  strokeWidth={1.75}
+                />
+              }
+              tabIndex={-1}
+              data-testid="slash-command-pin"
+              aria-label={pinLabel}
+              aria-pressed={isPinned}
+              title={pinLabel}
+              className={`shrink-0 enabled:hover:bg-fill-3 ${
+                isPinned
+                  ? "bg-fill-3 text-primary-6!"
+                  : isActive
+                    ? "text-text-3! opacity-100"
+                    : "text-text-3! opacity-0 group-hover:opacity-100"
+              }`}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onTogglePin();
+              }}
+            />
+          }
         />
       </div>
     );
@@ -207,13 +92,8 @@ export const SlashItemRow: React.FC<SlashItemRowProps> = React.memo(
 
 SlashItemRow.displayName = "SlashItemRow";
 
-// ── DividerRow ────────────────────────────────────────────────────────────────
-
-export const DividerRow: React.FC = () => (
-  <div className="mx-2 my-1 h-px bg-border-1" />
+export const MenuGroupSeparatorRow: React.FC = () => (
+  <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
 );
 
-DividerRow.displayName = "DividerRow";
-// ── Re-export AgentExecMode for callers that need it ──────────────────────────
-
-export type { AgentExecMode };
+MenuGroupSeparatorRow.displayName = "MenuGroupSeparatorRow";

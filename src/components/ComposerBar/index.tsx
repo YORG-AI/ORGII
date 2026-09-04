@@ -7,27 +7,20 @@
  * When an editor slot is present, the editor uses the full-width row above
  * the shared toolbar controls.
  */
-import { Plus } from "lucide-react";
 import React, { memo } from "react";
 
-import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
+import { PILL_CONTROL_HOVER_CLASS } from "@src/components/CompoundPill/config";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import ContextInfoButton from "@src/engines/ChatPanel/InputArea/components/ContextInfoButton";
-import AddActionsDropdown from "@src/features/SessionCreator/components/AddActionsDropdown";
+import { Add01Icon, HugeiconsIcon } from "@src/icons";
 
 // ============================================
 // Types
 // ============================================
 
-export interface ComposerBarProps {
+interface ComposerBarProps {
   /** + button: open add-content selector (@-mentions, files) */
   onAddContent?: () => void;
-  /** + button: open upload picker */
-  onUpload?: () => void;
-  /** + button: open Skills & Tools slash menu */
-  onOpenSkillsTools?: () => void;
-  /** Direction the + menu opens */
-  dropdownDirection?: "up" | "down";
   /** Content before the + button (e.g. cite-code badge, reply indicator) */
   leftPrefix?: React.ReactNode;
   /** Optional tools rendered after the + button. */
@@ -60,9 +53,6 @@ export interface ComposerBarProps {
 const ComposerBar: React.FC<ComposerBarProps> = memo(
   ({
     onAddContent,
-    onUpload,
-    onOpenSkillsTools,
-    dropdownDirection = "up",
     leftPrefix,
     leftTools,
     pills,
@@ -77,31 +67,26 @@ const ComposerBar: React.FC<ComposerBarProps> = memo(
     const rowClass = "flex min-w-0 items-center gap-0.5";
 
     const addButton =
-      hideAddButton || !onAddContent || !onUpload ? null : onOpenSkillsTools ? (
+      hideAddButton || !onAddContent ? null : (
         <button
           type="button"
-          onClick={onOpenSkillsTools}
+          onClick={onAddContent}
           onMouseDown={(e) => e.preventDefault()}
           className={[
-            `flex items-center justify-center rounded-full text-text-1 transition-colors duration-200 focus:outline-none ${PILL_CONTROL_IDLE_SURFACE_CLASS}`,
+            `flex items-center justify-center rounded-full text-text-1 transition-colors duration-200 focus:outline-none ${PILL_CONTROL_HOVER_CLASS}`,
             INPUT_AREA_BUTTONS.iconButtonSizeClass,
           ].join(" ")}
-          aria-label="Skills & Tools"
-          data-composer-plus-menu-trigger="true"
-          data-testid="composer-skills-tools-button"
+          aria-label="Add"
+          data-testid="composer-add-context-button"
         >
-          <Plus
+          <HugeiconsIcon
+            icon={Add01Icon}
+            data-icon="plus"
             size={INPUT_AREA_BUTTONS.iconSize}
             strokeWidth={1.75}
             className="text-text-1"
           />
         </button>
-      ) : (
-        <AddActionsDropdown
-          onAddContent={onAddContent}
-          onUpload={onUpload}
-          dropdownDirection={dropdownDirection}
-        />
       );
 
     const toolbarRow = (

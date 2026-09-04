@@ -81,7 +81,8 @@ pub fn normalize_tool_name(agent: CliAgentType, raw_name: &str) -> String {
         | CliAgentType::Omp
         | CliAgentType::Pi
         | CliAgentType::QoderCli
-        | CliAgentType::TraeCli => return raw_name.to_string(),
+        | CliAgentType::TraeCli
+        | CliAgentType::DeepseekHarness => return raw_name.to_string(),
     };
 
     map.get(raw_name)

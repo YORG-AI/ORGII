@@ -1,4 +1,3 @@
-import { Layout, SquareArrowOutUpRight } from "lucide-react";
 import React, {
   Suspense,
   forwardRef,
@@ -13,6 +12,11 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import {
+  HugeiconsIcon,
+  Layout01Icon,
+  SquareArrowUpRight02Icon,
+} from "@src/icons";
 
 import type { A2UIActionHandler } from "./A2UIActionContext";
 import type { A2UIRendererHandle } from "./A2UIRenderer";
@@ -53,7 +57,7 @@ const StaticHtmlCanvas: React.FC<{ content: string }> = ({ content }) => {
   }, [safeContent, styles]);
 
   return (
-    <div ref={hostRef} className="h-full min-w-0 max-w-full overflow-hidden" />
+    <div ref={hostRef} className="h-full max-w-full min-w-0 overflow-hidden" />
   );
 };
 
@@ -62,7 +66,13 @@ const NonEmbeddedUrlNotice: React.FC<{ url: string }> = ({ url }) => {
   return (
     <div className="flex h-full items-center justify-center p-4">
       <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-        <Layout size={24} strokeWidth={1.5} className="text-text-4" />
+        <HugeiconsIcon
+          icon={Layout01Icon}
+          data-icon="panels-top-left"
+          size={24}
+          strokeWidth={1.5}
+          className="text-text-4"
+        />
         <div className="space-y-1">
           <div className="text-sm font-medium text-text-2">
             {t("canvasCard.openUrlTitle", "Preview not embedded")}
@@ -78,7 +88,13 @@ const NonEmbeddedUrlNotice: React.FC<{ url: string }> = ({ url }) => {
           variant="secondary"
           size="small"
           onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
-          icon={<SquareArrowOutUpRight size={14} />}
+          icon={
+            <HugeiconsIcon
+              icon={SquareArrowUpRight02Icon}
+              data-icon="square-arrow-out-up-right"
+              size={14}
+            />
+          }
         >
           {t("canvasCard.openExternal", "Open in Browser")}
         </Button>
@@ -199,7 +215,7 @@ const CanvasPreviewSurface = forwardRef<
           <div className="absolute inset-x-3 bottom-3 rounded-md border border-red-500/40 bg-red-500/15 p-2 text-xs text-red-100 shadow-lg backdrop-blur">
             <div className="font-medium">{reactArtifactError.message}</div>
             {reactArtifactError.stack && (
-              <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-4 text-red-100/80">
+              <pre className="mt-1 max-h-24 overflow-auto font-mono text-[10px] leading-4 whitespace-pre-wrap text-red-100/80">
                 {reactArtifactError.stack}
               </pre>
             )}

@@ -1,6 +1,6 @@
 import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
 
-export type AppUpdaterPhase =
+type AppUpdaterPhase =
   | "idle"
   | "checking"
   | "up-to-date"
@@ -20,7 +20,7 @@ export interface AppUpdaterState {
   error: string | null;
 }
 
-export interface AppUpdateCheckResult {
+interface AppUpdateCheckResult {
   update: Update | null;
   currentVersion?: string;
   fromCache: boolean;

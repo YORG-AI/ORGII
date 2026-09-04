@@ -93,22 +93,12 @@
     "loadingConnections": "正在加载 GitHub 连接...",
     "noConnectionTitle": "未找到 GitHub 连接",
     "noConnectionDescription": "请先在 Integrations 中添加 GitHub 连接，然后返回此处导入 GitHub Issues。",
-    "linkedRepoHint": "此 Project 也会关联到当前 Workspace repo：{{repoName}}。",
-    "createdTitle": "{{name}} 已就绪",
-    "createdDescription": "ORGII 正在从 {{owner}}/{{repo}} 导入 GitHub Issues。同步继续时你可以继续工作。",
-    "createdDescriptionFallback": "ORGII 正在导入 GitHub Issues。同步继续时你可以继续工作。",
+    "linkedRepoHint": "此 Project 也会关联到当前 Workspace repo：{{repoName}}",
     "errors": {
       "invalidRepo": "请使用 owner/repo 或 GitHub 仓库 URL。"
     },
     "importStatus": {
       "title": "导入状态",
-      "pendingDescription": "导入 worker 已排队，将很快开始。",
-      "runningDescription": "正在将 GitHub Issues 作为 work items 导入此 Project。",
-      "completedDescription": "所有可用的 GitHub Issues 都已导入。",
-      "failedDescription": "导入 worker 报告了错误。你可以从 Project 同步设置中重试。",
-      "cancelledDescription": "导入在所有 GitHub Issues 完成前已取消。",
-      "progressWithTotal": "已导入 {{count}} / {{total}} 个 GitHub Issues",
-      "progressNoTotal": "已导入 {{count}} 个 GitHub Issues",
       "state": {
         "pending": "等待中",
         "running": "运行中",
@@ -235,6 +225,7 @@
     "noWorkItems": "暂无工作项",
     "noWorkItemsSubtitle": "创建第一个工作项以开始",
     "addFirstWorkItem": "添加第一个工作项",
+    "addSelected": "添加{{count}}个",
     "deleteItems": "删除 {{count}} 个项目",
     "untitledProject": "未命名项目",
     "untitledWorkItem": "未命名工作项",
@@ -358,9 +349,7 @@
       "hoursAgo": "{{count}} 小时前",
       "inDays": "{{count}} 天后",
       "inHours": "{{count}} 小时后",
-      "membersGroup": "成员",
-      "agentsGroup": "Agents",
-      "orgsGroup": "组织"
+      "membersGroup": "成员"
     },
     "history": {
       "noHistory": "暂无历史记录"
@@ -924,18 +913,14 @@
     "title": "Linear 项目",
     "open": "打开 Linear 项目",
     "subtitle": "实时浏览和编辑 Linear 项目，无需导入 ORGII。",
-    "subtitleWithAccount": "来自 {{account}} 的实时 Linear 数据",
     "refresh": "刷新",
     "createProject": "创建项目",
-    "createIssue": "创建 Issue",
     "archive": "归档",
     "searchPlaceholder": "搜索 Linear 项目...",
     "loadingProjects": "正在加载 Linear 项目...",
     "loadingIssues": "正在加载 Linear Issues...",
     "emptyProjects": "未找到 Linear 项目",
     "emptyIssues": "此项目中没有 Linear Issues",
-    "noTeam": "无团队",
-    "noDescription": "无描述",
     "unknownState": "未知状态",
     "updated": "更新于 {{date}}",
     "emptyConnections": {
@@ -974,12 +959,10 @@
       }
     },
     "errors": {
-      "loadConnections": "加载 Linear 连接失败",
       "loadProjects": "加载 Linear 项目失败",
       "loadIssues": "加载 Linear Issues 失败",
       "createProject": "创建 Linear 项目失败",
       "updateProject": "更新 Linear 项目失败",
-      "archiveProject": "归档 Linear 项目失败",
       "createIssue": "创建 Linear Issue 失败",
       "updateIssue": "更新 Linear Issue 失败",
       "archiveIssue": "归档 Linear Issue 失败",
@@ -989,7 +972,8 @@
       "archiveWorkflowState": "归档 Linear 工作流状态失败",
       "statusStateMissing": "没有匹配此状态的 Linear 工作流状态",
       "unsupportedIssueUpdate": "ORGII 尚不支持编辑此 Linear Issue 字段"
-    }
+    },
+    "loadingConnections": "正在加载 Linear 连接…"
   },
   "gitSyncReview": {
     "breadcrumb": "Git 同步检查",

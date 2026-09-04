@@ -1,3 +1,5 @@
+// MUST stay the first import: installs window.__TAURI_INTERNALS__ before any
+// module that transitively evaluates @tauri-apps/api (browser-only no-op).
 import { createRoot } from "react-dom/client";
 
 import { initializeSharedServiceAuthStorage } from "@src/api/http/auth/sharedAuthStorage";
@@ -7,11 +9,13 @@ import {
   applyWindowsNativeChromeAttribute,
 } from "@src/config/windowChromeRadius";
 import { configureCloudAuthCallbackForIdentifier } from "@src/features/Org2Cloud/config";
+import { installLeadingBlankLineGuard } from "@src/hooks/keyboard/installLeadingBlankLineGuard";
 import { installGlobalTauriSelectAllShortcut } from "@src/hooks/keyboard/useTauriSelectAllShortcut";
 import { createLogger, initializeLogging } from "@src/hooks/logger/useLogger";
 import { i18nReady } from "@src/i18n";
 import "@src/util/core/storage/cleanup";
 import { cleanUpBrowserStorage } from "@src/util/core/storage/quotaRecovery";
+import "@src/util/platform/browserModeShim";
 import "@src/util/platform/tauri";
 
 import "./index.scss";
@@ -24,6 +28,8 @@ import { initializeTauriAPIs, invokeTauri } from "./util/platform/tauri/init";
 applyHostDesktopWindowChromeRadius();
 initializeLogging();
 installGlobalTauriSelectAllShortcut();
+const disposeLeadingBlankLineGuard = installLeadingBlankLineGuard();
+module.hot?.dispose(disposeLeadingBlankLineGuard);
 
 const log = createLogger("Init");
 
@@ -104,6 +110,16 @@ const showEmergencyError = (
     splash.style.display = "none";
   }
 
+  // This UI owns the screen from here. Cancel the pre-bundle watchdog so it
+  // cannot re-create its own overlay on top of this panel once the splash has
+  // already been dismissed by first paint.
+  const splashDone = (
+    window as unknown as { __ORGII_SPLASH_DONE__?: () => void }
+  ).__ORGII_SPLASH_DONE__;
+  if (typeof splashDone === "function") {
+    splashDone();
+  }
+
   const rootElement = document.getElementById("root");
   if (!rootElement) return;
   rootElement.innerHTML = `
@@ -157,8 +173,16 @@ async function initializeApp() {
   // frameless windows; this event triggers show() so the first visible
   // frame is the painted splash, not a transparent artifact.
   // Fire-and-forget: a 3 s safety timeout on the Rust side covers failures.
-  import("@tauri-apps/api/event")
-    .then(({ emit }) => emit("orgii:main-window-ready"))
+  // Main window only: the Rust listener stays armed for the app's lifetime
+  // and shows + FOCUSES main on every emit, so a secondary window (e.g. a
+  // detached session window) booting later would steal focus back to main.
+  import("@tauri-apps/api/window")
+    .then(({ getCurrentWindow }) => {
+      if (getCurrentWindow().label !== "main") return;
+      return import("@tauri-apps/api/event").then(({ emit }) =>
+        emit("orgii:main-window-ready")
+      );
+    })
     .catch(() => {});
 
   // Runtime identity must be known before loading App: several API modules

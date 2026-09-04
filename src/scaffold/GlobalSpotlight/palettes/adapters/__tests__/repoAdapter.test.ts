@@ -53,11 +53,10 @@ vi.hoisted(() => {
 const baseRepo: RepoItem = {
   id: "repo-1",
   name: "alpha",
-  gitStatus: { uncommittedFiles: 3, ahead: 1, behind: 0 },
 };
 
 describe("buildRepoSpotlightItem", () => {
-  it("preserves git status and omits manage UI in normal mode", () => {
+  it("maps repo data and omits manage UI in normal mode", () => {
     const onAction = vi.fn();
     const item = buildRepoSpotlightItem(baseRepo, {
       currentRepoId: "repo-1",
@@ -68,7 +67,6 @@ describe("buildRepoSpotlightItem", () => {
     expect(item.label).toBe("alpha");
     expect(item.type).toBe("repo");
     expect(item.data?.isCurrentSelection).toBe(true);
-    expect(item.data?.gitStatus).toEqual(baseRepo.gitStatus);
     expect(item.data?.rightContent).toBeUndefined();
     expect(item.data?.selectionState).toBeUndefined();
 
@@ -76,7 +74,7 @@ describe("buildRepoSpotlightItem", () => {
     expect(onAction).toHaveBeenCalledWith(baseRepo);
   });
 
-  it("hides git status and renders manageAction in manage mode", () => {
+  it("renders manageAction in manage mode", () => {
     const sentinel = { __sentinel: true } as unknown as ReactNode;
     const manageAction = vi.fn(() => sentinel);
     const item = buildRepoSpotlightItem(baseRepo, {
@@ -84,7 +82,6 @@ describe("buildRepoSpotlightItem", () => {
       manageAction,
     });
 
-    expect(item.data?.gitStatus).toBeUndefined();
     expect(item.data?.rightContent).toBe(sentinel);
     expect(manageAction).toHaveBeenCalledWith(baseRepo);
   });
@@ -148,6 +145,39 @@ describe("buildRepoSpotlightItem", () => {
     expect(folderItem.icon).toBeDefined();
     expect(gitItem.icon).toBeDefined();
     expect(folderItem.icon).not.toBe(gitItem.icon);
+  });
+});
+
+describe("buildRepoSpotlightItem path visibility", () => {
+  const repoWithPath: RepoItem = {
+    id: "repo-2",
+    name: "beta",
+    fs_uri: "file:///Users/dev/code/beta/",
+  };
+
+  it("omits the path by default", () => {
+    const item = buildRepoSpotlightItem(repoWithPath, { onAction: () => {} });
+
+    expect(item.desc).toBeUndefined();
+    expect(item.data?.contextMenuCopy?.path).toBe("/Users/dev/code/beta");
+  });
+
+  it("renders the path as the row description when showPath is on", () => {
+    const item = buildRepoSpotlightItem(repoWithPath, {
+      onAction: () => {},
+      showPath: true,
+    });
+
+    expect(item.desc).toContain("beta");
+  });
+
+  it("stays path-less when the repo has no filesystem uri", () => {
+    const item = buildRepoSpotlightItem(baseRepo, {
+      onAction: () => {},
+      showPath: true,
+    });
+
+    expect(item.desc).toBeUndefined();
   });
 });
 

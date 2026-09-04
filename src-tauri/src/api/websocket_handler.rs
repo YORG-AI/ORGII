@@ -331,6 +331,9 @@ pub fn broadcast(message: String) {
 
     // Dispatch to Tauri IPC Channels (per-session, backpressure-aware)
     dispatch_to_channels(&message);
+
+    // Forward session-scoped bus events to mobile bridge subscribers.
+    super::mobile_bridge::on_bus_message(&message);
 }
 
 // ════════════════════════════════════════════════════════════════

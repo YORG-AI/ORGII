@@ -60,10 +60,7 @@ import {
   sidebarWidthAtom,
 } from "@src/store/ui/sidebarAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
-import {
-  sessionChatPositionAtom,
-  workStationChatPositionAtom,
-} from "@src/store/ui/workStationAtom";
+import { chatPanelPositionAtom } from "@src/store/ui/workStationAtom";
 import { prewarmColor } from "@src/util/ui/theme/glassMaterial";
 
 // Deep import, not the `./shared/components` barrel: the barrel re-exports
@@ -382,14 +379,9 @@ const AppShell = () => {
   useNarrowChatFocus({ enabled: true });
   useWorkStationPipelineBridge(shouldBridgeWorkStationPipeline);
 
-  const workStationChatPosition = useAtomValue(workStationChatPositionAtom);
-  const sessionChatPosition = useAtomValue(sessionChatPositionAtom);
+  const chatPanelPosition = useAtomValue(chatPanelPositionAtom);
   // Settings always sits on the left; position atoms describe ChatPanel placement only.
-  const chatPosition = isSettingsRoute
-    ? "left"
-    : stationMode === "agent-station"
-      ? sessionChatPosition
-      : workStationChatPosition;
+  const chatPosition = isSettingsRoute ? "left" : chatPanelPosition;
   const sessionSidebarWidth =
     routeLayoutType === "session" && !sidebarCollapsed
       ? sidebarWidth || DEFAULT_SIDEBAR_WIDTH
@@ -397,8 +389,7 @@ const AppShell = () => {
 
   const effectiveChatFocus = resolveChatPanelMaximizedForLayout(
     chatPanelMaximized,
-    activeChatPanelTab,
-    viewportWidth
+    activeChatPanelTab
   );
 
   return (

@@ -42,12 +42,14 @@ run_tsc_check() {
     return
   fi
 
-  echo "Running TypeScript check (scoped to staged files)..."
-  
-  # Use incremental compilation with tsbuildinfo cache for speed
-  # --incremental reuses previous compilation results
-  TSC_OUTPUT=$(npx tsc --noEmit --incremental --tsBuildInfoFile .git/.tsbuildinfo 2>&1) || true
-  TSC_EXIT=$?
+  echo "Running TypeScript check (tsgo, errors gated to staged files)..."
+
+  # tsgo (@typescript/native-preview): native full-project check, no
+  # incremental cache needed. NOTE: capture the exit status via the || arm —
+  # the previous `$(...) || true; EXIT=$?` pattern always captured 0 from
+  # `true`, which made this gate pass unconditionally.
+  TSC_EXIT=0
+  TSC_OUTPUT=$(npx tsgo --noEmit --pretty false 2>&1) || TSC_EXIT=$?
 
   if [ "$TSC_EXIT" -ne 0 ]; then
     STAGED_ERRORS=""
@@ -104,8 +106,10 @@ run_clippy_check() {
   done
 
   echo "Running cargo clippy (scoped to: $CRATE_LIST)..."
-  CLIPPY_OUTPUT=$(cd src-tauri && cargo clippy --lib --message-format=short $CLIPPY_ARGS 2>&1) || true
-  CLIPPY_EXIT=$?
+  # Same exit-capture fix as the TypeScript task: `|| true; EXIT=$?` always
+  # read 0 from `true`, so clippy failures never gated the commit.
+  CLIPPY_EXIT=0
+  CLIPPY_OUTPUT=$(cd src-tauri && cargo clippy --lib --message-format=short $CLIPPY_ARGS 2>&1) || CLIPPY_EXIT=$?
 
   if [ "$CLIPPY_EXIT" -ne 0 ]; then
     STAGED_ERRORS=""

@@ -1,8 +1,12 @@
-import { Chromium, Globe } from "lucide-react";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { openUrlInBrowserApp } from "@src/components/MarkDown/markdownUtils";
+import {
+  InternetIcon as Chromium,
+  InternetIcon as Globe,
+  HugeiconsIcon,
+} from "@src/icons";
 
 import type { WebsiteCardData } from "../types";
 
@@ -60,7 +64,14 @@ const WebsiteCard: React.FC<WebsiteCardProps> = ({ card }) => {
             }
           />
         )}
-        {!showFavicon && <Globe size={18} className="text-text-4" />}
+        {!showFavicon && (
+          <HugeiconsIcon
+            icon={Globe}
+            data-icon="globe"
+            size={18}
+            className="text-text-4"
+          />
+        )}
       </div>
 
       <div className="min-w-0 flex-1">
@@ -77,11 +88,17 @@ const WebsiteCard: React.FC<WebsiteCardProps> = ({ card }) => {
       <button
         type="button"
         onClick={handleOpen}
-        className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-text-3 opacity-0 transition-colors hover:bg-fill-2 hover:text-text-1 group-hover/website-card:opacity-100"
+        className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-text-3 opacity-0 transition-colors group-hover/website-card:opacity-100 hover:bg-fill-2 hover:text-text-1"
         title={t("cards.openLink")}
         aria-label={t("cards.openLink")}
       >
-        <Chromium size={14} strokeWidth={1.75} aria-hidden />
+        <HugeiconsIcon
+          icon={Chromium}
+          data-icon="chrome"
+          size={14}
+          strokeWidth={1.75}
+          aria-hidden
+        />
       </button>
     </div>
   );

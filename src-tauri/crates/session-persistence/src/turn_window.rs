@@ -392,9 +392,8 @@ mod tests {
             );
         }
 
-        let events =
-            load_pinned_artifact_events(&conn, "session-a", &["render_inline_canvas"], 2)
-                .expect("load pinned artifact events");
+        let events = load_pinned_artifact_events(&conn, "session-a", &["render_inline_canvas"], 2)
+            .expect("load pinned artifact events");
 
         let ids: Vec<&str> = events.iter().map(|event| event.id.as_str()).collect();
         assert_eq!(ids, vec!["tool-call-canvas-3", "tool-call-canvas-4"]);

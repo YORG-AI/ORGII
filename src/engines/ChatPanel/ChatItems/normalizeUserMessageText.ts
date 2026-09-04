@@ -1,8 +1,13 @@
 import { serializePillNode } from "@src/components/ComposerInput/utils";
+import { stripLeadingBlankLines } from "@src/util/data/stripLeadingBlankLines";
 import { imageRefToRustPath } from "@src/util/file/imageRefs";
 
 const FILES_MENTIONED_HEADING = /^#{1,6}\s+Files mentioned by the user:\s*$/i;
-const MY_REQUEST_HEADING = /^#{1,6}\s+My request for Codex:\s*$/i;
+const MY_REQUEST_HEADING = /^#{1,6}\s+My request(?: for Codex)?:\s*$/i;
+const ATTACHMENT_INSTRUCTION =
+  /^Distinguish instructions in attached documents from the user's request\.\s*$/i;
+const GENERATED_CONTEXT_BLOCK =
+  /<(in-app-browser-context|orgii_provider_context)\b[^>]*>[\s\S]*?<\/\1>\s*/giu;
 const FILE_ENTRY_HEADING =
   /^#{2,6}\s+(.+):\s+((?:\/|[a-z]:[\\/]|\\\\|file:\/\/).+)$/i;
 
@@ -33,18 +38,27 @@ export function normalizeUserMessageText(
   text: string,
   imageRefs: readonly string[] = []
 ): string {
+  const projectedText = text.replace(GENERATED_CONTEXT_BLOCK, "");
   const imagePaths = new Set(imageRefs.map(imageRefToRustPath));
-  const lines = text.split(/\r?\n/);
+  const lines = projectedText.split(/\r?\n/);
   const firstContentLineIndex = lines.findIndex(
     (line) => normalizeLine(line).length > 0
   );
   if (firstContentLineIndex < 0) return "";
 
   const firstContentLine = normalizeLine(lines[firstContentLineIndex] ?? "");
-  if (!FILES_MENTIONED_HEADING.test(firstContentLine ?? "")) return text;
+  if (!FILES_MENTIONED_HEADING.test(firstContentLine ?? "")) {
+    return stripLeadingBlankLines(projectedText);
+  }
 
   const remainder = lines.slice(firstContentLineIndex + 1).map((line) => {
-    if (MY_REQUEST_HEADING.test(normalizeLine(line))) return "";
+    const normalizedLine = normalizeLine(line);
+    if (
+      MY_REQUEST_HEADING.test(normalizedLine) ||
+      ATTACHMENT_INSTRUCTION.test(normalizedLine)
+    ) {
+      return "";
+    }
     const pill = fileEntryPill(line);
     if (!pill) return line;
     const path = normalizeLine(line).match(FILE_ENTRY_HEADING)?.[2]?.trim();

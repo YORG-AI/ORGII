@@ -54,7 +54,7 @@ import {
 
 const log = createLogger("MoveToOrgDialog");
 
-export interface MoveToOrgDialogProps {
+interface MoveToOrgDialogProps {
   /** The owner's local session; null keeps the dialog closed. */
   session: Session | null;
   onClose: () => void;

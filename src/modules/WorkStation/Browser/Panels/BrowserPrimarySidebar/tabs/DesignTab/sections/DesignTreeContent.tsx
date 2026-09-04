@@ -1,4 +1,3 @@
-import { Filter as FilterIcon } from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
 
 import Input from "@src/components/Input";
@@ -13,6 +12,7 @@ import {
   type FlattenedTreeNode,
   VirtualizedStickyTree,
 } from "@src/components/VirtualizedStickyTree";
+import { FilterIcon, HugeiconsIcon } from "@src/icons";
 
 interface FlattenedDesignNode {
   node: TreePanelNode;
@@ -105,7 +105,7 @@ export const DesignTreeContent: React.FC<DesignTreeContentProps> = memo(
             dataPath={item.node.path}
           >
             {item.node.secondaryText && (
-              <span className="ml-auto flex-shrink-0 text-[11px] text-text-4">
+              <span className="ml-auto shrink-0 text-[11px] text-text-4">
                 {item.node.secondaryText}
               </span>
             )}
@@ -118,9 +118,16 @@ export const DesignTreeContent: React.FC<DesignTreeContentProps> = memo(
     return (
       <div className="flex h-full w-full flex-col outline-none">
         {showFilter && (
-          <div className="flex-shrink-0 px-3 pb-2">
+          <div className="shrink-0 px-3 pb-2">
             <Input
-              prefix={<FilterIcon size={14} strokeWidth={1.75} />}
+              prefix={
+                <HugeiconsIcon
+                  icon={FilterIcon}
+                  data-icon="filter-icon"
+                  size={14}
+                  strokeWidth={1.75}
+                />
+              }
               placeholder={filterPlaceholder}
               value={filterQuery}
               onChange={onFilterChange}

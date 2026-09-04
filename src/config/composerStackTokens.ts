@@ -18,6 +18,14 @@ export const COMPOSER_BOTTOM_DOCK_PADDING_CLASS = "pb-3";
 /** Shared responsive horizontal inset for chat and creator composers. */
 export const COMPOSER_HORIZONTAL_GUTTER_CLASS = "px-2";
 
+/**
+ * Horizontal inset for mobile composer editor text and footer toolbar content.
+ * Matches desktop {@link ComposerInput} content padding (12px) so the model pill
+ * icon lines up with the placeholder when pill left padding is zeroed.
+ */
+export const MOBILE_COMPOSER_CONTENT_INSET_PX = 12;
+export const MOBILE_COMPOSER_CONTENT_INSET_X_CLASS = "px-3";
+
 /** Shell border — stacks above input; no bottom border. Matches composer card border weight. */
 export const CHAT_COMPOSER_STACK_BAR_SHELL_CLASSES =
   "border-x border-t border-solid border-border-2";
@@ -75,7 +83,7 @@ export const COMPOSER_STACK_ROW_LABEL_INFO =
  * for right-aligned values in `key: value` rows.
  */
 export const COMPOSER_STACK_ROW_SECONDARY_INFO =
-  "min-w-0 flex-1 truncate text-right text-[11px] leading-[1.5] text-text-2";
+  "min-w-0 flex-1 truncate text-right text-[11px] leading-normal text-text-2";
 
 /** Hover-visible action tray at the end of a stack row. */
 export const COMPOSER_STACK_ROW_ACTIONS =

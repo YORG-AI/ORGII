@@ -1,5 +1,4 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { AlertTriangle, Check, RefreshCw } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +12,12 @@ import Button from "@src/components/Button";
 import { Message } from "@src/components/Message";
 import { Placeholder } from "@src/components/Placeholder";
 import { CodeMirrorConflictEditor } from "@src/features/CodeMirror";
+import {
+  Alert01Icon,
+  HugeiconsIcon,
+  Refresh04Icon,
+  Tick01Icon,
+} from "@src/icons";
 import {
   projectGitFolderSyncResultByOrgAtom,
   setProjectGitFolderSyncResultAtom,
@@ -139,7 +144,12 @@ export const ProjectGitSyncReviewContent: React.FC<
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-bg-1">
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-border-1 px-4">
         <div className="flex min-w-0 items-center gap-2">
-          <AlertTriangle size={16} className="shrink-0 text-warning-6" />
+          <HugeiconsIcon
+            icon={Alert01Icon}
+            data-icon="alert-triangle"
+            size={16}
+            className="shrink-0 text-warning-6"
+          />
           <div className="min-w-0 truncate text-sm font-medium text-text-1">
             {t("gitSyncReview.title", { org: orgName ?? syncResult.org_id })}
           </div>
@@ -153,14 +163,19 @@ export const ProjectGitSyncReviewContent: React.FC<
           disabled={syncing}
           onClick={() => void handleSyncAgain()}
         >
-          <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
+          <HugeiconsIcon
+            icon={Refresh04Icon}
+            data-icon="refresh-cw"
+            size={14}
+            className={syncing ? "animate-spin" : ""}
+          />
           {t("gitSyncReview.syncAgain")}
         </Button>
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <aside className="flex w-72 shrink-0 flex-col overflow-hidden border-r border-border-1 bg-fill-1">
-          <div className="shrink-0 px-3 py-2 text-xs font-medium uppercase tracking-wide text-text-4">
+          <div className="shrink-0 px-3 py-2 text-xs font-medium tracking-wide text-text-4 uppercase">
             {t("gitSyncReview.files")}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
@@ -203,7 +218,11 @@ export const ProjectGitSyncReviewContent: React.FC<
                   loading={saving}
                   onClick={() => void handleSaveResolved()}
                 >
-                  <Check size={14} />
+                  <HugeiconsIcon
+                    icon={Tick01Icon}
+                    data-icon="check"
+                    size={14}
+                  />
                   {t("gitSyncReview.saveResolved")}
                 </Button>
               </div>

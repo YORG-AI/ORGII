@@ -8,6 +8,7 @@ import {
 export const WORK_MANAGEMENT_DATASET = {
   PROJECTS: "projects",
   WORK_ITEMS: "work-items",
+  INBOX: "inbox",
   GITHUB_ISSUES: "github-issues",
   REVIEWS: "reviews",
 } as const;
@@ -26,6 +27,9 @@ export function resolveWorkManagementDataset({
   section: WorkManagementSection;
   projectsView: WorkManagementProjectsView;
 }): WorkManagementDataset | null {
+  if (section === WORK_MANAGEMENT_SECTION.INBOX) {
+    return WORK_MANAGEMENT_DATASET.INBOX;
+  }
   if (section === WORK_MANAGEMENT_SECTION.GITHUB_ISSUES) {
     return WORK_MANAGEMENT_DATASET.GITHUB_ISSUES;
   }

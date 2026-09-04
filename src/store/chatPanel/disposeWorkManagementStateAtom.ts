@@ -1,16 +1,8 @@
 import { atom } from "jotai";
 
 import {
-  kanbanReplayBoundsAtom,
-  kanbanReplayCursorAtom,
-  kanbanReplayEventsAtom,
-  kanbanReplayModeAtom,
-  kanbanReplayPlayingAtom,
-  kanbanReplaySpeedAtom,
-} from "@src/store/ui/kanbanReplayAtom";
-import {
   kanbanDetailPanelVisibleAtom,
-  kanbanFileSearchQueryAtom,
+  kanbanSearchQueryAtom,
   kanbanSelectedTaskIdAtom,
 } from "@src/store/ui/kanbanViewStateAtom";
 import { workManagementCreatorVisibleAtom } from "@src/store/ui/workManagementCreatorAtom";
@@ -28,12 +20,6 @@ export const disposeWorkManagementStateAtom = atom(null, (_get, set) => {
 
   set(kanbanSelectedTaskIdAtom, null);
   set(kanbanDetailPanelVisibleAtom, false);
-  set(kanbanFileSearchQueryAtom, "");
-  set(kanbanReplayCursorAtom, null);
-  set(kanbanReplayModeAtom, "follow");
-  set(kanbanReplayBoundsAtom, { start: 0, end: 0 });
-  set(kanbanReplayEventsAtom, []);
-  set(kanbanReplayPlayingAtom, false);
-  set(kanbanReplaySpeedAtom, 1);
+  set(kanbanSearchQueryAtom, "");
 });
 disposeWorkManagementStateAtom.debugLabel = "disposeWorkManagementState";

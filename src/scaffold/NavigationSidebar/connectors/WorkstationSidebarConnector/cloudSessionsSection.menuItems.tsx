@@ -6,12 +6,12 @@
  * row.
  */
 import type { TFunction } from "i18next";
-import { ListFilter, RefreshCw } from "lucide-react";
 import React, { useMemo } from "react";
 
 import type { CloudSessionFilter } from "@src/features/Org2Cloud/cloudSessionFilter";
 import type { CloudSessionThread } from "@src/features/Org2Cloud/cloudSessionThreads";
 import type { CloudRemoteSessionsFetchState } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
+import { FilterMailIcon, Refresh04Icon } from "@src/icons";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 
 import { separator } from "../useSessionMenuItems/menuItemBuilders";
@@ -65,7 +65,8 @@ export function useCloudTeamSessionMenuItems({
     );
     header.rowActions = [
       {
-        icon: RefreshCw,
+        icon: Refresh04Icon,
+        dataIcon: "refresh-cw",
         iconClassName: refreshSpinClass,
         label: tCommon("actions.refresh"),
         dataTestId: "cloud-team-sessions-refresh",
@@ -74,7 +75,7 @@ export function useCloudTeamSessionMenuItems({
       ...(showSessionFilter
         ? [
             {
-              icon: ListFilter,
+              icon: FilterMailIcon,
               label: t("cloud.sidebar.sessionFilter"),
               active: memberMenu !== null || filter.kind !== "all",
               dataTestId: "cloud-team-sessions-filter",

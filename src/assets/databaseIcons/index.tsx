@@ -1,7 +1,7 @@
-import { Database } from "lucide-react";
 import React, { memo } from "react";
 
 import type { DatabaseType } from "@src/engines/DatabaseCore";
+import { DatabaseIcon as Database, HugeiconsIcon } from "@src/icons";
 
 import MongoIcon from "./mongo.svg";
 import MySQLIcon from "./mysql.svg";
@@ -11,17 +11,6 @@ import RedisIcon from "./redis.svg";
 import SQLiteIcon from "./sqlite.svg";
 import SupabaseIcon from "./supabase.svg";
 import TursoIcon from "./turso.svg";
-
-export {
-  MongoIcon,
-  MySQLIcon,
-  NeonIcon,
-  PostgresIcon,
-  RedisIcon,
-  SQLiteIcon,
-  SupabaseIcon,
-  TursoIcon,
-};
 
 /** Maps DB CLI binary names to icon types for DbClientIcon */
 const DB_CLIENT_BINARY_TO_ICON: Record<
@@ -35,7 +24,7 @@ const DB_CLIENT_BINARY_TO_ICON: Record<
   mongosh: MongoIcon,
 };
 
-export interface DatabaseIconProps {
+interface DatabaseIconProps {
   type: DatabaseType;
   size?: "small" | "medium" | "large" | number;
   className?: string;
@@ -88,7 +77,9 @@ export const DbClientIcon: React.FC<{
   const Icon = DB_CLIENT_BINARY_TO_ICON[binary];
   if (!Icon) {
     return (
-      <Database
+      <HugeiconsIcon
+        icon={Database}
+        data-icon="database"
         size={size}
         className={`shrink-0 text-text-2 ${className}`.trim()}
       />

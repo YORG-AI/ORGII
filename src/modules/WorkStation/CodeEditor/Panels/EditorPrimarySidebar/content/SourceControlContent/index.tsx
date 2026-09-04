@@ -9,7 +9,6 @@
  * - Stash management
  * - Multi-select support
  */
-import { Filter as FilterIcon } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -27,6 +26,7 @@ import type {
   StickyScrollNode,
 } from "@src/components/VirtualizedStickyTree";
 import { VirtualizedStickyTree } from "@src/components/VirtualizedStickyTree";
+import { FilterIcon, HugeiconsIcon } from "@src/icons";
 import { usePrimarySidebarSurface } from "@src/modules/WorkStation/shared/hooks/usePrimarySidebarSurface";
 
 import { useFileSelection } from "../../hooks/useFileSelection";
@@ -488,9 +488,16 @@ export const SourceControlContent: React.FC<SourceControlContentProps> = memo(
 
         {/* Filter input - conditionally rendered */}
         {showFilter && (
-          <div className={`flex-shrink-0 px-3 pb-2 ${surfaceBgClass}`}>
+          <div className={`shrink-0 px-3 pb-2 ${surfaceBgClass}`}>
             <Input
-              prefix={<FilterIcon size={14} strokeWidth={1.75} />}
+              prefix={
+                <HugeiconsIcon
+                  icon={FilterIcon}
+                  data-icon="filter-icon"
+                  size={14}
+                  strokeWidth={1.75}
+                />
+              }
               placeholder={t("placeholders.filterChanges")}
               value={searchQuery}
               onChange={onSearchChange}

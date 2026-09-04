@@ -1,11 +1,11 @@
 /**
  * WorktreeListBlock — Header row + expandable worktree details.
  */
-import { GitBranch } from "lucide-react";
 import React from "react";
 
 import { getToolIcon } from "@src/config/toolIcons";
 import type { ToolUsageMetadata } from "@src/engines/SessionCore/core/types";
+import { HugeiconsIcon, WorkflowCircle05Icon } from "@src/icons";
 
 import ToolUsageBadge from "../ToolCallBlock/ToolUsageBadge";
 import {
@@ -22,18 +22,18 @@ import {
 } from "../primitives";
 import { useBlockHeader } from "../useBlockLocate";
 
-export interface WorktreeEntryItem {
+interface WorktreeEntryItem {
   path: string;
   branch: string;
 }
 
-export interface WorktreeDetailRow {
+interface WorktreeDetailRow {
   key: string;
   label: string;
   value: string;
 }
 
-export interface WorktreeListBlockProps {
+interface WorktreeListBlockProps {
   action: string;
   entries?: WorktreeEntryItem[];
   rows?: WorktreeDetailRow[];
@@ -128,7 +128,14 @@ export function buildWorktreeRows(
 const renderWorktreeRow = (entry: WorktreeEntryItem) => (
   <ComposerStackListRow
     title={entry.path}
-    leading={<GitBranch size={14} className="shrink-0 text-primary-6" />}
+    leading={
+      <HugeiconsIcon
+        icon={WorkflowCircle05Icon}
+        data-icon="git-branch"
+        size={14}
+        className="shrink-0 text-primary-6"
+      />
+    }
     primary={entry.branch}
   />
 );
@@ -163,9 +170,9 @@ export const WorktreeListBlock: React.FC<WorktreeListBlockProps> = ({
     handleHeaderMouseLeave,
     handleLocate,
   } = useBlockHeader({
-    defaultCollapsed: false,
+    defaultCollapsed: true,
     eventId,
-    collapseAllValue: false,
+    collapseAllValue: true,
   });
 
   const isExpanded = !isCollapsed;
@@ -228,13 +235,15 @@ export const WorktreeListBlock: React.FC<WorktreeListBlockProps> = ({
             />
           )}
           {hasEntries && (
-            <EventBlockExpandableStackList
-              layout="full"
-              items={entries}
-              renderItem={renderWorktreeRow}
-              getKey={getWorktreeKey}
-              visibleCount={VISIBLE_ITEMS}
-            />
+            <div className={hasRows ? "border-t border-border-1" : undefined}>
+              <EventBlockExpandableStackList
+                layout="body"
+                items={entries}
+                renderItem={renderWorktreeRow}
+                getKey={getWorktreeKey}
+                visibleCount={VISIBLE_ITEMS}
+              />
+            </div>
           )}
         </div>
       )}

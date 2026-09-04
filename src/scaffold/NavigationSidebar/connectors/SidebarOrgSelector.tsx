@@ -1,15 +1,24 @@
-import { CircleCheck, LogIn, Plus, Settings2 } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import Select, { type SelectOption } from "@src/components/Select";
+import {
+  Add01Icon,
+  CheckmarkCircle01Icon,
+  HugeiconsIcon,
+  Login01Icon,
+  Settings02Icon,
+} from "@src/icons";
 
 export interface SidebarOrgSelectorProps {
   value: string;
   options: SelectOption[];
+  loading?: boolean;
   addOrgLabel?: string;
+  /** Whether ORG2 Cloud is signed in when no identity is available. */
+  cloudSignedIn?: boolean;
   /** ORG2 Cloud identity shown in the menu; `null` means signed out. */
   cloudSignedInIdentity?: string | null;
   /** Label for the always-visible manage-org entry. */
@@ -28,7 +37,9 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
   ({
     value,
     options,
+    loading = false,
     addOrgLabel,
+    cloudSignedIn = false,
     cloudSignedInIdentity,
     manageLabel,
     onChange,
@@ -62,9 +73,13 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
       onManageOrg?.();
     }, [onManageOrg]);
 
+    const hasSignedInIdentity = cloudSignedInIdentity != null;
+    const shouldShowCloudSignIn =
+      cloudSignedInIdentity === undefined
+        ? !cloudSignedIn
+        : cloudSignedInIdentity === null;
     const hasManagementMenu =
-      Boolean(onManageOrg || onAddOrg || onCloudSignIn) ||
-      cloudSignedInIdentity !== undefined;
+      Boolean(onManageOrg || onAddOrg || onCloudSignIn) || hasSignedInIdentity;
 
     const renderDropdown = useCallback(
       (menu: React.ReactNode) => (
@@ -80,7 +95,13 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
                 onClick={handleManageOrg}
                 data-testid="sidebar-org-manage"
               >
-                <Settings2 size={13} strokeWidth={2} className="shrink-0" />
+                <HugeiconsIcon
+                  icon={Settings02Icon}
+                  data-icon="settings-2"
+                  size={13}
+                  strokeWidth={2}
+                  className="shrink-0"
+                />
                 <span className="min-w-0 truncate">{manageLabel}</span>
               </button>
             ) : null}
@@ -91,7 +112,13 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
                 onClick={handleAddOrg}
                 data-testid="sidebar-add-org"
               >
-                <Plus size={13} strokeWidth={2} className="shrink-0" />
+                <HugeiconsIcon
+                  icon={Add01Icon}
+                  data-icon="plus"
+                  size={13}
+                  strokeWidth={2}
+                  className="shrink-0"
+                />
                 <span className="min-w-0 truncate">{addOrgLabel}</span>
               </button>
             ) : null}
@@ -101,7 +128,9 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
                 className={`${DROPDOWN_CLASSES.item} !cursor-default !text-text-2`}
                 data-testid="sidebar-cloud-signed-in"
               >
-                <CircleCheck
+                <HugeiconsIcon
+                  icon={CheckmarkCircle01Icon}
+                  data-icon="circle-check"
                   size={13}
                   strokeWidth={2}
                   className="shrink-0 text-success-6"
@@ -115,14 +144,20 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
                   {t("cloud.signedInAs", { name: cloudSignedInIdentity })}
                 </span>
               </div>
-            ) : onCloudSignIn ? (
+            ) : shouldShowCloudSignIn && onCloudSignIn ? (
               <button
                 type="button"
                 className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full border-none bg-transparent text-text-1`}
                 onClick={handleCloudSignIn}
                 data-testid="sidebar-cloud-sign-in"
               >
-                <LogIn size={13} strokeWidth={2} className="shrink-0" />
+                <HugeiconsIcon
+                  icon={Login01Icon}
+                  data-icon="log-in"
+                  size={13}
+                  strokeWidth={2}
+                  className="shrink-0"
+                />
                 <span className="min-w-0 truncate">{t("cloud.signIn")}</span>
               </button>
             ) : null}
@@ -139,6 +174,7 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
         onAddOrg,
         onCloudSignIn,
         onManageOrg,
+        shouldShowCloudSignIn,
         t,
       ]
     );
@@ -159,19 +195,24 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
             <Select
               value={value}
               options={options}
+              placeholder={loading ? t("common:status.loading") : undefined}
+              loading={loading}
               onChange={handleChange}
               onVisibleChange={setMenuOpen}
               popupVisible={menuOpen}
               dropdownRender={hasManagementMenu ? renderDropdown : undefined}
               showTriggerIcon={false}
-              appearance="ghost"
+              // This selector owns its sidebar-specific hover/open surface.
+              // `ghost` also applies the generic (and opaque on translucent
+              // sidebars) surface-hover color before that override settles.
+              appearance="bare"
               size="small"
               radius="lg"
               dropdownWidth={250}
               dropdownAlign="left"
               className="h-8 w-full"
-              selectorClassName={`h-8 !px-2 [&_.select-arrow]:!text-text-2 [&_.select-suffix]:ml-2 [&_.select-value]:!flex-initial [&_.select-value]:gap-3 [&_.select-value]:text-[13px] [&_.select-value]:font-semibold ${
-                menuOpen ? "!bg-sidebar-selected" : "hover:!bg-sidebar-selected"
+              selectorClassName={`h-8 px-2! [&_.select-arrow]:text-text-2! [&_.select-suffix]:ml-2 [&_.select-value]:flex-initial! [&_.select-value]:gap-3 [&_.select-value]:text-[13px] [&_.select-value]:font-semibold ${
+                menuOpen ? "bg-sidebar-selected!" : "hover:bg-sidebar-selected!"
               }`}
               dataTestId="sidebar-org-selector"
             />

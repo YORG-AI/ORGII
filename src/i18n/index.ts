@@ -79,8 +79,8 @@ export type LanguagePreference = (typeof LANGUAGE_PREFERENCES)[number];
 /**
  * Default language - used when no preference is set
  */
-export const DEFAULT_LANGUAGE: SupportedLanguage = "en";
-export const DEFAULT_LANGUAGE_PREFERENCE: LanguagePreference =
+const DEFAULT_LANGUAGE: SupportedLanguage = "en";
+const DEFAULT_LANGUAGE_PREFERENCE: LanguagePreference =
   LANGUAGE_PREFERENCE.SYSTEM;
 
 /**
@@ -103,7 +103,20 @@ export const LANGUAGE_NAMES: Record<SupportedLanguage, string> = {
   pl: "Polski",
 };
 
-export const LANGUAGE_ENGLISH_NAMES: Record<SupportedLanguage, string> = {
+/**
+ * Format a language option consistently across Settings and Spotlight.
+ */
+export function formatLanguageDisplayLabel(
+  language: SupportedLanguage,
+  translatedName: string
+): string {
+  const nativeName = LANGUAGE_NAMES[language];
+  return translatedName === nativeName
+    ? nativeName
+    : `${translatedName} · ${nativeName}`;
+}
+
+const LANGUAGE_ENGLISH_NAMES: Record<SupportedLanguage, string> = {
   en: "English",
   fr: "French",
   zh: "Simplified Chinese",
@@ -119,13 +132,11 @@ export const LANGUAGE_ENGLISH_NAMES: Record<SupportedLanguage, string> = {
   pl: "Polish",
 };
 
-export function isSupportedLanguage(value: string): value is SupportedLanguage {
+function isSupportedLanguage(value: string): value is SupportedLanguage {
   return SUPPORTED_LANGUAGES.includes(value as SupportedLanguage);
 }
 
-export function isLanguagePreference(
-  value: string
-): value is LanguagePreference {
+function isLanguagePreference(value: string): value is LanguagePreference {
   return value === LANGUAGE_PREFERENCE.SYSTEM || isSupportedLanguage(value);
 }
 
@@ -161,7 +172,7 @@ export function resolveSystemLanguage(): SupportedLanguage {
   return DEFAULT_LANGUAGE;
 }
 
-export function normalizeLanguagePreference(
+function normalizeLanguagePreference(
   value: string | null | undefined
 ): LanguagePreference {
   if (!value) return DEFAULT_LANGUAGE_PREFERENCE;
@@ -180,7 +191,7 @@ export function resolveLanguagePreference(
 export function getFollowSystemLanguageLabel(
   followSystemLabel = "Follow system"
 ): string {
-  return `${followSystemLabel} (${LANGUAGE_ENGLISH_NAMES[resolveSystemLanguage()]})`;
+  return `${followSystemLabel} · ${LANGUAGE_ENGLISH_NAMES[resolveSystemLanguage()]}`;
 }
 
 // ============================================================================
@@ -192,7 +203,7 @@ export function getFollowSystemLanguageLabel(
  * - common: Shared UI strings (buttons, status, errors)
  * - settings: Settings pages
  * - auth: Login/authentication pages
- * - onboarding: Setup walkthrough
+ * - onboarding: In-app tutorials
  * - navigation: Routes, app grid, tabs
  * - market: SelectRepo, Billing, Wallet, Market
  * - sessions: Session history, kanban, workspace
@@ -204,8 +215,9 @@ export function getFollowSystemLanguageLabel(
  * - teamRuntime: Runtime → Team (member runtime sharing, org telemetry row)
  * - terms: Legal notices, third-party disclaimers, responsible use notices
  * - workflow: Workflow page (design, explore, task view, status bar)
+ * - mobileRemote: Mobile Remote PWA (sessions, devices, settings)
  */
-export const NAMESPACES = [
+const NAMESPACES = [
   "common",
   "settings",
   "auth",
@@ -221,6 +233,7 @@ export const NAMESPACES = [
   "teamRuntime",
   "terms",
   "workflow",
+  "mobileRemote",
 ] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 
@@ -249,6 +262,15 @@ function getPersistedLanguagePreference(): LanguagePreference {
  * Each language gets its own webpack chunk so only the active language
  * is loaded on startup.
  */
+async function loadMobileRemoteBundle(
+  lang: SupportedLanguage
+): Promise<Record<string, unknown>> {
+  if (lang === "zh") {
+    return (await import("./locales/zh/mobileRemote.json")).default;
+  }
+  return (await import("./locales/en/mobileRemote.json")).default;
+}
+
 async function loadLanguageResources(
   lang: SupportedLanguage
 ): Promise<Record<string, unknown>> {
@@ -271,6 +293,7 @@ async function loadLanguageResources(
         settings: (await import("./locales/en/settings.json")).default,
         terms: (await import("./locales/en/terms.json")).default,
         workflow: (await import("./locales/en/workflow.json")).default,
+        mobileRemote: (await import("./locales/en/mobileRemote.json")).default,
       };
     case "zh":
       return {
@@ -290,6 +313,7 @@ async function loadLanguageResources(
         settings: (await import("./locales/zh/settings.json")).default,
         terms: (await import("./locales/zh/terms.json")).default,
         workflow: (await import("./locales/zh/workflow.json")).default,
+        mobileRemote: (await import("./locales/zh/mobileRemote.json")).default,
       };
     case "fr":
       return {
@@ -309,6 +333,7 @@ async function loadLanguageResources(
         settings: (await import("./locales/fr/settings.json")).default,
         terms: (await import("./locales/fr/terms.json")).default,
         workflow: (await import("./locales/fr/workflow.json")).default,
+        mobileRemote: await loadMobileRemoteBundle("fr"),
       };
     case "de":
       return {
@@ -328,6 +353,7 @@ async function loadLanguageResources(
         settings: (await import("./locales/de/settings.json")).default,
         terms: (await import("./locales/de/terms.json")).default,
         workflow: (await import("./locales/de/workflow.json")).default,
+        mobileRemote: await loadMobileRemoteBundle("de"),
       };
     case "es":
       return {
@@ -347,6 +373,7 @@ async function loadLanguageResources(
         settings: (await import("./locales/es/settings.json")).default,
         terms: (await import("./locales/es/terms.json")).default,
         workflow: (await import("./locales/es/workflow.json")).default,
+        mobileRemote: await loadMobileRemoteBundle("es"),
       };
     case "ja":
       return {
@@ -366,6 +393,7 @@ async function loadLanguageResources(
         settings: (await import("./locales/ja/settings.json")).default,
         terms: (await import("./locales/ja/terms.json")).default,
         workflow: (await import("./locales/ja/workflow.json")).default,
+        mobileRemote: await loadMobileRemoteBundle("ja"),
       };
     case "ko":
       return {
@@ -385,6 +413,7 @@ async function loadLanguageResources(
         settings: (await import("./locales/ko/settings.json")).default,
         terms: (await import("./locales/ko/terms.json")).default,
         workflow: (await import("./locales/ko/workflow.json")).default,
+        mobileRemote: await loadMobileRemoteBundle("ko"),
       };
     case "ru":
       return {
@@ -404,6 +433,7 @@ async function loadLanguageResources(
         settings: (await import("./locales/ru/settings.json")).default,
         terms: (await import("./locales/ru/terms.json")).default,
         workflow: (await import("./locales/ru/workflow.json")).default,
+        mobileRemote: await loadMobileRemoteBundle("ru"),
       };
     case "tr":
       return {
@@ -423,6 +453,7 @@ async function loadLanguageResources(
         settings: (await import("./locales/tr/settings.json")).default,
         terms: (await import("./locales/tr/terms.json")).default,
         workflow: (await import("./locales/tr/workflow.json")).default,
+        mobileRemote: await loadMobileRemoteBundle("tr"),
       };
     case "vi":
       return {
@@ -442,6 +473,7 @@ async function loadLanguageResources(
         settings: (await import("./locales/vi/settings.json")).default,
         terms: (await import("./locales/vi/terms.json")).default,
         workflow: (await import("./locales/vi/workflow.json")).default,
+        mobileRemote: await loadMobileRemoteBundle("vi"),
       };
     case "pt":
       return {
@@ -461,6 +493,7 @@ async function loadLanguageResources(
         settings: (await import("./locales/pt/settings.json")).default,
         terms: (await import("./locales/pt/terms.json")).default,
         workflow: (await import("./locales/pt/workflow.json")).default,
+        mobileRemote: await loadMobileRemoteBundle("pt"),
       };
     case "pl":
       return {
@@ -480,6 +513,7 @@ async function loadLanguageResources(
         settings: (await import("./locales/pl/settings.json")).default,
         terms: (await import("./locales/pl/terms.json")).default,
         workflow: (await import("./locales/pl/workflow.json")).default,
+        mobileRemote: await loadMobileRemoteBundle("pl"),
       };
     case "zh-Hant":
       return {
@@ -501,6 +535,7 @@ async function loadLanguageResources(
         settings: (await import("./locales/zh-Hant/settings.json")).default,
         terms: (await import("./locales/zh-Hant/terms.json")).default,
         workflow: (await import("./locales/zh-Hant/workflow.json")).default,
+        mobileRemote: await loadMobileRemoteBundle("zh-Hant"),
       };
   }
 }

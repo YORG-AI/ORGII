@@ -1,4 +1,3 @@
-import { ChevronDown } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 
 import FilePathBreadcrumb from "@src/components/FilePathBreadcrumb";
@@ -15,6 +14,7 @@ import {
   stickyRowPadding,
 } from "@src/components/VirtualizedStickyTree";
 import { AGENT_DOT_TOKENS } from "@src/engines/Simulator/config";
+import { ArrowDown01Icon, HugeiconsIcon } from "@src/icons";
 
 import {
   type FileTreeInput,
@@ -99,7 +99,7 @@ const SimulatorTreePanel: React.FC<SimulatorTreePanelProps> = ({
         >
           {item.node.statusLabel && (
             <div
-              className={`flex h-5 w-5 flex-shrink-0 items-center justify-center text-[11px] font-bold ${item.node.statusColorClass || "text-text-2"}`}
+              className={`flex h-5 w-5 shrink-0 items-center justify-center text-[11px] font-bold ${item.node.statusColorClass || "text-text-2"}`}
             >
               {item.node.statusLabel}
             </div>
@@ -142,7 +142,12 @@ const SimulatorTreePanel: React.FC<SimulatorTreePanelProps> = ({
         onClick={onClick}
       >
         <div className={STICKY_ROW.chevronBox}>
-          <ChevronDown size={CHEVRON_SIZE} className={STICKY_ROW.chevronIcon} />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            size={CHEVRON_SIZE}
+            className={STICKY_ROW.chevronIcon}
+          />
         </div>
         <span className={STICKY_ROW.name}>{stickyNode.node.name}</span>
       </div>

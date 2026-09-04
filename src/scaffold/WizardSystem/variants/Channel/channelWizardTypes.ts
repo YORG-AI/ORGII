@@ -8,7 +8,7 @@ export type ProjectSyncAdapterType =
 
 // Auth methods used by project connections. GitHub supports scan / OAuth /
 // PAT / SSH; Linear supports OAuth / PAT.
-export const STORY_SYNC_AUTH_METHODS = {
+const STORY_SYNC_AUTH_METHODS = {
   PAT: "pat",
   OAUTH: "oauth",
   SCAN: "scan",

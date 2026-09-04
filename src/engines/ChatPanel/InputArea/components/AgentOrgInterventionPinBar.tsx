@@ -1,4 +1,3 @@
-import { Play } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +7,7 @@ import {
   ChatStatusSegmentedBar,
   ChatStatusTwoLineContent,
 } from "@src/engines/ChatPanel/components/ChatStatusBanners";
+import { HugeiconsIcon, PlayIcon } from "@src/icons";
 
 interface AgentOrgInterventionPinBarProps {
   intervention: AgentOrgMemberIntervention | null;
@@ -76,7 +76,14 @@ const AgentOrgInterventionPinBar: React.FC<AgentOrgInterventionPinBarProps> =
                 loading={returning}
                 loadingSpinIcon
                 onClick={() => void onReturnToWork()}
-                icon={<Play size={12} strokeWidth={2} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={PlayIcon}
+                    data-icon="play"
+                    size={12}
+                    strokeWidth={2}
+                  />
+                }
               >
                 {returning
                   ? t("planner.agentOrgIntervention.returning")

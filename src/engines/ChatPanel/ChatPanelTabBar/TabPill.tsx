@@ -8,33 +8,36 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useAtomValue } from "jotai";
-import {
-  Box,
-  CircleDot,
-  Columns3,
-  Gauge,
-  GitPullRequest,
-  Hash,
-  Inbox,
-  Info,
-  LayoutGrid,
-  ListChecks,
-  ListTodo,
-  Lock,
-  MessageSquarePlus,
-  Settings2,
-  TerminalSquare,
-} from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
+import AnyIcon from "@src/components/AnyIcon";
 import IntegrationIcon from "@src/components/IntegrationIcon";
 import { TabLabelRowScrim } from "@src/components/TabPill/TabLabelRowScrim";
 import { TabPillCloseButton } from "@src/components/TabPill/TabPillCloseButton";
 import { TabPillSurface } from "@src/components/TabPill/TabPillSurface";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { TERMINAL_AGENT_STATUS } from "@src/engines/TerminalCore/types";
+import {
+  CircleDotIcon,
+  DeliveryBox01Icon,
+  GaugeIcon,
+  GitPullRequestIcon,
+  HashtagIcon,
+  HugeiconsIcon,
+  InboxIcon,
+  InformationCircleIcon,
+  KanbanIcon,
+  ListChecksIcon,
+  ListTodoIcon,
+  LockIcon,
+  MessageAdd01Icon,
+  MessageAdd02Icon,
+  PencilEdit02Icon,
+  Settings02Icon,
+  SquareTerminalIcon,
+} from "@src/icons";
 import { isGitHubIssueStatus } from "@src/modules/ProjectManager/WorkItems/workItemIdentity";
 import type { ChatPanelTab } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { terminalSessionsAtom } from "@src/store/chatPanel/chatPanelTerminalAtom";
@@ -45,9 +48,9 @@ import {
 } from "@src/store/ui/chatPanelAtom";
 import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
 
-import { resolveChatPanelTabDisplayTitle } from "../chatPanelTabDisplay";
 import SessionIdentityIcon from "../components/SessionIdentityIcon";
 import { CHAT_PANEL_HEADER_NO_DRAG_STYLE } from "../header";
+import { useChatPanelTabDisplayTitle } from "../hooks/useChatPanelTabDisplayTitle";
 import { TabPillHoverCard } from "./TabPillHoverCard";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -118,32 +121,7 @@ export const TabPill = memo(function TabPill({
       : undefined;
   const agentStatus = terminalSession?.agentStatus;
 
-  const defaultDisplayTitle = resolveChatPanelTabDisplayTitle(tab, session, {
-    newSession: t("sessions:chat.startPage.newSession.title"),
-    runtime: t("sessions:chat.startPage.tabs.runtime"),
-    organization: t("navigation:collaboration.manageOrg"),
-    teamInbox: t("navigation:labels.inbox"),
-    channelFallback: t("navigation:cloud.channels.title"),
-    workManagement: {
-      kanban: t("sessions:simulator.tabs.kanban"),
-      work: t("navigation:labels.workItems"),
-    },
-    sessionFallback: t("sessions:chat.defaultTitle"),
-  });
-  const displayTitle =
-    tab.type !== "start-page"
-      ? defaultDisplayTitle
-      : createTarget === CHAT_PANEL_CREATE_TARGET.PROJECT
-        ? t("sessions:creator.createTarget.project")
-        : createTarget === CHAT_PANEL_CREATE_TARGET.WORK_ITEM
-          ? t("sessions:creator.createTarget.workItem")
-          : createTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT
-            ? t("projects:githubIssuesImport.createTarget")
-            : createTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
-              ? t("navigation:collaboration.addOrg")
-              : createTarget === CHAT_PANEL_CREATE_TARGET.MANAGE_AGENTS
-                ? t("sessions:creator.createTarget.manageAgents")
-                : defaultDisplayTitle;
+  const displayTitle = useChatPanelTabDisplayTitle(tab);
 
   const iconColorClass = isActive ? "text-text-1" : "text-text-2";
   const isGitHubIssueTab =
@@ -155,7 +133,9 @@ export const TabPill = memo(function TabPill({
   let icon: React.ReactNode;
   if (tab.type === "terminal") {
     icon = (
-      <TerminalSquare
+      <HugeiconsIcon
+        icon={SquareTerminalIcon}
+        data-icon="terminal-square"
         size={16}
         strokeWidth={1.75}
         className={`shrink-0 ${iconColorClass}`}
@@ -164,7 +144,9 @@ export const TabPill = memo(function TabPill({
   } else if (tab.type === "start-page") {
     if (createTarget === CHAT_PANEL_CREATE_TARGET.PROJECT) {
       icon = (
-        <Box
+        <HugeiconsIcon
+          icon={DeliveryBox01Icon}
+          data-icon="box"
           size={16}
           strokeWidth={1.75}
           className={`shrink-0 ${iconColorClass}`}
@@ -172,25 +154,19 @@ export const TabPill = memo(function TabPill({
       );
     } else if (createTarget === CHAT_PANEL_CREATE_TARGET.WORK_ITEM) {
       icon = (
-        <ListChecks
+        <HugeiconsIcon
+          icon={PencilEdit02Icon}
+          data-icon="square-pen"
           size={16}
           strokeWidth={1.75}
           className={`shrink-0 ${iconColorClass}`}
         />
       );
-    } else if (
-      createTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT
-    ) {
-      icon = (
-        <IntegrationIcon
-          type={STORY_SYNC_ADAPTER.GITHUB}
-          size={16}
-          className={`shrink-0 ${iconColorClass}`}
-        />
-      );
     } else {
       icon = (
-        <LayoutGrid
+        <HugeiconsIcon
+          icon={MessageAdd02Icon}
+          data-icon="message-add"
           size={16}
           strokeWidth={1.75}
           className={`shrink-0 ${iconColorClass}`}
@@ -199,7 +175,9 @@ export const TabPill = memo(function TabPill({
     }
   } else if (tab.type === "runtime") {
     icon = (
-      <Gauge
+      <HugeiconsIcon
+        icon={GaugeIcon}
+        data-icon="gauge"
         size={16}
         strokeWidth={1.75}
         className={`shrink-0 ${iconColorClass}`}
@@ -207,7 +185,9 @@ export const TabPill = memo(function TabPill({
     );
   } else if (tab.type === "team-inbox") {
     icon = (
-      <Inbox
+      <HugeiconsIcon
+        icon={InboxIcon}
+        data-icon="inbox"
         size={16}
         strokeWidth={1.75}
         className={`shrink-0 ${iconColorClass}`}
@@ -217,10 +197,11 @@ export const TabPill = memo(function TabPill({
     // Private cloud channels carry the same lock the sidebar row uses.
     const ChannelIcon =
       tab.channel?.scope === "cloud" && tab.channel.visibility === "private"
-        ? Lock
-        : Hash;
+        ? LockIcon
+        : HashtagIcon;
     icon = (
-      <ChannelIcon
+      <AnyIcon
+        icon={ChannelIcon}
         size={16}
         strokeWidth={1.75}
         className={`shrink-0 ${iconColorClass}`}
@@ -228,7 +209,9 @@ export const TabPill = memo(function TabPill({
     );
   } else if (tab.type === "workspace") {
     icon = (
-      <Info
+      <HugeiconsIcon
+        icon={InformationCircleIcon}
+        data-icon="info"
         size={16}
         strokeWidth={1.75}
         className={`shrink-0 ${iconColorClass}`}
@@ -236,7 +219,9 @@ export const TabPill = memo(function TabPill({
     );
   } else if (tab.type === "organization") {
     icon = (
-      <Settings2
+      <HugeiconsIcon
+        icon={Settings02Icon}
+        data-icon="settings-2"
         size={16}
         strokeWidth={1.75}
         className={`shrink-0 ${iconColorClass}`}
@@ -245,16 +230,21 @@ export const TabPill = memo(function TabPill({
   } else if (tab.type === "work-management") {
     const WorkManagementIcon =
       tab.managementSection === WORK_MANAGEMENT_SECTION.KANBAN
-        ? Columns3
-        : ListTodo;
-    icon = React.createElement(WorkManagementIcon, {
-      size: 16,
-      strokeWidth: 1.75,
-      className: `shrink-0 ${iconColorClass}`,
-    });
+        ? KanbanIcon
+        : ListTodoIcon;
+    icon = (
+      <HugeiconsIcon
+        icon={WorkManagementIcon}
+        size={16}
+        strokeWidth={1.75}
+        className={`shrink-0 ${iconColorClass}`}
+      />
+    );
   } else if (tab.type === "github-issue") {
     icon = (
-      <CircleDot
+      <HugeiconsIcon
+        icon={CircleDotIcon}
+        data-icon="circle-dot"
         size={16}
         strokeWidth={1.75}
         className={`shrink-0 ${iconColorClass}`}
@@ -262,20 +252,11 @@ export const TabPill = memo(function TabPill({
     );
   } else if (tab.type === "github-pr") {
     icon = (
-      <GitPullRequest
+      <HugeiconsIcon
+        icon={GitPullRequestIcon}
+        data-icon="git-pull-request"
         size={16}
         strokeWidth={1.75}
-        className={`shrink-0 ${iconColorClass}`}
-      />
-    );
-  } else if (
-    tab.type === "project" &&
-    tab.project?.projectSyncAdapterId === STORY_SYNC_ADAPTER.GITHUB
-  ) {
-    icon = (
-      <IntegrationIcon
-        type={STORY_SYNC_ADAPTER.GITHUB}
-        size={16}
         className={`shrink-0 ${iconColorClass}`}
       />
     );
@@ -289,7 +270,9 @@ export const TabPill = memo(function TabPill({
     );
   } else if (tab.type === "project") {
     icon = (
-      <Box
+      <HugeiconsIcon
+        icon={DeliveryBox01Icon}
+        data-icon="box"
         size={16}
         strokeWidth={1.75}
         className={`shrink-0 ${iconColorClass}`}
@@ -297,7 +280,9 @@ export const TabPill = memo(function TabPill({
     );
   } else if (tab.type === "work-item") {
     icon = (
-      <ListChecks
+      <HugeiconsIcon
+        icon={ListChecksIcon}
+        data-icon="list-checks"
         size={16}
         strokeWidth={1.75}
         className={`shrink-0 ${iconColorClass}`}
@@ -313,7 +298,9 @@ export const TabPill = memo(function TabPill({
     );
   } else {
     icon = (
-      <MessageSquarePlus
+      <HugeiconsIcon
+        icon={MessageAdd01Icon}
+        data-icon="message-square-plus"
         size={16}
         strokeWidth={1.75}
         className={`shrink-0 ${iconColorClass}`}
@@ -329,6 +316,7 @@ export const TabPill = memo(function TabPill({
       isActive={isActive}
       variant="session"
       role="tab"
+      data-tab-id={tab.id}
       aria-selected={isActive}
       title={displayTitle}
       onClick={() => onActivate(tab.id)}
@@ -348,7 +336,7 @@ export const TabPill = memo(function TabPill({
       <div className="flex shrink-0 items-center justify-center">{icon}</div>
       <div className="relative flex min-w-0 flex-1 items-center overflow-hidden">
         <span
-          className={`min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] ${
+          className={`min-w-0 flex-1 overflow-hidden text-[13px] text-ellipsis whitespace-nowrap ${
             isActive ? "text-text-1" : "text-text-2"
           }`}
         >
@@ -370,7 +358,7 @@ export const TabPill = memo(function TabPill({
         }}
         title={t("actions.close")}
         showX={hovered}
-        className={`grid place-items-center rounded text-text-3 transition-[opacity,colors,background-color] duration-150 ${SURFACE_TOKENS.hover} absolute right-1 top-1/2 z-10 h-5 w-5 -translate-y-1/2 hover:text-text-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-6 focus-visible:ring-offset-0 ${
+        className={`grid place-items-center rounded text-text-3 transition-[opacity,colors,background-color] duration-150 ${SURFACE_TOKENS.hover} absolute top-1/2 right-1 z-10 h-5 w-5 -translate-y-1/2 hover:text-text-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-6 focus-visible:ring-offset-0 ${
           showCloseSlot
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0"

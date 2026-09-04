@@ -1,5 +1,4 @@
-import { MoreHorizontal } from "lucide-react";
-
+import { MoreHorizontalIcon } from "@src/icons";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import { SESSION_LIST_CATEGORIES } from "@src/store/session";
 import type {
@@ -9,12 +8,15 @@ import type {
   SessionPaginationMap,
 } from "@src/store/session";
 
-import { LOAD_MORE_GROUP_PREFIX, LOAD_MORE_PREFIX } from "../types";
-import { DEFAULT_GROUP_VISIBLE_COUNT } from "./dateGroupingHelpers";
+import {
+  DEFAULT_SESSION_GROUP_VISIBLE_COUNT,
+  LOAD_MORE_GROUP_PREFIX,
+  LOAD_MORE_PREFIX,
+} from "../types";
 import { renderBreathingStatusDot } from "./statusIndicators";
 import type { BuildSessionRow } from "./types";
 
-export const LOAD_MORE_CATEGORIES: readonly SessionListCategory[] =
+const LOAD_MORE_CATEGORIES: readonly SessionListCategory[] =
   SESSION_LIST_CATEGORIES;
 export const UNIFIED_LOAD_MORE_ID = "load-more-unified";
 
@@ -54,7 +56,7 @@ export function loadMoreRow(
       id: `${LOAD_MORE_PREFIX}${category}`,
       key: `${LOAD_MORE_PREFIX}${category}`,
       label,
-      icon: MoreHorizontal,
+      icon: MoreHorizontalIcon,
       iconName: "more-horizontal",
       trailingElement:
         phase === "loading" ? renderBreathingStatusDot() : undefined,
@@ -74,7 +76,7 @@ export function groupLoadMoreRow(
     id: `${LOAD_MORE_GROUP_PREFIX}${groupId}`,
     key: `${LOAD_MORE_GROUP_PREFIX}${groupId}`,
     label,
-    icon: MoreHorizontal,
+    icon: MoreHorizontalIcon,
     iconName: "more-horizontal",
     trailingElement: loading ? renderBreathingStatusDot() : undefined,
     visualTone: "secondary",
@@ -92,7 +94,7 @@ export function unifiedLoadMoreRow(
       id: UNIFIED_LOAD_MORE_ID,
       key: UNIFIED_LOAD_MORE_ID,
       label,
-      icon: MoreHorizontal,
+      icon: MoreHorizontalIcon,
       iconName: "more-horizontal",
       trailingElement:
         phase === "loading" ? renderBreathingStatusDot() : undefined,
@@ -289,7 +291,7 @@ export function appendSessionGroup({
   items,
   groupId,
   groupSessions,
-  visibleCount = DEFAULT_GROUP_VISIBLE_COUNT,
+  visibleCount = DEFAULT_SESSION_GROUP_VISIBLE_COUNT,
   buildSessionRow,
   loadMoreLabel,
 }: AppendSessionGroupParams): boolean {

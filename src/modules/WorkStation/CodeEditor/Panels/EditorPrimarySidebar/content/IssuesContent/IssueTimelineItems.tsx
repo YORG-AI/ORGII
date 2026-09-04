@@ -2,8 +2,8 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GitHubIssueTimelineItem } from "@src/api/tauri/github";
-import Avatar from "@src/components/Avatar";
 import { projectMarkdownSessionReferences } from "@src/components/MarkDown/sessionReferenceProjection";
+import PersonAvatar from "@src/components/PersonAvatar";
 import {
   ConnectedTimelineItem,
   MarkdownContent,
@@ -17,6 +17,8 @@ import { IssueTimelineEventRow } from "./IssueTimelineEvent";
 interface IssueTimelineItemsProps {
   timeline: GitHubIssueTimelineItem[];
   timelineLoading: boolean;
+  /** Reported inline: an empty thread cannot say why it is empty. */
+  timelineError?: string | null;
   navigationEnabled?: boolean;
 }
 
@@ -38,9 +40,14 @@ export function getIssueTimelineTrailLabel(
 export function IssueTimelineItems({
   timeline,
   timelineLoading,
+  timelineError = null,
   navigationEnabled = false,
 }: IssueTimelineItemsProps): React.ReactNode {
   const { t } = useTranslation("common");
+
+  // A failed activity load is reported by the host's alert slot above the
+  // title, not buried at the end of the thread.
+  if (!timelineLoading && timelineError) return null;
 
   if (timelineLoading) {
     return (
@@ -95,7 +102,11 @@ export function IssueTimelineItems({
             <TimelineCardHeader
               avatar={
                 item.actor ? (
-                  <Avatar size={18} src={item.actor.avatar_url} />
+                  <PersonAvatar
+                    size={18}
+                    name={actorName}
+                    src={item.actor.avatar_url}
+                  />
                 ) : null
               }
               actor={actorName}

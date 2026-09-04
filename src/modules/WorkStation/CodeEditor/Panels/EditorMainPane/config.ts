@@ -100,10 +100,6 @@ export const TAB_TYPE_CONFIG = {
     supportsEdit: false,
     supportsPreview: false,
   },
-  settings: {
-    supportsEdit: false,
-    supportsPreview: false,
-  },
   "lint-scan": {
     supportsEdit: false,
     supportsPreview: false,

@@ -1,4 +1,3 @@
-import { Info } from "lucide-react";
 import React, { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +6,7 @@ import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import { HugeiconsIcon, InformationCircleIcon } from "@src/icons";
 
 import { HEADER_ICON_SIZE } from "./tokens";
 
@@ -38,12 +38,18 @@ const TerminalInfoButtonComponent: React.FC<TerminalInfoButtonProps> = ({
         size="small"
         iconOnly
         title={t("tooltips.showTerminalProcessInfo")}
-        icon={<Info size={HEADER_ICON_SIZE.md} />}
+        icon={
+          <HugeiconsIcon
+            icon={InformationCircleIcon}
+            data-icon="info"
+            size={HEADER_ICON_SIZE.md}
+          />
+        }
       />
 
       {showTerminalInfo ? (
         <div
-          className={`absolute right-0 top-full z-50 mt-2 ${DROPDOWN_CLASSES.panel} p-3 ${DROPDOWN_WIDTHS.panelWidthClass}`}
+          className={`absolute top-full right-0 z-50 mt-2 ${DROPDOWN_CLASSES.panel} p-3 ${DROPDOWN_WIDTHS.panelWidthClass}`}
         >
           <div className="space-y-2 text-[13px]">
             <div className="mb-2 border-b border-border-2 pb-1.5 font-bold text-text-1">

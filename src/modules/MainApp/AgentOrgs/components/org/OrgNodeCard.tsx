@@ -7,10 +7,16 @@
  * detail-view preview tabs, where editing happens via the Edit tab's
  * table, not the chart).
  */
-import { Pencil, Plus, Trash2, Users } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import {
+  Add01Icon,
+  Delete02Icon,
+  HugeiconsIcon,
+  Pen01Icon,
+  UserMultipleIcon,
+} from "@src/icons";
 import type {
   AgentDefinition,
   OrgMember,
@@ -51,7 +57,7 @@ const OrgNodeCard: React.FC<OrgNodeCardProps> = ({
 
   return (
     <div
-      className={`org-node-card group relative flex min-w-[180px] max-w-[260px] cursor-pointer flex-col gap-1.5 rounded-lg border px-4 py-3 transition-colors ${
+      className={`org-node-card group relative flex max-w-[260px] min-w-[180px] cursor-pointer flex-col gap-1.5 rounded-lg border px-4 py-3 transition-colors ${
         isSelected
           ? "border-primary-6 bg-bg-2"
           : "border-border-2 bg-bg-2 hover:border-border-3"
@@ -60,7 +66,12 @@ const OrgNodeCard: React.FC<OrgNodeCardProps> = ({
     >
       {/* Icon + Name */}
       <div className="flex items-center gap-2">
-        <Users size={16} className="shrink-0 text-primary-6" />
+        <HugeiconsIcon
+          icon={UserMultipleIcon}
+          data-icon="users"
+          size={16}
+          className="shrink-0 text-primary-6"
+        />
         <span className="truncate text-[14px] font-medium text-text-1">
           {node.name}
         </span>
@@ -77,7 +88,7 @@ const OrgNodeCard: React.FC<OrgNodeCardProps> = ({
       </span>
 
       {!readOnly && (
-        <div className="absolute -right-1 -top-3 flex gap-0.5 rounded-md border border-border-2 bg-bg-2 px-1 py-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+        <div className="absolute -top-3 -right-1 flex gap-0.5 rounded-md border border-border-2 bg-bg-2 px-1 py-0.5 opacity-0 shadow-xs transition-opacity group-hover:opacity-100">
           {canAddChild && (
             <button
               className="rounded p-0.5 hover:bg-fill-2"
@@ -87,7 +98,12 @@ const OrgNodeCard: React.FC<OrgNodeCardProps> = ({
               }}
               title={t("org.addChild")}
             >
-              <Plus size={12} className="text-text-2" />
+              <HugeiconsIcon
+                icon={Add01Icon}
+                data-icon="plus"
+                size={12}
+                className="text-text-2"
+              />
             </button>
           )}
           <button
@@ -98,7 +114,12 @@ const OrgNodeCard: React.FC<OrgNodeCardProps> = ({
             }}
             title={t("common:actions.edit")}
           >
-            <Pencil size={12} className="text-text-2" />
+            <HugeiconsIcon
+              icon={Pen01Icon}
+              data-icon="pencil"
+              size={12}
+              className="text-text-2"
+            />
           </button>
           {!isRoot && (
             <button
@@ -109,7 +130,12 @@ const OrgNodeCard: React.FC<OrgNodeCardProps> = ({
               }}
               title={t("common:actions.delete")}
             >
-              <Trash2 size={12} className="text-danger-6" />
+              <HugeiconsIcon
+                icon={Delete02Icon}
+                data-icon="trash-2"
+                size={12}
+                className="text-danger-6"
+              />
             </button>
           )}
         </div>

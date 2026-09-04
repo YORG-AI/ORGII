@@ -168,25 +168,6 @@ fn is_cache_valid_returns_false_for_unknown() {
     assert!(!store.is_cache_valid("unknown"));
 }
 
-#[test]
-fn get_all_cached_statuses_returns_populated() {
-    let store = RepoStateStore::new();
-    store.add_repo(test_repo_info("r1"));
-    store.add_repo(test_repo_info("r2"));
-    store.update_status(
-        "r1",
-        GitStatus {
-            branch: "dev".to_string(),
-            ..Default::default()
-        },
-    );
-
-    let all = store.get_all_cached_statuses();
-    assert_eq!(all.len(), 1);
-    assert!(all.contains_key("r1"));
-    assert!(!all.contains_key("r2"));
-}
-
 // ============================================
 // Health Management
 // ============================================

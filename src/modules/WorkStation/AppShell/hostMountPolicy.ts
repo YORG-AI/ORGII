@@ -63,16 +63,32 @@ export function shouldMountBrowserHost(options: {
 }
 
 /**
- * Agent Station simulator: always mounted while Agent Station is the visible
- * surface; kept warm while hidden only for as long as a session is attached,
- * so my-station ↔ agent-station toggles stay instant mid-session but an idle
- * simulator releases its subtree.
+ * Agent Station simulator: mounted exactly when it is displayed.
+ *
+ * This host is the most expensive keep-alive in the app, so it gets no warm
+ * window at all. The simulator grid mounts one full `ChatHistory` per cell —
+ * its own virtualizer, projection pipeline, replay interval, and
+ * `runtimeMemoryStats` entry — and the layout enum goes up to `3x4`, so a
+ * hidden simulator can hold twelve of them. It previously stayed mounted
+ * whenever a session was attached, which kept all of that alive for the entire
+ * time the user was in the code editor or behind a maximized chat panel.
+ *
+ * Unmounting is safe because the simulator is a pure view: every event it
+ * renders lives in the EventStore (kept warm by the snapshot cache's own LRU),
+ * and it owns no subscription or interval that has to outlive its subtree. The
+ * keep-alive was buying back a React tree rebuild from already-warm data, not
+ * avoiding a refetch.
+ *
+ * `isChatPanelMaximized` is part of the condition rather than only
+ * `isAgentStation` so that "mounted" and "displayed" cannot drift apart: a
+ * maximized chat panel hides the simulator just as completely as leaving the
+ * surface does. It is a deliberate layout mode, not focus/blur, so this does
+ * not thrash.
  */
 export function shouldMountAgentStationHost(options: {
   isAgentStation: boolean;
-  hasVisited: boolean;
-  hasActiveSession: boolean;
+  isChatPanelMaximized: boolean;
 }): boolean {
-  const { isAgentStation, hasVisited, hasActiveSession } = options;
-  return isAgentStation || (hasVisited && hasActiveSession);
+  const { isAgentStation, isChatPanelMaximized } = options;
+  return isAgentStation && !isChatPanelMaximized;
 }

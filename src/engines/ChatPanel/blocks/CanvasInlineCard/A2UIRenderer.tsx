@@ -328,7 +328,7 @@ const A2UIRenderer = forwardRef<A2UIRendererHandle, A2UIRendererProps>(
           {/* Streaming indicator — pulsing dot in bottom-right corner */}
           {isStreaming && (
             <div className="sticky bottom-2 flex justify-end pr-1" aria-hidden>
-              <span className="inline-flex items-center gap-1 rounded-full bg-fill-3/80 px-2 py-0.5 text-[10px] text-text-4 backdrop-blur-sm">
+              <span className="inline-flex items-center gap-1 rounded-full bg-fill-3/80 px-2 py-0.5 text-[10px] text-text-4 backdrop-blur-xs">
                 <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary-6" />
                 streaming
               </span>

@@ -2,41 +2,48 @@
 
 const fs = require("node:fs");
 
-// Keep this list deliberately narrow. Rust may be skipped only when every
-// changed file is known to be consumed exclusively by frontend tooling.
-const FRONTEND_ONLY_PREFIXES = Object.freeze([
-  "assets/",
-  "build/",
-  "public/",
-  "src/",
-  "tests/",
+// The Rust jobs (clippy + workspace tests) read a bounded set of inputs, so
+// the gate enumerates those inputs and fires only when the diff touches one.
+// Everything else — frontend code, configs, docs, agent skills, unrelated
+// tooling — skips the macOS runner. This replaces the old inverted rule
+// ("skip only when every path is on a frontend/docs allowlist"), which ran
+// ~30 min of clippy for any path the allowlist had never heard of.
+//
+// If the Rust build grows a new out-of-tree input (a codegen script, a shared
+// fixture directory), it must be added here in the same change.
+const RUST_RELEVANT_PREFIXES = Object.freeze([
+  // The entire workspace: crates, Cargo.toml/Cargo.lock, .cargo/, tauri
+  // configs, capabilities, icons bundled into the binary.
+  "src-tauri/",
+  // Schemas and fixtures read by Rust protocol-conformance tests; the whole
+  // contract stays in Rust scope, including its Markdown.
+  "docs/orgtrack-pm-protocol/",
+  // The Rust CI job shells out to these before building (sidecar prep, build
+  // helpers), so their behavior is part of the build.
+  "scripts/tauri/",
+  // Workflow definitions and composite actions decide how (and whether) the
+  // Rust jobs run.
+  ".github/workflows/",
+  ".github/actions/",
 ]);
 
-const FRONTEND_ONLY_ROOT_FILES = new Set([
-  "commitlint.config.cjs",
-  "package.json",
-  "pnpm-lock.yaml",
-  "pnpm-workspace.yaml",
-  "postcss.config.js",
-  "tailwind.config.js",
-  "tsconfig.json",
-  "vitest.config.ts",
-  "webpack.config.js",
+const RUST_RELEVANT_FILES = new Set([
+  // The gate itself and its test: a diff that edits the detector must not be
+  // trusted to scope itself.
+  "scripts/ci/detect-rust-changes.cjs",
+  "scripts/ci/detect-rust-changes.test.cjs",
 ]);
 
-function isFrontendOnlyPath(filePath) {
+function isRustRelevantPath(filePath) {
   return (
-    FRONTEND_ONLY_ROOT_FILES.has(filePath) ||
-    FRONTEND_ONLY_PREFIXES.some((prefix) => filePath.startsWith(prefix))
+    RUST_RELEVANT_FILES.has(filePath) ||
+    RUST_RELEVANT_PREFIXES.some((prefix) => filePath.startsWith(prefix))
   );
 }
 
 function requiresRust(filePaths) {
   // Fail closed when diff discovery yields nothing unexpectedly.
-  return (
-    filePaths.length === 0 ||
-    filePaths.some((filePath) => !isFrontendOnlyPath(filePath))
-  );
+  return filePaths.length === 0 || filePaths.some(isRustRelevantPath);
 }
 
 function parseNullDelimitedPaths(input) {
@@ -49,7 +56,7 @@ if (require.main === module) {
 }
 
 module.exports = {
-  isFrontendOnlyPath,
+  isRustRelevantPath,
   parseNullDelimitedPaths,
   requiresRust,
 };

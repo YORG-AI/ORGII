@@ -13,7 +13,7 @@ export interface DiffSectionListItem<TFile extends DiffFileSectionData> {
   file: TFile;
 }
 
-export interface DiffSectionListProps<TFile extends DiffFileSectionData> {
+interface DiffSectionListProps<TFile extends DiffFileSectionData> {
   sections: Array<DiffSectionListItem<TFile>>;
   viewMode: DiffViewMode;
   loading?: boolean;
@@ -184,7 +184,7 @@ function DiffSectionListInner<TFile extends DiffFileSectionData>({
       <div className="min-h-0 flex-1 overflow-hidden">
         <Virtuoso
           ref={virtuosoRef}
-          className="h-full scrollbar-hide"
+          className="scrollbar-hide h-full"
           data={keyedSections}
           computeItemKey={(_index, item) => item.renderKey}
           overscan={600}

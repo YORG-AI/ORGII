@@ -34,7 +34,7 @@ import { hasVisibleChatDropTarget } from "./utils/routeUtils";
 
 const log = createLogger("drag-drop");
 
-export interface UseTauriDragDropOptions {
+interface UseTauriDragDropOptions {
   handleIdeFileDrop: (
     filePath: string,
     fileName?: string,

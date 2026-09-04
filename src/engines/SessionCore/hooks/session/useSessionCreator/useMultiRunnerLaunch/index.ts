@@ -95,7 +95,7 @@ class RunnerKeyResolutionError extends Error {
   }
 }
 
-export interface UseMultiRunnerLaunchOptions {
+interface UseMultiRunnerLaunchOptions {
   /** True only for the Compare-runners launcher surface. */
   enabled: boolean;
   cliAgents: AvailableCliAgent[];
@@ -111,7 +111,7 @@ export interface UseMultiRunnerLaunchOptions {
   t: TFunction;
 }
 
-export interface UseMultiRunnerLaunchReturn {
+interface UseMultiRunnerLaunchReturn {
   runners: Runner[];
   blockers: Record<string, RunnerBlocker | null>;
   eligibleCount: number;

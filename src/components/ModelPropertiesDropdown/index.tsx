@@ -1,30 +1,12 @@
 /**
  * ModelPropertiesDropdown
  *
- * Edit popover for picking a specific model variant from a
- * model family's available variant ids. Sections:
- *
- *  - **Options** (top): `Thinking` switch + `Fast` switch. `Fast` is
- *    disabled when no fast variant exists for the currently selected
- *    `(thinking, level)` combination.
- *  - **Effort / Reasoning** (below): the reasoning levels exposed by the
- *    family (Low / Medium / High / Extra High / Max — only those
- *    present). Disabled and dimmed when `Thinking` is off. Selected row
- *    is indicated by a trailing check + primary-6 label (no background
- *    fill — matches the dropdown token update).
- *
- * The footer carries a single primary **Apply** button. Esc cancels.
- *
- * The component is purely **uncontrolled-on-open**: it seeds its draft
- * selection from `value` when it opens, and only calls `onApply` when
- * the user confirms.
+ * Model effort and option controls apply changes immediately through the
+ * caller's existing save path. Closing the popover only dismisses it.
  */
-import { Brain, Zap } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { useTranslation } from "react-i18next";
 
-import Button from "@src/components/Button";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -33,7 +15,11 @@ import {
 import { EffortSlider } from "@src/components/ModelPropertiesDropdown/EffortSlider";
 import Switch from "@src/components/Switch";
 import { useDropdownEngine } from "@src/hooks/dropdown";
-import { type ModelReasoningLevel } from "@src/util/modelVariants";
+import { BrainIcon, FlashIcon, HugeiconsIcon } from "@src/icons";
+import {
+  type ModelReasoningLevel,
+  getModelVariantBaseModel,
+} from "@src/util/modelVariants";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 import {
   type VariantEditOptions,
@@ -42,14 +28,14 @@ import {
 
 const SIDE_PANEL_GAP = 8;
 const MODEL_PROPERTIES_PANEL_WIDTH = 260;
-const MODEL_PROPERTIES_PANEL_EST_HEIGHT = 276;
+const MODEL_PROPERTIES_PANEL_EST_HEIGHT = 220;
 const VIEWPORT_MARGIN = 12;
 const SIDE_PANEL_ANCHOR_CHANGE_EVENT = "dropdown-side-panel-anchor-change";
 const MODEL_PROPERTIES_CLOSE_EVENT = "model-properties-dropdown-close";
 
 // ============ TYPES ============
 
-export interface ModelPropertiesDropdownProps {
+interface ModelPropertiesDropdownProps {
   /**
    * Trigger element. Receives a `ref`, click handler and `aria-expanded`
    * via render-prop so callers can use any clickable element (icon
@@ -66,20 +52,10 @@ export interface ModelPropertiesDropdownProps {
    * levels appear and which `fast` toggles are enabled.
    */
   variantOptions: VariantEditOptions;
-  /** Currently-selected model id; used to seed the draft on open. */
+  /** Current model id; the caller owns and persists the selection. */
   value: string;
-  /**
-   * Called when the user clicks Apply. Receives the resolved model id
-   * that matches the current draft selection.
-   */
-  onApply: (modelId: string) => void;
-  /**
-   * Fires whenever the in-panel draft selection changes (open, every
-   * switch/level click, and on close). Receives the resolved model id
-   * matching the live draft, or `undefined` when the panel closes
-   * without Apply (use that signal to clear any optimistic preview).
-   */
-  onDraftChange?: (modelId: string | undefined) => void;
+  /** Called once per completed slider interaction or option toggle. */
+  onChange: (modelId: string) => void;
   /** Fires whenever the dropdown opens or closes. */
   onOpenChange?: (open: boolean) => void;
   /**
@@ -110,19 +86,19 @@ export const ModelPropertiesDropdown: React.FC<
   renderTrigger,
   variantOptions,
   value,
-  onApply,
-  onDraftChange,
+  onChange,
   onOpenChange,
   disabled = false,
   centerInContainer = false,
   sidePanelInContainer = false,
 }) => {
-  const { t } = useTranslation();
   const engine = useDropdownEngine<HTMLButtonElement>({
     placement: "auto",
-    align: "right",
+    align: "left",
     closeOnEsc: true,
     closeOnClickOutside: true,
+    // Native range and switch controls own their keyboard interactions.
+    autoKeyboardNavigation: false,
     disabled,
   });
 
@@ -184,6 +160,9 @@ export const ModelPropertiesDropdown: React.FC<
     }
     const compute = () => {
       const trigger = engine.triggerRef.current;
+      const panelHeight =
+        panelRef.current?.getBoundingClientRect().height ||
+        MODEL_PROPERTIES_PANEL_EST_HEIGHT;
       const centeredZ = Math.max(DROPDOWN_PANEL.zIndex, 10000);
 
       if (sidePanelInContainer) {
@@ -199,21 +178,15 @@ export const ModelPropertiesDropdown: React.FC<
           Number.isFinite(sideHeight)
         ) {
           const belowTop = sideTop + sideHeight + SIDE_PANEL_GAP;
-          const aboveTop =
-            sideTop - MODEL_PROPERTIES_PANEL_EST_HEIGHT - SIDE_PANEL_GAP;
+          const aboveTop = sideTop - panelHeight - SIDE_PANEL_GAP;
           const { height: vh } = getViewportSize();
-          const fitsBelow =
-            belowTop + MODEL_PROPERTIES_PANEL_EST_HEIGHT <=
-            vh - VIEWPORT_MARGIN;
+          const fitsBelow = belowTop + panelHeight <= vh - VIEWPORT_MARGIN;
           const preferredTop = fitsBelow ? belowTop : aboveTop;
           setCenteredStyle({
             position: "fixed",
             top: Math.max(
               VIEWPORT_MARGIN,
-              Math.min(
-                preferredTop,
-                vh - VIEWPORT_MARGIN - MODEL_PROPERTIES_PANEL_EST_HEIGHT
-              )
+              Math.min(preferredTop, vh - VIEWPORT_MARGIN - panelHeight)
             ),
             left: sideLeft,
             zIndex: centeredZ + 1,
@@ -240,10 +213,7 @@ export const ModelPropertiesDropdown: React.FC<
             position: "fixed",
             top: Math.max(
               VIEWPORT_MARGIN,
-              Math.min(
-                rowRect.top,
-                vh - VIEWPORT_MARGIN - MODEL_PROPERTIES_PANEL_EST_HEIGHT
-              )
+              Math.min(rowRect.top, vh - VIEWPORT_MARGIN - panelHeight)
             ),
             left: Math.max(
               VIEWPORT_MARGIN,
@@ -292,80 +262,41 @@ export const ModelPropertiesDropdown: React.FC<
       window.removeEventListener("scroll", compute, true);
       window.removeEventListener(SIDE_PANEL_ANCHOR_CHANGE_EVENT, compute);
     };
-  }, [centerInContainer, sidePanelInContainer, isOpen, engine.triggerRef]);
+  }, [
+    centerInContainer,
+    sidePanelInContainer,
+    isOpen,
+    engine.triggerRef,
+    panelRef,
+    value,
+  ]);
 
-  // Draft selection lives only while the panel is open. Re-seed on every
-  // open transition (and whenever the underlying `value` changes while
-  // the panel is open) using React 19's "derived state from props"
-  // pattern: track the last value the draft was seeded from in state
-  // alongside the draft, and reseed during render when they diverge.
-  const [draft, setDraft] = useState<VariantSelection>(() =>
-    variantOptions.parseSelection(value)
+  const selection = useMemo(
+    () => variantOptions.parseSelection(value),
+    [value, variantOptions]
   );
-  const [seededFrom, setSeededFrom] = useState(value);
-  if (isOpen && seededFrom !== value) {
-    setSeededFrom(value);
-    setDraft(variantOptions.parseSelection(value));
-  }
+  const availableLevels = variantOptions.availableLevels;
 
-  const handleThinkingToggle = useCallback((next: boolean) => {
-    setDraft((prev) => ({ ...prev, thinking: next }));
-  }, []);
-
-  const handleFastToggle = useCallback((next: boolean) => {
-    setDraft((prev) => ({ ...prev, fast: next }));
-  }, []);
-
-  const handleLevelSelect = useCallback(
-    (level: ModelReasoningLevel) => {
-      setDraft((prev) => {
-        const nextSelection: VariantSelection = { ...prev, level };
-        // If the new level doesn't expose a fast variant, force-clear the
-        // fast flag so the resolved variant id is reachable.
-        if (prev.fast && !variantOptions.fastAvailable(nextSelection)) {
-          nextSelection.fast = false;
-        }
-        return nextSelection;
-      });
+  const changeSelection = useCallback(
+    (next: VariantSelection) => {
+      // Moving to a level without Fast support also clears Fast. Always
+      // resolve the complete combination before reaching the save boundary.
+      const normalized = {
+        ...next,
+        fast: next.fast && variantOptions.fastAvailable(next),
+      };
+      const modelId = variantOptions.resolveVariantId(normalized);
+      if (modelId && modelId !== value) onChange(modelId);
     },
-    [variantOptions]
+    [onChange, value, variantOptions]
   );
 
-  const resolvedModelId = useMemo(
-    () => variantOptions.resolveVariantId(draft),
-    [draft, variantOptions]
-  );
-
-  // Mirror the live draft to the parent for optimistic UI. We emit the
-  // resolved model id while the panel is open and `undefined` when it
-  // closes without Apply so the parent can revert. The Apply path skips
-  // the revert by gating on a ref.
-  //
-  // `wasOpenRef` ensures the revert fires only on a real open → close
-  // transition, not on initial mount. Without it, the close effect
-  // sees `isOpen === false` on mount and calls `onDraftChange(undefined)`,
-  // which can chain re-renders in the parent and tear down the panel
-  // before it stabilises.
-  const appliedRef = React.useRef(false);
-  const wasOpenRef = React.useRef(false);
-  useEffect(() => {
-    if (!isOpen || resolvedModelId === value) return;
-    onDraftChange?.(resolvedModelId);
-  }, [isOpen, resolvedModelId, value, onDraftChange]);
-  useEffect(() => {
-    if (isOpen) {
-      appliedRef.current = false;
-      wasOpenRef.current = true;
-      return;
-    }
-    if (!wasOpenRef.current) {
-      return;
-    }
-    wasOpenRef.current = false;
-    if (!appliedRef.current) {
-      onDraftChange?.(undefined);
-    }
-  }, [isOpen, onDraftChange, value]);
+  const handleThinkingToggle = (thinking: boolean) =>
+    changeSelection({ ...selection, thinking });
+  const handleFastToggle = (fast: boolean) =>
+    changeSelection({ ...selection, fast });
+  const handleLevelSelect = (level: ModelReasoningLevel) =>
+    changeSelection({ ...selection, level });
 
   useEffect(() => {
     onOpenChange?.(isOpen);
@@ -380,18 +311,9 @@ export const ModelPropertiesDropdown: React.FC<
   const showFastRow = useMemo(
     () =>
       variantOptions.fastAvailableAnywhere &&
-      variantOptions.fastAvailable(draft),
-    [draft, variantOptions]
+      variantOptions.fastAvailable(selection),
+    [selection, variantOptions]
   );
-
-  const canApply = resolvedModelId !== undefined && resolvedModelId !== value;
-
-  const handleApply = useCallback(() => {
-    if (!resolvedModelId) return;
-    appliedRef.current = true;
-    onApply(resolvedModelId);
-    close();
-  }, [onApply, resolvedModelId, close]);
 
   const trigger = renderTrigger({
     ref: engine.triggerRef,
@@ -404,11 +326,8 @@ export const ModelPropertiesDropdown: React.FC<
     ariaExpanded: isOpen,
   });
 
-  // When `align: "right"` the engine emits both `left` and `right`;
-  // setting both stretches the panel between them, overriding our
-  // fixed `w-[260px]`. Pick one based on alignment: right alignment
-  // anchors the panel's right edge to the trigger's right edge and
-  // lets the width tail off to the left.
+  // Anchor the left edge so changes to the effort label's width do not
+  // move the panel sideways. The engine still clamps it to the viewport.
   //
   // We use `position: fixed` because the panel is portaled to
   // `document.body` and the engine emits viewport-relative coordinates
@@ -423,9 +342,7 @@ export const ModelPropertiesDropdown: React.FC<
         position: "fixed",
         top: panelPosition.top,
         bottom: panelPosition.bottom,
-        ...(panelPosition.right !== undefined
-          ? { right: panelPosition.right }
-          : { left: panelPosition.left }),
+        left: panelPosition.left,
         zIndex: DROPDOWN_PANEL.zIndex,
       };
 
@@ -455,64 +372,55 @@ export const ModelPropertiesDropdown: React.FC<
       {/* Effort / Reasoning section (above Options). The lightweight
           slider keeps the same discrete model variants while making the
           choice feel faster than a menu of rows. */}
-      {variantOptions.availableLevels.length > 0 && (
-        <div className={DROPDOWN_CLASSES.sectionContainer}>
+      {availableLevels.length > 0 && (
+        <div className={`${DROPDOWN_CLASSES.sectionContainer} last:border-b-0`}>
           <EffortSlider
-            levels={variantOptions.availableLevels}
-            value={draft.level}
+            key={getModelVariantBaseModel(value)}
+            levels={availableLevels}
+            value={selection.level}
             onChange={handleLevelSelect}
+            fast={showFastRow && selection.fast}
+            animate={hasPosition}
           />
         </div>
       )}
 
-      {/* Options section — only the "Options" header is localized; the
-          "Thinking" / "Fast" switch labels stay as English literals.
-          Rows are conditionally rendered: hidden entirely (never
-          disabled) when the family or current selection doesn't
-          expose that dimension. */}
+      {/* Thinking / Fast switches stay hidden when the family or current
+          selection doesn't expose that dimension. */}
       {(showThinkingRow || showFastRow) && (
-        <div className={DROPDOWN_CLASSES.sectionContainer}>
-          <div className={DROPDOWN_CLASSES.sectionLabel}>
-            {t("selectors.modelProperties.options")}
-          </div>
+        <div className={`${DROPDOWN_CLASSES.sectionContainer} last:border-b-0`}>
           {showThinkingRow && (
             <SwitchRow
               icon={
-                <Brain size={DROPDOWN_ITEM.iconSize} className="text-text-2" />
+                <HugeiconsIcon
+                  icon={BrainIcon}
+                  data-icon="brain"
+                  size={DROPDOWN_ITEM.iconSize}
+                  className="text-text-2"
+                />
               }
               label="Thinking"
-              checked={draft.thinking}
+              checked={selection.thinking}
               onChange={handleThinkingToggle}
             />
           )}
           {showFastRow && (
             <SwitchRow
               icon={
-                <Zap size={DROPDOWN_ITEM.iconSize} className="text-text-2" />
+                <HugeiconsIcon
+                  icon={FlashIcon}
+                  data-icon="zap"
+                  size={DROPDOWN_ITEM.iconSize}
+                  className="text-text-2"
+                />
               }
               label="Fast"
-              checked={draft.fast}
+              checked={selection.fast}
               onChange={handleFastToggle}
             />
           )}
         </div>
       )}
-
-      {/* Footer: Cancel (left) + Apply (right). Cancel discards the
-          draft selection and closes the panel; Apply persists. */}
-      <div className="flex justify-end gap-2 p-2">
-        <Button variant="secondary" size="small" onClick={close}>
-          {t("actions.cancel", { defaultValue: "Cancel" })}
-        </Button>
-        <Button
-          variant="primary"
-          size="small"
-          disabled={!canApply}
-          onClick={handleApply}
-        >
-          {t("actions.apply", { defaultValue: "Apply" })}
-        </Button>
-      </div>
     </div>
   );
 
@@ -544,7 +452,12 @@ const SwitchRow: React.FC<SwitchRowProps> = ({
       {icon}
       {label}
     </span>
-    <Switch checked={checked} onCheckedChange={onChange} size="small" />
+    <Switch
+      checked={checked}
+      onCheckedChange={onChange}
+      ariaLabel={label}
+      size="small"
+    />
   </div>
 );
 

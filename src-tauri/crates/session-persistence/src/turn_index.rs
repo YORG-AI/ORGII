@@ -29,7 +29,8 @@ const TURN_STATUS_FAILED: &str = "failed";
 /// Orgtrack instead of interpreting ORG2 tool names in this host crate.
 /// v11: treat the normalized imported-history `user` function as the same
 /// turn boundary as the native `user_message` function.
-const TURN_INDEX_VERSION: i64 = 11;
+/// v12: materialize the canonical `turn_intent_id` carried by the user row.
+const TURN_INDEX_VERSION: i64 = 12;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -48,6 +49,10 @@ pub struct CachedTurnSummary {
     pub body_event_count: i64,
     pub status: String,
     pub interrupted: bool,
+    /// Stable identity of the logical submit that produced this round.
+    /// Imported/legacy transcripts may not carry one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_intent_id: Option<String>,
     /// Files this round wrote to, materialized so the frontend never
     /// re-aggregates file changes from raw events.
     #[serde(default)]
@@ -533,6 +538,7 @@ fn turn_summary_from_row(row: &rusqlite::Row<'_>) -> SqliteResult<CachedTurnSumm
         serde_json::from_str(&resource_interactions_json).unwrap_or_else(|_| Vec::new());
     let git_artifacts_json: String = row.get(16)?;
     let git_artifacts = serde_json::from_str(&git_artifacts_json).unwrap_or_else(|_| Vec::new());
+    let turn_intent_id = row.get(17)?;
 
     Ok(CachedTurnSummary {
         session_id: row.get(0)?,
@@ -549,6 +555,7 @@ fn turn_summary_from_row(row: &rusqlite::Row<'_>) -> SqliteResult<CachedTurnSumm
         body_event_count: row.get(11)?,
         status: row.get(12)?,
         interrupted: interrupted_int != 0,
+        turn_intent_id,
         modified_files,
         resource_interactions,
         git_artifacts,
@@ -585,8 +592,8 @@ fn rebuild_turn_index_inner(session_id: &str) -> SqliteResult<Vec<CachedTurnSumm
              (session_id, turn_id, start_sequence, end_sequence, next_turn_id, started_at, ended_at,
               duration_ms, user_event_ids_json, user_preview, event_count, body_event_count,
               status, interrupted, updated_at, modified_files_json, resource_interactions_json,
-              git_artifacts_json)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+              git_artifacts_json, turn_intent_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
         )?;
 
         for draft in &drafts {
@@ -644,6 +651,7 @@ fn rebuild_turn_index_inner(session_id: &str) -> SqliteResult<Vec<CachedTurnSumm
                 modified_files_json,
                 resource_interactions_json,
                 git_artifacts_json,
+                draft.turn_intent_id,
             ])?;
         }
     }
@@ -744,7 +752,7 @@ fn select_turn_index(conn: &Connection, session_id: &str) -> SqliteResult<Vec<Ca
         "SELECT session_id, turn_id, start_sequence, end_sequence, next_turn_id, started_at, ended_at,
                 duration_ms, user_event_ids_json, user_preview, event_count, body_event_count,
                 status, interrupted, modified_files_json, resource_interactions_json,
-                git_artifacts_json
+                git_artifacts_json, turn_intent_id
          FROM session_turns
          WHERE session_id = ?1
          ORDER BY started_at ASC, start_sequence ASC",
@@ -771,7 +779,7 @@ pub fn load_turn_summaries(
         "SELECT session_id, turn_id, start_sequence, end_sequence, next_turn_id, started_at, ended_at,
                 duration_ms, user_event_ids_json, user_preview, event_count, body_event_count,
                 status, interrupted, modified_files_json, resource_interactions_json,
-                git_artifacts_json
+                git_artifacts_json, turn_intent_id
          FROM session_turns
          WHERE session_id = ?1 AND turn_id = ?2",
     )?;
@@ -795,7 +803,7 @@ pub fn get_turn_summary(
         "SELECT session_id, turn_id, start_sequence, end_sequence, next_turn_id, started_at, ended_at,
                 duration_ms, user_event_ids_json, user_preview, event_count, body_event_count,
                 status, interrupted, modified_files_json, resource_interactions_json,
-                git_artifacts_json
+                git_artifacts_json, turn_intent_id
          FROM session_turns
          WHERE session_id = ?1 AND turn_id = ?2",
         params![session_id, turn_id],
@@ -1075,6 +1083,7 @@ mod tests {
         );
         assert_eq!(drafts[0].event_count, 3);
         assert_eq!(drafts[0].body_event_count, 1);
+        assert_eq!(drafts[0].turn_intent_id.as_deref(), Some("intent-A"));
     }
 
     #[test]
@@ -1115,6 +1124,32 @@ mod tests {
         assert_eq!(drafts.len(), 2);
         assert_eq!(drafts[0].turn_id, "user-message-a");
         assert_eq!(drafts[1].turn_id, "user-message-b");
+        assert_eq!(drafts[0].turn_intent_id.as_deref(), Some("intent-A"));
+        assert_eq!(drafts[1].turn_intent_id.as_deref(), Some("intent-B"));
+    }
+
+    #[test]
+    fn cached_turn_summary_reads_materialized_turn_intent_id() {
+        let conn = Connection::open_in_memory().unwrap();
+        crate::schema::init_session_tables(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO session_turns
+             (session_id, turn_id, start_sequence, started_at, status, updated_at,
+              turn_intent_id)
+             VALUES (?1, ?2, 1, ?3, 'completed', ?3, ?4)",
+            params![
+                "session-1",
+                "turn-1",
+                "2026-05-27T00:00:00Z",
+                "intent-canonical",
+            ],
+        )
+        .unwrap();
+
+        let turns = select_turn_index(&conn, "session-1").unwrap();
+
+        assert_eq!(turns.len(), 1);
+        assert_eq!(turns[0].turn_intent_id.as_deref(), Some("intent-canonical"));
     }
 
     #[test]

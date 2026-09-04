@@ -54,6 +54,15 @@ interface BuildSectionedWorkspaceItemsArgs {
   selectedIds: Set<string>;
   searchQuery: string;
   paletteText: WorkspacePaletteText;
+  /**
+   * Org-scope membership predicate. When set, repo/workspace sections are
+   * replaced by a "This org" / "Outside this org" split instead of hiding
+   * non-matching rows. Workspace items carry their own `outsideOrgScope`
+   * data flag (set by useWorkspacePaletteWorkspace).
+   */
+  orgScopeFilter?: ((repo: RepoItem) => boolean) | null;
+  /** Renders each repo row's filesystem path under its name (footer toggle). */
+  showPath?: boolean;
   onRepoAction: (repo: RepoItem) => void;
   onLeadingRepoAction: (repo: RepoItem) => void;
   toggleSelection: (id: string) => void;
@@ -75,6 +84,8 @@ export function buildSectionedWorkspaceItems({
   selectedIds,
   searchQuery,
   paletteText,
+  orgScopeFilter = null,
+  showPath = false,
   onRepoAction,
   onLeadingRepoAction,
   toggleSelection,
@@ -83,6 +94,18 @@ export function buildSectionedWorkspaceItems({
   if (addMenuActive) {
     return sectionedAddItems;
   }
+
+  // System-path rows never run through the org predicate — resolving git
+  // remotes against e.g. the user's home directory is wasted priming.
+  const outsideOrgRepoIds = orgScopeFilter
+    ? new Set(
+        filteredRepos
+          .filter(
+            (repo) => !isSystemPathRepoItem(repo) && !orgScopeFilter(repo)
+          )
+          .map((repo) => repo.id)
+      )
+    : null;
 
   const persistedFolderRepos = filteredRepos.filter(
     (repo) => !isSystemPathRepoItem(repo) && repo.kind === REPO_KIND.FOLDER
@@ -93,6 +116,7 @@ export function buildSectionedWorkspaceItems({
 
   const repoItemOptions = {
     currentRepoId: isMultiRoot ? undefined : currentRepoId,
+    showPath,
     onAction: onRepoAction,
     manageAction: isManageMode ? renderRepoTrashAction : undefined,
     getSelectionState: isManageMode
@@ -115,6 +139,7 @@ export function buildSectionedWorkspaceItems({
     leadingRepos.length > 0 && !isManageMode
       ? buildRepoSpotlightItems([...leadingRepos], {
           currentRepoId,
+          showPath,
           onAction: onLeadingRepoAction,
         })
       : [];
@@ -123,6 +148,7 @@ export function buildSectionedWorkspaceItems({
     externalRecentRepos.length > 0 && !isManageMode
       ? buildRepoSpotlightItems([...externalRecentRepos], {
           currentRepoId,
+          showPath,
           onAction: onLeadingRepoAction,
         })
       : [];
@@ -130,16 +156,19 @@ export function buildSectionedWorkspaceItems({
   const recentCachedRepoRanks = new Map(
     recentCachedRepos.map((repo, index) => [repo.id, index])
   );
+  const isOutsideOrgItem = (item: SpotlightItem) =>
+    !!outsideOrgRepoIds &&
+    (outsideOrgRepoIds.has(item.id) || item.data?.outsideOrgScope === true);
+  // With an org scope active, Recent is scoped to the org too — out-of-org
+  // rows appear only under "Outside this org", never in Recent.
+  const recentEligible = (item: SpotlightItem) =>
+    recentCachedRepoRanks.has(item.id) && !isOutsideOrgItem(item);
   const recentItems = !isManageMode
     ? [
-        ...repoItems.filter((item) => recentCachedRepoRanks.has(item.id)),
-        ...folderWorkspaceItems.filter((item) =>
-          recentCachedRepoRanks.has(item.id)
-        ),
-        ...leadingRepoItems.filter((item) =>
-          recentCachedRepoRanks.has(item.id)
-        ),
-        ...workspaceItems,
+        ...repoItems.filter(recentEligible),
+        ...folderWorkspaceItems.filter(recentEligible),
+        ...leadingRepoItems.filter(recentEligible),
+        ...workspaceItems.filter((item) => !isOutsideOrgItem(item)),
       ]
         .sort((itemA, itemB) => {
           const rankA = recentCachedRepoRanks.get(itemA.id);
@@ -202,24 +231,52 @@ export function buildSectionedWorkspaceItems({
     paletteText.sectionRecentLabel,
     recentItems.filter((item) => !currentIds.has(item.id))
   );
-  appendSection(
-    sectionedItems,
-    WORKSPACE_PALETTE_SECTION_KEY.REPO,
-    paletteText.sectionRepoLabel,
-    regularRepoItems
-  );
-  appendSection(
-    sectionedItems,
-    WORKSPACE_PALETTE_SECTION_KEY.MULTI_REPO_WORKSPACE,
-    paletteText.sectionMultiRepoWorkspaceLabel,
-    regularWorkspaceItems
-  );
-  appendSection(
-    sectionedItems,
-    WORKSPACE_PALETTE_SECTION_KEY.FOLDER_WORKSPACE,
-    paletteText.sectionFolderWorkspaceLabel,
-    regularFolderWorkspaceItems
-  );
+  if (outsideOrgRepoIds) {
+    const inThisOrg = (items: SpotlightItem[]) =>
+      items.filter((item) => !isOutsideOrgItem(item));
+    const outsideOrg = (items: SpotlightItem[]) =>
+      items.filter(isOutsideOrgItem);
+
+    appendSection(
+      sectionedItems,
+      WORKSPACE_PALETTE_SECTION_KEY.THIS_ORG,
+      paletteText.sectionThisOrgLabel,
+      [
+        ...inThisOrg(regularRepoItems),
+        ...inThisOrg(regularWorkspaceItems),
+        ...inThisOrg(regularFolderWorkspaceItems),
+      ]
+    );
+    appendSection(
+      sectionedItems,
+      WORKSPACE_PALETTE_SECTION_KEY.OUTSIDE_ORG,
+      paletteText.sectionOutsideOrgLabel,
+      [
+        ...outsideOrg(regularRepoItems),
+        ...outsideOrg(regularWorkspaceItems),
+        ...outsideOrg(regularFolderWorkspaceItems),
+      ]
+    );
+  } else {
+    appendSection(
+      sectionedItems,
+      WORKSPACE_PALETTE_SECTION_KEY.REPO,
+      paletteText.sectionRepoLabel,
+      regularRepoItems
+    );
+    appendSection(
+      sectionedItems,
+      WORKSPACE_PALETTE_SECTION_KEY.MULTI_REPO_WORKSPACE,
+      paletteText.sectionMultiRepoWorkspaceLabel,
+      regularWorkspaceItems
+    );
+    appendSection(
+      sectionedItems,
+      WORKSPACE_PALETTE_SECTION_KEY.FOLDER_WORKSPACE,
+      paletteText.sectionFolderWorkspaceLabel,
+      regularFolderWorkspaceItems
+    );
+  }
   appendSection(
     sectionedItems,
     WORKSPACE_PALETTE_SECTION_KEY.SYSTEM_PATH,

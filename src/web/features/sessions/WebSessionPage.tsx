@@ -1,4 +1,3 @@
-import { MessageSquareText, MonitorPlay } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -25,6 +24,7 @@ import { resolveReplayEventIndex } from "@src/engines/SessionCore/replay/resolve
 import { useReplayController } from "@src/engines/SessionCore/replay/useReplayController";
 import { RemoteSessionReplayControls } from "@src/engines/Simulator/components/RemoteSessionReplayControls";
 import { RemoteSessionWorkstationSurface } from "@src/engines/Simulator/components/RemoteSessionWorkstationSurface";
+import { HugeiconsIcon, MessageMultiple01Icon, MonitorIcon } from "@src/icons";
 
 import { WebSessionAlternateSurface } from "./WebSessionAlternateSurface";
 import WebSessionCommentsHeaderExtras from "./WebSessionCommentsHeaderExtras";
@@ -374,12 +374,26 @@ export function WebSessionPage({
               {
                 key: "chat",
                 label: t("web.sessionPage.chatTab"),
-                icon: <MessageSquareText size={14} aria-hidden />,
+                icon: (
+                  <HugeiconsIcon
+                    icon={MessageMultiple01Icon}
+                    data-icon="message-square-text"
+                    size={14}
+                    aria-hidden
+                  />
+                ),
               },
               {
                 key: "workstation",
                 label: t("web.sessionPage.workstationTab"),
-                icon: <MonitorPlay size={14} aria-hidden />,
+                icon: (
+                  <HugeiconsIcon
+                    icon={MonitorIcon}
+                    data-icon="monitor-play"
+                    size={14}
+                    aria-hidden
+                  />
+                ),
               },
             ]}
             activeTab={mobilePane}
@@ -393,7 +407,7 @@ export function WebSessionPage({
       <div className="flex min-h-0 min-w-0 flex-1">
         {showSplitView ? (
           <>
-            <div className="flex w-2/5 min-w-96 max-w-xl shrink-0 border-r border-border-2">
+            <div className="flex w-2/5 max-w-xl min-w-96 shrink-0 border-r border-border-2">
               {transcript}
             </div>
             {workstation}

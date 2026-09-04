@@ -1,9 +1,3 @@
-import {
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Lock,
-  MessageCircle,
-} from "lucide-react";
 import React, { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -12,6 +6,13 @@ import {
   type AgentOrgTask,
   type AgentOrgTaskStatus,
 } from "@src/api/tauri/agent";
+import {
+  BubbleChatIcon,
+  ChevronsDownUpIcon,
+  HugeiconsIcon,
+  LockIcon,
+  UnfoldMoreIcon,
+} from "@src/icons";
 
 const TASK_STATUS_CHIP_BASE =
   "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium leading-4";
@@ -147,7 +148,7 @@ function AgentOrgTaskSubject({
   if (!hasLongText) {
     return (
       <span
-        className={`chat-block-title min-w-0 text-sm leading-5 text-text-1 ${done ? "!text-text-3 line-through" : ""}`}
+        className={`chat-block-title min-w-0 text-sm leading-5 text-text-1 ${done ? "text-text-3! line-through" : ""}`}
         title={task.description || task.subject}
       >
         {task.subject}
@@ -158,7 +159,7 @@ function AgentOrgTaskSubject({
   return (
     <button
       type="button"
-      className={`chat-block-title flex min-w-0 flex-1 items-start gap-1 text-left text-sm leading-5 text-text-1 ${done ? "!text-text-3 line-through" : ""}`}
+      className={`chat-block-title flex min-w-0 flex-1 items-start gap-1 text-left text-sm leading-5 text-text-1 ${done ? "text-text-3! line-through" : ""}`}
       title={task.description || task.subject}
       aria-expanded={expanded}
       onClick={() => setExpanded((value) => !value)}
@@ -166,20 +167,24 @@ function AgentOrgTaskSubject({
       <span
         className={
           expanded
-            ? "max-h-32 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words"
+            ? "max-h-32 min-w-0 flex-1 overflow-y-auto wrap-break-word whitespace-pre-wrap"
             : "min-w-0 flex-1 truncate"
         }
       >
         {text}
       </span>
       {expanded ? (
-        <ChevronsDownUp
+        <HugeiconsIcon
+          icon={ChevronsDownUpIcon}
+          data-icon="chevrons-down-up"
           size={11}
           strokeWidth={2}
           className="mt-0.5 shrink-0 text-text-3"
         />
       ) : (
-        <ChevronsUpDown
+        <HugeiconsIcon
+          icon={UnfoldMoreIcon}
+          data-icon="chevrons-up-down"
           size={11}
           strokeWidth={2}
           className="mt-0.5 shrink-0 text-text-3"
@@ -219,7 +224,7 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
           return (
             <div
               key={task.id}
-              className={`rounded-lg border border-border-1 bg-bg-1/90 px-3 py-2 shadow-sm transition-colors hover:bg-bg-2/80 ${blocked ? "opacity-70" : ""}`}
+              className={`rounded-lg border border-border-1 bg-bg-1/90 px-3 py-2 shadow-xs transition-colors hover:bg-bg-2/80 ${blocked ? "opacity-70" : ""}`}
               data-testid={rowTestId}
               data-task-id={task.id}
               data-task-status={task.status}
@@ -269,7 +274,12 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
                                 "planner.agentOrgIntervention.teammateBusy"
                               )}
                             >
-                              <MessageCircle size={8} strokeWidth={2} />
+                              <HugeiconsIcon
+                                icon={BubbleChatIcon}
+                                data-icon="message-circle"
+                                size={8}
+                                strokeWidth={2}
+                              />
                               <span>
                                 {t("planner.agentOrgIntervention.busyShort")}
                               </span>
@@ -279,7 +289,12 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
                       )}
                       {blocked && (
                         <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning-6/10 px-2 py-0.5 text-warning-6">
-                          <Lock size={8} strokeWidth={2} />
+                          <HugeiconsIcon
+                            icon={LockIcon}
+                            data-icon="lock"
+                            size={8}
+                            strokeWidth={2}
+                          />
                           {task.blockedBy.length}
                         </span>
                       )}

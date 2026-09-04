@@ -4,14 +4,13 @@
  * GitHub-style PR conversation: a flow-title header (title · #number · status
  * pill · merge-flow sentence) over the PR description and the interleaved
  * comment/review timeline. A bottom composer posts a conversation comment or
- * submits a review. The operations sidebar renders at the panel level beside
- * the tabs, not inside this tab.
+ * submits a review. The operations sidebar stays at the panel level beside
+ * the tabs.
  *
  * Reuses the shared timeline primitives so it renders identically to the Issue
  * detail view.
  */
 import type { TFunction } from "i18next";
-import { CheckCircle2, FileDiff, XCircle } from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -21,10 +20,10 @@ import type {
   GitHubReviewComment,
   PrReviewEvent,
 } from "@src/api/tauri/github";
-import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import ComposerSurface from "@src/components/ComposerSurface";
 import { projectMarkdownSessionReferences } from "@src/components/MarkDown/sessionReferenceProjection";
+import PersonAvatar from "@src/components/PersonAvatar";
 import Radio from "@src/components/Radio";
 import type { RadioValue } from "@src/components/Radio";
 import Textarea from "@src/components/Textarea";
@@ -32,6 +31,12 @@ import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTok
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { useSessionReferenceDropTarget } from "@src/features/Org2Cloud/useSessionReferenceDropTarget";
 import { useElementDimensions } from "@src/hooks/ui/layout/useElementDimensions";
+import {
+  CancelCircleIcon,
+  CheckmarkCircle01Icon,
+  FileDiffIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import {
   ConnectedTimelineItem,
   MarkdownContent,
@@ -80,7 +85,9 @@ function reviewVerb(
       return {
         label: t("git.pr.activity.approved", "approved these changes"),
         icon: (
-          <CheckCircle2
+          <HugeiconsIcon
+            icon={CheckmarkCircle01Icon}
+            data-icon="check-circle-2"
             size={14}
             strokeWidth={1.9}
             className="text-success-6"
@@ -90,17 +97,41 @@ function reviewVerb(
     case "CHANGES_REQUESTED":
       return {
         label: t("git.pr.activity.changesRequested", "requested changes"),
-        icon: <XCircle size={14} strokeWidth={1.9} className="text-danger-6" />,
+        icon: (
+          <HugeiconsIcon
+            icon={CancelCircleIcon}
+            data-icon="xcircle"
+            size={14}
+            strokeWidth={1.9}
+            className="text-danger-6"
+          />
+        ),
       };
     case "DISMISSED":
       return {
         label: t("git.pr.activity.reviewDismissed", "dismissed a review"),
-        icon: <FileDiff size={14} strokeWidth={1.9} className="text-text-3" />,
+        icon: (
+          <HugeiconsIcon
+            icon={FileDiffIcon}
+            data-icon="file-diff"
+            size={14}
+            strokeWidth={1.9}
+            className="text-text-3"
+          />
+        ),
       };
     default:
       return {
         label: t("git.pr.activity.reviewed", "reviewed"),
-        icon: <FileDiff size={14} strokeWidth={1.9} className="text-text-3" />,
+        icon: (
+          <HugeiconsIcon
+            icon={FileDiffIcon}
+            data-icon="file-diff"
+            size={14}
+            strokeWidth={1.9}
+            className="text-text-3"
+          />
+        ),
       };
   }
 }
@@ -140,12 +171,6 @@ type TimelineEntry =
 interface PrConversationTabProps {
   /** GitHub-style flow-title block rendered above the timeline. */
   flowHeader?: React.ReactNode;
-  /**
-   * Details rail stacked under the flow title, above the description. The host
-   * passes this only when the pane is too narrow to keep the rail as its own
-   * column; otherwise the rail renders beside the tabs.
-   */
-  sidebar?: React.ReactNode;
   detail: Record<string, unknown> | null;
   identity: PrIdentity;
   conversation: GitHubIssueComment[];
@@ -164,7 +189,6 @@ interface PrConversationTabProps {
 
 export const PrConversationTab: React.FC<PrConversationTabProps> = ({
   flowHeader,
-  sidebar,
   detail,
   identity,
   conversation,
@@ -307,10 +331,10 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
   const lastIndex = timeline.length; // description card is index -1 conceptually
 
   return (
-    <div className="allow-select-deep relative flex h-full min-h-0 select-text flex-col overflow-hidden">
+    <div className="allow-select-deep relative flex h-full min-h-0 flex-col overflow-hidden select-text">
       <div
         ref={trailScrollContainerRef}
-        className="min-h-0 flex-1 overflow-y-auto scrollbar-hide"
+        className="scrollbar-hide min-h-0 flex-1 overflow-y-auto"
         data-testid="pr-conversation-scroll"
       >
         <div
@@ -320,14 +344,6 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
           {flowHeader ? (
             <div className={`${DETAIL_PANEL_TOKENS.headerWidth} px-4 pt-5`}>
               {flowHeader}
-            </div>
-          ) : null}
-          {sidebar ? (
-            <div
-              className={`${DETAIL_PANEL_TOKENS.headerWidth} px-4 pt-4`}
-              data-testid="pr-conversation-stacked-sidebar"
-            >
-              {sidebar}
             </div>
           ) : null}
           <div
@@ -344,7 +360,13 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                     copyBody={body}
                     header={
                       <TimelineCardHeader
-                        avatar={<Avatar size={18} src={author.avatarUrl} />}
+                        avatar={
+                          <PersonAvatar
+                            size={18}
+                            name={author.login || identity.title}
+                            src={author.avatarUrl}
+                          />
+                        }
                         actor={author.login || identity.title}
                         action={t(
                           "git.pr.activity.opened",
@@ -391,8 +413,9 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                             header={
                               <TimelineCardHeader
                                 avatar={
-                                  <Avatar
+                                  <PersonAvatar
                                     size={18}
+                                    name={comment.user.login}
                                     src={comment.user.avatar_url}
                                   />
                                 }
@@ -434,8 +457,9 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                           header={
                             <TimelineCardHeader
                               avatar={
-                                <Avatar
+                                <PersonAvatar
                                   size={18}
+                                  name={review.user.login}
                                   src={review.user.avatar_url}
                                 />
                               }
@@ -454,7 +478,7 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                               fadeFrom="from-chat-pane"
                             />
                           ) : (
-                            <div className="text-[12px] italic text-text-3">
+                            <div className="text-[12px] text-text-3 italic">
                               {t(
                                 "git.pr.reviewNoBody",
                                 "Left review comments."
@@ -475,12 +499,12 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
 
       <div
         ref={composerDockRef}
-        className={`absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
+        className={`absolute right-0 bottom-0 left-0 z-50 flex w-full shrink-0 flex-col items-center pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
         data-testid="pr-floating-composer"
       >
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"
+          className="pointer-events-none absolute inset-x-0 top-[-28px] bottom-0 bg-linear-to-t from-chat-pane via-chat-pane/90 to-transparent"
         />
         <div
           className={`${DETAIL_PANEL_TOKENS.headerWidth} relative z-10 w-full px-4`}
@@ -493,8 +517,8 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
             <ComposerSurface
               ref={dropTargetRef}
               variant="default"
-              className={`overflow-visible !pt-1.5 ${
-                isDragOver ? "!ring-2 !ring-primary-6" : ""
+              className={`overflow-visible pt-1.5! ${
+                isDragOver ? "ring-2! ring-primary-6!" : ""
               }`.trim()}
               data-testid="pr-comment-drop-target"
               leadingActions={
@@ -537,7 +561,8 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                 value={draft}
                 onChange={updateDraft}
                 placeholder={t("git.pr.commentPlaceholder", "Leave a comment…")}
-                minHeight={100}
+                minHeight={64}
+                minRows={2}
                 maxHeight={500}
                 appearance="plain"
                 editable={!submittingComment && !submittingReview}
@@ -555,10 +580,7 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
         visible={reviewModalVisible}
         title={t("git.pr.submitReview", "Submit review")}
         width={640}
-        bodyClassName="px-5 py-4"
-        footerTopBorder={false}
-        primaryButtonSize="default"
-        secondaryButtonSize="default"
+        bodyClassName="p-0"
         okText={t("git.pr.submitReview", "Submit review")}
         cancelText={t("actions.cancel", "Cancel")}
         onCancel={closeReviewModal}
@@ -572,38 +594,47 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
         }}
         cancelButtonProps={{ disabled: submittingReview }}
       >
-        <div className="flex flex-col gap-5">
+        <div
+          className="flex flex-col gap-4 px-5 py-4"
+          data-testid="pr-review-modal-body"
+        >
           <p className="text-[13px] leading-5 text-text-3">
             {t(
               "git.pr.reviewHeadNotice",
-              "The review applies only if the displayed head commit still matches."
+              "The review applies only if the displayed head commit still matches"
             )}
           </p>
 
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 text-[13px] font-medium text-text-1">
+          <fieldset className="m-0 min-w-0 border-0 p-0">
+            <legend className="sr-only">
               {t("git.pr.reviewDecision", "Review decision")}
             </legend>
-            <Radio.Group
-              value={reviewDecision}
-              onChange={handleReviewDecisionChange}
-              disabled={submittingReview}
-              direction="horizontal"
-              className="flex-wrap gap-x-5 gap-y-2"
-            >
-              <Radio value="COMMENT">{t("git.pr.comment", "Comment")}</Radio>
-              <Radio value="APPROVE">{t("git.pr.approve", "Approve")}</Radio>
-              <Radio value="REQUEST_CHANGES">
-                {t("git.pr.requestChanges", "Request changes")}
-              </Radio>
-            </Radio.Group>
+            <div data-testid="pr-review-decision-row">
+              <Radio.Group
+                value={reviewDecision}
+                onChange={handleReviewDecisionChange}
+                disabled={submittingReview}
+                direction="horizontal"
+                size="small"
+                className="flex-wrap gap-x-5 gap-y-2"
+              >
+                <Radio value="COMMENT">{t("git.pr.comment", "Comment")}</Radio>
+                <Radio value="APPROVE">{t("git.pr.approve", "Approve")}</Radio>
+                <Radio value="REQUEST_CHANGES">
+                  {t("git.pr.requestChanges", "Request changes")}
+                </Radio>
+              </Radio.Group>
+            </div>
           </fieldset>
 
           <label
             htmlFor="pr-review-comment"
-            className="flex flex-col gap-2 text-[13px] font-medium text-text-1"
+            className="block"
+            data-testid="pr-review-comment-row"
           >
-            {t("git.pr.reviewComment", "Review comment")}
+            <span className="sr-only">
+              {t("git.pr.reviewComment", "Review comment")}
+            </span>
             <Textarea
               id="pr-review-comment"
               data-testid="pr-review-comment"
@@ -613,8 +644,8 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                 "git.pr.reviewCommentPlaceholder",
                 "Add a comment…"
               )}
-              rows={7}
-              resize="vertical"
+              autoSize={{ minRows: 4, maxRows: 8 }}
+              resize="none"
               disabled={submittingReview}
             />
           </label>

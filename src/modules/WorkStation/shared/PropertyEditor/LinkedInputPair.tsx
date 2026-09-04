@@ -6,13 +6,14 @@
  *
  * Used for Padding and Margin in property panels.
  */
-import {
-  AlignHorizontalSpaceAround,
-  AlignVerticalSpaceAround,
-} from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
 
 import Input from "@src/components/Input";
+import {
+  AlignHorizontalSpaceAroundIcon,
+  AlignVerticalSpaceAroundIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 
 import {
   SpacingBottom,
@@ -168,14 +169,26 @@ export const LinkedInputPair: React.FC<LinkedInputPairProps> = memo(
             unit={unit}
             onChange={handleVerticalChange}
             disabled={disabled}
-            icon={<AlignVerticalSpaceAround size={14} />}
+            icon={
+              <HugeiconsIcon
+                icon={AlignVerticalSpaceAroundIcon}
+                data-icon="align-vertical-space-around"
+                size={14}
+              />
+            }
           />
           <SingleInput
             value={leftValue}
             unit={unit}
             onChange={handleHorizontalChange}
             disabled={disabled}
-            icon={<AlignHorizontalSpaceAround size={14} />}
+            icon={
+              <HugeiconsIcon
+                icon={AlignHorizontalSpaceAroundIcon}
+                data-icon="align-horizontal-space-around"
+                size={14}
+              />
+            }
           />
         </div>
       );

@@ -7,11 +7,18 @@
  * Categories: Repo | Session | Projects | Work items
  * Scope varies based on category (multi-select supported)
  */
-import { Box, Folder, GitBranch, Layers } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Select, { type SelectOption } from "@src/components/Select";
+import {
+  DeliveryBox01Icon,
+  FolderClosedIcon,
+  HugeiconsIcon,
+  Layers01Icon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 
 // ============================================
 // Type Definitions
@@ -50,28 +57,32 @@ export interface ScopeInfoLineProps {
 
 // Category options
 const CATEGORY_OPTION_KEYS = [
-  { value: "repo" as const, i18nKey: "scope.categories.repo", icon: Folder },
+  {
+    value: "repo" as const,
+    i18nKey: "scope.categories.repo",
+    icon: FolderClosedIcon,
+  },
   {
     value: "session" as const,
     i18nKey: "scope.categories.session",
-    icon: GitBranch,
+    icon: WorkflowCircle05Icon,
   },
   {
     value: "project" as const,
     i18nKey: "scope.categories.projects",
-    icon: Box,
+    icon: DeliveryBox01Icon,
   },
   {
     value: "workitem" as const,
     i18nKey: "scope.categories.workItems",
-    icon: Layers,
+    icon: Layers01Icon,
   },
 ];
 
 const INLINE_SELECT_CLASS =
-  "w-auto shrink-0 [&.select-open_.select-selector]:!bg-fill-2";
+  "w-auto shrink-0 [&.select-open_.select-selector]:bg-fill-2!";
 const INLINE_SELECTOR_CLASS =
-  "!h-6 !rounded-full !px-2 !text-[14px] !font-medium !text-primary-6 !transition-all !duration-200 hover:!bg-fill-2 [&_.select-arrow]:!h-3.5 [&_.select-arrow]:!w-3.5 [&_.select-suffix]:!ml-0.5";
+  "h-6! rounded-full! px-2! text-[14px]! font-medium! text-primary-6! transition-all! duration-200! hover:bg-fill-2! [&_.select-arrow]:h-3.5! [&_.select-arrow]:w-3.5! [&_.select-suffix]:ml-0.5!";
 
 // ============================================
 // Component
@@ -148,7 +159,8 @@ const ScopeInfoLine: React.FC<ScopeInfoLineProps> = ({
     (opt) => ({
       value: opt.value,
       label: t(opt.i18nKey),
-      icon: React.createElement(opt.icon, {
+      icon: React.createElement(AnyIcon, {
+        icon: opt.icon,
         size: 14,
         className: "shrink-0",
       }),
@@ -164,7 +176,14 @@ const ScopeInfoLine: React.FC<ScopeInfoLineProps> = ({
           ...repos.map((repo) => ({
             value: repo.id,
             label: repo.name,
-            icon: <Folder size={14} className="shrink-0" />,
+            icon: (
+              <HugeiconsIcon
+                icon={FolderClosedIcon}
+                data-icon="folder"
+                size={14}
+                className="shrink-0"
+              />
+            ),
           })),
         ];
       case "session":
@@ -173,7 +192,14 @@ const ScopeInfoLine: React.FC<ScopeInfoLineProps> = ({
           ...sessions.map((session) => ({
             value: session.id,
             label: session.name,
-            icon: <GitBranch size={14} className="shrink-0" />,
+            icon: (
+              <HugeiconsIcon
+                icon={WorkflowCircle05Icon}
+                data-icon="git-branch"
+                size={14}
+                className="shrink-0"
+              />
+            ),
           })),
         ];
       case "project":
@@ -182,7 +208,14 @@ const ScopeInfoLine: React.FC<ScopeInfoLineProps> = ({
           ...projects.map((project) => ({
             value: project.id,
             label: project.name,
-            icon: <Box size={14} className="shrink-0" />,
+            icon: (
+              <HugeiconsIcon
+                icon={DeliveryBox01Icon}
+                data-icon="box"
+                size={14}
+                className="shrink-0"
+              />
+            ),
           })),
         ];
       case "workitem":
@@ -191,7 +224,14 @@ const ScopeInfoLine: React.FC<ScopeInfoLineProps> = ({
           ...workItems.map((item) => ({
             value: item.id,
             label: item.name,
-            icon: <Layers size={14} className="shrink-0" />,
+            icon: (
+              <HugeiconsIcon
+                icon={Layers01Icon}
+                data-icon="layers"
+                size={14}
+                className="shrink-0"
+              />
+            ),
           })),
         ];
       default:

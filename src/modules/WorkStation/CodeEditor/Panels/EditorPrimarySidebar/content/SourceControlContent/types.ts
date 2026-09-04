@@ -1,8 +1,6 @@
 /**
  * Types for SourceControlContent component
  */
-import type { MouseEvent } from "react";
-
 import type { StashEntry } from "@src/api/http/git/types";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 import type { GitFile } from "@src/types/git/types";
@@ -154,16 +152,4 @@ export interface SourceControlContentProps {
    * overlay (e.g. scope-switch loading) already covers the changes area.
    */
   suppressLoadingPlaceholder?: boolean;
-}
-
-/** Props passed to section components */
-export interface FileSectionProps {
-  viewMode: "list-tree" | "list";
-  selectedFileId: string;
-  selectedFileIds: Set<string>;
-  isFileSelected: (fileId: string) => boolean;
-  onSelect: (fileId: string, event?: MouseEvent) => void;
-  onStageToggle?: (fileId: string, stage: boolean) => Promise<void>;
-  onDiscard?: (fileId: string) => Promise<void>;
-  onToggleDirectory: (path: string) => void;
 }

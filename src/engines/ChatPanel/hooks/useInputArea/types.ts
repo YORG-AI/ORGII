@@ -66,9 +66,6 @@ export interface InputAreaRefs {
   slashCommandKeyboardHandlerRef: MutableRefObject<
     ((event: globalThis.KeyboardEvent) => boolean) | null
   >;
-  plusSlashCommandKeyboardHandlerRef: MutableRefObject<
-    ((event: globalThis.KeyboardEvent) => boolean) | null
-  >;
   hasContentRef: MutableRefObject<boolean>;
   setHasContent: (value: boolean) => void;
 }
@@ -130,12 +127,6 @@ export interface FileSelectionHandlers {
   handleSelectFile: (file: string) => void;
 }
 
-export interface UploadContextHandlers {
-  fileInputRef: RefObject<HTMLInputElement | null>;
-  handleUploadClick: () => void;
-  handleFileUpload: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
-}
-
 export interface DragDropHandlers {
   handleDragOver: (e: DragEvent<HTMLDivElement>) => void;
   handleDragLeave: (e: DragEvent<HTMLDivElement>) => void;
@@ -165,9 +156,6 @@ export interface UseInputAreaReturn {
     ((event: ReactKeyboardEvent) => boolean) | null
   >;
   slashCommandKeyboardHandlerRef: MutableRefObject<
-    ((event: globalThis.KeyboardEvent) => boolean) | null
-  >;
-  plusSlashCommandKeyboardHandlerRef: MutableRefObject<
     ((event: globalThis.KeyboardEvent) => boolean) | null
   >;
 
@@ -211,13 +199,11 @@ export interface UseInputAreaReturn {
   handleSlashCommand: (query: string) => void;
   handleSlashCommandClose: () => void;
   handleSlashSelect: (item: SlashItem) => void;
-  handleSlashAppendSelect: (item: SlashItem) => void;
   handleModeSelect: (mode: ComposerModeEntry["id"]) => void;
   currentMode: ComposerModeEntry["id"];
   includeProjectMode: boolean;
   filteredSlashItems: SlashItem[];
   slashLoading: boolean;
-  prefetchSlashItems: (query: string) => void;
 
   // File selection
   handleSelectFile: (file: string) => void;

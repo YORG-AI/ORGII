@@ -37,7 +37,7 @@ function renderFlatWorktreeEvent(
 }
 
 describe("FallbackAdapter worktree block routing", () => {
-  it("renders worktree add as a structured block", () => {
+  it("renders worktree add as a structured block, collapsed by default", () => {
     const markup = renderWorktreeEvent(
       { action: "add", base_ref: "develop", branch: "fix/issue-148" },
       {
@@ -47,13 +47,13 @@ describe("FallbackAdapter worktree block routing", () => {
     );
 
     expect(markup).toContain('data-tool-call-name="worktree"');
-    expect(markup).toContain("fix/issue-148");
-    expect(markup).toContain("develop");
+    // Detail rows (branch/base/path) only render after the user expands.
+    expect(markup).not.toContain("fix/issue-148");
     expect(markup).not.toContain("INPUT");
     expect(markup).not.toContain("OUTPUT");
   });
 
-  it("renders worktree output JSON strings as structured rows", () => {
+  it("keeps output JSON detail rows collapsed by default", () => {
     const markup = renderFlatWorktreeEvent(
       { action: "add", branch: "fix/output-json" },
       {
@@ -69,13 +69,12 @@ describe("FallbackAdapter worktree block routing", () => {
     );
 
     expect(markup).toContain('data-tool-call-name="worktree"');
-    expect(markup).toContain("fix/output-json");
-    expect(markup).toContain("/repo/.orgii/worktrees/fix/output-json");
+    expect(markup).not.toContain("/repo/.orgii/worktrees/fix/output-json");
     expect(markup).not.toContain("INPUT");
     expect(markup).not.toContain("OUTPUT");
   });
 
-  it("extracts worktree list entries from output JSON strings", () => {
+  it("shows the list entry count in the header while entries stay collapsed", () => {
     const markup = renderFlatWorktreeEvent(
       { action: "list" },
       {
@@ -89,13 +88,13 @@ describe("FallbackAdapter worktree block routing", () => {
     );
 
     expect(markup).toContain('data-tool-call-name="worktree"');
-    expect(markup).toContain("/repo/.orgii/worktrees/a");
-    expect(markup).toContain("a");
+    expect(markup).toContain(">1<");
+    expect(markup).not.toContain("/repo/.orgii/worktrees/a");
     expect(markup).not.toContain("INPUT");
     expect(markup).not.toContain("OUTPUT");
   });
 
-  it("renders worktree leave as a structured block", () => {
+  it("renders worktree leave as a structured block, collapsed by default", () => {
     const markup = renderWorktreeEvent(
       { action: "leave", remove: false },
       {
@@ -106,7 +105,7 @@ describe("FallbackAdapter worktree block routing", () => {
 
     expect(markup).toContain('data-tool-call-name="worktree"');
     expect(markup).toContain("leave");
-    expect(markup).toContain("Returned to `/repo`");
+    expect(markup).not.toContain("Returned to `/repo`");
     expect(markup).not.toContain("INPUT");
     expect(markup).not.toContain("OUTPUT");
   });
@@ -136,20 +135,19 @@ describe("FallbackAdapter worktree block routing", () => {
     const markup = renderToStaticMarkup(createElement(RecipeRenderer, props));
 
     expect(markup).toContain('data-tool-call-name="worktree"');
-    expect(markup).toContain("fix/issue-137");
-    expect(markup).toContain("develop");
-    expect(markup).toContain("already used by worktree");
+    expect(markup).not.toContain("already used by worktree");
     expect(markup).not.toContain("INPUT");
     expect(markup).not.toContain("OUTPUT");
   });
 
-  it("renders failed worktree mutations as a structured block", () => {
+  it("renders failed worktree mutations as a structured block, collapsed by default", () => {
     const markup = renderWorktreeEvent(
       { action: "add", base_ref: "develop", branch: "fix/issue-148" },
       { error: "Already in a worktree" }
     );
 
-    expect(markup).toContain("Already in a worktree");
+    expect(markup).toContain('data-tool-call-name="worktree"');
+    expect(markup).not.toContain("Already in a worktree");
     expect(markup).not.toContain("INPUT");
     expect(markup).not.toContain("OUTPUT");
   });

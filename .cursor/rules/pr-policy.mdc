@@ -5,10 +5,10 @@ alwaysApply: true
 
 # Pull Request Contract
 
-@PR_RULES.md
+@.github/PR_RULES.md
 
 Before creating or updating any pull request, read and follow
-`PR_RULES.md`. It is the tracked, repository-wide source of truth.
+`.github/PR_RULES.md`. It is the tracked, repository-wide source of truth.
 
 Hard gates:
 

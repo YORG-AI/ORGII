@@ -1,9 +1,9 @@
-import { Repeat } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { type WorkItemRun, projectApi } from "@src/api/http/project";
 import { useProjectDataChanged } from "@src/hooks/project";
+import { HugeiconsIcon, RepeatIcon } from "@src/icons";
 import {
   formatTokensShort,
   formatUsd,
@@ -117,7 +117,14 @@ const WorkItemRunUsageSummary: React.FC<WorkItemRunUsageSummaryProps> = ({
         description: run.sessionId ?? run.id,
         statusLabel: run.status,
         statusColor: RUN_STATUS_COLOR[run.status],
-        agentIcon: <Repeat size={14} strokeWidth={1.75} />,
+        agentIcon: (
+          <HugeiconsIcon
+            icon={RepeatIcon}
+            data-icon="repeat"
+            size={14}
+            strokeWidth={1.75}
+          />
+        ),
         agentLabel: "Run",
         modelLabel: run.trigger.kind,
         tokensLabel:

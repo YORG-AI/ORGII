@@ -348,11 +348,6 @@ export const customShellPathAtom = atom(
   }
 );
 
-/**
- * Active settings tab
- */
-export const editorSettingsTabAtom = atom<string>("terminal");
-
 // ============================================
 // Git Settings
 // ============================================

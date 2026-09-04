@@ -1,14 +1,12 @@
 /**
  * SlashCommandMenu — the main dropdown panel.
  *
- * Composes useEntries, useFloatingPortalPosition, useKeyboard, FlyoutSubmenu,
- * and the individual MenuRow components into the full slash command experience.
+ * Composes the skills-only entry list, floating placement, and keyboard model.
  */
-import { Search } from "lucide-react";
+import { useAtom } from "jotai";
 import React, {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -18,28 +16,29 @@ import { useTranslation } from "react-i18next";
 
 import {
   DROPDOWN_CLASSES,
-  DROPDOWN_ITEM,
   DROPDOWN_PANEL,
 } from "@src/components/Dropdown/tokens";
 import FileTreePreview from "@src/components/FileTreePreview";
-import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
+import { INPUT_AREA_MENU_FRAME } from "@src/config/inputAreaTokens";
 import { useMouseMoved } from "@src/hooks/ui/useMouseMoved";
-
-import { useFloatingPortalPosition } from "../useFloatingPortalPosition";
-import FlyoutSubmenu from "./FlyoutSubmenu";
 import {
-  DividerRow,
-  FlyoutTriggerRow,
-  ImageRow,
-  ModeRow,
+  getPinnedActionKey,
+  pinnedActionsAtom,
+  slashItemToPinnedAction,
+} from "@src/store/session/pinnedActionsAtom";
+import type { SlashItem } from "@src/types/extensions";
+
+import { usePathTreePosition } from "../pathTreePosition";
+import { useFloatingPortalPosition } from "../useFloatingPortalPosition";
+import {
+  MenuGroupSeparatorRow,
   SectionHeaderRow,
   SlashItemRow,
 } from "./MenuRows";
-import type { OpenFlyoutState, SlashCommandPortalProps } from "./types";
+import type { SlashCommandPortalProps } from "./types";
 import { useEntries } from "./useEntries";
 import { useKeyboard } from "./useKeyboard";
 
-const PANEL_WIDTH = 280;
 const MAX_PANEL_HEIGHT = 300;
 const OUTSIDE_CLICK_GRACE_MS = 120;
 
@@ -47,40 +46,44 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
   visible,
   containerRef,
   anchorSelector,
-  placement = "prefer-up",
   items,
   loading,
-  currentMode,
   searchQuery = "",
   onClose,
   onSelect,
-  onModeSelect,
   keyboardHandlerRef,
-  searchMode = "inline",
-  onSearchQueryChange,
-  showActionFlyouts = false,
-  onImageUpload,
-  showModeRows = true,
-  includeProjectMode = false,
 }) => {
   const { t } = useTranslation("sessions");
-  const isHeaderMode = searchMode === "header";
-
+  const treePosition = usePathTreePosition();
   const portalContainerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const menuOpenedAtRef = useRef(0);
-  const tauriSelectAll = useTauriSelectAllShortcut();
+  const [pinnedActions, setPinnedActions] = useAtom(pinnedActionsAtom);
+  const pinnedKeys = useMemo(
+    () => new Set(pinnedActions.map(getPinnedActionKey)),
+    [pinnedActions]
+  );
 
   // Build the unified entry list
   const { entries, totalFlat } = useEntries({
     items,
     searchQuery,
-    showActionFlyouts,
-    hasImageUpload: Boolean(onImageUpload),
-    showModeRows,
-    includeProjectMode,
+    pinnedActions,
   });
+  const handleTogglePin = useCallback(
+    (item: SlashItem) => {
+      const action = slashItemToPinnedAction(item);
+      const key = getPinnedActionKey(action);
+      setPinnedActions((previous) =>
+        previous.some((candidate) => getPinnedActionKey(candidate) === key)
+          ? previous.filter(
+              (candidate) => getPinnedActionKey(candidate) !== key
+            )
+          : [...previous, action]
+      );
+    },
+    [setPinnedActions]
+  );
 
   const [highlightIndex, setHighlightIndex] = useState(0);
   const activeEntry = entries.find(
@@ -92,20 +95,16 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
     activeEntry.item.skillPath
       ? activeEntry.item
       : null;
-  const [keyboardNavigated, setKeyboardNavigated] = useState(!isHeaderMode);
-  const [openFlyout, setOpenFlyout] = useState<OpenFlyoutState | null>(null);
-  const [flyoutHighlightIndex, setFlyoutHighlightIndex] = useState(0);
-  const [panelRight, setPanelRight] = useState(0);
+  const [keyboardNavigated, setKeyboardNavigated] = useState(true);
 
-  const placementUpdateKey = `${searchQuery}\0${entries.length}\0${openFlyout?.kind ?? ""}`;
-  const { portalPosition, portalMaxHeight, isPositioned } =
+  const placementUpdateKey = `${searchQuery}\0${entries.length}`;
+  const { portalPosition, portalWidth, portalMaxHeight, isPositioned } =
     useFloatingPortalPosition({
       visible,
       containerRef,
       floatingRef: portalContainerRef,
-      floatingWidth: PANEL_WIDTH,
       fallbackHeight: 320,
-      placement,
+      ...INPUT_AREA_MENU_FRAME,
       anchorSelector,
       updateKey: placementUpdateKey,
       maxHeight: MAX_PANEL_HEIGHT,
@@ -114,41 +113,21 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
   // Reset highlight to the first actionable row when the list shape changes.
   const listIdentity = useMemo(
     () =>
-      `${items.map((i) => `${i.source}:${i.category}:${i.name}`).join("\0")}\0${searchQuery}`,
-    [items, searchQuery]
+      `${entries
+        .map((entry) =>
+          entry.kind === "item"
+            ? getPinnedActionKey(entry.item)
+            : `${entry.kind}:${entry.kind === "header" ? entry.label : ""}`
+        )
+        .join("\0")}\0${searchQuery}`,
+    [entries, searchQuery]
   );
   const [trackedIdentity, setTrackedIdentity] = useState(listIdentity);
   if (trackedIdentity !== listIdentity) {
     setTrackedIdentity(listIdentity);
     setHighlightIndex(0);
-    setKeyboardNavigated(!isHeaderMode);
+    setKeyboardNavigated(true);
   }
-
-  // Close flyout when a search query is active (derived state)
-  const [trackedQuery, setTrackedQuery] = useState(searchQuery);
-  if (trackedQuery !== searchQuery) {
-    setTrackedQuery(searchQuery);
-    if (searchQuery) setOpenFlyout(null);
-  }
-
-  // Reset flyout highlight when the flyout opens or its items change (derived state)
-  const flyoutItemsKey =
-    openFlyout?.kind === "category"
-      ? (openFlyout.items?.map((i) => i.name).join("\0") ?? "")
-      : (openFlyout?.kind ?? "");
-  const [trackedFlyoutKey, setTrackedFlyoutKey] = useState(flyoutItemsKey);
-  if (trackedFlyoutKey !== flyoutItemsKey) {
-    setTrackedFlyoutKey(flyoutItemsKey);
-    setFlyoutHighlightIndex(0);
-  }
-
-  useEffect(() => {
-    if (!isHeaderMode || !visible || !isPositioned || !portalPosition) return;
-    const frame = requestAnimationFrame(() => {
-      searchInputRef.current?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [isHeaderMode, visible, isPositioned, portalPosition]);
 
   // Scroll highlighted item into view
   useEffect(() => {
@@ -157,18 +136,7 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
     itemEls[highlightIndex]?.scrollIntoView({ block: "nearest" });
   }, [highlightIndex]);
 
-  // Keep panelRight in sync after DOM mutation and window resize
-  useLayoutEffect(() => {
-    const el = listRef.current;
-    if (!el) return;
-    const update = () => setPanelRight(el.getBoundingClientRect().right);
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [isPositioned]);
-
-  // Click outside → close (but not when clicking inside a flyout portal)
+  // Click outside → close.
   useEffect(() => {
     if (!visible || !isPositioned) return;
 
@@ -214,36 +182,13 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
     entries,
     totalFlat,
     highlightIndex,
-    openFlyout,
-    listRef,
     setHighlightIndex,
     setKeyboardNavigated,
-    setOpenFlyout,
     onSelect,
-    onModeSelect,
-    onImageUpload,
+    onTogglePin: handleTogglePin,
     onClose,
     keyboardHandlerRef,
-    flyoutHighlightIndex,
-    setFlyoutHighlightIndex,
   });
-
-  const openCategoryFlyout = useCallback(
-    (
-      event: React.MouseEvent<HTMLDivElement>,
-      payload: OpenFlyoutState | null
-    ) => {
-      setOpenFlyout(
-        payload
-          ? {
-              ...payload,
-              anchorTop: event.currentTarget.getBoundingClientRect().top,
-            }
-          : null
-      );
-    },
-    []
-  );
 
   if (!isPositioned || !portalPosition) return null;
 
@@ -251,20 +196,26 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
     top: portalPosition.top,
     bottom: portalPosition.bottom,
     left: portalPosition.left,
-    width: PANEL_WIDTH,
+    width: portalWidth,
   };
 
   return createPortal(
     <div
       ref={portalContainerRef}
       data-slash-portal
-      className="fixed z-[99999] flex flex-col gap-2"
+      className="fixed z-99999 flex flex-col gap-2"
       style={portalStyle}
     >
       {activeSkillItem?.skillPath && (
         <div
-          className="absolute left-full top-0 ml-2"
-          style={{ pointerEvents: "auto" }}
+          className={`absolute top-0 ${treePosition === "left" ? "right-full" : "left-full"}`}
+          style={{
+            marginLeft:
+              treePosition === "right" ? DROPDOWN_PANEL.submenuGap : undefined,
+            marginRight:
+              treePosition === "left" ? DROPDOWN_PANEL.submenuGap : undefined,
+            pointerEvents: "auto",
+          }}
         >
           <FileTreePreview path={activeSkillItem.skillPath} itemType="file" />
         </div>
@@ -276,57 +227,15 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
         data-testid="slash-command-menu"
         data-dropdown-keyboard-mode={keyboardNavigated ? "true" : undefined}
         className={DROPDOWN_CLASSES.panel}
-        onMouseDown={(e) => {
-          if (
-            isHeaderMode &&
-            (e.target as HTMLElement).closest("[data-slash-search-input]")
-          ) {
-            return;
-          }
-          e.preventDefault();
-        }}
+        onMouseDown={(e) => e.preventDefault()}
       >
-        {isHeaderMode && (
-          <div
-            className={DROPDOWN_CLASSES.searchContainer}
-            data-testid="slash-command-search"
-          >
-            <Search
-              size={DROPDOWN_ITEM.iconSize}
-              className="shrink-0 text-text-3"
-            />
-            <input
-              ref={searchInputRef}
-              data-slash-search-input="true"
-              type="text"
-              value={searchQuery}
-              onChange={(e) => onSearchQueryChange?.(e.target.value)}
-              onKeyDown={(e) => {
-                tauriSelectAll(e);
-                if (e.defaultPrevented) return;
-                if (keyboardHandlerRef.current?.(e.nativeEvent)) {
-                  e.preventDefault();
-                }
-              }}
-              placeholder={t("creator.slashSearchPlaceholder", {
-                defaultValue: "Search commands…",
-              })}
-              className={DROPDOWN_CLASSES.searchInput}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-            />
-          </div>
-        )}
-
         <div
           className={`overflow-y-auto ${DROPDOWN_PANEL.paddingClass} scrollbar-hide`}
           style={{ maxHeight: portalMaxHeight }}
         >
           {entries.map((entry, mapIdx) => {
             if (entry.kind === "divider") {
-              return <DividerRow key={`divider-${mapIdx}`} />;
+              return <MenuGroupSeparatorRow key={`divider-${mapIdx}`} />;
             }
 
             if (entry.kind === "header") {
@@ -342,104 +251,23 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
               );
             }
 
-            if (entry.kind === "image") {
-              return (
-                <ImageRow
-                  key="image-upload"
-                  isActive={
-                    keyboardNavigated && entry.flatIndex === highlightIndex
-                  }
-                  onMouseEnter={() => {
-                    if (!mouseMovedRef.current) return;
-                    setKeyboardNavigated(false);
-                    setHighlightIndex(entry.flatIndex);
-                    setOpenFlyout(null);
-                  }}
-                  onMouseDown={() => {
-                    onImageUpload?.();
-                    onClose();
-                  }}
-                />
-              );
-            }
-
-            if (entry.kind === "mode") {
-              return (
-                <ModeRow
-                  key={`mode-${entry.mode.id}`}
-                  mode={entry.mode}
-                  isActive={
-                    keyboardNavigated && entry.flatIndex === highlightIndex
-                  }
-                  isCurrent={entry.mode.id === currentMode}
-                  onMouseEnter={() => {
-                    if (!mouseMovedRef.current) return;
-                    setKeyboardNavigated(false);
-                    setHighlightIndex(entry.flatIndex);
-                    setOpenFlyout(null);
-                  }}
-                  onMouseDown={() => onModeSelect(entry.mode.id)}
-                />
-              );
-            }
-
-            if (entry.kind === "flyout") {
-              const { flatIndex, category, label, items: flyoutItems } = entry;
-              return (
-                <FlyoutTriggerRow
-                  key={`flyout-${category}`}
-                  category={category}
-                  label={label}
-                  isActive={keyboardNavigated && flatIndex === highlightIndex}
-                  isOpen={
-                    openFlyout?.kind === "category" &&
-                    openFlyout.category === category
-                  }
-                  onMouseEnter={(e) => {
-                    if (!mouseMovedRef.current) return;
-                    setKeyboardNavigated(false);
-                    setHighlightIndex(flatIndex);
-                    setOpenFlyout({
-                      kind: "category",
-                      category,
-                      anchorTop: e.currentTarget.getBoundingClientRect().top,
-                      items: flyoutItems,
-                    });
-                  }}
-                  onMouseDown={(e) => {
-                    openCategoryFlyout(
-                      e,
-                      openFlyout?.kind === "category" &&
-                        openFlyout.category === category
-                        ? null
-                        : {
-                            kind: "category",
-                            category,
-                            anchorTop: 0,
-                            items: flyoutItems,
-                          }
-                    );
-                  }}
-                />
-              );
-            }
-
-            // entry.kind === "item" (flat rows when searching)
+            // entry.kind === "item"
             const { item, flatIndex } = entry;
             return (
               <SlashItemRow
                 key={`${item.category}-${item.source}-${item.name}`}
                 item={item}
                 isActive={keyboardNavigated && flatIndex === highlightIndex}
+                isPinned={pinnedKeys.has(getPinnedActionKey(item))}
                 onMouseEnter={() => {
                   if (!mouseMovedRef.current) return;
                   setKeyboardNavigated(false);
                   setHighlightIndex(flatIndex);
-                  setOpenFlyout(null);
                 }}
                 onClick={() => {
                   onSelect(item);
                 }}
+                onTogglePin={() => handleTogglePin(item)}
               />
             );
           })}
@@ -456,30 +284,6 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
           )}
         </div>
       </div>
-
-      {/* Category flyout (Skills / MCP Servers) */}
-      {openFlyout?.kind === "category" &&
-        openFlyout.items &&
-        openFlyout.category && (
-          <FlyoutSubmenu
-            items={openFlyout.items}
-            category={openFlyout.category}
-            anchorTop={openFlyout.anchorTop}
-            panelRight={panelRight}
-            highlightIndex={flyoutHighlightIndex}
-            keyboardNavigated={keyboardNavigated}
-            onHighlightChange={setFlyoutHighlightIndex}
-            onPointerNavigate={() => {
-              if (!mouseMovedRef.current) return;
-              setKeyboardNavigated(false);
-            }}
-            onSelect={(item) => {
-              onSelect(item);
-              setOpenFlyout(null);
-            }}
-            onClose={() => setOpenFlyout(null)}
-          />
-        )}
     </div>,
     document.body
   );

@@ -12,6 +12,7 @@ import {
   NoTabsPlaceholder,
   type QuickAction,
 } from "@src/modules/WorkStation/shared";
+import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
 import { useGitHubIssueDetailState } from "@src/modules/shared/hooks/useGitHubIssueDetailState";
 import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 import type { GitFile } from "@src/types/git/types";
@@ -99,14 +100,22 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
     }
 
     return (
-      <Suspense fallback={<LazyFallback />}>
+      <Suspense
+        fallback={
+          <GitHubDetailSkeleton
+            kind="issue"
+            showHeader={false}
+            title={selectedIssueState.issue.title}
+            number={selectedIssueState.issue.number}
+          />
+        }
+      >
         <IssueDetailPanel
           issue={selectedIssueState.issue}
           timeline={selectedIssueState.timeline}
           timelineLoading={selectedIssueState.timelineLoading}
           interaction={interaction}
           assigneeConfig={assigneeConfig}
-          showHeader={false}
         />
       </Suspense>
     );

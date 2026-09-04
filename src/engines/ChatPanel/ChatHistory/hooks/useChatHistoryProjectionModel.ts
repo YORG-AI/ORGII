@@ -1,5 +1,5 @@
 import { useAtomValue } from "jotai";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import type { CursorIdeTurnSummary } from "@src/api/tauri/externalHistory";
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
@@ -19,10 +19,9 @@ import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 import type { GroupChatContextValue } from "../GroupChatView/GroupChatContext";
 import { resolveChatHistoryProjectionSource } from "../projection/source";
 import { useChatProjection } from "../projection/useChatProjection";
-import { formatAssistantTurnCopyContent } from "../turnCopyContent";
 import type { ChatGroupsProjectionOptions } from "./useChatGroupsProjection";
 import { useChatTurnPagination } from "./useChatTurnPagination";
-import { useTailTurnCollapse } from "./useTailTurnCollapse";
+import { useTailTurnPhase } from "./useTailTurnCollapse";
 import {
   useTurnPageNavigation,
   useTurnPageSelectionState,
@@ -42,7 +41,6 @@ interface UseChatHistoryProjectionModelOptions {
   groupChat: GroupChatContextValue | null;
   hideGroupUserMessage: boolean;
   isAgentWorking: boolean;
-  isCursorIde: boolean;
   planningIndicatorCount: 0 | 1;
   sessionStatus: string | undefined;
   sessionLoadStatus: SessionLoadStatus;
@@ -65,7 +63,6 @@ export function useChatHistoryProjectionModel({
   groupChat,
   hideGroupUserMessage,
   isAgentWorking,
-  isCursorIde,
   planningIndicatorCount,
   sessionStatus,
   sessionLoadStatus,
@@ -83,13 +80,14 @@ export function useChatHistoryProjectionModel({
   const turnCollapseOverrides = useAtomValue(turnCollapseOverrideAtom);
   const collapseAllCommand = useAtomValue(collapseAllCommandAtom);
   const selectedThreadId = useAtomValue(selectedExecutionThreadAtom);
-  const collapseTailWhenIdle = useTailTurnCollapse({
+  // Drives bar visibility ("complete") and the stale default-collapse;
+  // see useTailTurnPhase for the rules and the anti-flicker latch.
+  const tailTurnPhase = useTailTurnPhase({
     activeId,
     chatHistory,
     disableTailCollapse,
     groupChat,
     isAgentWorking,
-    isCursorIde,
     sessionStatus,
   });
 
@@ -103,8 +101,7 @@ export function useChatHistoryProjectionModel({
   const groupOptions = useMemo<ChatGroupsProjectionOptions>(
     () => ({
       collapseOverrides: turnCollapseOverrides,
-      isAgentWorking,
-      collapseTailWhenIdle,
+      tailTurnPhase,
       forceCollapseAllTurns,
       defaultTurnCollapsed: DEFAULT_TURN_COLLAPSED,
       allTurnsCollapsed:
@@ -120,10 +117,9 @@ export function useChatHistoryProjectionModel({
     }),
     [
       collapseAllCommand,
-      collapseTailWhenIdle,
+      tailTurnPhase,
       forceCollapseAllTurns,
       groupChat,
-      isAgentWorking,
       turnCollapseOverrides,
     ]
   );
@@ -143,19 +139,6 @@ export function useChatHistoryProjectionModel({
     enabled: projectionSource.enabled,
   });
   const activeProjectionHistory = projection.optimizedChatHistory;
-  const activeProjectionHistoryRef = useRef(activeProjectionHistory);
-  activeProjectionHistoryRef.current = activeProjectionHistory;
-  // The resolver stays stable across projection ticks and scans only after an
-  // explicit copy click. This avoids duplicating transcript strings in group
-  // metadata or rebuilding a full event-id map while the assistant streams.
-  const resolveAssistantTurnCopyContent = useCallback(
-    (eventIds: readonly string[]) =>
-      formatAssistantTurnCopyContent(
-        activeProjectionHistoryRef.current,
-        eventIds
-      ),
-    []
-  );
   const {
     groupCounts,
     groupHeaders,
@@ -163,7 +146,6 @@ export function useChatHistoryProjectionModel({
     flatItems,
     totalFlatItems,
     originalToFlatIndex,
-    lastAssistantFlatIndexPerItem,
   } = projection.groups ?? {
     groupCounts: [],
     groupHeaders: [],
@@ -171,7 +153,6 @@ export function useChatHistoryProjectionModel({
     flatItems: [],
     totalFlatItems: 0,
     originalToFlatIndex: new Map<number, number>(),
-    lastAssistantFlatIndexPerItem: [],
   };
 
   memoryStatsSourceRef.current = {
@@ -217,7 +198,6 @@ export function useChatHistoryProjectionModel({
     groupHeaders,
     groupMeta,
     flatItems,
-    lastAssistantFlatIndexPerItem,
     cursorIdeTurnSummaries,
     mergeUserOnlyPages: hideGroupUserMessage,
   });
@@ -300,7 +280,7 @@ export function useChatHistoryProjectionModel({
 
   return {
     activeProjectionHistory,
-    collapseTailWhenIdle,
+    tailTurnPhase,
     defaultTurnCollapsed: DEFAULT_TURN_COLLAPSED,
     displayTurnIds,
     flatItems,
@@ -310,12 +290,12 @@ export function useChatHistoryProjectionModel({
     originalToFlatIndex,
     planningIndicatorEnabled,
     projection,
-    resolveAssistantTurnCopyContent,
     tailFollowKey,
     totalFlatItems,
     turnMetadataReloadKey,
     turnPageListOpen,
     setTurnPageListOpen,
+    setTurnPageSelection,
     turnPageSortAscending,
     setTurnPageSortAscending,
     virtualListDataKey,

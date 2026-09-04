@@ -1,6 +1,7 @@
 import React, { useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import SelectorPill from "@src/components/SelectorPill";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
@@ -76,9 +77,11 @@ export function RemoteSessionChatPanelSurface({
     tSessions("chat.agentFallback", "Agent");
   const sessionIconElement = useMemo(
     () =>
-      React.createElement(resolveAgentIcon(display?.agentIconId), {
+      React.createElement(AnyIcon, {
+        icon: resolveAgentIcon(display?.agentIconId),
         size: 14,
         className: "shrink-0 text-text-3",
+        "data-icon": display?.agentIconId ?? "agent",
         "aria-hidden": true,
       }),
     [display?.agentIconId]
@@ -179,11 +182,14 @@ export function RemoteSessionChatPanelSurface({
         chatWidthStyleValue="100%"
         embedded
         headerSection={headerSection}
+        hasTabBar={false}
         isDragging={false}
         isLeftPosition={false}
         isTerminalTabActive={false}
         onResizeMouseDown={() => undefined}
         panelRef={panelRef}
+        resizeTooltipLabel=""
+        resizeTooltipShortcut=""
         sessionModals={null}
         showResizeHandle={false}
         terminalTabs={[]}

@@ -1,6 +1,7 @@
-import { ListChevronsUpDown } from "lucide-react";
 import { isValidElement } from "react";
 import { describe, expect, it, vi } from "vitest";
+
+import { ListChevronsDownUpIcon } from "@src/icons";
 
 import type { ProjectData } from "../shared/components/PropertiesPanel/types";
 import { getProjectContextMenuItems } from "./projectContextMenu";
@@ -45,7 +46,7 @@ describe("getProjectContextMenuItems", () => {
     const moreProperties = items.find((item) => item.id === "more-properties");
 
     expect(isValidElement(moreProperties?.icon)).toBe(true);
-    if (!isValidElement(moreProperties?.icon)) return;
-    expect(moreProperties.icon.type).toBe(ListChevronsUpDown);
+    if (!isValidElement<{ icon?: unknown }>(moreProperties?.icon)) return;
+    expect(moreProperties.icon.props.icon).toBe(ListChevronsDownUpIcon);
   });
 });

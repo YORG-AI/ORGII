@@ -16,9 +16,9 @@
  */
 import i18next from "i18next";
 import { useAtomValue, useSetAtom } from "jotai";
-import { PanelLeft, Plus, X } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
@@ -29,6 +29,13 @@ import {
 import { createLogger } from "@src/hooks/logger";
 import { useSettingValue } from "@src/hooks/settings/useSettings";
 import { useSidebarState } from "@src/hooks/ui/sidebar/useSidebarState";
+import {
+  Add01Icon,
+  Cancel01Icon,
+  HugeiconsIcon,
+  LayoutAlignLeftIcon,
+  PanelLeftIcon,
+} from "@src/icons";
 import {
   PANE_WIDTH_TRANSITION_CLASSES,
   getSidebarSurfaceBackgroundStyle,
@@ -56,6 +63,7 @@ const IS_WINDOWS_HOST = HOST_DESKTOP_KIND === HOST_DESKTOP.WINDOWS;
 const IS_WINDOWS_OR_LINUX_HOST =
   HOST_DESKTOP_KIND === HOST_DESKTOP.WINDOWS ||
   HOST_DESKTOP_KIND === HOST_DESKTOP.LINUX;
+const SHOW_RESTING_SIDEBAR_EDGE = HOST_DESKTOP_KIND === HOST_DESKTOP.LINUX;
 
 const IDLE_SIDEBAR_RESIZE_HANDLE_CLASS_NAME =
   "h-full [&>div:first-child]:origin-right [&>div:first-child]:scale-x-50 [&>div:first-child]:transition-transform hover:[&>div:first-child]:scale-x-100";
@@ -80,7 +88,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     theme,
     onCollapse,
     onAddNew,
-    addIcon: AddIcon = Plus,
+    addIcon: AddIcon = Add01Icon,
     addLabel,
     addTooltipContent,
     beforeAddNewActions,
@@ -105,6 +113,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     const sidebarEdgeDepthEnabled = useSettingValue(
       "layout.sidebarEdgeDepthEnabled"
     );
+    const translucentSidebar = useSettingValue("general.translucentSidebar");
     useEffect(() => {
       document.body.style.setProperty(
         "--sidebar-selected-row-opacity",
@@ -279,7 +288,12 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
           style={
             {
               height: `${SIDEBAR_STYLE.topBarHeight}px`,
-              paddingLeft: IS_WINDOWS_HOST
+              // Only macOS needs an inline reserve for the traffic lights.
+              // Windows/Linux (and browser mode, which resolves to Linux) must
+              // fall through to the alignment class above — an inline `0px`
+              // would beat `pl-3` and pull the top bar flush to the sidebar
+              // edge, out of line with the list rows below it.
+              paddingLeft: IS_WINDOWS_OR_LINUX_HOST
                 ? undefined
                 : `${trafficLightPadding}px`,
               WebkitAppRegion: IS_WINDOWS_HOST ? "no-drag" : "drag",
@@ -295,7 +309,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
                 {hostTopBarLeadingContent}
               </div>
             ) : (
-              <span className="select-none text-[13px] font-semibold tracking-wide text-text-2">
+              <span className="text-[13px] font-semibold tracking-wide text-text-2 select-none">
                 ORG2
               </span>
             )
@@ -340,7 +354,8 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
                     tabIndex={0}
                   >
                     <div className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] transition-colors duration-150 hover:bg-sidebar-selected">
-                      <AddIcon
+                      <AnyIcon
+                        icon={AddIcon}
                         size={16}
                         strokeWidth={2}
                         className="text-text-2"
@@ -374,7 +389,9 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
                       className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
                       onClick={handleExpand}
                     >
-                      <PanelLeft
+                      <HugeiconsIcon
+                        icon={PanelLeftIcon}
+                        data-icon="panel-left"
                         size={16}
                         strokeWidth={2}
                         className="text-text-2"
@@ -387,7 +404,9 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
                       className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
                       onClick={handleCollapse}
                     >
-                      <X
+                      <HugeiconsIcon
+                        icon={Cancel01Icon}
+                        data-icon="x"
                         size={16}
                         strokeWidth={2}
                         className="text-text-2"
@@ -410,15 +429,27 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
                     <div className="inline-flex">
                       <button
                         type="button"
-                        className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
+                        className="group flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
                         onClick={handleCollapse}
                       >
-                        <PanelLeft
-                          size={16}
-                          strokeWidth={2}
-                          className="text-text-2"
-                          style={iconThemeStyle}
-                        />
+                        <span className="flex h-4 w-4 items-center justify-center">
+                          <HugeiconsIcon
+                            icon={PanelLeftIcon}
+                            data-icon="panel-left"
+                            size={16}
+                            strokeWidth={2}
+                            className="text-text-2 group-hover:hidden"
+                            style={iconThemeStyle}
+                          />
+                          <HugeiconsIcon
+                            icon={LayoutAlignLeftIcon}
+                            data-icon="layout-align-left"
+                            size={16}
+                            strokeWidth={2}
+                            className="hidden text-text-2 group-hover:block"
+                            style={iconThemeStyle}
+                          />
+                        </span>
                       </button>
                     </div>
                   </Tooltip>
@@ -434,16 +465,19 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
 
     const renderResizeHandle = () => (
       <div
-        className="absolute right-0 top-0 z-50 h-full"
+        className="absolute top-0 right-0 z-50 h-full"
         style={{ pointerEvents: "auto" }}
       >
         <VerticalResizeHandle
           className={IDLE_SIDEBAR_RESIZE_HANDLE_CLASS_NAME}
           isResizing={isDragging}
           noAccent={IS_WINDOWS_HOST}
+          indicatorPlacement="center"
           onMouseDown={handleMouseDown}
           onContextMenu={handleResizeContextMenu}
-          variant={IS_WINDOWS_HOST ? "transparent" : "border"}
+          tooltipLabel={i18next.t("common:tooltips.hideSidebar")}
+          tooltipShortcut={hideSidebarShortcut}
+          variant={SHOW_RESTING_SIDEBAR_EDGE ? "border" : "transparent"}
         />
       </div>
     );
@@ -457,7 +491,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
       <>
         {wrapInSurface && (
           <div
-            className="h-2 flex-shrink-0"
+            className="h-2 shrink-0"
             data-tauri-drag-region
             style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
             aria-hidden
@@ -490,10 +524,24 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
       : IS_MACOS_HOST && sidebarEdgeDepthEnabled
         ? "var(--sidebar-edge-shadow)"
         : "none";
-    const sidebarBackdropFilter = "none";
+    // Translucency is opt-out. When it is off the sidebar must read as a solid
+    // panel: no backdrop blur, no alpha in the surface color, and the opacity
+    // slider is ignored rather than merely clamped — a half-transparent
+    // "opaque" sidebar would be worse than either end of the setting.
+    //
+    // A floating/hover sidebar overlays workspace content and is always solid,
+    // regardless of this preference, so it stays legible over whatever it covers.
+    const isTranslucentSurface =
+      translucentSidebar && !shouldForceVisible && !solidSurface;
+    const sidebarBackdropFilter = isTranslucentSurface
+      ? "var(--sidebar-backdrop)"
+      : "none";
     const floatingSurfaceOverride: React.CSSProperties = shouldForceVisible
       ? { backgroundColor: "var(--color-bg-1)" }
       : {};
+    const opaqueSurfaceOverride: React.CSSProperties = isTranslucentSurface
+      ? {}
+      : { backgroundColor: "var(--color-bg-1)" };
     const surfaceStyle = themeStyles
       ? {
           ...themeStyles,
@@ -510,9 +558,10 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
           boxShadow: sidebarBoxShadow,
           backdropFilter: sidebarBackdropFilter,
           WebkitBackdropFilter: sidebarBackdropFilter,
-          ...(IS_WINDOWS_HOST || shouldForceVisible || solidSurface
+          ...(IS_WINDOWS_HOST || !isTranslucentSurface
             ? {}
             : sidebarOpacityStyle),
+          ...opaqueSurfaceOverride,
           ...floatingSurfaceOverride,
         };
 
@@ -523,8 +572,9 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     // radius (`--border-radius-window`) so the sidebar surface aligns with
     // the rounded window/body clip instead of leaving a sliver of the body
     // Modern chrome keeps the sidebar flush against the rounded window edge.
-    // On Windows, the rounded content surface owns the shared edge; a straight
-    // sidebar separator would remain visible behind its curved top-left corner.
+    // On macOS the native AbuttedSidebar material already defines the shared
+    // edge, while on Windows the rounded content surface owns it. Drawing a
+    // separate separator on either platform creates a redundant vertical line.
     const modernSurfaceStyle = {
       // The Windows header spans the full native top edge and owns both top
       // radii. Rounding the sidebar again below it creates a detached inner
@@ -536,7 +586,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
       borderTopWidth: 0,
       borderLeftWidth: 0,
       borderBottomWidth: 0,
-      borderRightWidth: IS_WINDOWS_HOST ? 0 : 1,
+      borderRightWidth: SHOW_RESTING_SIDEBAR_EDGE ? 1 : 0,
     } as const;
     const wrappedContent = wrapInSurface ? (
       <div
@@ -565,7 +615,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     return (
       <div
         ref={sidebarContainerRef}
-        className={`group/sidebar relative flex h-full flex-shrink-0 ${
+        className={`group/sidebar relative flex h-full shrink-0 ${
           isDragging ? "" : PANE_WIDTH_TRANSITION_CLASSES
         } ${className}`}
         style={containerStyle}

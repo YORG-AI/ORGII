@@ -51,7 +51,7 @@ export const EventBlockHeader: React.FC<EventBlockHeaderProps> = ({
 
       {/* Right content + navigate icon */}
       {(showNavigate || rightContent) && (
-        <div className="flex flex-shrink-0 select-none items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1 select-none">
           {rightContent}
           {showNavigate && <EventNavigateIcon onClick={onNavigate} />}
         </div>

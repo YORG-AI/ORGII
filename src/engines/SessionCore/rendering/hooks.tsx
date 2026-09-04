@@ -176,7 +176,7 @@ const LazyEventComponent: React.FC<LazyEventComponentProps> = ({
         }
       })
       .catch((error) => {
-        log.error(`[UnifiedEventRenderer] Failed to load ${eventType}:`, error);
+        log.error(`Failed to load ${eventType}:`, error);
         if (mounted) {
           setLoading(false);
         }

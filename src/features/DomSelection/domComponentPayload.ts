@@ -63,7 +63,7 @@ export function buildDomComponentJsonFromElementInfo(
           name: componentName,
           confidence: "high" as const,
           filePath: element.sourceLocation.path,
-          matchReason: "component-index" as const,
+          matchReason: element.sourceLocation.method,
           line: element.sourceLocation.line ?? null,
         },
       ]

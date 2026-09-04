@@ -10,11 +10,11 @@
  * Mirrors the `EventBlockHeaderTitle isLoading` shimmer treatment used by
  * the history-side `AskQuestionEvent` placeholder.
  */
-import { CircleHelp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { COMPOSER_CARD_SHELL_CLASSES } from "@src/config/composerStackTokens";
 import { EVENT_LOADING_SHIMMER_TEXT_CLASSES } from "@src/engines/ChatPanel/blocks/primitives";
+import { HelpCircleIcon, HugeiconsIcon } from "@src/icons";
 
 export function QuestionCardLoadingShell() {
   const { t } = useTranslation("sessions");
@@ -22,7 +22,11 @@ export function QuestionCardLoadingShell() {
     <div className={COMPOSER_CARD_SHELL_CLASSES}>
       <div className="flex h-8 items-center gap-1.5 px-2.5">
         <div className="flex h-[14px] w-[14px] shrink-0 items-center justify-center text-primary-6">
-          <CircleHelp size={14} />
+          <HugeiconsIcon
+            icon={HelpCircleIcon}
+            data-icon="circle-help"
+            size={14}
+          />
         </div>
         <span
           className={`min-w-0 truncate text-[13px] font-bold ${EVENT_LOADING_SHIMMER_TEXT_CLASSES}`}

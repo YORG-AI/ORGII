@@ -8,7 +8,6 @@
  * shared formatting parts as the Integrations Skills table, while this
  * surface keeps per-agent enablement as its own action.
  */
-import { Plus } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -18,6 +17,7 @@ import SettingsTable, {
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
 import Switch from "@src/components/Switch";
+import { Add01Icon, HugeiconsIcon } from "@src/icons";
 import {
   SkillNameCell,
   SkillSourceCell,
@@ -89,7 +89,7 @@ const AgentSkillsTable: React.FC<AgentSkillsTableProps> = ({
       <Button
         variant="secondary"
         size="default"
-        icon={<Plus size={14} />}
+        icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />}
         onClick={onAddSkill}
         data-testid="agent-orgs-add-skill-button"
       >

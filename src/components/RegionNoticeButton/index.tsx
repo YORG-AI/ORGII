@@ -1,10 +1,10 @@
-import { Globe2 } from "lucide-react";
 import React, { useCallback, useState } from "react";
 
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
+import { HugeiconsIcon, InternetIcon } from "@src/icons";
 
 interface RegionNoticeButtonProps {
   title: string;
@@ -51,12 +51,14 @@ const RegionNoticeButton: React.FC<RegionNoticeButtonProps> = ({
             variant="tertiary"
             size="small"
             iconOnly
-            className={`${open ? "!bg-fill-2" : ""} ${buttonClassName}`.trim()}
+            className={`${open ? "bg-fill-2!" : ""} ${buttonClassName}`.trim()}
             onClick={handleToggle}
             aria-label={title}
             aria-expanded={open}
             icon={
-              <Globe2
+              <HugeiconsIcon
+                icon={InternetIcon}
+                data-icon="globe-2"
                 size={iconSize}
                 strokeWidth={2}
                 className={iconClassName}
@@ -67,7 +69,7 @@ const RegionNoticeButton: React.FC<RegionNoticeButtonProps> = ({
       </Tooltip>
       {open && (
         <span
-          className={`absolute right-0 top-full z-30 mt-1 block w-[min(360px,calc(100vw-24px))] ${panelClassName}`.trim()}
+          className={`absolute top-full right-0 z-30 mt-1 block w-[min(360px,calc(100vw-24px))] ${panelClassName}`.trim()}
         >
           <InlineAlert
             type="warning"

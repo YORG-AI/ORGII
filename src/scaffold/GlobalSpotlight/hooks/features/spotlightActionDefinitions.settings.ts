@@ -2,102 +2,32 @@
  * Spotlight Settings Action Builders
  *
  * State-dependent builder functions that produce spotlight action lists for
- * theme and chat-panel-layout settings. Each label/icon/actionId flips based
+ * chat-panel-layout settings. Each label/icon/actionId flips based
  * on the current setting value passed in by the caller. Split out of
  * `spotlightActionDefinitions.ts`.
  *
- * - `buildThemeActions`             — theme-switch actions (system/light/dark/high-contrast).
  * - `buildChatPanelSettingsActions` — chat panel position, pagination, and
  *   model-picker style toggles.
  */
-import {
-  ArrowBigLeft,
-  ArrowBigRight,
-  Contrast,
-  LayoutPanelTop,
-  Menu,
-  MonitorCog,
-  Moon,
-  PanelLeft,
-  Sparkles,
-  Sun,
-} from "lucide-react";
-
 import { ACTION_ID } from "@src/ActionSystem";
+import {
+  ArrowLeftBigIcon,
+  ArrowRightBigIcon,
+  LayoutTopIcon,
+  Menu01Icon,
+  PanelLeftIcon,
+  SparklesIcon,
+} from "@src/icons";
 
 import type { SpotlightStaticActionDefinition } from "./spotlightActionDefinitions.types";
 
-export function buildThemeActions(
-  currentThemeId: string
-): SpotlightStaticActionDefinition[] {
-  const actions: SpotlightStaticActionDefinition[] = [];
-
-  if (currentThemeId !== "system") {
-    actions.push({
-      id: "set-system-theme",
-      labelKey: "common:spotlightActions.switchToSystemTheme",
-      icon: MonitorCog,
-      keywords: ["system theme", "follow system", "theme", "appearance"],
-      actionId: ACTION_ID.THEME_SET_SYSTEM,
-      payload: {},
-      closeOnSuccess: false,
-    });
-  }
-
-  if (currentThemeId !== "github-light") {
-    actions.push({
-      id: "set-light-theme",
-      labelKey: "common:spotlightActions.switchToLightTheme",
-      icon: Sun,
-      keywords: ["light theme", "light mode", "theme", "appearance"],
-      actionId: ACTION_ID.THEME_SET_LIGHT,
-      payload: {},
-      closeOnSuccess: false,
-    });
-  }
-
-  if (currentThemeId !== "github-dark") {
-    actions.push({
-      id: "set-dark-theme",
-      labelKey: "common:spotlightActions.switchToDarkTheme",
-      icon: Moon,
-      keywords: ["dark theme", "dark mode", "theme", "appearance"],
-      actionId: ACTION_ID.THEME_SET_DARK,
-      payload: {},
-      closeOnSuccess: false,
-    });
-  }
-
-  if (currentThemeId !== "orgii-high-contrast") {
-    actions.push({
-      id: "set-high-contrast-theme",
-      labelKey: "common:spotlightActions.switchToHighContrastTheme",
-      icon: Contrast,
-      keywords: [
-        "high contrast",
-        "contrast theme",
-        "accessibility theme",
-        "theme",
-        "appearance",
-      ],
-      actionId: ACTION_ID.THEME_SET_HIGH_CONTRAST,
-      payload: {},
-      closeOnSuccess: false,
-    });
-  }
-
-  return actions;
-}
-
 export function buildChatPanelSettingsActions({
-  myStationChatPosition,
-  agentStationChatPosition,
+  chatPanelPosition,
   chatTurnPaginationEnabled,
   modelPickerStyle,
   workstationSidebarPosition,
 }: {
-  myStationChatPosition: "left" | "right";
-  agentStationChatPosition: "left" | "right";
+  chatPanelPosition: "left" | "right";
   chatTurnPaginationEnabled: boolean;
   modelPickerStyle: "spotlight" | "dropdown";
   workstationSidebarPosition: "left" | "right";
@@ -106,47 +36,24 @@ export function buildChatPanelSettingsActions({
 
   actions.push({
     id:
-      myStationChatPosition === "left"
-        ? "set-my-station-chat-right"
-        : "set-my-station-chat-left",
+      chatPanelPosition === "left"
+        ? "set-chat-panel-right"
+        : "set-chat-panel-left",
     labelKey:
-      myStationChatPosition === "left"
-        ? "common:spotlightActions.moveMyStationChatRight"
-        : "common:spotlightActions.moveMyStationChatLeft",
-    icon: myStationChatPosition === "left" ? ArrowBigRight : ArrowBigLeft,
+      chatPanelPosition === "left"
+        ? "common:layoutSettings.chatRight"
+        : "common:layoutSettings.chatLeft",
+    icon: chatPanelPosition === "left" ? ArrowRightBigIcon : ArrowLeftBigIcon,
     keywords: [
-      "my station chat",
+      "chat panel side",
       "chat panel location",
       "chat left",
       "chat right",
     ],
     actionId:
-      myStationChatPosition === "left"
-        ? ACTION_ID.CHAT_PANEL_SET_MY_STATION_RIGHT
-        : ACTION_ID.CHAT_PANEL_SET_MY_STATION_LEFT,
-    payload: {},
-    closeOnSuccess: false,
-  });
-
-  actions.push({
-    id:
-      agentStationChatPosition === "left"
-        ? "set-agent-station-chat-right"
-        : "set-agent-station-chat-left",
-    labelKey:
-      agentStationChatPosition === "left"
-        ? "common:spotlightActions.moveAgentStationChatRight"
-        : "common:spotlightActions.moveAgentStationChatLeft",
-    icon: agentStationChatPosition === "left" ? ArrowBigRight : ArrowBigLeft,
-    keywords: [
-      "agent station chat",
-      "agent chat location",
-      "chat panel location",
-    ],
-    actionId:
-      agentStationChatPosition === "left"
-        ? ACTION_ID.CHAT_PANEL_SET_AGENT_STATION_RIGHT
-        : ACTION_ID.CHAT_PANEL_SET_AGENT_STATION_LEFT,
+      chatPanelPosition === "left"
+        ? ACTION_ID.CHAT_PANEL_SET_RIGHT
+        : ACTION_ID.CHAT_PANEL_SET_LEFT,
     payload: {},
     closeOnSuccess: false,
   });
@@ -158,7 +65,7 @@ export function buildChatPanelSettingsActions({
     labelKey: chatTurnPaginationEnabled
       ? "common:spotlightActions.disableChatPagination"
       : "common:spotlightActions.enableChatPagination",
-    icon: LayoutPanelTop,
+    icon: LayoutTopIcon,
     keywords: ["chat pagination", "turn pagination", "chat rounds"],
     actionId: chatTurnPaginationEnabled
       ? ACTION_ID.CHAT_PANEL_DISABLE_PAGINATION
@@ -176,7 +83,7 @@ export function buildChatPanelSettingsActions({
       modelPickerStyle === "spotlight"
         ? "common:spotlightActions.useModelPickerDropdown"
         : "common:spotlightActions.useModelPickerSpotlight",
-    icon: modelPickerStyle === "spotlight" ? Menu : Sparkles,
+    icon: modelPickerStyle === "spotlight" ? Menu01Icon : SparklesIcon,
     keywords: ["model picker", "model menu", "model spotlight", "picker"],
     actionId:
       modelPickerStyle === "spotlight"
@@ -195,7 +102,7 @@ export function buildChatPanelSettingsActions({
       workstationSidebarPosition === "left"
         ? "common:spotlightActions.moveWorkstationSidebarRight"
         : "common:spotlightActions.moveWorkstationSidebarLeft",
-    icon: PanelLeft,
+    icon: PanelLeftIcon,
     keywords: [
       "workstation sidebar",
       "sidebar position",

@@ -1,8 +1,13 @@
 import type { TFunction } from "i18next";
-import { ChevronDown, GitMerge, Play, Trash2 } from "lucide-react";
 import React from "react";
 
 import Button from "@src/components/Button";
+import {
+  ArrowDown01Icon,
+  Delete02Icon,
+  GitMergeIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 
 import {
   MERGE_STRATEGY_OPTIONS,
@@ -11,7 +16,6 @@ import {
 } from "./helpers";
 
 interface TaskDetailHeaderActionsProps {
-  canReplay: boolean;
   canMerge: boolean;
   mergeLoading: boolean;
   discardLoading: boolean;
@@ -20,7 +24,6 @@ interface TaskDetailHeaderActionsProps {
   mergeButtonTitle: string;
   strategyRef: React.RefObject<HTMLDivElement | null>;
   t: TFunction<"sessions">;
-  onReplay: () => void;
   onMerge: () => void;
   onDiscard: () => void;
   onToggleStrategy: () => void;
@@ -28,7 +31,6 @@ interface TaskDetailHeaderActionsProps {
 }
 
 const TaskDetailHeaderActions: React.FC<TaskDetailHeaderActionsProps> = ({
-  canReplay,
   canMerge,
   mergeLoading,
   discardLoading,
@@ -37,24 +39,12 @@ const TaskDetailHeaderActions: React.FC<TaskDetailHeaderActionsProps> = ({
   mergeButtonTitle,
   strategyRef,
   t,
-  onReplay,
   onMerge,
   onDiscard,
   onToggleStrategy,
   onSelectStrategy,
 }) => (
   <div className="flex items-center gap-px">
-    {canReplay && (
-      <Button
-        size="small"
-        variant="tertiary"
-        onClick={onReplay}
-        title={t("kanban.replay.replaySession")}
-        icon={<Play size={14} fill="currentColor" strokeWidth={0} />}
-      >
-        {t("kanban.replay.replaySession")}
-      </Button>
-    )}
     {canMerge && (
       <>
         <div className="relative flex items-center" ref={strategyRef}>
@@ -67,7 +57,14 @@ const TaskDetailHeaderActions: React.FC<TaskDetailHeaderActionsProps> = ({
             disabled={mergeLoading || discardLoading}
             title={mergeButtonTitle}
             aria-label={mergeButtonTitle}
-            icon={<GitMerge size={14} strokeWidth={1.75} />}
+            icon={
+              <HugeiconsIcon
+                icon={GitMergeIcon}
+                data-icon="git-merge"
+                size={14}
+                strokeWidth={1.75}
+              />
+            }
           />
           <Button
             size="small"
@@ -77,10 +74,17 @@ const TaskDetailHeaderActions: React.FC<TaskDetailHeaderActionsProps> = ({
             disabled={mergeLoading || discardLoading}
             title={t("kanban.merge.strategyLabel")}
             aria-label={t("kanban.merge.strategyLabel")}
-            icon={<ChevronDown size={14} strokeWidth={1.75} />}
+            icon={
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={14}
+                strokeWidth={1.75}
+              />
+            }
           />
           {strategyOpen && (
-            <div className="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-md border border-border-1 bg-bg-1 py-1 shadow-lg">
+            <div className="absolute top-full right-0 z-50 mt-1 min-w-[140px] rounded-md border border-border-1 bg-bg-1 py-1 shadow-lg">
               {MERGE_STRATEGY_OPTIONS.map((strategy) => (
                 <button
                   key={strategy}
@@ -106,7 +110,14 @@ const TaskDetailHeaderActions: React.FC<TaskDetailHeaderActionsProps> = ({
           disabled={mergeLoading || discardLoading}
           title={t("common:actions.delete")}
           aria-label={t("common:actions.delete")}
-          icon={<Trash2 size={14} strokeWidth={1.75} />}
+          icon={
+            <HugeiconsIcon
+              icon={Delete02Icon}
+              data-icon="trash-2"
+              size={14}
+              strokeWidth={1.75}
+            />
+          }
         />
       </>
     )}

@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import ComposerShell from "@src/components/ComposerShell";
 import ComposerSurface from "@src/components/ComposerSurface";
+import PersonAvatar from "@src/components/PersonAvatar";
 import MarkdownTextareaEditor, {
   type MarkdownEditorMode,
 } from "@src/modules/shared/components/MarkdownTextareaEditor";
@@ -32,7 +32,7 @@ const GitHubIssueComposer: React.FC<GitHubIssueComposerProps> = ({
   if (interaction.loading) {
     return (
       <section data-testid="github-issue-inline-composer-loading">
-        <ComposerShell variant="default" className="!gap-0 !p-0">
+        <ComposerShell variant="default" className="gap-0! p-0!">
           <LoadingBar />
         </ComposerShell>
       </section>
@@ -95,7 +95,7 @@ const GitHubIssueComposer: React.FC<GitHubIssueComposerProps> = ({
 
       <ComposerSurface
         variant="default"
-        className="overflow-visible !pt-1.5"
+        className="overflow-visible pt-1.5!"
         data-testid="github-issue-comment-input"
         leadingActions={
           <div className="flex min-w-0 items-center gap-2">
@@ -115,9 +115,11 @@ const GitHubIssueComposer: React.FC<GitHubIssueComposerProps> = ({
                   login: interaction.viewer.login,
                 })}
               >
-                <Avatar size={22} src={interaction.viewer.avatar_url}>
-                  {interaction.viewer.login.charAt(0).toUpperCase()}
-                </Avatar>
+                <PersonAvatar
+                  size={22}
+                  name={interaction.viewer.login}
+                  src={interaction.viewer.avatar_url}
+                />
                 <span className="truncate text-xs text-text-2">
                   {interaction.viewer.login}
                 </span>
@@ -149,7 +151,8 @@ const GitHubIssueComposer: React.FC<GitHubIssueComposerProps> = ({
           onChange={(markdown) => setCommentBody(markdown)}
           onSubmit={() => void handleComment()}
           placeholder={t("git.issues.composer.commentPlaceholder")}
-          minHeight={100}
+          minHeight={64}
+          minRows={2}
           maxHeight={500}
           appearance="plain"
           editable={interaction.canComment && !interaction.submittingComment}

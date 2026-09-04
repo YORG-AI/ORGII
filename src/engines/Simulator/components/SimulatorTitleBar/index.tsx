@@ -8,17 +8,18 @@
  *
  * Used by: SimulatorContentArea, SimulatorFrame, ResizableSplitView
  */
-import type { LucideIcon } from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import TabPill from "@src/components/TabPill";
+import type { IconSvgElement } from "@src/icons";
 import type { StationMode } from "@src/store/ui/simulatorAtom";
 
 interface SimulatorTitleBarProps {
   title?: string;
-  /** Optional Lucide icon before title (same asset as dock for the active tool). */
-  titleCenterIcon?: LucideIcon;
+  /** Optional Hugeicons icon before title (same asset as dock for the active tool). */
+  titleCenterIcon?: IconSvgElement;
   backgroundColor?: string;
   textColor?: string;
   showBorder?: boolean;
@@ -76,11 +77,12 @@ const SimulatorTitleBar: React.FC<SimulatorTitleBarProps> = memo(
         style={backgroundColor ? { backgroundColor } : undefined}
       >
         {/* Center: title (+ optional station mode switch) — geometric center of the bar */}
-        <div className="absolute left-1/2 top-1/2 z-10 flex max-w-[calc(100%-9rem)] -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-3">
+        <div className="absolute top-1/2 left-1/2 z-10 flex max-w-[calc(100%-9rem)] -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-3">
           {title ? (
             <span className="flex min-w-0 items-center gap-1.5">
               {TitleCenterIcon ? (
-                <TitleCenterIcon
+                <AnyIcon
+                  icon={TitleCenterIcon}
                   size={16}
                   strokeWidth={1.75}
                   className="shrink-0 text-text-2"

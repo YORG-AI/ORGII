@@ -1,10 +1,9 @@
-import { Calendar, CalendarClock } from "lucide-react";
-
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
 import {
   FieldRow,
   type FieldRowVariant,
 } from "@src/components/PropertyField/PropertyFieldEditable";
+import { Calendar01Icon, HugeiconsIcon, TimeScheduleIcon } from "@src/icons";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 
 import { DateQuickAssignDropdown } from "./DateQuickAssignDropdown";
@@ -62,12 +61,18 @@ export function DatesScheduleSection({
         <div
           className={
             fieldVariant === "pill"
-              ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+              ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
               : "relative flex min-h-8 w-full items-center"
           }
         >
           <FieldRow
-            icon={<CalendarClock size={DROPDOWN_ITEM.iconSize} />}
+            icon={
+              <HugeiconsIcon
+                icon={TimeScheduleIcon}
+                data-icon="calendar-clock"
+                size={DROPDOWN_ITEM.iconSize}
+              />
+            }
             value={handlers.formatStartDate(workItem.startDate)}
             isSelected={!!workItem.startDate}
             isActive={openPicker === "startDate"}
@@ -96,12 +101,18 @@ export function DatesScheduleSection({
         <div
           className={
             fieldVariant === "pill"
-              ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+              ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
               : "relative flex min-h-8 w-full items-center"
           }
         >
           <FieldRow
-            icon={<Calendar size={DROPDOWN_ITEM.iconSize} />}
+            icon={
+              <HugeiconsIcon
+                icon={Calendar01Icon}
+                data-icon="calendar"
+                size={DROPDOWN_ITEM.iconSize}
+              />
+            }
             value={handlers.formatDueDate(workItem.endDate)}
             isSelected={!!workItem.endDate}
             isActive={openPicker === "date"}

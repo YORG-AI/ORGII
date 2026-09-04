@@ -6,7 +6,6 @@
  * they hide the data hook plumbing behind a zero-prop component.
  */
 import { useAtomValue } from "jotai";
-import { Monitor } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +15,7 @@ import { CLI_AGENT, type CliAgentType } from "@src/api/types/keys";
 import { formatAgentType } from "@src/assets/providers";
 import { useAgentOrgMemberSessionJump } from "@src/engines/ChatPanel/InputArea/components/useAgentOrgMemberSessionJump";
 import { useAgentOrgRunView } from "@src/engines/ChatPanel/InputArea/components/useAgentOrgRunView";
+import { MonitorIcon } from "@src/icons";
 import {
   activeSessionIdAtom,
   sessionMapAtom,
@@ -225,7 +225,7 @@ const SimulatorAgentChipComponent: React.FC = () => {
 
   return (
     <AppSwitcherChip
-      icon={Monitor}
+      icon={MonitorIcon}
       label={chipLabel}
       activeId={sessionId ?? "agent-workstation"}
       items={items}

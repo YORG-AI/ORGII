@@ -48,9 +48,6 @@ interface AppShellContentProps {
   isActive: boolean;
   chatPanelFocused: boolean;
   isAgentStation: boolean;
-  hasVisitedAgentStation: boolean;
-  /** Whether Agent Station has a live session attached (keep-alive gate). */
-  hasAgentStationSession: boolean;
   hasVisitedCode: boolean;
   hasVisitedBrowser: boolean;
   hasVisitedProject: boolean;
@@ -82,8 +79,6 @@ export function AppShellContent({
   isActive,
   chatPanelFocused,
   isAgentStation,
-  hasVisitedAgentStation,
-  hasAgentStationSession,
   hasVisitedCode,
   hasVisitedBrowser,
   hasVisitedProject,
@@ -122,10 +117,11 @@ export function AppShellContent({
   // Optional: AppShellContent always sits under BrowserProvider in the app,
   // but isolated mounts (tests) shouldn't crash — no provider ⇒ no sessions.
   const browserContextValue = useBrowserContextOptional();
+  // Mounted iff displayed — the render below uses the same condition, so the
+  // simulator's twelve-cell worst case cannot survive being hidden.
   const mountAgentStationHost = shouldMountAgentStationHost({
     isAgentStation,
-    hasVisited: hasVisitedAgentStation,
-    hasActiveSession: hasAgentStationSession,
+    isChatPanelMaximized: chatPanelFocused,
   });
   const mountCodeHost = shouldMountWorkstationHost({
     hasRealTabs,

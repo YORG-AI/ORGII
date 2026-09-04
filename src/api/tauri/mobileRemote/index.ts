@@ -28,7 +28,7 @@ export const PERMISSION_TIER = {
 export interface PairingInitOutput {
   pairingCode: string;
   confirmationPhrase: string;
-  /** JSON-encoded payload the QR component renders directly. */
+  /** Hosted PWA URL with the one-time pairing payload in its fragment. */
   qrPayload: string;
   expiresInSeconds: number;
 }
@@ -53,6 +53,28 @@ export interface PairedDeviceInfo {
 export interface RelayUrlInfo {
   url: string;
   isDefault: boolean;
+}
+
+export type RelayPhase =
+  | "disabled"
+  | "config_error"
+  | "connecting"
+  | "online"
+  | "backoff"
+  | "stopped";
+
+export interface RelayStatus {
+  phase: RelayPhase;
+  message: string | null;
+  reconnectAttempt: number;
+  connectedAtMs: number | null;
+}
+
+/** Exact row projection currently rendered by the desktop Sidebar. */
+export interface MobileSidebarSessionSnapshotRow {
+  id: string;
+  name: string;
+  status: "running" | "idle";
 }
 
 // ============================================================
@@ -126,6 +148,28 @@ export async function getRelayUrl(): Promise<RelayUrlInfo> {
   return result as RelayUrlInfo;
 }
 
+export async function getRelayStatus(): Promise<RelayStatus> {
+  const result = await invoke<unknown>("mobile_remote_relay_status");
+  return result as RelayStatus;
+}
+
+/** Ask the relay supervisor to re-read ORG2 Cloud auth and reconnect. */
+export async function notifyCloudAuthChanged(): Promise<void> {
+  await invoke<unknown>("mobile_remote_notify_cloud_auth_changed");
+}
+
+/**
+ * Publish the desktop Sidebar's current local/My Sessions window for mobile.
+ * Returns whether the app-lifetime snapshot changed.
+ */
+export async function syncSidebarSessions(
+  sessions: readonly MobileSidebarSessionSnapshotRow[]
+): Promise<boolean> {
+  return invoke<boolean>("mobile_remote_sync_sidebar_sessions", {
+    sessions,
+  });
+}
+
 export const mobileRemoteApi = {
   pairInit,
   pairComplete,
@@ -135,6 +179,9 @@ export const mobileRemoteApi = {
   setPrimaryDesktop,
   setRelayUrl,
   getRelayUrl,
+  getRelayStatus,
+  notifyCloudAuthChanged,
+  syncSidebarSessions,
 };
 
 export default mobileRemoteApi;

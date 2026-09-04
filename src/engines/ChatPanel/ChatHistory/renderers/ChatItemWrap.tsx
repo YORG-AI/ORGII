@@ -6,7 +6,7 @@
  */
 import React from "react";
 
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 import {
   CHAT_ITEM_GAP,
   CHAT_ITEM_PADDING_X,
@@ -27,7 +27,7 @@ const ChatItemWrap: React.FC<{
     variant === "text" ? CHAT_ITEM_TEXT_PADDING_X : CHAT_ITEM_PADDING_X;
   return (
     <div
-      className={`chat-font-size-wrapper allow-select-deep ${CHAT_ITEM_GAP} ${px} ${DETAIL_PANEL_TOKENS.contentWidth} ${className}`.trim()}
+      className={`chat-font-size-wrapper allow-select-deep ${CHAT_ITEM_GAP} ${px} ${CHAT_PANEL_WIDTH_TOKENS.contentWidth} ${className}`.trim()}
       {...dataAttr}
     >
       {children}

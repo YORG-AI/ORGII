@@ -9,19 +9,29 @@
  * - ChatBubbleHeader: sender name + timestamp + optional extras
  * - ChatBubbleBody: rounded card with variant-based background
  */
-import { Copy } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Message from "@src/components/Message";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
+import { Copy01Icon, HugeiconsIcon } from "@src/icons";
 
 export const CHAT_BUBBLE_WIDTH_TOKENS = {
-  row: `mx-auto flex w-full min-w-0 gap-3 overflow-hidden ${DETAIL_PANEL_TOKENS.contentMaxWidth}`,
+  row: `mx-auto flex w-full min-w-0 gap-3 overflow-hidden ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`,
   content: "w-full min-w-0 max-w-full overflow-hidden",
   body: "inline-block min-w-0 max-w-full overflow-hidden",
   userBody: "inline-block min-w-0 max-w-full overflow-hidden",
 } as const;
+
+/**
+ * Session-chat user messages share this visual treatment across the desktop
+ * ChatSession and the browser-safe Mobile Remote transcript.
+ */
+export const CHAT_SESSION_USER_BUBBLE_CLASS =
+  "rounded-2xl bg-fill-2 px-3 py-2 text-text-1";
+
+/** Desktop adds positioning and a content-width cap around the shared bubble. */
+export const CHAT_SESSION_USER_BUBBLE_LAYOUT_CLASS = `relative w-fit max-w-[min(600px,100%)] ${CHAT_SESSION_USER_BUBBLE_CLASS}`;
 
 // ============================================
 // Avatar — circular icon container
@@ -82,6 +92,7 @@ const BODY_VARIANTS = {
   agent: "rounded-lg bg-primary-1 p-3 text-text-1",
   user: "rounded-lg bg-primary-6 p-3 text-white",
   neutral: "rounded-lg bg-fill-2 p-3 text-text-1",
+  sessionUser: CHAT_SESSION_USER_BUBBLE_CLASS,
 } as const;
 
 type BubbleVariant = keyof typeof BODY_VARIANTS;
@@ -102,6 +113,35 @@ export const ChatBubbleBody: React.FC<ChatBubbleBodyProps> = memo(
   )
 );
 ChatBubbleBody.displayName = "ChatBubbleBody";
+
+interface ChatAssistantMessageBodyProps {
+  children: React.ReactNode;
+  actions?: React.ReactNode;
+  className?: string;
+  bodyClassName?: string;
+  testId?: string;
+}
+
+/**
+ * Shared, transparent assistant-message surface used by Desktop ChatSession
+ * and Mobile Remote. Markdown stays in the conversation flow rather than in
+ * a card; callers supply only the renderer and optional message actions.
+ */
+export const ChatAssistantMessageBody: React.FC<ChatAssistantMessageBodyProps> =
+  memo(({ children, actions, className = "", bodyClassName = "", testId }) => (
+    <div
+      className={`chat-text relative flex w-full min-w-0 flex-col items-start gap-3 self-stretch text-text-1 ${className}`}
+      data-testid={testId}
+    >
+      {actions}
+      <div
+        className={`resultBgc allow-select w-full min-w-0 overflow-visible font-normal break-words ${bodyClassName}`}
+      >
+        {children}
+      </div>
+    </div>
+  ));
+ChatAssistantMessageBody.displayName = "ChatAssistantMessageBody";
 
 interface ChatBubbleCopyButtonProps {
   content: string;
@@ -139,7 +179,12 @@ const ChatBubbleCopyButtonComponent: React.FC<ChatBubbleCopyButtonProps> = ({
         className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} text-text-3 hover:text-text-1`}
         onClick={handleCopy}
       >
-        <Copy size={14} strokeWidth={1.75} />
+        <HugeiconsIcon
+          icon={Copy01Icon}
+          data-icon="copy"
+          size={14}
+          strokeWidth={1.75}
+        />
       </button>
     );
   }
@@ -154,10 +199,15 @@ const ChatBubbleCopyButtonComponent: React.FC<ChatBubbleCopyButtonProps> = ({
       type="button"
       title={t("actions.copy")}
       aria-label={t("actions.copy")}
-      className={`${cornerClass} inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-3 opacity-0 transition-[opacity,background-color,color] hover:bg-fill-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 ${hoverGroupClass}`}
+      className={`${cornerClass} inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-3 opacity-0 transition-[opacity,background-color,color] hover:bg-fill-2 hover:text-text-1 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none ${hoverGroupClass}`}
       onClick={handleCopy}
     >
-      <Copy size={14} strokeWidth={1.75} />
+      <HugeiconsIcon
+        icon={Copy01Icon}
+        data-icon="copy"
+        size={14}
+        strokeWidth={1.75}
+      />
     </button>
   );
 };

@@ -1,5 +1,4 @@
 import { useAtomValue } from "jotai";
-import { GitBranch, Import, Network } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -22,6 +21,12 @@ import {
   type FlattenedTreeNode,
   VirtualizedStickyTree,
 } from "@src/components/VirtualizedStickyTree";
+import {
+  HierarchyCircle01Icon,
+  HugeiconsIcon,
+  ImportIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import { cachedLinearProjectsApi } from "@src/modules/ProjectManager/LinearProjects/linearProjectsCache";
 import { projectListRefreshAtom } from "@src/store/project/projectAtom";
 import {
@@ -69,7 +74,12 @@ interface ProjectSidebarTreeContentProps {
 }
 
 const ORG_ROW_ICON = (
-  <Network size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />
+  <HugeiconsIcon
+    icon={HierarchyCircle01Icon}
+    data-icon="network"
+    size={ROW_ICON_SIZE}
+    strokeWidth={ROW_ICON_STROKE}
+  />
 );
 
 const LINEAR_ORG_ROW_ICON = (
@@ -77,7 +87,12 @@ const LINEAR_ORG_ROW_ICON = (
 );
 
 const IMPORT_ORGS_ROW_ICON = (
-  <Import size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />
+  <HugeiconsIcon
+    icon={ImportIcon}
+    data-icon="import"
+    size={ROW_ICON_SIZE}
+    strokeWidth={ROW_ICON_STROKE}
+  />
 );
 
 export const OrgSidebarTreeContent: React.FC<ProjectSidebarTreeContentProps> =
@@ -336,7 +351,12 @@ export const OrgSidebarTreeContent: React.FC<ProjectSidebarTreeContentProps> =
                     className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-fill-2 px-1.5 py-0.5 text-[10px] font-medium text-text-3"
                     title={t("projects:orgs.gitFolderSynced")}
                   >
-                    <GitBranch size={10} strokeWidth={1.8} />
+                    <HugeiconsIcon
+                      icon={WorkflowCircle05Icon}
+                      data-icon="git-branch"
+                      size={10}
+                      strokeWidth={1.8}
+                    />
                     {t("projects:orgs.gitFolderBadge")}
                   </span>
                 )}

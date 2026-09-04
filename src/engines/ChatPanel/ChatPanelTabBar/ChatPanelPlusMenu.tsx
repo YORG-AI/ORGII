@@ -1,16 +1,8 @@
 /**
  * ChatPanelPlusMenu — the "+" button and its dropdown, placed in the chat
- * panel header toolbar (left of the "..." menu).
+ * panel header toolbar (right of the "..." menu on Launchpad).
  */
-import {
-  Box,
-  BriefcaseBusiness,
-  Columns3,
-  Gauge,
-  LayoutGrid,
-  PictureInPicture2,
-  Plus,
-} from "lucide-react";
+import { useAtomValue, useSetAtom } from "jotai";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -19,10 +11,27 @@ import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import { RecentlyClosedTabsMenuSection } from "@src/components/RecentlyClosedTabsMenuSection";
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
+import {
+  Add01Icon,
+  Briefcase02Icon,
+  DeliveryBox01Icon,
+  GaugeIcon,
+  HugeiconsIcon,
+  KanbanIcon,
+  MessageAdd02Icon,
+  PictureInPicture01Icon,
+} from "@src/icons";
+import {
+  type ChatPanelTab,
+  recentlyClosedChatPanelTabsAtom,
+  restoreRecentlyClosedChatPanelTabAtom,
+} from "@src/store/chatPanel/chatPanelTabsAtom";
 import { isMacOS } from "@src/util/platform/tauri";
 
+import { SessionIdentityIconById } from "../components/SessionIdentityIcon";
 import { CHAT_PANEL_HEADER_NO_DRAG_STYLE } from "../header";
 
 // ─── Plus-menu dropdown ───────────────────────────────────────────────────────
@@ -34,6 +43,8 @@ interface PlusMenuContentProps {
   onNewProject: () => void;
   onNewWorkItem: () => void;
   onOpenSideChat: () => void;
+  recentlyClosedTabs: readonly ChatPanelTab[];
+  onRestoreTab: (tabId: string) => void;
   onClose: () => void;
 }
 
@@ -44,6 +55,8 @@ export function PlusMenuContent({
   onNewProject,
   onNewWorkItem,
   onOpenSideChat,
+  recentlyClosedTabs,
+  onRestoreTab,
   onClose,
 }: PlusMenuContentProps) {
   const { t } = useTranslation(["sessions", "navigation"]);
@@ -54,38 +67,80 @@ export function PlusMenuContent({
   const items = [
     {
       id: "launchpad",
-      icon: <LayoutGrid size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={MessageAdd02Icon}
+          data-icon="message-add"
+          size={HEADER_ICON_SIZE.sm}
+          strokeWidth={1.8}
+        />
+      ),
       label: t("sessions:chat.startPage.newSession.title"),
       hint: `${MOD}N`,
       onClick: onOpenLaunchpad,
     },
     {
       id: "work-management",
-      icon: <Columns3 size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={KanbanIcon}
+          data-icon="kanban"
+          size={HEADER_ICON_SIZE.sm}
+          strokeWidth={1.8}
+        />
+      ),
       label: t("sessions:simulator.tabs.kanban"),
       onClick: onOpenKanban,
     },
     {
       id: "runtime",
-      icon: <Gauge size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={GaugeIcon}
+          data-icon="gauge"
+          size={HEADER_ICON_SIZE.sm}
+          strokeWidth={1.8}
+        />
+      ),
       label: t("sessions:chat.startPage.tabs.runtime"),
       onClick: onOpenRuntime,
     },
     {
       id: "new-project",
-      icon: <Box size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={DeliveryBox01Icon}
+          data-icon="box"
+          size={HEADER_ICON_SIZE.sm}
+          strokeWidth={1.8}
+        />
+      ),
       label: t("sessions:creator.createTarget.project"),
       onClick: onNewProject,
     },
     {
       id: "new-work-item",
-      icon: <BriefcaseBusiness size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={Briefcase02Icon}
+          data-icon="briefcase-business"
+          size={HEADER_ICON_SIZE.sm}
+          strokeWidth={1.8}
+        />
+      ),
       label: t("chat.startPage.newWorkItem.title"),
       onClick: onNewWorkItem,
     },
     {
       id: "side-chat",
-      icon: <PictureInPicture2 size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={PictureInPicture01Icon}
+          data-icon="picture-in-picture-2"
+          size={HEADER_ICON_SIZE.sm}
+          strokeWidth={1.8}
+        />
+      ),
       label: t("sessions:chat.sideChat.title"),
       onClick: onOpenSideChat,
     },
@@ -118,6 +173,24 @@ export function PlusMenuContent({
             ) : null}
           </button>
         ))}
+        <RecentlyClosedTabsMenuSection
+          tabs={recentlyClosedTabs.map((tab) => ({
+            id: tab.id,
+            title: tab.title,
+            leadingIcon:
+              tab.type === "session" && tab.sessionId ? (
+                <SessionIdentityIconById
+                  sessionId={tab.sessionId}
+                  isSelected={false}
+                />
+              ) : undefined,
+          }))}
+          label={t("navigation:workstation.plusMenu.recentlyClosed")}
+          onRestore={(tabId) => {
+            onClose();
+            onRestoreTab(tabId);
+          }}
+        />
       </div>
     </div>
   );
@@ -144,6 +217,8 @@ export function ChatPanelPlusMenu({
 }: ChatPanelPlusMenuProps): React.ReactNode {
   const { t } = useTranslation("sessions");
   const [menuOpen, setMenuOpen] = useState(false);
+  const recentlyClosedTabs = useAtomValue(recentlyClosedChatPanelTabsAtom);
+  const restoreTab = useSetAtom(restoreRecentlyClosedChatPanelTabAtom);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const plusLabel = t("chat.tabs.newTab", "New tab");
 
@@ -157,6 +232,8 @@ export function ChatPanelPlusMenu({
           onNewProject={onNewProject}
           onNewWorkItem={onNewWorkItem}
           onOpenSideChat={onOpenSideChat}
+          recentlyClosedTabs={recentlyClosedTabs}
+          onRestoreTab={restoreTab}
           onClose={closeMenu}
         />
       }
@@ -177,7 +254,12 @@ export function ChatPanelPlusMenu({
           tooltipDisabled
           nativeTitle={false}
         >
-          <Plus size={HEADER_ICON_SIZE.md} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={Add01Icon}
+            data-icon="plus"
+            size={HEADER_ICON_SIZE.md}
+            strokeWidth={2}
+          />
         </TabBarTrailingIconButton>
       </span>
     </Dropdown>

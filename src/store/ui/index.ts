@@ -49,14 +49,12 @@ export * from "./todoAtom";
 export * from "./addToAgentAtom";
 export * from "./integrationsToolbarAtom";
 export * from "./kanbanViewStateAtom";
-export * from "./kanbanReplayAtom";
 export * from "./workManagementCreatorAtom";
 export * from "./sideChatAtom";
 export * from "./modelSelectorAtom";
 export * from "./settingsToolbarAtom";
 export * from "./globalTabsTypes";
 export * from "./guideHighlightAtom";
-export * from "./globalPreferencesPanelAtom";
 
 // WorkStation / Chat / Simulator / Workspace Folders (formerly workspaceAtom barrel)
 export * from "./simulatorAtom";

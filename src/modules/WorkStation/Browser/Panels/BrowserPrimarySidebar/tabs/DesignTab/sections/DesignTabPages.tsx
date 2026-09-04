@@ -1,10 +1,10 @@
 /**
  * DesignTabPages - Pages section for DesignTab sidebar
  */
-import { FileCode } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import type { TreePanelNode } from "@src/components/TreePanelSidebar/types";
+import { FileScriptIcon, HugeiconsIcon } from "@src/icons";
 
 import { TREE_ICON_SIZE } from "../config";
 import type { DesignTabPagesProps, PageItem } from "../types";
@@ -21,7 +21,14 @@ function pagesToTreeNodes(pages: PageItem[]): TreePanelNode[] {
     name: page.name,
     path: page.path,
     type: "file" as const,
-    icon: <FileCode size={TREE_ICON_SIZE} className="text-text-3" />,
+    icon: (
+      <HugeiconsIcon
+        icon={FileScriptIcon}
+        data-icon="file-code"
+        size={TREE_ICON_SIZE}
+        className="text-text-3"
+      />
+    ),
   }));
 }
 

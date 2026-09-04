@@ -99,12 +99,6 @@
       "openAsFloatingPane": "以浮動面板打開"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "依檔案路徑搜尋 Session",
-      "noResults": "沒有 Session 改動過符合的檔案"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "目前看板",
     "view": {
       "list": "列表",
       "diary": "日誌",
@@ -329,8 +323,8 @@
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
       "removeDraft": "刪除草稿",
-      "showSubagents": "顯示子代理",
-      "hideSubagents": "隱藏子代理"
+      "showSubagents": "顯示subagent",
+      "hideSubagents": "隱藏subagent"
     },
     "resultStatus": {
       "completed": "已完成",
@@ -374,9 +368,6 @@
       "discard": "丟棄",
       "discarding": "丟棄中…",
       "confirmMessage": "丟棄此 Worktree 的所有更改？此操作不可撤銷。"
-    },
-    "replay": {
-      "replaySession": "回放"
     },
     "detailView": {
       "trajectory": "軌跡",
@@ -484,7 +475,6 @@
       "bottomPanel": {
         "tabTrajectory": "軌跡",
         "tabTodo": "待辦",
-        "collapsePanel": "隱藏面板",
         "expandPanel": "顯示軌跡與待辦面板",
         "placeholderTrajectoryTitle": "暫無事件",
         "placeholderTrajectorySubtitle": "Agent 運行後，會話活動將顯示在這裏",
@@ -778,9 +768,7 @@
       "showSidebar": "顯示側邊欄",
       "hideSidebar": "隱藏側邊欄",
       "showBottomPanel": "顯示底部面板",
-      "hideBottomPanel": "隱藏底部面板",
-      "showDevTools": "顯示 DevTools",
-      "hideDevTools": "隱藏 DevTools"
+      "hideBottomPanel": "隱藏底部面板"
     },
     "multiTask": {
       "monitoringProgress": "正在監控 {{count}} 個 Subagent 的進度",
@@ -811,7 +799,8 @@
       "current": "當前"
     },
     "agentSentMessageCaption": "{{subject}} 傳送了一則訊息給你",
-    "userSentMessageCaption": "你傳送了一則訊息給 Agent"
+    "userSentMessageCaption": "你傳送了一則訊息給 Agent",
+    "thoughtSentMessageCaption": "{{subject}} 正在思考"
   },
   "terminal": {
     "findInTerminal": "在終端中查找",
@@ -895,8 +884,17 @@
     "multipleChoice": "多選",
     "typeYourAnswer": "輸入您的回答…",
     "newSession": "新建會話",
-    "muteNotifications": "將此會話通知靜音",
     "startPage": {
+      "inputPosition": "輸入框",
+      "positionBottom": "底部",
+      "positionMiddle": "置中",
+      "trailPosition": "軌跡列",
+      "positionUp": "上方",
+      "positionDown": "下方",
+      "uiControls": "介面控制",
+      "showQuickActions": "顯示快捷操作",
+      "showSkills": "顯示 Skills",
+      "showCliUpdate": "顯示 CLI 更新",
       "title": "你想做什麼？",
       "back": "返回起始頁",
       "newSession": {
@@ -1007,6 +1005,7 @@
     "fullScreenChat": "聚焦聊天面板（隱藏工作站）",
     "maximizeChatPanel": "最大化聊天面板",
     "showWorkstation": "顯示工作站",
+    "workstationUnavailableForPage": "此頁面不支援使用工作站",
     "hideWorkstation": "隱藏工作站",
     "restoreSplitView": "顯示工作站",
     "shrinkToWorkstation": "縮小聊天面板（顯示工作站）",
@@ -1022,9 +1021,12 @@
       "openInSideChat": "在側邊聊天中開啟"
     },
     "collapseAll": "全部摺疊",
+    "copyAndExport": "複製與匯出",
     "copyEventJson": "複製事件 JSON",
     "copyEventJsonCopied": "複製！",
     "copyEventJsonFailed": "複製失敗",
+    "moveTo": "將頁面移動到…",
+    "projectLinks": "專案關聯",
     "moveToWorkstation": "移動到我的工作站",
     "moveToChatPanel": "移動到聊天面板",
     "rawTranscript": {
@@ -1121,7 +1123,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~還需 {{eta}}",
     "rateLimitHintTitle": "API 頻率受限",
-    "rateLimitHintBody": "當前模型請求頻率受限，你可以先切換到其他窗口繼續工作。",
+    "rateLimitHintBody": "當前模型請求頻率受限，你可以先切換到其他窗口繼續工作",
     "feedbackPending": "等待反饋",
     "executionThreads": "執行線程",
     "allThreads": "全部",
@@ -1153,6 +1155,7 @@
       "exportTitle": "匯出 Session JSON",
       "importTitle": "匯入 Session JSON",
       "exportAction": "匯出",
+      "exportJson": "匯出 JSON",
       "importAction": "匯入 Session",
       "exportDescription": "將目前 Session 匯出為可攜式 JSON 快照",
       "importDescription": "將 Session JSON 快照匯入側邊欄。",
@@ -1258,7 +1261,8 @@
       "fileCount_other": "{{count}} 個檔案",
       "turnCount_one": "{{count}} 輪",
       "turnCount_other": "{{count}} 輪"
-    }
+    },
+    "parentAgentSender": "上層 Agent"
   },
   "chatStatus": {
     "approved": "已批准",
@@ -1373,9 +1377,7 @@
     },
     "editFileFailedNoName": "嘗試編輯",
     "file": "文件",
-    "runShellRunning": "正在執行命令",
     "terminalWaitRunning": "正在等待終端完成",
-    "runShellDone": "執行命令",
     "runShellFailed": "命令執行失敗",
     "runCommands": "執行命令",
     "terminalSummary": {
@@ -1440,8 +1442,8 @@
     "categorySearch": "搜索",
     "categoryGlob": "Glob",
     "categoryList": "列表",
-    "subagentFailed": "Sub Agent 失敗",
-    "subagentDefaultName": "Sub Agent",
+    "subagentFailed": "Subagent 失敗",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "將任務分配給 Subagent",
     "subagentRunning": "Subagent 執行中",
     "subagentDone": "Subagent 完成",
@@ -1451,9 +1453,9 @@
     "createPlanRunning": "正在建立計畫",
     "createPlanDone": "建立計畫",
     "createPlanFailed": "建立計畫失敗",
-    "subagentResultTabFallbackTitle": "Sub Agent 結果",
+    "subagentResultTabFallbackTitle": "Subagent 結果",
     "openResultInTab": "在標籤頁中打開",
-    "openSubagentChatInTab": "在編輯器中打開 Sub Agent 詳情",
+    "openSubagentChatInTab": "在編輯器中打開 Subagent 詳情",
     "executing": "執行中",
     "argumentsLabel": "參數",
     "resultLabel": "結果",
@@ -1512,8 +1514,6 @@
     "killProcessFailed": "終止進程失敗",
     "listDirCount_one": "{{count}} 個目錄",
     "listDirCount_other": "{{count}} 個目錄",
-    "listFileCount_one": "{{count}} 個文件",
-    "listFileCount_other": "{{count}} 個文件",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n...（已截斷顯示）",
     "repeatedErrorNotice": "相同錯誤共出現 {{count}} 次，Agent 正在重試",
@@ -2098,7 +2098,11 @@
     "orgSendMessageRunning": "正在向 {{recipient}} 傳送訊息",
     "orgSendMessageDone": "向 {{recipient}} 傳送訊息",
     "orgSendMessageFailed": "向 {{recipient}} 傳送訊息失敗",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "正在執行命令",
+    "runCommandDone": "執行命令",
+    "nFiles_one": "{{count}} 個文件",
+    "nFiles_other": "{{count}} 個文件"
   },
   "hoverCard": {
     "commits": "提交",
@@ -2118,7 +2122,6 @@
     },
     "createTarget": {
       "agentSession": "Agent 會話",
-      "manageAgents": "管理 Agent / Skills",
       "project": "建立專案",
       "parallelRun": "平行執行",
       "workItem": "建立 Work Item"
@@ -2163,6 +2166,9 @@
     "launchpadQuestion": "你想使用",
     "launchpadQuestionSuffix": "建構什麼？",
     "manualLaunchpadQuestion": "你想建構什麼？",
+    "planLaunchpadQuestion": "你想使用",
+    "planLaunchpadQuestionSuffix": "規劃什麼？",
+    "manualPlanLaunchpadQuestion": "你想規劃什麼？",
     "start": "開始",
     "assign": "分配",
     "send": "發送",
@@ -2554,7 +2560,16 @@
       "正在處理，比平時更久...",
       "正在琢磨下一步，比平時更久..."
     ],
-    "compacting": "正在壓縮上下文…"
+    "compacting": "正在壓縮上下文…",
+    "statusTrail": {
+      "agentWorking": "Agent 工作中",
+      "agentWorkingFor": "Agent 已工作 {{value}}",
+      "runningTask_one": "{{count}} 個執行中的任務",
+      "runningTask_other": "{{count}} 個執行中的任務",
+      "idle": "Agent 閒置中",
+      "lastRefreshed": "上次重新整理於 {{value}}",
+      "asking": "等待你的回覆"
+    }
   },
   "revertConfirm": {
     "title": "文件有未保存的變更",
@@ -2700,7 +2715,8 @@
     "update": {
       "titleStatus": "更新任務狀態",
       "titleDetail": "更新任務詳情",
-      "markedAs": "標記為 {{status}}"
+      "markedAs": "標記為 {{status}}",
+      "title": "已更新任務"
     },
     "get": {
       "title": "查看任務詳情"
@@ -2916,5 +2932,15 @@
       "skipped": "已略過",
       "pending": "啟動中"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
+  },
+  "tooltips": {
+    "hidePanel": "隱藏面板"
+  },
+  "titleBar": {
+    "showDevTools": "顯示 DevTools",
+    "hideDevTools": "隱藏 DevTools"
   }
 }

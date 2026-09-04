@@ -145,7 +145,7 @@ describe("TeamInboxRow", () => {
     );
     expect(time?.className).toContain("text-text-3");
     expect(time?.className).not.toContain("text-text-2");
-    expect(container.querySelector(".lucide-list-checks")).not.toBeNull();
+    expect(container.querySelector('[data-icon="list-checks"]')).not.toBeNull();
     expect(container.querySelector(".bg-success-1")).toBeNull();
   });
 
@@ -215,7 +215,7 @@ describe("TeamInboxRow", () => {
         (element) => element.textContent === assignedItem.payload.title
       )?.className
     ).toContain("truncate");
-    expect(container.querySelector(".lucide-list-checks")).toBeNull();
+    expect(container.querySelector('[data-icon="list-checks"]')).toBeNull();
   });
 
   it("keeps the compact comment preview for mention rows", () => {
@@ -230,12 +230,20 @@ describe("TeamInboxRow", () => {
       );
     });
 
-    expect(container.querySelector("[title]")?.textContent).toBe(
-      "Please review Verify the compact row"
+    const row = container.querySelector<HTMLButtonElement>(
+      '[data-testid="team-inbox-row"]'
+    );
+    const preview = container.querySelector<HTMLElement>("[title]");
+
+    expect(row?.children).toHaveLength(2);
+    expect(preview?.textContent).toBe("Please review Verify the compact row");
+    expect(preview?.className).toContain("truncate");
+    expect(preview?.parentElement?.textContent).toContain(
+      "Please review Verify the compact row·Lin"
     );
     expect(container.textContent).toContain("Lin");
     expect(
-      container.querySelector(".lucide-message-square-more")
+      container.querySelector('[data-icon="message-square-more"]')
     ).not.toBeNull();
   });
 

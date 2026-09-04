@@ -7,26 +7,27 @@
  * or secondary, modal or dock — can reuse the same tab + slot contract.
  *
  * Both `bottom` and `right` positions render the same icon-only square tab
- * buttons. Each button shows only the Lucide icon from `tab.icon`; hovering
+ * buttons. Each button shows only the glyph from `tab.icon`; hovering
  * reveals a plain-text tooltip with the tab label (no keyboard shortcut).
  *
  * Tabs and content stay mounted across position toggles — only the
  * chrome flavour swaps. Caller owns the active tab state.
  */
-import {
-  ArrowUpDown,
-  FlaskConical,
-  Layers,
-  type LucideIcon,
-  ScrollText,
-  SquareChevronRight,
-  TriangleAlert,
-} from "lucide-react";
 import type { ReactNode } from "react";
 import React, { memo, useCallback } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
+import {
+  ArrowUpDownIcon as ArrowUpDown,
+  TestTubeIcon as FlaskConical,
+  type IconSvgElement,
+  Layers01Icon as Layers,
+  ScrollIcon as ScrollText,
+  SquareChevronRightIcon as SquareChevronRight,
+  TriangleAlertIcon as TriangleAlert,
+} from "@src/icons";
 import type { SecondaryPanelPosition } from "@src/store/ui/workStationAtom";
 
 export { PanelPositionToggle } from "./PositionToggle";
@@ -38,9 +39,9 @@ const PANEL_TAB_ICONS = {
   ScrollText,
   SquareChevronRight,
   TriangleAlert,
-} as const satisfies Record<string, LucideIcon>;
+} as const satisfies Record<string, IconSvgElement>;
 
-export type PanelTabIconName = keyof typeof PANEL_TAB_ICONS;
+type PanelTabIconName = keyof typeof PANEL_TAB_ICONS;
 
 export interface PanelTabBarTab {
   key: string;
@@ -50,7 +51,7 @@ export interface PanelTabBarTab {
   badge?: ReactNode;
 }
 
-export interface PanelTabBarProps {
+interface PanelTabBarProps {
   position: SecondaryPanelPosition;
   tabs: PanelTabBarTab[];
   activeTabKey: string;
@@ -81,7 +82,7 @@ function renderPanelTabIcon(
 ): React.ReactNode {
   if (!name) return null;
   const IconComponent = PANEL_TAB_ICONS[name];
-  return <IconComponent size={ICON_SIZE} strokeWidth={1.75} />;
+  return <AnyIcon icon={IconComponent} size={ICON_SIZE} strokeWidth={1.75} />;
 }
 
 interface IconTabStripProps {
@@ -126,7 +127,7 @@ const PanelTabButton: React.FC<PanelTabButtonProps> = memo(
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         className={`relative flex h-8 shrink-0 ${
           cursorReset || isActive ? "cursor-default" : "cursor-pointer"
-        } items-center justify-center gap-1.5 rounded outline-none transition-colors duration-150 ${
+        } items-center justify-center gap-1.5 rounded transition-colors duration-150 outline-none ${
           showLabel ? "px-2" : "w-8"
         } ${
           isActive
@@ -136,12 +137,12 @@ const PanelTabButton: React.FC<PanelTabButtonProps> = memo(
       >
         {renderPanelTabIcon(tab.icon)}
         {showLabel && (
-          <span className="whitespace-nowrap text-[12px] font-medium">
+          <span className="text-[12px] font-medium whitespace-nowrap">
             {tab.label}
           </span>
         )}
         {tab.badge && (
-          <span className="pointer-events-none absolute -right-0.5 -top-0.5">
+          <span className="pointer-events-none absolute -top-0.5 -right-0.5">
             {tab.badge}
           </span>
         )}
@@ -216,9 +217,9 @@ const PanelTabBar: React.FC<PanelTabBarProps> = memo(
     // how tab actions are arranged relative to the persistent controls.
     return (
       <div
-        className={`shrink-0 bg-workstation-bg @container/spheader ${className ?? ""}`}
+        className={`@container/spheader shrink-0 bg-workstation-bg ${className ?? ""}`}
       >
-        <div className="flex flex-wrap items-center justify-between gap-y-1 px-2 pb-1.5 pt-1.5 @[520px]/spheader:h-10 @[520px]/spheader:flex-nowrap @[520px]/spheader:gap-x-1.5 @[520px]/spheader:py-0">
+        <div className="flex flex-wrap items-center justify-between gap-y-1 px-2 pt-1.5 pb-1.5 @[520px]/spheader:h-10 @[520px]/spheader:flex-nowrap @[520px]/spheader:gap-x-1.5 @[520px]/spheader:py-0">
           {/* Tab strip */}
           <div className="order-1 flex min-w-0 flex-1 items-center">
             <IconTabStrip

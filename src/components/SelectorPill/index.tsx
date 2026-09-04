@@ -12,7 +12,6 @@
  * Size tokens for sm/md are sourced from CompoundPill/config to stay in sync
  * with the CompoundPill segment dimensions.
  */
-import { ChevronDown, ChevronUp } from "lucide-react";
 import React, { forwardRef, useCallback, useState } from "react";
 
 import {
@@ -25,6 +24,7 @@ import {
 } from "@src/components/CompoundPill/config";
 import Tooltip, { type TooltipPosition } from "@src/components/Tooltip";
 import type { BareControlAppearance } from "@src/components/controlAppearance";
+import { ArrowDown01Icon, ArrowUp01Icon, HugeiconsIcon } from "@src/icons";
 
 // ── Size variants ────────────────────────────────────────────────────────────
 // "sm" — h-[28px] px-3 text-[12px]  14px icon  (toolbar pills: ModePill, RunningLocationPill)
@@ -60,7 +60,17 @@ const ICON_SIZES = {
   xl: 28,
 } as const;
 
-export type SelectorPillSize = keyof typeof SIZE_CLASSES;
+type SelectorPillSize = keyof typeof SIZE_CLASSES;
+
+function resolveHorizontalPaddingClass(
+  size: SelectorPillSize,
+  leadingFlush: boolean
+): string {
+  if (!leadingFlush) return SIZE_CLASSES[size];
+  if (size === "sm") return `${PILL_SM_HEIGHT_CLASS} pl-0 pr-3 text-[12px]`;
+  if (size === "md") return "h-[32px] pl-0 pr-3 text-[14px]";
+  return SIZE_CLASSES[size];
+}
 
 interface SelectorPillContentProps {
   icon: React.ReactNode;
@@ -128,7 +138,9 @@ const SelectorPillContent: React.FC<SelectorPillContentProps> = ({
                 </span>
               )}
               {active ? (
-                <ChevronUp
+                <HugeiconsIcon
+                  icon={ArrowUp01Icon}
+                  data-icon="chevron-up"
                   size={iconSize}
                   strokeWidth={1.75}
                   className={`absolute block ${chevronColor}`}
@@ -140,7 +152,9 @@ const SelectorPillContent: React.FC<SelectorPillContentProps> = ({
                   {hoverIcon}
                 </span>
               ) : (
-                <ChevronDown
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
                   size={iconSize}
                   strokeWidth={1.75}
                   className={`absolute hidden ${chevronColor} group-hover/pill:block`}
@@ -171,9 +185,19 @@ const SelectorPillContent: React.FC<SelectorPillContentProps> = ({
           className={`inline-flex shrink-0 items-center justify-center ${chevronColor} ${chevronClassName ?? ""}`}
         >
           {active ? (
-            <ChevronUp size={14} strokeWidth={2} />
+            <HugeiconsIcon
+              icon={ArrowUp01Icon}
+              data-icon="chevron-up"
+              size={14}
+              strokeWidth={2}
+            />
           ) : (
-            <ChevronDown size={14} strokeWidth={2} />
+            <HugeiconsIcon
+              icon={ArrowDown01Icon}
+              data-icon="chevron-down"
+              size={14}
+              strokeWidth={2}
+            />
           )}
         </span>
       )}
@@ -181,7 +205,7 @@ const SelectorPillContent: React.FC<SelectorPillContentProps> = ({
   );
 };
 
-export interface SelectorPillProps {
+interface SelectorPillProps {
   /** Icon shown at rest (before hover). Pass null to show nothing at rest. */
   icon: React.ReactNode;
   /** Label text */
@@ -231,6 +255,8 @@ export interface SelectorPillProps {
   labelStyle?: React.CSSProperties;
   dataTestId?: string;
   disabled?: boolean;
+  /** Drop left padding so the icon lines up with composer editor text. */
+  leadingFlush?: boolean;
 }
 
 export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
@@ -267,6 +293,7 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
       labelStyle,
       dataTestId,
       disabled,
+      leadingFlush = false,
     },
     ref
   ) => {
@@ -302,7 +329,7 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
     }, []);
 
     const buttonSizeClass = label
-      ? SIZE_CLASSES[size]
+      ? resolveHorizontalPaddingClass(size, leadingFlush)
       : "h-[28px] w-[28px] justify-center px-0";
 
     const button = (

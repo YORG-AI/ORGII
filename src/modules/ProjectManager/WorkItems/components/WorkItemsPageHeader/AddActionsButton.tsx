@@ -1,4 +1,3 @@
-import { Box, ListChecks, Plus } from "lucide-react";
 import { useCallback } from "react";
 import { createPortal } from "react-dom";
 
@@ -12,6 +11,7 @@ import {
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
+import { HugeiconsIcon, PencilEdit02Icon } from "@src/icons";
 
 interface AddActionsButtonProps {
   onAddProject?: () => void;
@@ -66,7 +66,14 @@ export function AddActionsButton({
               ? "work-items-create-work-item"
               : "work-items-create-project"
           }
-          icon={<Plus size={HEADER_ICON_SIZE.md} strokeWidth={2} />}
+          icon={
+            <HugeiconsIcon
+              icon={PencilEdit02Icon}
+              data-icon="square-pen"
+              size={HEADER_ICON_SIZE.md}
+              strokeWidth={2}
+            />
+          }
         />
       </ToolbarTooltip>
     );
@@ -81,11 +88,18 @@ export function AddActionsButton({
           variant="tertiary"
           size="small"
           iconOnly
-          className={isOpen ? "!bg-surface-selected !text-primary-6" : ""}
+          className={isOpen ? "bg-surface-selected! text-primary-6!" : ""}
           onClick={toggle}
           aria-label={addWorkItemLabel}
           data-testid="work-items-create-menu"
-          icon={<Plus size={HEADER_ICON_SIZE.md} strokeWidth={2} />}
+          icon={
+            <HugeiconsIcon
+              icon={PencilEdit02Icon}
+              data-icon="square-pen"
+              size={HEADER_ICON_SIZE.md}
+              strokeWidth={2}
+            />
+          }
         />
       </ToolbarTooltip>
       {isOpen &&
@@ -112,7 +126,9 @@ export function AddActionsButton({
               role="menuitem"
               data-testid="work-items-create-work-item"
             >
-              <ListChecks
+              <HugeiconsIcon
+                icon={PencilEdit02Icon}
+                data-icon="square-pen"
                 size={DROPDOWN_ITEM.iconSize}
                 strokeWidth={1.75}
                 className="text-text-2"
@@ -128,7 +144,9 @@ export function AddActionsButton({
               role="menuitem"
               data-testid="work-items-create-project"
             >
-              <Box
+              <HugeiconsIcon
+                icon={PencilEdit02Icon}
+                data-icon="square-pen"
                 size={DROPDOWN_ITEM.iconSize}
                 strokeWidth={1.75}
                 className="text-text-2"

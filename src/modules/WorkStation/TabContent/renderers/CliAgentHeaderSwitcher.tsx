@@ -1,10 +1,10 @@
-import { Search } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CliAgentType } from "@src/api/types/keys";
 import Dropdown from "@src/components/Dropdown";
 import DropdownItem from "@src/components/Dropdown/DropdownItem";
+import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -94,20 +94,13 @@ export function CliAgentHeaderSwitcher({
       onMouseDown={(event) => event.stopPropagation()}
     >
       {showSearch ? (
-        <div className={DROPDOWN_CLASSES.searchContainer}>
-          <Search
-            size={DROPDOWN_ITEM.iconSize}
-            className="shrink-0 text-text-3"
-          />
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder={t("common:common.searchPlaceholder")}
-            className={DROPDOWN_CLASSES.searchInput}
-            aria-label={t("common:actions.search")}
-          />
-        </div>
+        <DropdownSearch
+          type="search"
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder={t("common:common.searchPlaceholder")}
+          ariaLabel={t("common:actions.search")}
+        />
       ) : null}
       <div className={DROPDOWN_CLASSES.optionsContainerScrollbar}>
         {filteredAgents.map((agent) => (
@@ -156,7 +149,7 @@ export function CliAgentHeaderSwitcher({
       <SelectGhostTrigger
         open={open}
         disabled={sortedAgents.length === 0}
-        className="w-auto min-w-0 max-w-[min(100%,22rem)]"
+        className="w-auto max-w-[min(100%,22rem)] min-w-0"
         title={activeDisplayName}
         ariaLabel={activeDisplayName}
         value={

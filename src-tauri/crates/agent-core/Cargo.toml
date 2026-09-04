@@ -133,7 +133,6 @@ html2text = "0.14"
 pdf-extract = "0.7"
 zip = { workspace = true }
 ignore = "0.4"
-croner = "2"
 notify = { workspace = true }
 
 # ---------------------------------------------------------------------------

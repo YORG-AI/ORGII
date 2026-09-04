@@ -15,6 +15,7 @@ import {
   NoTabsPlaceholder,
   type QuickAction,
 } from "@src/modules/WorkStation/shared";
+import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
 import { useGitHubIssueDetailState } from "@src/modules/shared/hooks/useGitHubIssueDetailState";
 import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
@@ -38,13 +39,9 @@ const PrDetailPanel = React.lazy(() =>
   )
 );
 
-const DetailFallback = () => (
-  <Placeholder variant="loading" placement="detail-panel" fillParentHeight />
-);
-
 export type SourceControlPillMode = "focus" | "all-changes";
 
-export interface SourceControlMainContentProps {
+interface SourceControlMainContentProps {
   /** Current pill mode */
   mode: SourceControlPillMode;
   // Focus mode
@@ -122,7 +119,16 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
 
   if (prIdentity) {
     return (
-      <Suspense fallback={<DetailFallback />}>
+      <Suspense
+        fallback={
+          <GitHubDetailSkeleton
+            kind="pr"
+            showHeader={false}
+            title={prIdentity.title}
+            number={prIdentity.number}
+          />
+        }
+      >
         <PrDetailPanel
           identity={prIdentity}
           repoPath={repoPath ?? ""}
@@ -141,7 +147,16 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
     }
 
     return (
-      <Suspense fallback={<DetailFallback />}>
+      <Suspense
+        fallback={
+          <GitHubDetailSkeleton
+            kind="issue"
+            showHeader={false}
+            title={historySelection.issueTitle}
+            number={historySelection.issueNumber}
+          />
+        }
+      >
         <IssueDetailPanel
           issue={selectedIssueState.issue}
           timeline={selectedIssueState.timeline}
@@ -226,4 +241,3 @@ SourceControlMainContent.displayName = "SourceControlMainContent";
 
 export default memo(SourceControlMainContent);
 export { AllChangesView };
-export type { AllChangesViewProps } from "./AllChangesView";

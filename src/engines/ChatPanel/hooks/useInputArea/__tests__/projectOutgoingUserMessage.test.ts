@@ -11,6 +11,44 @@ describe("projectOutgoingUserMessage", () => {
     expect(projection.agentContent).toBeUndefined();
   });
 
+  it.each([true, false])(
+    "removes leading blank lines even with agent interceptors set to %s",
+    (enableAgentInterceptors) => {
+      const projection = projectOutgoingUserMessage({
+        displayText: "\r\n \t\r\n    first line\n\n  second line\n",
+        enableAgentInterceptors,
+      });
+      expect(projection.displayContent).toBe(
+        "    first line\n\n  second line\n"
+      );
+      expect(projection.agentContent).toBeUndefined();
+    }
+  );
+
+  it("normalizes both copies before appending agent context", () => {
+    expect(
+      projectOutgoingUserMessage({
+        displayText: "\n\n    inspect this\n\n  next line",
+        contextBlocks: ["```\nserver ready\n```"],
+      })
+    ).toEqual({
+      displayContent: "    inspect this\n\n  next line",
+      agentContent: "    inspect this\n\n  next line\n\n```\nserver ready\n```",
+    });
+  });
+
+  it("does not introduce a leading blank line for context-only input", () => {
+    expect(
+      projectOutgoingUserMessage({
+        displayText: "\n \t",
+        contextBlocks: ["```\nserver ready\n```"],
+      })
+    ).toEqual({
+      displayContent: "",
+      agentContent: "```\nserver ready\n```",
+    });
+  });
+
   it("expands skill pills for the agent while keeping the display copy", () => {
     const projection = projectOutgoingUserMessage({
       displayText: "statusline [skill:/statusline] please",

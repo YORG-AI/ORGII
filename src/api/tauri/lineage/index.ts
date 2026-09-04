@@ -57,28 +57,6 @@ export async function getSessionImpact(
   return rpc.lineage.getSessionImpact({ sessionId });
 }
 
-export async function initializeOrgtrack(input: {
-  repoPath: string;
-  tier?: OrgtrackTier;
-  allowRawTrajectory?: boolean;
-}): Promise<OrgtrackExportResult> {
-  return rpc.lineage.orgtrackInitialize(input);
-}
-
-export async function syncOrgtrackCoreRepo(
-  repoPath: string
-): Promise<OrgtrackIndex> {
-  return rpc.lineage.orgtrackSyncCoreRepo({ repoPath });
-}
-
-export async function exportOrgtrack(input: {
-  repoPath: string;
-  tier?: OrgtrackTier;
-  allowRawTrajectory?: boolean;
-}): Promise<OrgtrackExportResult> {
-  return rpc.lineage.orgtrackExport(input);
-}
-
 export async function getOrgtrackFileTimeline(input: {
   repoPath: string;
   filePath: string;
@@ -95,7 +73,7 @@ export async function getOrgtrackFileSessionHistory(input: {
   return rpc.lineage.orgtrackGetFileSessionHistory(input);
 }
 
-export interface IndexOrgtrackCollaborationSessionInput {
+interface IndexOrgtrackCollaborationSessionInput {
   localSessionId: string;
   sourceSessionId: string;
   title: string;
@@ -144,28 +122,11 @@ export async function deleteOrgtrackSessionArtifacts(
   await rpc.lineage.orgtrackDeleteSessionArtifacts({ sessionId });
 }
 
-export async function getOrgtrackSourceTierPolicy(
-  source: string
-): Promise<OrgtrackSourceTierPolicy> {
-  return rpc.lineage.orgtrackGetSourceTierPolicy({ source });
-}
-
-export async function getOrgtrackExtractionMemoryGate(): Promise<OrgtrackExtractionMemoryGate> {
-  return rpc.lineage.orgtrackGetExtractionMemoryGate();
-}
-
 export async function getOrgtrackSessionEditArtifacts(input: {
   source?: string;
   sessionId?: string;
 }): Promise<OrgtrackSessionEditArtifact[]> {
   return rpc.lineage.orgtrackGetSessionEditArtifacts(input);
-}
-
-export async function getOrgtrackSessionDiffChunks(input: {
-  source?: string;
-  sessionId?: string;
-}): Promise<OrgtrackSessionDiffChunk[]> {
-  return rpc.lineage.orgtrackGetSessionDiffChunks(input);
 }
 
 export async function getOrgtrackSessionFinalDiffs(input: {
@@ -182,23 +143,4 @@ export async function getOrgtrackDiffReplayPreview(input: {
   repoPath?: string;
 }): Promise<OrgtrackDiffReplayPreview> {
   return rpc.lineage.orgtrackGetDiffReplayPreview(input);
-}
-
-export async function getOrgtrackSessionCommitLinks(
-  input: { sessionId?: string } = {}
-): Promise<OrgtrackCommitLink[]> {
-  return rpc.lineage.orgtrackGetSessionCommitLinks(input);
-}
-
-export async function getOrgtrackSessionCheckpoints(input: {
-  source?: string;
-  sessionId?: string;
-}): Promise<OrgtrackSessionCheckpoint[]> {
-  return rpc.lineage.orgtrackGetSessionCheckpoints(input);
-}
-
-export async function getOrgtrackCheckpointFileStates(
-  checkpointId: string
-): Promise<OrgtrackCheckpointFileState[]> {
-  return rpc.lineage.orgtrackGetCheckpointFileStates({ checkpointId });
 }

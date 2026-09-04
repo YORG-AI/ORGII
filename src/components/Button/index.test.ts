@@ -87,7 +87,7 @@ describe("Button", () => {
     expect(markup).not.toContain("right-full");
   });
 
-  it.each(["orgii_main.css", "orgii_dark.css", "orgii_high_contrast.css"])(
+  it.each(["orgii_main.css", "orgii_dark.css"])(
     "keeps merged button states readable in %s",
     (themeFile) => {
       const css = readFileSync(resolve("public", themeFile), "utf8");

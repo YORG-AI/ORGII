@@ -2,11 +2,10 @@
  * AgentLauncherSection — inline agent launcher for the Set up tab.
  *
  * Follows the SessionCreatorWorkItem pattern:
- * same container, textarea, bottom bar with CompoundPill + AddActionsDropdown.
+ * same container, textarea, and bottom bar with shared composer controls.
  * Uses creatorDefaultModelSelectionAtom for model persistence (same as main session creator).
  */
 import { useSetAtom } from "jotai";
-import { Grip, Sparkles, X } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -30,6 +29,12 @@ import {
 import type { AdvancedConfig } from "@src/features/SessionCreator/types";
 import { useModelPillLabel } from "@src/hooks/models";
 import { useValidatedLastPair } from "@src/hooks/models/useValidatedLastPair";
+import {
+  Cancel01Icon,
+  GripIcon,
+  HugeiconsIcon,
+  SparklesIcon,
+} from "@src/icons";
 import {
   type RepoSetupContext,
   useRepoSetup,
@@ -160,7 +165,7 @@ const AgentLauncherSection: React.FC<AgentLauncherSectionProps> = ({
   return (
     <>
       {!expanded && (
-        <div className="pointer-events-none absolute bottom-2 left-0 right-0 z-30 flex justify-center px-2">
+        <div className="pointer-events-none absolute right-0 bottom-2 left-0 z-30 flex justify-center px-2">
           <button
             type="button"
             onClick={() => setExpanded(true)}
@@ -168,7 +173,12 @@ const AgentLauncherSection: React.FC<AgentLauncherSectionProps> = ({
             title={t("launchpad.preview.setupWithAI")}
             className="pointer-events-auto flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-primary-6 px-3 text-[12px] font-medium text-white shadow-md transition-colors hover:bg-primary-7"
           >
-            <Sparkles size={14} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={SparklesIcon}
+              data-icon="sparkles"
+              size={14}
+              strokeWidth={1.75}
+            />
             <span>{t("launchpad.preview.setupWithAI")}</span>
           </button>
         </div>
@@ -190,9 +200,14 @@ const AgentLauncherSection: React.FC<AgentLauncherSectionProps> = ({
               onClick={() => setExpanded(false)}
               aria-label={t("common:actions.close")}
               title={t("common:actions.close")}
-              className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
+              className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
             >
-              <X size={13} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={Cancel01Icon}
+                data-icon="x"
+                size={13}
+                strokeWidth={1.75}
+              />
             </button>
 
             <div className="flex items-center px-1 pr-8">
@@ -226,7 +241,9 @@ const AgentLauncherSection: React.FC<AgentLauncherSectionProps> = ({
                         size={iconSize}
                       />
                     ) : (
-                      <Grip
+                      <HugeiconsIcon
+                        icon={GripIcon}
+                        data-icon="grip"
                         size={iconSize}
                         strokeWidth={1.75}
                         className="text-text-1"
@@ -255,7 +272,13 @@ const AgentLauncherSection: React.FC<AgentLauncherSectionProps> = ({
               <Button
                 variant="primary"
                 size="small"
-                icon={<Sparkles size={13} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={SparklesIcon}
+                    data-icon="sparkles"
+                    size={13}
+                  />
+                }
                 disabled={isDisabled}
                 loading={launching}
                 onClick={handleStart}

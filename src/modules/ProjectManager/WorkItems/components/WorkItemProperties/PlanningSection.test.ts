@@ -60,7 +60,7 @@ const handlers = {
 } as unknown as WorkItemPropertyHandlers;
 
 describe("PlanningSection project icon", () => {
-  it("renders the GitHub integration icon for a GitHub-imported project", () => {
+  it("uses the project icon for a GitHub-imported project", () => {
     const markup = renderToStaticMarkup(
       createElement(PlanningSection, {
         workItem,
@@ -76,7 +76,8 @@ describe("PlanningSection project icon", () => {
       })
     );
 
-    expect(markup).toContain('data-integration-icon="github"');
+    expect(markup).toContain('data-icon="box"');
+    expect(markup).not.toContain('data-integration-icon="github"');
     expect(markup).toContain('data-readonly="true"');
     expect(markup).toContain("ORGII issues");
   });

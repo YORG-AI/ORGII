@@ -4,6 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { isTauriRuntimeHost } from "@src/hooks/logger/useLogger";
 import { isWindowFocused } from "@src/util/core/windowFocus";
 
+import {
+  isAnyAppWindowFocused,
+  subscribeCrossWindowFocus,
+} from "./crossWindowFocus";
+
 /**
  * Realtime demand is strictly tied to an interactive desktop window. Local
  * event writes and the durable project outbox use their own event-driven HTTP
@@ -155,12 +160,23 @@ function readWindowMinimized(): Promise<boolean> {
 }
 
 /**
+ * The lease's foreground input is APP-wide, not window-wide: the socket is
+ * owned by the main window, but the user may be working in a detached
+ * session window that keeps main blurred. Own-window focus OR any peer
+ * window's fresh focused claim counts (outside Tauri the aggregate collapses
+ * to plain own-window focus).
+ */
+function isAppForeground(): boolean {
+  return isWindowFocused() || isAnyAppWindowFocused();
+}
+
+/**
  * React binding for the connection lease. This hook owns browser lifecycle
  * listeners only; the caller remains the single owner of the Supabase client
  * and all of its channels.
  */
 export function useOrg2CloudRealtimeLease(): boolean {
-  const [held, setHeld] = useState(() => isWindowFocused());
+  const [held, setHeld] = useState(() => isAppForeground());
   const initialHeldRef = useRef(held);
 
   useEffect(() => {
@@ -175,7 +191,7 @@ export function useOrg2CloudRealtimeLease(): boolean {
       () => controller.refresh()
     );
     const controller = createOrg2CloudRealtimeLeaseController({
-      isForeground: isWindowFocused,
+      isForeground: isAppForeground,
       isHidden: () =>
         document.visibilityState === "hidden" || minimizeBridge.isMinimized(),
       // Preserve the render-time truth so a focus transition between render
@@ -199,6 +215,10 @@ export function useOrg2CloudRealtimeLease(): boolean {
     window.addEventListener("pagehide", release);
     window.addEventListener("pageshow", refresh);
     document.addEventListener("visibilitychange", refresh);
+    // Peer windows' focus flips must re-evaluate the lease too: a detached
+    // window blurring/closing is what finally lets a blurred main release,
+    // and a detached window focusing is what keeps it held.
+    const unsubscribeCrossWindowFocus = subscribeCrossWindowFocus(refresh);
     minimizeBridge.probe();
     controller.refresh();
 
@@ -208,6 +228,7 @@ export function useOrg2CloudRealtimeLease(): boolean {
       window.removeEventListener("pagehide", release);
       window.removeEventListener("pageshow", refresh);
       document.removeEventListener("visibilitychange", refresh);
+      unsubscribeCrossWindowFocus();
       controller.dispose();
     };
   }, []);

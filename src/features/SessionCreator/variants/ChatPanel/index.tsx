@@ -33,12 +33,12 @@ import {
   dispatchCategoryAtom,
   normalizeAgentOnlySessionCreatorState,
   pinnedActionsVisibleAtom,
-  resolveCreatorRepoChromePosition,
   selectedAgentDefinitionIdAtom,
   selectedAgentOrgIdAtom,
   sessionCreatorStateAtom,
   sessionTargetKindAtom,
 } from "@src/store/session";
+import { creatorComposerPositionAtom } from "@src/store/session/creatorComposerPositionAtom";
 import { openCategoryPickerSignalAtom } from "@src/store/session/openCategoryPickerAtom";
 import { tuiModeAtom } from "@src/store/session/tuiModeAtom";
 import {
@@ -90,7 +90,6 @@ const SessionCreatorChatPanelContent: React.FC<
   initialContent,
   dropdownDirection = "down",
   multiRunnerLauncher = false,
-  onCreateWorkItem,
   onExitMultiRunner,
   onOpenCliTerminal,
   onRegionNoticeChange,
@@ -98,23 +97,21 @@ const SessionCreatorChatPanelContent: React.FC<
   hidePresenceButton = false,
   launchMode,
   layout = "default",
+  launchpadIntent = "build",
   variant = "default",
   workItemContext,
   resolveWorkItemContext,
 }) => {
   const { t } = useTranslation("sessions");
+  const composerPosition = useAtomValue(creatorComposerPositionAtom);
   const browserAddToConversationNav = useBrowserAddToConversationAction();
   const { orgs } = useAgentOrgs();
-  const [repoChromePositionPreference, setRepoChromePositionPreference] =
-    useAtom(creatorRepoChromePositionAtom);
+  const [repoChromePosition, setRepoChromePositionPreference] = useAtom(
+    creatorRepoChromePositionAtom
+  );
   const [pinnedActionsVisible, setPinnedActionsVisible] = useAtom(
     pinnedActionsVisibleAtom
   );
-  const repoChromePosition = resolveCreatorRepoChromePosition(
-    repoChromePositionPreference,
-    layout === "launchpad" ? "top" : "bottom"
-  );
-
   // Read atoms needed before useSessionCreator so we can pass derived values in.
   const dispatchCategory = useAtomValue(dispatchCategoryAtom);
   const cliAgentType = useAtomValue(cliAgentTypeAtom);
@@ -217,7 +214,6 @@ const SessionCreatorChatPanelContent: React.FC<
     handleContentChange,
     handleAtMention,
     handleAtMentionClose,
-    handleAtMentionClick,
     handleAtSelect,
     handleLaunch: originalHandleLaunch,
     handleBranchChange,
@@ -458,6 +454,7 @@ const SessionCreatorChatPanelContent: React.FC<
       browserElementScrollNav={browserElementScrollNav}
       canLaunch={isHumanMode ? humanNoteHasContent : composerCanLaunch}
       centerFullScreenContent={centerFullScreenContent}
+      composerPosition={composerPosition}
       className={className}
       cliLaunchModeSwitch={
         isCliMode && !multiRunner.isActive ? (
@@ -516,7 +513,6 @@ const SessionCreatorChatPanelContent: React.FC<
         setAtSearchQuery,
         onAtSelect: handleAtSelect,
         repoPath: currentRepoPath,
-        onAtMentionClick: handleAtMentionClick,
         onUploadClick: isHumanMode ? () => undefined : handleUploadClick,
         isLoading: isHumanMode
           ? humanCreating
@@ -586,13 +582,13 @@ const SessionCreatorChatPanelContent: React.FC<
         isHumanMode ? humanCreating : isLoading || multiRunner.isLaunching
       }
       isLaunchpadLayout={layout === "launchpad"}
+      launchpadIntent={launchpadIntent}
       isOrgMembersPanelOpen={isOrgMembersPanelOpen}
       isWingmanMode={isWingmanMode}
       leadingActionSlot={leadingActionSlot}
       multiRunnerContent={multiRunner.middleContent}
       onAttachedWorkItemContextChange={setAttachedWorkItemContext}
       onCategoryPickerOpen={() => setIsCategorySelectorOpen(true)}
-      onCreateWorkItem={onCreateWorkItem}
       onFileUpload={handleFileUpload}
       onLaunch={handleComposerLaunch}
       onPinnedActionsVisibleChange={setPinnedActionsVisible}

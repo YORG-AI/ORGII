@@ -8,7 +8,6 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
-  useState,
 } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -29,7 +28,6 @@ export interface ProjectContentEditorRef {
   insertImage: (src: string, alt?: string) => void;
   insertFilePill: (filePath: string, displayName?: string) => void;
   triggerAtMention: () => void;
-  triggerSlashContext: () => void;
   focusTitle: () => void;
   focusDescription: () => void;
 }
@@ -55,6 +53,7 @@ export interface ProjectContentEditorProps {
   summaryPlaceholder?: string;
   descriptionPlaceholder?: string;
   autoFocusTitle?: boolean;
+  autoFocusDescription?: boolean;
   editable?: boolean;
   className?: string;
   titleVisible?: boolean;
@@ -66,11 +65,10 @@ export interface ProjectContentEditorProps {
   descriptionMode?: MarkdownEditorMode;
   onDescriptionModeChange?: (mode: MarkdownEditorMode) => void;
   descriptionMinHeight?: number;
+  descriptionMinRows?: number;
   descriptionMaxHeight?: number | string;
   repoPath?: string | null;
   dataTestId?: string;
-  /** Direction used by @ mention and slash-command menus. */
-  dropdownDirection?: "up" | "down";
 }
 
 export const ProjectContentTitleInput = forwardRef<
@@ -130,6 +128,7 @@ const ProjectContentEditor = forwardRef<
       summaryPlaceholder: summaryPlaceholderProp,
       descriptionPlaceholder: descriptionPlaceholderProp,
       autoFocusTitle = false,
+      autoFocusDescription = false,
       editable = true,
       className = "",
       titleVisible = true,
@@ -141,10 +140,10 @@ const ProjectContentEditor = forwardRef<
       descriptionMode,
       onDescriptionModeChange,
       descriptionMinHeight = 200,
+      descriptionMinRows,
       descriptionMaxHeight,
       repoPath,
       dataTestId,
-      dropdownDirection = "down",
     },
     ref
   ) => {
@@ -158,9 +157,8 @@ const ProjectContentEditor = forwardRef<
     const titleRef = useRef<HTMLInputElement>(null);
     const editorContainerRef = useRef<HTMLDivElement>(null);
     const editorRef = useRef<MarkdownTextareaEditorRef>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const descriptionValueRef = useRef(initialDescription);
-    const [slashOpenedFromToolbar, setSlashOpenedFromToolbar] = useState(false);
-    const slashOpenedFromToolbarRef = useRef(false);
     const contextMenuKeyboardHandlerRef = useRef<
       ((event: ReactKeyboardEvent) => boolean) | null
     >(null);
@@ -170,15 +168,14 @@ const ProjectContentEditor = forwardRef<
       atSearchQuery,
       handleAtMention,
       handleAtMentionClose,
-      contextMenuKeyboardOpened,
       showSlashMenu,
       slashQuery,
-      setSlashQuery,
       slashCommandKeyboardHandlerRef,
       handleSlashCommand,
       handleSlashCommandClose,
       handleModeSelect,
       currentMode,
+      includeProjectMode,
       filteredSlashItems,
       slashLoading,
     } = useComposerInput();
@@ -207,12 +204,6 @@ const ProjectContentEditor = forwardRef<
         editorRef.current?.insertFilePill(filePath, false, "file", displayName);
       },
       triggerAtMention: () => editorRef.current?.triggerAtMention(),
-      triggerSlashContext: () => {
-        slashOpenedFromToolbarRef.current = true;
-        setSlashOpenedFromToolbar(true);
-        setSlashQuery("");
-        editorRef.current?.triggerSlashContext();
-      },
       focusTitle: () => titleRef.current?.focus(),
       focusDescription: () => editorRef.current?.focus(),
     }));
@@ -234,6 +225,45 @@ const ProjectContentEditor = forwardRef<
       },
       [editorRef]
     );
+
+    const handleProjectContextMenuClose = useCallback(() => {
+      handleAtMentionClose();
+    }, [handleAtMentionClose]);
+
+    const handleProjectAtMention = useCallback(
+      (query: string, position: { x: number; y: number }) => {
+        handleAtMention(query, position);
+      },
+      [handleAtMention]
+    );
+
+    const handleProjectFilesSelected = useCallback(
+      (event: React.ChangeEvent<HTMLInputElement>) => {
+        for (const file of Array.from(event.target.files ?? [])) {
+          editorRef.current?.insertFilePill(
+            file.name,
+            false,
+            "file",
+            file.name
+          );
+        }
+        event.target.value = "";
+      },
+      []
+    );
+
+    const handleProjectContextModeSelect = useCallback(
+      (mode: Parameters<typeof handleModeSelect>[0]) => {
+        handleModeSelect(mode);
+        editorRef.current?.consumeMentionQuery();
+        handleProjectContextMenuClose();
+      },
+      [handleModeSelect, handleProjectContextMenuClose]
+    );
+    const handleProjectContextImageUpload = useCallback(() => {
+      editorRef.current?.consumeMentionQuery();
+      fileInputRef.current?.click();
+    }, []);
 
     const handleProjectAtSelect = useCallback(
       (type: string, value?: string, displayName?: string) => {
@@ -264,9 +294,9 @@ const ProjectContentEditor = forwardRef<
           iconType,
           displayName || value.split("/").pop() || value
         );
-        handleAtMentionClose();
+        handleProjectContextMenuClose();
       },
-      [handleAtMentionClose]
+      [handleProjectContextMenuClose]
     );
 
     const handleContextMenuKeyDown = useCallback((event: KeyboardEvent) => {
@@ -287,16 +317,8 @@ const ProjectContentEditor = forwardRef<
       return handler(reactEvent);
     }, []);
 
-    const handleProjectSlashClose = useCallback(() => {
-      slashOpenedFromToolbarRef.current = false;
-      setSlashOpenedFromToolbar(false);
-      handleSlashCommandClose();
-    }, [handleSlashCommandClose]);
-
     const handleProjectSlashSelect = useCallback(
       (item: SlashItem) => {
-        slashOpenedFromToolbarRef.current = false;
-        setSlashOpenedFromToolbar(false);
         if (item.category === "skill") {
           const skillToken = `/${item.skillName ?? item.name}`;
           editorRef.current?.insertFilePill(
@@ -309,19 +331,9 @@ const ProjectContentEditor = forwardRef<
           handleSlashCommandClose();
           return;
         }
-        handleProjectSlashClose();
+        handleSlashCommandClose();
       },
-      [handleProjectSlashClose, handleSlashCommandClose]
-    );
-
-    const handleProjectSlashCommand = useCallback(
-      (query: string) => {
-        if (!slashOpenedFromToolbarRef.current) {
-          setSlashOpenedFromToolbar(false);
-        }
-        handleSlashCommand(query);
-      },
-      [handleSlashCommand]
+      [handleSlashCommandClose]
     );
 
     const showSummary = onSummaryChange !== undefined || Boolean(summary);
@@ -357,10 +369,10 @@ const ProjectContentEditor = forwardRef<
           />
         )}
 
-        {metaContent && <div className="mb-4 mt-3 w-full">{metaContent}</div>}
+        {metaContent && <div className="mt-3 mb-4 w-full">{metaContent}</div>}
 
         {separatorVisible && (
-          <div className="mb-4 mt-2 w-full border-t border-border-2" />
+          <div className="mt-2 mb-4 w-full border-t border-border-2" />
         )}
 
         {descriptionVisible && (
@@ -374,18 +386,22 @@ const ProjectContentEditor = forwardRef<
               value={initialDescription}
               onChange={handleDescriptionChange}
               placeholder={descriptionPlaceholder}
-              onAtMention={editable ? handleAtMention : undefined}
-              onAtMentionClose={editable ? handleAtMentionClose : undefined}
-              onSlashCommand={editable ? handleProjectSlashCommand : undefined}
+              onAtMention={editable ? handleProjectAtMention : undefined}
+              onAtMentionClose={
+                editable ? handleProjectContextMenuClose : undefined
+              }
+              onSlashCommand={editable ? handleSlashCommand : undefined}
               onSlashCommandClose={
-                editable ? handleProjectSlashClose : undefined
+                editable ? handleSlashCommandClose : undefined
               }
               onKeyDownForDropdown={handleContextMenuKeyDown}
               onKeyDownForSlashDropdown={(event) =>
                 slashCommandKeyboardHandlerRef.current?.(event) ?? false
               }
               onImageInsert={editable ? onImageInsert : undefined}
+              autoFocus={autoFocusDescription}
               minHeight={descriptionMinHeight}
+              minRows={descriptionMinRows}
               maxHeight={descriptionMaxHeight}
               editable={editable}
               mode={descriptionMode}
@@ -395,31 +411,34 @@ const ProjectContentEditor = forwardRef<
             <ContextMenuPortal
               visible={showContextMenu}
               containerRef={editorContainerRef}
-              onClose={handleAtMentionClose}
+              onClose={handleProjectContextMenuClose}
               onSelect={handleProjectAtSelect}
+              onImageUpload={handleProjectContextImageUpload}
+              currentMode={currentMode}
+              onModeSelect={handleProjectContextModeSelect}
+              includeProjectMode={includeProjectMode}
               searchQuery={atSearchQuery}
-              inlineSearchOnEmpty
-              keyboardOpened={contextMenuKeyboardOpened}
               repoPath={repoPath ?? undefined}
               keyboardHandlerRef={contextMenuKeyboardHandlerRef}
-              placement={dropdownDirection}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={handleProjectFilesSelected}
+              tabIndex={-1}
+              aria-hidden
             />
             <SlashCommandPortal
               visible={showSlashMenu}
               containerRef={editorContainerRef}
-              placement={dropdownDirection}
               items={skillSlashItems}
               loading={slashLoading}
-              currentMode={currentMode}
               searchQuery={slashQuery}
-              onClose={handleProjectSlashClose}
+              onClose={handleSlashCommandClose}
               onSelect={handleProjectSlashSelect}
-              onModeSelect={handleModeSelect}
               keyboardHandlerRef={slashCommandKeyboardHandlerRef}
-              searchMode={slashOpenedFromToolbar ? "header" : "inline"}
-              onSearchQueryChange={setSlashQuery}
-              showActionFlyouts={slashOpenedFromToolbar}
-              showModeRows={false}
             />
           </div>
         )}

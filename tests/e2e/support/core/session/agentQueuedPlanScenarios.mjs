@@ -1028,12 +1028,15 @@ async function editFirstUserMessageAndResend(label, prompt) {
     }
   );
 
-  const inputSelector = '[data-testid="chat-message-edit-composer"] [contenteditable="true"]';
+  const inputSelector =
+    '[data-testid="chat-message-edit-composer"] [contenteditable="true"]';
   await browser.waitUntil(async () => execJS(js.exists(inputSelector)), {
     timeout: 5_000,
     timeoutMsg: `${label} edit composer input did not mount`,
   });
-  const beforeEditState = await inspectChatState(`${label}-before-edit-resend-click`);
+  const beforeEditState = await inspectChatState(
+    `${label}-before-edit-resend-click`
+  );
   const typed = await execJS(js.clearAndType(inputSelector, prompt));
   if (!typed.includes(prompt)) {
     throw new Error(`${label} failed to type edited prompt: ${typed}`);
@@ -1074,7 +1077,9 @@ async function editFirstUserMessageAndResend(label, prompt) {
     async () => {
       const state = await inspectChatState(`${label}-after-edit-resend-click`);
       return (state.chatEvents ?? []).some(
-        (event) => event.source === "user" && String(event.displayText ?? "").includes(prompt.slice(0, 120))
+        (event) =>
+          event.source === "user" &&
+          String(event.displayText ?? "").includes(prompt.slice(0, 120))
       );
     },
     {

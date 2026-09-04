@@ -5,13 +5,14 @@
  * own content (e.g. SessionCreatorPalette) and only need the back-chevron
  * pill for navigation context.
  */
-import { ChevronLeft } from "lucide-react";
 import React from "react";
+
+import { ArrowLeft01Icon, HugeiconsIcon } from "@src/icons";
 
 import { SPOTLIGHT_CLASSES, SPOTLIGHT_TOKENS } from "../constants";
 import type { PathSegment } from "../types";
 
-export interface SpotlightPillBarProps {
+interface SpotlightPillBarProps {
   path: PathSegment[];
   onRemoveSegment?: (index: number) => void;
   trailingSlot?: React.ReactNode;
@@ -36,7 +37,7 @@ export const SpotlightPillBar: React.FC<SpotlightPillBarProps> = ({
   return (
     <div className="flex h-[56px] min-h-[56px] items-center gap-2 px-4">
       <div
-        className={`flex min-w-0 flex-shrink-0 items-center gap-2 ${SPOTLIGHT_TOKENS.inputFontSize} text-text-1`}
+        className={`flex min-w-0 shrink-0 items-center gap-2 ${SPOTLIGHT_TOKENS.inputFontSize} text-text-1`}
       >
         {path.map((segment, index) => {
           const canRemove = !!onRemoveSegment;
@@ -52,7 +53,13 @@ export const SpotlightPillBar: React.FC<SpotlightPillBarProps> = ({
               title={segment.label}
             >
               {canRemove && (
-                <ChevronLeft size={13} strokeWidth={2.5} className="shrink-0" />
+                <HugeiconsIcon
+                  icon={ArrowLeft01Icon}
+                  data-icon="chevron-left"
+                  size={13}
+                  strokeWidth={2.5}
+                  className="shrink-0"
+                />
               )}
               <span
                 className={`max-w-[220px] truncate ${SPOTLIGHT_TOKENS.inputFontSize}`}
@@ -65,7 +72,7 @@ export const SpotlightPillBar: React.FC<SpotlightPillBarProps> = ({
       </div>
 
       {trailingSlot && (
-        <div className="flex flex-shrink-0 items-center">{trailingSlot}</div>
+        <div className="flex shrink-0 items-center">{trailingSlot}</div>
       )}
     </div>
   );

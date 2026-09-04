@@ -145,8 +145,8 @@ describe("PrSidebar", () => {
     const reviewerTrigger = surface?.querySelector(
       "[data-testid='pr-reviewer-action']"
     );
-    expect(reviewerTrigger?.className).toContain("h-[26px]");
-    expect(reviewerTrigger?.className).toContain("w-[26px]");
+    expect(reviewerTrigger?.className).toContain("h-5");
+    expect(reviewerTrigger?.className).toContain("w-5");
     expect(reviewerTrigger?.className).toContain("rounded-lg");
     const reviewers = container.querySelector(
       "[data-testid='pr-sidebar-reviewers']"
@@ -160,10 +160,10 @@ describe("PrSidebar", () => {
     );
     expect([...rowByLogin.keys()].sort()).toEqual(["alice", "carol", "dave"]);
     expect(
-      rowByLogin.get("carol")?.querySelector(".lucide-check")
+      rowByLogin.get("carol")?.querySelector('[data-icon="check"]')
     ).not.toBeNull();
     expect(
-      rowByLogin.get("dave")?.querySelector(".lucide-circle-x")
+      rowByLogin.get("dave")?.querySelector('[data-icon="xcircle"]')
     ).not.toBeNull();
     expect(
       rowByLogin.get("alice")?.querySelector(".bg-warning-6")

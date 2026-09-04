@@ -116,7 +116,7 @@ describe("StartPageQuotaGrid", () => {
     expect(markup).toContain("flex min-h-9 items-center justify-between gap-3");
     expect(markup).toContain("border-0 bg-transparent text-text-2");
     expect(markup).toContain(
-      "truncate text-xs font-semibold leading-4 text-text-1"
+      "truncate text-xs leading-4 font-semibold text-text-1"
     );
     expect(markup).toContain("truncate text-[11px] leading-4 text-text-3");
     expect(markup).toContain("min-w-0 p-3 rounded-lg");

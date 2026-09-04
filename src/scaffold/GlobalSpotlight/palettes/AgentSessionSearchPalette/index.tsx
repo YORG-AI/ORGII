@@ -5,7 +5,6 @@
  * workstation sidebar session list.
  */
 import { useAtomValue } from "jotai";
-import { Search } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -15,6 +14,7 @@ import { org2CloudRemoteSessionsAtom } from "@src/features/Org2Cloud/org2CloudRe
 import { useOpenCloudSessionReference } from "@src/features/Org2Cloud/useOpenCloudSessionReference";
 import { useFilteredItems } from "@src/hooks/search";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
+import { Search01Icon } from "@src/icons";
 import {
   loadSidebarSessions,
   sessionLoadingAtom,
@@ -36,7 +36,7 @@ import { PaletteBody, SpotlightShell } from "../../shell";
 import type { PathSegment, SpotlightItem } from "../../types";
 import { useSelectorKernel } from "../core";
 
-export interface AgentSessionSearchPaletteProps extends BasePaletteProps {
+interface AgentSessionSearchPaletteProps extends BasePaletteProps {
   asBody?: boolean;
 }
 
@@ -202,7 +202,7 @@ export const AgentSessionSearchPalette: React.FC<
           "selectors.spotlight.actions.searchAgentSessions.pillLabel",
           "Search Sessions"
         ),
-        icon: Search,
+        icon: Search01Icon,
         color: "primary",
       },
     ],

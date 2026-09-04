@@ -82,6 +82,25 @@ describe("modelGrouping current thresholds", () => {
     expect(getModelFamily("premium")).toBe("Cursor");
   });
 
+  it("groups cursor-hosted grok variants by family", () => {
+    const groups = groupModels([
+      "cursor-grok-4.6-high-fast",
+      "cursor-grok-4.6-medium",
+      "cursor-grok-4.6-high",
+      "cursor-grok-4.6-xhigh",
+    ]);
+    const byLabel = new Map(groups.map((group) => [group.label, group]));
+
+    expect(groups).toHaveLength(1);
+    expect(byLabel.get("Grok 4.6")?.models).toEqual([
+      "cursor-grok-4.6-high-fast",
+      "cursor-grok-4.6-medium",
+      "cursor-grok-4.6-high",
+      "cursor-grok-4.6-xhigh",
+    ]);
+    expect(getModelFamily("cursor-grok-4.6-medium")).toBe("Grok");
+  });
+
   it("splits O-series minor versions into separate groups like GPT", () => {
     const groups = groupModels([
       "o5-chat",

@@ -1,11 +1,8 @@
 /**
  * ReplayProgressBar
  *
- * Generic, props-driven music-player-style scrub bar. Originally lifted
- * from `MusicPlayerReplayBar` (Simulator dock) and `KanbanReplayBar`
- * (Kanban canvas) which were near-identical copies — index-based vs
- * timestamp-based mapping was the only real difference, and that
- * mapping belongs to the *caller*, not the bar itself.
+ * Generic, props-driven music-player-style scrub bar used by Simulator
+ * replay surfaces.
  *
  * The caller is responsible for:
  *   - Computing `value` in the shared [0, max] slider space.
@@ -24,9 +21,11 @@ import React, { memo } from "react";
 
 import Slider from "@src/components/Slider";
 
+import ReplayTurnTimeline from "./ReplayTurnTimeline";
 import "./index.scss";
+import type { ReplayProgressSegment } from "./types";
 
-export interface ReplayProgressBarProps {
+interface ReplayProgressBarProps {
   /** Current slider position in [0, max]. */
   value: number;
   /** Slider's maximum value (the [0, max] domain). */
@@ -43,6 +42,10 @@ export interface ReplayProgressBarProps {
   ariaLabel?: string;
   /** Optional extra class for the root (e.g. for caller-specific z-index). */
   className?: string;
+  /** Turn bands rendered beneath the scrubber rail. */
+  segments?: readonly ReplayProgressSegment[];
+  /** Seek to the start of a turn band. */
+  onSegmentClick?: (segment: ReplayProgressSegment) => void;
 }
 
 const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
@@ -55,10 +58,14 @@ const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
     disabled = false,
     ariaLabel,
     className,
+    segments,
+    onSegmentClick,
   }) => {
+    const showSegments = segments && segments.length > 1;
+
     return (
       <div
-        className={`replay-progress-bar relative z-40 w-full overflow-visible ${className ?? ""}`}
+        className={`replay-progress-bar relative z-40 w-full overflow-visible ${showSegments ? "replay-progress-bar--segmented" : ""} ${className ?? ""}`}
         role="group"
         aria-label={ariaLabel}
         data-follow-mode={isFollowMode ? "true" : undefined}
@@ -71,7 +78,7 @@ const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
         {/* Left edge fill — 2px to match the filled track (blue). Anchored
             at top:0 so its top edge aligns with the rail's top edge. */}
         <div
-          className="absolute left-0 top-0 h-[2px] w-2 bg-primary-6"
+          className="absolute top-0 left-0 h-[2px] w-2 bg-primary-6"
           style={{ opacity: value > 0 ? 1 : 0 }}
         />
 
@@ -93,7 +100,14 @@ const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
 
         {/* Right edge fill — 1px to match the rail (non-blue). Anchored at
             top:0 so its top edge aligns with the rail's top edge. */}
-        <div className="absolute right-0 top-0 h-[1px] w-2 bg-fill-3" />
+        <div className="absolute top-0 right-0 h-px w-2 bg-fill-3" />
+
+        {showSegments ? (
+          <ReplayTurnTimeline
+            segments={segments}
+            onSegmentClick={onSegmentClick}
+          />
+        ) : null}
       </div>
     );
   }

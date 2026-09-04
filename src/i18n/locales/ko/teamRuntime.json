@@ -74,10 +74,7 @@
   },
   "selfService": {
     "hint": "공유가 켜져 있는 동안 내 런타임이 이 조직과 공유됩니다.",
-    "action": "공유 중지 및 내 데이터 삭제",
-    "confirm": "이 조직에서 공유된 내 런타임 데이터를 삭제할까요?",
-    "confirmYes": "중지 및 삭제",
-    "confirmNo": "취소"
+    "action": "공유 중지 및 내 데이터 삭제"
   },
   "orgSettings": {
     "label": "팀 런타임 공유",

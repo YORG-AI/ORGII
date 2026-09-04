@@ -1,6 +1,5 @@
 import Modal from "@/src/scaffold/ModalSystem";
 import { useAtomValue } from "jotai";
-import { StickyNote } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
@@ -13,6 +12,7 @@ import {
   groupCommentThreads,
   useSessionComments,
 } from "@src/features/Org2Cloud/org2CloudSessionCommentsAtom";
+import { BookEditIcon, HugeiconsIcon } from "@src/icons";
 
 import type { WebSessionListItem } from "./useWebSessionRoster";
 
@@ -133,11 +133,18 @@ const WebSessionCommentsHeaderExtras: React.FC<
             onClick={openNotes}
             aria-label={buttonLabel}
             data-testid="web-session-notes-button"
-            icon={<StickyNote size={14} strokeWidth={2} />}
+            icon={
+              <HugeiconsIcon
+                icon={BookEditIcon}
+                data-icon="sticky-note"
+                size={14}
+                strokeWidth={2}
+              />
+            }
           />
           {badgeCount > 0 && (
             <span
-              className="pointer-events-none absolute -right-0.5 -top-0.5 inline-flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-primary-6 px-0.5 text-[9px] font-medium leading-none text-white"
+              className="pointer-events-none absolute -top-0.5 -right-0.5 inline-flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-primary-6 px-0.5 text-[9px] leading-none font-medium text-white"
               data-testid="web-session-notes-count"
             >
               {badgeCount}

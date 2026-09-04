@@ -28,7 +28,7 @@ import {
 } from "../primitives";
 import { useBlockHeader } from "../useBlockLocate";
 
-export interface TitleOnlyBlockProps {
+interface TitleOnlyBlockProps {
   /** Pre-translated header title (state-aware label from the Rust registry). */
   title: string;
   /** Header icon (resolved from the tool's `icon_id` by the adapter). */

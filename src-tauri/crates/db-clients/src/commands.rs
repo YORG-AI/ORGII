@@ -455,3 +455,182 @@ pub async fn db_sql_get_table_schema(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every command in this module resolves a pooled connection first, so a
+    /// test only needs an id that was never connected.
+    fn unconnected_id(name: &str) -> String {
+        format!("db-clients-test-never-connected-{name}")
+    }
+
+    /// The result payloads are plain serde DTOs without `Debug`, so unwrap the
+    /// error side by hand rather than widening the production derives.
+    fn err_of<T>(result: Result<T, String>) -> String {
+        match result {
+            Ok(_) => panic!("expected an error, got Ok"),
+            Err(err) => err,
+        }
+    }
+
+    // ---------- connection lifecycle ----------
+
+    #[tokio::test]
+    async fn connect_rejects_an_unknown_engine_without_dialling_out() {
+        let err = db_sql_connect(
+            unconnected_id("engine"),
+            "sqlite".to_string(),
+            "sqlite:///tmp/whatever.db".to_string(),
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(err, "Unsupported db_type: sqlite");
+        // A rejected engine must not leave a half-registered pool entry
+        // behind for later commands to find.
+        assert!(POOLS.lock().await.get(&unconnected_id("engine")).is_none());
+    }
+
+    #[tokio::test]
+    async fn connect_engine_name_matching_is_exact_and_case_sensitive() {
+        for engine in ["Postgres", "POSTGRES", "postgresql", "MySQL", ""] {
+            let err = db_sql_connect(
+                unconnected_id("case"),
+                engine.to_string(),
+                "ignored".to_string(),
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(err, format!("Unsupported db_type: {engine}"));
+        }
+    }
+
+    #[tokio::test]
+    async fn disconnect_is_a_no_op_for_an_unknown_connection() {
+        // The frontend calls disconnect on teardown paths that may never have
+        // connected; that must not surface an error to the user.
+        assert_eq!(db_sql_disconnect(unconnected_id("disconnect")).await, Ok(()));
+    }
+
+    // ---------- unresolved-connection guards ----------
+
+    #[tokio::test]
+    async fn query_requires_an_established_connection() {
+        let id = unconnected_id("query");
+        let err = err_of(db_sql_query(id.clone(), "SELECT 1".to_string()).await);
+
+        assert_eq!(err, format!("No connection found for: {id}"));
+    }
+
+    #[tokio::test]
+    async fn execute_requires_an_established_connection() {
+        let id = unconnected_id("execute");
+        let err = err_of(db_sql_execute(id.clone(), "DELETE FROM t".to_string()).await);
+
+        // The guard runs before the SQL is handed to any driver, so a
+        // destructive statement against a dead connection is never sent.
+        assert_eq!(err, format!("No connection found for: {id}"));
+    }
+
+    #[tokio::test]
+    async fn get_tables_requires_an_established_connection() {
+        let id = unconnected_id("tables");
+        let err = err_of(db_sql_get_tables(id.clone()).await);
+
+        assert_eq!(err, format!("No connection found for: {id}"));
+    }
+
+    #[tokio::test]
+    async fn get_table_schema_requires_an_established_connection() {
+        let id = unconnected_id("schema");
+        let err = err_of(db_sql_get_table_schema(id.clone(), "users".to_string()).await);
+
+        assert_eq!(err, format!("No connection found for: {id}"));
+    }
+
+    // ---------- wire contract ----------
+    //
+    // These structs cross the Tauri boundary with **no** `rename_all`, so the
+    // JSON keys stay snake_case. `DatabaseCore`'s `PostgresProvider` /
+    // `MySQLProvider` read `table_type`, `row_count`, `data_type`,
+    // `primary_key`, `default_value` and `auto_increment` verbatim. Adding
+    // `#[serde(rename_all = "camelCase")]` here — as the sibling `db_browser`
+    // crate does — would silently produce `undefined` in both providers, so
+    // the field names are pinned.
+
+    /// Field names in sorted order — JSON object key order is not part of the
+    /// contract, the set of names is.
+    fn field_names(value: &serde_json::Value) -> Vec<&str> {
+        let mut names: Vec<&str> = value
+            .as_object()
+            .expect("serializes to a JSON object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        names.sort_unstable();
+        names
+    }
+
+    #[test]
+    fn query_result_serializes_with_snake_case_keys() {
+        let json = serde_json::to_value(QueryResult {
+            columns: vec!["id".to_string()],
+            rows: vec![vec![serde_json::json!(1)]],
+            row_count: 1,
+        })
+        .expect("serialize");
+
+        assert_eq!(field_names(&json), vec!["columns", "row_count", "rows"]);
+        assert_eq!(json["rows"][0][0], serde_json::json!(1));
+    }
+
+    #[test]
+    fn execute_result_serializes_with_snake_case_keys() {
+        let json = serde_json::to_value(ExecuteResult { rows_affected: 7 }).expect("serialize");
+
+        assert_eq!(field_names(&json), vec!["rows_affected"]);
+        assert_eq!(json["rows_affected"], serde_json::json!(7));
+    }
+
+    #[test]
+    fn table_info_serializes_with_snake_case_keys_and_nullable_row_count() {
+        let json = serde_json::to_value(TableInfo {
+            name: "users".to_string(),
+            table_type: "VIEW".to_string(),
+            row_count: None,
+        })
+        .expect("serialize");
+
+        assert_eq!(field_names(&json), vec!["name", "row_count", "table_type"]);
+        // The providers map `row_count ?? undefined`, so `null` must be sent
+        // rather than the field being skipped.
+        assert_eq!(json["row_count"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn column_info_serializes_with_snake_case_keys() {
+        let json = serde_json::to_value(ColumnInfo {
+            name: "id".to_string(),
+            data_type: "INT4".to_string(),
+            nullable: false,
+            primary_key: true,
+            default_value: Some("nextval('users_id_seq')".to_string()),
+            auto_increment: true,
+        })
+        .expect("serialize");
+
+        assert_eq!(
+            field_names(&json),
+            vec![
+                "auto_increment",
+                "data_type",
+                "default_value",
+                "name",
+                "nullable",
+                "primary_key",
+            ]
+        );
+    }
+}

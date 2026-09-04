@@ -11,7 +11,6 @@ export {
   fileTabFactory,
   directoryTabFactory,
   explorerTabFactory,
-  startTabFactory,
   gitDiffTabFactory,
   sourceControlTabFactory,
   gitLogTabFactory,
@@ -20,7 +19,6 @@ export {
   terminalTabFactory,
   terminalContentTabFactory,
   domComponentPreviewTabFactory,
-  settingsTabFactory,
   aiImpactTabFactory,
   searchSessionsTabFactory,
   searchTabFactory,
@@ -41,11 +39,9 @@ export {
   createTerminalTab,
   createTerminalContentTab,
   createDomComponentPreviewTab,
-  createSettingsTab,
   createAIImpactTab,
   createSearchSessionsTab,
   createSearchTab,
-  urlPreviewTabFactory,
   createUrlPreviewTab,
 } from "./codeEditor";
 export type {
@@ -134,13 +130,7 @@ export { agentConfigTabFactory, createAgentConfigTab } from "./agentConfig";
 export type { AgentConfigTabData, AgentConfigTabVariant } from "../types";
 
 // Canvas Preview
-export {
-  CANVAS_PREVIEW_TAB_ID_PREFIX,
-  canvasPreviewTabFactory,
-  createCanvasPreviewTab,
-  getCanvasPreviewTabId,
-} from "./canvasPreview";
-export type { CanvasPreviewTabData } from "./canvasPreview";
+export { createCanvasPreviewTab, getCanvasPreviewTabId } from "./canvasPreview";
 
 // GitHub Issue Detail
 export {

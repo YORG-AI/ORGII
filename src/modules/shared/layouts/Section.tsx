@@ -20,8 +20,9 @@
  *      <SectionContainer>...</SectionContainer>
  *    </Section>
  */
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React, { memo, useState } from "react";
+
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 
 import {
   SECTION_CONTAINER_CLASSES,
@@ -82,7 +83,7 @@ const Section: React.FC<SectionProps> = memo(
     const hasHeader = title || headerAction;
 
     // Add margin-top for sections after the first one (sibling spacing)
-    const spacingClass = "[&:not(:first-child)]:mt-3";
+    const spacingClass = "not-first:mt-3";
 
     return (
       <div
@@ -97,9 +98,19 @@ const Section: React.FC<SectionProps> = memo(
                 className={`flex flex-1 items-center gap-2 text-left ${titleClassName} transition-colors hover:text-text-2`}
               >
                 {isCollapsed ? (
-                  <ChevronRight size={16} strokeWidth={2} />
+                  <HugeiconsIcon
+                    icon={ArrowRight01Icon}
+                    data-icon="chevron-right"
+                    size={16}
+                    strokeWidth={2}
+                  />
                 ) : (
-                  <ChevronDown size={16} strokeWidth={2} />
+                  <HugeiconsIcon
+                    icon={ArrowDown01Icon}
+                    data-icon="chevron-down"
+                    size={16}
+                    strokeWidth={2}
+                  />
                 )}
                 <span>{title}</span>
               </button>

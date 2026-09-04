@@ -1,4 +1,3 @@
-import { Loader2 } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,6 +9,7 @@ import type {
   SessionEvent,
   SessionLoadStatus,
 } from "@src/engines/SessionCore/core/types";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 import { CodePanel } from "@src/modules/WorkStation/CodeEditor/SessionReplay/CodePanel";
 import { FileSidebar } from "@src/modules/WorkStation/CodeEditor/SessionReplay/FileSidebar";
 import { FILE_PANEL_VIEW_MODE } from "@src/modules/WorkStation/CodeEditor/SessionReplay/types";
@@ -112,7 +112,9 @@ export function RemoteSessionWorkspaceSurface({
           data-testid="remote-workspace-streaming-progress"
         >
           <div className="flex w-64 max-w-full flex-col items-center gap-3 text-center">
-            <Loader2
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              data-icon="loader-2"
               aria-hidden
               className="h-5 w-5 animate-spin text-text-3 motion-reduce:animate-none"
             />
@@ -129,7 +131,7 @@ export function RemoteSessionWorkspaceSurface({
             />
             {progressDetail ? (
               <div
-                className="text-xs tabular-nums text-text-3"
+                className="text-xs text-text-3 tabular-nums"
                 aria-live="polite"
               >
                 {progressDetail}
@@ -191,7 +193,7 @@ export function RemoteSessionWorkspaceSurface({
             className="rounded-none"
           />
           <div
-            className="px-3 py-1 text-[11px] tabular-nums text-text-3"
+            className="px-3 py-1 text-[11px] text-text-3 tabular-nums"
             aria-live="polite"
           >
             {progressDetail ?? t("web.sessionPage.workstationLoading")}

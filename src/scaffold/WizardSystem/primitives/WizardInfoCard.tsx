@@ -16,7 +16,7 @@ import React from "react";
 
 import { DETAIL_PANEL_TOKENS } from "@src/modules/shared/layouts/blocks";
 
-export interface WizardInfoCardProps {
+interface WizardInfoCardProps {
   children: React.ReactNode;
   className?: string;
 }

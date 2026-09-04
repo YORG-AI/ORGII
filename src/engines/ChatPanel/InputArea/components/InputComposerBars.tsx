@@ -1,4 +1,3 @@
-import { RotateCcw, X } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,6 +8,7 @@ import { VoiceInputButton, VoiceRecordingBar } from "@src/components/Voice";
 import { INPUT_AREA_CONTROL_GROUP_CLASS } from "@src/config/inputAreaTokens";
 import type { PromptPolishControl } from "@src/engines/ChatPanel/hooks/useInputArea/types";
 import type { UseVoiceInputResult } from "@src/hooks/voice";
+import { Cancel01Icon, HugeiconsIcon, RotateLeft01Icon } from "@src/icons";
 
 import CiteCodePreview from "./CiteCodePreview";
 import ImageAttachmentPreview from "./ImageAttachmentPreview";
@@ -27,13 +27,8 @@ interface SharedComposerBarProps {
   slashCommandKeyboardHandlerRef: React.MutableRefObject<
     ((event: KeyboardEvent) => boolean) | null
   >;
-  showPlusSlashMenu: boolean;
-  plusSlashCommandKeyboardHandlerRef: React.MutableRefObject<
-    ((event: KeyboardEvent) => boolean) | null
-  >;
   onSlashCommand: (query: string) => void;
   onSlashCommandClose: () => void;
-  onPlusSlashClose: () => void;
   onAtMention: (query: string, position: { x: number; y: number }) => void;
   onAtMentionClose: () => void;
   onFocus: () => void;
@@ -42,8 +37,6 @@ interface SharedComposerBarProps {
   onDrop: (event: React.DragEvent<HTMLDivElement>) => void;
   onImagePaste?: (files: File[]) => void;
   onAddContent: () => void;
-  onUpload: () => void;
-  onOpenSkillsTools: () => void;
   isCiteCode: boolean;
   selectedCiteRange: { start: number; end: number } | null;
   citeFileName: string;
@@ -106,11 +99,8 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
   contextMenuKeyboardHandlerRef,
   showSlashMenu,
   slashCommandKeyboardHandlerRef,
-  showPlusSlashMenu,
-  plusSlashCommandKeyboardHandlerRef,
   onSlashCommand,
   onSlashCommandClose,
-  onPlusSlashClose,
   onContentChange,
   onAtMention,
   onAtMentionClose,
@@ -122,8 +112,6 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
   onDrop,
   onImagePaste,
   onAddContent,
-  onUpload,
-  onOpenSkillsTools,
   isCiteCode,
   selectedCiteRange,
   citeFileName,
@@ -149,9 +137,6 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
   return (
     <ComposerBar
       onAddContent={onAddContent}
-      onUpload={onUpload}
-      onOpenSkillsTools={onOpenSkillsTools}
-      dropdownDirection="down"
       showContextInfo={!isCursorIde}
       editorSlot={
         <InputEditor
@@ -160,13 +145,8 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
           contextMenuKeyboardHandlerRef={contextMenuKeyboardHandlerRef}
           showSlashMenu={showSlashMenu}
           slashCommandKeyboardHandlerRef={slashCommandKeyboardHandlerRef}
-          showPlusSlashMenu={showPlusSlashMenu}
-          plusSlashCommandKeyboardHandlerRef={
-            plusSlashCommandKeyboardHandlerRef
-          }
           onSlashCommand={onSlashCommand}
           onSlashCommandClose={onSlashCommandClose}
-          onInputMouseDown={onPlusSlashClose}
           slashTriggerMode="command"
           onContentChange={onContentChange}
           onAtMention={onAtMention}
@@ -206,7 +186,14 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
               shape="circle"
               iconOnly
               htmlType="button"
-              icon={<X size={13} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Cancel01Icon}
+                  data-icon="x"
+                  size={13}
+                  strokeWidth={2}
+                />
+              }
               aria-label={t("common:actions.cancel")}
               className="enabled:hover:bg-fill-3 enabled:hover:text-text-1"
               onClick={onEditCancel}
@@ -237,7 +224,14 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
             size="mini"
             shape="round"
             htmlType="button"
-            icon={<RotateCcw size={13} strokeWidth={2} />}
+            icon={
+              <HugeiconsIcon
+                icon={RotateLeft01Icon}
+                data-icon="rotate-ccw"
+                size={13}
+                strokeWidth={2}
+              />
+            }
             onClick={() => onSubmit()}
           >
             {t("common:actions.resend")}
@@ -294,11 +288,8 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
   contextMenuKeyboardHandlerRef,
   showSlashMenu,
   slashCommandKeyboardHandlerRef,
-  showPlusSlashMenu,
-  plusSlashCommandKeyboardHandlerRef,
   onSlashCommand,
   onSlashCommandClose,
-  onPlusSlashClose,
   onContentChange,
   onAtMention,
   onAtMentionClose,
@@ -310,8 +301,6 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
   onDrop,
   onImagePaste,
   onAddContent,
-  onUpload,
-  onOpenSkillsTools,
   isCiteCode,
   selectedCiteRange,
   citeFileName,
@@ -364,9 +353,6 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
       ) : (
         <ComposerBar
           onAddContent={onAddContent}
-          onUpload={onUpload}
-          onOpenSkillsTools={onOpenSkillsTools}
-          dropdownDirection="up"
           repoPath={currentRepoPath}
           showContextInfo={
             showAgentControls && !isCursorIde && !contextualPanel
@@ -379,13 +365,8 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
               contextMenuKeyboardHandlerRef={contextMenuKeyboardHandlerRef}
               showSlashMenu={showSlashMenu}
               slashCommandKeyboardHandlerRef={slashCommandKeyboardHandlerRef}
-              showPlusSlashMenu={showPlusSlashMenu}
-              plusSlashCommandKeyboardHandlerRef={
-                plusSlashCommandKeyboardHandlerRef
-              }
               onSlashCommand={onSlashCommand}
               onSlashCommandClose={onSlashCommandClose}
-              onInputMouseDown={onPlusSlashClose}
               onContentChange={onContentChange}
               onAtMention={onAtMention}
               onAtMentionClose={onAtMentionClose}

@@ -1,0 +1,40 @@
+/**
+ * Monochrome icon treatment.
+ *
+ * File-type and model/provider icons are third-party brand artwork: ~960 SVGs
+ * with their own baked-in palettes. Recoloring them at the source is not
+ * viable, so monochrome mode desaturates them with a filter and normalizes the
+ * result against the active surface.
+ *
+ * `grayscale(1)` alone leaves brand marks either washed out on dark surfaces or
+ * muddy on light ones, because it preserves each logo's original luminance.
+ * The paired contrast/brightness correction pulls that spread back toward the
+ * surrounding text color so a row of icons reads as one weight.
+ *
+ * Applied by class rather than by descendant selector so an icon deliberately
+ * kept in color (a status badge, a live preview) can simply opt out.
+ */
+:root[data-icon-style="monochrome"] {
+  .orgii-decorative-icon {
+    filter: grayscale(1) contrast(0.82) brightness(1.06);
+    opacity: 0.9;
+  }
+}
+
+:root[data-icon-style="monochrome"][data-theme="dark"] {
+  .orgii-decorative-icon {
+    // Dark surfaces need the opposite correction: brand marks average darker
+    // than the ink around them once desaturated.
+    filter: grayscale(1) contrast(0.78) brightness(1.55);
+    opacity: 0.88;
+  }
+}
+
+// A selected or hovered row already carries emphasis from its own background;
+// dimming its icon on top of that reads as disabled.
+:root[data-icon-style="monochrome"] {
+  [aria-selected="true"] .orgii-decorative-icon,
+  [data-selected="true"] .orgii-decorative-icon {
+    opacity: 1;
+  }
+}

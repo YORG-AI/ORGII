@@ -8,7 +8,6 @@
  * Uses the existing getGitCommitDiff API to fetch commit details.
  */
 import { useAtom, useAtomValue } from "jotai";
-import { ChevronRight } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -23,6 +22,7 @@ import { gitFetchStream } from "@src/api/http/git/streaming";
 import { Placeholder } from "@src/components/Placeholder";
 import type { GitFileStatus } from "@src/config/gitStatus";
 import { CodeMirrorDiff } from "@src/features/CodeMirror";
+import { ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import {
   FileHeader,
   GIT_FILE_LIST_MAX_WIDTH,
@@ -46,7 +46,7 @@ import { CommitTabHeader } from "./CommitTabHeader";
 import { useCommitDiffLoader } from "./useCommitDiffLoader";
 import { useCommitFileDiffLoader } from "./useCommitFileDiffLoader";
 
-export interface GitCommitDetailContentProps {
+interface GitCommitDetailContentProps {
   commitSha: string;
   shortSha: string;
   commitMessage: string;
@@ -360,7 +360,7 @@ const GitCommitDetailContent: React.FC<GitCommitDetailContentProps> = ({
               <>
                 <div
                   ref={setFileListElement}
-                  className="flex flex-shrink-0 flex-col overflow-hidden"
+                  className="flex shrink-0 flex-col overflow-hidden"
                   style={{ width: `${fileListWidth}px` }}
                 >
                   <GitFileList
@@ -375,11 +375,16 @@ const GitCommitDetailContent: React.FC<GitCommitDetailContentProps> = ({
 
             {fileListCollapsed && (
               <button
-                className="flex w-6 flex-shrink-0 items-center justify-center border-r border-border-2 hover:bg-fill-1"
+                className="flex w-6 shrink-0 items-center justify-center border-r border-border-2 hover:bg-fill-1"
                 onClick={toggleFileList}
                 title={t("tooltips.showFileList")}
               >
-                <ChevronRight size={14} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
+                  size={14}
+                  className="text-text-3"
+                />
               </button>
             )}
 

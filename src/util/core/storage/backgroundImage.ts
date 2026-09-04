@@ -24,7 +24,7 @@ type MetadataStore = Record<string, ImageMetadata>;
 
 /**
  * Get the backgrounds directory path
- * Uses the Tauri app data directory (e.g. ~/Library/Application Support/yorg.orgii/backgrounds/).
+ * Uses the Tauri app data directory (e.g. ~/Library/Application Support/org2ai.org2/backgrounds/).
  * This is consistent with other app data (semantic index, etc.)
  */
 async function getBackgroundsPath(): Promise<string> {
@@ -170,7 +170,7 @@ export async function loadBackgroundImage(
     const imageMeta = metadata[imageId];
 
     if (!imageMeta) {
-      log.warn(`[BackgroundImage] Metadata not found for: ${imageId}`);
+      log.warn(`Metadata not found for: ${imageId}`);
       return null;
     }
 
@@ -183,7 +183,7 @@ export async function loadBackgroundImage(
     // Convert to data URL
     return uint8ArrayToDataUrl(uint8Array, imageMeta.mimeType);
   } catch (error) {
-    log.error(`[BackgroundImage] Failed to load ${imageId}:`, error);
+    log.error(`Failed to load ${imageId}:`, error);
     return null;
   }
 }
@@ -211,7 +211,7 @@ export async function loadBackgroundImageAsBlob(
     const imageMeta = metadata[imageId];
 
     if (!imageMeta) {
-      log.warn(`[BackgroundImage] Metadata not found for: ${imageId}`);
+      log.warn(`Metadata not found for: ${imageId}`);
       return null;
     }
 
@@ -225,7 +225,7 @@ export async function loadBackgroundImageAsBlob(
     const blob = new Blob([uint8Array], { type: imageMeta.mimeType });
     return URL.createObjectURL(blob);
   } catch (error) {
-    log.error(`[BackgroundImage] Failed to load ${imageId}:`, error);
+    log.error(`Failed to load ${imageId}:`, error);
     return null;
   }
 }
@@ -259,7 +259,7 @@ export async function deleteBackgroundImage(imageId: string): Promise<boolean> {
 
     return true;
   } catch (error) {
-    log.error(`[BackgroundImage] Failed to delete ${imageId}:`, error);
+    log.error(`Failed to delete ${imageId}:`, error);
     return false;
   }
 }

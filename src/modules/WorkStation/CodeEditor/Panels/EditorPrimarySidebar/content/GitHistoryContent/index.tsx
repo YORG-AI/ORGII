@@ -7,7 +7,6 @@
  * Graph mode renders a metro-style SVG lane visualization using parent_shas
  * to compute branch/merge topology.
  */
-import { Loader2 } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -30,6 +29,7 @@ import {
   useWorkStationTabs,
 } from "@src/hooks/tabHost/useWorkStationTabs";
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 import { PRIMARY_SIDEBAR_HOVER } from "@src/modules/WorkStation/shared/tokens";
 import {
   type GitHistoryRequest,
@@ -83,7 +83,7 @@ const GraphSvg: React.FC<GraphSvgProps> = memo(
     const dotX = graphNode.lane * LANE_WIDTH + LANE_WIDTH / 2;
 
     return (
-      <svg width={svgWidth} height={ROW_HEIGHT} className="flex-shrink-0">
+      <svg width={svgWidth} height={ROW_HEIGHT} className="shrink-0">
         {/* Lines */}
         {graphNode.lines.map((line, lineIdx) => {
           const fromX = line.fromLane * LANE_WIDTH + LANE_WIDTH / 2;
@@ -171,7 +171,7 @@ const CommitRow: React.FC<CommitRowProps> = memo(
 
     return (
       <button
-        className={`group flex w-full items-center gap-1 pl-2 pr-3 text-left transition-colors ${
+        className={`group flex w-full items-center gap-1 pr-3 pl-2 text-left transition-colors ${
           cursorReset || isSelected ? "cursor-default" : "cursor-pointer"
         } ${isSelected ? SURFACE_TOKENS.selected : PRIMARY_SIDEBAR_HOVER.row}`}
         style={{ height: `${ROW_HEIGHT}px` }}
@@ -199,7 +199,7 @@ const CommitRow: React.FC<CommitRowProps> = memo(
           <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-3">
             <span className="truncate">{authorName}</span>
             {authorDate && (
-              <span className="flex-shrink-0">
+              <span className="shrink-0">
                 {formatRelativeTime(authorDate, "nano")}
               </span>
             )}
@@ -216,9 +216,9 @@ CommitRow.displayName = "CommitRow";
 // Main Component
 // ============================================
 
-export type GitHistoryViewMode = "list" | "graph";
+type GitHistoryViewMode = "list" | "graph";
 
-export interface GitHistoryContentProps {
+interface GitHistoryContentProps {
   repoPath: string;
   repoId: string;
   viewMode?: GitHistoryViewMode;
@@ -521,7 +521,7 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
         />
       ) : (
         <Virtuoso
-          className="min-h-0 flex-1 scrollbar-hide"
+          className="scrollbar-hide min-h-0 flex-1"
           data={filteredCommits}
           computeItemKey={(_index, commit) => commit.sha}
           fixedItemHeight={ROW_HEIGHT}
@@ -551,7 +551,9 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
       {hasMore && (
         <div className="flex h-8 shrink-0 items-center justify-center">
           {loadingMore && (
-            <Loader2
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              data-icon="loader-2"
               size={SPINNER_TOKENS.default}
               className="animate-spin text-text-3"
             />

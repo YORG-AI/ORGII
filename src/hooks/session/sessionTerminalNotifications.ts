@@ -107,8 +107,7 @@ export function deliverSessionTerminalNotification(
   if (
     event.status === "cancelled" &&
     event.attentionRequired &&
-    settings.enabled &&
-    !settings.mutedSessionIds.includes(event.sessionId)
+    settings.enabled
   ) {
     Message.warning({
       content: t("notifications.taskCancelledToast", {

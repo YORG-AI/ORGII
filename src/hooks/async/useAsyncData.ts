@@ -1,146 +1,140 @@
 /**
- * useAsyncData Hook
+ * Typed keyed async query with latest-generation-wins semantics.
  *
- * Generic hook for async data fetching with loading/error state management.
- * Consolidates the common pattern found across 60+ hooks in the codebase.
- *
- * Features:
- * - Unified loading/error/data state management
- * - Auto-load on mount with dependency tracking
- * - Success/error callbacks
- * - Manual refresh capability
- * - Type-safe with generics
+ * A stable key controls automatic querying, while refresh starts a new
+ * generation for that same key. Disabled queries stay at initial data.
  *
  * @example
  * const { data, loading, error, refresh } = useAsyncData({
- *   fetcher: () => api.fetchItems(),
- *   initialData: [],
- *   errorPrefix: "Failed to load items",
+ *   key: repoPath,
+ *   query: detectRepo,
+ *   initialData: EMPTY_RESULT,
+ *   enabled: Boolean(repoPath),
  * });
  */
-import {
-  type Dispatch,
-  type SetStateAction,
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useMounted } from "@src/hooks/lifecycle/useMounted";
 
-// ============================================
-// Type Definitions
-// ============================================
+export type AsyncDataErrorMapper = (error: unknown) => string | null;
 
-export interface UseAsyncDataOptions<T> {
-  /** Async function to fetch data */
-  fetcher: () => Promise<T>;
-  /** Auto-load on mount (default: true) */
-  autoLoad?: boolean;
-  /** Dependencies that trigger refetch when changed */
-  deps?: unknown[];
-  /** Success callback */
-  onSuccess?: (data: T) => void;
-  /** Error callback */
-  onError?: (error: Error) => void;
-  /** Initial data value */
-  initialData?: T;
-  /** Error message prefix for generic errors */
-  errorPrefix?: string;
-  /** Skip fetch if condition is false */
+export interface UseAsyncDataOptions<TData, TKey> {
+  key: TKey;
+  query: (key: TKey) => Promise<TData>;
+  initialData: TData;
   enabled?: boolean;
+  fallbackData?: TData | ((error: unknown) => TData);
+  mapError?: AsyncDataErrorMapper;
 }
 
-export interface UseAsyncDataReturn<T> {
-  /** The fetched data */
-  data: T;
-  /** Loading state */
+export interface UseAsyncDataReturn<TData> {
+  data: TData;
   loading: boolean;
-  /** Error message (null if no error) */
   error: string | null;
-  /** Manually trigger a refresh */
-  refresh: () => Promise<void>;
-  /** Directly update the data state */
-  setData: Dispatch<SetStateAction<T>>;
-  /** Clear the error state */
-  clearError: () => void;
+  refresh: () => void;
 }
 
-// ============================================
-// Hook Implementation
-// ============================================
+interface AsyncDataSnapshot<TData, TKey> {
+  key: TKey;
+  generation: number;
+  data: TData;
+  error: string | null;
+}
 
-export function useAsyncData<T>(
-  options: UseAsyncDataOptions<T>
-): UseAsyncDataReturn<T> {
-  const {
-    fetcher,
-    autoLoad = true,
-    deps = [],
-    onSuccess,
-    onError,
-    initialData,
-    errorPrefix = "Failed to load data",
-    enabled = true,
-  } = options;
+function defaultMapError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
-  // State
-  const [data, setData] = useState<T>(initialData as T);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+/**
+ * Runs one async query per stable key/generation. A refresh starts a new
+ * generation for the same key, and only the latest generation may commit.
+ */
+export function useAsyncData<TData, TKey>({
+  key,
+  query,
+  initialData,
+  enabled = true,
+  fallbackData = initialData,
+  mapError = defaultMapError,
+}: UseAsyncDataOptions<TData, TKey>): UseAsyncDataReturn<TData> {
+  const [generation, setGeneration] = useState(0);
+  const [snapshot, setSnapshot] = useState<AsyncDataSnapshot<
+    TData,
+    TKey
+  > | null>(null);
+  const latestGenerationRef = useRef(0);
+  const queryRef = useRef(query);
+  const fallbackDataRef = useRef(fallbackData);
+  const mapErrorRef = useRef(mapError);
   const mountedRef = useMounted();
 
-  // Refresh function
-  const refresh = useCallback(async () => {
-    if (!enabled) {
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await fetcher();
-
-      if (mountedRef.current) {
-        setData(result);
-        onSuccess?.(result);
-      }
-    } catch (err) {
-      if (mountedRef.current) {
-        const message =
-          err instanceof Error ? err.message : `${errorPrefix}: ${String(err)}`;
-        setError(message);
-        onError?.(err instanceof Error ? err : new Error(message));
-      }
-    } finally {
-      if (mountedRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [fetcher, enabled, errorPrefix, onSuccess, onError, mountedRef]);
-
-  // Clear error helper
-  const clearError = useCallback(() => {
-    setError(null);
-  }, []);
-
-  // Auto-load on mount and when deps change
   useEffect(() => {
-    if (autoLoad && enabled) {
-      refresh();
+    queryRef.current = query;
+    fallbackDataRef.current = fallbackData;
+    mapErrorRef.current = mapError;
+  }, [fallbackData, mapError, query]);
+
+  const refresh = useCallback(() => {
+    if (mountedRef.current) {
+      setGeneration((current) => current + 1);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- callers explicitly own the refetch clock through deps; refresh stays current for manual calls without making fetcher identity an implicit trigger
-  }, [autoLoad, enabled, ...deps]);
+  }, [mountedRef]);
+
+  useEffect(() => {
+    const requestGeneration = ++latestGenerationRef.current;
+
+    if (!enabled) return;
+
+    void queryRef
+      .current(key)
+      .then((data) => {
+        if (
+          mountedRef.current &&
+          latestGenerationRef.current === requestGeneration
+        ) {
+          setSnapshot({ key, generation, data, error: null });
+        }
+      })
+      .catch((error: unknown) => {
+        if (
+          !mountedRef.current ||
+          latestGenerationRef.current !== requestGeneration
+        ) {
+          return;
+        }
+
+        const fallback = fallbackDataRef.current;
+        const data =
+          typeof fallback === "function"
+            ? (fallback as (failure: unknown) => TData)(error)
+            : fallback;
+        setSnapshot({
+          key,
+          generation,
+          data,
+          error: mapErrorRef.current(error),
+        });
+      });
+
+    return () => {
+      if (latestGenerationRef.current === requestGeneration) {
+        latestGenerationRef.current += 1;
+      }
+    };
+  }, [enabled, generation, key, mountedRef]);
+
+  const current =
+    enabled &&
+    snapshot?.generation === generation &&
+    Object.is(snapshot.key, key)
+      ? snapshot
+      : null;
 
   return {
-    data,
-    loading,
-    error,
+    data: current?.data ?? initialData,
+    loading: enabled && current === null,
+    error: current?.error ?? null,
     refresh,
-    setData,
-    clearError,
   };
 }
 

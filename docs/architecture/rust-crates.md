@@ -1,6 +1,6 @@
 # Rust Crates Architecture
 
-> Last updated: 2026-06-12
+> Last updated: 2026-08-31
 
 All Rust code lives under `src-tauri/`. The workspace is declared in
 `src-tauri/Cargo.toml` and contains the root application crate (`src-tauri/src/`)
@@ -45,7 +45,6 @@ graph TD
     app["src-tauri/src\n(app binary)"]
 
     %% ── Foundation deps ─────────────────────────────────────────────────────
-    app_utils --> app_paths
     shared_state --> app_paths
     settings --> app_paths
     database --> app_paths
@@ -114,7 +113,7 @@ graph TD
 | -------------- | -------------- | ----------------------------------------------------------------------------------------------- |
 | `types`        | `core_types`   | Shared domain types and traits used across the entire workspace. No business logic.             |
 | `app-paths`    | `app_paths`    | Resolves platform-specific filesystem paths (`~/.orgii/`, app data dir, log dir).               |
-| `app-utils`    | `app_utils`    | Small cross-cutting utilities (error helpers, async utilities, OS detection).                   |
+| `app-utils`    | `app_utils`    | JSON file read/write/merge helpers, Serde defaults, and opt-in test fixtures; no workspace dependencies. |
 | `app-platform` | `app_platform` | macOS / Windows platform-specific integrations (NSApp, DWM, tray, power events).                |
 | `app-window`   | `app_window`   | Native window decoration helpers (traffic lights, rounded corners, vibrancy).                   |
 | `settings`     | `settings`     | User and workspace settings CRUD backed by JSON files.                                          |
@@ -140,7 +139,6 @@ graph TD
 | `file-ops`        | `file_ops`        | Safe file read/write/move operations used by agents and the editor.                                                |
 | `search`          | `search`          | Ripgrep-backed code search and `list_dir`. Powering agent `code_search` tool calls.                                |
 | `advanced-search` | `advanced_search` | Semantic / embedding-augmented search (vector index over workspace files).                                         |
-| `ui-indexer`      | `ui_indexer`      | Watches the workspace and maintains an in-process symbol + file index for fast autocomplete.                       |
 
 ### Agent Runtime
 
@@ -161,13 +159,13 @@ graph TD
 
 ### Browser / UI Automation
 
-| Crate               | Lib name            | Purpose                                                                                                                                |
-| ------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `browser`           | `browser`           | Native window browser management, inline WebView embedding, DOM editing, screenshot capture, cookie access, and anti-bot JS injection. |
-| `cursor-bridge`     | `cursor_bridge`     | Drives a running Cursor IDE instance over Chrome DevTools Protocol (CDP) to submit prompts without leaving the app.                    |
-| `cursor-bridge-app` | `cursor_bridge_app` | Thin companion binary (`cursor-bridge-probe`) for the `cursor-bridge` library.                                                         |
-| `db-browser`        | `db_browser`        | In-app SQLite browser for developer introspection of local databases.                                                                  |
-| `db-clients`        | `db_clients`        | Client adapters for external databases (PostgreSQL, MySQL) accessed from agent tool calls.                                             |
+| Crate               | Lib name            | Purpose                                                                                                                                                               |
+| ------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `browser`           | `browser`           | Native window browser management, inline WebView embedding, DOM/CSS editing, global CSS-token scanning, screenshot capture, cookie access, and anti-bot JS injection. |
+| `cursor-bridge`     | `cursor_bridge`     | Drives a running Cursor IDE instance over Chrome DevTools Protocol (CDP) to submit prompts without leaving the app.                                                   |
+| `cursor-bridge-app` | `cursor_bridge_app` | Thin companion binary (`cursor-bridge-probe`) for the `cursor-bridge` library.                                                                                        |
+| `db-browser`        | `db_browser`        | In-app SQLite browser for developer introspection of local databases.                                                                                                 |
+| `db-clients`        | `db_clients`        | Client adapters for external databases (PostgreSQL, MySQL) accessed from agent tool calls.                                                                            |
 
 ### System / Platform
 

@@ -31,7 +31,7 @@ import { wizardBreadcrumbTitleAtom } from "@src/store/ui/wizardBreadcrumbAtom";
 // Types
 // ============================================
 
-export interface WizardShellProps {
+interface WizardShellProps {
   /** Wizard title published to the workspace-header breadcrumb */
   title: string;
   /**

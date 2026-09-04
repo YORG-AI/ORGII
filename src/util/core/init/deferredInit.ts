@@ -10,6 +10,7 @@
  * - Use `deferAfterPaint()` for one-time deferred operations
  */
 import { createLogger } from "@src/hooks/logger";
+import { syncMacosRootTint } from "@src/util/platform/macosRootTint";
 
 const log = createLogger("DeferredInit");
 
@@ -43,7 +44,10 @@ export function signalFirstPaintComplete(): void {
     .then(({ invoke }) => invoke("remove_window_background"))
     .catch(() => {
       // Non-Tauri env or unimportant failure — ignore.
-    });
+    })
+    // macOS: move the CSS root tint into a native layer under the webview so
+    // the strip exposed by a live resize matches the page.
+    .then(() => syncMacosRootTint());
 
   // Resolve the promise
   if (firstPaintResolver) {

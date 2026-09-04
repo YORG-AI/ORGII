@@ -23,6 +23,7 @@ import {
   workstationLayoutAtom,
   workstationTabsStateAtom,
 } from "@src/store/workstation/tabs/atoms";
+import { recordRecentlyClosedWorkstationTabsAtom } from "@src/store/workstation/tabs/recentlyClosedTabs";
 import {
   closeOtherTabs as closeOtherTabsMutation,
   closeSavedTabs as closeSavedTabsMutation,
@@ -39,7 +40,7 @@ import type {
 // Types
 // ============================================
 
-export interface BrowserSessionData {
+interface BrowserSessionData {
   sessionId: string;
   url: string;
   incognito?: boolean;
@@ -150,7 +151,7 @@ export function createBrowserSessionTab(
     title: title || NEW_TAB_TITLE,
     // Intentionally omit `icon`: SortableTab's `type === "browser-session"`
     // branch renders FaviconIcon, which prefers the URL-derived favicon over
-    // the Lucide Globe fallback. Setting a Lucide name here would short-circuit
+    // the globe glyph fallback. Setting an icon name here would short-circuit
     // that branch and force a Globe regardless of the URL.
     data: {
       sessionId,
@@ -298,22 +299,6 @@ export const activeBrowserTabAtom = atom((get) => {
 });
 activeBrowserTabAtom.debugLabel = "activeBrowserTabAtom";
 
-/**
- * Check if showing a browser session
- */
-export const isShowingBrowserSessionAtom = atom((get) => {
-  const activeTab = get(activeBrowserTabAtom);
-  return activeTab?.type === "browser-session";
-});
-
-/**
- * Get all browser session tabs
- */
-export const browserSessionTabsAtom = atom((get) => {
-  const state = get(browserTabsAtom);
-  return state.tabs.filter((tab) => tab.type === "browser-session");
-});
-
 // ============================================
 // Action Atoms (for convenience)
 // ============================================
@@ -340,7 +325,11 @@ export const removeBrowserResourceTabAtom = atom(
  * Close a browser tab in the current workspace. The live BrowserContext owner
  * observes the disappearance and then removes the global resource explicitly.
  */
-export const closeBrowserTabAtom = atom(null, (_get, set, tabId: string) => {
+export const closeBrowserTabAtom = atom(null, (get, set, tabId: string) => {
+  const tab = get(browserTabsAtom).tabs.find(
+    (candidate) => candidate.id === tabId
+  );
+  if (tab) set(recordRecentlyClosedWorkstationTabsAtom, [tab]);
   set(removeBrowserResourceTabAtom, tabId);
 });
 
@@ -377,6 +366,10 @@ export const closeOtherBrowserTabsAtom = atom(
     const next = closeOtherTabsMutation(state, tabId);
     const nextIds = new Set(next.tabs.map((tab) => tab.id));
     set(
+      recordRecentlyClosedWorkstationTabsAtom,
+      state.tabs.filter((tab) => !nextIds.has(tab.id))
+    );
+    set(
       removeSharedWorkstationTabsAtom,
       state.tabs.filter((tab) => !nextIds.has(tab.id)).map((tab) => tab.id)
     );
@@ -390,6 +383,10 @@ export const closeSavedBrowserTabsAtom = atom(null, (get, set) => {
   const state = get(browserTabsAtom);
   const next = closeSavedTabsMutation(state);
   const nextIds = new Set(next.tabs.map((tab) => tab.id));
+  set(
+    recordRecentlyClosedWorkstationTabsAtom,
+    state.tabs.filter((tab) => !nextIds.has(tab.id))
+  );
   set(
     removeSharedWorkstationTabsAtom,
     state.tabs.filter((tab) => !nextIds.has(tab.id)).map((tab) => tab.id)

@@ -1,8 +1,14 @@
-import { Hash, History, ListTodo, type LucideIcon } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Tooltip from "@src/components/Tooltip";
+import {
+  BubbleChatIcon,
+  HashtagIcon,
+  type IconSvgElement,
+  ListTodoIcon,
+} from "@src/icons";
 
 export type WorkstationSidebarViewKey = "channels" | "work-items" | "sessions";
 
@@ -14,7 +20,7 @@ interface WorkstationSidebarViewSwitcherProps {
 interface ViewItem {
   key: WorkstationSidebarViewKey;
   label: string;
-  icon: LucideIcon;
+  icon: IconSvgElement;
 }
 
 const SWITCHER_ICON_SIZE = 17;
@@ -38,23 +44,23 @@ export const WorkstationSidebarViewSwitcher: React.FC<WorkstationSidebarViewSwit
       {
         key: "work-items",
         label: t("labels.workItems"),
-        icon: ListTodo,
+        icon: ListTodoIcon,
       },
       {
         key: "sessions",
         label: t("routes.sessions"),
-        icon: History,
+        icon: BubbleChatIcon,
       },
       {
         key: "channels",
         label: t("routes.channels"),
-        icon: Hash,
+        icon: HashtagIcon,
       },
     ];
 
     return (
       <nav
-        className="shrink-0 px-3 pb-1 pt-1"
+        className="shrink-0 px-3 pt-1 pb-1"
         aria-label={t("sidebar.tabs.workstation")}
         data-workstation-sidebar-view-switcher
       >
@@ -73,7 +79,6 @@ export const WorkstationSidebarViewSwitcher: React.FC<WorkstationSidebarViewSwit
             />
           </div>
           {items.map((item) => {
-            const Icon = item.icon;
             const selected = item.key === activeKey;
             return (
               <Tooltip
@@ -85,7 +90,7 @@ export const WorkstationSidebarViewSwitcher: React.FC<WorkstationSidebarViewSwit
               >
                 <button
                   type="button"
-                  className={`relative z-[1] flex h-7 w-full items-center justify-center rounded-full transition-[background-color,color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 ${
+                  className={`relative z-1 flex h-7 w-full items-center justify-center rounded-full transition-[background-color,color] duration-150 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none ${
                     selected
                       ? "cursor-default text-primary-6"
                       : "text-text-2 hover:bg-sidebar-selected hover:text-text-1"
@@ -95,7 +100,8 @@ export const WorkstationSidebarViewSwitcher: React.FC<WorkstationSidebarViewSwit
                   data-testid={`sidebar-view-${item.key}`}
                   onClick={() => onChange(item.key)}
                 >
-                  <Icon
+                  <AnyIcon
+                    icon={item.icon}
                     size={SWITCHER_ICON_SIZE}
                     strokeWidth={selected ? 2 : 1.8}
                     aria-hidden

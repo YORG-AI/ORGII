@@ -2,15 +2,26 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { WorkManagementDatasetSwitch } from "./WorkManagementDatasetSwitch";
+import {
+  WORK_MANAGEMENT_DATASET_MENU_ORDER,
+  WorkManagementDatasetSwitch,
+} from "./WorkManagementDatasetSwitch";
 import { WORK_MANAGEMENT_DATASET } from "./workManagementDataset";
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string) =>
+      key === "navigation:labels.inbox" ? "Localized Inbox" : key,
+  }),
+}));
 
 describe("WorkManagementDatasetSwitch", () => {
   it.each([
-    [WORK_MANAGEMENT_DATASET.PROJECTS, "lucide-boxes"],
-    [WORK_MANAGEMENT_DATASET.WORK_ITEMS, "lucide-list-todo"],
-    [WORK_MANAGEMENT_DATASET.GITHUB_ISSUES, "lucide-circle-dot"],
-    [WORK_MANAGEMENT_DATASET.REVIEWS, "lucide-git-pull-request"],
+    [WORK_MANAGEMENT_DATASET.INBOX, 'data-icon="inbox"'],
+    [WORK_MANAGEMENT_DATASET.PROJECTS, 'data-icon="box"'],
+    [WORK_MANAGEMENT_DATASET.WORK_ITEMS, 'data-icon="list-todo"'],
+    [WORK_MANAGEMENT_DATASET.GITHUB_ISSUES, 'data-icon="circle-dot"'],
+    [WORK_MANAGEMENT_DATASET.REVIEWS, 'data-icon="git-pull-request"'],
   ])("renders one simple select for %s", (activeDataset, activeIcon) => {
     const markup = renderToStaticMarkup(
       createElement(WorkManagementDatasetSwitch, {
@@ -22,7 +33,45 @@ describe("WorkManagementDatasetSwitch", () => {
     expect(markup).toContain('data-testid="work-dataset-select"');
     expect(markup).toContain("select-ghost");
     expect(markup).toContain(activeIcon);
-    expect(markup).toContain("lucide-chevron-down");
+    expect(markup).toContain('data-icon="chevron-down"');
     expect(markup).not.toContain("rounded-[100px]");
+  });
+
+  it("uses the shared Inbox label and keeps GitHub datasets first", () => {
+    const markup = renderToStaticMarkup(
+      createElement(WorkManagementDatasetSwitch, {
+        activeDataset: WORK_MANAGEMENT_DATASET.INBOX,
+        onChange: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain("Localized Inbox");
+    expect(WORK_MANAGEMENT_DATASET_MENU_ORDER).toEqual([
+      WORK_MANAGEMENT_DATASET.GITHUB_ISSUES,
+      WORK_MANAGEMENT_DATASET.REVIEWS,
+      WORK_MANAGEMENT_DATASET.INBOX,
+      WORK_MANAGEMENT_DATASET.PROJECTS,
+      WORK_MANAGEMENT_DATASET.WORK_ITEMS,
+    ]);
+  });
+
+  it("uses only the selected icon and chevron in compact split headers", () => {
+    const markup = renderToStaticMarkup(
+      createElement(WorkManagementDatasetSwitch, {
+        activeDataset: WORK_MANAGEMENT_DATASET.GITHUB_ISSUES,
+        onChange: vi.fn(),
+        compact: true,
+      })
+    );
+
+    expect(markup).toContain('data-icon="circle-dot"');
+    expect(markup).toContain('data-icon="chevron-down"');
+    expect(markup).toContain(
+      'aria-label="sessions:kanban.sidebar.githubIssues"'
+    );
+    expect(markup).toContain("[&amp;_.select-value]:gap-0");
+    expect(markup).not.toContain(
+      '<span class="min-w-0 truncate">sessions:kanban.sidebar.githubIssues</span>'
+    );
   });
 });

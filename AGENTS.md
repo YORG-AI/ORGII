@@ -3,7 +3,7 @@
 This file orients Codex / orgii agents working in this repo. It tells you **which audit / methodology skill to invoke** for which kind of task, and what to deliver before declaring work done.
 
 > Test conventions — where a test file belongs, how to name it, and what each
-> suite actually runs — live in `CONTRIBUTING.md` under **Where tests live**.
+> suite actually runs — live in `.github/CONTRIBUTING.md` under **Where tests live**.
 > This file does not restate them; it is about skill routing.
 
 This is **advisory**, not a hard contract. Use judgment based on PR size and risk.
@@ -24,16 +24,11 @@ This is **advisory**, not a hard contract. Use judgment based on PR size and ris
 Skills live at:
 
 - `.orgii/skills/architecture-audit/SKILL.md` (workspace)
+- `.orgii/skills/frontend-ui-audit/SKILL.md` (workspace)
 - `.orgii/skills/react-best-practices/SKILL.md` (workspace; ORGII overlay for Vercel's React guidance)
 - `.orgii/skills/e2e-testing/SKILL.md` (workspace)
 - `.orgii/skills/dual-instance-verification/SKILL.md` (workspace; 双机实测 protocol for cloud sync / sharing)
 - `.orgii/skills/org2-performance-guard/SKILL.md` (workspace)
-
-> **`frontend-ui-audit` has no SKILL.md in this workspace.** The routing rules below
-> still reference it, but there is nothing to read. Until it is restored, apply its
-> intent by hand (design-system component usage, arbitrary Tailwind values, a11y
-> basics, visual-pattern duplication) and say so in the delivery message rather than
-> claiming the audit ran.
 
 If the skill block isn't already prefetched in your context, read its `SKILL.md` before acting on it.
 
@@ -90,10 +85,10 @@ Run `org2-performance-guard` whenever a change adds or modifies polling, timers,
 ### Pull request contract
 
 Every pull request created or updated by an agent MUST follow these rules.
-Before touching a pull request, read `PR_RULES.md`; it is the tracked,
+Before touching a pull request, read `.github/PR_RULES.md`; it is the tracked,
 repository-wide source of truth shared by Codex, Claude, Cursor, and human
-contributors. If this section and `PR_RULES.md` ever differ, follow
-`PR_RULES.md` and fix the stale adapter in the same pull request.
+contributors. If this section and `.github/PR_RULES.md` ever differ, follow
+`.github/PR_RULES.md` and fix the stale adapter in the same pull request.
 
 Hard gates: one responsibility; a scoped Conventional Commit title; the
 required `Problem`, `Solution`, `Potential risks`, and `Verification` sections;
@@ -185,10 +180,14 @@ order:
 
 #### Draft, ready, and review lifecycle
 
-- Keep the PR in Draft while material design choices, known blockers, required
-  migrations, or risk-proportionate verification remain incomplete.
-- Mark the PR ready only when its acceptance criteria are met and the
-  description reflects the current implementation.
+- Open pull requests ready for review by default. Incomplete verification,
+  unverified paths, and missing visual evidence are not reasons to use Draft;
+  disclose them in `Potential risks` and `Verification`.
+- Use Draft only when the author asks for it, or when material design choices,
+  a known blocker, or an incomplete migration mean the change must not be
+  reviewed yet.
+- Mark a Draft ready once those resolve and the description reflects the
+  implementation.
 - If scope, behavior, or the chosen solution changes materially after review
   begins, update the description and notify reviewers instead of silently
   changing direction.

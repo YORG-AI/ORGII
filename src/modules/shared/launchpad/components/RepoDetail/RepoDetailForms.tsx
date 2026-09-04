@@ -7,13 +7,13 @@
  *
  * Extracted from RepoDetailPage.tsx to keep it under 600 lines.
  */
-import { Plus } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
+import { Add01Icon, HugeiconsIcon } from "@src/icons";
 import type { ScriptCategory } from "@src/modules/shared/launchpad/types";
 import {
   SectionContainer,
@@ -67,7 +67,7 @@ export const AddEnvVarRow: React.FC<{
           <Button
             variant="primary"
             size="mini"
-            icon={<Plus size={12} />}
+            icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={12} />}
             loading={saving}
             disabled={!key.trim()}
             onClick={handleAdd}
@@ -140,7 +140,7 @@ export const AddScriptRow: React.FC<{
           <Button
             variant="primary"
             size="mini"
-            icon={<Plus size={12} />}
+            icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={12} />}
             loading={saving}
             disabled={!name.trim() || !command.trim()}
             onClick={handleAdd}

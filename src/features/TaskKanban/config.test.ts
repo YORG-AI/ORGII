@@ -4,11 +4,18 @@ import {
   DEFAULT_KANBAN_TIME_FILTER,
   EXTERNAL_HISTORY_FILTER_BY_SOURCE,
   KANBAN_AGENT_TYPE_FILTER,
+  getTimeFilterCutoff,
 } from "./config";
 
 describe("Task Kanban defaults", () => {
   it("starts with a three-day activity window", () => {
     expect(DEFAULT_KANBAN_TIME_FILTER).toBe("3d");
+  });
+
+  it("derives the activity cutoff from the Kanban clock tick", () => {
+    const now = Date.UTC(2026, 8, 2, 12);
+
+    expect(getTimeFilterCutoff("12h", now)).toBe(now - 12 * 60 * 60 * 1000);
   });
 });
 

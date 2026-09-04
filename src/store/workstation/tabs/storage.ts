@@ -34,7 +34,6 @@ const VALID_WORKSTATION_TAB_TYPES = new Set<WorkStationTabType>([
   "terminal-content",
   "dom-component-preview",
   "terminal",
-  "settings",
   "search",
   "ai-impact",
   "search-sessions",
@@ -176,7 +175,7 @@ function writeJson(key: string, value: unknown): boolean {
     localStorage.setItem(key, JSON.stringify(value));
     return true;
   } catch (error) {
-    log.error(`[workStationTabs] Failed to persist ${key}:`, error);
+    log.error(`Failed to persist ${key}:`, error);
     return false;
   }
 }

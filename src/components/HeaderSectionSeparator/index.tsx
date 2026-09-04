@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 
-export interface HeaderSectionSeparatorProps {
+interface HeaderSectionSeparatorProps {
   className?: string;
 }
 

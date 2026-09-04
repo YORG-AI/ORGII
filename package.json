@@ -7,30 +7,36 @@
     "prepare": "husky install",
     "postinstall": "node scripts/setup/postinstall.mjs",
     "dev:frontend": "node scripts/dev/webpack-server.js",
+    "dev:mobile-native": "ORGII_MOBILE_REMOTE_NATIVE=true node scripts/dev/webpack-server.js",
+    "dev:frontend:rspack": "node scripts/dev/rspack-server.js",
     "dev:frontend:light": "ORGII_LIGHT_DEV=true FAST_DEV=true DEV_SOURCEMAPS=false node scripts/dev/webpack-server.js",
     "dev:web": "WEBPACK_DEV_SERVER_PORT=1999 webpack serve --config webpack.web.config.js --mode development",
     "dev:cpu-monitor": "bash scripts/dev/cpu-monitor.sh",
-    "diag:process": "node tools/orgii-diagnostics/cli.mjs process",
-    "diag:memory": "node tools/orgii-diagnostics/cli.mjs memory",
-    "diag:test": "node --test tools/orgii-diagnostics/test/*.test.mjs",
-    "build": "webpack --mode production",
+    "diag:process": "node tools/org2-diagnostics/cli.mjs process",
+    "diag:memory": "node tools/org2-diagnostics/cli.mjs memory",
+    "diag:test": "node --test tools/org2-diagnostics/test/*.test.mjs",
+    "build": "webpack --config config/webpack.config.js --mode production",
     "build:web": "webpack --config webpack.web.config.js --mode production",
+    "build:mobile-native": "ORGII_MOBILE_REMOTE_NATIVE=true webpack --config config/webpack.config.js --mode production",
     "download": "python3 scripts/tools/download.py",
     "download:sidecars": "python3 scripts/tools/download_sidecars.py",
     "tauri:dev": "node scripts/dev/tauri-launcher.cjs",
     "tauri:dev:light": "node scripts/dev/tauri-launcher.cjs --light",
+    "tauri:dev:rspack": "node scripts/dev/tauri-launcher.cjs --rspack",
+    "tauri:dev:webpack": "node scripts/dev/tauri-launcher.cjs --webpack",
     "tauri:dev:only": "node scripts/tauri/run-with-features.cjs dev",
-    "build:release": "rm -rf build node_modules/.cache && webpack --mode production",
+    "build:release": "rm -rf build node_modules/.cache && webpack --config config/webpack.config.js --mode production",
     "tauri:build": "node scripts/tauri/run-with-features.cjs build",
-    "tauri:build:semantic": "node scripts/tauri/run-with-features.cjs build --semantic",
     "tauri:build:fast": "node scripts/tauri/build-fast-parallel.cjs",
     "tauri:build:fast:dual": "node scripts/tauri/build-fast-dual.cjs",
     "tauri:open:instance": "node scripts/tauri/open-instance.cjs",
     "tauri:build:fast:serial": "node scripts/tauri/run-with-features.cjs build -- --profile dev-build",
     "tauri:build:fast:local": "node scripts/tauri/build-fast-local.cjs",
     "tauri:build:fast:open": "node scripts/tauri/build-fast-open.cjs",
-    "tauri:build:fast:open:semantic": "node scripts/tauri/build-fast-open.cjs --semantic",
     "tauri:build:release": "node scripts/tauri/run-with-features.cjs build",
+    "tauri:ios:init": "cd apps/remote-ios && ../../node_modules/.bin/tauri ios init --ci",
+    "tauri:ios:dev": "cd apps/remote-ios && ../../node_modules/.bin/tauri ios dev",
+    "tauri:ios:build": "cd apps/remote-ios && ../../node_modules/.bin/tauri ios build",
     "clean:cache": "node scripts/dev/clean-cache-if-large.js --node-cache",
     "clean:auto": "node scripts/dev/clean-cache-if-large.js",
     "clean:report": "node scripts/dev/clean-cache-if-large.js --report",
@@ -38,9 +44,13 @@
     "clean:worktrees": "node scripts/dev/clean-cache-if-large.js --worktrees",
     "clean:full": "node scripts/dev/clean-cache-if-large.js --full",
     "scripts:test": "node --test scripts/dev/*.test.cjs",
-    "analyze": "webpack --mode production --profile --json > build/stats.json && webpack-bundle-analyzer build/stats.json",
+    "build:stats": "webpack --config config/webpack.config.js --mode production --json build/stats.json",
+    "check:bundle-budget": "node scripts/quality/check-bundle-budget.mjs",
+    "analyze": "webpack --config config/webpack.config.js --mode production --profile --json > build/stats.json && webpack-bundle-analyzer build/stats.json",
     "typecheck": "tsc --noEmit --pretty false",
-    "lint": "eslint src/ --ext .ts,.tsx,.js,.jsx --max-warnings 0 --report-unused-disable-directives",
+    "typecheck:fast": "tsgo --noEmit --pretty false",
+    "lint": "pnpm lint:fast && eslint src/ --ext .ts,.tsx,.js,.jsx --max-warnings 0 --report-unused-disable-directives",
+    "lint:fast": "oxlint -c .oxlintrc.json --max-warnings 0 src",
     "lint:fix": "eslint src/ --ext .ts,.tsx,.js,.jsx --fix --report-unused-disable-directives",
     "lint:file": "eslint",
     "lint:file:fix": "eslint --fix",
@@ -52,11 +62,12 @@
     "cargo:test:agent_sessions": "cd src-tauri && cargo test --lib agent_sessions::",
     "cargo:test:api": "cd src-tauri && cargo test --lib api::",
     "check:circular": "node scripts/quality/check-circular-dependencies.mjs",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest",
-    "check:unused-exports": "ts-unused-exports tsconfig.json --excludePathsFromReport='src/index.tsx;src/app/;src/i18n/;.test.ts;.test.tsx;/types.ts;/index.ts;src/scaffold/;src/types/ambient/'",
-    "check:unused-exports:all": "ts-unused-exports tsconfig.json",
+    "check:test-placement": "node scripts/quality/check-test-placement.mjs",
+    "test": "vitest run --config config/vitest.config.ts",
+    "test:coverage": "vitest run --config config/vitest.config.ts --coverage",
+    "test:watch": "vitest --config config/vitest.config.ts",
+    "check:unused-exports": "knip",
+    "check:unused-exports:all": "knip --include files,dependencies,devDependencies,exports,types,nsExports,nsTypes",
     "check:e2e-oauth-guards": "node scripts/quality/check-e2e-oauth-guards.mjs",
     "check:i18n:cloud": "node scripts/quality/check-missing-i18n-keys.mjs --namespace navigation --prefix cloud && node scripts/quality/check-missing-i18n-keys.mjs --namespace navigation --prefix collaboration.forkImported",
     "check:i18n:calls": "node scripts/quality/check-i18n-callsite-keys.mjs",
@@ -88,7 +99,6 @@
     "@codemirror/lang-sql": "^6.10.0",
     "@codemirror/language": "6.12.2",
     "@codemirror/legacy-modes": "^6.5.3",
-    "@codemirror/lint": "^6.9.2",
     "@codemirror/merge": "^6.11.2",
     "@codemirror/search": "^6.6.0",
     "@codemirror/state": "6.6.0",
@@ -100,6 +110,8 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@emotion/is-prop-valid": "^1.4.0",
     "@fabianlars/tauri-plugin-oauth": "^2.0.0",
+    "@hugeicons/core-free-icons": "4.3.0",
+    "@hugeicons/react": "1.1.10",
     "@lezer/highlight": "^1.2.3",
     "@libsql/client": "^0.17.0",
     "@replit/codemirror-indentation-markers": "^6.5.3",
@@ -141,10 +153,8 @@
     "jotai-family": "^1.0.2",
     "jszip": "^3.10.1",
     "lodash": "^4.17.21",
-    "lucide-react": "0.563.0",
     "mammoth": "^1.12.0",
     "mermaid": "^10.9.5",
-    "nanoid": "^5.1.11",
     "papaparse": "^5.5.3",
     "process": "^0.11.10",
     "react": "^19.2.6",
@@ -157,24 +167,27 @@
     "react-markdown": "^9.0.1",
     "react-router-dom": "^6.21.1",
     "react-syntax-highlighter": "^15.5.0",
-    "refractor": "3.6.0",
     "react-virtuoso": "^4.17.0",
     "recharts": "^3.6.0",
+    "refractor": "3.6.0",
     "remark-gfm": "^4.0.0",
     "sql-formatter": "^15.7.0",
     "sucrase": "^3.35.0",
-    "tailwind-scrollbar-hide": "^1.1.7",
     "terser-webpack-plugin": "^5.3.10",
     "uuid": "^11.0.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.0",
     "@commitlint/cli": "^19",
     "@commitlint/config-conventional": "^19",
     "@pmmmwh/react-refresh-webpack-plugin": "^0.6.2",
+    "@rspack/core": "^2.2.1",
+    "@rspack/dev-server": "^2.2.1",
+    "@rspack/plugin-react-refresh": "^2.0.2",
     "@svgr/webpack": "^8.1.0",
     "@swc/core": "^1.15.5",
-    "@tailwindcss/container-queries": "^0.1.1",
+    "@tailwindcss/postcss": "^4.3.3",
     "@tauri-apps/cli": "2",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/lodash": "^4.17.0",
@@ -183,8 +196,11 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@typescript-eslint/eslint-plugin": "^6.16.0",
     "@typescript-eslint/parser": "^6.16.0",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@vitest/coverage-v8": "^2.1.9",
     "autoprefixer": "^10.4.16",
+    "babel-loader": "^10.1.1",
+    "babel-plugin-react-compiler": "^1.0.0",
     "clean-webpack-plugin": "^4.0.0",
     "copy-webpack-plugin": "^12.0.2",
     "css-loader": "^6.8.1",
@@ -201,22 +217,24 @@
     "eslint-plugin-unused-imports": "^4.3.0",
     "html-webpack-plugin": "^5.6.6",
     "husky": "^8.0.3",
+    "knip": "^6.34.0",
     "jsdom": "^29.1.1",
     "lint-staged": "^15.2.0",
     "madge": "8.0.0",
+    "oxlint": "^1.80.0",
     "mini-css-extract-plugin": "^2.9.2",
     "postcss": "^8.4.32",
     "postcss-loader": "^8.2.1",
     "prettier": "^3.8.1",
-    "prettier-plugin-tailwindcss": "^0.6.14",
+    "prettier-plugin-tailwindcss": "^0.8.1",
     "raw-loader": "^4.0.2",
     "react-refresh": "^0.18.0",
     "sass": "^1.69.5",
-    "sass-loader": "^13.3.3",
+    "sass-embedded": "^1.103.1",
+    "sass-loader": "^16.0.8",
     "style-loader": "^3.3.3",
     "swc-loader": "^0.2.6",
-    "tailwindcss": "^3.4.0",
-    "ts-unused-exports": "^11.0.1",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.3.3",
     "vitest": "^2.1.9",
     "webpack": "^5.91.0",
@@ -224,21 +242,247 @@
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^4.15.1"
   },
+  "eslintConfig": {
+    "root": true,
+    "parser": "@typescript-eslint/parser",
+    "extends": [
+      "eslint:recommended",
+      "plugin:@typescript-eslint/recommended",
+      "plugin:react/recommended",
+      "plugin:react-hooks/recommended",
+      "plugin:prettier/recommended"
+    ],
+    "plugins": [
+      "@typescript-eslint",
+      "react",
+      "react-hooks",
+      "prettier",
+      "unused-imports"
+    ],
+    "parserOptions": {
+      "ecmaVersion": 2020,
+      "sourceType": "module",
+      "ecmaFeatures": {
+        "jsx": true
+      }
+    },
+    "settings": {
+      "react": {
+        "version": "detect"
+      }
+    },
+    "ignorePatterns": [
+      "/*",
+      "!/src",
+      "*.css",
+      "*.scss"
+    ],
+    "rules": {
+      "react/react-in-jsx-scope": "off",
+      "react/prop-types": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "unused-imports/no-unused-imports": "error",
+      "unused-imports/no-unused-vars": [
+        "warn",
+        {
+          "vars": "all",
+          "varsIgnorePattern": "^_",
+          "args": "after-used",
+          "argsIgnorePattern": "^_"
+        }
+      ],
+      "no-console": [
+        "warn",
+        {
+          "allow": [
+            "warn",
+            "error"
+          ]
+        }
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          "selector": "ImportDeclaration[source.value='@src/icons'] ImportNamespaceSpecifier",
+          "message": "Do not namespace-import the icon barrel; import each glyph by name so webpack links deep icon modules individually."
+        },
+        {
+          "selector": "TSAsExpression[typeAnnotation.typeName.name=\"IconSvgElement\"]",
+          "message": "Never cast to hugeicons glyph-data types — a non-array value crashes HugeiconsIcon's [...icon] spread at runtime. Type mixed icon values as RenderableIcon (@src/components/AnyIcon) and render via AnyIcon."
+        },
+        {
+          "selector": "TSAsExpression[typeAnnotation.typeName.name=\"IconSvgObject\"]",
+          "message": "Never cast to hugeicons glyph-data types — a non-array value crashes HugeiconsIcon's [...icon] spread at runtime. Type mixed icon values as RenderableIcon (@src/components/AnyIcon) and render via AnyIcon."
+        }
+      ],
+      "no-restricted-imports": [
+        "error",
+        {
+          "paths": [
+            {
+              "name": "lucide-react",
+              "message": "lucide-react has been removed. Use hugeicons via @src/icons — see docs/hugeicons-migration/icon-mapping.md for the lucide -> hugeicons name map."
+            }
+          ],
+          "patterns": [
+            {
+              "group": [
+                "@hugeicons/*"
+              ],
+              "message": "Import icons from @src/icons (it re-exports HugeiconsIcon and every used glyph). To add a glyph, add one re-export line to src/icons.ts."
+            },
+            {
+              "group": [
+                "@src/hooks/workStation",
+                "@src/hooks/workStation/*"
+              ],
+              "message": "hooks/workStation was dissolved. Tab-host hooks: @src/hooks/tabHost/*; editor hooks: @src/modules/WorkStation/CodeEditor/hooks/*; browser hooks: @src/modules/WorkStation/Browser/hooks/*; session capture: @src/features/SessionSetup/hooks/*; context menu: @src/scaffold/ContextMenu/*."
+            },
+            {
+              "group": [
+                "@src/hooks/dependencies",
+                "@src/hooks/dependencies/*"
+              ],
+              "message": "Moved to @src/modules/MainApp/Integrations/hooks/* (usePostPaintGitProbe -> @src/app/root/usePostPaintGitProbe)."
+            },
+            {
+              "group": [
+                "@src/hooks/git/sourceControl",
+                "@src/hooks/git/sourceControl/*"
+              ],
+              "message": "Moved to @src/modules/WorkStation/CodeEditor/hooks/sourceControl/* (generateCommitMessage -> @src/api/tauri/git/commitMessage)."
+            },
+            {
+              "group": [
+                "@src/hooks/testRunner",
+                "@src/hooks/testRunner/*"
+              ],
+              "message": "Moved to @src/modules/WorkStation/CodeEditor/hooks/useTestRunner."
+            },
+            {
+              "group": [
+                "@src/hooks/benchmark",
+                "@src/hooks/benchmark/*"
+              ],
+              "message": "Moved to @src/features/BenchmarkPanel/hooks/*."
+            }
+          ]
+        }
+      ]
+    },
+    "overrides": [
+      {
+        "files": [
+          "src/icons.ts"
+        ],
+        "rules": {
+          "no-restricted-imports": "off"
+        }
+      },
+      {
+        "files": [
+          "**/*.test.ts",
+          "**/*.test.tsx"
+        ],
+        "rules": {
+          "no-restricted-syntax": [
+            "error",
+            {
+              "selector": "MemberExpression[object.name=/^(describe|it|test|suite|bench)$/][property.name='only']",
+              "message": "Focused test committed: `.only` makes the rest of this file silently not run. Remove it before committing."
+            },
+            {
+              "selector": "MemberExpression[object.object.name=/^(describe|it|test)$/][object.property.name='only']",
+              "message": "Focused test committed: `.only.each` makes the rest of this file silently not run. Remove it before committing."
+            },
+            {
+              "selector": "TSAsExpression[typeAnnotation.typeName.name=\"IconSvgElement\"]",
+              "message": "Never cast to hugeicons glyph-data types — a non-array value crashes HugeiconsIcon's [...icon] spread at runtime. Type mixed icon values as RenderableIcon (@src/components/AnyIcon) and render via AnyIcon."
+            },
+            {
+              "selector": "TSAsExpression[typeAnnotation.typeName.name=\"IconSvgObject\"]",
+              "message": "Never cast to hugeicons glyph-data types — a non-array value crashes HugeiconsIcon's [...icon] spread at runtime. Type mixed icon values as RenderableIcon (@src/components/AnyIcon) and render via AnyIcon."
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "prettier": {
+    "tailwindStylesheet": "./src/tailwind.css",
+    "endOfLine": "auto",
+    "singleQuote": false,
+    "semi": true,
+    "trailingComma": "es5",
+    "importOrder": [
+      "<THIRD_PARTY_MODULES>",
+      "^@src/(.*)$",
+      "^@common/(.*)$",
+      "^@api/(.*)$",
+      "^@page/(.*)$",
+      "^[./]",
+      "^(.*).scss"
+    ],
+    "importOrderSeparation": true,
+    "importOrderSortSpecifiers": true,
+    "plugins": [
+      "@trivago/prettier-plugin-sort-imports",
+      "prettier-plugin-tailwindcss"
+    ]
+  },
+  "unimported": {
+    "entry": [
+      "src/index.tsx"
+    ],
+    "extensions": [
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx"
+    ],
+    "ignorePatterns": [
+      "**/node_modules/**",
+      "**/*.d.ts",
+      "**/types.ts",
+      "**/config.ts",
+      "**/exports.ts",
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/scripts/**"
+    ],
+    "ignoreUnresolved": [
+      "@src/*",
+      "@/*"
+    ],
+    "moduleDirectory": [
+      "node_modules",
+      "src"
+    ],
+    "aliases": {
+      "@src/*": [
+        "src/*"
+      ],
+      "@/*": [
+        "src/*"
+      ]
+    }
+  },
   "lint-staged": {
     "src/**/*.{ts,tsx,js,jsx}": [
-      "eslint --fix",
-      "prettier --write"
+      "oxlint -c .oxlintrc.json --max-warnings 0"
     ],
     "*.{ts,tsx,js,jsx}": [
       "eslint --fix",
-      "prettier --write"
-    ],
-    "src/**/*.{css,scss,md,json}": [
       "prettier --write"
     ],
     "*.{css,scss,md,json}": [
       "prettier --write"
     ]
   },
-  "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0"
+  "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0",
+  "pnpm": {
+    "patchedDependencies": {
+      "@hugeicons/core-free-icons@4.3.0": "patches/@hugeicons__core-free-icons@4.3.0.patch"
+    }
+  }
 }

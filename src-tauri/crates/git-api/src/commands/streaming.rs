@@ -27,6 +27,7 @@ use tokio::process::Command;
 use git::{tokio_git_command, util::is_transient_error};
 
 use super::commit::append_orgii_coauthor_trailer;
+use super::remote::{contains_word, pull_strategy_args, should_set_upstream};
 
 type GitEventStream = Pin<Box<dyn Stream<Item = Result<Event, std::convert::Infallible>> + Send>>;
 
@@ -40,16 +41,10 @@ pub(crate) fn detect_error_type_from_output(output: &str, operation: &str) -> &'
 
     match operation {
         "push" => {
-            // Non-fast-forward (remote has changes we don't have)
-            if lower.contains("non-fast-forward")
-                || lower.contains("fetch first")
-                || lower.contains("updates were rejected")
-                || lower.contains("failed to push some refs")
-            {
-                return "non_fast_forward";
-            }
-
-            // Protected branch
+            // Protected branch / policy rejection — checked BEFORE the
+            // non-fast-forward patterns, because git appends "error: failed to
+            // push some refs" to every rejection and the broader arm would
+            // shadow this one (see detect_push_error_type in remote.rs).
             if lower.contains("protected branch")
                 || lower.contains("branch is protected")
                 || lower.contains("cannot push to")
@@ -57,6 +52,15 @@ pub(crate) fn detect_error_type_from_output(output: &str, operation: &str) -> &'
                 || lower.contains("remote rejected")
             {
                 return "protected_branch";
+            }
+
+            // Non-fast-forward (remote has changes we don't have)
+            if lower.contains("non-fast-forward")
+                || lower.contains("fetch first")
+                || lower.contains("updates were rejected")
+                || lower.contains("failed to push some refs")
+            {
+                return "non_fast_forward";
             }
         }
         "pull" => {
@@ -93,8 +97,8 @@ pub(crate) fn detect_error_type_from_output(output: &str, operation: &str) -> &'
         || lower.contains("unable to get password from user")
         || lower.contains("permission denied (publickey)")
         || lower.contains("repository not found")
-        || lower.contains("saml")
-        || lower.contains("sso")
+        || contains_word(&lower, "saml")
+        || contains_word(&lower, "sso")
         || lower.contains("password authentication was removed")
         || lower.contains("requested url returned error: 403")
     {
@@ -188,130 +192,134 @@ fn configure_command_for_fd_safety(_cmd: &mut Command) {
     // No-op on non-Unix systems
 }
 
-/// Helper function to stream git command output with retry logic for transient errors
-/// Retries up to 3 times on "Bad file descriptor" and similar transient errors
-/// The `operation` parameter is used for error type detection ("push", "pull", "fetch", etc.)
-async fn stream_git_command(
+/// Core of the git SSE stream: yields `(event_kind, payload)` pairs.
+///
+/// Split from the SSE layer so the streaming behavior is unit-testable:
+/// axum's `Event` offers no way to read its data back.
+///
+/// Behavioral contract (each point fixes a defect the previous
+/// implementation had):
+/// - stdout and stderr are drained CONCURRENTLY and lines are yielded as
+///   they arrive. Git writes progress to stderr while stdout is still open;
+///   draining stdout to EOF first deadlocked both sides once stderr's pipe
+///   buffer (64 KiB) filled, and nothing streamed until the process exited.
+/// - Only SPAWN failures retry on transient errors. Retrying because the
+///   command's OUTPUT contained a transient-error string re-ran a command
+///   that had already executed — a `git commit` could commit twice — and
+///   orphaned the first child without awaiting it.
+/// - Payloads are built with serde_json. Hand-rolled escaping dropped
+///   backslashes and carriage returns, so Windows paths, quoted-path
+///   output, and progress lines produced frames the client's JSON.parse
+///   rejected.
+fn stream_git_events(
     mut cmd: Command,
     command_str: String,
     operation: &'static str,
-) -> GitEventStream {
-    // Configure command for file descriptor safety
+) -> impl Stream<Item = (&'static str, serde_json::Value)> {
     configure_command_for_fd_safety(&mut cmd);
 
-    let stream = async_stream::stream! {
-        yield Ok(Event::default()
-            .event("start")
-            .data(format!("{{\"command\":\"{}\"}}", command_str)));
+    async_stream::stream! {
+        yield ("start", serde_json::json!({ "command": command_str }));
 
         const MAX_RETRIES: u32 = 3;
         let mut attempt = 0;
-
-        loop {
+        let mut child = loop {
             attempt += 1;
-
-            let mut child = match cmd.spawn() {
-                Ok(child) => child,
+            match cmd.spawn() {
+                Ok(child) => break child,
                 Err(e) => {
                     let error_str = e.to_string();
-
-                    // Check if this is a transient error that can be retried
                     if is_transient_error(&error_str) && attempt < MAX_RETRIES {
-                        // Wait briefly before retrying (exponential backoff)
-                        tokio::time::sleep(tokio::time::Duration::from_millis(100 * attempt as u64)).await;
+                        tokio::time::sleep(tokio::time::Duration::from_millis(
+                            100 * attempt as u64,
+                        ))
+                        .await;
                         continue;
                     }
-
-                    let error_msg = error_str.replace("\"", "\\\"");
-                    yield Ok(Event::default()
-                        .event("error")
-                        .data(format!("{{\"error\":\"{}\",\"error_type\":\"unknown\"}}", error_msg)));
+                    yield (
+                        "error",
+                        serde_json::json!({ "error": error_str, "error_type": "unknown" }),
+                    );
                     return;
                 }
-            };
+            }
+        };
 
-            let stdout = child.stdout.take();
-            let stderr = child.stderr.take();
-
-            let mut all_lines: Vec<(String, String)> = Vec::new();
-
-            if let Some(stdout) = stdout {
-                let reader = BufReader::new(stdout);
-                if let Ok(lines) = tokio::spawn(async move {
-                    let mut lines_reader = reader.lines();
-                    let mut output = Vec::new();
-                    while let Ok(Some(line)) = lines_reader.next_line().await {
-                        output.push(("stdout".to_string(), line));
+        let (line_tx, mut line_rx) =
+            tokio::sync::mpsc::unbounded_channel::<(&'static str, String)>();
+        let mut readers = tokio::task::JoinSet::new();
+        if let Some(stdout) = child.stdout.take() {
+            let tx = line_tx.clone();
+            readers.spawn(async move {
+                let mut lines = BufReader::new(stdout).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    if tx.send(("stdout", line)).is_err() {
+                        break;
                     }
-                    output
-                }).await {
-                    all_lines.extend(lines);
                 }
-            }
-
-            if let Some(stderr) = stderr {
-                let reader = BufReader::new(stderr);
-                if let Ok(lines) = tokio::spawn(async move {
-                    let mut lines_reader = reader.lines();
-                    let mut output = Vec::new();
-                    while let Ok(Some(line)) = lines_reader.next_line().await {
-                        output.push(("stderr".to_string(), line));
-                    }
-                    output
-                }).await {
-                    all_lines.extend(lines);
-                }
-            }
-
-            // Check if any output line indicates a transient error
-            let has_transient_error = all_lines.iter().any(|(_, line)| is_transient_error(line));
-
-            if has_transient_error && attempt < MAX_RETRIES {
-                // Wait briefly before retrying
-                tokio::time::sleep(tokio::time::Duration::from_millis(100 * attempt as u64)).await;
-                continue;
-            }
-
-            // Collect all output for error type detection
-            let combined_output: String = all_lines.iter()
-                .map(|(_, line)| line.as_str())
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            for (stream, line) in &all_lines {
-                let escaped_line = line.replace("\"", "\\\"").replace("\n", "\\n");
-                yield Ok(Event::default()
-                    .event("output")
-                    .data(format!("{{\"stream\":\"{}\",\"line\":\"{}\"}}", stream, escaped_line)));
-            }
-
-            match child.wait().await {
-                Ok(status) => {
-                    let error_type = if status.success() {
-                        "none"
-                    } else {
-                        detect_error_type_from_output(&combined_output, operation)
-                    };
-
-                    yield Ok(Event::default()
-                        .event("end")
-                        .data(format!("{{\"success\":{},\"error_type\":\"{}\"}}", status.success(), error_type)));
-                }
-                Err(e) => {
-                    let error_msg = e.to_string().replace("\"", "\\\"");
-                    let error_type = detect_error_type_from_output(&error_msg, operation);
-                    yield Ok(Event::default()
-                        .event("error")
-                        .data(format!("{{\"error\":\"{}\",\"error_type\":\"{}\"}}", error_msg, error_type)));
-                }
-            }
-
-            // Successfully completed, exit the retry loop
-            break;
+            });
         }
-    };
+        if let Some(stderr) = child.stderr.take() {
+            let tx = line_tx.clone();
+            readers.spawn(async move {
+                let mut lines = BufReader::new(stderr).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    if tx.send(("stderr", line)).is_err() {
+                        break;
+                    }
+                }
+            });
+        }
+        drop(line_tx);
 
-    Box::pin(stream)
+        let mut combined_lines: Vec<String> = Vec::new();
+        while let Some((source, line)) = line_rx.recv().await {
+            yield (
+                "output",
+                serde_json::json!({ "stream": source, "line": line }),
+            );
+            combined_lines.push(line);
+        }
+        while readers.join_next().await.is_some() {}
+
+        match child.wait().await {
+            Ok(status) => {
+                let error_type = if status.success() {
+                    "none"
+                } else {
+                    detect_error_type_from_output(&combined_lines.join("\n"), operation)
+                };
+                yield (
+                    "end",
+                    serde_json::json!({
+                        "success": status.success(),
+                        "error_type": error_type,
+                    }),
+                );
+            }
+            Err(e) => {
+                let error_msg = e.to_string();
+                let error_type = detect_error_type_from_output(&error_msg, operation);
+                yield (
+                    "error",
+                    serde_json::json!({ "error": error_msg, "error_type": error_type }),
+                );
+            }
+        }
+    }
+}
+
+/// Wrap the event core into the SSE wire stream.
+async fn stream_git_command(
+    cmd: Command,
+    command_str: String,
+    operation: &'static str,
+) -> GitEventStream {
+    use futures::StreamExt as _;
+    Box::pin(
+        stream_git_events(cmd, command_str, operation)
+            .map(|(kind, data)| Ok(Event::default().event(kind).data(data.to_string()))),
+    )
 }
 
 fn sse_response(stream: GitEventStream) -> Response {
@@ -321,12 +329,10 @@ fn sse_response(stream: GitEventStream) -> Response {
 }
 
 fn stream_error_response(error: String, error_type: &'static str) -> Response {
-    let escaped = error.replace('"', "\\\"");
     let stream = futures::stream::once(async move {
-        Ok(Event::default().event("error").data(format!(
-            "{{\"error\":\"{}\",\"error_type\":\"{}\"}}",
-            escaped, error_type
-        )))
+        Ok(Event::default()
+            .event("error")
+            .data(serde_json::json!({ "error": error, "error_type": error_type }).to_string()))
     });
 
     sse_response(Box::pin(stream) as GitEventStream)
@@ -340,6 +346,29 @@ fn git_resolution_error_response(error: String) -> Response {
 // SSE Stream Handlers
 // ============================================
 
+/// `git rev-parse --abbrev-ref <spec>` — None on failure or a detached HEAD.
+async fn rev_parse_abbrev(repo_path: &std::path::Path, spec: &str) -> Option<String> {
+    let mut cmd = tokio_git_command().ok()?;
+    let output = cmd
+        .args(["rev-parse", "--abbrev-ref", spec])
+        .current_dir(repo_path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .await
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if name.is_empty() || name == "HEAD" {
+        None
+    } else {
+        Some(name)
+    }
+}
+
 /// Stream git push output via Server-Sent Events
 pub async fn push_stream(
     Path(_repo_id): Path<String>,
@@ -347,8 +376,21 @@ pub async fn push_stream(
 ) -> Response {
     let repo_path = PathBuf::from(&query.path);
     let remote = query.remote.unwrap_or_else(|| "origin".to_string());
-    let set_upstream = query.set_upstream.unwrap_or(false);
     let force = query.force.unwrap_or(false);
+
+    // Mirror push_to_remote: auto-detect a missing or renamed upstream instead
+    // of trusting a client flag that defaults to false — without this, the
+    // first push of a new branch through the streaming path always failed
+    // with "the current branch has no upstream branch".
+    let current_branch = rev_parse_abbrev(&repo_path, "HEAD").await;
+    let set_upstream = if query.set_upstream.unwrap_or(false) {
+        true
+    } else if let Some(current) = current_branch.as_deref() {
+        let upstream = rev_parse_abbrev(&repo_path, &format!("{current}@{{upstream}}")).await;
+        should_set_upstream(upstream.as_deref(), current, &remote)
+    } else {
+        false
+    };
 
     let mut cmd = match tokio_git_command() {
         Ok(command) => command,
@@ -365,8 +407,11 @@ pub async fn push_stream(
     }
 
     cmd.arg(&remote);
-    if let Some(branch) = query.branch {
-        cmd.arg(&branch);
+    // `-u` needs an explicit refspec: a bare `git push -u origin` on a branch
+    // without an upstream still fails, so fall back to the current branch.
+    let branch = query.branch.or(current_branch);
+    if let Some(branch) = &branch {
+        cmd.arg(branch);
     }
 
     cmd.current_dir(&repo_path)
@@ -379,7 +424,15 @@ pub async fn push_stream(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let command_str = format!("git push {}", remote);
+    let command_str = format!(
+        "git push{} {}{}",
+        if set_upstream { " -u" } else { "" },
+        remote,
+        branch
+            .as_deref()
+            .map(|b| format!(" {b}"))
+            .unwrap_or_default()
+    );
     let stream = stream_git_command(cmd, command_str, "push").await;
 
     sse_response(stream)
@@ -400,20 +453,8 @@ pub async fn pull_stream(
     cmd.args(["-c", "credential.interactive=false", "-c", "core.askPass="])
         .arg("pull");
 
-    let strategy_flag = match query.strategy.as_deref() {
-        Some("rebase") => {
-            cmd.arg("--rebase");
-            " --rebase"
-        }
-        Some("ff-only") => {
-            cmd.arg("--ff-only");
-            " --ff-only"
-        }
-        _ => {
-            cmd.arg("--no-rebase");
-            " --no-rebase"
-        }
-    };
+    let strategy_args = pull_strategy_args(query.strategy.as_deref());
+    cmd.args(strategy_args);
 
     cmd.arg(&remote);
 
@@ -431,7 +472,7 @@ pub async fn pull_stream(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let command_str = format!("git pull{} {}", strategy_flag, remote);
+    let command_str = format!("git pull {} {}", strategy_args.join(" "), remote);
     let stream = stream_git_command(cmd, command_str, "pull").await;
 
     sse_response(stream)
@@ -510,14 +551,19 @@ pub async fn commit_stream(
         Ok(command) => command,
         Err(err) => return git_resolution_error_response(err),
     };
+    // Null stdin + no-prompt env like every sibling handler: with
+    // commit.gpgsign enabled, a GPG pinentry could otherwise block on the
+    // inherited stdin and hang the SSE stream indefinitely.
     cmd.arg("commit")
         .arg("-m")
         .arg(&message)
         .current_dir(&repo_path)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let command_str = format!("git commit -m \"{}\"", message.replace("\"", "\\\""));
+    let command_str = format!("git commit -m \"{message}\"");
     let stream = stream_git_command(cmd, command_str, "commit").await;
 
     sse_response(stream)
@@ -529,23 +575,27 @@ pub async fn stage_stream(
     Query(query): Query<StageStreamQuery>,
 ) -> Response {
     let repo_path = PathBuf::from(&query.path);
-    // The `files` query param is a JSON-encoded array. A silent
-    // empty fallback would make `git add` run as a no-op, with
-    // the user seeing no error and no effect. Warn so a malformed
-    // request from the frontend is visible in logs while still
-    // degrading to a no-op (we won't error the SSE stream for a
-    // request shape we can't parse).
+    // The `files` query param is a JSON-encoded array. A malformed or empty
+    // list must error the stream: a bare `git add` with no pathspec exits 0
+    // having staged nothing ("Nothing specified, nothing added."), and the
+    // old fallback then reported a successful `git add .` — the next commit
+    // was silently empty or partial. Callers that mean "everything" pass
+    // ["."] explicitly (commitOps.stage does).
     let files: Vec<String> = match serde_json::from_str(&query.files) {
         Ok(f) => f,
         Err(err) => {
-            tracing::warn!(
-                error = %err,
-                files_param = %query.files,
-                "git::stage_stream: files query param is not a JSON array; running git add as no-op"
+            return stream_error_response(
+                format!("stage request had a malformed files list: {err}"),
+                "invalid_request",
             );
-            Vec::new()
         }
     };
+    if files.is_empty() {
+        return stream_error_response(
+            "stage request listed no files".to_string(),
+            "invalid_request",
+        );
+    }
 
     let mut cmd = match tokio_git_command() {
         Ok(command) => command,
@@ -565,11 +615,7 @@ pub async fn stage_stream(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let command_str = if files.is_empty() {
-        "git add .".to_string()
-    } else {
-        format!("git add {}", files.join(" "))
-    };
+    let command_str = format!("git add {}", files.join(" "));
 
     let stream = stream_git_command(cmd, command_str, "stage").await;
 

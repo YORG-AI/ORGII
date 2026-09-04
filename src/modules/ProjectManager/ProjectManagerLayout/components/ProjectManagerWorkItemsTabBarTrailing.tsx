@@ -4,12 +4,12 @@
  * `projectManagerWorkItemsTabBarAtom`.
  */
 import { useAtomValue } from "jotai";
-import { Search } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
+import { HugeiconsIcon, Search01Icon } from "@src/icons";
 import { projectManagerWorkItemsTabBarAtom } from "@src/modules/ProjectManager/store/projectManagerWorkItemsTabBarAtom";
 
 export interface ProjectManagerWorkItemsTabBarTrailingProps {
@@ -33,7 +33,12 @@ const ProjectManagerWorkItemsTabBarTrailing: React.FC<ProjectManagerWorkItemsTab
         title={t("common:actions.search")}
         onClick={payload.onSearch}
       >
-        <Search size={HEADER_ICON_SIZE.md} strokeWidth={2} />
+        <HugeiconsIcon
+          icon={Search01Icon}
+          data-icon="search"
+          size={HEADER_ICON_SIZE.md}
+          strokeWidth={2}
+        />
       </TabBarTrailingIconButton>
     );
   });

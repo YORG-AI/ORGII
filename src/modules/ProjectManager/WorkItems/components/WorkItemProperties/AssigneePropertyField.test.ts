@@ -133,4 +133,37 @@ describe("AssigneePropertyField external assignees", () => {
     act(() => trigger?.click());
     expect(onOpen).not.toHaveBeenCalled();
   });
+
+  it("offers human roster members but never agent or organization identities", () => {
+    const onAssigneeChange = vi.fn();
+    const props = {
+      workItem: { ...workItem, assignee: undefined },
+      availableMembers: [{ id: "member-1", name: "Ada Lovelace" }],
+      onAssigneeChange,
+      t: translate,
+      placement: "inline" as const,
+      active: true,
+      // Legacy callers may still have these values in memory during a hot
+      // reload. The canonical picker must not turn them into assignment
+      // options even when extra runtime props are present.
+      allAgentList: [{ id: "builtin:os", name: "OS Agent" }],
+      availableOrgs: [{ id: "org-1", name: "Agent Organization" }],
+    };
+
+    act(() => {
+      root.render(createElement(AssigneePropertyField, props));
+    });
+    expect(document.body.textContent).toContain("Ada Lovelace");
+    expect(document.body.textContent).not.toContain("OS Agent");
+    expect(document.body.textContent).not.toContain("Agent Organization");
+
+    const memberOption = Array.from(
+      document.querySelectorAll<HTMLButtonElement>("button")
+    ).find((button) => button.textContent?.includes("Ada Lovelace"));
+    act(() => memberOption?.click());
+    expect(onAssigneeChange).toHaveBeenCalledWith({
+      id: "member-1",
+      name: "Ada Lovelace",
+    });
+  });
 });

@@ -90,7 +90,10 @@ function createTempRepo(label) {
     `# ORGII E2E Sibling Repo\n\n${label}\nSIBLING_ONLY_SENTINEL_${safeLabel}\n`,
     "utf8"
   );
-  execFileSync("git", ["add", "README.md"], { cwd: siblingRepo, stdio: "ignore" });
+  execFileSync("git", ["add", "README.md"], {
+    cwd: siblingRepo,
+    stdio: "ignore",
+  });
   execFileSync("git", ["commit", "-m", "sibling sentinel"], {
     cwd: siblingRepo,
     stdio: "ignore",

@@ -1,9 +1,14 @@
-import { Folder, GitBranch, GitFork } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { resolveSessionWorkstationContext } from "@src/engines/ChatPanel/components/SessionWorkstationRail";
 import { resolveCloudSessionEnvironmentIdentity } from "@src/features/Org2Cloud/cloudSessionReplayLifecycle";
+import {
+  FolderClosedIcon,
+  GitBranchIcon,
+  GitForkIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import { formatBranchLabel } from "@src/util/git/branchLabel";
 
 import type { WebSessionListItem } from "./useWebSessionRoster";
@@ -66,7 +71,13 @@ const WebSessionWorkstationContextBar: React.FC<WebSessionWorkstationContextBarP
       >
         {context.isFork ? (
           <span className="inline-flex min-w-0 items-center gap-1">
-            <GitFork size={12} strokeWidth={2} aria-hidden />
+            <HugeiconsIcon
+              icon={GitForkIcon}
+              data-icon="git-fork"
+              size={12}
+              strokeWidth={2}
+              aria-hidden
+            />
             <span className="truncate">
               {t("web.sessionPage.forkContext", {
                 owner: context.ownerDisplayName,
@@ -77,13 +88,25 @@ const WebSessionWorkstationContextBar: React.FC<WebSessionWorkstationContextBarP
         ) : null}
         {context.repoName ? (
           <span className="inline-flex min-w-0 items-center gap-1">
-            <Folder size={12} strokeWidth={2} aria-hidden />
+            <HugeiconsIcon
+              icon={FolderClosedIcon}
+              data-icon="folder"
+              size={12}
+              strokeWidth={2}
+              aria-hidden
+            />
             <span className="truncate text-text-2">{context.repoName}</span>
           </span>
         ) : null}
         {branchLabel ? (
           <span className="inline-flex min-w-0 items-center gap-1">
-            <GitBranch size={12} strokeWidth={2} aria-hidden />
+            <HugeiconsIcon
+              icon={GitBranchIcon}
+              data-icon="git-branch"
+              size={12}
+              strokeWidth={2}
+              aria-hidden
+            />
             <span className="truncate">{branchLabel}</span>
           </span>
         ) : null}

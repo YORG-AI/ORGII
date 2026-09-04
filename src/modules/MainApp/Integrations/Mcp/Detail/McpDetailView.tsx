@@ -5,8 +5,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import McpIcon from "@src/assets/channelIcons/mcp.svg";
 import { Placeholder } from "@src/components/Placeholder";
+import { HugeiconsIcon, McpServerIcon } from "@src/icons";
 
 import type { McpDetailState } from "../types";
 import McpServerDetailPanel from "./McpServerDetailPanel";
@@ -57,7 +57,7 @@ export const McpDetailView: React.FC<McpDetailViewProps> = ({
       <Placeholder
         variant="empty"
         placement="detail-panel"
-        icon={<McpIcon className="h-8 w-8" />}
+        icon={<HugeiconsIcon icon={McpServerIcon} size={32} />}
         title={t("mcp.noServers")}
         subtitle={t("mcp.noServersDesc")}
       />
@@ -68,7 +68,7 @@ export const McpDetailView: React.FC<McpDetailViewProps> = ({
     <Placeholder
       variant="empty"
       placement="detail-panel"
-      icon={<McpIcon className="h-8 w-8" />}
+      icon={<HugeiconsIcon icon={McpServerIcon} size={32} />}
       title={t("common:placeholders.selectToViewConfig", {
         type: t("common:placeholderTypes.mcpServer"),
       })}

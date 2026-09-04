@@ -2,25 +2,26 @@
  * SpotlightItemRow Component
  *
  * Memoized row renderer for spotlight items.
- * Handles icons, labels, status indicators, git badges, and keyboard shortcuts.
+ * Handles icons, labels, status indicators, and keyboard shortcuts.
  */
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import {
-  Check,
-  ChevronRight,
-  CornerDownRight,
-  Diff,
-  Info,
-  Lock,
-} from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Checkbox from "@src/components/Checkbox";
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { KeyboardShortcut } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
 import { createLogger } from "@src/hooks/logger";
+import {
+  ArrowRight01Icon,
+  CornerDownRightIcon,
+  HugeiconsIcon,
+  InformationCircleIcon,
+  LockIcon,
+  Tick01Icon,
+} from "@src/icons";
 import { copyText } from "@src/util/data/clipboard";
 import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
 import {
@@ -36,14 +37,11 @@ import { HighlightText } from "./highlightUtils";
 // ============ CONSTANTS ============
 
 export const ITEM_HEIGHT = SPOTLIGHT_TOKENS.itemHeight;
-export const ITEM_HEIGHT_WITH_DESC = SPOTLIGHT_TOKENS.itemHeightWithDesc;
+const ITEM_HEIGHT_WITH_DESC = SPOTLIGHT_TOKENS.itemHeightWithDesc;
 
 const TAG_BASE_CLASSES =
   "flex items-center gap-[6px] rounded-full font-medium cursor-default";
 
-const GIT_BADGE_GROUP_CLASSES = "flex items-center gap-3";
-
-const GIT_BADGE_CLASSES = `${TAG_BASE_CLASSES} !gap-1 text-[12px] text-text-2`;
 const PATH_ELLIPSIS_SEGMENT = "/ ... /";
 const log = createLogger("SpotlightItemRow");
 
@@ -138,6 +136,8 @@ function getItemData(item: SpotlightItem): SpotlightItemData {
 
 export interface SpotlightItemRowProps {
   item: SpotlightItem;
+  /** Optional reusable checkbox; row activation remains the caller's action. */
+  selectionState?: SpotlightItemData["selectionState"];
   index: number;
   isSelected: boolean;
   isKeyboardMode: boolean;
@@ -196,8 +196,13 @@ const DescLine = memo<{ desc: string; descTitle: unknown }>(
           position="bottom-start"
           style={{ zIndex: 10000 }}
         >
-          <span className="inline-flex flex-shrink-0 cursor-default items-center gap-0.5 rounded-full bg-fill-2 px-1.5 py-px text-[10px] text-text-3 hover:bg-fill-2 hover:text-text-2">
-            <Info size={10} strokeWidth={2} />
+          <span className="inline-flex shrink-0 cursor-default items-center gap-0.5 rounded-full bg-fill-2 px-1.5 py-px text-[10px] text-text-3 hover:bg-fill-2 hover:text-text-2">
+            <HugeiconsIcon
+              icon={InformationCircleIcon}
+              data-icon="info"
+              size={10}
+              strokeWidth={2}
+            />
             {overflowPart}
           </span>
         </Tooltip>
@@ -220,7 +225,7 @@ const FilePathRightLabel = memo<{ path: string; searchQuery: string }>(
     }
 
     return (
-      <span className="flex min-w-0 max-w-[min(45vw,360px)] items-center text-[12px] text-text-2">
+      <span className="flex max-w-[min(45vw,360px)] min-w-0 items-center text-[12px] text-text-2">
         <span className="min-w-0 truncate">
           <HighlightText text={splitPath.prefix} query={searchQuery} />
         </span>
@@ -239,6 +244,7 @@ FilePathRightLabel.displayName = "FilePathRightLabel";
 export const SpotlightItemRow = memo<SpotlightItemRowProps>(
   ({
     item,
+    selectionState,
     index,
     isSelected,
     isKeyboardMode,
@@ -257,7 +263,7 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
     const hasDisclosureChevron = !!data.showDisclosureChevron && !isDisabled;
     const ArrowRightIcon = ICONS.arrowRight;
     const DisclosureIcon =
-      data.disclosureIcon === "arrowRight" ? ArrowRightIcon : ChevronRight;
+      data.disclosureIcon === "arrowRight" ? ArrowRightIcon : ArrowRight01Icon;
     const itemTextClassName = isDanger ? "text-danger-6" : "text-text-1";
     const iconTone =
       typeof data.iconTone === "string" ? data.iconTone : undefined;
@@ -357,61 +363,63 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
         data-source-account-id={sourceAccountId}
         data-source-model-type={sourceModelType}
         data-source-type={sourceType}
-        className={`spotlight-item group relative mx-2 mb-[3px] flex items-center gap-2.5 rounded-lg px-2 ${
+        className={`spotlight-item group relative mx-2 flex items-center gap-2.5 rounded-lg px-2 ${
           isDisabled
             ? "cursor-not-allowed opacity-50"
             : `cursor-pointer ${isCurrentSelection ? "is-current-selection" : ""} ${isSelected ? "selected" : ""}`
         }`}
-        style={{ height: getItemHeight(item) }}
+        style={{
+          height: getItemHeight(item),
+          marginBottom: SPOTLIGHT_TOKENS.itemGap,
+        }}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {data.selectionState && !isDisabled && (
-          <div
-            className="flex flex-shrink-0 items-center justify-center"
-            onClick={(e) => {
-              e.stopPropagation();
-              data.selectionState?.onToggle(e);
-            }}
-          >
+        {selectionState && !isDisabled && (
+          <div className="flex shrink-0 items-center justify-center">
             <Checkbox
               size="small"
-              checked={data.selectionState.checked}
+              checked={selectionState.checked}
+              onClick={(event) => event.stopPropagation()}
               onCheckedChange={(_checked, event) => {
                 event.stopPropagation();
-                data.selectionState?.onToggle();
+                selectionState.onToggle();
               }}
-              ariaLabel="Select item"
+              ariaLabel={selectionState.ariaLabel ?? "Select item"}
             />
           </div>
         )}
 
         {isChildItem && (
-          <div className="flex w-5 flex-shrink-0 items-center justify-center">
-            <CornerDownRight className="text-text-2" size={10} />
+          <div className="flex w-5 shrink-0 items-center justify-center">
+            <HugeiconsIcon
+              icon={CornerDownRightIcon}
+              data-icon="corner-down-right"
+              className="text-text-2"
+              size={10}
+            />
           </div>
         )}
 
         {item.icon && (
-          <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center">
             {isCurrentSelection ? (
-              <Check
+              <HugeiconsIcon
+                icon={Tick01Icon}
+                data-icon="check"
                 size={SPOTLIGHT_TOKENS.iconSize}
                 className="text-primary-6"
                 strokeWidth={2.5}
               />
-            ) : typeof item.icon === "string" ? (
-              <i
-                className={`${item.icon} text-[${SPOTLIGHT_TOKENS.iconSize}px] ${itemIconClassName}`}
-              />
             ) : (
-              React.createElement(item.icon, {
-                size: SPOTLIGHT_TOKENS.iconSize,
-                className: itemIconClassName,
-                strokeWidth: 2,
-              })
+              <AnyIcon
+                icon={item.icon}
+                size={SPOTLIGHT_TOKENS.iconSize}
+                className={itemIconClassName}
+                strokeWidth={2}
+              />
             )}
           </div>
         )}
@@ -474,54 +482,7 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
           )}
         </div>
 
-        <div className="flex flex-shrink-0 items-center gap-2">
-          {item.type === "repo" &&
-            data.gitStatus &&
-            (data.gitStatus.uncommittedFiles > 0 ||
-              data.gitStatus.behind > 0 ||
-              data.gitStatus.ahead > 0) && (
-              <div
-                className={`spotlight-git-badges ${GIT_BADGE_GROUP_CLASSES}`}
-              >
-                {data.gitStatus.uncommittedFiles > 0 && (
-                  <span
-                    className={GIT_BADGE_CLASSES}
-                    title={`${data.gitStatus.uncommittedFiles} file${data.gitStatus.uncommittedFiles !== 1 ? "s" : ""} uncommitted`}
-                  >
-                    {data.gitStatus.uncommittedFiles}
-                    <Diff size={12} />
-                  </span>
-                )}
-
-                {(data.gitStatus.behind > 0 || data.gitStatus.ahead > 0) && (
-                  <span
-                    className={`${GIT_BADGE_CLASSES} !gap-2`}
-                    title={(() => {
-                      const parts: string[] = [];
-                      if (data.gitStatus.behind > 0) {
-                        parts.push(
-                          `${data.gitStatus.behind} commit${data.gitStatus.behind !== 1 ? "s" : ""} behind`
-                        );
-                      }
-                      if (data.gitStatus.ahead > 0) {
-                        parts.push(
-                          `${data.gitStatus.ahead} commit${data.gitStatus.ahead !== 1 ? "s" : ""} ahead`
-                        );
-                      }
-                      return parts.join(", ");
-                    })()}
-                  >
-                    {data.gitStatus.behind > 0 && (
-                      <span>{data.gitStatus.behind} ↓</span>
-                    )}
-                    {data.gitStatus.ahead > 0 && (
-                      <span>{data.gitStatus.ahead} ↑</span>
-                    )}
-                  </span>
-                )}
-              </div>
-            )}
-
+        <div className="flex shrink-0 items-center gap-2">
           {data.rightContent
             ? data.rightContent
             : data.rightLabel &&
@@ -548,7 +509,9 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
                   isDisabled ? "bg-fill-2 text-text-3" : "text-slate-600"
                 }`}
               >
-                {isDisabled && <Lock size={10} />}
+                {isDisabled && (
+                  <HugeiconsIcon icon={LockIcon} data-icon="lock" size={10} />
+                )}
                 {data.tagLabel}
               </span>
             )
@@ -561,7 +524,8 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
 
           {hasDisclosureChevron && (
             <span className="spotlight-disclosure-chevron pointer-events-none inline-flex h-5 shrink-0 items-center justify-center overflow-hidden text-primary-6">
-              <DisclosureIcon
+              <AnyIcon
+                icon={DisclosureIcon}
                 size={15}
                 strokeWidth={2.25}
                 className="shrink-0"

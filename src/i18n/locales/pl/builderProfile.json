@@ -9,7 +9,6 @@
   "evidenceHint": "Twoja mediana dla każdego sygnału wobec neutralnej wartości odniesienia.",
   "secondary": "Zmierzone, ale nie na tyle, by dostać literę",
   "secondaryNote": "— większość weryfikacji nie zostawia śladu, więc pewność jest niska.",
-  "fanout": "{{percent}}% Twoich sesji rozgałęzia się na podagentów.",
   "byTool": "Wg narzędzia",
   "byToolHint": "Punkty neutralne są wszędzie takie same, więc te wiersze są porównywalne. Litera prawdziwa tylko w jednym narzędziu budzi wątpliwości.",
   "sessionCount": "{{count}} sesji",
@@ -36,8 +35,8 @@
     "window": "Koniec okna",
     "code": "Typ"
   },
-  "fanoutLabel": "Rozgałęzienie na podagentów",
-  "fanoutHint": "Udział sesji rozgałęziających się na podagentów. Trzymany osobno od Skupiony/Rój: to drugi poziom równoległości i wskazuje w przeciwną stronę.",
+  "fanoutLabel": "Rozgałęzienie na subagents",
+  "fanoutHint": "Udział sesji rozgałęziających się na subagents. Trzymany osobno od Skupiony/Rój: to drugi poziom równoległości i wskazuje w przeciwną stronę.",
   "highlights": "Najciekawsze",
   "caveat": "słabo utrzymane: {{reason}}",
   "clarity": {
@@ -191,7 +190,7 @@
       "detail": "Zmiany w instrukcjach samego agenta — CLAUDE.md, rules, skills"
     },
     "fanout": {
-      "question": "Rozgałęziasz się na podagentów?",
+      "question": "Rozgałęziasz się na subagents?",
       "headline": "{{percent}}% sesji",
       "detail": "Tam, gdzie jeden agent uruchamiał kolejne do pracy równoległej"
     },

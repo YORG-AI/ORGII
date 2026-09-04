@@ -9,7 +9,6 @@ import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 export interface ChatViewProps {
   /** Session ID to display. Sync bridges and events load for this session. */
   sessionId: string;
-  onRegisterSearchOpen?: (handler: (() => void) | null) => void;
   displayMode?: ChatHistoryDisplayMode;
   turnPaginationEnabled?: boolean;
   /** Dock side for the containing chat panel, used to place side previews inward. */

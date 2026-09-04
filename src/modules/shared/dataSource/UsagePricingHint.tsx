@@ -1,4 +1,3 @@
-import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +5,7 @@ import {
   type ModelPricing,
   usageDashboardModelPricing,
 } from "@src/api/tauri/usageDashboard";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 
 import { formatInt, formatUsd } from "./usageFormat";
 
@@ -33,7 +33,7 @@ function Line({
   return (
     <div className="flex items-baseline justify-between gap-4">
       <span className="text-text-2">{label}</span>
-      <span className="tabular-nums text-text-3">
+      <span className="text-text-3 tabular-nums">
         {formatInt(tokens)}
         <span className="ml-2 text-text-1">{formatUsd(cost, 4)}</span>
       </span>
@@ -85,7 +85,11 @@ export default function UsagePricingHint({
   if (!rates) {
     return (
       <span className="flex items-center gap-1.5 text-[11px] text-text-3">
-        <Loader2 className="h-3 w-3 animate-spin" />
+        <HugeiconsIcon
+          icon={Loading03Icon}
+          data-icon="loader-2"
+          className="h-3 w-3 animate-spin"
+        />
         {t("usage.pricing.loading")}
       </span>
     );
@@ -134,7 +138,7 @@ export default function UsagePricingHint({
         <span className="font-medium text-text-1">
           {t("usage.pricing.total")}
         </span>
-        <span className="font-medium tabular-nums text-text-1">
+        <span className="font-medium text-text-1 tabular-nums">
           {formatUsd(total, 4)}
         </span>
       </div>

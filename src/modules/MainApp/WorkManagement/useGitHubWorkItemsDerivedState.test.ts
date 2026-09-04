@@ -69,13 +69,11 @@ function derive(selectedRepo: string, selectedRepoPath: string | null) {
     selectedRepo,
     selectedRepoPath,
     currentPage: 1,
-    allReposValue: "all",
-    currentWorkstationValue: "currentWorkstation",
   });
 }
 
 describe("GitHub work-items derived state", () => {
-  it("loads only the selected repository unless all repositories are requested", () => {
+  it("loads exactly one selected repository and recovers stale selections", () => {
     const secondSource: GitHubRepoSource = {
       ...source,
       repoId: "repo-2",
@@ -89,8 +87,6 @@ describe("GitHub work-items derived state", () => {
         sources,
         selectedRepo: "currentWorkstation",
         selectedRepoPath: "/repo",
-        allReposValue: "all",
-        currentWorkstationValue: "currentWorkstation",
       })
     ).toEqual([source]);
     expect(
@@ -98,8 +94,6 @@ describe("GitHub work-items derived state", () => {
         sources,
         selectedRepo: "acme/repo-2",
         selectedRepoPath: "/repo",
-        allReposValue: "all",
-        currentWorkstationValue: "currentWorkstation",
       })
     ).toEqual([secondSource]);
     expect(
@@ -107,19 +101,15 @@ describe("GitHub work-items derived state", () => {
         sources,
         selectedRepo: "all",
         selectedRepoPath: "/repo",
-        allReposValue: "all",
-        currentWorkstationValue: "currentWorkstation",
       })
-    ).toEqual(sources);
+    ).toEqual([source]);
     expect(
       selectGitHubLoadSources({
         sources,
         selectedRepo: "missing/repo",
         selectedRepoPath: null,
-        allReposValue: "all",
-        currentWorkstationValue: "currentWorkstation",
       })
-    ).toEqual([]);
+    ).toEqual([source]);
   });
 
   it("resolves current workstation and invalid repo selections", () => {
@@ -127,11 +117,13 @@ describe("GitHub work-items derived state", () => {
       effectiveSelectedRepo: "acme/repo",
       selectedRepoSourceForCreate: source,
     });
-    expect(derive("missing/repo", null).effectiveSelectedRepo).toBe("all");
+    expect(derive("missing/repo", null).effectiveSelectedRepo).toBe(
+      "acme/repo"
+    );
   });
 
   it("projects sorted items, state counts, and remote pagination", () => {
-    const state = derive("all", "/repo");
+    const state = derive("acme/repo", "/repo");
     expect(state.allItems.map((item) => item.id)).toEqual([42, 7]);
     expect(state.issueStateCounts).toEqual({ open: 1, closed: 0 });
     expect(state.closedPrCount).toBe(1);
@@ -161,11 +153,9 @@ describe("GitHub work-items derived state", () => {
       },
       repoPrMap: {},
       parsedSearchQuery: parseGitHubSearchQuery("is:issue is:open"),
-      selectedRepo: "all",
+      selectedRepo: "acme/repo",
       selectedRepoPath: "/repo",
       currentPage: 2,
-      allReposValue: "all",
-      currentWorkstationValue: "currentWorkstation",
     };
 
     const defaultPage = deriveGitHubWorkItemsState(input);
@@ -213,11 +203,9 @@ describe("GitHub work-items derived state", () => {
         },
       },
       parsedSearchQuery: parseGitHubSearchQuery("is:pr is:open"),
-      selectedRepo: "all",
+      selectedRepo: "acme/repo",
       selectedRepoPath: "/repo",
       currentPage: 1,
-      allReposValue: "all",
-      currentWorkstationValue: "currentWorkstation",
     };
 
     const defaultState = deriveGitHubWorkItemsState(input);

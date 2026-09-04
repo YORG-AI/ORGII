@@ -1,6 +1,5 @@
 import { emit } from "@tauri-apps/api/event";
 import { useAtomValue, useSetAtom } from "jotai";
-import { ChevronsRight, Info, ListChecks, Trash2 } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -27,6 +26,13 @@ import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
+import {
+  ArrowRightDoubleIcon,
+  Delete02Icon,
+  HugeiconsIcon,
+  InformationCircleIcon,
+  ListChecksIcon,
+} from "@src/icons";
 import { WorkItemThreadSurface } from "@src/modules/ProjectManager/WorkItems/components";
 import { WorkItemDetailHeaderBreadcrumb } from "@src/modules/ProjectManager/WorkItems/components/WorkItemDetail/WorkItemDetailHeader";
 import WorkItemProperties from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties";
@@ -37,8 +43,18 @@ import {
   PropertiesRailFrame,
 } from "@src/modules/ProjectManager/shared";
 import { ExternalBrowserButton } from "@src/modules/WorkStation/shared/ExternalBrowserButton";
+import LazyGitHubLinkedReferences from "@src/modules/shared/components/GitHubLinkedReferences/lazy";
+import {
+  extractGitHubReferences,
+  getWorkItemReferenceText,
+  parseGitHubRepoFromItemUrl,
+} from "@src/modules/shared/components/GitHubLinkedReferences/references";
+import ThreadDetailTabs, {
+  type ThreadDetailTab,
+} from "@src/modules/shared/components/ThreadDetailTabs";
 import {
   DetailHeaderTabs,
+  PersistentDetailTabPanel,
   WorkstationTrailIconButton,
   WorkstationTrailSurface,
 } from "@src/modules/shared/layouts/blocks";
@@ -91,6 +107,13 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     adapterId: string | null;
   } | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(true);
+  const [tabSelection, setTabSelection] = useState<{
+    workItemId: string;
+    activeTab: ThreadDetailTab;
+  }>({
+    workItemId: selectedWorkItem.workItem.session_id,
+    activeTab: "conversation",
+  });
   const [navigationTrailHost, setNavigationTrailHost] =
     useState<HTMLDivElement | null>(null);
   const workItemMembers = useMemo(
@@ -363,6 +386,50 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     stateScopeKey: `chat-panel-work-item:${selectedWorkItem.orgId ?? "local"}:${selectedWorkItem.projectSlug}:${selectedWorkItem.shortId}`,
   });
   const githubIssueExternalUrl = githubIssueState.externalUrl;
+  const activeDetailTab =
+    tabSelection.workItemId === selectedWorkItem.workItem.session_id
+      ? tabSelection.activeTab
+      : "conversation";
+  const defaultRepoFullName = useMemo(
+    () =>
+      githubIssueExternalUrl
+        ? parseGitHubRepoFromItemUrl(githubIssueExternalUrl)
+        : null,
+    [githubIssueExternalUrl]
+  );
+  const githubTimelineText = useMemo(
+    () => githubIssueState.timeline?.items.map((item) => item.body) ?? [],
+    [githubIssueState.timeline?.items]
+  );
+  const workItemReferenceText = useMemo(
+    () =>
+      getWorkItemReferenceText(
+        {
+          spec: selectedWorkItem.workItem.spec,
+          comments: selectedWorkItem.workItem.comments,
+        },
+        githubTimelineText
+      ),
+    [
+      githubTimelineText,
+      selectedWorkItem.workItem.comments,
+      selectedWorkItem.workItem.spec,
+    ]
+  );
+  const linkedReferences = useMemo(
+    () =>
+      extractGitHubReferences(workItemReferenceText, { defaultRepoFullName }),
+    [defaultRepoFullName, workItemReferenceText]
+  );
+  const handleDetailTabChange = useCallback(
+    (nextTab: ThreadDetailTab) => {
+      setTabSelection({
+        workItemId: selectedWorkItem.workItem.session_id,
+        activeTab: nextTab,
+      });
+    },
+    [selectedWorkItem.workItem.session_id]
+  );
   const projectSelectionReadonly =
     Boolean(selectedWorkItem.projectSlug) &&
     (projectSyncAdapterId === undefined || isGitHubSyncedProject);
@@ -420,7 +487,13 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
               onClick={() => void handleDeleteWorkItem()}
               aria-label={t("projects:workItems.deleteWorkItem")}
               data-testid="work-item-delete"
-              icon={<Trash2 size={HEADER_ICON_SIZE.sm} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Delete02Icon}
+                  data-icon="trash-2"
+                  size={HEADER_ICON_SIZE.sm}
+                />
+              }
             />
           </ToolbarTooltip>
         ) : null}
@@ -437,12 +510,18 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             size="small"
             iconOnly
             className={
-              propertiesOpen ? "!bg-surface-selected !text-primary-6" : ""
+              propertiesOpen ? "bg-surface-selected! text-primary-6!" : ""
             }
             onClick={toggleProperties}
             aria-label={propertiesToggleLabel}
             data-testid="chat-panel-work-item-properties-toggle"
-            icon={<Info size={HEADER_ICON_SIZE.sm} />}
+            icon={
+              <HugeiconsIcon
+                icon={InformationCircleIcon}
+                data-icon="info"
+                size={HEADER_ICON_SIZE.sm}
+              />
+            }
           />
         </ToolbarTooltip>
       </div>
@@ -472,7 +551,12 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
               size={HEADER_ICON_SIZE.sm}
             />
           ) : (
-            <ListChecks size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={ListChecksIcon}
+              data-icon="list-checks"
+              size={HEADER_ICON_SIZE.sm}
+              strokeWidth={1.75}
+            />
           )
         }
         shortId={selectedWorkItem.shortId}
@@ -500,8 +584,32 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     ]
   );
   const workItemHeaderContent = useMemo(
-    () => <DetailHeaderTabs title={workItemHeaderBreadcrumb} />,
-    [workItemHeaderBreadcrumb]
+    () => (
+      <DetailHeaderTabs
+        title={workItemHeaderBreadcrumb}
+        tabs={
+          <ThreadDetailTabs
+            activeTab={activeDetailTab}
+            conversationCount={selectedWorkItem.workItem.comments?.length ?? 0}
+            linkedCount={linkedReferences.length}
+            onChange={handleDetailTabChange}
+            variant="header"
+            idPrefix="chat-panel-work-item-detail"
+            ariaLabel={t("projects:workItems.detailNavigation", {
+              defaultValue: "Work Item navigation",
+            })}
+          />
+        }
+      />
+    ),
+    [
+      activeDetailTab,
+      handleDetailTabChange,
+      linkedReferences.length,
+      selectedWorkItem.workItem.comments?.length,
+      t,
+      workItemHeaderBreadcrumb,
+    ]
   );
 
   // Memoize the published-header payload. A fresh `{ content, trailing }`
@@ -529,7 +637,12 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
                 aria-label={propertiesToggleLabel}
                 data-testid="chat-panel-work-item-properties-collapse"
               >
-                <ChevronsRight size={14} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={ArrowRightDoubleIcon}
+                  data-icon="chevrons-right"
+                  size={14}
+                  strokeWidth={1.75}
+                />
               </WorkstationTrailIconButton>
             </ToolbarTooltip>
           }
@@ -573,23 +686,45 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
       >
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <div className="min-w-0 flex-1 overflow-hidden">
-            <WorkItemThreadSurface
-              key={workItemContentKey}
-              workItem={selectedWorkItem.workItem}
-              onUpdateWorkItem={handleUpdateWorkItem}
-              onUpdateWorkItemImmediate={handleUpdateWorkItem}
-              currentUser={currentUser ?? undefined}
-              teamMembers={workItemMembers}
-              repoPath={repoPath}
-              projectSlug={selectedWorkItem.projectSlug || undefined}
-              shortId={selectedWorkItem.shortId}
-              orgId={selectedWorkItem.orgId}
-              githubIssueTimeline={githubIssueState.timeline}
-              githubIssueInteraction={githubIssueState.interaction}
-              onOpenSession={handleOpenSession}
-              onOpenSubItem={handleOpenFamilyItem}
-              onRefreshWorkflow={refreshSelectedWorkItem}
-            />
+            <div className="flex h-full min-h-0 flex-col overflow-hidden">
+              <PersistentDetailTabPanel
+                active={activeDetailTab === "conversation"}
+                id="chat-panel-work-item-detail-tabpanel-conversation"
+                ariaLabelledBy="chat-panel-work-item-detail-tab-conversation"
+                className="min-h-0 min-w-0 overflow-hidden"
+              >
+                <WorkItemThreadSurface
+                  key={workItemContentKey}
+                  workItem={selectedWorkItem.workItem}
+                  onUpdateWorkItem={handleUpdateWorkItem}
+                  onUpdateWorkItemImmediate={handleUpdateWorkItem}
+                  currentUser={currentUser ?? undefined}
+                  teamMembers={workItemMembers}
+                  repoPath={repoPath}
+                  projectSlug={selectedWorkItem.projectSlug || undefined}
+                  shortId={selectedWorkItem.shortId}
+                  orgId={selectedWorkItem.orgId}
+                  githubIssueTimeline={githubIssueState.timeline}
+                  githubIssueInteraction={githubIssueState.interaction}
+                  onOpenSession={handleOpenSession}
+                  onOpenSubItem={handleOpenFamilyItem}
+                  onRefreshWorkflow={refreshSelectedWorkItem}
+                />
+              </PersistentDetailTabPanel>
+              <PersistentDetailTabPanel
+                active={activeDetailTab === "linked"}
+                id="chat-panel-work-item-detail-tabpanel-linked"
+                ariaLabelledBy="chat-panel-work-item-detail-tab-linked"
+                className="min-h-0 min-w-0 flex-col overflow-hidden"
+              >
+                <LazyGitHubLinkedReferences
+                  references={linkedReferences}
+                  repoPath={repoPath}
+                  defaultRepoFullName={defaultRepoFullName}
+                  enabled={activeDetailTab === "linked"}
+                />
+              </PersistentDetailTabPanel>
+            </div>
           </div>
           {propertiesOpen ? propertiesPanel : null}
         </div>

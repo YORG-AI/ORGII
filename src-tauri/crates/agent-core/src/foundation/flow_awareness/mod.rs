@@ -65,15 +65,6 @@ pub fn format_flow_context(session_id: Option<&str>, max_activities: usize) -> S
     store.format_context(session_id, max_activities)
 }
 
-/// Record a user activity via the global flow store.
-///
-/// Test-only helper: production code goes through the
-/// `flow_record_activity` Tauri command in `commands.rs`.
-#[cfg(test)]
-pub(crate) fn record_activity(activity: types::Activity) {
-    FlowStore::global().record(activity);
-}
-
 #[cfg(test)]
 #[path = "tests/flow_awareness_tests.rs"]
 mod flow_awareness_tests;

@@ -12,6 +12,7 @@ export {
   closeChatPanelTabAtom,
   closeOrganizationChatPanelTabAtom,
   closeOtherChatPanelTabsAtom,
+  closeOtherThanActiveChatPanelTabsAtom,
   closeProjectOrgChatPanelTabsAtom,
   closeRevokedCloudChannelChatPanelTabsAtom,
   closeWorkItemChatPanelTabAtom,
@@ -74,7 +75,6 @@ export {
   toggleActiveChatPanelMaximizedAtom,
 } from "./chatPanelTabPresentationAtoms";
 export {
-  CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX,
   isChatPanelTabStationAvailable,
   normalizePersistedChatPanelTabsState,
   resolveChatPanelMaximizedForLayout,
@@ -92,5 +92,12 @@ export {
 } from "./chatPanelTabsState";
 export {
   canMoveChatPanelTabToWorkstation,
+  canMoveWorkstationPrTabToChatPanel,
   moveChatPanelTabToWorkstationAtom,
+  moveWorkstationPrTabToChatPanelAtom,
 } from "./chatPanelTabPlacementAtom";
+export {
+  recentlyClosedChatPanelTabsAtom,
+  recordRecentlyClosedChatPanelTabsAtom,
+  restoreRecentlyClosedChatPanelTabAtom,
+} from "./chatPanelRecentlyClosedTabs";

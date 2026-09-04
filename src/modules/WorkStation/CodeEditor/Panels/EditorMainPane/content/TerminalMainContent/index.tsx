@@ -6,18 +6,23 @@ import {
   getTerminalDisplayTitle,
 } from "@/src/engines/TerminalCore/types";
 import { useAtomValue, useSetAtom } from "jotai";
-import { Trash2 } from "lucide-react";
 import React, { Suspense, memo, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { Placeholder } from "@src/components/Placeholder";
+import { ProcessStopButton } from "@src/components/ProcessStopButton";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
+import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 import {
   FileHeader,
   TerminalInfoButton,
   TerminalNewSessionSplitButton,
 } from "@src/modules/WorkStation/shared";
+import {
+  miniTerminalSuppressedIdsAtom,
+  releaseMiniTerminalSessionAtom,
+} from "@src/store/ui/miniTerminalAtom";
 import {
   clearTerminalTargetReferencesAtom,
   codeEditorTerminalTargetAtom,
@@ -48,6 +53,25 @@ const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
   const setTerminalTarget = useSetAtom(codeEditorTerminalTargetAtom);
   const clearTerminalTargetReferences = useSetAtom(
     clearTerminalTargetReferencesAtom
+  );
+  // Sessions the trail's docked terminal currently mounts. One PTY can only
+  // have one xterm, so this pane skips their mount and offers to take them
+  // back instead.
+  const suppressedSessionIds = useAtomValue(miniTerminalSuppressedIdsAtom);
+  const releaseMiniTerminalSession = useSetAtom(releaseMiniTerminalSessionAtom);
+  const renderSuppressedSession = useCallback(
+    (sessionId: string) => (
+      <Placeholder
+        variant="empty"
+        fillParentHeight
+        title={t("common:git.rail.sessionInMiniTerminal")}
+        action={{
+          label: t("common:git.rail.returnFromMiniTerminal"),
+          onClick: () => releaseMiniTerminalSession(sessionId),
+        }}
+      />
+    ),
+    [releaseMiniTerminalSession, t]
   );
 
   const activePtySession = terminalState.activeSession;
@@ -146,15 +170,25 @@ const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
           </>
         )}
         <span className="flex items-center gap-px">
-          <Button
-            htmlType="button"
-            variant="tertiary"
-            size="small"
-            iconOnly
-            title={t("tooltips.killTerminal")}
-            onClick={handleKillTerminal}
-            icon={<Trash2 size={14} />}
-          />
+          {isAgentTerminal ? (
+            <Button
+              htmlType="button"
+              variant="tertiary"
+              size="small"
+              iconOnly
+              title={t("common:actions.close")}
+              aria-label={t("common:actions.close")}
+              onClick={handleKillTerminal}
+              icon={
+                <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={14} />
+              }
+            />
+          ) : (
+            <ProcessStopButton
+              label={t("common:tooltips.killTerminal")}
+              onClick={handleKillTerminal}
+            />
+          )}
           {!isAgentTerminal && (
             <TerminalInfoButton
               title={t("common:terminology.myTerminalInfo")}
@@ -187,6 +221,8 @@ const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
         backgroundColor="var(--cm-editor-background)"
         onOpenFileLink={handleOpenFileLink}
         renderReadOnlySession={renderReadOnlySession}
+        suppressedSessionIds={suppressedSessionIds}
+        renderSuppressedSession={renderSuppressedSession}
       />
     );
 

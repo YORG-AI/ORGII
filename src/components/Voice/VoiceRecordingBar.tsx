@@ -11,11 +11,11 @@
  * heights with a staggered CSS animation, which is exactly what the reference
  * UI does and avoids the cost of an AudioContext just for cosmetics.
  */
-import { Check, Plus, X } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
+import { Add01Icon, Cancel01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
 
 import "./VoiceRecordingBar.scss";
 
@@ -92,7 +92,12 @@ const VoiceRecordingBar: React.FC<VoiceRecordingBarProps> = memo(
           aria-label={t("common:actions.add")}
           tabIndex={onAddContent ? 0 : -1}
         >
-          <Plus size={INPUT_AREA_BUTTONS.iconSize} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={Add01Icon}
+            data-icon="plus"
+            size={INPUT_AREA_BUTTONS.iconSize}
+            strokeWidth={1.75}
+          />
         </button>
 
         <div className="composer-voice-waveform">
@@ -103,7 +108,7 @@ const VoiceRecordingBar: React.FC<VoiceRecordingBarProps> = memo(
         </div>
 
         <span
-          className="font-variant-numeric-tabular min-w-[2.5rem] shrink-0 text-right text-[12px] text-text-2"
+          className="font-variant-numeric-tabular min-w-10 shrink-0 text-right text-[12px] text-text-2"
           data-testid="composer-voice-elapsed"
         >
           {formatElapsed(elapsedSeconds)}
@@ -117,7 +122,12 @@ const VoiceRecordingBar: React.FC<VoiceRecordingBarProps> = memo(
           data-testid="composer-voice-cancel"
           aria-label={t("common:tooltips.cancelRecording")}
         >
-          <X size={INPUT_AREA_BUTTONS.iconSize} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={Cancel01Icon}
+            data-icon="x"
+            size={INPUT_AREA_BUTTONS.iconSize}
+            strokeWidth={1.75}
+          />
         </button>
 
         <button
@@ -128,7 +138,12 @@ const VoiceRecordingBar: React.FC<VoiceRecordingBarProps> = memo(
           data-testid="composer-voice-accept"
           aria-label={t("common:tooltips.stopAndTranscribe")}
         >
-          <Check size={INPUT_AREA_BUTTONS.iconSize} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={Tick01Icon}
+            data-icon="check"
+            size={INPUT_AREA_BUTTONS.iconSize}
+            strokeWidth={1.75}
+          />
         </button>
       </div>
     );

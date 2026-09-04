@@ -16,7 +16,7 @@ import { getFileName } from "@src/util/file/pathUtils";
 // Types
 // ============================================
 
-export interface PdfPreviewProps {
+interface PdfPreviewProps {
   filePath: string;
   className?: string;
 }

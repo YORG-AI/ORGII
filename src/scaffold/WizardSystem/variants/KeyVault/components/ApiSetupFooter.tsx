@@ -2,12 +2,12 @@
  * ApiSetupFooter — Step navigation bar + credential selection modal.
  * Extracted from ApiSetup.tsx.
  */
-import { Check } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DetectedKey, ModelType } from "@src/api/types/keys";
 import Button from "@src/components/Button";
+import { HugeiconsIcon, Tick01Icon } from "@src/icons";
 import {
   DETAIL_PANEL_TOKENS,
   PANEL_FOOTER_TOKENS,
@@ -72,7 +72,12 @@ const ApiSetupFooter: React.FC<ApiSetupFooterProps> = ({
           <div className="flex items-center gap-3">
             {showSessionTokenIndicator && (
               <div className="flex items-center gap-1.5">
-                <Check size={14} className="text-success-6" />
+                <HugeiconsIcon
+                  icon={Tick01Icon}
+                  data-icon="check"
+                  size={14}
+                  className="text-success-6"
+                />
                 <span className="text-[12px] text-success-6">
                   {t("keyVault.sessionTokenCaptured")}
                 </span>

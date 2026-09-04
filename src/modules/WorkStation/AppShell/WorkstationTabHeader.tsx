@@ -1,9 +1,9 @@
 /**
  * WorkstationTabHeader
  *
- * Shared 40px global tab-header strip rendered immediately below the
+ * Shared 36px global tab-header strip rendered immediately below the
  * {@link WorkstationTabBar} and spanning the full width of the My Station
- * shell. Replaces the per-tab 40px headers (file breadcrumb, URL bar,
+ * shell. Replaces the per-tab headers (file breadcrumb, URL bar,
  * commit-info bar, etc.) that each pane used to render inline above its
  * own content.
  *
@@ -14,9 +14,10 @@
  * {@link activeWorkstationTabHeaderAtom}. Apps can declaratively publish typed
  * slots; older pane-level publishers are normalized into the content slot.
  *
- * When the active app has nothing to publish (e.g. a tab with no header),
- * the strip still renders so the row height is stable across tab switches
- * and so the sidebar toggle stays in a fixed position.
+ * When a regular app has nothing to publish, the strip still renders so the
+ * row height is stable across tab switches. The Launchpad omits the unused
+ * strip entirely. A split surface can explicitly move this chrome into its
+ * left column and hide the shell-wide strip.
  */
 import { useAtomValue } from "jotai";
 import React, { memo } from "react";
@@ -48,20 +49,15 @@ const WorkstationTabHeader: React.FC = memo(() => {
     ? "pl-0"
     : "pl-2";
 
-  // Launchpad: keep the strip for stable row height but render it empty —
-  // no sidebar toggle, no search/lab actions, nothing to publish.
-  if (activeTab?.type === "start") {
-    return (
-      <div
-        className="flex h-10 shrink-0 items-center border-b border-border-2"
-        data-tauri-drag-region={windowsHost ? undefined : true}
-      />
-    );
-  }
+  if (headerSlots?.hidden) return null;
+
+  // The Launchpad has no header controls, so it should not reserve an empty
+  // 36px row below the tab bar.
+  if (activeTab?.type === "start") return null;
 
   return (
     <div
-      className={`flex h-10 shrink-0 items-center gap-2 pr-2 ${
+      className={`flex h-9 shrink-0 items-center gap-2 pr-2 ${
         shellLeadingChromeHidden ? "pl-0" : "pl-1.5"
       } ${headerSlots?.joinWithFollowingRow ? "" : "border-b border-border-2"}`}
       data-tauri-drag-region={windowsHost ? undefined : true}

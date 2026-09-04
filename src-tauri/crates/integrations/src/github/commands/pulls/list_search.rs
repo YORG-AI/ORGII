@@ -290,24 +290,40 @@ fn validate_pull_request_state(state: String) -> Result<String, String> {
     }
 }
 
+fn pull_request_list_path(
+    repo: &str,
+    state: &str,
+    per_page: Option<u64>,
+    page: Option<u64>,
+) -> String {
+    let limit = per_page.unwrap_or(30).clamp(1, 100);
+    let page = page.unwrap_or(1).max(1);
+    format!("/repos/{repo}/pulls?state={state}&sort=updated&direction=desc&per_page={limit}&page={page}")
+}
+
 #[command]
 pub async fn github_list_prs(
     repo_full_name: String,
     state: String,
     per_page: Option<u64>,
+    page: Option<u64>,
+    include_metadata: Option<bool>,
 ) -> Result<Vec<OpenPRItem>, String> {
     let state = validate_pull_request_state(state)?;
-    let limit = per_page.unwrap_or(30).min(100);
-    log::info!("[GitHub][Cmd] list_prs repo={repo_full_name} state={state} per_page={limit}");
     let client = make_client()?;
-    let data = client
-        .get_conditional(&format!(
-            "/repos/{repo_full_name}/pulls?state={state}&sort=updated&direction=desc&per_page={limit}"
-        ))
-        .await?;
-    let source_items = data.as_array().cloned().unwrap_or_default();
+    let path = pull_request_list_path(&repo_full_name, &state, per_page, page);
+    let data = if page.is_none() && include_metadata.unwrap_or(true) {
+        client.get_conditional(&path).await?
+    } else {
+        // Paginated pickers must not retain full PR bodies in the ETag cache,
+        // even when they request the batched CI rollup below.
+        client.get(&path).await?
+    };
+    let source_items = data.as_array().map(Vec::as_slice).unwrap_or_default();
     let mut items: Vec<OpenPRItem> = source_items.iter().map(parse_open_pr_item).collect();
-    enrich_pull_request_list_metadata(&client, &repo_full_name, &source_items, &mut items).await;
+    if include_metadata.unwrap_or(true) {
+        enrich_pull_request_list_metadata(&client, &repo_full_name, source_items, &mut items).await;
+    }
     log::info!(
         "[GitHub][Cmd] list_prs state={state} found {} PRs",
         items.len()

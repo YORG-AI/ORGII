@@ -17,6 +17,10 @@ import type {
   AgentDefinition,
   AvailableCliAgent,
 } from "@src/modules/MainApp/AgentOrgs/types";
+import {
+  BUILTIN_SDE_DEF_ID,
+  SDE_AGENT_ICON_ID,
+} from "@src/util/session/sessionDispatch";
 
 export interface RunnerAgentDisplay {
   label: string;
@@ -60,7 +64,11 @@ export function resolveRunnerAgentDisplay(
   );
   return {
     label: definition?.name ?? runner.agentDefinitionId ?? unselectedLabel,
-    iconId: definition?.iconId ?? DEFAULT_RUST_AGENT_ICON_ID,
+    iconId:
+      definition?.iconId ??
+      (runner.agentDefinitionId === BUILTIN_SDE_DEF_ID
+        ? SDE_AGENT_ICON_ID
+        : DEFAULT_RUST_AGENT_ICON_ID),
     cliAgentType: null,
     selected: true,
   };

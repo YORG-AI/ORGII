@@ -142,7 +142,6 @@ function createRefs(editor: ComposerInputRef): InputAreaRefs {
     containerRef: { current: null },
     contextMenuKeyboardHandlerRef: { current: null },
     slashCommandKeyboardHandlerRef: { current: null },
-    plusSlashCommandKeyboardHandlerRef: { current: null },
     hasContentRef: { current: true },
     setHasContent: vi.fn(),
   };
@@ -181,6 +180,7 @@ describe("useSubmitMessage composer boundary", () => {
     mocks.parseCompactSlashCommand.mockReturnValue(null);
     mocks.projectOutgoingUserMessage.mockImplementation(
       ({ displayText }: { displayText: string }) => ({
+        displayContent: displayText,
         agentContent: `agent:${displayText}`,
       })
     );
@@ -230,6 +230,50 @@ describe("useSubmitMessage composer boundary", () => {
       ...overrides,
     };
   }
+
+  it.each(["live", "captured", "override"])(
+    "sends the normalized display copy through the %s path",
+    async (path) => {
+      const { projectOutgoingUserMessage } = await vi.importActual<
+        typeof import("../projectOutgoingUserMessage")
+      >("../projectOutgoingUserMessage");
+      mocks.projectOutgoingUserMessage.mockImplementationOnce(
+        projectOutgoingUserMessage
+      );
+      const draft = "\n \t\n    first line\n\n  next line\n";
+      const expected = "    first line\n\n  next line\n";
+      const editorHarness = createEditor(path === "captured" ? "" : draft);
+      const handleSessChatSubmit = vi.fn().mockResolvedValue(undefined);
+      const onSubmitOverride = vi.fn().mockResolvedValue(true);
+      await mount(
+        optionsFor(editorHarness, {
+          handleSessChatSubmit,
+          ...(path === "override" && { onSubmitOverride }),
+        })
+      );
+
+      await act(async () => {
+        await latestSubmit!(path === "captured" ? { capturedText: draft } : {});
+      });
+
+      if (path === "override") {
+        expect(onSubmitOverride).toHaveBeenCalledWith({
+          displayText: expected,
+          agentContent: undefined,
+          imageDataUrls: undefined,
+        });
+        expect(handleSessChatSubmit).not.toHaveBeenCalled();
+      } else {
+        expect(handleSessChatSubmit).toHaveBeenCalledWith(
+          undefined,
+          expected,
+          undefined,
+          undefined
+        );
+      }
+      expect(editorHarness.readText()).toBe("");
+    }
+  );
 
   it("delegates one in-flight send to workspace chat and clears durable composer state", async () => {
     const editorHarness = createEditor("ship the fix");

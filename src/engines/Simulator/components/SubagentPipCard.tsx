@@ -12,14 +12,6 @@
  * Clicking the expand button (↗) on the banner header restores the full
  * BackgroundTasksApp panel.
  */
-import {
-  ArrowLeft,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Maximize2,
-  Minimize2,
-} from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -31,6 +23,15 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { EVENT_LOADING_SHIMMER_TEXT_CLASSES } from "@src/engines/ChatPanel/blocks/primitives";
+import {
+  ArrowDown01Icon,
+  ArrowExpand01Icon,
+  ArrowLeft01Icon,
+  ArrowLeft02Icon,
+  ArrowRight01Icon,
+  ArrowShrink01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 import BreadcrumbFileHeader from "@src/modules/shared/components/FileHeader/BreadcrumbFileHeader";
 import { HorizontalResizeHandle } from "@src/scaffold/Resize";
 
@@ -433,7 +434,7 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
         <>
           <div
             ref={topPaneRef}
-            className={`min-h-0 overflow-hidden ${topHeight !== null ? "flex-shrink-0" : "flex-1"}`}
+            className={`min-h-0 overflow-hidden ${topHeight !== null ? "shrink-0" : "flex-1"}`}
             style={topHeight !== null ? { height: topHeight } : undefined}
           >
             {mainContent}
@@ -451,12 +452,12 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
           isAnyExpanded
             ? "flex-1"
             : isBannerCollapsed
-              ? "flex-shrink-0 border-t border-border-2"
+              ? "shrink-0 border-t border-border-2"
               : "min-h-0 flex-1"
         }`}
       >
         {/* Banner header — task count + collapse toggle */}
-        <div className="flex h-10 shrink-0 items-center gap-2 pl-1.5 pr-2">
+        <div className="flex h-10 shrink-0 items-center gap-2 pr-2 pl-1.5">
           <Button
             htmlType="button"
             variant="tertiary"
@@ -470,9 +471,16 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
             }
             icon={
               isAnyExpanded ? (
-                <ArrowLeft size={14} strokeWidth={2} />
+                <HugeiconsIcon
+                  icon={ArrowLeft02Icon}
+                  data-icon="arrow-left"
+                  size={14}
+                  strokeWidth={2}
+                />
               ) : (
-                <ChevronDown
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
                   size={14}
                   strokeWidth={2}
                   className="transition-transform duration-300 ease-in-out"
@@ -492,7 +500,7 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
             })}
             disableNavigation
             plainTitle
-            className="!flex-none"
+            className="flex-none!"
             lastSegmentClassName={
               runningCount > 0
                 ? `font-bold ${EVENT_LOADING_SHIMMER_TEXT_CLASSES}`
@@ -510,7 +518,14 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
                   disabled={safePageIndex <= 0}
                   onClick={handlePreviousPage}
                   title={t("common:actions.previous")}
-                  icon={<ChevronLeft size={16} strokeWidth={1.75} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={ArrowLeft01Icon}
+                      data-icon="chevron-left"
+                      size={16}
+                      strokeWidth={1.75}
+                    />
+                  }
                 />
                 <Button
                   htmlType="button"
@@ -520,7 +535,14 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
                   disabled={safePageIndex >= pageCount - 1}
                   onClick={handleNextPage}
                   title={t("common:actions.next")}
-                  icon={<ChevronRight size={16} strokeWidth={1.75} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={ArrowRight01Icon}
+                      data-icon="chevron-right"
+                      size={16}
+                      strokeWidth={1.75}
+                    />
+                  }
                 />
               </>
             )}
@@ -537,9 +559,19 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
               }
               icon={
                 gridExpanded ? (
-                  <Minimize2 size={14} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={ArrowShrink01Icon}
+                    data-icon="minimize-2"
+                    size={14}
+                    strokeWidth={1.75}
+                  />
                 ) : (
-                  <Maximize2 size={14} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={ArrowExpand01Icon}
+                    data-icon="maximize-2"
+                    size={14}
+                    strokeWidth={1.75}
+                  />
                 )
               }
             />

@@ -1,6 +1,7 @@
 import type React from "react";
 import { describe, expect, it } from "vitest";
 
+import { KanbanIcon } from "@src/icons";
 import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 
 import {
@@ -11,6 +12,7 @@ import {
 } from "../sidebarConnectorUtils";
 import {
   buildChannelsPinnedMenuItems,
+  buildDraftMenuItems,
   buildPinnedMenuItems,
   buildProjectsPinnedMenuItems,
 } from "../workstationSidebarMenuItems";
@@ -41,6 +43,10 @@ describe("buildPinnedMenuItems", () => {
       dataTestId: "sidebar-runtime",
       tourTarget: GENERAL_LAYOUT_TOUR_TARGETS.runtimeNavigation,
     });
+    expect(items[1]).toMatchObject({
+      icon: KanbanIcon,
+      iconName: "kanban",
+    });
     expect(items[0]?.openContextMenuOnSelectedClick).toBeUndefined();
   });
 
@@ -56,7 +62,7 @@ describe("buildPinnedMenuItems", () => {
       teamInboxUnreadAriaLabel: "3 no leídos",
     });
 
-    const badge = items[3]?.trailingElement as React.ReactElement<{
+    const badge = items[3]?.labelBadge as React.ReactElement<{
       "aria-label"?: string;
     }>;
     expect(badge?.props["aria-label"]).toBe("3 no leídos");
@@ -73,7 +79,7 @@ describe("buildPinnedMenuItems", () => {
       teamInboxUnreadCount: 5,
     });
 
-    const badge = items[3]?.trailingElement as React.ReactElement<{
+    const badge = items[3]?.labelBadge as React.ReactElement<{
       "aria-label"?: string;
     }>;
     expect(badge?.props["aria-label"]).toBe("5 unread");
@@ -116,5 +122,29 @@ describe("buildPinnedMenuItems", () => {
         dataTestId: "sidebar-team-inbox",
       }),
     ]);
+  });
+
+  it("marks draft rows as chat-panel tab destinations", () => {
+    const [separator, draft] = buildDraftMenuItems({
+      draftsLabel: "Drafts",
+      sessionCreatorDrafts: [
+        {
+          id: "draft-a",
+          sessionName: "",
+          editorContent: "Continue tab behavior",
+          uploadedFiles: [],
+          createdAt: "2026-09-02T00:00:00.000Z",
+          updatedAt: "2026-09-02T00:00:00.000Z",
+          savedAt: "2026-09-02T00:00:00.000Z",
+          sidebarVisible: true,
+        },
+      ],
+    });
+
+    expect(separator?.opensChatPanelTab).toBeUndefined();
+    expect(draft).toMatchObject({
+      opensChatPanelTab: true,
+      openContextMenuOnSelectedClick: true,
+    });
   });
 });

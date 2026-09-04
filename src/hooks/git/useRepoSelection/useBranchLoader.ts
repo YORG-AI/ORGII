@@ -37,10 +37,31 @@ export function useBranchLoader(): UseBranchLoaderReturn {
     : selectedRepoId;
 
   const [branchLoading, setBranchLoading] = useState(false);
+  // Both loaders can be in flight at once; keep the flag on until the last
+  // one settles so the UI never flashes an empty branch mid-load.
+  const branchLoadingCountRef = useRef(0);
+  const beginBranchLoading = useCallback(() => {
+    branchLoadingCountRef.current += 1;
+    setBranchLoading(true);
+  }, []);
+  const endBranchLoading = useCallback(() => {
+    branchLoadingCountRef.current = Math.max(
+      0,
+      branchLoadingCountRef.current - 1
+    );
+    if (branchLoadingCountRef.current === 0) setBranchLoading(false);
+  }, []);
 
-  const loadingBranchesRef = useRef(false);
+  // In-flight tracking is keyed by branch context (repo + worktree) and
+  // versioned by a sequence number. A request for a NEW context supersedes
+  // the in-flight one instead of being dropped — the stale response is
+  // discarded when it lands. A boolean "loading" bail here used to drop the
+  // new repo's fetch entirely, leaving the branch empty after fast switches.
+  const branchListSeqRef = useRef(0);
+  const branchListInFlightKeyRef = useRef<string | null>(null);
   const lastBranchRepoRef = useRef<string | null>(null);
-  const loadingFastBranchRef = useRef(false);
+  const fastBranchSeqRef = useRef(0);
+  const fastBranchInFlightKeyRef = useRef<string | null>(null);
   const lastFastBranchRepoRef = useRef<string | null>(null);
 
   // Ref to always call the latest loadBranchesImmediate
@@ -60,7 +81,7 @@ export function useBranchLoader(): UseBranchLoaderReturn {
   const loadCurrentBranchFast = useCallback(async () => {
     if (isCheckingOut) return;
     if (!selectedRepoId) return;
-    if (loadingFastBranchRef.current) return;
+    if (fastBranchInFlightKeyRef.current === branchContextKey) return;
     if (lastFastBranchRepoRef.current === branchContextKey) return;
 
     const repo = selectedRepo;
@@ -73,13 +94,19 @@ export function useBranchLoader(): UseBranchLoaderReturn {
       ? activeWorkspaceRootPath
       : repo?.path || repo?.fs_uri;
 
-    loadingFastBranchRef.current = true;
+    const requestSeq = ++fastBranchSeqRef.current;
+    fastBranchInFlightKeyRef.current = branchContextKey;
+    beginBranchLoading();
 
     try {
       const branchName = await gitApi.getGitCurrentBranchName({
         repo_id: selectedRepoId,
         ...(repoPath ? { repo_path: repoPath } : {}),
       });
+
+      // Superseded by a newer request (or a reset) — discard the stale
+      // response instead of writing another repo's branch into the atom.
+      if (fastBranchSeqRef.current !== requestSeq) return;
 
       if (branchName) {
         setCurrentBranch(branchName);
@@ -88,7 +115,10 @@ export function useBranchLoader(): UseBranchLoaderReturn {
     } catch (error) {
       log.error("[useBranchLoader] Failed to fast load current branch:", error);
     } finally {
-      loadingFastBranchRef.current = false;
+      if (fastBranchSeqRef.current === requestSeq) {
+        fastBranchInFlightKeyRef.current = null;
+      }
+      endBranchLoading();
     }
   }, [
     selectedRepoId,
@@ -97,6 +127,8 @@ export function useBranchLoader(): UseBranchLoaderReturn {
     activeWorkspaceRootPath,
     branchContextKey,
     setCurrentBranch,
+    beginBranchLoading,
+    endBranchLoading,
   ]);
 
   // ============================================
@@ -106,7 +138,7 @@ export function useBranchLoader(): UseBranchLoaderReturn {
   const loadBranchesImmediate = useCallback(async () => {
     if (isCheckingOut) return;
     if (!selectedRepoId) return;
-    if (loadingBranchesRef.current) return;
+    if (branchListInFlightKeyRef.current === branchContextKey) return;
     if (lastBranchRepoRef.current === branchContextKey) return;
 
     const repo = selectedRepo;
@@ -115,14 +147,18 @@ export function useBranchLoader(): UseBranchLoaderReturn {
       ? activeWorkspaceRootPath
       : repo?.path || repo?.fs_uri;
 
-    loadingBranchesRef.current = true;
-    setBranchLoading(true);
+    const requestSeq = ++branchListSeqRef.current;
+    branchListInFlightKeyRef.current = branchContextKey;
+    beginBranchLoading();
 
     try {
       const response = await gitApi.getGitBranches({
         repo_id: selectedRepoId,
         ...(repoPath ? { repo_path: repoPath } : {}),
       });
+
+      // Superseded by a newer request (or a reset) — discard stale data.
+      if (branchListSeqRef.current !== requestSeq) return;
 
       if (response) {
         const apiBranches = response.branches || [];
@@ -148,8 +184,10 @@ export function useBranchLoader(): UseBranchLoaderReturn {
     } catch (error) {
       log.error("[useBranchLoader] Failed to load branches:", error);
     } finally {
-      setBranchLoading(false);
-      loadingBranchesRef.current = false;
+      if (branchListSeqRef.current === requestSeq) {
+        branchListInFlightKeyRef.current = null;
+      }
+      endBranchLoading();
     }
   }, [
     selectedRepoId,
@@ -159,6 +197,8 @@ export function useBranchLoader(): UseBranchLoaderReturn {
     branchContextKey,
     setBranches,
     setCurrentBranch,
+    beginBranchLoading,
+    endBranchLoading,
   ]);
 
   // Keep ref updated with latest loadBranchesImmediate
@@ -178,6 +218,12 @@ export function useBranchLoader(): UseBranchLoaderReturn {
   const resetBranchTracking = useCallback(() => {
     lastBranchRepoRef.current = null;
     lastFastBranchRepoRef.current = null;
+    // Invalidate anything still in flight: a reset means the selection is
+    // changing, so a response issued before it must not repopulate the atoms.
+    branchListSeqRef.current += 1;
+    branchListInFlightKeyRef.current = null;
+    fastBranchSeqRef.current += 1;
+    fastBranchInFlightKeyRef.current = null;
   }, []);
 
   return {

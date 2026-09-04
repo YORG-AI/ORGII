@@ -6,8 +6,6 @@ import {
 } from "@src/config/notificationSounds";
 import type { SettingDefinition } from "@src/config/settingsSchema/types";
 
-export const MAX_MUTED_NOTIFICATION_SESSION_IDS = 200;
-
 const CLOCK_TIME_SCHEMA = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Expected a 24-hour time (HH:mm)");
@@ -92,15 +90,6 @@ export const NOTIFICATIONS_SETTINGS_REGISTRY = {
     default: true,
     description:
       "Combine background task completions suppressed by quiet hours into one notification",
-    category: "notifications",
-  },
-  "notifications.mutedSessionIds": {
-    schema: z
-      .array(z.string().min(1).max(512))
-      .max(MAX_MUTED_NOTIFICATION_SESSION_IDS),
-    default: [],
-    description:
-      "Session IDs whose notifications are muted (managed from each session menu)",
     category: "notifications",
   },
   "notifications.categories.taskCompletion": {

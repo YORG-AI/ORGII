@@ -282,7 +282,7 @@ impl FileTimeTracker {
 
     /// Hard read-before-edit gate for `edit_file`.
     ///
-    /// - **Edit mode** (`old_string` present): the file must have been read
+    /// - **Edit mode** (a non-empty edit field is present): the file must have been read
     ///   this session (present in the read cache) — otherwise reject.
     /// - **Create/Overwrite mode** (`content`, no `old_string`): creating a
     ///   NEW file is allowed; overwriting an EXISTING file that was never
@@ -307,7 +307,11 @@ impl FileTimeTracker {
             return Ok(());
         }
 
-        let is_edit_mode = args.get("old_string").and_then(|v| v.as_str()).is_some();
+        let is_edit_mode = ["old_string", "new_string"].iter().any(|key| {
+            args.get(key)
+                .and_then(|value| value.as_str())
+                .is_some_and(|value| !value.is_empty())
+        });
         if is_edit_mode {
             return Err(format!(
                 "File has not been read yet: {path}. Use read_file on it first, then retry the edit with the exact text you saw.",
@@ -558,7 +562,12 @@ mod content_hash_tests {
     #[test]
     fn create_mode_new_file_passes_gate() {
         let tracker = FileTimeTracker::new();
-        let args = serde_json::json!({ "file_path": "/nonexistent/brand/new.txt", "content": "x" });
+        let args = serde_json::json!({
+            "file_path": "/nonexistent/brand/new.txt",
+            "content": "x",
+            "old_string": "",
+            "new_string": "",
+        });
         assert!(tracker
             .assert_read_before_edit(tool_names::EDIT_FILE, &args)
             .is_ok());

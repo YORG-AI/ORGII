@@ -17,7 +17,6 @@ function render(sessionViewMode: SessionViewMode): string {
       currentSessionId: "s-1",
       displayMode: "full" as const,
       emptyChatContent: createElement("div", { "data-empty": "true" }),
-      handleRegisterSearchOpen: () => undefined,
       onSessionContinuation: () => undefined,
       paginationEnabled: false,
       position: "right" as const,

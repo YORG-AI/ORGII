@@ -9,11 +9,11 @@
  * It is a sibling of the stream-retry indicator in `ChatHeader` and follows
  * the same low-key pill styling so the input area chrome stays consistent.
  */
-import { Gauge } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { useStreamingHud } from "@src/engines/ChatPanel/hooks/useStreamingHud";
+import { GaugeIcon, HugeiconsIcon } from "@src/icons";
 
 interface StreamingHudProps {
   sessionId: string | undefined;
@@ -36,7 +36,13 @@ const StreamingHud: React.FC<StreamingHudProps> = ({ sessionId }) => {
   return (
     <div className="mx-auto mb-1 flex w-full items-center justify-center">
       <div className="flex h-[24px] items-center gap-2 rounded-full border border-solid border-border-2 bg-bg-2 px-3 text-[12px] text-text-2">
-        <Gauge size={12} strokeWidth={1.75} className="text-text-3" />
+        <HugeiconsIcon
+          icon={GaugeIcon}
+          data-icon="gauge"
+          size={12}
+          strokeWidth={1.75}
+          className="text-text-3"
+        />
         <span>
           {hud.tokens > 0
             ? t("chat.hudElapsed", { time: formatElapsed(hud.elapsedSecs) })

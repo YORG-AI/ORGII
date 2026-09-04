@@ -69,18 +69,18 @@ export const ProjectManagerBreadcrumb: React.FC<
           filePath={filePath}
           displaySegments={displaySegments}
           disableNavigation
-          className="!flex-1"
+          className="flex-1!"
         />
       )}
       {trailingNode && filePath && (
         <span
-          className="pointer-events-none mx-1 h-4 w-px flex-shrink-0 bg-border-2"
+          className="pointer-events-none mx-1 h-4 w-px shrink-0 bg-border-2"
           role="separator"
           aria-hidden
         />
       )}
       {trailingNode && (
-        <span className="inline-flex h-6 flex-shrink-0 items-center gap-2">
+        <span className="inline-flex h-6 shrink-0 items-center gap-2">
           {trailingNode}
         </span>
       )}

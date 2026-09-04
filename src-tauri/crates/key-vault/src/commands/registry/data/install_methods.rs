@@ -220,6 +220,11 @@ pub(crate) fn cli_install_methods(name: &str) -> Vec<CliInstallMethod> {
                 "curl -fsSL https://qoder.com/install.cmd -o install.cmd && install.cmd",
             ),
         ],
+        "deepseek_harness" => vec![m(
+            "npm",
+            "npm",
+            "npm install -g @deepseek-ai/dsh",
+        )],
         // Trae Agent currently documents a repository checkout plus `uv sync`,
         // not a safe global install command for the registry to execute.
         "trae_cli" => Vec::new(),
@@ -316,6 +321,7 @@ pub(crate) fn cli_uninstall_methods(name: &str) -> Vec<CliInstallMethod> {
             "npm",
             "npm uninstall -g @earendil-works/pi-coding-agent",
         )],
+        "deepseek_harness" => vec![m("npm", "npm", "npm uninstall -g @deepseek-ai/dsh")],
         // Neither project currently documents a non-destructive uninstall
         // command that the registry can safely run on every supported OS.
         "opencode" | "qoder_cli" | "trae_cli" => Vec::new(),
@@ -441,5 +447,17 @@ mod tests {
     #[test]
     fn trae_cli_does_not_offer_an_undocumented_installer() {
         assert!(cli_install_methods("trae_cli").is_empty());
+    }
+
+    #[test]
+    fn deepseek_harness_uses_the_official_npm_package() {
+        assert_eq!(
+            cli_install_methods("deepseek_harness")[0].command,
+            "npm install -g @deepseek-ai/dsh"
+        );
+        assert_eq!(
+            cli_uninstall_methods("deepseek_harness")[0].command,
+            "npm uninstall -g @deepseek-ai/dsh"
+        );
     }
 }

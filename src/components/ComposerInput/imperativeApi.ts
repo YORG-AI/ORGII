@@ -3,8 +3,7 @@
  *
  * Exposes the shared composer ref surface used across the codebase. The
  * façade returned by `getEditor()` covers the chainable insert-content pattern
- * (`useComposerInput.handleAtMentionClick` and `useSlashCommand` both use
- * `editor.chain().focus().insertContent("...").run()`).
+ * used by existing composer actions.
  */
 import { capPillText, storePillText } from "@src/config/pillTokens";
 
@@ -39,7 +38,6 @@ export interface ImperativeApiContext {
   isHostEmpty: () => boolean;
   isInlineMenuActive: () => boolean;
   triggerAtMention: () => void;
-  triggerSlashContext: () => void;
   /** Pulls the currently-active mention state (used by insertFilePill) */
   getAtMentionState: () => { active: boolean; hasAtChar?: boolean };
   /** Pulls the currently-active slash context state (used by insertFilePill) */
@@ -283,8 +281,14 @@ export function buildImperativeApi(
     triggerAtMention: () => {
       ctx.triggerAtMention();
     },
-    triggerSlashContext: () => {
-      ctx.triggerSlashContext();
+    consumeMentionQuery: () => {
+      const mention = ctx.getAtMentionState();
+      if (!mention.active) return;
+      ctx.markHistoryBoundary();
+      ctx.consumeMentionQuery();
+      ctx.closeAtMention();
+      ctx.commitHistoryBoundary();
+      focusHostAfterRender();
     },
     consumeSlashQuery: () => {
       const slashCommand = ctx.getSlashCommandState();

@@ -2,6 +2,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import NumberInput from "@src/components/NumberInput";
 import Select, { type SelectOption } from "@src/components/Select";
 import Switch from "@src/components/Switch";
@@ -70,12 +71,12 @@ export const MyRolesStatusTab: React.FC = () => {
 
   const statusOptions = useMemo<SelectOption[]>(() => {
     const builtInOptions = BUILT_IN_STATUS_OPTIONS.map((option) => {
-      const StatusIcon = option.icon;
+      const icon = option.icon;
       return {
         value: option.mode,
         label: (
           <span className="inline-flex items-center gap-2">
-            <StatusIcon size={14} className={option.colorClass} />
+            <AnyIcon icon={icon} size={14} className={option.colorClass} />
             <span>{t(option.labelKey, { ns: "navigation" })}</span>
           </span>
         ),
@@ -84,13 +85,17 @@ export const MyRolesStatusTab: React.FC = () => {
     });
 
     const customOptions = customRoles.map((role) => {
-      const RoleIcon = resolveCustomRoleIcon(role.iconId);
+      const icon = resolveCustomRoleIcon(role.iconId);
       const mode = buildCustomRoleMode(role.id);
       return {
         value: mode,
         label: (
           <span className="inline-flex items-center gap-2">
-            <RoleIcon size={14} className={CUSTOM_ROLE_COLOR_CLASS} />
+            <AnyIcon
+              icon={icon}
+              size={14}
+              className={CUSTOM_ROLE_COLOR_CLASS}
+            />
             <span>{role.label}</span>
           </span>
         ),

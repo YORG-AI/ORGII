@@ -5,6 +5,7 @@ import {
   HUMAN_SESSION_PREFIX,
   OPENCODE_HISTORY_SESSION_PREFIX,
   OS_AGENT_SESSION_PREFIX,
+  SDE_AGENT_ICON_ID,
   SDE_AGENT_SESSION_PREFIX,
   WARP_HISTORY_SESSION_PREFIX,
   WINDSURF_HISTORY_SESSION_PREFIX,
@@ -21,6 +22,7 @@ import {
   isOpenCodeHistorySession,
   isWarpHistorySession,
   isWindsurfHistorySession,
+  resolveSessionIconId,
 } from "../sessionDispatch";
 
 describe("sessionDispatch constants", () => {
@@ -34,6 +36,14 @@ describe("sessionDispatch constants", () => {
     expect(OPENCODE_HISTORY_SESSION_PREFIX).toBe("opencodeapp-");
     expect(WINDSURF_HISTORY_SESSION_PREFIX).toBe("windsurfapp-");
     expect(WARP_HISTORY_SESSION_PREFIX).toBe("warpapp-");
+  });
+});
+
+describe("resolveSessionIconId", () => {
+  it("uses the programming icon for current and legacy SDE session prefixes", () => {
+    expect(SDE_AGENT_ICON_ID).toBe("ai-programming");
+    expect(resolveSessionIconId("sdeagent-1")).toBe(SDE_AGENT_ICON_ID);
+    expect(resolveSessionIconId("agentsession-1")).toBe(SDE_AGENT_ICON_ID);
   });
 });
 

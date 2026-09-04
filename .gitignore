@@ -3,6 +3,7 @@ node_modules/
 /dist/
 /build/
 /build-web/
+/build-mobile-native/
 coverage/
 .DS_Store
 .history
@@ -32,8 +33,10 @@ newmain
 lib/
 # Allow src/lib/ to be tracked (important utilities and wrappers)
 !src/lib/
-!tools/orgii-diagnostics/lib/
-!tools/orgii-diagnostics/lib/**
+!src/modules/MobileRemote/lib/
+!src/modules/MobileRemote/lib/**
+!tools/org2-diagnostics/lib/
+!tools/org2-diagnostics/lib/**
 *storybook.log
 
 # Orgii Session - Critical Excludes (auto-added)
@@ -147,6 +150,8 @@ data.json
 !.orgii/skills/react-best-practices/**
 !.orgii/skills/dual-instance-verification/
 !.orgii/skills/dual-instance-verification/**
+!.orgii/skills/frontend-ui-audit/
+!.orgii/skills/frontend-ui-audit/**
 .soyd/
 
 # macOS copy-conflict duplicates (e.g. "file 2.rs", "file 3.rs")

@@ -1,0 +1,55 @@
+// GitHub Primer foreground tokens, scoped to this picker rather than changing
+// the app-wide success/danger palette. Source: @primer/primitives 11.10.0,
+// dist/css/functional/themes/{light,dark}.css
+// https://primer.style/product/primitives/color/
+.branch-picker-pr-icon,
+.branch-picker-ci-status {
+  --pr-open: #1a7f37;
+  --pr-closed: #d1242f;
+  --pr-merged: #8250df;
+  --pr-draft: #59636e;
+  --pr-pending: #9a6700;
+
+  .theme-dark & {
+    --pr-open: #3fb950;
+    --pr-closed: #f85149;
+    --pr-merged: #ab7df8;
+    --pr-draft: #9198a1;
+    --pr-pending: #d29922;
+  }
+}
+
+.branch-picker-pr-icon {
+  color: var(--pr-draft);
+
+  &[data-pr-status="open"] {
+    color: var(--pr-open);
+  }
+
+  &[data-pr-status="closed"] {
+    color: var(--pr-closed);
+  }
+
+  &[data-pr-status="merged"] {
+    color: var(--pr-merged);
+  }
+}
+
+.branch-picker-ci-status {
+  &.branch-picker-ci-status-success {
+    color: var(--pr-open);
+  }
+
+  &.branch-picker-ci-status-failure {
+    color: var(--pr-closed);
+  }
+
+  &.branch-picker-ci-status-pending {
+    color: var(--pr-pending);
+  }
+
+  &.branch-picker-ci-status-none,
+  &.branch-picker-ci-status-unavailable {
+    color: var(--pr-draft);
+  }
+}

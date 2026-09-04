@@ -1,10 +1,10 @@
-import { LogIn, ScanSearch } from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import { ClaudeCodeSessionSetup } from "@src/features/SessionSetup";
+import { Login01Icon, SearchAreaIcon } from "@src/icons";
 import {
   SECTION_GAP_CLASSES,
   SectionContainer,
@@ -37,11 +37,11 @@ const ClaudeCodeSetup: React.FC<ClaudeCodeSetupProps> = ({
 
   const methodOptions: SelectionGridOption<ClaudeCodeMethod>[] = useMemo(
     () => [
-      { key: "signin", label: t("keyVault.signIn"), icon: LogIn },
+      { key: "signin", label: t("keyVault.signIn"), icon: Login01Icon },
       {
         key: "autodetect",
         label: t("keyVault.autodetect"),
-        icon: ScanSearch,
+        icon: SearchAreaIcon,
       },
     ],
     [t]

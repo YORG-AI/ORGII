@@ -65,7 +65,7 @@ export const COLLAB_SESSION_ORIGIN_KIND = {
   EXTERNAL_HISTORY: "external_history",
 } as const;
 
-export type RemoteSessionOrigin =
+type RemoteSessionOrigin =
   | { kind: typeof COLLAB_SESSION_ORIGIN_KIND.ORGII }
   | {
       kind: typeof COLLAB_SESSION_ORIGIN_KIND.EXTERNAL_HISTORY;
@@ -76,7 +76,7 @@ export const COLLAB_WORKSPACE_SCOPE = {
   SELECTED_WORKSPACES: "selected_workspaces",
 } as const;
 
-export type CollabWorkspaceScope =
+type CollabWorkspaceScope =
   (typeof COLLAB_WORKSPACE_SCOPE)[keyof typeof COLLAB_WORKSPACE_SCOPE];
 
 export interface CollabAvatarIdentity {
@@ -149,7 +149,7 @@ export interface CollabSessionAccessSettings {
  * group fork threads and attribute them, no member-id leakage beyond what
  * the session row itself already carries.
  */
-export interface RemoteSessionForkLineage {
+interface RemoteSessionForkLineage {
   /** Immediate parent session (bare session id, owner-side). */
   sourceSessionId: string;
   /**

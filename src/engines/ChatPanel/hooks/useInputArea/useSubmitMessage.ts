@@ -321,13 +321,14 @@ export function useSubmitMessage({
       // the user is sending real content that happens to mention the command
       // — and on session capability: CLI agents have no render_inline_canvas
       // tool, so the message must pass through as ordinary text there.
-      const { agentContent } = projectOutgoingUserMessage({
+      const { displayContent, agentContent } = projectOutgoingUserMessage({
         displayText,
         contextBlocks,
         enableAgentInterceptors,
         allowCanvasInterception:
           !hasAttachedImages && !isCliSession(draftSessionId || null),
       });
+      displayText = displayContent;
 
       const imageDataUrls = imageAttachment.images.map((img) => img.dataUrl);
       const submitKey = JSON.stringify({

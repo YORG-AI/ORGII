@@ -48,14 +48,7 @@
     "editTask": "Görevi Düzenle",
     "deleteTask": "Görevi Sil"
   },
-  "dialogs": {
-    "confirmDelete": "Silmeyi Onayla",
-    "deleteTaskMessage": "Bu görevi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.",
-    "resetMilestoneMessage": "Bu, kilometre taşındaki tüm görevlerin durumunu sıfırlayacaktır. Devam etmek istediğinizden emin misiniz?",
-    "deleteSubsequentMessage": "Bu, bundan sonraki tüm kilometre taşlarını silecektir. Bu işlem geri alınamaz!",
-    "retryWorkflowTitle": "İş Akışını Yeniden Dene",
-    "retryWorkflowMessage": "Başarısız iş akışını yeniden denemek istediğinizden emin misiniz? Bu, hata noktasından yürütmeyi yeniden başlatacaktır."
-  },
+  "dialogs": {},
   "messages": {
     "taskUpdateUnavailable": "Görev güncelleme özelliği geçici olarak kullanılamıyor (Session modu)",
     "taskEditUnavailable": "Görev düzenleme özelliği geçici olarak kullanılamıyor (Session modu)",
@@ -101,18 +94,11 @@
     "actions": "{{count}} Eylem"
   },
   "taskView": {
-    "loadingTasks": "Görevler yükleniyor...",
-    "noTasks": "Kullanılabilir görev yok",
-    "noTasksHint": "İş akışı planlaması tamamlandığında görevler burada görünecektir",
-    "noTasksColumn": "Görev yok",
-    "taskDescriptionPlaceholder": "Görev açıklamasını girin...",
     "retry": "Yeniden deneme {{count}}",
     "session": "Session: {{id}}"
   },
   "statusBar": {
-    "loadingWorkflow": "İş akışı yükleniyor...",
     "current": "Mevcut",
-    "retryFailed": "Başarısız iş akışını yeniden dene",
     "retry": "Yeniden Dene",
     "pause": "Duraklat",
     "play": "Oynat"
@@ -150,47 +136,10 @@
     "comingSoon": "Yakında"
   },
   "toolCalls": {
-    "readRepoFiles": "Depo Dosyalarını Oku",
-    "noFilePath": "Dosya yolu belirtilmedi",
-    "createFile": "Dosya Oluştur",
-    "updateAtlasSection": "Atlas Bölümünü Güncelle",
-    "noSectionPath": "Bölüm yolu belirtilmedi",
-    "atlasSectionContent": "Atlas Bölüm İçeriği",
     "result": "Sonuç:",
-    "useTerminal": "Terminal kullan",
-    "noCommand": "Komut belirtilmedi",
-    "toolCall": "Araç Çağrısı",
-    "eventInfo": "Olay Bilgisi:",
-    "arguments": "Argümanlar:",
-    "noAdditionalData": "Bu araç çağrısı için ek veri yok",
-    "submitSpecification": "Şartnameyi Gönder",
-    "specificationDocument": "Şartname Belgesi",
-    "submitInitialAnalysis": "İlk Analizi Gönder",
-    "workItemDescription": "Çalışma Öğesi Açıklaması:",
-    "clarifyingQuestions": "Açıklama Soruları ({{count}}):",
     "blocking": "engelleyici",
-    "assumptions": "Varsayımlar:",
     "round": "Tur"
   },
-  "toolDescriptions": {
-    "updatingDocumentation": "Belgeler güncelleniyor",
-    "submittingAnalysis": "Analiz sonuçları gönderiliyor",
-    "creatingFiles": "Yeni dosyalar oluşturuluyor",
-    "modifyingFiles": "Mevcut dosyalar değiştiriliyor",
-    "searchingCodebase": "Kod tabanı aranıyor",
-    "runningTests": "Testler çalıştırılıyor",
-    "runningTool": "{{toolName}} çalıştırılıyor"
-  },
-  "stages": {
-    "initialRequest": "İlk İstek",
-    "specification": "Şartname",
-    "taskPlanning": "Görev Planlama",
-    "taskExecution": "Görev Yürütme",
-    "analyzingRequirements": "Proje gereksinimleri ve kapsamı analiz ediliyor",
-    "creatingSpecs": "Teknik şartnameler oluşturuluyor",
-    "breakingDown": "Yönetilebilir görevlere bölünüyor",
-    "executingTasks": "Planlanan görevler yürütülüyor",
-    "waitingForEvents": "İş akışı olayları bekleniyor...",
-    "noActivity": "Etkinlik algılanmadı"
-  }
+  "toolDescriptions": {},
+  "stages": {}
 }

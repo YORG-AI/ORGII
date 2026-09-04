@@ -12,12 +12,12 @@
  *
  * No text editor, no submit, no event hooks.
  */
-import { Lock } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import ComposerBar from "@src/components/ComposerBar";
 import ComposerShell from "@src/components/ComposerShell";
+import { HugeiconsIcon, LockIcon } from "@src/icons";
 
 import ContextInfoButton from "./ContextInfoButton";
 
@@ -41,16 +41,13 @@ const SessionReadOnlyBar: React.FC<SessionReadOnlyBarProps> = memo(
     return (
       <ComposerShell variant="embedded">
         <ComposerBar
-          onAddContent={() => undefined}
-          onUpload={() => undefined}
           hideAddButton
-          dropdownDirection="up"
           showContextInfo={false}
           pills={pills}
           editorSlot={
             placeholder ? (
               <div
-                className="min-h-10 w-full cursor-default select-none px-2 py-1.5 text-sm leading-6 text-text-4"
+                className="min-h-10 w-full cursor-default px-2 py-1.5 text-sm leading-6 text-text-4 select-none"
                 aria-disabled="true"
               >
                 {placeholder}
@@ -60,8 +57,13 @@ const SessionReadOnlyBar: React.FC<SessionReadOnlyBarProps> = memo(
           submitButton={
             <div className="flex items-center gap-1.5">
               {showContextInfo && <ContextInfoButton variant="toolbar" />}
-              <div className="flex cursor-default select-none items-center gap-1 text-text-4 opacity-60">
-                <Lock size={11} strokeWidth={1.75} />
+              <div className="flex cursor-default items-center gap-1 text-text-4 opacity-60 select-none">
+                <HugeiconsIcon
+                  icon={LockIcon}
+                  data-icon="lock"
+                  size={11}
+                  strokeWidth={1.75}
+                />
                 <span className="text-[11px] leading-none">{badgeLabel}</span>
               </div>
             </div>

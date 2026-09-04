@@ -15,7 +15,7 @@
  *
  * // With icon and selected state
  * <DropdownItem
- *   icon={<Settings size={DROPDOWN_ITEM.iconSize} />}
+ *   icon={<HugeiconsIcon icon={Settings} size={DROPDOWN_ITEM.iconSize} />}
  *   selected={currentValue === "settings"}
  *   onClick={() => handleSelect("settings")}
  * >
@@ -24,20 +24,27 @@
  *
  * // With suffix (e.g., checkmark, shortcut)
  * <DropdownItem
- *   suffix={<Check size={DROPDOWN_ITEM.iconSize} />}
+ *   suffix={<HugeiconsIcon icon={Check} size={DROPDOWN_ITEM.iconSize} />}
  *   selected
  * >
  *   Selected Option
  * </DropdownItem>
  * ```
  */
-import { Check } from "lucide-react";
 import React, { forwardRef, memo } from "react";
+
+import { HugeiconsIcon, Tick01Icon } from "@src/icons";
 
 import DropdownSelectedCheck from "./DropdownSelectedCheck";
 import { DROPDOWN_CLASSES, DROPDOWN_ITEM } from "./tokens";
 
 export interface DropdownItemProps {
+  /** DOM id, used by comboboxes for aria-activedescendant. */
+  id?: string;
+
+  /** Index hook used by shared dropdown keyboard navigation autoscroll. */
+  dataDropdownItemIndex?: number;
+
   /**
    * Item content/label
    */
@@ -148,11 +155,15 @@ export interface DropdownItemProps {
    * `aria-expanded` for submenu-trigger rows.
    */
   ariaExpanded?: boolean;
+  /** Checked state for menu radio items. */
+  ariaChecked?: React.AriaAttributes["aria-checked"];
 }
 
 const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
   (
     {
+      id,
+      dataDropdownItemIndex,
       children,
       icon,
       suffix,
@@ -172,6 +183,7 @@ const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
       ariaLabel,
       ariaHasPopup,
       ariaExpanded,
+      ariaChecked,
     },
     ref
   ) => {
@@ -212,7 +224,9 @@ const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
     return (
       <div
         ref={ref}
+        id={id}
         className={itemClasses}
+        data-dropdown-item-index={dataDropdownItemIndex}
         data-testid={dataTestId}
         style={style}
         onClick={handleClick}
@@ -223,16 +237,19 @@ const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
         aria-label={ariaLabel}
         aria-haspopup={ariaHasPopup}
         aria-expanded={ariaExpanded}
+        aria-checked={ariaChecked}
         aria-selected={role === "option" ? selected : undefined}
         aria-disabled={disabled}
       >
         {/* Icon */}
         {icon && (
           <span
-            className={`flex-shrink-0 ${selected ? "text-primary-6" : "text-text-2"}`}
+            className={`shrink-0 ${selected ? "text-primary-6" : "text-text-2"}`}
           >
             {showCheckmark && selected && selectedCheckPlacement === "icon" ? (
-              <Check
+              <HugeiconsIcon
+                icon={Tick01Icon}
+                data-icon="check"
                 size={DROPDOWN_ITEM.iconSize}
                 strokeWidth={2.25}
                 className="shrink-0 text-primary-6"
@@ -254,7 +271,7 @@ const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
             selected &&
             selectedCheckPlacement === "trailing")) && (
           <span
-            className={`flex-shrink-0 ${selected ? "text-primary-6" : "text-text-3"}`}
+            className={`shrink-0 ${selected ? "text-primary-6" : "text-text-3"}`}
           >
             {suffix || (showCheckmark && selected && <DropdownSelectedCheck />)}
           </span>

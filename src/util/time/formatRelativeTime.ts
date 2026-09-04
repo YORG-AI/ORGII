@@ -25,6 +25,7 @@ function toMs(timestamp: number | string | null | undefined): number | null {
  *
  * @param timestamp - Unix ms number, ISO string, or null/undefined
  * @param style
+ * @param locale - Optional BCP 47 locale for localized long-form output
  *   - "short"   (default): "Now", "2 min ago", "Yesterday", "5 days ago", date fallback
  *   - "compact": "just now", "2 mins", "3 hrs", "1 day", "1 wk", "2 mos", "1 yr"
  *   - "long":    "just now", "2 minutes ago", "3 hours ago", "1 month ago", "2 years ago"

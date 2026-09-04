@@ -17,15 +17,20 @@
  * every consumer.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { List } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
-import { PanelLeftIcon, PanelRightIcon } from "@src/components/PanelIcons";
 import type { TooltipProps } from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import {
+  HugeiconsIcon,
+  LayoutAlignLeftIcon,
+  LayoutAlignRightIcon,
+  SidebarLeftIcon,
+  SidebarRightIcon,
+} from "@src/icons";
 import {
   simulatorPrimarySidebarCollapsedAtom,
   simulatorPrimarySidebarPositionAtom,
@@ -53,8 +58,8 @@ export interface SidebarToggleButtonProps {
   position?: "left" | "right";
   /** Icon size in px. Defaults to {@link HEADER_ICON_SIZE.md}. */
   iconSize?: number;
-  /** Use the same list icon in both collapsed and expanded states. */
-  stableListIcon?: boolean;
+  /** Use the same side-aware alignment icon in both collapsed and expanded states. */
+  stableAlignmentIcon?: boolean;
   /** Tooltip placement. Defaults to the standard bottom command tooltip. */
   tooltipPosition?: TooltipProps["position"];
   /** Keep the button visible for layout consistency, but make it inactive. */
@@ -73,13 +78,15 @@ const SidebarToggleButtonComponent: React.FC<SidebarToggleButtonProps> = ({
   onToggle,
   position = "left",
   iconSize = HEADER_ICON_SIZE.md,
-  stableListIcon = false,
+  stableAlignmentIcon = false,
   tooltipPosition = "bottom",
   disabled = false,
   showShortcut = true,
 }) => {
   const { t } = useTranslation("sessions");
-  const Icon = position === "right" ? PanelRightIcon : PanelLeftIcon;
+  const SidebarIcon = position === "right" ? SidebarRightIcon : SidebarLeftIcon;
+  const AlignmentIcon =
+    position === "right" ? LayoutAlignRightIcon : LayoutAlignLeftIcon;
   const label = collapsed
     ? t("simulator.titleBar.showSidebar")
     : t("simulator.titleBar.hideSidebar");
@@ -99,17 +106,34 @@ const SidebarToggleButtonComponent: React.FC<SidebarToggleButtonProps> = ({
           size="small"
           iconOnly
           disabled={disabled}
+          className={disabled ? undefined : "group/sidebar-toggle"}
           onClick={disabled ? undefined : onToggle}
           aria-label={label}
           icon={
-            stableListIcon ? (
-              <List size={iconSize} strokeWidth={2.25} />
-            ) : (
-              <Icon
+            stableAlignmentIcon ? (
+              <HugeiconsIcon
+                icon={AlignmentIcon}
+                data-icon={`layout-align-${position}`}
                 size={iconSize}
-                strokeWidth={1.75}
-                fillSidebar={!collapsed}
+                strokeWidth={2.25}
               />
+            ) : (
+              <>
+                <HugeiconsIcon
+                  icon={collapsed ? AlignmentIcon : SidebarIcon}
+                  data-icon={`${collapsed ? "layout-align" : "sidebar"}-${position}`}
+                  size={iconSize}
+                  strokeWidth={2.25}
+                  className="group-hover/sidebar-toggle:hidden"
+                />
+                <HugeiconsIcon
+                  icon={collapsed ? SidebarIcon : AlignmentIcon}
+                  data-icon={`${collapsed ? "sidebar" : "layout-align"}-${position}`}
+                  size={iconSize}
+                  strokeWidth={2.25}
+                  className="hidden group-hover/sidebar-toggle:block"
+                />
+              </>
             )
           }
         />
@@ -163,7 +187,6 @@ const WorkStationSidebarToggleButtonComponent: React.FC<
       onToggle={callbacks.onTogglePrimaryPanel ?? handleFallbackToggle}
       position={position}
       iconSize={iconSize}
-      stableListIcon
       tooltipPosition={activeApp === "browser" ? "top" : "bottom"}
       disabled={disabled}
     />
@@ -203,7 +226,7 @@ const SimulatorSidebarToggleButtonComponent: React.FC<
       onToggle={onToggle}
       position={position}
       iconSize={iconSize}
-      stableListIcon
+      stableAlignmentIcon
       disabled={disabled}
     />
   );

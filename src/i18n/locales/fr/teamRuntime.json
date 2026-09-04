@@ -74,10 +74,7 @@
   },
   "selfService": {
     "hint": "Votre propre runtime est partagé avec cette organisation tant que le partage est activé.",
-    "action": "Arrêter le partage et supprimer mes données",
-    "confirm": "Supprimer vos données de runtime partagées de cette organisation ?",
-    "confirmYes": "Arrêter et supprimer",
-    "confirmNo": "Annuler"
+    "action": "Arrêter le partage et supprimer mes données"
   },
   "orgSettings": {
     "label": "Partage du runtime d'équipe",

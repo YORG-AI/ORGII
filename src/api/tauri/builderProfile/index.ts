@@ -8,7 +8,6 @@ import { invoke } from "@tauri-apps/api/core";
 
 /** Keys of the four letter-bearing axes, in code order. */
 export const AXIS_ORDER = ["ME", "DA", "FW", "SH"] as const;
-export type AxisKey = (typeof AXIS_ORDER)[number];
 
 export interface AxisEvidence {
   label: string;
@@ -21,7 +20,7 @@ export interface AxisEvidence {
 }
 
 /** How firmly a letter is held — the letter itself is never withheld. */
-export type Clarity = "slight" | "moderate" | "clear" | "veryClear";
+type Clarity = "slight" | "moderate" | "clear" | "veryClear";
 
 export interface AxisScore {
   key: string;
@@ -117,31 +116,18 @@ export interface BuilderProfileOverview {
   highlights: Highlight[];
 }
 
-export interface ExtractProgress {
+interface ExtractProgress {
   extractedNow: number;
   coverage: ProfileCoverage;
   more: boolean;
 }
 
-export interface ExemplarSession {
-  sessionId: string;
-  source: string;
-  startedAtMs: number;
-  score: number;
-}
-
-export interface AxisExemplars {
-  axis: string;
-  positive: ExemplarSession[];
-  negative: ExemplarSession[];
-}
-
-export interface ProfileScope {
+interface ProfileScope {
   sources?: string[];
   sinceMs?: number | null;
 }
 
-export interface BuilderProfileOverviewOptions {
+interface BuilderProfileOverviewOptions {
   includeBySource?: boolean;
   includeDrift?: boolean;
 }
@@ -168,19 +154,5 @@ export async function builderProfileExtract(
 ): Promise<ExtractProgress> {
   return invoke<ExtractProgress>("builder_profile_extract", {
     limit: limit ?? null,
-  });
-}
-
-/** Sessions at each end of one axis, so a verdict can be checked. */
-export async function builderProfileExemplars(
-  axis: AxisKey | string,
-  scope: ProfileScope = {},
-  limit = 5
-): Promise<AxisExemplars> {
-  return invoke<AxisExemplars>("builder_profile_exemplars", {
-    axis,
-    sources: scope.sources?.length ? scope.sources : null,
-    sinceMs: scope.sinceMs ?? null,
-    limit,
   });
 }

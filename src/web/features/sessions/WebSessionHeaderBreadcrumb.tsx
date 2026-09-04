@@ -1,6 +1,7 @@
 import React, { memo, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import {
   resolveAgentChildParentSessionId,
@@ -33,9 +34,11 @@ const WebSessionHeaderBreadcrumb: React.FC<WebSessionHeaderBreadcrumbProps> =
     );
     const sessionIconElement = useMemo(
       () =>
-        React.createElement(resolveAgentIcon(display.agentIconId), {
+        React.createElement(AnyIcon, {
+          icon: resolveAgentIcon(display.agentIconId),
           size: 14,
           className: "shrink-0 text-text-3",
+          "data-icon": display.agentIconId,
           "aria-hidden": true,
         }),
       [display.agentIconId]

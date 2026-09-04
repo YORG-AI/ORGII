@@ -20,15 +20,6 @@
  * owns the busy/pending row marker and the per-action handlers. See
  * `SyncSection` for the parent orchestration.
  */
-import {
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Folder,
-  Milestone as MilestoneIcon,
-  Tag,
-  User,
-} from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -39,13 +30,23 @@ import {
   type EntityType,
 } from "@src/api/http/project/sync";
 import Button from "@src/components/Button";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  File02Icon,
+  FolderClosedIcon,
+  HugeiconsIcon,
+  RoadLocation01Icon,
+  Tag01Icon,
+  UserIcon,
+} from "@src/icons";
 import { SECTION_ACTION_GAP_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 const ENTITY_ICON_CLASS = "mt-0.5 flex-none text-text-3";
 
 /**
- * Render a 16-px lucide icon for an entity type — same mapping as
+ * Render a 16-px glyph for an entity type — same mapping as
  * `ProblemRow.EntityIcon`, kept duplicated rather than extracted so
  * the two row components stay independent (a future redesign of one
  * shouldn't drag the other).
@@ -53,15 +54,50 @@ const ENTITY_ICON_CLASS = "mt-0.5 flex-none text-text-3";
 const EntityIcon: React.FC<{ entityType: EntityType }> = ({ entityType }) => {
   switch (entityType) {
     case "work_item":
-      return <FileText size={16} className={ENTITY_ICON_CLASS} />;
+      return (
+        <HugeiconsIcon
+          icon={File02Icon}
+          data-icon="file-text"
+          size={16}
+          className={ENTITY_ICON_CLASS}
+        />
+      );
     case "label":
-      return <Tag size={16} className={ENTITY_ICON_CLASS} />;
+      return (
+        <HugeiconsIcon
+          icon={Tag01Icon}
+          data-icon="tag"
+          size={16}
+          className={ENTITY_ICON_CLASS}
+        />
+      );
     case "milestone":
-      return <MilestoneIcon size={16} className={ENTITY_ICON_CLASS} />;
+      return (
+        <HugeiconsIcon
+          icon={RoadLocation01Icon}
+          data-icon="milestone-icon"
+          size={16}
+          className={ENTITY_ICON_CLASS}
+        />
+      );
     case "member":
-      return <User size={16} className={ENTITY_ICON_CLASS} />;
+      return (
+        <HugeiconsIcon
+          icon={UserIcon}
+          data-icon="user"
+          size={16}
+          className={ENTITY_ICON_CLASS}
+        />
+      );
     case "project":
-      return <Folder size={16} className={ENTITY_ICON_CLASS} />;
+      return (
+        <HugeiconsIcon
+          icon={FolderClosedIcon}
+          data-icon="folder"
+          size={16}
+          className={ENTITY_ICON_CLASS}
+        />
+      );
   }
 };
 
@@ -204,7 +240,7 @@ const ConflictRowComponent: React.FC<ConflictRowProps> = ({
             <span className="text-[14px] font-medium text-text-1">
               {row.entity_id}
             </span>
-            <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-text-3">
+            <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] tracking-wide text-text-3 uppercase">
               {t(entityChipKey(row.entity_type))}
             </span>
             <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] text-text-3">
@@ -253,7 +289,19 @@ const ConflictRowComponent: React.FC<ConflictRowProps> = ({
         onClick={() => setShowDiff((prev) => !prev)}
         className="flex items-center gap-1 self-start text-[12px] text-text-3 hover:text-text-2"
       >
-        {showDiff ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        {showDiff ? (
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            size={12}
+          />
+        ) : (
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            data-icon="chevron-right"
+            size={12}
+          />
+        )}
         <span>
           {showDiff
             ? t("settings.sync.conflicts.actions.hideDiff")
@@ -305,7 +353,7 @@ const FieldDiff: React.FC<FieldDiffProps> = ({ fieldName, delta, t }) => {
     <div className="border-line-2 flex flex-col gap-1 rounded-md border bg-fill-2 p-2">
       <div className="flex items-center gap-2">
         <span className="text-[12px] font-medium text-text-2">{label}</span>
-        <span className="rounded bg-fill-3 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-text-3">
+        <span className="rounded bg-fill-3 px-1.5 py-0.5 text-[10px] tracking-wide text-text-3 uppercase">
           {t(appliedKey)}
         </span>
       </div>
@@ -330,10 +378,10 @@ interface ValuePaneProps {
 
 const ValuePane: React.FC<ValuePaneProps> = ({ sideLabel, value }) => (
   <div className="flex flex-col gap-1">
-    <span className="text-[10px] uppercase tracking-wide text-text-3">
+    <span className="text-[10px] tracking-wide text-text-3 uppercase">
       {sideLabel}
     </span>
-    <pre className="max-h-[140px] overflow-auto whitespace-pre-wrap break-words rounded bg-fill-1 px-2 py-1 text-[11px] text-text-2">
+    <pre className="max-h-[140px] overflow-auto rounded bg-fill-1 px-2 py-1 text-[11px] wrap-break-word whitespace-pre-wrap text-text-2">
       {value}
     </pre>
   </div>
@@ -352,28 +400,28 @@ function renderStatusChip(
 ): React.ReactNode {
   if (isOpen) {
     return (
-      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-warning-6">
+      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] tracking-wide text-warning-6 uppercase">
         {t("settings.sync.conflicts.status.open")}
       </span>
     );
   }
   if (resolution === CONFLICT_RESOLUTION.USE_LOCAL) {
     return (
-      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-success-6">
+      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] tracking-wide text-success-6 uppercase">
         {t("settings.sync.conflicts.status.resolvedUseLocal")}
       </span>
     );
   }
   if (resolution === CONFLICT_RESOLUTION.USE_REMOTE) {
     return (
-      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-success-6">
+      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] tracking-wide text-success-6 uppercase">
         {t("settings.sync.conflicts.status.resolvedUseRemote")}
       </span>
     );
   }
   if (resolution === CONFLICT_RESOLUTION.DISMISSED) {
     return (
-      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-text-3">
+      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] tracking-wide text-text-3 uppercase">
         {t("settings.sync.conflicts.status.resolvedDismissed")}
       </span>
     );

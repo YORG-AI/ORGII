@@ -4,7 +4,7 @@
  * Contains multiple strategies for extracting file paths from drag events
  */
 
-export interface ExtractedFilePath {
+interface ExtractedFilePath {
   filePath: string;
   fileName: string;
 }

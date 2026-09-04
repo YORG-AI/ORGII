@@ -67,13 +67,18 @@ describe("Agent Settings lifecycle and wizard UI", () => {
     const childDefinition = {
       id: childAgentId,
       name: `E2E Lifecycle Child ${RUN_MARKER}`,
-      description: "Temporary child for rendered Agent wizard sub-agent coverage.",
+      description:
+        "Temporary child for rendered Agent wizard sub-agent coverage.",
       builtIn: false,
       tier: "secondary",
       inheritsFrom: BUILTIN_SDE_AGENT_ID,
       capabilities: { coding: { modeSwitch: true } },
       delegationConfig: { delegatable: true, contextBuilders: [] },
-      sessionModel: { mode: "singleton", processingLock: true, maxIterations: 2 },
+      sessionModel: {
+        mode: "singleton",
+        processingLock: true,
+        maxIterations: 2,
+      },
       tools: { userAllowedTools: [], excludedTools: [] },
       skillsConfig: { enabled: true, include: [], exclude: [], sourceDirs: [] },
     };
@@ -244,12 +249,15 @@ describe("Agent Settings lifecycle and wizard UI", () => {
         {
           timeout: 20_000,
           interval: 500,
-          timeoutMsg: "Created AgentDefinition did not appear after wizard create",
+          timeoutMsg:
+            "Created AgentDefinition did not appear after wizard create",
         }
       );
       const created = await findAgentByName(agentName);
       if (!created?.id) {
-        throw new Error(`Created AgentDefinition had no id: ${JSON.stringify(created)}`);
+        throw new Error(
+          `Created AgentDefinition had no id: ${JSON.stringify(created)}`
+        );
       }
       createdAgentId = created.id;
 
@@ -258,33 +266,128 @@ describe("Agent Settings lifecycle and wizard UI", () => {
         (definition) => definition?.name === agentName,
         "rendered wizard-created AgentDefinition"
       );
-      expectDefinitionField(stored, (definition) => definition.description === agentDescription, "wizard description");
-      expectDefinitionField(stored, (definition) => definition.soulContent === soulContent, "wizard soul content");
-      expectDefinitionField(stored, (definition) => definition.contextWindow === 64_000, "wizard context window");
-      expectDefinitionField(stored, (definition) => definition.maxTokens === 4_096, "wizard max tokens");
-      expectDefinitionField(stored, (definition) => definition.temperature === 0.4, "wizard temperature");
-      expectDefinitionField(stored, (definition) => definition.sessionModel?.compaction?.enabled === true, "wizard compaction enabled");
-      expectDefinitionField(stored, (definition) => definition.sessionModel?.compaction?.triggerRatio === 0.6, "wizard compaction trigger ratio");
-      expectDefinitionField(stored, (definition) => definition.sessionModel?.compaction?.keepRatio === 0.35, "wizard compaction keep ratio");
-      expectDefinitionField(stored, (definition) => definition.sessionModel?.compaction?.model === compactionModel, "wizard compaction model");
-      expectDefinitionField(stored, (definition) => definition.sessionModel?.compaction?.summaryMaxTokens === 2048, "wizard compaction summary max tokens");
-      expectDefinitionField(stored, (definition) => definition.sessionModel?.compaction?.minMessages === 9, "wizard compaction min messages");
-      expectDefinitionField(stored, (definition) => definition.sessionModel?.compaction?.floorTokens === 12_000, "wizard compaction floor tokens");
-      expectDefinitionField(stored, (definition) => definition.sessionModel?.compaction?.reservedSummaryTokens === 18_000, "wizard compaction reserved summary tokens");
-      expectDefinitionField(stored, (definition) => definition.sessionModel?.compaction?.bufferTokens === 9_000, "wizard compaction buffer tokens");
-      expectDefinitionField(stored, (definition) => definition.capabilities?.coding?.modeSwitch === false, "wizard coding capability");
-      expectDefinitionField(stored, (definition) => definition.capabilities?.desktop?.enabled === true, "wizard desktop capability");
-      expectDefinitionField(stored, (definition) => definition.capabilities?.browser?.external === true, "wizard external browser capability");
-      expectDefinitionField(stored, (definition) => definition.capabilities?.browser?.internal === true, "wizard internal browser capability");
-      expectDefinitionField(stored, (definition) => definition.capabilities?.gateway != null, "wizard gateway capability");
-      expectDefinitionField(stored, (definition) => definition.capabilities?.data != null, "wizard data capability");
-      expectDefinitionField(stored, (definition) => definition.capabilities?.management != null, "wizard management capability");
-      expectDefinitionField(stored, (definition) => definition.maxToolUseConcurrency === 3, "wizard max tool-use concurrency");
+      expectDefinitionField(
+        stored,
+        (definition) => definition.description === agentDescription,
+        "wizard description"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.soulContent === soulContent,
+        "wizard soul content"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.contextWindow === 64_000,
+        "wizard context window"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.maxTokens === 4_096,
+        "wizard max tokens"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.temperature === 0.4,
+        "wizard temperature"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.sessionModel?.compaction?.enabled === true,
+        "wizard compaction enabled"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) =>
+          definition.sessionModel?.compaction?.triggerRatio === 0.6,
+        "wizard compaction trigger ratio"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.sessionModel?.compaction?.keepRatio === 0.35,
+        "wizard compaction keep ratio"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) =>
+          definition.sessionModel?.compaction?.model === compactionModel,
+        "wizard compaction model"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) =>
+          definition.sessionModel?.compaction?.summaryMaxTokens === 2048,
+        "wizard compaction summary max tokens"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.sessionModel?.compaction?.minMessages === 9,
+        "wizard compaction min messages"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) =>
+          definition.sessionModel?.compaction?.floorTokens === 12_000,
+        "wizard compaction floor tokens"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) =>
+          definition.sessionModel?.compaction?.reservedSummaryTokens === 18_000,
+        "wizard compaction reserved summary tokens"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) =>
+          definition.sessionModel?.compaction?.bufferTokens === 9_000,
+        "wizard compaction buffer tokens"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.capabilities?.coding?.modeSwitch === false,
+        "wizard coding capability"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.capabilities?.desktop?.enabled === true,
+        "wizard desktop capability"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.capabilities?.browser?.external === true,
+        "wizard external browser capability"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.capabilities?.browser?.internal === true,
+        "wizard internal browser capability"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.capabilities?.gateway != null,
+        "wizard gateway capability"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.capabilities?.data != null,
+        "wizard data capability"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.capabilities?.management != null,
+        "wizard management capability"
+      );
+      expectDefinitionField(
+        stored,
+        (definition) => definition.maxToolUseConcurrency === 3,
+        "wizard max tool-use concurrency"
+      );
       expectDefinitionField(
         stored,
         (definition) =>
           (definition.subAgents ?? []).some(
-            (entry) => entry.agentId === childAgentId && entry.isolation === "worktree"
+            (entry) =>
+              entry.agentId === childAgentId && entry.isolation === "worktree"
           ),
         "wizard sub-agent worktree isolation"
       );
@@ -295,7 +398,10 @@ describe("Agent Settings lifecycle and wizard UI", () => {
         "wizard-created Agent custom detail did not render"
       );
       const detailRootSelector = getCurrentAgentConfigRootSelector();
-      await restoreWorkstationIfFocused(detailRootSelector, "wizard-created Agent delete");
+      await restoreWorkstationIfFocused(
+        detailRootSelector,
+        "wizard-created Agent delete"
+      );
       await pointerClick(
         '[data-testid="agent-orgs-delete-agent-button"]',
         "delete Agent button",
@@ -314,13 +420,19 @@ describe("Agent Settings lifecycle and wizard UI", () => {
         throw new Error("Delete cancel removed the AgentDefinition");
       }
 
-      await restoreWorkstationIfFocused(detailRootSelector, "wizard-created Agent delete after cancel");
+      await restoreWorkstationIfFocused(
+        detailRootSelector,
+        "wizard-created Agent delete after cancel"
+      );
       await pointerClick(
         '[data-testid="agent-orgs-delete-agent-button"]',
         "delete Agent button after cancel",
         { rootSelector: detailRootSelector, jsClick: true }
       );
-      await restoreWorkstationIfFocused(detailRootSelector, "wizard-created Agent confirm delete");
+      await restoreWorkstationIfFocused(
+        detailRootSelector,
+        "wizard-created Agent confirm delete"
+      );
       await pointerClick(
         '[data-testid="agent-orgs-confirm-delete-agent-button"]',
         "confirm delete Agent button",
@@ -328,13 +440,19 @@ describe("Agent Settings lifecycle and wizard UI", () => {
       );
       await browser.waitUntil(
         async () => {
-          const defs = unwrap(await invokeE2E("listAgentDefs"), "poll AgentDefinitions after rendered delete").defs;
-          return !(defs ?? []).some((definition) => definition?.id === createdAgentId);
+          const defs = unwrap(
+            await invokeE2E("listAgentDefs"),
+            "poll AgentDefinitions after rendered delete"
+          ).defs;
+          return !(defs ?? []).some(
+            (definition) => definition?.id === createdAgentId
+          );
         },
         {
           timeout: 20_000,
           interval: 500,
-          timeoutMsg: "wizard-created AgentDefinition was not deleted through rendered UI",
+          timeoutMsg:
+            "wizard-created AgentDefinition was not deleted through rendered UI",
         }
       );
       createdAgentId = null;

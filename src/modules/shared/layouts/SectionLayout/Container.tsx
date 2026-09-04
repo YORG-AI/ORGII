@@ -57,7 +57,7 @@ const SectionContainer: React.FC<SectionContainerProps> = memo(
     if (!title && !titleSlot) return card;
 
     return (
-      <div className="flex flex-col gap-3 [&:not(:first-child)]:mt-3">
+      <div className="flex flex-col gap-3 not-first:mt-3">
         {titleSlot ? (
           // Match the pl-1 baked into SECTION_SUBHEADING_CLASSES so a custom
           // title row (e.g. TabPill) lines up with the static-title path and

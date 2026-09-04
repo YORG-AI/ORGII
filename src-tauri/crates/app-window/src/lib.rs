@@ -1,7 +1,7 @@
 //! Native window helpers for Tauri windows.
 //!
 //! Centralised so `app`, `browser`, and other leaf crates can apply
-//! consistent native chrome (macOS traffic-light positioning + liquid glass,
+//! consistent native chrome (macOS traffic-light positioning + menu vibrancy,
 //! Windows DWM rounded corners) and recreate the main window
 //! from the Tauri menu without each consumer reimplementing the platform
 //! glue. All operations are synchronous against a `tauri::AppHandle` /
@@ -16,10 +16,13 @@ use objc2::runtime::{AnyClass, AnyObject};
 #[cfg(target_os = "macos")]
 use objc2_app_kit::NSWindowButton;
 #[cfg(target_os = "macos")]
-use tauri_plugin_liquid_glass::{GlassMaterialVariant, LiquidGlassConfig, LiquidGlassExt};
+mod macos_material;
 
 #[cfg(windows)]
 mod windows_corner;
+
+pub mod root_tint;
+pub mod startup_backdrop;
 
 // ============================================
 // macOS window background color
@@ -55,8 +58,12 @@ pub fn apply_window_background_color(window: &tauri::WebviewWindow) {
             let _: () = msg_send![ns_win, setBackgroundColor: bg];
 
             let content_view: *mut AnyObject = msg_send![ns_win, contentView];
-            if !content_view.is_null() {
-                set_draws_background_recursive(content_view, true);
+            if !content_view.is_null() && !set_webview_background_recursive(content_view, true, bg)
+            {
+                tracing::warn!(
+                    "No WKWebView under the window's contentView; startup backdrop not applied \
+                     to the webview and it will paint its own base colour"
+                );
             }
         }
     };
@@ -91,8 +98,13 @@ pub fn remove_window_background_color(window: &tauri::WebviewWindow) {
             let _: () = msg_send![ns_win, setBackgroundColor: clear];
 
             let content_view: *mut AnyObject = msg_send![ns_win, contentView];
-            if !content_view.is_null() {
-                set_draws_background_recursive(content_view, false);
+            if !content_view.is_null()
+                && !set_webview_background_recursive(content_view, false, clear)
+            {
+                tracing::warn!(
+                    "No WKWebView under the window's contentView; the webview keeps whatever \
+                     background it had and the window will not be transparent"
+                );
             }
         }
     };
@@ -104,10 +116,37 @@ pub fn remove_window_background_color(window: &tauri::WebviewWindow) {
     }
 }
 
-/// Recursively search for WKWebView subviews and set _drawsBackground.
+/// Recursively search for WKWebView subviews and pin their background.
+///
+/// Two levers, because `_setDrawsBackground:` alone is not enough:
+///
+/// - `_setDrawsBackground:` decides WHETHER the webview paints a base layer
+///   under the document.
+/// - `underPageBackgroundColor` decides WHAT that base layer is. Left unset,
+///   WebKit derives it from the document — and before the first document has
+///   painted there is nothing to derive from, so it falls back to WHITE. That
+///   fallback is visible for the entire load of a freshly created window,
+///   underneath a page whose own background is transparent, and it is the
+///   white flash this function exists to prevent. Pinning it is also what
+///   makes the setting survive a navigation, which re-derives the default.
+///
+/// `underPageBackgroundColor` is public API from macOS 12; the bundle targets
+/// 10.15, so it is probed with `respondsToSelector:` rather than assumed.
+///
+/// Returns whether a WKWebView was actually found. Callers apply this right
+/// after `build()`, where a silent miss looks exactly like a working fix.
 #[cfg(target_os = "macos")]
-unsafe fn set_draws_background_recursive(view: *mut AnyObject, draws: bool) {
+unsafe fn set_webview_background_recursive(
+    view: *mut AnyObject,
+    draws: bool,
+    color: *mut AnyObject,
+) -> bool {
     use objc2::runtime::Bool;
+    use objc2::sel;
+
+    if view.is_null() {
+        return false;
+    }
 
     let class_name: *mut AnyObject = msg_send![view, className];
     let class_str: *const std::os::raw::c_char = msg_send![class_name, UTF8String];
@@ -116,16 +155,24 @@ unsafe fn set_draws_background_recursive(view: *mut AnyObject, draws: bool) {
         if name.contains("WKWebView") {
             let val: Bool = Bool::new(draws);
             let _: () = msg_send![view, _setDrawsBackground: val];
-            return;
+
+            let responds: Bool =
+                msg_send![view, respondsToSelector: sel!(setUnderPageBackgroundColor:)];
+            if responds.as_bool() {
+                let _: () = msg_send![view, setUnderPageBackgroundColor: color];
+            }
+            return true;
         }
     }
 
     let subviews: *mut AnyObject = msg_send![view, subviews];
     let count: usize = msg_send![subviews, count];
+    let mut found = false;
     for idx in 0..count {
         let subview: *mut AnyObject = msg_send![subviews, objectAtIndex: idx];
-        set_draws_background_recursive(subview, draws);
+        found |= set_webview_background_recursive(subview, draws, color);
     }
+    found
 }
 
 // ============================================
@@ -247,32 +294,30 @@ pub fn apply_host_desktop_decorated_window_corners(
     windows_corner::apply_rounded_corners(window);
 }
 
-/// Apply the native macOS AbuttedSidebar material underneath the transparent webview.
-/// macOS 26+ uses NSGlassEffectView; older releases fall back to
-/// NSVisualEffectView. AppKit owns the outer window clipping; a subtle native
-/// tint keeps the sidebar legible without covering the desktop color.
+/// Apply native menu vibrancy underneath the transparent webview.
+/// Uses the same public AppKit material on all supported macOS versions;
+/// AppKit owns outer window clipping, appearance, and accessibility behavior.
 #[cfg(target_os = "macos")]
 pub fn apply_macos_window_material(window: &tauri::WebviewWindow) {
-    let config = LiquidGlassConfig {
-        corner_radius: 0.0,
-        tint_color: Some("#ffffff18".into()),
-        variant: GlassMaterialVariant::AbuttedSidebar,
-        ..Default::default()
-    };
-    if let Err(error) = window.liquid_glass().set_effect(window, config) {
-        tracing::warn!(%error, "Failed to apply macOS liquid-glass material");
+    if let Err(error) = macos_material::set_enabled(window, true) {
+        tracing::warn!(%error, "Failed to apply macOS menu vibrancy");
+    }
+}
+
+/// Paint the app's root tint natively under the webview (see
+/// `macos_material::set_root_tint`). `None` removes it.
+#[cfg(target_os = "macos")]
+pub fn set_macos_window_root_tint(window: &tauri::WebviewWindow, color: Option<[f64; 4]>) {
+    if let Err(error) = macos_material::set_root_tint(window, color) {
+        tracing::warn!(%error, "Failed to apply macOS root tint");
     }
 }
 
 /// Remove the native macOS material on AppKit's main thread.
 #[cfg(target_os = "macos")]
 pub fn clear_macos_window_material(window: &tauri::WebviewWindow) {
-    let config = LiquidGlassConfig {
-        enabled: false,
-        ..Default::default()
-    };
-    if let Err(error) = window.liquid_glass().set_effect(window, config) {
-        tracing::warn!(%error, "Failed to clear macOS liquid-glass material");
+    if let Err(error) = macos_material::set_enabled(window, false) {
+        tracing::warn!(%error, "Failed to clear macOS menu vibrancy");
     }
 }
 

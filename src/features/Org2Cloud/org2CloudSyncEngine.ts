@@ -620,10 +620,9 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
         if (matchedScope === undefined) {
           // A pending or failed network-identity lookup cannot prove
           // out-of-scope. Skip until the resolver's completion event runs one
-          // coalesced follow-up pass.
-          log.rateLimited(
-            `scope-check-deferred-${session.session_id}-${org.orgId}`,
-            60_000,
+          // coalesced follow-up pass. Expected steady-state on every poll
+          // while resolution is in flight — trace-level, not console noise.
+          log.trace(
             `scope check deferred for session ${session.session_id} org ` +
               `${org.orgId}: network identity unresolved this pass`
           );
@@ -636,7 +635,9 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
           // the first passes after launch. Skip the session until this run
           // has read the org's scopes from the server.
           if (!this.repoScopeSync.hasServerConfirmedScopes(org.orgId)) {
-            log.info(
+            // Same expected steady-state as the network-identity wait above:
+            // fires on every poll until the org's scopes land — trace-level.
+            log.trace(
               `scope check deferred for session ${session.session_id} org ` +
                 `${org.orgId}: repo scopes not yet confirmed this run`
             );

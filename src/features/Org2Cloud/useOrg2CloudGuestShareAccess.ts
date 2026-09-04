@@ -23,6 +23,7 @@ import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import { removeSession } from "@src/store/session/sessionAtom/mutations";
 import { persistSessions } from "@src/store/session/sessionAtom/persistence";
 import type { Session } from "@src/store/session/sessionAtom/types";
+import { isMainAppWindow } from "@src/util/platform/tauri/windowIdentity";
 
 import { classifyCloudShareResolveError } from "./cloudShareImportModel";
 import {
@@ -216,8 +217,15 @@ export function useOrg2CloudGuestShareAccess(): void {
     .join("\u001e");
   const authIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
 
+  // Main-window-only: eviction DELETES local sessions and persists the whole
+  // session list, so two windows sweeping concurrently race duplicate
+  // deletes and a last-writer-wins persistSessions clobber. The main
+  // window's webview is never destroyed while the app runs, so it is the
+  // single stable owner of this destructive sweep.
   useEffect(() => {
-    if (!authIdentityKey || capabilities.length === 0) return undefined;
+    if (!isMainAppWindow() || !authIdentityKey || capabilities.length === 0) {
+      return undefined;
+    }
     const abortController = new AbortController();
     const isVisible = () => document.visibilityState !== "hidden";
     const runAll = () => {
@@ -240,7 +248,12 @@ export function useOrg2CloudGuestShareAccess(): void {
   }, [authIdentityKey, capabilityKey, capabilities.length, validate]);
 
   useEffect(() => {
-    if (!authIdentityKey || !activeSessionId || capabilities.length === 0) {
+    if (
+      !isMainAppWindow() ||
+      !authIdentityKey ||
+      !activeSessionId ||
+      capabilities.length === 0
+    ) {
       return undefined;
     }
     const abortController = new AbortController();

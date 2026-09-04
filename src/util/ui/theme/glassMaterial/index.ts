@@ -25,10 +25,7 @@ export type {
   WallpaperColorField,
   LegibilityGuard,
   GlassMaterial,
-  ResolverConfig,
 } from "./types";
-
-export { colorFieldFromCssColor } from "./colorAnalysis";
 export { resolveMaterial } from "./materialResolver";
 
 // ============================================
@@ -196,7 +193,7 @@ export function resolveGlassMaterialSync(
 /**
  * Preload materials for all regions (call on app startup)
  */
-export async function preloadAllRegions(
+async function preloadAllRegions(
   backgroundImageUrl: string,
   appearance: "light" | "dark"
 ): Promise<Map<GlassRegion, GlassMaterial>> {
@@ -227,7 +224,7 @@ export async function preloadAllRegions(
 /**
  * Clear material cache (call when wallpaper changes)
  */
-export function clearMaterialCache(): void {
+function clearMaterialCache(): void {
   clearCache();
 }
 

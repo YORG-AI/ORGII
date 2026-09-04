@@ -1,4 +1,3 @@
-import { Sparkles } from "lucide-react";
 import React, { memo, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +7,7 @@ import {
   setHousekeeperContextCompactionEnabled,
 } from "@src/api/tauri/agent";
 import Switch from "@src/components/Switch";
+import { HugeiconsIcon, SparklesIcon } from "@src/icons";
 import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
 
 const EMPTY_STATE: HousekeeperContextCompactionState = {
@@ -76,13 +76,13 @@ const MiniCpmCompactCard: React.FC<MiniCpmCompactCardProps> = memo(
         data-testid="context-info-minicpm-compact-card"
         className={`overflow-hidden rounded-lg border transition-colors duration-200 ${
           state.enabled
-            ? "border-primary-6/25 bg-primary-6/[0.045]"
+            ? "border-primary-6/25 bg-primary-6/4.5"
             : "border-border-2 bg-bg-2"
         }`}
       >
         <div className="flex min-h-[58px] items-center gap-2.5 px-3 py-2.5">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary-6/10 text-primary-6">
-            <Sparkles size={16} />
+            <HugeiconsIcon icon={SparklesIcon} data-icon="sparkles" size={16} />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[13px] font-semibold text-text-1">

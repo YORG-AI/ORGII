@@ -1,4 +1,3 @@
-import { Trash2 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -17,6 +16,7 @@ import SettingsTable, {
 } from "@src/components/SettingsTable";
 import TabPill from "@src/components/TabPill";
 import { createLogger } from "@src/hooks/logger";
+import { Delete02Icon, HugeiconsIcon } from "@src/icons";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
@@ -208,7 +208,14 @@ export const GitTable: React.FC<GitTableProps> = ({
             <Button
               variant="secondary"
               size="small"
-              icon={<Trash2 size={14} className="text-danger-6" />}
+              icon={
+                <HugeiconsIcon
+                  icon={Delete02Icon}
+                  data-icon="trash-2"
+                  size={14}
+                  className="text-danger-6"
+                />
+              }
               iconOnly
               loading={removingRowId === row.id}
               disabled={removingRowId === row.id}

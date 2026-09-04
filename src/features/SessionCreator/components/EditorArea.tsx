@@ -17,6 +17,7 @@ import ComposerShell from "@src/components/ComposerShell";
 import Message from "@src/components/Message";
 import { VoiceInputButton, VoiceRecordingBar } from "@src/components/Voice";
 import {
+  INPUT_AREA,
   INPUT_AREA_EDITOR_CLASS,
   INPUT_AREA_EDITOR_HEIGHT,
 } from "@src/config/inputAreaTokens";
@@ -24,6 +25,8 @@ import { capPillText, storePillText } from "@src/config/pillTokens";
 import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
 import ContextMenuPortal from "@src/engines/ChatPanel/InputArea/components/ContextMenuPortal";
 import SlashCommandPortal from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal";
+import { useExternalFileDragOver } from "@src/engines/ChatPanel/InputArea/hooks/useContainerDrag";
+import { useTabDragHover } from "@src/engines/ChatPanel/InputArea/hooks/useTabDragHover";
 import { type VoiceInputError, useVoiceInput } from "@src/hooks/voice";
 import i18n from "@src/i18n";
 import {
@@ -31,13 +34,13 @@ import {
   getReferenceDragPillData,
   hasReferenceDragData,
 } from "@src/shared/dnd/referenceDragData";
+import { useTabDragEndToPill } from "@src/shared/dnd/useTabDragEndToPill";
 import { chatAppearanceAtom } from "@src/store/config/configAtom";
 import { voiceInputEnabledAtom } from "@src/store/platform/voiceInputAtom";
 import type { RepoKind } from "@src/store/repo/types";
 import type { ChatImageAttachment } from "@src/store/ui/chatImageAtom";
 import type { SlashItem } from "@src/types/extensions";
 
-import { useTabDragDrop } from "../hooks/useTabDragDrop";
 import type { AdvancedConfig, UploadedFile } from "../types";
 import ControlButtons, { type DropdownDirection } from "./ControlButtons";
 import ImageThumbnailRow from "./ImageThumbnailRow";
@@ -81,8 +84,6 @@ export interface EditorAreaProps {
   onAtSelect: (type: MenuItemId, value?: string, displayName?: string) => void;
   /** Repo path for context menu */
   repoPath?: string;
-  /** @ mention click handler */
-  onAtMentionClick: () => void;
   /** Upload click handler */
   onUploadClick: () => void;
   /** Is loading state */
@@ -162,8 +163,6 @@ export interface EditorAreaProps {
   includeProjectMode?: boolean;
   filteredSlashItems?: SlashItem[];
   slashLoading?: boolean;
-  /** Fetch+filter slash items without opening the inline "/" menu. */
-  onPrefetchSlashItems?: (query: string) => void;
 }
 
 // ============================================
@@ -185,7 +184,6 @@ const EditorArea: React.FC<EditorAreaProps> = ({
   setAtSearchQuery,
   onAtSelect,
   repoPath,
-  onAtMentionClick,
   onUploadClick,
   isLoading,
   onLaunch,
@@ -225,7 +223,6 @@ const EditorArea: React.FC<EditorAreaProps> = ({
   currentMode = "build",
   filteredSlashItems = [],
   slashLoading = false,
-  onPrefetchSlashItems,
 }) => {
   const isChatPanelFullScreen = variant === "chatPanelFullScreen";
   const resolvedDropdownDirection =
@@ -249,41 +246,27 @@ const EditorArea: React.FC<EditorAreaProps> = ({
   const slashCommandKeyboardHandlerRef =
     externalSlashKbRef ?? internalSlashKbRef;
 
-  // Plus-button slash menu (header search mode)
-  const [showPlusSlashMenu, setShowPlusSlashMenu] = useState(false);
-  const [plusSlashQuery, setPlusSlashQuery] = useState("");
-  const [contextMenuKeyboardOpened, setContextMenuKeyboardOpened] =
-    useState(false);
-
-  const handleOpenSkillsTools = useCallback(() => {
-    setPlusSlashQuery("");
-    setShowPlusSlashMenu(true);
-    onPrefetchSlashItems?.("");
-  }, [onPrefetchSlashItems]);
-
-  const handlePlusSlashClose = useCallback(() => {
-    setShowPlusSlashMenu(false);
-    setPlusSlashQuery("");
-  }, []);
-
   const handleContextMenuClose = useCallback(() => {
-    setContextMenuKeyboardOpened(false);
     setShowContextMenu(false);
     setAtSearchQuery("");
   }, [setAtSearchQuery, setShowContextMenu]);
 
-  const handlePlusSlashQueryChange = useCallback(
-    (query: string) => {
-      setPlusSlashQuery(query);
-      onPrefetchSlashItems?.(query);
-    },
-    [onPrefetchSlashItems]
-  );
+  const handleManualContextMenuClick = useCallback(() => {
+    composerInputRef.current?.triggerAtMention();
+  }, [composerInputRef]);
 
-  const handleManualAtMentionClick = useCallback(() => {
-    setContextMenuKeyboardOpened(false);
-    onAtMentionClick();
-  }, [onAtMentionClick]);
+  const handleContextModeSelect = useCallback(
+    (mode: ComposerModeEntry["id"]) => {
+      onModeSelect?.(mode);
+      composerInputRef.current?.consumeMentionQuery();
+      handleContextMenuClose();
+    },
+    [composerInputRef, handleContextMenuClose, onModeSelect]
+  );
+  const handleContextImageUpload = useCallback(() => {
+    composerInputRef.current?.consumeMentionQuery();
+    onUploadClick();
+  }, [composerInputRef, onUploadClick]);
 
   const editorContainerRef = React.useRef<HTMLDivElement>(null);
 
@@ -300,9 +283,15 @@ const EditorArea: React.FC<EditorAreaProps> = ({
   const voiceFeatureEnabled = useAtomValue(voiceInputEnabledAtom);
   const { sendOnEnter } = useAtomValue(chatAppearanceAtom);
 
-  const isTabDragOver = useTabDragDrop(editorContainerRef, composerInputRef);
+  const isTabDragOver = useTabDragHover(editorContainerRef);
+  useTabDragEndToPill(editorContainerRef, composerInputRef);
+  // OS file drags never fire HTML5 drag events here (Tauri swallows them), so
+  // without this the shell keeps its rest border while GlobalDragDrop's scss
+  // fallback paints a second ring on top — the double-border regression.
+  const isExternalFileDragOver = useExternalFileDragOver(editorContainerRef);
   const [isReferenceDragOver, setIsReferenceDragOver] = useState(false);
-  const isDragOver = isTabDragOver || isReferenceDragOver;
+  const isDragOver =
+    isTabDragOver || isReferenceDragOver || isExternalFileDragOver;
 
   const hasReferenceDrag = useCallback(
     (types?: readonly string[]) => hasReferenceDragData(types),
@@ -443,7 +432,6 @@ const EditorArea: React.FC<EditorAreaProps> = ({
 
   const handleAtMention = useCallback(
     (query: string, position: { x: number; y: number }) => {
-      setContextMenuKeyboardOpened(true);
       onAtMention?.(query, position);
     },
     [onAtMention]
@@ -492,20 +480,19 @@ const EditorArea: React.FC<EditorAreaProps> = ({
    */
   const handleKeyDownForSlashDropdown = useCallback(
     (event: KeyboardEvent): boolean => {
-      if (
-        (showSlashMenu || showPlusSlashMenu) &&
-        slashCommandKeyboardHandlerRef.current
-      ) {
+      if (showSlashMenu && slashCommandKeyboardHandlerRef.current) {
         return slashCommandKeyboardHandlerRef.current(event);
       }
       return false;
     },
-    [showSlashMenu, showPlusSlashMenu, slashCommandKeyboardHandlerRef]
+    [showSlashMenu, slashCommandKeyboardHandlerRef]
   );
 
   // ============================================
   // Render
   // ============================================
+
+  const menuPortalFrame = { containerRef: editorContainerRef };
 
   return (
     <div
@@ -518,10 +505,8 @@ const EditorArea: React.FC<EditorAreaProps> = ({
         data-chat-drop-target
         className={[
           "wp_text_area",
-          isDragOver
-            ? "!border-primary-6 !bg-[color-mix(in_srgb,var(--color-primary-6)_5%,var(--color-chat-input))] !shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]"
-            : "",
-          headerContent ? "!pt-1.5" : "",
+          isDragOver ? INPUT_AREA.shellDragOverClasses : "",
+          headerContent ? "pt-1.5!" : "",
           shellClassName ?? "",
         ]
           .filter(Boolean)
@@ -583,73 +568,38 @@ const EditorArea: React.FC<EditorAreaProps> = ({
           onKeyDownForDropdown={handleKeyDownForDropdown}
           onSlashCommand={onSlashCommand}
           onSlashCommandClose={onSlashCommandClose}
-          onInputMouseDown={handlePlusSlashClose}
           onKeyDownForSlashDropdown={handleKeyDownForSlashDropdown}
           onImagePaste={onImagePaste}
         />
 
-        {/* Context Menu for @ mentions - rendered via portal to avoid clipping */}
+        {/* Shared + / @ menu - rendered via portal to avoid clipping */}
         <ContextMenuPortal
           visible={showContextMenu}
-          containerRef={editorContainerRef}
+          {...menuPortalFrame}
           onClose={handleContextMenuClose}
           onSelect={onAtSelect}
+          onImageUpload={handleContextImageUpload}
+          currentMode={currentMode}
+          onModeSelect={handleContextModeSelect}
+          includeProjectMode={includeProjectMode}
           searchQuery={atSearchQuery}
-          keyboardOpened={contextMenuKeyboardOpened}
           repoPath={repoPath}
           keyboardHandlerRef={contextMenuFunctionRef}
-          placement={resolvedDropdownDirection}
         />
 
         {/* Slash Command Menu - inline "/" trigger */}
         {onSlashCommand && (
           <SlashCommandPortal
             visible={showSlashMenu}
-            containerRef={editorContainerRef}
-            placement={resolvedDropdownDirection}
-            items={filteredSlashItems}
+            {...menuPortalFrame}
+            items={filteredSlashItems.filter(
+              (item) => item.category === "skill"
+            )}
             loading={slashLoading}
-            currentMode={currentMode}
-            includeProjectMode={includeProjectMode}
             searchQuery={slashQuery}
-            onClose={onSlashCommandClose ?? handlePlusSlashClose}
+            onClose={() => onSlashCommandClose?.()}
             onSelect={(item) => onSlashSelect?.(item)}
-            onModeSelect={(mode) => onModeSelect?.(mode)}
             keyboardHandlerRef={slashCommandKeyboardHandlerRef}
-            showActionFlyouts
-            onImageUpload={onUploadClick}
-          />
-        )}
-
-        {/* Slash Command Menu - "+" button trigger (header search mode) */}
-        {onSlashCommand && (
-          <SlashCommandPortal
-            visible={showPlusSlashMenu}
-            containerRef={editorContainerRef}
-            anchorSelector="[data-composer-plus-menu-trigger]"
-            placement={resolvedDropdownDirection}
-            items={filteredSlashItems}
-            loading={slashLoading}
-            currentMode={currentMode}
-            includeProjectMode={includeProjectMode}
-            searchQuery={plusSlashQuery}
-            onClose={handlePlusSlashClose}
-            onSelect={(item) => {
-              onSlashSelect?.(item);
-              handlePlusSlashClose();
-            }}
-            onModeSelect={(mode) => {
-              onModeSelect?.(mode);
-              handlePlusSlashClose();
-            }}
-            keyboardHandlerRef={slashCommandKeyboardHandlerRef}
-            searchMode="header"
-            showActionFlyouts
-            onSearchQueryChange={handlePlusSlashQueryChange}
-            onImageUpload={() => {
-              handlePlusSlashClose();
-              onUploadClick();
-            }}
           />
         )}
 
@@ -659,16 +609,11 @@ const EditorArea: React.FC<EditorAreaProps> = ({
             elapsedSeconds={voice.elapsedSeconds}
             onCancel={voice.cancel}
             onAccept={voice.stop}
-            onAddContent={handleManualAtMentionClick}
+            onAddContent={handleManualContextMenuClick}
           />
         ) : (
           <ComposerBar
-            onAddContent={handleManualAtMentionClick}
-            onUpload={onUploadClick}
-            onOpenSkillsTools={
-              onSlashCommand ? handleOpenSkillsTools : undefined
-            }
-            dropdownDirection={resolvedDropdownDirection}
+            onAddContent={handleManualContextMenuClick}
             repoPath={repoPath}
             showContextInfo={false}
             pills={

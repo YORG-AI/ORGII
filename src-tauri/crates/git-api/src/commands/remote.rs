@@ -335,9 +335,69 @@ fn run_remote_git(
         .map_err(|err| format!("Failed to run git {:?}: {err}", args))
 }
 
+/// True when `needle` occurs in `haystack` as a whole word — not embedded in
+/// a longer identifier. Git output quotes URLs, branch names, and paths, so a
+/// bare substring match on short tokens like "sso" fires on "processor" or
+/// "associate" and misroutes ordinary failures into the auth dialog.
+pub(crate) fn contains_word(haystack: &str, needle: &str) -> bool {
+    let bytes = haystack.as_bytes();
+    let mut start = 0;
+    while let Some(pos) = haystack[start..].find(needle) {
+        let abs = start + pos;
+        let before_ok = abs == 0 || !bytes[abs - 1].is_ascii_alphanumeric();
+        let after = abs + needle.len();
+        let after_ok = after >= bytes.len() || !bytes[after].is_ascii_alphanumeric();
+        if before_ok && after_ok {
+            return true;
+        }
+        start = abs + 1;
+    }
+    false
+}
+
+/// Whether a push should pass `-u` for the current branch.
+///
+/// - No upstream configured: yes.
+/// - Upstream on the push remote but under a different branch name (the
+///   renamed-branch scenario): yes.
+/// - Upstream already `<remote>/<current>`: no.
+/// - Upstream on a *different* remote: no — that is deliberate user
+///   configuration, and `-u` would silently overwrite it.
+///
+/// The previous implementation compared only the last `/`-segment of the
+/// upstream ref, so every branch with a slash in its name ("feat/x" vs the
+/// segment "x") re-set its upstream on every push.
+pub(crate) fn should_set_upstream(
+    upstream: Option<&str>,
+    current_branch: &str,
+    remote: &str,
+) -> bool {
+    match upstream {
+        None => true,
+        Some(upstream) => match upstream.strip_prefix(&format!("{remote}/")) {
+            Some(short) => short != current_branch,
+            None => false,
+        },
+    }
+}
+
 /// Detect error type from push error message
 pub(crate) fn detect_push_error_type(message: &str) -> GitErrorType {
     let lower = message.to_lowercase();
+
+    // Protected branch / server-side policy rejection. Checked BEFORE the
+    // non-fast-forward patterns: git appends "error: failed to push some refs"
+    // to every rejection, so the broader non-fast-forward arm would otherwise
+    // shadow this one and the UI would tell the user to pull, which cannot
+    // help against a policy rejection.
+    if lower.contains("protected branch")
+        || lower.contains("branch is protected")
+        || lower.contains("cannot push to")
+        || lower.contains("pre-receive hook declined")
+        || lower.contains("remote rejected")
+    {
+        return GitErrorType::ProtectedBranch;
+    }
 
     // Non-fast-forward (remote has changes we don't have)
     if lower.contains("non-fast-forward")
@@ -346,16 +406,6 @@ pub(crate) fn detect_push_error_type(message: &str) -> GitErrorType {
         || lower.contains("failed to push some refs")
     {
         return GitErrorType::NonFastForward;
-    }
-
-    // Protected branch
-    if lower.contains("protected branch")
-        || lower.contains("branch is protected")
-        || lower.contains("cannot push to")
-        || lower.contains("pre-receive hook declined")
-        || lower.contains("remote rejected")
-    {
-        return GitErrorType::ProtectedBranch;
     }
 
     // Authentication failed
@@ -370,8 +420,8 @@ pub(crate) fn detect_push_error_type(message: &str) -> GitErrorType {
         || lower.contains("permission denied")
         || lower.contains("fatal: authentication")
         || lower.contains("repository not found")
-        || lower.contains("saml")
-        || lower.contains("sso")
+        || contains_word(&lower, "saml")
+        || contains_word(&lower, "sso")
         || lower.contains("password authentication was removed")
         || lower.contains("requested url returned error: 403")
     {
@@ -411,20 +461,13 @@ pub fn push_to_remote(repo_path: &Path, request: &PushRequest) -> Result<GitPush
     });
 
     // Determine if we need to set upstream
-    // Set upstream if:
-    // 1. Explicitly requested
-    // 2. No upstream exists
-    // 3. Upstream branch name doesn't match local branch name (renamed branch scenario)
     let needs_set_upstream = request.set_upstream
-        || upstream_branch.as_ref().is_none_or(|upstream| {
-            if let Some(ref current) = current_branch {
-                // Extract branch name from "origin/branch-name"
-                let upstream_short = upstream.split('/').next_back().unwrap_or(upstream);
-                upstream_short != current
-            } else {
-                false
+        || match (&current_branch, &upstream_branch) {
+            (Some(current), upstream) => {
+                should_set_upstream(upstream.as_deref(), current, remote_name)
             }
-        });
+            (None, upstream) => upstream.is_none(),
+        };
 
     let mut args = vec!["push"];
 
@@ -492,14 +535,14 @@ pub(crate) fn detect_pull_error_type(message: &str) -> (GitErrorType, Option<Vec
         || lower.contains("uncommitted changes")
         || lower.contains("please commit your changes or stash them")
     {
-        // Try to extract affected files
+        // Git lists the blocking files one per line, tab-indented. The prefix
+        // must be tested on the raw line — trimming first strips the very tab
+        // being tested for.
         let mut affected_files = Vec::new();
         for line in message.lines() {
-            let trimmed = line.trim();
-            // Git usually lists files with a tab prefix
-            if trimmed.starts_with('\t') || trimmed.starts_with("    ") {
-                let file = trimmed.trim();
-                if !file.is_empty() && !file.contains(' ') {
+            if let Some(file) = line.strip_prefix('\t') {
+                let file = file.trim();
+                if !file.is_empty() {
                     affected_files.push(file.to_string());
                 }
             }
@@ -529,8 +572,8 @@ pub(crate) fn detect_pull_error_type(message: &str) -> (GitErrorType, Option<Vec
         || lower.contains("could not read username")
         || lower.contains("unable to get password from user")
         || lower.contains("repository not found")
-        || lower.contains("saml")
-        || lower.contains("sso")
+        || contains_word(&lower, "saml")
+        || contains_word(&lower, "sso")
         || lower.contains("password authentication was removed")
         || lower.contains("requested url returned error: 403")
     {
@@ -542,11 +585,27 @@ pub(crate) fn detect_pull_error_type(message: &str) -> (GitErrorType, Option<Vec
         || lower.contains("connection refused")
         || lower.contains("network is unreachable")
         || lower.contains("unable to access")
+        || lower.contains("connection timed out")
     {
         return (GitErrorType::NetworkError, None);
     }
 
     (GitErrorType::Unknown, None)
+}
+
+/// Strategy flags for `git pull`.
+///
+/// Rebase pulls carry `--autostash`: without it git refuses to start whenever
+/// the working tree is dirty at all ("cannot pull with rebase: You have
+/// unstaged changes"), even when nothing overlaps the incoming commits.
+/// Autostash restores parity with merge pulls, which natively tolerate
+/// non-overlapping local changes and still stop on genuine overlap.
+pub(crate) fn pull_strategy_args(strategy: Option<&str>) -> &'static [&'static str] {
+    match strategy {
+        Some("rebase") => &["--rebase", "--autostash"],
+        Some("ff-only") => &["--ff-only"],
+        _ => &["--no-rebase"], // merge or unknown → explicit merge
+    }
 }
 
 /// Pull from remote
@@ -560,12 +619,7 @@ pub fn pull_from_remote(
     store_auth: bool,
 ) -> Result<GitPullResult, String> {
     let mut args = vec!["pull"];
-
-    match strategy {
-        Some("rebase") => args.push("--rebase"),
-        Some("ff-only") => args.push("--ff-only"),
-        Some("merge") | None | Some(_) => args.push("--no-rebase"), // merge or unknown → explicit merge
-    }
+    args.extend_from_slice(pull_strategy_args(strategy));
 
     if let Some(r) = remote {
         args.push(r);
@@ -577,11 +631,16 @@ pub fn pull_from_remote(
 
     let output = run_remote_git(repo_path, &args, auth_username, auth_token, store_auth)?;
 
-    let message = if output.status.success() {
-        String::from_utf8_lossy(&output.stdout).to_string()
-    } else {
-        String::from_utf8_lossy(&output.stderr).to_string()
-    };
+    // Git splits meaningful pull output across both streams: the merge
+    // machinery reports "CONFLICT (content): …" on stdout while stderr carries
+    // only fetch progress, and a successful pull puts the autostash-conflict
+    // warning ("Your changes are safe in the stash") on stderr. Classification
+    // and the conflict sniff below must see both, in both branches.
+    let message = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     // Check for conflicts
     let conflicts = if message.contains("CONFLICT") || message.contains("conflict") {
@@ -652,8 +711,8 @@ pub(crate) fn detect_fetch_error_type(message: &str) -> GitErrorType {
         || lower.contains("could not read username")
         || lower.contains("unable to get password from user")
         || lower.contains("repository not found")
-        || lower.contains("saml")
-        || lower.contains("sso")
+        || contains_word(&lower, "saml")
+        || contains_word(&lower, "sso")
         || lower.contains("password authentication was removed")
         || lower.contains("requested url returned error: 403")
     {

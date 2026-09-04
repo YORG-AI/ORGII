@@ -8,14 +8,14 @@ import React, { useMemo } from "react";
 import type { GanttConfig, GanttTask } from "../../types";
 import "./index.scss";
 
-export interface DependencyLineData {
+interface DependencyLineData {
   from: { x: number; y: number };
   to: { x: number; y: number };
   fromTaskId: string;
   toTaskId: string;
 }
 
-export interface GanttDependencyLinesProps {
+interface GanttDependencyLinesProps {
   tasks: GanttTask[];
   taskPositions: Map<
     string,

@@ -2,15 +2,24 @@
  * WorkstationItemRow — one actionable rail row (open tab, terminal session,
  * Review, PR link, …) with its optional diff stats, CI status and close button.
  */
-import { ArrowUpRight, X } from "lucide-react";
+import type React from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { IconButton } from "@src/components/IconButton";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
+import { ProcessStopButton } from "@src/components/ProcessStopButton";
 import Tooltip from "@src/components/Tooltip";
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
+import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotals";
+import {
+  ArrowRight01Icon,
+  ArrowUpRight01Icon,
+  Cancel01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 
 import { RailItemStatus } from "./RailItemStatus";
 import type { FocusedChatRailItem } from "./types";
@@ -24,10 +33,22 @@ export function WorkstationItemRow({
   item: FocusedChatRailItem;
   onRequestClose?: () => void;
 }) {
-  const Icon = item.icon;
-  const runAction = () => {
-    onRequestClose?.();
-    item.onClick?.();
+  const liveDiffTotals = useWorkingTreeDiffTotals(
+    item.workingTreeRepo?.repoId,
+    item.workingTreeRepo?.repoPath
+  );
+  const additions = item.workingTreeRepo
+    ? liveDiffTotals.additions
+    : item.additions;
+  const deletions = item.workingTreeRepo
+    ? liveDiffTotals.deletions
+    : item.deletions;
+
+  const runAction = (event: React.MouseEvent<HTMLButtonElement>) => {
+    // A submenu trigger keeps its host menu open; the popup it anchors is
+    // part of that menu, not a destination.
+    if (!item.submenu) onRequestClose?.();
+    item.onClick?.(event);
   };
 
   const action = (
@@ -35,7 +56,7 @@ export function WorkstationItemRow({
       type="button"
       className={
         compact
-          ? `${DROPDOWN_CLASSES.item} min-w-0 flex-1 !px-2 text-left ${
+          ? `${DROPDOWN_CLASSES.item} min-w-0 flex-1 px-2! text-left ${
               item.onClick
                 ? DROPDOWN_CLASSES.itemHover
                 : `${DROPDOWN_CLASSES.itemDisabled} text-text-3`
@@ -47,19 +68,20 @@ export function WorkstationItemRow({
       onClick={runAction}
       disabled={!item.onClick}
       role={compact ? "menuitem" : undefined}
+      aria-haspopup={item.submenu ? "menu" : undefined}
     >
       <span className="flex shrink-0 items-center text-text-1">
         {item.fileName ? (
           <FileTypeIcon fileName={item.fileName} size="small" />
         ) : (
-          <Icon size={14} strokeWidth={1.75} />
+          <AnyIcon icon={item.icon} size={14} strokeWidth={1.75} />
         )}
       </span>
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
-      {(item.additions ?? 0) > 0 || (item.deletions ?? 0) > 0 ? (
+      {(additions ?? 0) > 0 || (deletions ?? 0) > 0 ? (
         <DiffStatsBadge
-          additions={item.additions}
-          deletions={item.deletions}
+          additions={additions}
+          deletions={deletions}
           variant="plain"
           size="sm"
           reserveValueWidth={false}
@@ -69,10 +91,22 @@ export function WorkstationItemRow({
       ) : null}
       {item.status ? <RailItemStatus status={item.status} /> : null}
       {item.external ? (
-        <ArrowUpRight
+        <HugeiconsIcon
+          icon={ArrowUpRight01Icon}
+          data-icon="arrow-up-right"
           aria-hidden
-          className="shrink-0 text-text-3"
-          size={13}
+          className="shrink-0 text-text-2"
+          size={14}
+          strokeWidth={1.75}
+        />
+      ) : null}
+      {item.submenu ? (
+        <HugeiconsIcon
+          icon={ArrowRight01Icon}
+          data-icon="chevron-right"
+          aria-hidden
+          className="shrink-0 text-text-2"
+          size={14}
           strokeWidth={1.75}
         />
       ) : null}
@@ -107,7 +141,15 @@ export function WorkstationItemRow({
       ) : (
         action
       )}
-      {item.onClose && (
+      {item.onStop ? (
+        <ProcessStopButton
+          size="sm"
+          label={item.stopLabel ?? item.label}
+          className={`opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 ${compact ? "ml-0.5" : "mr-1"}`}
+          onClick={item.onStop}
+          role={compact ? "menuitem" : undefined}
+        />
+      ) : item.onClose ? (
         <IconButton
           size="sm"
           variant="defaultTreeRow"
@@ -121,9 +163,9 @@ export function WorkstationItemRow({
           aria-label={item.closeLabel}
           role={compact ? "menuitem" : undefined}
         >
-          <X size={12} />
+          <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={12} />
         </IconButton>
-      )}
+      ) : null}
     </div>
   );
 }

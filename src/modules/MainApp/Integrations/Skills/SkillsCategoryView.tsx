@@ -5,10 +5,8 @@ import type { CursorRepo } from "@src/hooks/policies";
 import { DetailPanelContainer } from "@src/modules/shared/layouts/blocks";
 import { reposAtom } from "@src/store/repo";
 
-import {
-  CategoryTableContent,
-  type CategoryTableContentProps,
-} from "../Tables";
+import { SkillsTable } from "./Table/SkillsTable";
+import type { SkillsCategoryTableProps } from "./categoryTableProps";
 import type { SkillEditorState, SkillsHubDetailState } from "./types";
 
 // Lazy: the skill editor embeds a CodeMirror editor. Settings/Integrations
@@ -22,13 +20,13 @@ export const SkillsCategoryView: React.FC<{
   selectedId: string | null;
   skillsHub: SkillsHubDetailState;
   skillEditor: SkillEditorState;
-  tableProps: CategoryTableContentProps;
+  tableProps: SkillsCategoryTableProps;
   fullPage: boolean;
   onBack: () => void;
   onExpand?: () => void;
   onClosePreview: () => void;
   hideTabHeader?: boolean;
-}> = ({ selectedId, skillsHub, skillEditor, tableProps, onClosePreview }) => {
+}> = ({ selectedId, skillsHub, skillEditor, tableProps }) => {
   const repos = useAtomValue(reposAtom);
   const cursorRepos = useMemo<CursorRepo[]>(
     () =>
@@ -49,28 +47,23 @@ export const SkillsCategoryView: React.FC<{
       </Suspense>
     );
   }
-  const augmentedTableProps: CategoryTableContentProps = {
+  const augmentedTableProps: SkillsCategoryTableProps = {
     ...tableProps,
     selectedRowId: selectedId,
-    extensionTablesEmbeddedChrome: true,
-    skillsHubDetail: skillsHub.skillDetail,
+    embedded: true,
+    hubDetail: skillsHub.skillDetail,
     onToggleSkill: skillsHub.onToggleSkill,
-    onEditSkill: skillEditor.onEditClick,
     onUninstallSkill: skillsHub.onUninstallSkill,
-    skillsCursorRepos: cursorRepos,
-    skillsImportExpanded: skillEditor.importMode,
-    onSkillsImportCompleted: skillEditor.onImportCancel,
-    onSkillsAfterImport: skillEditor.onImportRefresh,
+    cursorRepos,
+    importExpanded: skillEditor.importMode,
+    onImportCompleted: skillEditor.onImportCancel,
+    onAfterImport: skillEditor.onImportRefresh,
   };
 
   return (
     <DetailPanelContainer>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <CategoryTableContent
-          {...augmentedTableProps}
-          category="skills"
-          onCloseSkillPreview={onClosePreview}
-        />
+        <SkillsTable {...augmentedTableProps} />
       </div>
     </DetailPanelContainer>
   );

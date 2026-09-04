@@ -164,7 +164,7 @@ const ImportPanel: React.FC<ImportPanelProps> = ({ slug, adapter }) => {
           onRetry={handleRetry}
         />
         {progress.state === "failed" && progress.last_error && (
-          <code className="break-all rounded bg-fill-2 px-2 py-1 text-[12px] text-danger-6">
+          <code className="rounded bg-fill-2 px-2 py-1 text-[12px] break-all text-danger-6">
             {progress.last_error}
           </code>
         )}

@@ -27,7 +27,6 @@ async function applyTheme(
     await swapThemeCss(selectedTheme.baseCssPath);
     store.set(updateSettingsBatchAtom, {
       "general.theme": themePreference,
-      "general.primaryColor": selectedTheme.defaultPrimaryColor,
     });
     localStorage.setItem("theme", themePreference);
     return selectedTheme.id;
@@ -69,7 +68,7 @@ const themeSetSystem = defineThemeAction(
 
 const themeSetLight = defineThemeAction(
   ACTION_ID.THEME_SET_LIGHT,
-  "github-light",
+  "light",
   "Switch ORGII to the light theme",
   "Light theme enabled",
   ["use light theme", "switch to light mode", "turn off dark mode"]
@@ -77,26 +76,13 @@ const themeSetLight = defineThemeAction(
 
 const themeSetDark = defineThemeAction(
   ACTION_ID.THEME_SET_DARK,
-  "github-dark",
+  "dark",
   "Switch ORGII to the dark theme",
   "Dark theme enabled",
   ["use dark theme", "switch to dark mode", "turn on dark mode"]
 );
 
-const themeSetHighContrast = defineThemeAction(
-  ACTION_ID.THEME_SET_HIGH_CONTRAST,
-  "orgii-high-contrast",
-  "Switch ORGII to the high contrast theme",
-  "High contrast theme enabled",
-  ["use high contrast", "switch to high contrast theme", "enable high contrast"]
-);
-
-export const themeZodActions = [
-  themeSetSystem,
-  themeSetLight,
-  themeSetDark,
-  themeSetHighContrast,
-];
+export const themeZodActions = [themeSetSystem, themeSetLight, themeSetDark];
 
 export const themeActionRegistration =
   defineAppActionRegistration(themeZodActions);

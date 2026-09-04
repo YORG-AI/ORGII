@@ -3,19 +3,19 @@
  *
  * Individual row for displaying a project in the list view.
  */
-import {
-  CalendarClock,
-  FolderKanban,
-  Link2Off,
-  ListChecks,
-} from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
-import IntegrationIcon from "@src/components/IntegrationIcon";
+import {
+  DeliveryBox01Icon,
+  HugeiconsIcon,
+  ListChecksIcon,
+  TimeScheduleIcon,
+  Unlink02Icon,
+} from "@src/icons";
 import WorkItemContextMenu from "@src/modules/ProjectManager/WorkItems/components/WorkItemContextMenu";
 import type { Project } from "@src/types/core/project";
 import { copyText } from "@src/util/data/clipboard";
@@ -35,7 +35,7 @@ function formatGitHubProjectDescription(description?: string) {
     : description.replace(/[.。]+$/, "");
 }
 
-export interface ProjectRowProps {
+interface ProjectRowProps {
   project: Project;
   isSelected: boolean;
   isChecked?: boolean;
@@ -140,7 +140,7 @@ const ProjectRow: React.FC<ProjectRowProps> = ({
     <>
       <div
         data-testid={`project-row-${project.id}`}
-        className={`flex min-h-[40px] items-center gap-1 py-0 pl-2 pr-5 transition-colors ${
+        className={`flex min-h-[40px] items-center gap-1 py-0 pr-5 pl-2 transition-colors ${
           variant === "table"
             ? "rounded-none border-b border-border-1"
             : "rounded-lg"
@@ -172,24 +172,21 @@ const ProjectRow: React.FC<ProjectRowProps> = ({
             className="flex h-7 w-7 items-center justify-center text-text-3"
             data-project-source-icon={isGitHubSource ? "github" : "local"}
           >
-            {isGitHubSource ? (
-              <IntegrationIcon
-                type={STORY_SYNC_ADAPTER.GITHUB}
-                size={14}
-                className="text-text-2"
-              />
-            ) : (
-              <FolderKanban size={14} strokeWidth={1.75} />
-            )}
+            <HugeiconsIcon
+              icon={DeliveryBox01Icon}
+              data-icon="box"
+              size={14}
+              strokeWidth={1.75}
+            />
           </div>
         </div>
 
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
-          <span className="truncate whitespace-nowrap text-[13px] font-medium text-text-1">
+          <span className="truncate text-[13px] font-medium whitespace-nowrap text-text-1">
             {project.name}
           </span>
           {displayedDescription && (
-            <span className="min-w-0 truncate whitespace-nowrap text-xs text-text-3">
+            <span className="min-w-0 truncate text-xs whitespace-nowrap text-text-3">
               {displayedDescription}
             </span>
           )}
@@ -201,7 +198,14 @@ const ProjectRow: React.FC<ProjectRowProps> = ({
               variant="tertiary"
               appearance="ghost"
               size="mini"
-              icon={<Link2Off size={13} strokeWidth={1.75} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Unlink02Icon}
+                  data-icon="link-2-off"
+                  size={13}
+                  strokeWidth={1.75}
+                />
+              }
               iconOnly
               loading={unlinkingSource}
               aria-label={t("settings.sync.adapterPicker.detachProjectAction", {
@@ -218,12 +222,22 @@ const ProjectRow: React.FC<ProjectRowProps> = ({
             />
           )}
           <span className="inline-flex items-center gap-1 whitespace-nowrap">
-            <ListChecks size={13} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={ListChecksIcon}
+              data-icon="list-checks"
+              size={13}
+              strokeWidth={1.75}
+            />
             {project.workItemCount ?? 0}
           </span>
           {project.targetDate && (
             <span className="inline-flex items-center gap-1 whitespace-nowrap">
-              <CalendarClock size={13} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={TimeScheduleIcon}
+                data-icon="calendar-clock"
+                size={13}
+                strokeWidth={1.75}
+              />
               {formatDate(project.targetDate)}
             </span>
           )}

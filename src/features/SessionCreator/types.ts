@@ -27,29 +27,6 @@ export interface UploadedFile {
   path?: string;
 }
 
-// ============================================
-// Branch Types
-// ============================================
-
-export interface BranchOption {
-  label: string;
-  value: string;
-}
-
-export interface RepoBranchesMap {
-  [repoId: string]: string;
-}
-
-export interface RepoBranchOptionsMap {
-  [repoId: string]: BranchOption[];
-}
-
-// ============================================
-// Session Configuration Types
-// ============================================
-
-export type TabType = "projects" | "repos";
-
 export const SESSION_CREATOR_LAUNCH_MODE = {
   START_FOREGROUND: "start_foreground",
   START_BACKGROUND: "start_background",

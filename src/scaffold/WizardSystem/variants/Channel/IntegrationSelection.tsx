@@ -1,4 +1,3 @@
-import { Search } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +5,7 @@ import Input from "@src/components/Input";
 import IntegrationIcon from "@src/components/IntegrationIcon";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
+import { HugeiconsIcon, Search01Icon } from "@src/icons";
 import {
   COMING_SOON_CHANNEL_TYPES,
   LIVE_CHANNEL_TYPES,
@@ -277,7 +277,13 @@ const IntegrationSelection: React.FC<IntegrationSelectionProps> = ({
                   autoComplete="off"
                   autoCorrect="off"
                   spellCheck={false}
-                  prefix={<Search size={14} />}
+                  prefix={
+                    <HugeiconsIcon
+                      icon={Search01Icon}
+                      data-icon="search"
+                      size={14}
+                    />
+                  }
                   style={{ width: "100%" }}
                 />
                 <div className="flex flex-col gap-3">

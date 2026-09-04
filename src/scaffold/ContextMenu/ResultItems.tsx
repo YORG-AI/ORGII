@@ -4,17 +4,26 @@
  * Reusable item-level components for rendering menu items,
  * search result icons, and empty/loading states.
  */
-import { Code, FolderKanban, Globe, ListChecks, Terminal } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import FolderIcon from "@src/assets/fileTypeIcons/folder-base.svg";
+import AnyIcon from "@src/components/AnyIcon";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
 } from "@src/components/Dropdown/tokens";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { Placeholder } from "@src/components/Placeholder";
+import {
+  CodeXmlIcon,
+  ComputerTerminal01Icon,
+  DeliveryBox01Icon,
+  HugeiconsIcon,
+  type IconSvgElement,
+  InternetIcon,
+  ListChecksIcon,
+} from "@src/icons";
 import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
 
 import { ICON_CONFIG, type SecondLayerId } from "./config";
@@ -31,13 +40,12 @@ export const SecondLayerEmptyState: React.FC<{ layerId: SecondLayerId }> = memo(
     const emptyTextMap: Record<SecondLayerId, string> = {
       files: t("placeholders.typeToSearchFiles"),
       sessions: t("placeholders.noSessionsFound"),
-      projects: t("placeholders.noProjectsFound", "No projects found"),
     };
     return (
       <Placeholder
         variant="empty"
         title={emptyTextMap[layerId]}
-        className="!h-auto"
+        className="h-auto!"
       />
     );
   }
@@ -55,7 +63,7 @@ export const SearchLoadingOrEmpty: React.FC<{
       <Placeholder
         variant="loading"
         title={t("status.searching")}
-        className="!h-auto"
+        className="h-auto!"
       />
     );
   }
@@ -67,7 +75,7 @@ export const SearchLoadingOrEmpty: React.FC<{
           ? t("common:common.noResults")
           : t("placeholders.typeToSearch")
       }
-      className="!h-auto"
+      className="h-auto!"
     />
   );
 });
@@ -77,7 +85,7 @@ SearchLoadingOrEmpty.displayName = "SearchLoadingOrEmpty";
 // Icon Rendering
 // ============================================
 
-const iconAccent = "flex-shrink-0 text-text-2";
+const iconAccent = "shrink-0 text-text-2";
 
 /** Render appropriate icon based on item type */
 export const ResultItemIcon: React.FC<{
@@ -86,7 +94,9 @@ export const ResultItemIcon: React.FC<{
 }> = memo(({ item, displayName }) => {
   if (item.iconType === "terminal") {
     return (
-      <Terminal
+      <HugeiconsIcon
+        icon={ComputerTerminal01Icon}
+        data-icon="terminal"
         size={DROPDOWN_ITEM.iconSize}
         strokeWidth={1.75}
         className={iconAccent}
@@ -95,22 +105,27 @@ export const ResultItemIcon: React.FC<{
   }
 
   if (item.iconType === "session") {
-    const SessionIcon = resolveSessionRowIcon({
+    const sessionIcon = resolveSessionRowIcon({
       session_id: item.path,
       user_input: item.userInput,
       agentIconId: item.agentIconId,
       cliAgentType: item.cliAgentType,
     });
-    return React.createElement(SessionIcon, {
-      size: DROPDOWN_ITEM.iconSize,
-      strokeWidth: 1.75,
-      className: iconAccent,
-    });
+    return (
+      <AnyIcon
+        icon={sessionIcon}
+        size={DROPDOWN_ITEM.iconSize}
+        strokeWidth={1.75}
+        className={iconAccent}
+      />
+    );
   }
 
   if (item.iconType === "browser") {
     return (
-      <Globe
+      <HugeiconsIcon
+        icon={InternetIcon}
+        data-icon="globe"
         size={DROPDOWN_ITEM.iconSize}
         strokeWidth={1.75}
         className={iconAccent}
@@ -120,7 +135,9 @@ export const ResultItemIcon: React.FC<{
 
   if (item.iconType === "repo") {
     return (
-      <Code
+      <HugeiconsIcon
+        icon={CodeXmlIcon}
+        data-icon="code"
         size={DROPDOWN_ITEM.iconSize}
         strokeWidth={1.75}
         className={iconAccent}
@@ -130,7 +147,9 @@ export const ResultItemIcon: React.FC<{
 
   if (item.iconType === "project") {
     return (
-      <FolderKanban
+      <HugeiconsIcon
+        icon={DeliveryBox01Icon}
+        data-icon="box"
         size={DROPDOWN_ITEM.iconSize}
         strokeWidth={1.75}
         className={iconAccent}
@@ -140,7 +159,9 @@ export const ResultItemIcon: React.FC<{
 
   if (item.iconType === "workitem") {
     return (
-      <ListChecks
+      <HugeiconsIcon
+        icon={ListChecksIcon}
+        data-icon="list-checks"
         size={DROPDOWN_ITEM.iconSize}
         strokeWidth={1.75}
         className={iconAccent}
@@ -162,11 +183,12 @@ ResultItemIcon.displayName = "ResultItemIcon";
 // Menu Item Row
 // ============================================
 
-export interface MenuItemRowProps {
-  icon: React.ComponentType<Record<string, unknown>>;
+interface MenuItemRowProps {
+  icon: IconSvgElement;
   label: string;
   description?: string;
   hasArrow?: boolean;
+  trailingContent?: React.ReactNode;
   isActive?: boolean;
   dataTestId?: string;
   dataMentionId?: string;
@@ -181,6 +203,7 @@ export const MenuItemRow: React.FC<MenuItemRowProps> = memo(
     label,
     description,
     hasArrow = false,
+    trailingContent,
     isActive = false,
     dataTestId,
     dataMentionId,
@@ -203,11 +226,12 @@ export const MenuItemRow: React.FC<MenuItemRowProps> = memo(
       onMouseLeave={onMouseLeave}
     >
       <div className="flex min-w-0 items-center gap-2">
-        {React.createElement(icon, {
-          size: DROPDOWN_ITEM.iconSize,
-          className: "shrink-0 text-text-2",
-          strokeWidth: 1.75,
-        })}
+        <AnyIcon
+          icon={icon}
+          size={DROPDOWN_ITEM.iconSize}
+          className="shrink-0 text-text-2"
+          strokeWidth={1.75}
+        />
         <span className="min-w-0 shrink truncate text-[13px] text-text-1">
           {label}
         </span>
@@ -217,13 +241,15 @@ export const MenuItemRow: React.FC<MenuItemRowProps> = memo(
           </span>
         )}
       </div>
-      {hasArrow && (
-        <ICON_CONFIG.arrow
-          size={DROPDOWN_ITEM.iconSize}
-          className="text-text-3"
-          strokeWidth={1.75}
-        />
-      )}
+      {trailingContent ??
+        (hasArrow && (
+          <AnyIcon
+            icon={ICON_CONFIG.arrow}
+            size={DROPDOWN_ITEM.iconSize}
+            className="text-text-3"
+            strokeWidth={1.75}
+          />
+        ))}
     </div>
   )
 );

@@ -27,6 +27,9 @@ export function tolerantRecordSchema<V>(
         valid[key] = parsed.data;
       } else {
         // Once per storage load per bad entry — no rate limit needed.
+        // Raw console.warn kept intentionally: zodStorage.ts is a
+        // dependency-free low-level storage primitive, and this call is
+        // asserted directly by zodStorage.test.ts.
         console.warn(`[zodStorage] dropped invalid ${label} entry "${key}"`);
       }
     }
@@ -76,6 +79,8 @@ export function createZodJsonStorage<T>(
   const onWriteError =
     options.onWriteError ??
     ((key: string, error: unknown) => {
+      // Raw console.warn kept intentionally: same rationale as the
+      // tolerantRecordSchema drop above — asserted by zodStorage.test.ts.
       console.warn(`[zodStorage] persist failed for "${key}"`, error);
     });
 

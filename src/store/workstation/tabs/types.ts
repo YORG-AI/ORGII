@@ -2,7 +2,7 @@
  * Workstation Tabs Type Definitions
  *
  * Unified tab system supporting all Workstation apps:
- * - Code Editor (file, git-diff, terminal, settings)
+ * - Code Editor (file, git-diff, terminal)
  * - Database Explorer (table, query, schema)
  * - Browser (browser-session)
  */
@@ -28,7 +28,6 @@ export type WorkStationTabType =
   | "terminal-content" // Terminal output viewer (read-only, from pill double-click)
   | "dom-component-preview" // Pasted DOM-component JSON viewer (Raw / Preview iframe)
   | "terminal"
-  | "settings"
   | "search" // Repository-wide search tab
   | "ai-impact" // AI session impact dashboard
   | "search-sessions" // Session search + table (reuses SessionTable; launchpad tab)
@@ -72,7 +71,7 @@ export type WorkStationTabType =
  * Unified tab type - single flat interface for all tab types
  *
  * This is used across all Workstation apps:
- * - Code Editor: file, git-diff, source-control, timeline-diff, terminal, settings
+ * - Code Editor: file, git-diff, source-control, timeline-diff, terminal
  * - Database Explorer: table, query, schema
  * - Browser: browser-session
  */
@@ -90,7 +89,6 @@ export type WorkStationTabCategory =
   | "git" // git-diff, source-control, git-commit-detail, git-stash-detail, git-log
   | "search"
   | "terminal"
-  | "settings"
   | "ai-impact"
   | "search-sessions"
   | "preview"
@@ -243,7 +241,6 @@ export function getWorkstationTabOwnership(
       return "workspace-local";
 
     case "terminal":
-    case "settings":
     case "browser-session":
     case "devtools":
     case "project-dashboard":
@@ -317,13 +314,6 @@ export interface ProjectWorkItemsTabData {
 }
 
 /**
- * Data stored in new project (create) tabs — draft lives in a jotai atom keyed by tab ID
- */
-export interface NewProjectTabData {
-  /** intentionally empty — form state cached in projectDraftsAtom */
-}
-
-/**
  * Data stored in a single work item detail tab (expanded from inline panel)
  */
 export interface WorkItemDetailTabData {
@@ -345,13 +335,6 @@ export interface WorkItemDetailTabData {
 export interface NewWorkItemTabData {
   projectId: string;
   projectName: string;
-}
-
-/**
- * Data stored in token category tabs
- */
-export interface TokenCategoryTabData {
-  category: string;
 }
 
 // ============================================
@@ -494,7 +477,6 @@ export const FILE_TAB_TYPES = [
 /** Tab types that are TOOL tabs (global, not cached per-repo) */
 export const TOOL_TAB_TYPES = [
   "terminal",
-  "settings",
   "search",
   "ai-impact",
   "search-sessions",

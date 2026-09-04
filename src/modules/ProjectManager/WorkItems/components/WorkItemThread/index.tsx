@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { useElementDimensions } from "@src/hooks/ui/layout/useElementDimensions";
 import {
   DetailPanelContainer,
@@ -19,6 +20,8 @@ interface WorkItemThreadLayoutProps {
   properties?: React.ReactNode;
   /** GitHub-style flow title rendered above the thread body. */
   flowHeader?: React.ReactNode;
+  /** Alerts about this thread, rendered above the title they concern. */
+  alerts?: React.ReactNode;
   children: React.ReactNode;
   floatingFooter?: React.ReactNode;
   /**
@@ -37,6 +40,7 @@ export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
   path,
   properties,
   flowHeader,
+  alerts,
   children,
   floatingFooter,
   sidebar,
@@ -89,32 +93,50 @@ export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <div
           ref={scrollContainerRef}
-          className="min-h-0 min-w-0 flex-1 overflow-y-auto scrollbar-hide @container"
+          className="@container scrollbar-hide min-h-0 min-w-0 flex-1 overflow-y-auto"
           data-testid="work-item-thread-section"
         >
           <div
             ref={contentRef}
             className={WORK_ITEM_THREAD_TOKENS.contentColumn}
-            style={{ paddingBottom: footerBottomInset }}
           >
-            {headerPolicy.showHeader ? (
-              <div className={WORK_ITEM_THREAD_TOKENS.metadataBand}>
-                {path ? <div className="shrink-0">{path}</div> : null}
-                {headerPolicy.showSeparator ? (
-                  <div
-                    className="h-5 shrink-0 border-l border-border-2"
-                    aria-hidden
-                  />
-                ) : null}
-                {properties ? (
-                  <div className="min-w-0 flex-1">{properties}</div>
-                ) : null}
+            {alerts ? (
+              <div
+                className={WORK_ITEM_THREAD_TOKENS.alerts}
+                data-testid="work-item-thread-alerts"
+              >
+                {alerts}
               </div>
             ) : null}
             {flowHeader ? (
-              <div data-testid="work-item-thread-flow-header">{flowHeader}</div>
+              <div
+                className={WORK_ITEM_THREAD_TOKENS.flowHeader}
+                data-testid="work-item-thread-flow-header"
+              >
+                {flowHeader}
+              </div>
             ) : null}
-            {children}
+            <div
+              className={WORK_ITEM_THREAD_TOKENS.contentBody}
+              style={{ paddingBottom: footerBottomInset }}
+              data-testid="work-item-thread-content-body"
+            >
+              {headerPolicy.showHeader ? (
+                <div className={WORK_ITEM_THREAD_TOKENS.metadataBand}>
+                  {path ? <div className="shrink-0">{path}</div> : null}
+                  {headerPolicy.showSeparator ? (
+                    <div
+                      className="h-5 shrink-0 border-l border-border-2"
+                      aria-hidden
+                    />
+                  ) : null}
+                  {properties ? (
+                    <div className="min-w-0 flex-1">{properties}</div>
+                  ) : null}
+                </div>
+              ) : null}
+              {children}
+            </div>
           </div>
         </div>
         {floatingFooter ? (
@@ -131,9 +153,11 @@ export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
           >
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"
+              className="pointer-events-none absolute inset-x-0 top-[-28px] bottom-0 bg-linear-to-t from-chat-pane via-chat-pane/90 to-transparent"
             />
-            <div className="relative z-10 w-full max-w-[920px] px-3">
+            <div
+              className={`${DETAIL_PANEL_TOKENS.headerWidth} relative z-10 w-full px-4`}
+            >
               {floatingFooter}
             </div>
           </div>

@@ -40,7 +40,6 @@ pub mod canvas_artifacts;
 pub mod archive;
 
 // Centralized code search index management
-pub mod index_manager;
 
 // Shared JSON-RPC 2.0 protocol types
 pub mod jsonrpc;

@@ -1,4 +1,4 @@
-export interface LatestOnlySearchRunner<TRequest> {
+interface LatestOnlySearchRunner<TRequest> {
   submit: (request: TRequest) => Promise<void>;
   clearPending: () => void;
   dispose: () => void;

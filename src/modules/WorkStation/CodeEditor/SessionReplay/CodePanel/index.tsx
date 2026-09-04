@@ -6,7 +6,6 @@
  * Uses shared FileHeader with breadcrumbs and code/preview toggle.
  */
 import { useAtomValue } from "jotai";
-import { Terminal } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -15,6 +14,7 @@ import { getToolDisplayBehavior } from "@src/engines/SessionCore/rendering/regis
 import { TOOL_DISPLAY_BEHAVIOR } from "@src/engines/SessionCore/rendering/registry/types";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { VirtualizedModernDiff } from "@src/features/CodeViewer/VirtualizedModernDiff";
+import { ComputerTerminal01Icon, HugeiconsIcon } from "@src/icons";
 import { ImagePreview } from "@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/FilePreviewContent/ImagePreview";
 import {
   NoTabsPlaceholder,
@@ -53,14 +53,9 @@ import { simulatorSearchHeaderIcon } from "./searchIcons";
 import type { CodePanelProps, PreviewModeState } from "./types";
 import { useLiveReadFileContent } from "./useLiveReadFileContent";
 
-export { type CodePanelProps } from "./types";
 // Re-export atomic components for SimulatorVariant usage
 export { SessionReplayCodeMirrorViewer } from "./SessionReplayCodeMirrorViewer";
-export type { SessionReplayCodeMirrorViewerProps } from "./SessionReplayCodeMirrorViewer";
-export { PreviewContent } from "./PreviewContent";
-export { TerminalContent } from "./TerminalContent";
 export { SearchResultsContent } from "./SearchResultsContent";
-export { simulatorSearchHeaderIcon } from "./searchIcons";
 
 /**
  * Header for the simulator's explore panel.
@@ -204,7 +199,9 @@ export const CodePanel: React.FC<CodePanelProps> = memo(
             publishToHost="simulator"
             publishEnabled={publishHeaderToSimulator}
             headerIcon={
-              <Terminal
+              <HugeiconsIcon
+                icon={ComputerTerminal01Icon}
+                data-icon="terminal"
                 size={HEADER_ICON_SIZE.sm}
                 className="shrink-0 text-text-2"
               />
@@ -218,7 +215,7 @@ export const CodePanel: React.FC<CodePanelProps> = memo(
               title={t("tools.failedPlaceholder")}
             />
           ) : (
-            <div className="code-viewer-scroll-container relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-[100px]">
+            <div className="code-viewer-scroll-container relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-[100px]">
               <TerminalContent operation={shellOperation} />
             </div>
           )}
@@ -282,7 +279,7 @@ export const CodePanel: React.FC<CodePanelProps> = memo(
               title={t("tools.failedPlaceholder")}
             />
           ) : (
-            <div className="code-viewer-scroll-container relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-[100px]">
+            <div className="code-viewer-scroll-container relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-[100px]">
               <SearchResultsContent operation={exploreOperation} />
             </div>
           )}

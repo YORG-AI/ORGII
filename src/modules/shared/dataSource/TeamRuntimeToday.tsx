@@ -7,11 +7,10 @@
  * Sessions cache, so this component owns no network request, timer,
  * subscription, or cache.
  */
-import { MessageSquareText } from "lucide-react";
 import { type ReactNode, Suspense, lazy, memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import Avatar from "@src/components/Avatar";
+import PersonAvatar from "@src/components/PersonAvatar";
 import Select from "@src/components/Select";
 import type {
   MemberRuntimeListEntry,
@@ -19,6 +18,7 @@ import type {
 } from "@src/features/Org2Cloud/memberRuntime/types";
 import { MEMBER_RECENT_USAGE_WINDOW_MS } from "@src/features/Org2Cloud/memberRuntime/types";
 import type { CloudRemoteSessionsFetchState } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
+import { HugeiconsIcon, Message02Icon } from "@src/icons";
 import {
   SECTION_SUBHEADING_CLASSES,
   SectionContainer,
@@ -315,9 +315,12 @@ function TeamRuntimeToday({
                   }`}
                   data-testid={`team-runtime-member-usage-${member.userId}`}
                 >
-                  <Avatar size={28} src={member.avatarUrl ?? undefined}>
-                    {displayName.slice(0, 1).toUpperCase()}
-                  </Avatar>
+                  <PersonAvatar
+                    size={20}
+                    boxSize={24}
+                    name={displayName}
+                    src={member.avatarUrl ?? undefined}
+                  />
                   <span className="min-w-0 flex-1 truncate text-sm text-text-2">
                     {displayName}
                   </span>
@@ -357,12 +360,8 @@ function TeamRuntimeToday({
                   className="flex items-center justify-between gap-3 border-b border-border-1 px-4 py-3 last:border-b-0"
                   data-testid={`team-runtime-source-${source.bucket}`}
                 >
-                  <span className="flex min-w-0 items-center gap-2 text-sm text-text-2">
-                    <BucketIcon
-                      bucket={source.bucket}
-                      size={16}
-                      className="shrink-0"
-                    />
+                  <span className="flex min-w-0 items-center gap-3 text-sm text-text-2">
+                    <BucketIcon bucket={source.bucket} size={16} boxSize={24} />
                     <span className="truncate">
                       {tUsage(bucketLabelKey(source.bucket))}
                     </span>
@@ -393,11 +392,12 @@ function TeamRuntimeToday({
                   className="flex w-full items-center gap-3 border-b border-border-1 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-fill-1"
                   data-testid={`team-runtime-recent-session-${session.id}`}
                 >
-                  <Avatar size={28} src={session.ownerAvatarUrl}>
-                    {(session.ownerDisplayName || "?")
-                      .slice(0, 1)
-                      .toUpperCase()}
-                  </Avatar>
+                  <PersonAvatar
+                    size={20}
+                    boxSize={24}
+                    name={session.ownerDisplayName ?? ""}
+                    src={session.ownerAvatarUrl}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-text-1">
                       {session.title || session.sourceSessionId}
@@ -410,7 +410,12 @@ function TeamRuntimeToday({
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-text-3">
-                    <MessageSquareText className="h-3.5 w-3.5" aria-hidden />
+                    <HugeiconsIcon
+                      icon={Message02Icon}
+                      data-icon="message-square-text"
+                      className="h-3.5 w-3.5"
+                      aria-hidden
+                    />
                     {session.lastActivityAt
                       ? formatRelativeTime(session.lastActivityAt, "nano")
                       : "—"}

@@ -92,7 +92,7 @@ function buildCredentialBadge(
         <span className="text-[11px] text-text-4">&middot;</span>
       )}
       <span
-        className={`whitespace-nowrap text-[11px] tabular-nums ${textColor}`}
+        className={`text-[11px] whitespace-nowrap tabular-nums ${textColor}`}
       >
         {totalCount}
       </span>
@@ -417,7 +417,7 @@ export const DispatchCategoryPalette: React.FC<
       // Render through ModelIcon (raw brand SVG) whenever we have a
       // `cliAgentType` — both CLI agent rows and the Cursor IDE row
       // (which carries `cursor_cli` purely for icon parity). Other
-      // rows fall back to the Lucide adapter via `resolveAgentIcon`.
+      // rows fall back to the icon adapter via `resolveAgentIcon`.
       const icon = option.cliAgentType
         ? (iconProps: Record<string, unknown>) => (
             <ModelIcon

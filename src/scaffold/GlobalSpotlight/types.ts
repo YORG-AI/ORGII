@@ -1,11 +1,19 @@
 import React from "react";
 
+import type { IconSvgElement } from "@src/icons";
+
 import type { SpotlightItem, SpotlightItemData, StatusType } from "./shared";
 
 // ============ PARAM TYPES ============
 
 /** Types of parameters that actions can require */
-export type ParamType = "repo" | "branch" | "source" | "language";
+export type ParamType =
+  | "repo"
+  | "branch"
+  | "source"
+  | "language"
+  | "theme"
+  | "skin";
 
 // ============ PATH SEGMENT ============
 
@@ -17,8 +25,8 @@ export interface PathSegment {
   id: string;
   /** Display label */
   label: string;
-  /** Icon class or React component */
-  icon: string | React.ComponentType<Record<string, unknown>>;
+  /** Hugeicons glyph data, a hand-authored SVG component, or `""` (no icon) */
+  icon: string | React.ComponentType<Record<string, unknown>> | IconSvgElement;
   /** Color for the tag */
   color: string;
   /** Associated data (repo object, branch object, etc.) */
@@ -37,8 +45,8 @@ export interface ActionDefinition {
   labelKey?: string;
   /** Optional shorter label for compact path pills. */
   pillLabelKey?: string;
-  /** Icon class or React component */
-  icon: string | React.ComponentType<Record<string, unknown>>;
+  /** Hugeicons glyph data or a hand-authored SVG component */
+  icon: string | React.ComponentType<Record<string, unknown>> | IconSvgElement;
   /** Color for the tag */
   color: string;
   /** Required parameters in order of collection */
@@ -64,11 +72,6 @@ export interface RepoItem {
   fs_uri?: string;
   workspace_uuid?: string;
   kind?: string;
-  gitStatus?: {
-    uncommittedFiles: number;
-    ahead: number;
-    behind: number;
-  };
 }
 
 export interface BranchItem {

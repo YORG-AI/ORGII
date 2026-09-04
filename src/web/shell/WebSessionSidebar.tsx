@@ -1,5 +1,4 @@
 import { useAtom, useAtomValue } from "jotai";
-import { LogOut } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -7,6 +6,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import Button from "@src/components/Button";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import { HugeiconsIcon, Logout02Icon } from "@src/icons";
 import {
   type NavigationMenuItem,
   NavigationSidebar,
@@ -161,7 +161,13 @@ export function WebSessionSidebar({ onNavigate }: { onNavigate?: () => void }) {
               size="mini"
               appearance="ghost"
               iconOnly
-              icon={<LogOut size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Logout02Icon}
+                  data-icon="log-out"
+                  size={14}
+                />
+              }
               title={t("web.sidebar.signOut", { name: displayName })}
               aria-label={t("cloud.signOut")}
               onClick={handleSignOut}

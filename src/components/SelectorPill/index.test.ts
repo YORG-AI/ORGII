@@ -22,8 +22,8 @@ describe("SelectorPill", () => {
       })
     );
 
-    expect(idleMarkup).toContain("enabled:hover:!bg-surface-hover");
-    expect(activeMarkup).toContain("!bg-surface-hover");
+    expect(idleMarkup).toContain("enabled:hover:bg-surface-hover!");
+    expect(activeMarkup).toContain("bg-surface-hover!");
   });
 
   it("supports a neutral active text treatment", () => {

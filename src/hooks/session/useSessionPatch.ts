@@ -223,26 +223,6 @@ function usePatchSession(): {
 }
 
 /**
- * Read+write the per-session display title.
- */
-export function useSessionNameField(sessionId: string) {
-  const session = useAtomValue(sessionByIdAtom(sessionId));
-  const { patch, isPatching, error } = usePatchSession();
-
-  const setName = useCallback(
-    (name: string) => patch(sessionId, { name }),
-    [patch, sessionId]
-  );
-
-  return {
-    name: session?.name,
-    setName,
-    isPatching,
-    error,
-  };
-}
-
-/**
  * Read+write the per-session model/account pair.
  *
  * Returns the current values (from `sessionByIdAtom`) plus a
@@ -319,28 +299,6 @@ export function useSessionComposerModeFields(sessionId: string) {
     agentExecMode: session?.agentExecMode,
     productMode: session?.productMode,
     setComposerMode,
-    isPatching,
-    error,
-  };
-}
-
-/**
- * Read+write the per-session product mode (`orgtrack/v1` §5.2:
- * build|plan|ask|project). `undefined` = build. Native and CLI-backed
- * sessions carry a product mode; imported sessions do not.
- */
-export function useSessionProductModeField(sessionId: string) {
-  const session = useAtomValue(sessionByIdAtom(sessionId));
-  const { patch, isPatching, error } = usePatchSession();
-
-  const setProductMode = useCallback(
-    (mode: string) => patch(sessionId, { productMode: mode }),
-    [patch, sessionId]
-  );
-
-  return {
-    productMode: session?.productMode,
-    setProductMode,
     isPatching,
     error,
   };
@@ -479,34 +437,6 @@ export function useSessionReplyField(sessionId: string) {
     replyTargetEventId: session?.replyTargetEventId,
     setReplyTarget,
     clearReplyTarget,
-    isPatching,
-    error,
-  };
-}
-/**
- * Read+write the per-session pinned state (P5).
- *
- * Pinned sessions appear at the top of the sidebar in all group-by modes.
- * Only legal for agent sessions.
- */
-export function useSessionPinned(sessionId: string) {
-  const session = useAtomValue(sessionByIdAtom(sessionId));
-  const { patch, isPatching, error } = usePatchSession();
-
-  const setPinned = useCallback(
-    (pinned: boolean) => patch(sessionId, { pinned }),
-    [patch, sessionId]
-  );
-
-  const togglePinned = useCallback(
-    () => patch(sessionId, { pinned: !(session?.pinned ?? false) }),
-    [patch, session, sessionId]
-  );
-
-  return {
-    pinned: session?.pinned ?? false,
-    setPinned,
-    togglePinned,
     isPatching,
     error,
   };

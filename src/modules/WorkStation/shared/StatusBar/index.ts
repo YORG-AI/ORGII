@@ -28,7 +28,6 @@ export type {
   StatusBarButtonProps,
   StatusBarDividerProps,
   StatusBarLabelProps,
-  StatusBarSegmentProps,
   StatusBarTextProps,
 } from "./StatusBarBase";
 
@@ -52,7 +51,6 @@ export type { BrowserStatusBarProps } from "./BrowserStatusBar";
 
 // Project status bar (Project Manager)
 export { default as ProjectStatusBar } from "./ProjectStatusBar";
-export type { ProjectStatusBarProps } from "./ProjectStatusBar";
 
 // Unified renderer (reads global atom, renders appropriate variant)
 export { StatusBarRenderer } from "./StatusBarRenderer";

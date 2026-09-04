@@ -294,7 +294,7 @@ export const EmailMessageBubble: React.FC<EmailMessageBubbleProps> = memo(
               value={
                 <span
                   className={
-                    view.subject ? "text-text-1" : "italic text-text-3"
+                    view.subject ? "text-text-1" : "text-text-3 italic"
                   }
                 >
                   {subjectLabel}
@@ -314,7 +314,7 @@ export const EmailMessageBubble: React.FC<EmailMessageBubbleProps> = memo(
               />
             </div>
           ) : (
-            <div className="border-t border-border-1 px-3 py-2 text-[13px] italic text-text-3">
+            <div className="border-t border-border-1 px-3 py-2 text-[13px] text-text-3 italic">
               {t("cards.agentMessage.empty")}
             </div>
           )}

@@ -7,10 +7,17 @@
  * - Collapsible
  * - Positioned in bottom-right corner by default
  */
-import { GripVertical, Minus, Palette, Plus, X } from "lucide-react";
 import React, { useCallback, useRef, useState } from "react";
 
 import Select from "@src/components/Select";
+import {
+  Add01Icon,
+  Cancel01Icon,
+  ColorPickerIcon,
+  GripVerticalIcon,
+  HugeiconsIcon,
+  MinusSignIcon,
+} from "@src/icons";
 
 // ============================================
 // Token Presets (moved from SingleEventPreview)
@@ -156,8 +163,18 @@ export function TokenOverridePanel({
         style={{ cursor: isDragging ? "grabbing" : "grab" }}
       >
         <div className="flex items-center gap-2">
-          <GripVertical size={14} className="text-text-3" />
-          <Palette size={14} className="text-primary-6" />
+          <HugeiconsIcon
+            icon={GripVerticalIcon}
+            data-icon="grip-vertical"
+            size={14}
+            className="text-text-3"
+          />
+          <HugeiconsIcon
+            icon={ColorPickerIcon}
+            data-icon="palette"
+            size={14}
+            className="text-primary-6"
+          />
           <span className="text-[12px] font-medium text-text-1">
             Token Override
           </span>
@@ -171,14 +188,18 @@ export function TokenOverridePanel({
             onClick={() => setIsMinimized(!isMinimized)}
             title={isMinimized ? "Expand" : "Minimize"}
           >
-            {isMinimized ? <Plus size={12} /> : <Minus size={12} />}
+            {isMinimized ? (
+              <HugeiconsIcon icon={Add01Icon} data-icon="plus" size={12} />
+            ) : (
+              <HugeiconsIcon icon={MinusSignIcon} data-icon="minus" size={12} />
+            )}
           </button>
           <button
             className="flex h-5 w-5 items-center justify-center rounded text-text-3 hover:bg-fill-2 hover:text-text-1"
             onClick={onClose}
             title="Close"
           >
-            <X size={12} />
+            <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={12} />
           </button>
         </div>
       </div>

@@ -18,7 +18,6 @@
  * into a `DiffFileNavigationItem<DiffFileSectionData>` rendered by
  * `DiffSectionList` → `CodeMirrorDiff`.
  */
-
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -345,13 +344,7 @@ describe("Diff / orgtrack final-diff tab content", function () {
       await invokeE2E(
         "seedChatEvents",
         sessionId,
-        [
-          makeUserEvent(
-            sessionId,
-            gitRepoPath,
-            new Date(base).toISOString()
-          ),
-        ],
+        [makeUserEvent(sessionId, gitRepoPath, new Date(base).toISOString())],
         { stationMode: "agent-station" }
       ),
       "seedChatEvents"

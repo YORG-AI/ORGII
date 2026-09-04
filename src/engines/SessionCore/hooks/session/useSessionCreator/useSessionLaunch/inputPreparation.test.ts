@@ -21,6 +21,21 @@ function composerRef(
 }
 
 describe("prepareLaunchInput", () => {
+  it("starts a context-only agent input on the first content line", async () => {
+    expect(
+      await prepareLaunchInput({
+        editorContent: "",
+        effectiveSource: null,
+        composerInputRef: composerRef("\n \t", {
+          "terminal://1": "server ready",
+        }),
+      })
+    ).toEqual({
+      userInput: "",
+      agentInput: "```\nserver ready\n```",
+    });
+  });
+
   it("keeps the display serialization as userInput but projects agentInput", async () => {
     const { userInput, agentInput } = await prepareLaunchInput({
       editorContent: "",

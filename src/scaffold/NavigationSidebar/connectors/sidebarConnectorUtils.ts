@@ -28,7 +28,7 @@ export const WORK_ITEMS_GITHUB_ISSUES_MENU_ITEM_ID = "work-items:github-issues";
 export const WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID = "work-items:github-prs";
 export const WORK_ITEMS_RUNS_MENU_ITEM_ID = "work-items:runs";
 export const COLLAB_ADD_ORG_MENU_ITEM_ID = "colleagues-add-org";
-export const SESSION_CREATOR_DRAFT_MENU_PREFIX = "session-creator-draft:";
+const SESSION_CREATOR_DRAFT_MENU_PREFIX = "session-creator-draft:";
 
 export function isWorkManagementMenuItemId(menuItemId: string): boolean {
   return (

@@ -23,7 +23,7 @@ const LazySimulatorMessages = lazy(
 // Types
 // ============================================
 
-export interface UserEventProps extends RawEventInput {
+interface UserEventProps extends RawEventInput {
   variant?: EventVariant;
 }
 

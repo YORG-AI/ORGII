@@ -1,6 +1,6 @@
-import type { LucideIcon } from "lucide-react";
 import type { ComponentType } from "react";
 
+import type { RenderableIcon } from "@src/components/AnyIcon";
 import type { SettingsKey } from "@src/config/settingsSchema";
 import type { SettingsSectionSlotId } from "@src/config/settingsUiManifest/slotIds";
 
@@ -12,7 +12,7 @@ import type { SettingsSectionSlotId } from "@src/config/settingsUiManifest/slotI
  */
 export type SettingsTabId = "app" | "agent" | "integrations";
 
-export type SettingsFieldControlType =
+type SettingsFieldControlType =
   | "switch"
   | "select"
   | "number"
@@ -20,13 +20,13 @@ export type SettingsFieldControlType =
   | "text"
   | "custom";
 
-export interface SettingsSelectOption {
+interface SettingsSelectOption {
   value: string | number;
   labelKey?: string;
   label?: string;
 }
 
-export interface SettingsRowBase {
+interface SettingsRowBase {
   id: string;
   labelKey: string;
   descriptionKey?: string;
@@ -49,14 +49,14 @@ export interface SettingsFieldRow extends SettingsRowBase {
   noPadding?: boolean;
 }
 
-export interface SettingsCustomRow extends SettingsRowBase {
+interface SettingsCustomRow extends SettingsRowBase {
   kind: "custom";
   customSlotId: string;
   /** Render slot directly without SectionRow wrapper */
   raw?: boolean;
 }
 
-export type SettingsRowDefinition = SettingsFieldRow | SettingsCustomRow;
+type SettingsRowDefinition = SettingsFieldRow | SettingsCustomRow;
 
 export interface SettingsContainerDefinition {
   id: string;
@@ -71,7 +71,8 @@ export interface SettingsSectionDefinition {
   tab: SettingsTabId;
   labelKey: string;
   headingTitleKey: string;
-  icon: LucideIcon;
+  /** Glyph data or a brand component — render via `AnyIcon`. */
+  icon: RenderableIcon;
   containers?: SettingsContainerDefinition[];
   customSectionSlotId?: SettingsSectionSlotId;
   /**
@@ -81,7 +82,7 @@ export interface SettingsSectionDefinition {
   coveredKeys?: SettingsKey[];
 }
 
-export interface SettingsCustomSectionSlotProps {
+interface SettingsCustomSectionSlotProps {
   activeTab?: string;
 }
 

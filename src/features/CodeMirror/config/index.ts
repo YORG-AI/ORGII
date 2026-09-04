@@ -15,7 +15,6 @@ export {
   CODE_FONT_SIZE_SMALL,
   CODE_LINE_HEIGHT,
   CODEMIRROR_BASE_LAYOUT_THEME,
-  CODEMIRROR_VISUAL_OVERRIDE_THEME,
   getCodeMirrorTheme,
   createCodeMirrorTheme,
 } from "./themeConfig";

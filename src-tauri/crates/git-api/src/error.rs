@@ -79,6 +79,9 @@ pub enum GitApiError {
     #[error("Push rejected (non-fast-forward): {message}")]
     NonFastForward { message: String },
 
+    #[error("Push rejected by remote policy: {message}")]
+    ProtectedBranch { message: String },
+
     #[error("Network error: {message}")]
     NetworkError { message: String },
 
@@ -138,6 +141,7 @@ impl GitApiError {
             // 409 Conflict
             GitApiError::MergeConflict { .. }
             | GitApiError::NonFastForward { .. }
+            | GitApiError::ProtectedBranch { .. }
             | GitApiError::UncommittedChanges { .. } => StatusCode::CONFLICT,
 
             // 503 Service Unavailable
@@ -173,6 +177,7 @@ impl GitApiError {
             GitApiError::RemoteNotFound { .. } => "remote_not_found",
             GitApiError::AuthenticationFailed { .. } => "authentication_failed",
             GitApiError::NonFastForward { .. } => "non_fast_forward",
+            GitApiError::ProtectedBranch { .. } => "protected_branch",
             GitApiError::NetworkError { .. } => "network_error",
             GitApiError::InvalidRequest { .. } => "invalid_request",
             GitApiError::InvalidEncoding { .. } => "invalid_encoding",
@@ -196,6 +201,17 @@ impl GitApiError {
         }
         if normalized.contains("nothing to commit") {
             return GitApiError::NothingToCommit;
+        }
+        // Policy rejections must be tested before the broad "rejected" match:
+        // protected-branch and hook rejections also contain "rejected", and
+        // classifying them as non-fast-forward tells the user to pull, which
+        // cannot help.
+        if normalized.contains("protected branch")
+            || normalized.contains("branch is protected")
+            || normalized.contains("pre-receive hook declined")
+            || normalized.contains("remote rejected")
+        {
+            return GitApiError::ProtectedBranch { message: msg };
         }
         if normalized.contains("non-fast-forward") || normalized.contains("rejected") {
             return GitApiError::NonFastForward { message: msg };

@@ -17,11 +17,11 @@
  *     is never consulted for an existing session.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { X } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { DropdownItem, DropdownPanel } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
@@ -45,6 +45,7 @@ import {
   useSessionComposerModeFields,
   useSessionExecModeField,
 } from "@src/hooks/session/useSessionPatch";
+import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
 import { creatorDefaultProductModeAtom } from "@src/store/session/creatorDefaultProductModeAtom";
 import {
@@ -242,7 +243,8 @@ const ModePill: React.FC<ModePillProps> = memo(
         <SelectorPill
           ref={triggerRef}
           icon={
-            <CurrentIcon
+            <AnyIcon
+              icon={CurrentIcon}
               size={14}
               strokeWidth={1.75}
               className={toneClassName || "text-text-1"}
@@ -257,7 +259,12 @@ const ModePill: React.FC<ModePillProps> = memo(
           onClick={handleTriggerClick}
           hoverIcon={
             resetToDefaultOnClick && mode !== DEFAULT_AGENT_EXEC_MODE ? (
-              <X size={14} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={Cancel01Icon}
+                data-icon="x"
+                size={14}
+                strokeWidth={1.75}
+              />
             ) : undefined
           }
           className={toneClassName}
@@ -287,7 +294,8 @@ const ModePill: React.FC<ModePillProps> = memo(
                     <DropdownItem
                       key={option.id}
                       icon={
-                        <Icon
+                        <AnyIcon
+                          icon={Icon}
                           size={DROPDOWN_ITEM.iconSize}
                           strokeWidth={1.75}
                         />

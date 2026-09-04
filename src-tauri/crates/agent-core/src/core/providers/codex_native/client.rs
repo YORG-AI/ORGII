@@ -106,7 +106,7 @@ impl CodexNativeClient {
             ReasoningLevel::Medium => "medium",
             ReasoningLevel::High => "high",
             ReasoningLevel::ExtraHigh => "xhigh",
-            ReasoningLevel::Max | ReasoningLevel::Ultracode => "max",
+            ReasoningLevel::Max | ReasoningLevel::Ultra | ReasoningLevel::Ultracode => "max",
             ReasoningLevel::Baseline | ReasoningLevel::None => return None,
         })
     }
@@ -146,6 +146,21 @@ impl CodexNativeClient {
         );
         let reasoning = Self::codex_reasoning_effort(parsed.level)
             .map(|effort| serde_json::json!({ "effort": effort }));
+        let mut instructions = Self::required_instructions(instructions);
+        // Ultra is Max reasoning plus a delegation policy, not an API effort
+        // named `ultra`. Apply it per request so changing effort cannot leave
+        // stale mode instructions in the session's cached system prompt.
+        if parsed.level == Some(crate::providers::thinking_mode::ReasoningLevel::Ultra) {
+            instructions.push_str(
+                "\n\n## Ultra mode\n\n\
+                 Use the available subagent tools to delegate concrete, independent subtasks \
+                 in parallel when that helps complete the user's request. Keep the main agent \
+                 responsible for integration and verification, and do not duplicate delegated work. \
+                 Keep simple or tightly coupled work local. Respect all user restrictions, tool \
+                 permissions, worker limits, and cancellation rules. If delegation is unavailable \
+                 or disallowed, work directly; never enable tools or bypass restrictions to delegate.",
+            );
+        }
         let service_tier = (parsed.fast
             && Self::codex_supports_fast_service_tier(&parsed.base_model))
         .then(|| CODEX_FAST_SERVICE_TIER.to_string());
@@ -153,7 +168,7 @@ impl CodexNativeClient {
         ResponsesRequest {
             model: parsed.base_model,
             input,
-            instructions: Self::required_instructions(instructions),
+            instructions,
             tools: converted_tools,
             tool_choice,
             reasoning,
@@ -331,5 +346,43 @@ mod tests {
         assert_eq!(req.model, "gpt-5.6-sol");
         assert_eq!(req.reasoning.as_ref().unwrap()["effort"], "max");
         assert_eq!(req.service_tier.as_deref(), Some("priority"));
+        assert!(req.instructions.contains("## Ultra mode"));
+        assert!(req.instructions.contains("Respect all user restrictions"));
+    }
+
+    #[test]
+    fn build_responses_request_preserves_effort_and_ultra_mode_on_the_wire() {
+        let messages = [json!({"role": "system", "content": "Keep workspace edits scoped."})];
+        for base in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] {
+            let efforts: &[&str] = if base == "gpt-5.6-luna" {
+                &["low", "medium", "high", "xhigh", "max"]
+            } else {
+                &["low", "medium", "high", "xhigh", "max", "ultra"]
+            };
+            for effort in efforts {
+                for (fast, stream) in [(false, false), (true, true)] {
+                    let suffix = if fast { "-fast" } else { "" };
+                    let model = format!("openai/{base}-{effort}{suffix}");
+                    let req =
+                        CodexNativeClient::build_responses_request(&messages, None, &model, stream);
+                    let body = serde_json::to_value(req).unwrap();
+                    assert_eq!(body["model"], base);
+                    assert_eq!(
+                        body["reasoning"]["effort"],
+                        if *effort == "ultra" { "max" } else { effort }
+                    );
+                    assert_eq!(body["stream"], stream);
+                    assert_eq!(body.get("service_tier").is_some(), fast);
+                    let instructions = body["instructions"].as_str().unwrap();
+                    assert!(instructions.starts_with("Keep workspace edits scoped."));
+                    assert_eq!(instructions.contains("## Ultra mode"), *effort == "ultra");
+                    assert!(body.get("max_output_tokens").is_none());
+                    assert!(body.get("temperature").is_none());
+                    assert!(body.get("tools").is_none(), "Ultra must not enable tools");
+                }
+            }
+        }
+        // The mode belongs to the current request, not a mutated/cached prompt.
+        assert_eq!(messages[0]["content"], "Keep workspace edits scoped.");
     }
 }

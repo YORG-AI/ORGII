@@ -215,6 +215,15 @@ export function setPaneForeground(
   }
 }
 
+/**
+ * Whether a pane's terminal is on screen. Writers use this to decide whether a
+ * chunk is worth repaint coordination — a hidden pane's rows are never
+ * presented, so refreshing them only burns frames.
+ */
+export function isPaneForeground(sessionId: string): boolean {
+  return paneMap.get(sessionId)?.foreground ?? false;
+}
+
 /** Open the interactive-bypass window for a pane. */
 export function notifyUserInput(sessionId: string): void {
   const pane = paneMap.get(sessionId);

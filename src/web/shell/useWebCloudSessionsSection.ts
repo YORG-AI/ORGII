@@ -43,6 +43,18 @@ import type { WebSessionListItem } from "../features/sessions/useWebSessionRoste
 import { webSessionPath } from "../features/sessions/webSessionLocation";
 
 const WEB_TEAM_FILTER: CloudSessionFilter = { kind: "all" };
+const EMPTY_LOCAL_SESSIONS = [] as const;
+const EMPTY_LOCAL_SESSION_IDS: ReadonlySet<string> = new Set();
+const EMPTY_BUSY_SESSION_ROWS = new Map();
+const EMPTY_PINNED_REMOTE_SESSION_IDS: ReadonlySet<string> = new Set();
+const buildNoNativeMenuItems = () => [];
+const ignoreRemoteSessionAction = () => undefined;
+const ignoreMemberMenuChange = () => undefined;
+
+interface WebSectionPaginationState {
+  scopeKey: string;
+  visibleCount: number;
+}
 
 export function mapWebRosterStatusToCloudFetchState(
   status: "idle" | "loading" | "loaded" | "error",
@@ -177,11 +189,12 @@ export function useWebCloudSessionsSection({
 
   const teamPaginationScopeKey = orgId ? `${orgId}:team` : "";
   const myPaginationScopeKey = orgId ? `${orgId}:my` : "";
-  const [teamPagination, setTeamPagination] = useState({
-    scopeKey: "",
-    visibleCount: CLOUD_SESSION_SECTION_PAGE_SIZE,
-  });
-  const [myPagination, setMyPagination] = useState({
+  const [teamPagination, setTeamPagination] =
+    useState<WebSectionPaginationState>({
+      scopeKey: "",
+      visibleCount: CLOUD_SESSION_SECTION_PAGE_SIZE,
+    });
+  const [myPagination, setMyPagination] = useState<WebSectionPaginationState>({
     scopeKey: "",
     visibleCount: CLOUD_SESSION_SECTION_PAGE_SIZE,
   });
@@ -205,13 +218,16 @@ export function useWebCloudSessionsSection({
   const buildRowItem = useCloudSessionRowItemBuilder({
     presenceMap,
     selfUserId,
+    sessions: EMPTY_LOCAL_SESSIONS,
+    localOwnSessionIds: EMPTY_LOCAL_SESSION_IDS,
+    sourceEndpointUrl: undefined,
     t,
     tCommon,
-    runFork: () => undefined,
-    hideRemoteSession: () => undefined,
-    busySessionRows: new Map(),
-    pinnedRemoteSessionIds: new Set(),
-    toggleRemoteSessionPin: () => undefined,
+    runFork: ignoreRemoteSessionAction,
+    buildNativeMenuItems: buildNoNativeMenuItems,
+    busySessionRows: EMPTY_BUSY_SESSION_ROWS,
+    pinnedRemoteSessionIds: EMPTY_PINNED_REMOTE_SESSION_IDS,
+    toggleRemoteSessionPin: ignoreRemoteSessionAction,
     readOnlySurface: true,
   });
 
@@ -222,7 +238,7 @@ export function useWebCloudSessionsSection({
     state: fetchState,
     filter: WEB_TEAM_FILTER,
     memberMenu: null,
-    setMemberMenu: () => undefined,
+    setMemberMenu: ignoreMemberMenuChange,
     refreshSpinClass,
     handleRefreshClick,
     buildRowItem,

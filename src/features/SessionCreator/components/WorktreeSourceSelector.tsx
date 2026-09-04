@@ -1,4 +1,3 @@
-import { Cloud, Folder, GitBranch, GitPullRequest, Hash } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -9,6 +8,13 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { resolvePrWorktreeBase } from "@src/api/tauri/github";
+import {
+  CloudIcon,
+  FolderClosedIcon,
+  GitPullRequestIcon,
+  HashtagIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import { useWorktreeMap } from "@src/scaffold/GlobalSpotlight/palettes/BranchPalette/useWorktreeMap";
 import type {
   WorktreeLaunchSelection,
@@ -119,7 +125,7 @@ export const WorktreeSourceSelector: React.FC<WorktreeSourceSelectorProps> = ({
               detail: t("sessions:creator.worktreeSource.branchCustomRefHint", {
                 defaultValue: "Tag, commit, or any git ref",
               }),
-              icon: Hash,
+              icon: HashtagIcon,
               source,
             },
           ],
@@ -139,10 +145,10 @@ export const WorktreeSourceSelector: React.FC<WorktreeSourceSelectorProps> = ({
             label: option.name,
             meta: formatBranchTimestamp(option),
             icon: option.worktreePath
-              ? Folder
+              ? FolderClosedIcon
               : option.isRemote
-                ? Cloud
-                : GitBranch,
+                ? CloudIcon
+                : WorkflowCircle05Icon,
             source,
           };
         }),
@@ -164,7 +170,7 @@ export const WorktreeSourceSelector: React.FC<WorktreeSourceSelectorProps> = ({
         id: option.id,
         label: option.source.label,
         detail: option.detail,
-        icon: GitPullRequest,
+        icon: GitPullRequestIcon,
         source: option.source,
         resolveMeta: option.resolveMeta,
       }));

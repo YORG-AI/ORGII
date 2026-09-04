@@ -5,15 +5,15 @@ import type { CursorRepo } from "@src/hooks/policies";
 import McpAddWizard from "@src/scaffold/WizardSystem/variants/Mcp/McpAddWizard";
 import { reposAtom } from "@src/store/repo";
 
-import type { CategoryTableContentProps } from "../Tables";
-import { CategoryTableContent } from "../Tables";
 import { McpDetailView } from "./Detail/McpDetailView";
+import { McpTable } from "./Table/McpTable";
+import type { McpCategoryTableProps } from "./categoryTableProps";
 import type { McpDetailState } from "./types";
 
 export const McpCategoryView: React.FC<{
   selectedId: string | null;
   mcp: McpDetailState;
-  tableProps: CategoryTableContentProps;
+  tableProps: McpCategoryTableProps;
   fullPage: boolean;
   onBack: () => void;
   onExpand?: () => void;
@@ -45,15 +45,16 @@ export const McpCategoryView: React.FC<{
     return <McpDetailView selectedId={selectedId} mcp={mcp} onBack={onBack} />;
   }
 
-  const augmentedTableProps: CategoryTableContentProps = {
+  const augmentedTableProps = {
     ...tableProps,
-    mcpTools: mcp.tools,
-    mcpResources: mcp.resources,
-    onMcpFetchTools: mcp.onFetchTools,
-    mcpCursorRepos: cursorRepos,
-    onMcpAfterImport: mcp.onRefresh,
+    tools: mcp.tools ?? [],
+    resources: mcp.resources ?? [],
+    onFetchTools: mcp.onFetchTools,
+    cursorRepos,
+    onAfterImport: mcp.onRefresh,
     selectedRowId: selectedId,
+    embedded: tableProps.embedded ?? false,
   };
 
-  return <CategoryTableContent {...augmentedTableProps} category="mcp" />;
+  return <McpTable {...augmentedTableProps} />;
 };

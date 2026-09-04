@@ -5,7 +5,7 @@
  * Uses the shared TabBar component.
  */
 import BrowserCore from "@/src/engines/BrowserCore";
-import type { UseBrowserStateReturn } from "@/src/engines/BrowserCore/hooks/useBrowserState";
+import type { BrowserState } from "@/src/engines/BrowserCore/types";
 import { TabBar, type WorkStationTab } from "@/src/modules/WorkStation/shared";
 import { useSetAtom } from "jotai";
 import React, { memo, useCallback, useMemo } from "react";
@@ -29,9 +29,9 @@ import BrowserBlankTabPlaceholder from "./BrowserBlankTabPlaceholder";
 // Types
 // ============================================
 
-export interface WebViewportProps {
+interface WebViewportProps {
   /** Browser state from context */
-  browserState: UseBrowserStateReturn;
+  browserState: BrowserState;
   /** Open native browser DevTools (Safari Inspector / Edge DevTools) */
   onOpenNativeDevTools?: () => void;
   /** Toggle the WorkStation Browser secondary DevTools pane. */

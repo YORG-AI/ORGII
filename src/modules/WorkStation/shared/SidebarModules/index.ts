@@ -8,7 +8,7 @@
  *
  * This is the substrate for the "tab-specific sidebar" pattern: each tab
  * declares (via `TAB_SIDEBAR_REGISTRY`) which sidebar component to render
- * when active, and the host calls `useTabSidebar()` to resolve it. Tabs
+ * when active, and `SidebarSlot` resolves it. Tabs
  * without a registered sidebar fall through to the host's default sidebar.
  */
 export {
@@ -25,9 +25,8 @@ export {
   getTabSidebarDescriptor,
   hasTabSidebar,
   type TabSidebarComponent,
-  type TabSidebarDescriptor,
   type TabSidebarProps,
   type TabSidebarRuntimeContext,
 } from "./registry";
 
-export { SidebarSlot, useTabSidebar } from "./useTabSidebar";
+export { SidebarSlot } from "./SidebarSlot";

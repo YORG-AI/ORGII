@@ -66,7 +66,7 @@ function writeCache(
   notifySubscribers();
 }
 
-export function invalidateWorktreeMap(repoId: string): void {
+function invalidateWorktreeMap(repoId: string): void {
   worktreeCache.delete(repoId);
   notifySubscribers();
 }
@@ -76,6 +76,22 @@ export function refreshWorktreeMap(
   repoPath: string | undefined
 ): Promise<Map<string, string>> {
   invalidateWorktreeMap(repoId);
+  return fetchWorktreeMap(repoId, repoPath);
+}
+
+/**
+ * Refetches the worktree list *without* dropping the cached entries first,
+ * so subscribers keep rendering the current list while the request is in
+ * flight — a user-triggered refresh should not blank the rows it refreshes.
+ *
+ * Use {@link refreshWorktreeMap} instead when the cached entries are known
+ * to be wrong (e.g. right after removing a worktree), where showing stale
+ * rows until the refetch lands would be worse than showing none.
+ */
+export function revalidateWorktreeMap(
+  repoId: string,
+  repoPath: string | undefined
+): Promise<Map<string, string>> {
   return fetchWorktreeMap(repoId, repoPath);
 }
 
@@ -118,7 +134,7 @@ function subscribe(callback: () => void): () => void {
   };
 }
 
-export interface UseWorktreeMapOptions {
+interface UseWorktreeMapOptions {
   enabled: boolean;
   repoId: string;
   repoPath?: string;

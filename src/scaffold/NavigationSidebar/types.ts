@@ -4,23 +4,25 @@
  * Centralized type definitions for the unified sidebar system.
  * All sidebar components should use these types for consistency.
  */
-import type { LucideIcon } from "lucide-react";
 import type { MouseEvent, ReactNode, Ref } from "react";
+
+import type { IconSvgElement } from "@src/icons";
 
 // ============================================
 // Base Types
 // ============================================
 
 /**
- * Sidebar icon representation.
+ * Sidebar icon representation: hugeicons glyph data (e.g.
+ * `ComputerTerminal01Icon`).
  *
- * - Prefer Lucide icon components (e.g. `Terminal`)
- * - Some configs still use string icon names during migration (e.g. `"Terminal"`)
+ * The lucide→hugeicons migration briefly allowed string icon names here;
+ * no config produces one anymore, so the alias is glyph-only.
  */
-export type SidebarIcon = LucideIcon | string;
+export type SidebarIcon = IconSvgElement;
 
 /** Theme configuration for custom-styled sidebars */
-export interface SidebarTheme {
+interface SidebarTheme {
   background?: string;
   foreground?: string;
   border?: string;
@@ -45,32 +47,12 @@ export interface SidebarItemData {
   actions?: ReactNode; // Custom action buttons (e.g., dropdown menu)
 }
 
-/** Extended item with actions */
-export interface SidebarItemWithActions extends SidebarItemData {
-  canClose?: boolean;
-  canPin?: boolean;
-  isPinned?: boolean;
-  onClick?: () => void;
-  onClose?: (e: MouseEvent) => void;
-  onPin?: () => void;
-}
-
-/** Item type for categorized items */
-export type SidebarItemType =
-  | "session"
-  | "terminal"
-  | "browser"
-  | "file"
-  | "document"
-  | "repo"
-  | "custom";
-
 // ============================================
 // Group Types
 // ============================================
 
 /** Sidebar group/category */
-export interface SidebarGroupData<T extends SidebarItemData = SidebarItemData> {
+interface SidebarGroupData<T extends SidebarItemData = SidebarItemData> {
   id: string;
   title?: string;
   icon?: SidebarIcon;
@@ -95,14 +77,14 @@ export interface SidebarTab {
 }
 
 /** Tab style */
-export type SidebarTabStyle = "pill" | "text" | "underline";
+type SidebarTabStyle = "pill" | "text" | "underline";
 
 // ============================================
 // Action Types
 // ============================================
 
 /** Sidebar action button */
-export interface SidebarAction {
+interface SidebarAction {
   id: string;
   icon: SidebarIcon;
   tooltip?: string;
@@ -116,7 +98,7 @@ export interface SidebarAction {
 // ============================================
 
 /** Empty state configuration */
-export interface SidebarEmptyStateConfig {
+interface SidebarEmptyStateConfig {
   icon?: SidebarIcon;
   title?: string;
   description?: string;
@@ -157,7 +139,7 @@ export interface SidebarBaseProps {
   /** Add new item callback (shows plus button in traffic lights area) */
   onAddNew?: () => void;
   /** Icon for add button */
-  addIcon?: LucideIcon;
+  addIcon?: IconSvgElement;
   /** Label for add button tooltip */
   addLabel?: string;
   /** Optional rich tooltip content for the add button. */
@@ -300,38 +282,4 @@ export interface SidebarSectionProps {
   children: ReactNode;
   /** Additional class names */
   className?: string;
-}
-
-// ============================================
-// Variant Props Types
-// ============================================
-
-/** Tab configuration for session sidebar */
-export interface SessionSidebarTab {
-  key: string;
-  label: string;
-}
-
-/** SidebarSession props (for session create/workspace) */
-export interface SessionSidebarProps {
-  /** Sessions list */
-  sessions: SidebarItemWithActions[];
-  /** Active session ID */
-  activeSessionId?: string;
-  /** Session click handler */
-  onSessionClick?: (session: SidebarItemWithActions) => void;
-  /** Session close handler */
-  onSessionClose?: (session: SidebarItemWithActions, e: MouseEvent) => void;
-  /** Create session handler */
-  onCreateSession?: () => void;
-  /** Optional tab configuration */
-  tabs?: SessionSidebarTab[];
-  /** Active tab key */
-  activeTab?: string;
-  /** Tab change handler */
-  onTabChange?: (key: string) => void;
-  /** Loading state */
-  isLoading?: boolean;
-  /** Custom content renderer for non-default tabs */
-  renderTabContent?: (tabKey: string) => ReactNode;
 }

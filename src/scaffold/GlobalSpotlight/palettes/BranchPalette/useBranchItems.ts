@@ -24,8 +24,6 @@ const ICONS = {
   detached: getIcon(BRANCH_PALETTE_CONFIG, "detached")!,
 };
 
-export { ICONS as BRANCH_PALETTE_ICONS };
-
 export function useBranchItems(
   options: UseBranchItemsOptions
 ): SpotlightItem[] {

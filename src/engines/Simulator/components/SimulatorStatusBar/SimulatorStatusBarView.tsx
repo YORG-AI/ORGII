@@ -1,10 +1,3 @@
-import {
-  ChevronLeft,
-  ChevronRight,
-  MousePointer2,
-  Pause,
-  Play,
-} from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -12,6 +5,14 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import Tooltip from "@src/components/Tooltip";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import type { ReplayMode } from "@src/engines/SessionCore/core/types";
+import {
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  Cursor02Icon,
+  HugeiconsIcon,
+  PauseIcon,
+  PlayIcon,
+} from "@src/icons";
 
 import { PlaybackSpeedInline } from "./PlaybackSpeedInline";
 import { ReplayTimestampSegment } from "./ReplayTimestampSegment";
@@ -76,7 +77,7 @@ export const SimulatorStatusBarView: React.FC<SimulatorStatusBarViewProps> =
             ) : null}
             {replayMode === "follow" ? (
               <>
-                <span className="inline-flex h-5 shrink-0 items-center pl-1.5 text-[11px] font-medium leading-none text-white">
+                <span className="inline-flex h-5 shrink-0 items-center pl-1.5 text-[11px] leading-none font-medium text-white">
                   {t("simulator.replay.followingAgent")}
                 </span>
                 {followOptions}
@@ -100,7 +101,12 @@ export const SimulatorStatusBarView: React.FC<SimulatorStatusBarViewProps> =
                     className="flex h-5 w-5 transform-gpu items-center justify-center rounded-full text-white hover:bg-white/15 hover:text-white"
                     aria-label={t("simulator.replay.freeBrowse")}
                   >
-                    <MousePointer2 size={12} strokeWidth={1.75} />
+                    <HugeiconsIcon
+                      icon={Cursor02Icon}
+                      data-icon="cursor-2"
+                      size={12}
+                      strokeWidth={1.75}
+                    />
                   </button>
                 </Tooltip>
               </>
@@ -115,7 +121,12 @@ export const SimulatorStatusBarView: React.FC<SimulatorStatusBarViewProps> =
                   title={t("simulator.replay.previousEvent")}
                   aria-label={t("simulator.replay.previousEvent")}
                 >
-                  <ChevronLeft size={14} strokeWidth={1.5} />
+                  <HugeiconsIcon
+                    icon={ArrowLeft01Icon}
+                    data-icon="arrow-left-1"
+                    size={14}
+                    strokeWidth={1.5}
+                  />
                 </button>
                 <button
                   type="button"
@@ -138,11 +149,13 @@ export const SimulatorStatusBarView: React.FC<SimulatorStatusBarViewProps> =
                       : t("simulator.replay.play")
                   }
                 >
-                  {isReplaying ? (
-                    <Pause size={12} fill="currentColor" strokeWidth={0} />
-                  ) : (
-                    <Play size={12} fill="currentColor" strokeWidth={0} />
-                  )}
+                  <HugeiconsIcon
+                    icon={isReplaying ? PauseIcon : PlayIcon}
+                    data-icon={isReplaying ? "pause" : "play"}
+                    size={12}
+                    fill="currentColor"
+                    strokeWidth={0}
+                  />
                 </button>
                 <button
                   type="button"
@@ -153,7 +166,12 @@ export const SimulatorStatusBarView: React.FC<SimulatorStatusBarViewProps> =
                   title={t("simulator.replay.nextEvent")}
                   aria-label={t("simulator.replay.nextEvent")}
                 >
-                  <ChevronRight size={14} strokeWidth={1.5} />
+                  <HugeiconsIcon
+                    icon={ArrowRight01Icon}
+                    data-icon="arrow-right-1"
+                    size={14}
+                    strokeWidth={1.5}
+                  />
                 </button>
                 {playbackSpeed != null && onPlaybackSpeedChange != null ? (
                   <PlaybackSpeedInline

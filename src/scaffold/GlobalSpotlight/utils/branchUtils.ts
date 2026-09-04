@@ -3,7 +3,7 @@
  */
 import type { BranchItem } from "../types";
 
-export interface CategorizedBranches {
+interface CategorizedBranches {
   recent: BranchItem[]; // Top 5 most recent branches (incl. current if eligible)
   worktrees: BranchItem[]; // Branches checked out in a secondary worktree
   default: BranchItem[];

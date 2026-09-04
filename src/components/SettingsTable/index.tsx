@@ -1,4 +1,3 @@
-import { Filter, Info, Search } from "lucide-react";
 import React, {
   type ReactNode,
   useEffect,
@@ -15,6 +14,12 @@ import Select from "@src/components/Select";
 import type { SelectOption, SelectProps } from "@src/components/Select";
 import Table, { type TableColumn } from "@src/components/Table";
 import Tooltip from "@src/components/Tooltip";
+import {
+  FilterIcon,
+  HugeiconsIcon,
+  InformationCircleIcon,
+  Search01Icon,
+} from "@src/icons";
 
 import SearchSortBar, { type SearchSortBarProps } from "./SearchSortBar";
 import {
@@ -111,7 +116,7 @@ export interface SettingsTableSelectFilter {
   appearance?: SelectProps["appearance"];
 }
 
-export interface SettingsTablePaginationContext {
+interface SettingsTablePaginationContext {
   pageIndex: number;
   pageSize: number;
   total: number;
@@ -253,12 +258,14 @@ function SettingsTableToolbar({
       iconOnly
       onClick={filterConfig.onToggle}
       icon={
-        <Filter
+        <HugeiconsIcon
+          icon={FilterIcon}
+          data-icon="filter"
           size={14}
           className={filterConfig.active ? "text-primary-6" : ""}
         />
       }
-      title={filterConfig.title ?? t("labels.filter")}
+      title={filterConfig.title ?? t("actions.filter")}
     />
   ) : undefined;
   const hasRightControls =
@@ -269,7 +276,7 @@ function SettingsTableToolbar({
     !!searchBar?.rightContent;
 
   return (
-    <div className="flex min-w-0 flex-col gap-2 pb-2 pt-2 @[640px]:flex-row @[640px]:items-center">
+    <div className="flex min-w-0 flex-col gap-2 pt-2 pb-2 @[640px]:flex-row @[640px]:items-center">
       <div className="order-2 w-full min-w-0 overflow-x-auto overflow-y-hidden @[640px]:order-1 @[640px]:w-auto @[640px]:flex-none">
         <div className="flex w-max min-w-full items-center gap-2">
           {searchBar?.leftContent}
@@ -326,7 +333,13 @@ function SettingsTableToolbar({
                 value={searchBar.searchValue ?? ""}
                 placeholder={searchBar.searchPlaceholder}
                 prefix={
-                  <Search size={14} className="text-text-3" aria-hidden />
+                  <HugeiconsIcon
+                    icon={Search01Icon}
+                    data-icon="search"
+                    size={14}
+                    className="text-text-3"
+                    aria-hidden
+                  />
                 }
                 onChange={(value) => searchBar.onSearchChange?.(value)}
                 allowClear={searchBar.allowSearchClear ?? true}
@@ -469,7 +482,12 @@ export default function SettingsTable<RowData>({
                 showArrow={false}
               >
                 <span className="flex cursor-help items-center p-1">
-                  <Info size={14} className="text-text-3" />
+                  <HugeiconsIcon
+                    icon={InformationCircleIcon}
+                    data-icon="info"
+                    size={14}
+                    className="text-text-3"
+                  />
                 </span>
               </Tooltip>
             </div>
@@ -641,11 +659,5 @@ export default function SettingsTable<RowData>({
     </div>
   );
 }
-
-// Re-export sub-components for direct imports
-export { SettingsTableAddFooter, type SettingsTableAddFooterProps };
-export {
-  SettingsTableLoadMoreFooter,
-  type SettingsTableLoadMoreFooterProps,
-} from "./SettingsTableLoadMoreFooter";
+export { SettingsTableLoadMoreFooter } from "./SettingsTableLoadMoreFooter";
 export { SettingsTablePagination } from "./SettingsTablePagination";

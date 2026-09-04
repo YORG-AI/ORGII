@@ -22,9 +22,12 @@ import {
   type RunGroup,
   type RunGroupEntry,
 } from "@src/features/SessionCreator/multiRunner/runGroupContract";
+import { createLogger } from "@src/hooks/logger";
 import { createZodJsonStorage } from "@src/util/core/storage/zodStorage";
 
 import { RunnerSchema } from "./multiRunnerAtom";
+
+const log = createLogger("runGroups");
 
 export const RUN_GROUPS_STORAGE_KEY = "orgii:runGroups:v1";
 
@@ -71,7 +74,7 @@ const StoredRunGroupsSchema: z.ZodType<Record<string, RunGroup>> = z
       if (parsed.success) {
         valid[key] = parsed.data;
       } else {
-        console.warn(`[runGroups] dropped malformed stored group "${key}"`);
+        log.warn(`dropped malformed stored group "${key}"`);
       }
     }
     return valid;
@@ -82,7 +85,7 @@ export const runGroupsAtom = atomWithStorage<Record<string, RunGroup>>(
   {},
   createZodJsonStorage(StoredRunGroupsSchema, {
     onInvalid: (key, _rawValue, error) => {
-      console.warn(`[runGroups] invalid stored payload for ${key}`, error);
+      log.warn(`invalid stored payload for ${key}`, error);
     },
   }),
   { getOnInit: true }
@@ -131,13 +134,17 @@ export const replaceRunGroupEntryAtom = atom(
 );
 replaceRunGroupEntryAtom.debugLabel = "replaceRunGroupEntryAtom";
 
+const _runGroupByIdCache = new Map<string, Atom<RunGroup | undefined>>();
+
 export const removeRunGroupAtom = atom(null, (get, set, groupId: string) => {
   const { [groupId]: _removed, ...rest } = get(runGroupsAtom);
   set(runGroupsAtom, rest);
+  // Drop the derived atom too. Removing only the data left the per-id atom in
+  // the cache forever, so the map grew with every group ever created — the
+  // hand-rolled equivalent of an atomFamily that is never `remove`d.
+  _runGroupByIdCache.delete(groupId);
 });
 removeRunGroupAtom.debugLabel = "removeRunGroupAtom";
-
-const _runGroupByIdCache = new Map<string, Atom<RunGroup | undefined>>();
 
 /** Per-id atom so a group panel re-renders only for its own group. */
 export function runGroupByIdAtom(groupId: string): Atom<RunGroup | undefined> {

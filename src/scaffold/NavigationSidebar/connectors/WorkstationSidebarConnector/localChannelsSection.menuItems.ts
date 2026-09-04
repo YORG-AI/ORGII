@@ -12,9 +12,14 @@
  * selected state while that tab is active.
  */
 import type { TFunction } from "i18next";
-import { ArchiveRestore, Hash, MoreHorizontal, Trash2 } from "lucide-react";
 import type { MouseEvent } from "react";
 
+import {
+  ArchiveArrowUpIcon,
+  Delete02Icon,
+  HashtagIcon,
+  MoreHorizontalIcon,
+} from "@src/icons";
 import type {
   NavigationMenuItem,
   NavigationMenuRowAction,
@@ -28,7 +33,7 @@ import {
   buildCreateFirstChannelRow,
 } from "./channelsSection.menuItems";
 
-export const LOCAL_CHANNELS_SECTION_ID = "local-channels";
+const LOCAL_CHANNELS_SECTION_ID = "local-channels";
 /** Ready-and-empty "Create a channel" funnel row. */
 export const LOCAL_CHANNELS_EMPTY_ID = "local-channels-empty";
 export const LOCAL_CHANNELS_ARCHIVED_GROUP_ID = "local-channels-archived";
@@ -47,20 +52,6 @@ export function isLocalChannelsMenuItemId(id: string): boolean {
     id.startsWith(LOCAL_CHANNEL_ROW_ID_PREFIX)
   );
 }
-
-/**
- * Overflow-menu entries for an active local row, in render order. No gating:
- * local channels are single-user, so settings/archive/delete are always
- * offered (the cloud `build*ActionKinds` role logic has no analog here).
- */
-export const LOCAL_CHANNEL_ROW_ACTION_KINDS = [
-  "settings",
-  "archive",
-  "delete",
-] as const;
-
-export type LocalChannelRowActionKind =
-  (typeof LOCAL_CHANNEL_ROW_ACTION_KINDS)[number];
 
 export interface BuildLocalChannelsMenuItemsParams {
   /** False while a cloud org scope is active — the section hides entirely. */
@@ -105,11 +96,11 @@ export function buildLocalChannelsMenuItems({
         id: buildLocalChannelRowId(channel.id),
         name: channel.name,
         topic: channel.topic,
-        icon: Hash,
+        icon: HashtagIcon,
         dataTestId: `sidebar-local-channel-${channel.id}`,
         rowActions: [
           {
-            icon: MoreHorizontal,
+            icon: MoreHorizontalIcon,
             label: tCommon("actions.more"),
             dataTestId: `local-channel-more-${channel.id}`,
             onClick: () => onOpenChannelMenu(channel),
@@ -140,13 +131,13 @@ export function buildLocalChannelsMenuItems({
         children: archivedChannels.map((channel) => {
           const rowActions: NavigationMenuRowAction[] = [
             {
-              icon: ArchiveRestore,
+              icon: ArchiveArrowUpIcon,
               label: t("cloud.channels.unarchive"),
               dataTestId: `local-channel-unarchive-${channel.id}`,
               onClick: () => onUnarchive(channel),
             },
             {
-              icon: Trash2,
+              icon: Delete02Icon,
               label: t("cloud.channels.deleteAction"),
               dataTestId: `local-channel-delete-${channel.id}`,
               onClick: () => onDeleteChannel(channel),
@@ -156,7 +147,7 @@ export function buildLocalChannelsMenuItems({
             id: buildLocalChannelRowId(channel.id),
             name: channel.name,
             topic: channel.topic,
-            icon: Hash,
+            icon: HashtagIcon,
             dataTestId: `sidebar-local-channel-${channel.id}`,
             rowActions,
           });

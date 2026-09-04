@@ -5,12 +5,17 @@
  * Toolbar (optional copy, download, close) at the top-right of the image.
  * Click backdrop or press ESC to close.
  */
-import { Copy, Download, X } from "lucide-react";
 import React, { memo, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import Message from "@src/components/Message";
+import {
+  Cancel01Icon,
+  Copy01Icon,
+  Download01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 
 // ============================================
@@ -81,7 +86,7 @@ const ImagePreviewOverlay: React.FC<ImagePreviewOverlayProps> = memo(
 
     return createPortal(
       <div
-        className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70"
+        className="fixed inset-0 z-99999 flex items-center justify-center bg-black/70"
         onClick={handleBackdropClick}
         role="dialog"
         aria-modal="true"
@@ -90,7 +95,7 @@ const ImagePreviewOverlay: React.FC<ImagePreviewOverlayProps> = memo(
         {/* Image container with toolbar overlay */}
         <div className="relative">
           {/* Toolbar — floating inside image top-right */}
-          <div className="absolute right-2 top-2 flex items-center gap-0.5 rounded-lg bg-black p-1">
+          <div className="absolute top-2 right-2 flex items-center gap-0.5 rounded-lg bg-black p-1">
             {showCopyButton && (
               <button
                 type="button"
@@ -99,7 +104,12 @@ const ImagePreviewOverlay: React.FC<ImagePreviewOverlayProps> = memo(
                 aria-label={t("imagePreview.copyImage")}
                 title={t("actions.copy")}
               >
-                <Copy size={15} strokeWidth={2} />
+                <HugeiconsIcon
+                  icon={Copy01Icon}
+                  data-icon="copy"
+                  size={15}
+                  strokeWidth={2}
+                />
               </button>
             )}
             <button
@@ -109,7 +119,12 @@ const ImagePreviewOverlay: React.FC<ImagePreviewOverlayProps> = memo(
               aria-label={t("imagePreview.downloadImage")}
               title={t("actions.download")}
             >
-              <Download size={15} strokeWidth={2} />
+              <HugeiconsIcon
+                icon={Download01Icon}
+                data-icon="download"
+                size={15}
+                strokeWidth={2}
+              />
             </button>
             <button
               type="button"
@@ -118,7 +133,12 @@ const ImagePreviewOverlay: React.FC<ImagePreviewOverlayProps> = memo(
               aria-label={t("imagePreview.closePreview")}
               title={t("actions.close")}
             >
-              <X size={15} strokeWidth={2} />
+              <HugeiconsIcon
+                icon={Cancel01Icon}
+                data-icon="x"
+                size={15}
+                strokeWidth={2}
+              />
             </button>
           </div>
 

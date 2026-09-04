@@ -58,7 +58,7 @@ async function killPty(sessionId: string): Promise<void> {
       sessionId: toBackendPtySessionId(sessionId),
     });
   } catch (error) {
-    log.error(`[TerminalStore] Failed to kill PTY:`, error);
+    log.error(`Failed to kill PTY:`, error);
   }
 }
 
@@ -178,12 +178,6 @@ export const terminalSessionCountAtom = atom((get) => {
   return get(terminalSessionsAtom).length;
 });
 terminalSessionCountAtom.debugLabel = "terminalSessionCountAtom";
-
-/** Check if a session is initialized */
-export const isTerminalInitializedAtom = atom((get) => {
-  const initialized = get(initializedTerminalIdsAtom);
-  return (sessionId: string) => initialized.has(sessionId);
-});
 
 // ============================================
 // Persistence Atom (syncs to localStorage)

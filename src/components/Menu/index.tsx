@@ -28,7 +28,6 @@
  * </Menu>
  * ```
  */
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React, {
   createContext,
   useCallback,
@@ -37,6 +36,7 @@ import React, {
   useState,
 } from "react";
 
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import {
   createKeyboardActivationHandler,
   getInteractiveTabIndex,
@@ -64,7 +64,7 @@ const useMenuContext = () => {
 };
 
 // Menu Props
-export interface MenuProps {
+interface MenuProps {
   /**
    * Menu mode
    * @default 'vertical'
@@ -118,7 +118,7 @@ export interface MenuProps {
 }
 
 // MenuItem Props
-export interface MenuItemProps {
+interface MenuItemProps {
   /**
    * Business identity for selection/onSelect callbacks. Distinct from React's
    * reserved `key` prop, which is only used for reconciliation and is not
@@ -153,7 +153,7 @@ export interface MenuItemProps {
 }
 
 // SubMenu Props
-export interface SubMenuProps {
+interface SubMenuProps {
   /**
    * Business identity for open/close state. Distinct from React's reserved
    * `key` prop, which is only used for reconciliation and is not forwarded to
@@ -268,9 +268,19 @@ const SubMenu: React.FC<SubMenuProps> = ({
       >
         <span>{title}</span>
         {isOpen ? (
-          <ChevronDown size={16} className="menu-submenu-arrow" />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            size={16}
+            className="menu-submenu-arrow"
+          />
         ) : (
-          <ChevronRight size={16} className="menu-submenu-arrow" />
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            data-icon="chevron-right"
+            size={16}
+            className="menu-submenu-arrow"
+          />
         )}
       </div>
       {isOpen && <div className="menu-submenu-content">{children}</div>}

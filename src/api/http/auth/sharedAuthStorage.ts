@@ -259,6 +259,29 @@ export function mirrorSharedServiceAuthValue(
   void Promise.resolve(operation).catch(() => {});
 }
 
+/**
+ * Await persisting ORG2 Cloud auth to the shared Tauri store before Rust
+ * commands read `shared-service-auth.json` (mobile relay, pairing, etc.).
+ *
+ * `mirrorSharedServiceAuthValue` is fire-and-forget; callers that immediately
+ * notify the Rust side must use this helper to avoid a read-before-write race.
+ */
+export async function awaitMirroredOrg2CloudAuth(
+  serialized: string | null
+): Promise<void> {
+  if (!isTauri()) return;
+  if (serialized === null) {
+    await sharedServiceAuthStorage.removeItem(
+      SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY
+    );
+    return;
+  }
+  await sharedServiceAuthStorage.setItem(
+    SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY,
+    serialized
+  );
+}
+
 export const __SHARED_AUTH_STORAGE_INTERNALS = {
   MIRRORED_AUTH_KEYS,
   SHARED_AUTH_SCHEMA_KEY,

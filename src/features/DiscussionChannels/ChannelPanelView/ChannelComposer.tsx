@@ -6,7 +6,7 @@
  * `InputArea` outside any agent session with `sessionScope="none"`, and this
  * footer copies that call shape verbatim — same props, same absolutely
  * positioned shell, same `pointer-events-none` fade over the transcript, same
- * `DETAIL_PANEL_TOKENS.contentMaxWidth` column the message rows use, so the
+ * `CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth` column the message rows use, so the
  * composer lines up with the transcript above it.
  *
  * Cloud channels render the SAME composer in a disabled state rather than a
@@ -18,7 +18,7 @@ import React from "react";
 
 import type { ComposerInputRef } from "@src/components/ComposerInput";
 import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 import InputArea from "@src/engines/ChatPanel/InputArea";
 
 import type { ChannelPostHandler } from "./channelPostHandler";
@@ -67,15 +67,15 @@ const ChannelComposer: React.FC<ChannelComposerProps> = ({
 }) => (
   <footer
     ref={footerRef as React.Ref<HTMLElement>}
-    className={`absolute bottom-0 left-0 right-0 z-50 flex w-full flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
+    className={`absolute right-0 bottom-0 left-0 z-50 flex w-full flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
     data-testid="channel-composer"
   >
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"
+      className="pointer-events-none absolute inset-x-0 top-[-28px] bottom-0 bg-linear-to-t from-chat-pane via-chat-pane/90 to-transparent"
     />
     <div
-      className={`relative z-10 flex w-full flex-col gap-1.5 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+      className={`relative z-10 flex w-full flex-col gap-1.5 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
     >
       {notice}
       {error ? (
@@ -90,7 +90,6 @@ const ChannelComposer: React.FC<ChannelComposerProps> = ({
       <InputArea
         key={composerId}
         omitChatHeader
-        bottomAnchored
         composerInputRef={composerInputRef}
         acceptDraggedPills={acceptDraggedPills}
         sessionId={composerId}

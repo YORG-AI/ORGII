@@ -26,7 +26,7 @@ import {
 } from "../primitives";
 import { useBlockHeader } from "../useBlockLocate";
 
-export interface SkillBlockProps {
+interface SkillBlockProps {
   /** Skill name from `args.skill`. */
   skillName?: string;
   isLoading?: boolean;

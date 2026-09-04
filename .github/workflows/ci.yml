@@ -1,8 +1,19 @@
-# CI — runs on every pull request to develop / release / master.
+# CI — runs on every pull request, whatever its base branch.
+#
+# Stacked pull requests target another feature branch rather than develop.
+# Filtering by base branch left those PRs with no typecheck, lint, test, or
+# clippy signal at all, so a defect could only be found after the whole stack
+# landed. The scope job below still keeps the cost proportional to the diff.
 #
 # Frontend starts immediately. A lightweight scope job decides whether the
-# Rust job is relevant; pure frontend diffs keep the required Rust check but
-# mark it skipped/successful without allocating a macOS runner.
+# Rust job is relevant; frontend and ordinary Markdown documentation diffs
+# keep the required Rust check but mark it skipped/successful without
+# allocating a macOS runner.
+#
+# Within the frontend job, lint covers only the files the pull request changed
+# (see scripts/ci/select-lint-targets.cjs). Typecheck and the unit suite stay
+# whole-repo: both have cross-file failure modes that a per-file diff cannot
+# bound.
 #
 # Mirrors the toolchain versions used in release.yaml (Node 20, pnpm 9,
 # Rust stable, swatinem/rust-cache) so CI and release builds stay in sync.
@@ -11,10 +22,6 @@ name: "CI"
 
 on:
   pull_request:
-    branches:
-      - develop
-      - release
-      - master
 
 # A new push makes an older run for the same PR obsolete. Cancel it before it
 # can consume one of the organization's limited hosted-runner slots.
@@ -29,6 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       rust_required: ${{ steps.scope.outputs.rust_required }}
+      audit_required: ${{ steps.scope.outputs.audit_required }}
 
     steps:
       - name: Checkout
@@ -36,18 +44,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect Rust-relevant changes
+      - name: Detect Rust and audit scope
         id: scope
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          # One diff read by both detectors: clippy and cargo audit consume
+          # different inputs, and re-running git would let the two answers
+          # describe different trees.
+          git diff --name-only -z "${BASE_SHA}...${HEAD_SHA}" \
+            > "${RUNNER_TEMP}/changed-paths"
+
           rust_required="$(
-            git diff --name-only -z "${BASE_SHA}...${HEAD_SHA}" |
-              node scripts/ci/detect-rust-changes.cjs
+            node scripts/ci/detect-rust-changes.cjs \
+              < "${RUNNER_TEMP}/changed-paths"
           )"
+          audit_required="$(
+            node scripts/ci/detect-audit-changes.cjs \
+              < "${RUNNER_TEMP}/changed-paths"
+          )"
+
           echo "rust_required=${rust_required}" >> "${GITHUB_OUTPUT}"
+          echo "audit_required=${audit_required}" >> "${GITHUB_OUTPUT}"
           echo "Rust required: ${rust_required}"
+          echo "Audit required: ${audit_required}"
 
   # ── Frontend ────────────────────────────────────────────────────────────────
   frontend:
@@ -55,8 +76,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # fetch-depth 0 so the lint-scope step below can diff base..head. The
+      # `changes` job pays the same cost in ~10s.
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -82,12 +107,30 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Type check
-        run: pnpm typecheck
-        env:
-          NODE_OPTIONS: "--max-old-space-size=6144"
+      # tsgo (@typescript/native-preview): native full-project check,
+      # measured ~10s idle vs 65s warm-incremental / >10min cold for tsc on
+      # this codebase. tsc remains the arbiter in nightly-full-checks.yml —
+      # if the preview compiler ever disagrees, nightly surfaces it within
+      # 24h and this step can be pointed back at `pnpm typecheck`.
+      - name: Type check (tsgo)
+        run: pnpm typecheck:fast
 
-      - name: Lint
+      # Every rule in package.json#eslintConfig judges one file at a time, so a pull request
+      # cannot make an untouched file newly non-compliant; whole-tree linting
+      # spent ~3m45s re-proving 6000+ unchanged files. Diffs that change the
+      # rules themselves still lint everything -- see select-lint-targets.cjs.
+      - name: Select lint targets
+        id: lint_scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git diff --name-only --diff-filter=ACMR -z "${BASE_SHA}...${HEAD_SHA}" |
+            node scripts/ci/select-lint-targets.cjs \
+              --out "${RUNNER_TEMP}/lint-targets" >> "${GITHUB_OUTPUT}"
+
+      - name: Lint (full tree)
+        if: steps.lint_scope.outputs.lint_mode == 'all'
         run: pnpm lint
 
       - name: i18n contracts
@@ -97,6 +140,20 @@ jobs:
         run: pnpm build:web
         env:
           NODE_OPTIONS: "--max-old-space-size=6144"
+
+      # nightly-full-checks.yml relints the whole tree once a day, so a rule
+      # that starts failing on untouched files still surfaces within 24h.
+      - name: Lint (changed files)
+        if: steps.lint_scope.outputs.lint_mode == 'files'
+        run: |
+          xargs -0 -r pnpm exec eslint \
+            --max-warnings 0 --report-unused-disable-directives \
+            < "${RUNNER_TEMP}/lint-targets"
+
+      # Documentation alone did not hold this: two directories re-mixed the two
+      # test-placement conventions within a day of the 53-directory cleanup.
+      - name: Test placement
+        run: pnpm run check:test-placement
 
       - name: Unit tests
         run: pnpm run test
@@ -148,10 +205,14 @@ jobs:
   # Runs on its own runner rather than inside the `rust` job so an advisory
   # cannot be masked by, or delay, a clippy/test failure. Ignored advisories and
   # the reason each one is blocked live in src-tauri/.cargo/audit.toml.
+  #
+  # Gated on the lockfile rather than on rust_required: cargo audit never builds
+  # the workspace, so an .rs-only diff cannot move its verdict. Advisory-database
+  # updates carry no diff at all and are covered by nightly-full-checks.yml.
   cargo-audit:
     name: Rust (cargo audit)
     needs: changes
-    if: needs.changes.outputs.rust_required == 'true'
+    if: needs.changes.outputs.audit_required == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -170,6 +231,11 @@ jobs:
           path: ~/.cargo/bin/cargo-audit
           key: cargo-audit-${{ runner.os }}-v1
 
+      # A miss compiles cargo-audit for ~3 min before a 4 s scan. Caches saved
+      # during a PR run are scoped to that PR's merge ref, so this only ever
+      # hits because nightly-full-checks.yml re-saves the same key from develop
+      # and PR runs may restore their base branch's caches. (Same reasoning as
+      # warm-frontend-cache.yml and warm-rust-cache.yml.)
       - name: Install cargo-audit
         if: steps.audit-cache.outputs.cache-hit != 'true'
         run: cargo install cargo-audit --locked

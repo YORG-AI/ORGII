@@ -1,14 +1,15 @@
-import {
-  ArrowBigUp,
-  ArrowDown,
-  ArrowUp,
-  ChevronUp,
-  Command,
-  CornerDownLeft,
-  Delete,
-  Option,
-} from "lucide-react";
 import { type ReactNode, memo } from "react";
+
+import {
+  ArrowDown02Icon,
+  ArrowUp01Icon,
+  ArrowUp02Icon,
+  ArrowUpBigIcon,
+  CommandIcon,
+  CornerDownLeftIcon,
+  HugeiconsIcon,
+  OptionIcon,
+} from "@src/icons";
 
 export const KEYBOARD_SHORTCUT_VARIANT = {
   default: "default",
@@ -26,12 +27,12 @@ export interface KeyboardShortcutProps {
   variant?: KeyboardShortcutVariant;
 }
 
-export interface KeyboardShortcutTooltipRow {
+interface KeyboardShortcutTooltipRow {
   label: ReactNode;
   shortcut: string;
 }
 
-export interface KeyboardShortcutTooltipContentProps {
+interface KeyboardShortcutTooltipContentProps {
   label?: ReactNode;
   shortcut?: string;
   rows?: KeyboardShortcutTooltipRow[];
@@ -176,13 +177,31 @@ function ModifierKey({
 
   switch (modifier) {
     case "cmd":
-      return <Command {...iconProps} />;
+      return (
+        <HugeiconsIcon icon={CommandIcon} data-icon="command" {...iconProps} />
+      );
     case "shift":
-      return <ArrowBigUp {...iconProps} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowUpBigIcon}
+          data-icon="arrow-big-up"
+          {...iconProps}
+        />
+      );
     case "option":
-      return <Option {...iconProps} />;
+      return (
+        <HugeiconsIcon icon={OptionIcon} data-icon="option" {...iconProps} />
+      );
     case "ctrl":
-      return IS_MAC ? <ChevronUp {...iconProps} /> : <span>Ctrl</span>;
+      return IS_MAC ? (
+        <HugeiconsIcon
+          icon={ArrowUp01Icon}
+          data-icon="chevron-up"
+          {...iconProps}
+        />
+      ) : (
+        <span>Ctrl</span>
+      );
   }
 }
 
@@ -197,13 +216,47 @@ function SpecialKey({
 
   switch (special) {
     case "arrowUp":
-      return <ArrowUp {...iconProps} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowUp02Icon}
+          data-icon="arrow-up"
+          {...iconProps}
+        />
+      );
     case "arrowDown":
-      return <ArrowDown {...iconProps} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowDown02Icon}
+          data-icon="arrow-down"
+          {...iconProps}
+        />
+      );
     case "enter":
-      return <CornerDownLeft {...iconProps} />;
+      return (
+        <HugeiconsIcon
+          icon={CornerDownLeftIcon}
+          data-icon="corner-down-left"
+          {...iconProps}
+        />
+      );
     case "backspace":
-      return <Delete {...iconProps} />;
+      return (
+        <svg
+          width={iconSize}
+          height={iconSize}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          data-icon="backspace"
+          aria-hidden="true"
+        >
+          <path d="M9 5h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-7-7Z" />
+          <path d="m12 9 6 6m0-6-6 6" />
+        </svg>
+      );
     case "esc":
       return <span className="leading-none">esc</span>;
     case "tab":
@@ -213,20 +266,14 @@ function SpecialKey({
   }
 }
 
-// All variants render a chip with the glyph centered both axes. Icon glyphs
-// (modifier + single-char special) get a fixed 18×18 square so ⌘/⇧/⌥/⌃ stay
-// uniform with letter keys; multi-character text labels (`esc`, `⇥`) keep
-// horizontal padding so they don't get clipped. Per-variant differences are
-// limited to background shade and text color.
-//
-// Letter chips bump to 13px / semibold so a glyph like "N" matches the
-// optical weight of the adjacent 13px Lucide icons (otherwise "⌘N" reads
-// as a big symbol next to a tiny letter). `leading-none` + flex centering
-// keeps the cap-height glyph perfectly centered in the 18×18 box.
+// A shortcut chord is one joined pill, matching the compact presentation used
+// by Codex. Individual tokens only own their typography; the shared `kbd`
+// owns the background, height, padding, and rounded capsule shape.
 const KEY_CAP_BASE =
-  "inline-flex h-[18px] shrink-0 items-center justify-center rounded font-medium leading-none";
-const KEY_CAP_SQUARE = "w-[18px] text-[13px] font-semibold";
-const KEY_CAP_TEXT = "min-w-[18px] px-1 text-[12px]";
+  "inline-flex h-[18px] shrink-0 items-center justify-center gap-0.5 rounded-full px-1.5 font-medium leading-none";
+const KEY_TOKEN_GLYPH =
+  "inline-flex items-center justify-center text-[13px] font-semibold";
+const KEY_TOKEN_TEXT = "inline-flex items-center justify-center text-[12px]";
 const KEY_CAP_ICON_SIZE = 13;
 
 const KEY_CAP_STYLES: Record<
@@ -264,32 +311,35 @@ export const KeyboardShortcut = memo<KeyboardShortcutProps>(
     const cap = KEY_CAP_STYLES[variant];
 
     return (
-      <div className={`flex items-center gap-0.5 ${className}`}>
-        {tokens.map((token, index) => {
-          const isTextCtrl =
-            token.type === "modifier" && token.modifier === "ctrl" && !IS_MAC;
-          const isSquareGlyph =
-            (token.type === "modifier" && !isTextCtrl) ||
-            (token.type === "special" &&
-              token.special !== "esc" &&
-              token.special !== "tab") ||
-            (token.type === "key" && token.label.length === 1);
-          const shapeClass = isSquareGlyph ? KEY_CAP_SQUARE : KEY_CAP_TEXT;
-          return (
-            <kbd key={index} className={`${cap.kbd} ${shapeClass}`}>
-              {token.type === "modifier" && (
-                <ModifierKey
-                  modifier={token.modifier}
-                  iconSize={cap.iconSize}
-                />
-              )}
-              {token.type === "special" && (
-                <SpecialKey special={token.special} iconSize={cap.iconSize} />
-              )}
-              {token.type === "key" && token.label}
-            </kbd>
-          );
-        })}
+      <div className={`flex items-center ${className}`}>
+        <kbd className={cap.kbd}>
+          {tokens.map((token, index) => {
+            const isTextToken =
+              (token.type === "modifier" &&
+                token.modifier === "ctrl" &&
+                !IS_MAC) ||
+              (token.type === "special" &&
+                (token.special === "esc" || token.special === "tab")) ||
+              (token.type === "key" && token.label.length > 1);
+            return (
+              <span
+                key={index}
+                className={isTextToken ? KEY_TOKEN_TEXT : KEY_TOKEN_GLYPH}
+              >
+                {token.type === "modifier" && (
+                  <ModifierKey
+                    modifier={token.modifier}
+                    iconSize={cap.iconSize}
+                  />
+                )}
+                {token.type === "special" && (
+                  <SpecialKey special={token.special} iconSize={cap.iconSize} />
+                )}
+                {token.type === "key" && token.label}
+              </span>
+            );
+          })}
+        </kbd>
       </div>
     );
   }
@@ -307,9 +357,9 @@ export const KeyboardShortcutTooltipContent =
         const [row] = resolvedRows;
         return (
           <div
-            className={`flex min-w-0 max-w-full items-center gap-3 ${className}`}
+            className={`flex max-w-full min-w-0 items-center gap-3 ${className}`}
           >
-            <span className="min-w-0 break-words">{row.label}</span>
+            <span className="min-w-0 wrap-break-word">{row.label}</span>
             <KeyboardShortcut
               shortcut={row.shortcut}
               variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
@@ -321,14 +371,14 @@ export const KeyboardShortcutTooltipContent =
       if (resolvedRows.length > 1) {
         return (
           <div
-            className={`flex min-w-0 max-w-full flex-col gap-2 ${className}`}
+            className={`flex max-w-full min-w-0 flex-col gap-2 ${className}`}
           >
             {resolvedRows.map((row) => (
               <div
                 key={`${row.label}-${row.shortcut}`}
                 className="flex min-w-0 items-center justify-between gap-3"
               >
-                <span className="min-w-0 break-words">{row.label}</span>
+                <span className="min-w-0 wrap-break-word">{row.label}</span>
                 <KeyboardShortcut
                   shortcut={row.shortcut}
                   variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
@@ -341,7 +391,9 @@ export const KeyboardShortcutTooltipContent =
 
       if (label) {
         return (
-          <span className={`inline-block max-w-full break-words ${className}`}>
+          <span
+            className={`inline-block max-w-full wrap-break-word ${className}`}
+          >
             {label}
           </span>
         );

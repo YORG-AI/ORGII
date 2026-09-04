@@ -41,8 +41,8 @@ export function NavigationMenuRowAccessorySlot({
       ? "group-hover/parent:pointer-events-none group-hover/parent:opacity-0"
       : "group-hover:pointer-events-none group-hover:opacity-0";
   const revealedHoverClasses = parentHoverGroup
-    ? "group-hover/parent:pointer-events-auto group-hover/parent:max-w-[11rem] group-hover/parent:opacity-100"
-    : "group-hover:pointer-events-auto group-hover:max-w-[11rem] group-hover:opacity-100";
+    ? "group-hover/parent:pointer-events-auto group-hover/parent:max-w-44 group-hover/parent:opacity-100"
+    : "group-hover:pointer-events-auto group-hover:max-w-44 group-hover:opacity-100";
   // The action group is nudged 2px past the slot's right edge so its glyphs sit
   // as close to the row edge as the at-rest status dot (a 20px hit target pads
   // its 14px icon by 3px). That nudge has to live on the CLIPPING layer, not on
@@ -82,7 +82,7 @@ export function NavigationMenuRowAccessorySlot({
           className={`pointer-events-none col-start-1 row-start-1 inline-flex max-w-0 items-center justify-end gap-1.5 justify-self-end overflow-hidden whitespace-nowrap opacity-0 ${actionNudgeClass} ${revealedHoverClasses}`}
         >
           {hoverContent && (
-            <span className="inline-flex max-w-[4rem] items-center justify-end overflow-hidden">
+            <span className="inline-flex max-w-16 items-center justify-end overflow-hidden">
               {hoverContent}
             </span>
           )}
@@ -97,7 +97,7 @@ export function NavigationMenuRowAccessorySlot({
   ) : null;
 
   return (
-    <span className="ml-1 flex flex-shrink-0 items-center justify-end leading-none">
+    <span className="ml-1 flex shrink-0 items-center justify-end leading-none">
       {stackedContent}
     </span>
   );

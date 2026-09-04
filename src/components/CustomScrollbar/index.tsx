@@ -34,7 +34,7 @@ export interface ScrollbarMarker {
   onClick?: () => void;
 }
 
-export interface CustomScrollbarProps {
+interface CustomScrollbarProps {
   /** The scrollable element to sync with */
   scrollElement: HTMLElement | null;
   /** Total number of lines in the document */

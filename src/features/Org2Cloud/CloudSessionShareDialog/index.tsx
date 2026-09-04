@@ -8,12 +8,12 @@
  */
 import Modal from "@/src/scaffold/ModalSystem";
 import type { TFunction } from "i18next";
-import { Check, Copy } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
+import { Copy01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
 import type { Session } from "@src/store/session/sessionAtom/types";
 import { formatSmartDateTime } from "@src/util/data/formatters/date";
 
@@ -129,7 +129,7 @@ function OrgShareSection({
         {model.createdLink ? (
           <div className="flex flex-col gap-2 rounded-lg bg-fill-1 px-3 py-2">
             <code
-              className="select-text break-all text-[11px] text-text-2"
+              className="text-[11px] break-all text-text-2 select-text"
               data-testid="cloud-session-share-created-link"
               data-share-id={model.createdLink.shareId}
             >
@@ -147,9 +147,17 @@ function OrgShareSection({
                 variant="primary"
                 icon={
                   model.createdLinkCopied ? (
-                    <Check size={12} />
+                    <HugeiconsIcon
+                      icon={Tick01Icon}
+                      data-icon="check"
+                      size={12}
+                    />
                   ) : (
-                    <Copy size={12} />
+                    <HugeiconsIcon
+                      icon={Copy01Icon}
+                      data-icon="copy"
+                      size={12}
+                    />
                   )
                 }
                 onClick={() => void model.handleCopyCreatedLink()}
@@ -225,7 +233,7 @@ function OrgShareSection({
   );
 }
 
-export interface CloudSessionShareDialogProps {
+interface CloudSessionShareDialogProps {
   /** The owner's local session; null keeps the dialog closed. */
   session: Session | null;
   /** Share-capable cloud orgs for the session (see useCloudSessionShareDialog). */

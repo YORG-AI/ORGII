@@ -9,15 +9,25 @@
  */
 import { useAtomValue, useSetAtom } from "jotai";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import ReplayProgressBar from "@src/components/ReplayProgressBar";
+import type { ReplayProgressSegment } from "@src/components/ReplayProgressBar/types";
 import { REPLAY_CONFIG } from "@src/config/workspace/replayConfig";
 import {
   currentSimulatorEventIndexAtom,
+  effectiveSimulatorEventIdsAtom,
   navigateToSimulatorEventByIndexAtom,
   replayModeAtom,
   simulatorEventCountAtom,
+  simulatorEventPreviewByIdAtom,
 } from "@src/engines/SessionCore";
+import {
+  buildReplayTurnSegments,
+  findActiveReplayTurnSegment,
+} from "@src/engines/SessionCore/replay/replayTurnSegments";
+
+import { toReplayProgressSegments } from "./replayTurnSegmentLabels";
 
 export interface MusicPlayerReplayBarViewProps {
   eventCount: number;
@@ -26,6 +36,9 @@ export interface MusicPlayerReplayBarViewProps {
   onNavigateToIndex: (index: number) => void;
   onFollowLatest: () => void;
   ariaLabel?: string;
+  disabled?: boolean;
+  segments?: readonly ReplayProgressSegment[];
+  onSegmentClick?: (segment: ReplayProgressSegment) => void;
 }
 
 /**
@@ -42,6 +55,9 @@ export const MusicPlayerReplayBarView: React.FC<MusicPlayerReplayBarViewProps> =
       onNavigateToIndex,
       onFollowLatest,
       ariaLabel,
+      disabled,
+      segments,
+      onSegmentClick,
     }) => {
       const [isDragging, setIsDragging] = useState(false);
       const [dragValue, setDragValue] = useState(0);
@@ -121,8 +137,10 @@ export const MusicPlayerReplayBarView: React.FC<MusicPlayerReplayBarViewProps> =
           onValueChange={handleOnChange}
           onValueCommit={handleOnAfterChange}
           isFollowMode={isFollowMode}
-          disabled={eventCount === 0}
+          disabled={disabled ?? eventCount === 0}
           ariaLabel={ariaLabel}
+          segments={segments}
+          onSegmentClick={onSegmentClick}
         />
       );
     }
@@ -131,11 +149,54 @@ export const MusicPlayerReplayBarView: React.FC<MusicPlayerReplayBarViewProps> =
 MusicPlayerReplayBarView.displayName = "MusicPlayerReplayBarView";
 
 const MusicPlayerReplayBar: React.FC = memo(() => {
+  const { t } = useTranslation("sessions");
+  const eventIds = useAtomValue(effectiveSimulatorEventIdsAtom);
+  const previewById = useAtomValue(simulatorEventPreviewByIdAtom);
   const eventCount = useAtomValue(simulatorEventCountAtom);
   const currentIndex = useAtomValue(currentSimulatorEventIndexAtom);
   const navigateToIndex = useSetAtom(navigateToSimulatorEventByIndexAtom);
   const replayMode = useAtomValue(replayModeAtom);
   const setReplayMode = useSetAtom(replayModeAtom);
+
+  const turnSegments = useMemo(
+    () =>
+      buildReplayTurnSegments({
+        eventIds,
+        previewById,
+        maxValue: REPLAY_CONFIG.MAX_VALUE,
+      }),
+    [eventIds, previewById]
+  );
+
+  const segmentViews = useMemo(
+    () => toReplayProgressSegments(turnSegments, null, t),
+    [t, turnSegments]
+  );
+
+  const activeTurn = useMemo(
+    () => findActiveReplayTurnSegment(turnSegments, currentIndex),
+    [turnSegments, currentIndex]
+  );
+
+  const segments = useMemo(
+    () =>
+      segmentViews.map((segment) => ({
+        ...segment,
+        isActive: segment.id === activeTurn?.turnId,
+      })),
+    [activeTurn?.turnId, segmentViews]
+  );
+
+  const handleSegmentClick = useCallback(
+    (segment: ReplayProgressSegment) => {
+      const turnSegment = turnSegments.find(
+        (candidate) => candidate.turnId === segment.id
+      );
+      if (!turnSegment) return;
+      navigateToIndex(turnSegment.startIndex);
+    },
+    [navigateToIndex, turnSegments]
+  );
 
   return (
     <MusicPlayerReplayBarView
@@ -144,6 +205,9 @@ const MusicPlayerReplayBar: React.FC = memo(() => {
       isFollowMode={replayMode === "follow"}
       onNavigateToIndex={navigateToIndex}
       onFollowLatest={() => setReplayMode("follow")}
+      disabled={eventCount === 0}
+      segments={segments}
+      onSegmentClick={handleSegmentClick}
     />
   );
 });

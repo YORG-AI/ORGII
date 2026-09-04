@@ -2,10 +2,11 @@
  * Presentation helpers for the Work Item linked-session table: status colors,
  * agent labels and the per-session agent icon.
  */
-import { Bot, Terminal } from "lucide-react";
 import React from "react";
 
 import Org2SessionIcon from "@src/assets/modelIcons/org2-session.svg";
+import AnyIcon from "@src/components/AnyIcon";
+import { BotIcon, ComputerTerminal01Icon } from "@src/icons";
 import type { LinkedSession } from "@src/types/core/workItem";
 
 export const LINKED_SESSION_STATUS_COLOR: Record<
@@ -58,9 +59,10 @@ export function renderSessionAgentIcon(
     );
   }
 
-  const AgentIcon = sessionType === "cli" ? Terminal : Bot;
+  const AgentIcon = sessionType === "cli" ? ComputerTerminal01Icon : BotIcon;
   return (
-    <AgentIcon
+    <AnyIcon
+      icon={AgentIcon}
       size={14}
       strokeWidth={1.75}
       className="shrink-0 text-text-3"

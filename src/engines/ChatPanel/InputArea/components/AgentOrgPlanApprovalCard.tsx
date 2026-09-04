@@ -1,4 +1,3 @@
-import { FilePenLine } from "lucide-react";
 import React, { memo, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,9 +6,11 @@ import {
   respondAgentOrgPlanApproval,
 } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
+import InlineAlert from "@src/components/InlineAlert";
 import Markdown from "@src/components/MarkDown";
 import Textarea from "@src/components/Textarea";
 import { createLogger } from "@src/hooks/logger";
+import { Edit04Icon, HugeiconsIcon } from "@src/icons";
 
 import { useAgentOrgPlanApprovalDetail } from "./useAgentOrgPlanApprovalDetail";
 
@@ -98,7 +99,12 @@ const AgentOrgPlanApprovalCard: React.FC<AgentOrgPlanApprovalCardProps> = memo(
         data-approval-id={approval.approvalId}
       >
         <div className="mb-2 flex items-start gap-2">
-          <FilePenLine className="mt-0.5 shrink-0 text-text-3" size={14} />
+          <HugeiconsIcon
+            icon={Edit04Icon}
+            data-icon="file-pen-line"
+            className="mt-0.5 shrink-0 text-text-3"
+            size={14}
+          />
           <div className="min-w-0 flex-1">
             <div className="truncate text-xs font-medium text-text-1">
               {approval.planTitle}
@@ -119,18 +125,23 @@ const AgentOrgPlanApprovalCard: React.FC<AgentOrgPlanApprovalCardProps> = memo(
             {t("common:status.loading", { defaultValue: "Loading plan…" })}
           </div>
         ) : loadError ? (
-          <div className="rounded-md bg-bg-2 p-2" role="alert">
-            <div className="text-error-6 text-xs">{loadError}</div>
-            <Button
-              variant="tertiary"
-              size="mini"
-              className="mt-2"
-              onClick={() => void retry()}
-              data-testid="agent-org-plan-approval-retry"
-            >
-              {t("common:actions.retry", { defaultValue: "Retry" })}
-            </Button>
-          </div>
+          <InlineAlert
+            type="danger"
+            role="alert"
+            compact
+            action={
+              <Button
+                variant="tertiary"
+                size="mini"
+                onClick={() => void retry()}
+                data-testid="agent-org-plan-approval-retry"
+              >
+                {t("common:actions.retry", { defaultValue: "Retry" })}
+              </Button>
+            }
+          >
+            {loadError}
+          </InlineAlert>
         ) : mode === "edit" ? (
           <Textarea
             value={content}
@@ -163,9 +174,9 @@ const AgentOrgPlanApprovalCard: React.FC<AgentOrgPlanApprovalCardProps> = memo(
         )}
 
         {error ? (
-          <div className="text-error-6 mt-2 text-xs" role="alert">
+          <InlineAlert type="danger" role="alert" compact className="mt-2">
             {error}
-          </div>
+          </InlineAlert>
         ) : null}
         {disabled ? (
           <div className="mt-2 text-[11px] text-text-3">

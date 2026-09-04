@@ -55,8 +55,8 @@ describe("Agent Settings management entry UI", () => {
     );
     await waitForLocation(
       (state) =>
-        state.pathname.includes('/settings/integrations/skills-mcps-plugins') &&
-        !state.search.includes('skillsetTab=mcp'),
+        state.pathname.includes("/settings/integrations/skills-mcps-plugins") &&
+        !state.search.includes("skillsetTab=mcp"),
       "Add Skill did not navigate to Skills/MCPs/Plugins Skills tab"
     );
 
@@ -69,8 +69,8 @@ describe("Agent Settings management entry UI", () => {
     );
     await waitForLocation(
       (state) =>
-        state.pathname.includes('/settings/integrations/skills-mcps-plugins') &&
-        state.search.includes('skillsetTab=mcp'),
+        state.pathname.includes("/settings/integrations/skills-mcps-plugins") &&
+        state.search.includes("skillsetTab=mcp"),
       "Add MCP did not navigate to Skills/MCPs/Plugins MCP tab"
     );
 

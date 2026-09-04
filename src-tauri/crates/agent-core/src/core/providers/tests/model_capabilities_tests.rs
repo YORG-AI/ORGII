@@ -14,6 +14,23 @@ fn claude_fable_5_is_always_on() {
     assert_eq!(opus.context_window, 1_000_000);
 }
 
+/// Fable 5.1 is the same family as Fable 5 — 1M window, thinking always on —
+/// so the single `claude-fable-5` FAMILY_RULES row covers it by substring.
+/// Pinned here so a future re-ordering of that table can't silently drop 5.1
+/// onto the conservative 200K / Optional default.
+#[test]
+fn claude_fable_5_1_inherits_the_fable_family_row() {
+    for id in [
+        "claude-fable-5-1",
+        "claude-fable-5-1-xhigh",
+        "anthropic/claude-fable-5-1",
+    ] {
+        let caps = resolve(id, None);
+        assert_eq!(caps.thinking, ThinkingSupport::AlwaysOn, "{id}");
+        assert_eq!(caps.context_window, 1_000_000, "{id}");
+    }
+}
+
 #[test]
 fn claude_opus_4_is_optional() {
     // Known 4.6/4.7/4.8 releases upgraded to 1M; 4 / 4.1 / 4.5 stayed at 200K.
@@ -247,7 +264,7 @@ const CAPABILITY_CHECK_ALLOWLIST: &[&str] = &[
     // deferred (audit S2): migrate into ModelCapabilities.
     "core/turn_executor/screenshot.rs",        // vision detection
     "core/model_context/tokenizer.rs",         // tokenizer family
-    "core/session/prompt/section_builders.rs", // knowledge-cutoff ladder
+    "core/session/prompt/section_builders/model_identity.rs", // knowledge-cutoff ladder
     "core/providers/openai_compat/types.rs",   // reasoning-param detection
     "core/providers/openai_responses/mod.rs",  // gpt-5 reasoning detection
 ];

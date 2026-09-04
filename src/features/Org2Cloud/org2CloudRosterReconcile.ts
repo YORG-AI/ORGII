@@ -23,6 +23,7 @@ import { type WritableAtom, createStore, useAtomValue, useStore } from "jotai";
 import { useEffect, useRef } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import { isMainAppWindow } from "@src/util/platform/tauri/windowIdentity";
 
 import {
   org2CloudAuthAtom,
@@ -173,6 +174,11 @@ export function useOrg2CloudRosterReconcile(): void {
   );
 
   useEffect(() => {
+    // Main-window-only: the sweep is a read-modify-write of whole persisted
+    // records, and a secondary window pruning from a stale snapshot can drop
+    // push cursors the main window just wrote. Main's webview is never
+    // destroyed while the app runs, so it is the single stable owner.
+    if (!isMainAppWindow()) return;
     if (!reconcileKey) {
       if (!authIdentityKey) reconciledRosterRef.current = null;
       return;

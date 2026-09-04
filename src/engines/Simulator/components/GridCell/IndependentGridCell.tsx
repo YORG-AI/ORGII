@@ -15,20 +15,21 @@
  * default, unless the user manually interacts with its controls.
  */
 import { useAtomValue } from "jotai";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Maximize2,
-  Minimize2,
-  Pause,
-  Play,
-} from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import ReplayProgressBar from "@src/components/ReplayProgressBar";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { REPLAY_CONFIG } from "@src/config/workspace/replayConfig";
+import {
+  ArrowExpand01Icon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  ArrowShrink01Icon,
+  HugeiconsIcon,
+  PauseIcon,
+  PlayIcon,
+} from "@src/icons";
 import { focusedSubagentCellAtom } from "@src/store/ui/simulatorAtom";
 
 import { useCellReplayState } from "../../hooks/useCellReplayState";
@@ -159,7 +160,7 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
       <div className="flex h-full w-full flex-col overflow-hidden">
         {/* ── Header ── */}
         <div
-          className="group/header relative flex h-9 shrink-0 cursor-default items-center gap-1.5 bg-fill-2 pl-3 pr-1.5 transition-all duration-200"
+          className="group/header relative flex h-9 shrink-0 cursor-default items-center gap-1.5 bg-fill-2 pr-1.5 pl-3 transition-all duration-200"
           onMouseEnter={() => setIsHeaderHovered(true)}
           onMouseLeave={() => setIsHeaderHovered(false)}
         >
@@ -195,7 +196,7 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
               layer is destroyed at opacity:1. `invisible` + `pointer-events-none`
               ensure the buttons are truly inert while hidden. */}
           <div
-            className={`flex items-center gap-1 transition-opacity duration-150 [will-change:opacity] ${
+            className={`flex items-center gap-1 transition-opacity duration-150 will-change-[opacity] ${
               isHeaderHovered
                 ? "opacity-100"
                 : "pointer-events-none invisible opacity-0"
@@ -206,7 +207,7 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
               <button
                 type="button"
                 onClick={onExpand}
-                className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-text-2 ${SURFACE_TOKENS.iconButtonHover} hover:text-text-1`}
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-text-2 ${SURFACE_TOKENS.iconButtonHover} hover:text-text-1`}
                 title={
                   isExpanded
                     ? t("simulator.gridCell.collapse")
@@ -214,9 +215,19 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
                 }
               >
                 {isExpanded ? (
-                  <Minimize2 size={12} strokeWidth={2} />
+                  <HugeiconsIcon
+                    icon={ArrowShrink01Icon}
+                    data-icon="minimize-2"
+                    size={12}
+                    strokeWidth={2}
+                  />
                 ) : (
-                  <Maximize2 size={12} strokeWidth={2} />
+                  <HugeiconsIcon
+                    icon={ArrowExpand01Icon}
+                    data-icon="maximize-2"
+                    size={12}
+                    strokeWidth={2}
+                  />
                 )}
               </button>
             )}
@@ -266,12 +277,24 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
                   ? t("simulator.replay.pause", { defaultValue: "Pause" })
                   : t("simulator.replay.play", { defaultValue: "Play" })
               }
-              className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded text-text-2 ${SURFACE_TOKENS.hover} hover:text-text-1`}
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded text-text-2 ${SURFACE_TOKENS.hover} hover:text-text-1`}
             >
               {state.isPlaying ? (
-                <Pause size={11} fill="currentColor" strokeWidth={0} />
+                <HugeiconsIcon
+                  icon={PauseIcon}
+                  data-icon="pause"
+                  size={11}
+                  fill="currentColor"
+                  strokeWidth={0}
+                />
               ) : (
-                <Play size={11} fill="currentColor" strokeWidth={0} />
+                <HugeiconsIcon
+                  icon={PlayIcon}
+                  data-icon="play"
+                  size={11}
+                  fill="currentColor"
+                  strokeWidth={0}
+                />
               )}
             </button>
             {/* Prev / next event — moves the cell's replay cursor by one
@@ -284,9 +307,14 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
               aria-label={t("simulator.replay.previous", {
                 defaultValue: "Previous event",
               })}
-              className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded text-text-2 ${SURFACE_TOKENS.hover} hover:text-text-1 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-2`}
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded text-text-2 ${SURFACE_TOKENS.hover} hover:text-text-1 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-2`}
             >
-              <ChevronLeft size={12} strokeWidth={2} />
+              <HugeiconsIcon
+                icon={ArrowLeft01Icon}
+                data-icon="chevron-left"
+                size={12}
+                strokeWidth={2}
+              />
             </button>
             <button
               type="button"
@@ -295,9 +323,14 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
               aria-label={t("simulator.replay.next", {
                 defaultValue: "Next event",
               })}
-              className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded text-text-2 ${SURFACE_TOKENS.hover} hover:text-text-1 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-2`}
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded text-text-2 ${SURFACE_TOKENS.hover} hover:text-text-1 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-2`}
             >
-              <ChevronRight size={12} strokeWidth={2} />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={12}
+                strokeWidth={2}
+              />
             </button>
             <div className="min-w-0 flex-1 px-1">
               <ReplayProgressBar

@@ -8,10 +8,7 @@ publish = false
 path = "src/lib.rs"
 
 [dependencies]
-app_paths = { path = "../app-paths" }
-
 serde_json = "1"
-tracing = "0.1"
 
 # Optional, only pulled in by downstream crates that enable the `testing`
 # feature in their `[dev-dependencies]`. Keeps `tempfile` out of the runtime
@@ -20,3 +17,6 @@ tempfile = { version = "3.13", optional = true }
 
 [features]
 testing = ["dep:tempfile"]
+
+[dev-dependencies]
+tempfile = "3.13"

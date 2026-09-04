@@ -66,7 +66,7 @@
       "connections": "Połączenia",
       "git": "Git",
       "databases": "Bazy danych",
-      "housekeeper": "MiniCPM Housekeeper",
+      "housekeeper": "Lokalna inteligencja",
       "externalSkillsets": "Skills, MCPs, Plugins"
     }
   },
@@ -84,13 +84,13 @@
     "currentStatus": "Mój obecny status",
     "tabs": {
       "presence": "Obecność",
-      "profile": "Moje profile"
+      "profile": "Mój profil"
     },
     "presence": {
       "instructionForAgent": "Instrukcja dla Agent"
     },
     "profile": {
-      "title": "Moje profile",
+      "title": "Mój profil",
       "techSavvy": "Poziom techniczny",
       "techSavvyDescription": "Pomaga Agentowi dostosować poziom wyjaśnień i zakładane podstawy",
       "techSavvyPlaceholder": "Wybierz poziom…",
@@ -120,7 +120,6 @@
     "checking": "Sprawdzanie...",
     "signIn": "Zaloguj się",
     "signOut": "Wyloguj się",
-    "setupWalkthrough": "Kreator konfiguracji",
     "profile": "Profil",
     "settingsFile": "Lokalizacja pliku JSON ustawień",
     "settingsFileSection": "Plik ustawień",
@@ -129,7 +128,7 @@
     "themePreset": "Predefiniowany motyw",
     "background": "Tło",
     "applicationFont": "Czcionka interfejsu",
-    "applicationFontDesc": "Stos czcionek systemowych dla interfejsu aplikacji. Edytory kodu nadal używają czcionki monospace z ustawień edytora.",
+    "applicationFontDesc": "Stos czcionek systemowych dla interfejsu aplikacji. Edytory kodu nadal używają czcionki monospace z ustawień edytora",
     "applicationFontOptions": {
       "default": "Domyślna (PingFang)",
       "systemUi": "Zgodnie z systemem",
@@ -170,7 +169,6 @@
     "sidebarEdgeDepth": "Głębia krawędzi paska bocznego",
     "selectedItemTransparency": "Przezroczystość wybranego elementu",
     "spotlightPlacement": "Pozycja Spotlight",
-    "spotlightPlacementDesc": "Wybierz, gdzie otwiera się paleta poleceń Spotlight",
     "spotlightPlacementOptions": {
       "top": "Góra",
       "center": "Środek strony"
@@ -230,7 +228,9 @@
     "presenceGuidanceOnlineDefault": "Jestem przy klawiaturze. Możesz w każdej chwili zadawać pytania doprecyzowujące i potwierdzać ze mną działania destrukcyjne przed ich uruchomieniem",
     "presenceGuidanceInvisibleDefault": "Jestem w pobliżu, ale widoczny jako offline. Domyślnie działaj autonomicznie i powiadamiaj mnie tylko o działaniach wysokiego ryzyka lub dużych refaktoryzacjach; pozostałe pytania zbierz w jednym podsumowaniu zamiast zadawać je pojedynczo",
     "presenceGuidanceAwayDefault": "Jestem z dala od klawiatury. Nie blokuj się, czekając na mnie; podejmij najlepszą decyzję na podstawie dostępnych informacji, dokończ co się da i zostaw krótkie podsumowanie oraz otwarte pytania na mój powrót",
-    "followSystem": "Zgodnie z systemem"
+    "followSystem": "Zgodnie z systemem",
+    "login": "Logowanie",
+    "tabSelfHosted": "Hostowane samodzielnie"
   },
   "background": {
     "title": "Tło",
@@ -271,7 +271,7 @@
     "failedToDelete": "Nie udało się usunąć obrazu",
     "customImagesStorage": "Magazyn własnych obrazów",
     "adaptiveColors": "Adaptacyjny odcień paska narzędzi",
-    "adaptiveColorsDesc": "Dopasuj kolory tekstu i pigułek paska narzędzi do jasności tła za nimi.",
+    "adaptiveColorsDesc": "Dopasuj kolory tekstu i pigułek paska narzędzi do jasności tła za nimi",
     "imageOptimized": "Obraz zoptymalizowany: {{from}} → {{to}} (mniejszy o {{savings}}%)",
     "failedToProcess": "Nie udało się przetworzyć obrazu: {{detail}}",
     "uploadButton": "Prześlij",
@@ -398,8 +398,8 @@
     "contextWindowAutoDesc": "Automatycznie wykrywane z nazwy modelu (np. Claude = 200K, GPT-4o = 128K)",
     "contextWindowCustomTokens": "Własny limit Tokenów",
     "compactionModel": "Model streszczania",
-    "compactionModelDesc": "Model do streszczania (puste = użyj głównego modelu Agent). Zalecany jest szybki model.",
-    "compactionModelDescFallback": "Obecnie używa modelu bazowego Agent do streszczania.",
+    "compactionModelDesc": "Model do streszczania (puste = użyj głównego modelu Agent). Zalecany jest szybki model",
+    "compactionModelDescFallback": "Obecnie używa modelu bazowego Agent do streszczania",
     "compactionModelPlaceholder": "Używa modelu bazowego",
     "compactionSummaryMaxTokens": "Maks. Tokenów streszczenia",
     "compactionSummaryMaxTokensDesc": "Maksymalna liczba Tokenów dla odpowiedzi streszczania",
@@ -567,9 +567,9 @@
     "memorySearchModel": "Model Embedding",
     "memorySearchModelDesc": "Nadpisz nazwę modelu Embedding (puste = domyślny dostawcy)",
     "localEmbedderReady": "Gotowy",
-    "localEmbedderReadyDesc": "CodeRankEmbed jest dostępny do lokalnego Embedding — klucz API niepotrzebny.",
+    "localEmbedderReadyDesc": "CodeRankEmbed jest dostępny do lokalnego Embedding — klucz API niepotrzebny",
     "localEmbedderNotReady": "Wymagana konfiguracja",
-    "localEmbedderNotReadyDesc": "Lokalny model Embedding nie jest skonfigurowany. Skonfiguruj go w ustawieniach indeksowania.",
+    "localEmbedderNotReadyDesc": "Lokalny model Embedding nie jest skonfigurowany. Skonfiguruj go w ustawieniach indeksowania",
     "localEmbedderGoToIndexing": "Przejdź do konfiguracji",
     "localEmbedderStatus": "Lokalny Embedding",
     "desktopPermissionGranted": "Przyznano",
@@ -580,7 +580,7 @@
     "desktopRecheckPermissions": "Sprawdź uprawnienia ponownie",
     "desktopRecheckPermissionsDesc": "Zapytaj OS ponownie, jeśli właśnie zmieniłeś uprawnienia w Ustawieniach systemowych",
     "desktopSafetyDeepLinkLabel": "Przełączniki bezpieczeństwa per akcja",
-    "desktopSafetyDeepLinkDesc": "Animacja kursora, ukrycie przed akcją, pisanie przez schowek i inne szczegółowe pod-przełączniki znajdują się przy Agent, do którego należą.",
+    "desktopSafetyDeepLinkDesc": "Animacja kursora, ukrycie przed akcją, pisanie przez schowek i inne szczegółowe pod-przełączniki znajdują się przy Agent, do którego należą",
     "desktopSafetyDeepLinkAction": "Otwórz Wingman → Bezpieczeństwo",
     "desktopConfig": {
       "title": "Bezpieczeństwo pulpitu",
@@ -606,13 +606,13 @@
     "skillNoDescription": "Brak opisu — Agent nie wykryje tej umiejętności",
     "skillShortDescription": "Opis jest bardzo krótki — rozważ rozszerzenie",
     "desktopUnsupportedPlatformTitle": "Sterowanie pulpitem działa tylko na macOS",
-    "desktopUnsupportedPlatformDesc": "Narzędzia myszy, klawiatury i przechwytywania ekranu są obecnie obsługiwane tylko na macOS."
+    "desktopUnsupportedPlatformDesc": "Narzędzia myszy, klawiatury i przechwytywania ekranu są obecnie obsługiwane tylko na macOS"
   },
   "agentTools": {
     "title": "Dostęp do narzędzi",
     "systemPinned": "Przypięte przez rolę systemową",
     "systemPinnedShort": "System",
-    "poolDesc": "Wspólna pula narzędzi. Włączaj lub wyłączaj każde narzędzie per Agent.",
+    "poolDesc": "Wspólna pula narzędzi. Włączaj lub wyłączaj każde narzędzie per Agent",
     "typeColumn": "Typ",
     "toolColumn": "Narzędzie",
     "descriptionColumn": "Opis",
@@ -652,7 +652,7 @@
       "serverColumn": "Serwer",
       "transportColumn": "Transport",
       "noServers": "Brak skonfigurowanych serwerów MCP",
-      "noServersDesc": "Przejdź do Rozszerzeń > MCP, aby dodać serwery.",
+      "noServersDesc": "Przejdź do Rozszerzeń > MCP, aby dodać serwery",
       "searchPlaceholder": "Szukaj serwerów…",
       "noTools": "Ten serwer nie udostępnił jeszcze żadnych narzędzi.",
       "toolsRequireConnection": "Najpierw połącz ten serwer — lista narzędzi nie jest dostępna w trybie rozłączonym.",
@@ -668,7 +668,7 @@
       "alreadyImported": "Zaimportowano",
       "allImported": "Wszystkie reguły już zaimportowane",
       "noRules": "Nie znaleziono reguł",
-      "noRulesDesc": "Importuj z Cursor lub utwórz pliki .orgii/rules/*.md.",
+      "noRulesDesc": "Importuj z Cursor lub utwórz pliki .orgii/rules/*.md",
       "tokensColumn": "Tokeny",
       "addRule": "Dodaj regułę"
     }
@@ -718,16 +718,13 @@
     "quietHours": "Harmonogram Nie przeszkadzać",
     "quietHoursDesc": "Wyciszaj rutynowe powiadomienia w codziennym przedziale czasu",
     "quietHoursSchedule": "Godziny ciszy",
-    "quietHoursScheduleDesc": "Używa czasu lokalnego urządzenia. Identyczna godzina początku i końca wyłącza przedział.",
+    "quietHoursScheduleDesc": "Używa czasu lokalnego urządzenia. Identyczna godzina początku i końca wyłącza przedział",
     "quietHoursStart": "Od",
     "quietHoursEnd": "Do",
     "allowCriticalDuringQuietHours": "Zezwalaj na alerty krytyczne",
     "allowCriticalDuringQuietHoursDesc": "Prośby o zatwierdzenie i błędy mogą wyświetlać powiadomienie systemowe, ale nigdy nie odtwarzają dźwięku",
     "backgroundCompletionSummary": "Podsumowuj zakończone zadania w tle",
     "backgroundCompletionSummaryDesc": "Wyślij jedno zbiorcze powiadomienie po zakończeniu godzin ciszy",
-    "mutedSessions": "Wyciszone sesje",
-    "mutedSessionsDesc": "Na tym urządzeniu wyciszono {{count}} sesji",
-    "clearMutedSessions": "Wyczyść wszystko",
     "test": {
       "sent": "Wysłano testowe powiadomienie",
       "permissionWarning": "Nie udało się wysłać testowego powiadomienia. Sprawdź uprawnienia.",
@@ -1177,7 +1174,7 @@
   },
   "mcpServers": {
     "noServers": "Brak skonfigurowanych serwerów MCP",
-    "noServersDesc": "Dodaj serwer MCP, aby rozszerzyć możliwości Agent o zewnętrzne narzędzia.",
+    "noServersDesc": "Dodaj serwer MCP, aby rozszerzyć możliwości Agent o zewnętrzne narzędzia",
     "addServer": "Dodaj serwer",
     "configureServer": "Skonfiguruj serwer",
     "serverName": "Nazwa serwera",
@@ -1206,7 +1203,7 @@
   "skills": {
     "title": "Umiejętności Agent",
     "noSkills": "Nie znaleziono umiejętności",
-    "noSkillsDesc": "Umieść pliki SKILL.md w .orgii/skills/ lub ~/.orgii/skills/, aby dodać umiejętności.",
+    "noSkillsDesc": "Umieść pliki SKILL.md w .orgii/skills/ lub ~/.orgii/skills/, aby dodać umiejętności",
     "noDescription": "Brak opisu",
     "unavailable": "Niedostępna",
     "alwaysLoaded": "Włączona do każdego promptu",
@@ -1231,14 +1228,14 @@
   },
   "agentMemory": {
     "learningsEnabled": "Pamięć długoterminowa",
-    "learningsEnabledDesc": "Ładuje skonsolidowane wnioski do promptu i zapisuje nowe z sesji tego Agent.",
+    "learningsEnabledDesc": "Ładuje skonsolidowane wnioski do promptu i zapisuje nowe z sesji tego Agent",
     "extractMemoriesEnabled": "Wyodrębniaj wspomnienia z sesji",
-    "extractMemoriesEnabledDesc": "Po każdej sesji skanuj transkrypcję i produkuj elementy pamięci Tier-1.",
+    "extractMemoriesEnabledDesc": "Po każdej sesji skanuj transkrypcję i produkuj elementy pamięci Tier-1",
     "autoDreamEnabled": "Auto-konsolidacja dream",
-    "autoDreamEnabledDesc": "Okresowo konsoliduj elementy Tier-1 w tematy Tier-2 podczas bezczynności.",
+    "autoDreamEnabledDesc": "Okresowo konsoliduj elementy Tier-1 w tematy Tier-2 podczas bezczynności",
     "coreTitle": "Pamięć i ewolucja",
     "learningsTitle": "Wnioski",
-    "learningsDesc": "Wspomnienia uchwycone z sesji tego Agent. Awansuj oczekujące elementy do aktywnych, aby wstrzyknąć je do promptu.",
+    "learningsDesc": "Wspomnienia uchwycone z sesji tego Agent. Awansuj oczekujące elementy do aktywnych, aby wstrzyknąć je do promptu",
     "memoryEvolutionTabLabel": "Memory & Evolution"
   },
   "agentEvolution": {

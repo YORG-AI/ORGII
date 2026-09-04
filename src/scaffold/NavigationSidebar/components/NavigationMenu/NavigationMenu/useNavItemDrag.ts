@@ -7,7 +7,7 @@ import {
 
 import type { NavigationMenuItem } from "../config";
 
-export type NavItemDragState = ReferencePillDragState;
+type NavItemDragState = ReferencePillDragState;
 
 export function useNavItemDrag(item: NavigationMenuItem): {
   dragHandlers: React.HTMLAttributes<HTMLElement>;

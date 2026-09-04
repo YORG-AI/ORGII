@@ -55,3 +55,36 @@ impl From<&str> for ApiError {
         Self::new(error)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constructors_and_conversions_preserve_the_error_contract() {
+        let plain = ApiError::new("plain failure");
+        assert_eq!(plain.error, "plain failure");
+        assert_eq!(plain.error_type, None);
+
+        let typed = ApiError::with_type("typed failure", "validation");
+        assert_eq!(typed.error, "typed failure");
+        assert_eq!(typed.error_type.as_deref(), Some("validation"));
+
+        assert_eq!(ApiError::from("borrowed").error, "borrowed");
+        assert_eq!(ApiError::from(String::from("owned")).error, "owned");
+    }
+
+    #[test]
+    fn serialization_omits_absent_error_type_and_response_uses_server_error_status() {
+        let error = ApiError::new("boom");
+
+        assert_eq!(
+            serde_json::to_value(&error).expect("serialize error"),
+            serde_json::json!({"error": "boom"})
+        );
+        assert_eq!(
+            error.into_response().status(),
+            StatusCode::INTERNAL_SERVER_ERROR
+        );
+    }
+}

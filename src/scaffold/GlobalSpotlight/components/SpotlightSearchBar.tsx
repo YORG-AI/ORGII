@@ -4,9 +4,11 @@
  * Search bar with action/value pills and a contextual input placeholder.
  * Backspace removes segments.
  */
-import { ChevronLeft, Search } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
+
+import AnyIcon from "@src/components/AnyIcon";
+import { ArrowLeft01Icon, HugeiconsIcon } from "@src/icons";
 
 import { ICONS } from "../config";
 import { SPOTLIGHT_CLASSES, SPOTLIGHT_TOKENS } from "../constants";
@@ -14,7 +16,7 @@ import type { PathSegment } from "../types";
 
 // ============ PROPS ============
 
-export interface SpotlightSearchBarProps {
+interface SpotlightSearchBarProps {
   /** Ref for the input element */
   inputRef: React.RefObject<HTMLInputElement | null>;
   /** Current search query */
@@ -67,8 +69,6 @@ export const SpotlightSearchBar: React.FC<SpotlightSearchBarProps> = ({
 
   const hasPills = path.length > 0;
   const hasLeadingSlot = Boolean(leadingSlot);
-  const displayIcon = ICONS.search;
-  const IconComponent = typeof displayIcon === "string" ? null : displayIcon;
 
   const getSegmentLabel = (segment: PathSegment): string => {
     const data = segment.data as
@@ -94,58 +94,42 @@ export const SpotlightSearchBar: React.FC<SpotlightSearchBarProps> = ({
   };
 
   const renderBackChevron = () => (
-    <ChevronLeft size={13} strokeWidth={2.5} className="shrink-0" />
+    <HugeiconsIcon
+      icon={ArrowLeft01Icon}
+      data-icon="chevron-left"
+      size={13}
+      strokeWidth={2.5}
+      className="shrink-0"
+    />
   );
 
-  const renderPillIcon = (segment: PathSegment) => {
-    if (typeof segment.icon === "function") {
-      return React.createElement(
-        segment.icon as React.ComponentType<{
-          size?: number;
-          className?: string;
-        }>,
-        {
-          size: 14,
-          className: "text-primary-6",
-        }
-      );
-    }
-
-    if (typeof segment.icon === "string") {
-      return <i className={`${segment.icon} text-[14px] text-primary-6`} />;
-    }
-
-    return null;
-  };
+  // AnyIcon resolves every shape a segment can carry: `""` (deliberate
+  // no-icon), a brand-mark component (including forwardRef/memo wrappers,
+  // which `typeof === "function"` misses), and hugeicons glyph data — which a
+  // hand-rolled switch here used to drop entirely, leaving pills iconless.
+  const renderPillIcon = (segment: PathSegment) => (
+    <AnyIcon icon={segment.icon} size={14} className="text-primary-6" />
+  );
 
   return (
     <div>
       <div className="spotlight-search-bar flex h-[56px] min-h-[56px] items-center gap-2 px-4">
         {hasLeadingSlot ? (
-          <div className="flex flex-shrink-0 items-center">{leadingSlot}</div>
+          <div className="flex shrink-0 items-center">{leadingSlot}</div>
         ) : !hasPills ? (
-          <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center">
-            {IconComponent ? (
-              <IconComponent
-                size={SPOTLIGHT_TOKENS.iconSize}
-                className="text-text-2"
-              />
-            ) : typeof displayIcon === "string" ? (
-              <i
-                className={`${displayIcon} text-[${SPOTLIGHT_TOKENS.iconSize}px] text-text-2`}
-              />
-            ) : (
-              <Search
-                className="text-text-2"
-                size={SPOTLIGHT_TOKENS.iconSize}
-              />
-            )}
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center">
+            <AnyIcon
+              icon={ICONS.search}
+              size={SPOTLIGHT_TOKENS.iconSize}
+              className="text-text-2"
+              data-icon="search"
+            />
           </div>
         ) : null}
 
         {!hasLeadingSlot && hasPills && (
           <div
-            className={`flex min-w-0 flex-shrink-0 items-center gap-2 ${SPOTLIGHT_TOKENS.inputFontSize} text-text-1`}
+            className={`flex min-w-0 shrink-0 items-center gap-2 ${SPOTLIGHT_TOKENS.inputFontSize} text-text-1`}
           >
             {path.map((segment, index) => {
               const canRemove =
@@ -197,16 +181,16 @@ export const SpotlightSearchBar: React.FC<SpotlightSearchBarProps> = ({
         {!hideInput && searchQuery && !isCountingDown && (
           <button
             type="button"
-            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
-            aria-label={t("common:actions.clearSearch")}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
+            aria-label={t("common:tooltips.clearSearch")}
             onClick={handleResetSearch}
           >
-            {React.createElement(ICONS.close, { size: 14 })}
+            <HugeiconsIcon icon={ICONS.close} size={14} />
           </button>
         )}
 
         {trailingSlot ? (
-          <div className="flex flex-shrink-0 items-center">{trailingSlot}</div>
+          <div className="flex shrink-0 items-center">{trailingSlot}</div>
         ) : null}
       </div>
     </div>

@@ -34,15 +34,6 @@ export interface GitStatusContextValue {
 export type StartupState = "initializing" | "loading" | "ready";
 
 // ============================================
-// Operation Signal Config
-// ============================================
-
-export interface OperationSignalConfig {
-  category: "error" | "warning" | "info" | "success" | "change";
-  priority: "critical" | "high" | "medium" | "low";
-}
-
-// ============================================
 // Shared Refs Type (passed between hooks)
 // ============================================
 

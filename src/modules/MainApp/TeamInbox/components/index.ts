@@ -1,10 +1,3 @@
 export { default as AssignedWorkItemDetail } from "./AssignedWorkItemDetail";
-export type { AssignedWorkItemDetailProps } from "./AssignedWorkItemDetail";
 export { default as CommentMentionDetail } from "./CommentMentionDetail";
-export type { CommentMentionDetailProps } from "./CommentMentionDetail";
-export { default as TeamInboxDetailLayout } from "./TeamInboxDetailLayout";
-export type { TeamInboxDetailLayoutProps } from "./TeamInboxDetailLayout";
 export { default as TeamInboxList } from "./TeamInboxList";
-export type { TeamInboxListProps } from "./TeamInboxList";
-export { default as TeamInboxRow } from "./TeamInboxRow";
-export type { TeamInboxRowProps } from "./TeamInboxRow";

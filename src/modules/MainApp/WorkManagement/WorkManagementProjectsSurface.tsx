@@ -33,6 +33,7 @@ import {
 import type { WorkItem } from "@src/types/core/workItem";
 
 import type { WorkManagementDetailHost } from "./workManagementDetailHost";
+import { useWorkManagementSplitHeader } from "./workManagementSplitHeaderContext";
 
 const LinearProjectsPage = React.lazy(
   () => import("@src/modules/ProjectManager/LinearProjects")
@@ -84,6 +85,8 @@ const WorkManagementProjectsSurface: React.FC<{
   detailHost: WorkManagementDetailHost;
 }> = memo(({ detailHost }) => {
   const { t } = useTranslation("projects");
+  const { splitDatasetControl, surfaceDatasetControl } =
+    useWorkManagementSplitHeader();
   const [workManagementProjectsView, setWorkManagementProjectsView] = useAtom(
     workManagementProjectsViewAtom
   );
@@ -255,7 +258,7 @@ const WorkManagementProjectsSurface: React.FC<{
           selection.projectId,
           selection.projectName,
           selection.workItem.session_id,
-          selection.workItem.name || t("workItems.untitled"),
+          selection.workItem.name || t("common:placeholders.untitled"),
           selection.projectSlug,
           undefined,
           undefined,
@@ -284,6 +287,7 @@ const WorkManagementProjectsSurface: React.FC<{
           isActive
           workStationTabId="work-management-projects"
           workstationHeaderHost="workManagement"
+          splitHeaderLeading={splitDatasetControl}
           onProjectSlugResolved={setSelectedProjectSlug}
           onOpenProjects={handleOpenProjects}
           onCreateProject={handleCreateProject}
@@ -321,6 +325,8 @@ const WorkManagementProjectsSurface: React.FC<{
             onOpenLinearProject={handleOpenLinearProjects}
             allowExternalSources={activeOrgScope === STORY_ORG_SCOPE.ALL}
             publishToWorkstationHeader
+            surfaceOwnedHeader
+            surfaceHeaderLeading={surfaceDatasetControl}
             workStationTabId="work-management-projects"
             workstationHeaderHost="workManagement"
           />
@@ -331,6 +337,7 @@ const WorkManagementProjectsSurface: React.FC<{
             breadcrumbSegments={[]}
             workStationTabId="work-management-projects"
             workstationHeaderHost="workManagement"
+            splitHeaderLeading={splitDatasetControl}
             orgId={scopedOrgId}
             onCreateProject={handleCreateProject}
             onCreateWorkItem={handleCreateWorkItem}
@@ -382,6 +389,8 @@ const WorkManagementProjectsSurface: React.FC<{
     selectedProjectSlug,
     activeOrgScope,
     scopedOrgId,
+    splitDatasetControl,
+    surfaceDatasetControl,
     t,
     view,
   ]);

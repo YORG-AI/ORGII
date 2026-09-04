@@ -14,23 +14,37 @@
  * (clicking an old session in WorkStation makes it appear in the 6h
  * Kanban window) was a one-line slip and easy to reintroduce.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
+import * as streamHelpers from "@src/engines/SessionCore/sync/adapters/rustAgent/eventHandlers/streamHelpers";
+import { conversationComposerModeAtomFamily } from "@src/features/Org2Cloud/SessionConversation/conversationComposerMode";
+import { pendingPlanApprovalForSessionAtomFamily } from "@src/store/session/planApprovalAtom";
+import {
+  chatFindInChatOpenAtomFamily,
+  chatSearchSyncAtomFamily,
+} from "@src/store/ui/chatPanel/miscAtoms";
+import {
+  createInstrumentedStore,
+  getInstrumentedStore,
+  resetInstrumentedStore,
+} from "@src/util/core/state/instrumentedStore";
+
+import * as atoms from "../atoms";
+import * as mutations from "../mutations";
+import { sessionPaginationAtom } from "../paginationAtoms";
+import { createSidebarRosterMatcher } from "../sidebarRoster";
 import type { Session } from "../types";
 
+// A fresh store per test is the whole isolation requirement here: atom values
+// live in the store, so dropping it resets every atom. `vi.resetModules()` plus
+// a dynamic re-import of the atom graph would do the same thing at ~10x the
+// cost, once per test.
 beforeEach(() => {
-  vi.resetModules();
+  resetInstrumentedStore();
+  createInstrumentedStore();
 });
 
 async function loadModule() {
-  const { createInstrumentedStore } =
-    await import("@src/util/core/state/instrumentedStore");
-  createInstrumentedStore();
-  const mutations = await import("../mutations");
-  const atoms = await import("../atoms");
-  const { sessionPaginationAtom } = await import("../paginationAtoms");
-  const { getInstrumentedStore } =
-    await import("@src/util/core/state/instrumentedStore");
   return {
     upsertSession: mutations.upsertSession,
     updateSessionStatus: mutations.updateSessionStatus,
@@ -85,7 +99,6 @@ describe("upsertSession", () => {
 
   it("registers a new primary native session in an authoritative sidebar roster", async () => {
     const { upsertSession, sessionPaginationAtom, store } = await loadModule();
-    const { createSidebarRosterMatcher } = await import("../sidebarRoster");
     const pagination = store.get(sessionPaginationAtom);
     store.set(sessionPaginationAtom, {
       ...pagination,
@@ -293,9 +306,6 @@ describe("updateSessionStatus", () => {
 describe("removeSession", () => {
   it("drops the session and disposes its rust-agent streaming state", async () => {
     const { upsertSession, sessionsAtom, store } = await loadModule();
-    const mutations = await import("../mutations");
-    const streamHelpers =
-      await import("@src/engines/SessionCore/sync/adapters/rustAgent/eventHandlers/streamHelpers");
 
     upsertSession(makeSession({ session_id: "sess-x" }));
 
@@ -314,5 +324,48 @@ describe("removeSession", () => {
     expect(streamHelpers.isSessionStreamingStopped("sess-x", "turn-1")).toBe(
       false
     );
+  });
+
+  it("releases the per-session atom families it pinned", async () => {
+    // jotai-family pins every key it is called with, so a family that is never
+    // removed keeps one atom per session for the lifetime of the app. A family
+    // hands back a *new* atom instance once its key has been released, which is
+    // what makes the release observable.
+    const { upsertSession } = await loadModule();
+    upsertSession(makeSession({ session_id: "sess-fam" }));
+
+    const before = [
+      pendingPlanApprovalForSessionAtomFamily("sess-fam"),
+      chatFindInChatOpenAtomFamily("sess-fam"),
+      chatSearchSyncAtomFamily("sess-fam"),
+      conversationComposerModeAtomFamily("sess-fam"),
+    ];
+
+    mutations.removeSession("sess-fam");
+
+    const after = [
+      pendingPlanApprovalForSessionAtomFamily("sess-fam"),
+      chatFindInChatOpenAtomFamily("sess-fam"),
+      chatSearchSyncAtomFamily("sess-fam"),
+      conversationComposerModeAtomFamily("sess-fam"),
+    ];
+
+    after.forEach((atomAfter, index) => {
+      expect(atomAfter).not.toBe(before[index]);
+    });
+  });
+
+  it("clears an abandoned image draft", async () => {
+    // Image drafts are base64 payloads and are deliberately excluded from
+    // quota recovery, so a deleted session's draft is only reclaimable here.
+    // Submitting a message already clears it; this covers the abandoned case.
+    const { upsertSession } = await loadModule();
+    const key = "orgii:chat-image-draft:sess-draft";
+    localStorage.setItem(key, JSON.stringify([{ dataUrl: "data:image/png" }]));
+    upsertSession(makeSession({ session_id: "sess-draft" }));
+
+    mutations.removeSession("sess-draft");
+
+    expect(localStorage.getItem(key)).toBeNull();
   });
 });

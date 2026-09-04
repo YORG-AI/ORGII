@@ -3,14 +3,6 @@
  *
  * Form for cloning a repo from GitHub
  */
-import {
-  Code,
-  Filter,
-  Folder,
-  FolderOpen,
-  Lock,
-  SquareArrowOutUpRight,
-} from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -22,6 +14,15 @@ import Input from "@src/components/Input";
 import { Placeholder } from "@src/components/Placeholder";
 import Radio from "@src/components/Radio";
 import { buildIntegrationsPath } from "@src/config/mainAppPaths";
+import {
+  CodeXmlIcon,
+  FilterIcon,
+  FolderClosedIcon,
+  FolderOpenIcon,
+  HugeiconsIcon,
+  LockIcon,
+  SquareArrowUpRight02Icon,
+} from "@src/icons";
 import { PanelFooter } from "@src/modules/shared/layouts/blocks";
 import { joinPathForDisplay } from "@src/util/file/pathUtils";
 
@@ -151,7 +152,13 @@ const CloneRepoForm: React.FC<CloneRepoFormProps> = ({
                   value={filterText}
                   onChange={onFilterTextChange}
                   className="h-[32px] rounded-lg bg-fill-1 text-[14px]"
-                  prefix={<Filter className="text-[16px] text-text-2" />}
+                  prefix={
+                    <HugeiconsIcon
+                      icon={FilterIcon}
+                      data-icon="filter"
+                      className="text-[16px] text-text-2"
+                    />
+                  }
                 />
               </div>
               <div className="spotlight-scrollable mb-3 max-h-[150px] overflow-y-auto">
@@ -164,7 +171,7 @@ const CloneRepoForm: React.FC<CloneRepoFormProps> = ({
                 ) : groupedRepos.length > 0 ? (
                   groupedRepos.map((group) => (
                     <div key={group.organization} className="mb-2">
-                      <div className="mb-1 text-[12px] font-medium uppercase text-text-2">
+                      <div className="mb-1 text-[12px] font-medium text-text-2 uppercase">
                         {group.organization}
                       </div>
                       <div className="space-y-1">
@@ -179,7 +186,11 @@ const CloneRepoForm: React.FC<CloneRepoFormProps> = ({
                             />
                             <div className="flex items-center gap-2">
                               {repo.is_private && (
-                                <Lock className="text-[12px] text-text-2" />
+                                <HugeiconsIcon
+                                  icon={LockIcon}
+                                  data-icon="lock"
+                                  className="text-[12px] text-text-2"
+                                />
                               )}
                               <span className="text-[14px] text-text-1">
                                 {repo.full_name}
@@ -214,7 +225,7 @@ const CloneRepoForm: React.FC<CloneRepoFormProps> = ({
           {/* GitHub URL Tab */}
           {subTab === "githubUrl" && (
             <div className="mb-3">
-              <label className="mb-2 block text-[14px] font-[400] text-text-2">
+              <label className="mb-2 block text-[14px] font-normal text-text-2">
                 {t("cloneForm.githubUrl")}
               </label>
               <Input
@@ -222,14 +233,20 @@ const CloneRepoForm: React.FC<CloneRepoFormProps> = ({
                 value={repoUrl}
                 onChange={onRepoUrlChange}
                 className="h-[32px] rounded-lg bg-fill-1 text-[14px]"
-                prefix={<Code className="text-[16px] text-text-2" />}
+                prefix={
+                  <HugeiconsIcon
+                    icon={CodeXmlIcon}
+                    data-icon="code"
+                    className="text-[16px] text-text-2"
+                  />
+                }
               />
             </div>
           )}
 
           {/* Clone to (parent folder) */}
           <div className="mb-3">
-            <label className="mb-2 block text-[14px] font-[400] text-text-2">
+            <label className="mb-2 block text-[14px] font-normal text-text-2">
               {t("cloneForm.cloneTo")}
             </label>
             <div className="flex gap-3">
@@ -240,14 +257,26 @@ const CloneRepoForm: React.FC<CloneRepoFormProps> = ({
                   placeholder={t("cloneForm.parentFolderPlaceholder")}
                   readOnly
                   className="h-[32px] rounded-lg bg-fill-1 text-[14px]"
-                  prefix={<Folder className="text-[16px] text-text-2" />}
+                  prefix={
+                    <HugeiconsIcon
+                      icon={FolderClosedIcon}
+                      data-icon="folder"
+                      className="text-[16px] text-text-2"
+                    />
+                  }
                 />
               </div>
               <Button
                 variant="secondary"
                 size="default"
                 iconOnly
-                icon={<FolderOpen size={16} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={FolderOpenIcon}
+                    data-icon="folder-open"
+                    size={16}
+                  />
+                }
                 title={t("cloneForm.chooseFolder")}
                 onClick={async () => {
                   const path = await onChoosePath();
@@ -286,7 +315,13 @@ const CloneRepoForm: React.FC<CloneRepoFormProps> = ({
               <Button
                 variant="secondary"
                 size="default"
-                icon={<SquareArrowOutUpRight size={14} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={SquareArrowUpRight02Icon}
+                    data-icon="square-arrow-out-up-right"
+                    size={14}
+                  />
+                }
                 iconPosition="right"
                 onClick={handleGoToSettings}
               >

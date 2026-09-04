@@ -384,7 +384,7 @@ const CanvasApp: React.FC<SimulatorAppProps> = () => {
             />
           )}
           {revisionDraft && (
-            <div className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2">
+            <div className="pointer-events-none absolute top-3 left-1/2 z-20 -translate-x-1/2">
               <CanvasRevisionProgress draft={revisionDraft} variant="overlay" />
             </div>
           )}

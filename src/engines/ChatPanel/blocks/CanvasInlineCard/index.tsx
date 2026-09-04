@@ -17,9 +17,10 @@
  *   - url: not embedded to avoid iframe memory overhead
  *   - a2ui: DOMPurify sanitizes type="html" elements in A2UIRenderer
  */
-import { Layout } from "lucide-react";
 import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+
+import { HugeiconsIcon, Layout01Icon } from "@src/icons";
 
 import {
   EventBlockHeader,
@@ -161,7 +162,14 @@ const CanvasInlineCard: React.FC<CanvasInlineCardProps> = ({
         withHover
       >
         <EventBlockHeaderIcon
-          icon={<Layout size={14} className="text-primary-6" />}
+          icon={
+            <HugeiconsIcon
+              icon={Layout01Icon}
+              data-icon="panels-top-left"
+              size={14}
+              className="text-primary-6"
+            />
+          }
           isCollapsed={isCollapsed}
           isHeaderHovered={isHeaderHovered}
           onToggle={handleHeaderClick}
@@ -180,7 +188,7 @@ const CanvasInlineCard: React.FC<CanvasInlineCardProps> = ({
           className="relative w-full overflow-hidden transition-[height] duration-300 ease-in-out"
           style={{ height: currentHeight }}
         >
-          <div className="h-full min-w-0 max-w-full">{contentArea}</div>
+          <div className="h-full max-w-full min-w-0">{contentArea}</div>
 
           {/* Streaming progress bar — pulsing accent line at bottom edge */}
           {isStreaming && (
@@ -207,4 +215,3 @@ const CanvasInlineCardWithBoundary: React.FC<CanvasInlineCardProps> = (
 CanvasInlineCardWithBoundary.displayName = "CanvasInlineCardWithBoundary";
 
 export default CanvasInlineCardWithBoundary;
-export type { CanvasInlineCardProps } from "./types";

@@ -7,6 +7,7 @@
  */
 import React, { Suspense, memo, useMemo } from "react";
 
+import { MarkdownWorkspaceRootContext } from "@src/components/MarkDown/markdownWorkspaceRoot";
 import AgentMessageBlock from "@src/engines/ChatPanel/blocks/AgentMessageBlock";
 import LlmUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/LlmUsageBadge";
 import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";
@@ -284,21 +285,14 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
           const llmUsage = readLlmUsage(event);
           return (
             <AgentMessageBlock
-              itemIndex={itemIndex}
               isStreaming={isStreaming}
-              messageContent={assistantContent}
-              messageTimestamp={event.createdAt}
               rightContent={
                 llmUsage ? <LlmUsageBadge usage={llmUsage} /> : undefined
               }
             >
               <AgentChatItemDefault
-                itemIndex={itemIndex}
-                expand={true}
-                finish={!isStreaming}
                 streamHtml={isStreaming}
                 messageTimestamp={event.createdAt}
-                showCopyButton={false}
               >
                 {assistantContent}
               </AgentChatItemDefault>
@@ -342,16 +336,7 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
 
       const observation = event.result?.observation;
       if (observation && typeof observation === "string") {
-        return (
-          <AgentChatItemDefault
-            itemIndex={itemIndex}
-            expand={true}
-            finish={true}
-            streamHtml={false}
-          >
-            {observation}
-          </AgentChatItemDefault>
-        );
+        return <AgentChatItemDefault>{observation}</AgentChatItemDefault>;
       }
 
       return null;
@@ -371,10 +356,16 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
         }[status] || "activity-chat-item--status-agent"
       : "";
 
+    // Every file reference rendered below this event — markdown link, local
+    // image, fenced-block open button — resolves against the repo that was
+    // active when the event was written, not the folder the reader happens to
+    // have focused while scrolling the transcript.
     return (
-      <div className={`activity-chat-item ${statusLineClass}`.trim()}>
-        {content}
-      </div>
+      <MarkdownWorkspaceRootContext.Provider value={event.repoPath}>
+        <div className={`activity-chat-item ${statusLineClass}`.trim()}>
+          {content}
+        </div>
+      </MarkdownWorkspaceRootContext.Provider>
     );
   },
   arePropsEqual

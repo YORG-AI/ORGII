@@ -46,6 +46,7 @@ import type {
 import {
   type GitHubRepoSource,
   getGitHubListCacheKey,
+  resolveSingleGitHubRepoSource,
 } from "./githubWorkItemsTypes";
 
 export const ISSUE_PAGE_SIZE = 50;
@@ -122,6 +123,13 @@ export const EMPTY_REPO_PRS: RepoPrState = {
   openError: null,
   closedError: null,
 };
+
+export function hasCompletedGitHubLifecycleScope(
+  completedRetentionKey: string | null,
+  retentionKey: string
+): boolean {
+  return completedRetentionKey === retentionKey;
+}
 
 export function getRepoIssueMapKey(source: GitHubRepoSource): string {
   return source.repoFullName;
@@ -388,24 +396,15 @@ export function selectGitHubLoadSources({
   sources,
   selectedRepo,
   selectedRepoPath,
-  allReposValue,
-  currentWorkstationValue,
 }: {
   sources: GitHubRepoSource[];
   selectedRepo: string;
   selectedRepoPath: string | null;
-  allReposValue: string;
-  currentWorkstationValue: string;
 }): GitHubRepoSource[] {
-  if (selectedRepo === allReposValue) return sources;
-  if (selectedRepo === currentWorkstationValue) {
-    const currentSource = sources.find(
-      (source) => source.repoPath === selectedRepoPath
-    );
-    return currentSource ? [currentSource] : [];
-  }
-  const selectedSource = sources.find(
-    (source) => source.repoFullName === selectedRepo
+  const selectedSource = resolveSingleGitHubRepoSource(
+    sources,
+    selectedRepo,
+    selectedRepoPath
   );
   return selectedSource ? [selectedSource] : [];
 }
@@ -416,10 +415,8 @@ export function useGitHubWorkItemsLoadLifecycle({
   issueStates,
   prStates,
   refreshNonce,
-  selectedRepo = "__all__",
+  selectedRepo = "__current__",
   selectedRepoPath = null,
-  allReposValue = "__all__",
-  currentWorkstationValue = "__current__",
 }: {
   repos: Repo[];
   scope: Extract<GitHubQueryScope, "issue" | "pr">;
@@ -428,8 +425,6 @@ export function useGitHubWorkItemsLoadLifecycle({
   refreshNonce: number;
   selectedRepo?: string;
   selectedRepoPath?: string | null;
-  allReposValue?: string;
-  currentWorkstationValue?: string;
 }) {
   const store = useStore();
   const gitRepos = useMemo(
@@ -458,6 +453,9 @@ export function useGitHubWorkItemsLoadLifecycle({
   const [loadError, setLoadError] = useState<string | null>(
     () => retainedSnapshot?.loadError ?? null
   );
+  const [completedRetentionKey, setCompletedRetentionKey] = useState<
+    string | null
+  >(retainedSnapshot || gitRepos.length === 0 ? retentionKey : null);
   const loadedRef = useRef(Boolean(retainedSnapshot));
   const handledRefreshNonceRef = useRef(0);
   const permissionViewerRef = useRef<string | null>(
@@ -503,6 +501,7 @@ export function useGitHubWorkItemsLoadLifecycle({
         setIfChanged(setRepoSources, []);
         setIfChanged(setRepoIssueMap, {});
         setIfChanged(setRepoPrMap, {});
+        setCompletedRetentionKey(retentionKey);
         setLoading(false);
         return;
       }
@@ -549,6 +548,7 @@ export function useGitHubWorkItemsLoadLifecycle({
         setLoadError(
           viewerLoginError ?? "GitHub viewer identity is unavailable"
         );
+        setCompletedRetentionKey(retentionKey);
         setLoading(false);
         return;
       }
@@ -590,6 +590,7 @@ export function useGitHubWorkItemsLoadLifecycle({
       if (resolvedSources.length === 0) {
         loadedRef.current = true;
         setIfChanged(setRepoSources, []);
+        setCompletedRetentionKey(retentionKey);
         setLoading(false);
         return;
       }
@@ -597,8 +598,6 @@ export function useGitHubWorkItemsLoadLifecycle({
         sources: resolvedSources,
         selectedRepo,
         selectedRepoPath,
-        allReposValue,
-        currentWorkstationValue,
       });
       const [permissionResults, issueResults, prResults] = await Promise.all([
         mapWithConcurrency(sourcesToLoad, GITHUB_SOURCE_CONCURRENCY, (source) =>
@@ -669,14 +668,13 @@ export function useGitHubWorkItemsLoadLifecycle({
           prResults.find((result) => result.error)?.error ??
           null
       );
+      setCompletedRetentionKey(retentionKey);
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
   }, [
-    allReposValue,
-    currentWorkstationValue,
     gitRepos,
     issueStates,
     prStates,
@@ -716,11 +714,16 @@ export function useGitHubWorkItemsLoadLifecycle({
     setLoadError(error);
   }, []);
 
+  const initialLoading = !hasCompletedGitHubLifecycleScope(
+    completedRetentionKey,
+    retentionKey
+  );
   return {
     repoSources,
     repoIssueMap,
     repoPrMap,
-    loading,
+    loading: loading || initialLoading,
+    initialLoading,
     loadError,
     updateIssueMap,
     updatePrMap,

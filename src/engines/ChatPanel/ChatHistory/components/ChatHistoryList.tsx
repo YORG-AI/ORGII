@@ -27,11 +27,15 @@ import React, {
   useRef,
 } from "react";
 
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import { PlanningFooter } from "@src/engines/ChatPanel/blocks/primitives";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
+import { AgentStatusTrail } from "@src/engines/ChatPanel/blocks/primitives";
 import { CHAT_PANEL_TRANSCRIPT_TOP_PADDING_PX } from "@src/engines/ChatPanel/header/chatPanelHeaderLayout";
 
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
+import {
+  findChatSearchTargetElement,
+  scrollSearchTargetIntoView,
+} from "../hooks/chatSearch";
 import { getUnloadedTurnMeta } from "../hooks/useChatGroups";
 import { GroupItemRenderer } from "../renderers";
 import { useChatHistoryListActiveGroupReporter } from "./ChatHistoryListActiveGroupReporter";
@@ -68,10 +72,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     flatItems,
     groupCounts,
     turnIds,
-    assistantCopyEventIdsByGroup,
-    resolveAssistantTurnCopyContent,
     totalFlatItems,
-    lastAssistantFlatIndexPerItem,
     codeBlockContainerWidth,
     footerSpacerHeight,
     bottomInset,
@@ -79,6 +80,8 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     planningIndicatorCount,
     planningVariantIndex,
     planningFooterMode,
+    statusTrail,
+    statusTrailSessionId,
     virtualListRef,
     virtualListDataKey,
     getIsWpGeneWorking,
@@ -105,6 +108,10 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     planningVariantIndexRef.current = planningVariantIndex;
     const planningFooterModeRef = useRef(planningFooterMode);
     planningFooterModeRef.current = planningFooterMode;
+    const statusTrailRef = useRef(statusTrail);
+    statusTrailRef.current = statusTrail;
+    const statusTrailSessionIdRef = useRef(statusTrailSessionId);
+    statusTrailSessionIdRef.current = statusTrailSessionId;
 
     // flatItems and previousChatItems in refs so renderGroupItem's useCallback
     // is not re-created on every token during streaming (Root Cause 1 fix).
@@ -112,19 +119,27 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     flatItemsRef.current = flatItems;
     const previousChatItemsRef = useRef<(OptimizedChatItem | undefined)[]>([]);
 
-    // When the planning indicator is active, inject it as a virtual item
-    // in the last group so it renders under the latest turn's header —
-    // not as the global Virtuoso Footer which visually attaches to the
-    // previous turn when the latest group has 0 body items.
-    const hasPlanningItem =
-      planningIndicatorCount > 0 && groupCounts.length > 0;
+    const turnIdsRef = useRef(turnIds);
+    turnIdsRef.current = turnIds;
+
+    // When the planning indicator or the status trail has something to show,
+    // inject the footer as a virtual item in the last group so it renders
+    // under the latest turn's header — not as the global Virtuoso Footer
+    // which visually attaches to the previous turn when the latest group has
+    // 0 body items. Either row alone is enough to claim the slot: the
+    // planning line hides itself between tool calls, and the trail outlives
+    // it — through the whole round and on into the idle phase — so gating on
+    // the planning count alone would drop the trail exactly while tools run.
+    const hasFooterItem =
+      (planningIndicatorCount > 0 || statusTrail.phase !== "hidden") &&
+      groupCounts.length > 0;
     const effectiveGroupCounts = useMemo(() => {
-      if (!hasPlanningItem) return groupCounts;
+      if (!hasFooterItem) return groupCounts;
       const adjusted = [...groupCounts];
       adjusted[adjusted.length - 1] += 1;
       return adjusted;
-    }, [hasPlanningItem, groupCounts]);
-    const effectiveTotalFlatItems = totalFlatItems + (hasPlanningItem ? 1 : 0);
+    }, [hasFooterItem, groupCounts]);
+    const effectiveTotalFlatItems = totalFlatItems + (hasFooterItem ? 1 : 0);
     const virtualGroups = useMemo<VirtualGroup[]>(() => {
       let startFlatIndex = 0;
       return effectiveGroupCounts.map((itemCount, groupIndex) => {
@@ -156,6 +171,44 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         groupRenderKeys[index] ?? `chat-group-index:${index}`,
     });
     const virtualItems = virtualizer.getVirtualItems();
+    const rowResizeObserverRef = useRef<ResizeObserver | null>(null);
+    const measuredRowHeightsRef = useRef(new WeakMap<Element, number>());
+    const observedRowsRef = useRef(new Set<Element>());
+    const measureVirtualRow = useCallback(
+      (node: HTMLDivElement | null) => {
+        virtualizer.measureElement(node);
+        if (!node) return;
+        if (!rowResizeObserverRef.current) {
+          rowResizeObserverRef.current = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+              const target = entry.target;
+              const nextHeight =
+                entry.borderBoxSize[0]?.blockSize ??
+                target.getBoundingClientRect().height;
+              if (measuredRowHeightsRef.current.get(target) === nextHeight) {
+                continue;
+              }
+              measuredRowHeightsRef.current.set(target, nextHeight);
+              virtualizer.measureElement(target as HTMLElement);
+            }
+          });
+        }
+        if (!observedRowsRef.current.has(node)) {
+          observedRowsRef.current.add(node);
+          rowResizeObserverRef.current.observe(node);
+        }
+      },
+      [virtualizer]
+    );
+
+    useEffect(() => {
+      const observedRows = observedRowsRef.current;
+      return () => {
+        rowResizeObserverRef.current?.disconnect();
+        rowResizeObserverRef.current = null;
+        observedRows.clear();
+      };
+    }, [virtualListDataKey]);
 
     useEffect(() => {
       if (virtualItems.length === 0) return;
@@ -175,10 +228,6 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     useImperativeHandle(
       virtualListRef,
       () => ({
-        scrollToIndex: ({ index, behavior = "auto", align = "center" }) => {
-          const groupIndex = flatIndexToGroupIndex[index] ?? 0;
-          virtualizer.scrollToIndex(groupIndex, { align, behavior });
-        },
         scrollToGroup: ({ groupIndex, behavior = "smooth" }) => {
           const boundedGroupIndex = Math.max(
             0,
@@ -202,27 +251,63 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
             behavior,
           });
         },
+        scrollToChatTarget: ({
+          eventId,
+          itemId,
+          flatIndex,
+          behavior = "auto",
+        }) => {
+          const scrollRoot =
+            virtualScrollerRef.current ?? staticScrollerRef?.current;
+          if (!scrollRoot) return;
+
+          const scrollToDomTarget = (): boolean => {
+            const target = findChatSearchTargetElement(scrollRoot, {
+              eventId,
+              itemId,
+              flatIndex,
+            });
+            if (!target) return false;
+            scrollSearchTargetIntoView(scrollRoot, target, behavior);
+            return true;
+          };
+
+          if (scrollToDomTarget()) return;
+
+          if (
+            flatIndex === undefined ||
+            scrollRoot !== virtualScrollerRef.current
+          ) {
+            return;
+          }
+
+          const groupIndex = flatIndexToGroupIndex[flatIndex] ?? 0;
+          virtualizer.scrollToIndex(groupIndex, {
+            align: "start",
+            behavior: "auto",
+          });
+
+          window.requestAnimationFrame(() => {
+            if (!scrollToDomTarget()) {
+              window.requestAnimationFrame(scrollToDomTarget);
+            }
+          });
+        },
       }),
       [
         flatIndexToGroupIndex,
         staticScrollerRef,
         virtualGroups.length,
         virtualizer,
+        virtualScrollerRef,
       ]
     );
     const rowGroupMeta = useMemo(
-      () =>
-        buildRowGroupMeta(effectiveGroupCounts, lastAssistantFlatIndexPerItem),
-      [effectiveGroupCounts, lastAssistantFlatIndexPerItem]
+      () => buildRowGroupMeta(effectiveGroupCounts),
+      [effectiveGroupCounts]
     );
     const rowGroupMetaRef = useRef<RowGroupMeta[]>(rowGroupMeta);
     rowGroupMetaRef.current = rowGroupMeta;
-    const turnIdsRef = useRef(turnIds);
-    turnIdsRef.current = turnIds;
-    const assistantCopyEventIdsByGroupRef = useRef(
-      assistantCopyEventIdsByGroup
-    );
-    assistantCopyEventIdsByGroupRef.current = assistantCopyEventIdsByGroup;
 
     // For each flat index, the nearest preceding qualifying item — non-structural,
     // non-unloaded, with an event. Pre-computed once per flatItems change so
@@ -275,11 +360,13 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         const currentFlatItems = flatItemsRef.current;
         if (flatIndex >= currentFlatItems.length) {
           return (
-            <PlanningFooter
-              key={`planning-footer-${flatIndex}`}
-              count={planningIndicatorCountRef.current}
-              variantIndex={planningVariantIndexRef.current}
-              mode={planningFooterModeRef.current}
+            <AgentStatusTrail
+              key={`chat-stream-footer-${flatIndex}`}
+              state={statusTrailRef.current}
+              sessionId={statusTrailSessionIdRef.current}
+              planningCount={planningIndicatorCountRef.current}
+              planningVariantIndex={planningVariantIndexRef.current}
+              planningMode={planningFooterModeRef.current}
             />
           );
         }
@@ -290,13 +377,8 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
             flatIndex={flatIndex}
             groupIndex={groupIndex}
             turnId={turnIdsRef.current[groupIndex] ?? null}
-            assistantCopyEventIds={
-              assistantCopyEventIdsByGroupRef.current[groupIndex] ?? []
-            }
-            resolveAssistantTurnCopyContent={resolveAssistantTurnCopyContent}
             chatItem={currentFlatItems[flatIndex]}
             previousChatItem={previousChatItemsRef.current[flatIndex]}
-            lastAssistantFlatIndex={rowMeta.lastAssistantFlatIndex}
             isLastItemInGroup={rowMeta.isLastItemInGroup}
             isLastGroup={rowMeta.isLastGroup}
             isWpGeneWorking={getIsWpGeneWorking()}
@@ -319,7 +401,6 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         onSkip,
         onEditUserMessage,
         newEventDividerLabel,
-        resolveAssistantTurnCopyContent,
       ]
     );
 
@@ -332,6 +413,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         hideActiveGroupHeader,
         onActiveGroupIndexChange,
       });
+
     const setScrollContainerRef = useCallback(
       (node: HTMLDivElement | null) => {
         if (useStaticRendering) {
@@ -349,7 +431,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       <div
         ref={setScrollContainerRef}
         data-testid="chat-history-scroll-container"
-        className="allow-select-deep h-full w-full overflow-y-auto overscroll-contain scrollbar-hide"
+        className="allow-select-deep scrollbar-hide h-full w-full overflow-y-auto overscroll-contain"
         style={{ paddingTop: topPaddingPx }}
         onScroll={(event) => {
           const element = event.currentTarget;
@@ -364,7 +446,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         }}
       >
         <div
-          className={`${useStaticRendering ? "mx-auto" : "relative mx-auto"} min-h-full w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+          className={`${useStaticRendering ? "mx-auto" : "relative mx-auto"} min-h-full w-full ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
           style={
             useStaticRendering
               ? undefined
@@ -379,7 +461,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                   data-chat-group-index={groupIndex}
                 >
                   <div data-chat-group-header>
-                    <div className="relative z-[30]">
+                    <div className="relative z-30">
                       {renderGroupHeaderProp(groupIndex, "user")}
                     </div>
                     {renderGroupHeaderProp(groupIndex, "collapse")}
@@ -387,11 +469,13 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                   {itemIndexes.map((itemFlatIndex) => {
                     if (itemFlatIndex >= flatItems.length) {
                       return (
-                        <PlanningFooter
-                          key={`planning-footer-${itemFlatIndex}`}
-                          count={planningIndicatorCount}
-                          variantIndex={planningVariantIndex}
-                          mode={planningFooterMode}
+                        <AgentStatusTrail
+                          key={`chat-stream-footer-${itemFlatIndex}`}
+                          state={statusTrail}
+                          sessionId={statusTrailSessionId}
+                          planningCount={planningIndicatorCount}
+                          planningVariantIndex={planningVariantIndex}
+                          planningMode={planningFooterMode}
                         />
                       );
                     }
@@ -406,15 +490,8 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                         flatIndex={itemFlatIndex}
                         groupIndex={groupIndex}
                         turnId={turnIds[groupIndex] ?? null}
-                        assistantCopyEventIds={
-                          assistantCopyEventIdsByGroup[groupIndex] ?? []
-                        }
-                        resolveAssistantTurnCopyContent={
-                          resolveAssistantTurnCopyContent
-                        }
                         chatItem={flatItems[itemFlatIndex]}
                         previousChatItem={previousChatItems[itemFlatIndex]}
-                        lastAssistantFlatIndex={rowMeta.lastAssistantFlatIndex}
                         isLastItemInGroup={rowMeta.isLastItemInGroup}
                         isLastGroup={rowMeta.isLastGroup}
                         isWpGeneWorking={false}
@@ -439,16 +516,16 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                       groupRenderKeys[group.groupIndex] ??
                       `chat-group-index:${group.groupIndex}`
                     }
-                    ref={virtualizer.measureElement}
+                    ref={measureVirtualRow}
                     data-index={virtualItem.index}
                     data-chat-group-index={group.groupIndex}
-                    className="absolute left-0 top-0 w-full"
+                    className="absolute top-0 left-0 w-full"
                     style={{
                       transform: `translateY(${virtualItem.start}px)`,
                     }}
                   >
                     <div data-chat-group-header>
-                      <div className="relative z-[30]">
+                      <div className="relative z-30">
                         {renderGroupHeaderProp(group.groupIndex, "user")}
                       </div>
                       {renderGroupHeaderProp(group.groupIndex, "collapse")}

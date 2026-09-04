@@ -1,4 +1,3 @@
-import { Check, Copy } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -20,6 +19,7 @@ import {
   resolveQuotaPlanLabel,
 } from "@src/hooks/keyVault/accountQuotaDisplay";
 import { useCopyCheck } from "@src/hooks/ui";
+import { Copy01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
 import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 import InlineExpandedSplitCard from "@src/modules/shared/layouts/blocks/InlineExpandedSplitCard";
 import { copyText } from "@src/util/data/clipboard";
@@ -354,7 +354,19 @@ export const AccountInlineDetails: React.FC<AccountInlineDetailsProps> = ({
                     onClick={handleCopyApiKey}
                     className={`transition-colors ${apiKeyCopied ? "text-success-6" : "text-text-2 hover:text-text-1"}`}
                   >
-                    {apiKeyCopied ? <Check size={13} /> : <Copy size={13} />}
+                    {apiKeyCopied ? (
+                      <HugeiconsIcon
+                        icon={Tick01Icon}
+                        data-icon="check"
+                        size={13}
+                      />
+                    ) : (
+                      <HugeiconsIcon
+                        icon={Copy01Icon}
+                        data-icon="copy"
+                        size={13}
+                      />
+                    )}
                   </button>
                 </div>
               </InfoRow>
@@ -370,7 +382,7 @@ export const AccountInlineDetails: React.FC<AccountInlineDetailsProps> = ({
           <span className="text-[12px] font-semibold text-text-1">
             {t("keyVault.descriptionOptional")}
           </span>
-          <p className="whitespace-pre-wrap break-words text-[12px] text-text-2">
+          <p className="text-[12px] wrap-break-word whitespace-pre-wrap text-text-2">
             {account.description}
           </p>
         </div>

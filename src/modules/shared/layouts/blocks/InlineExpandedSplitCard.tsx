@@ -53,7 +53,7 @@ const InlineExpandedSplitCard: React.FC<InlineExpandedSplitCardProps> = ({
           {left}
         </div>
         <div
-          className={`min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide ${INLINE_EXPANDED_SPLIT_SCROLL_MAX_HEIGHT} ${rightClassName}`}
+          className={`scrollbar-hide min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain ${INLINE_EXPANDED_SPLIT_SCROLL_MAX_HEIGHT} ${rightClassName}`}
         >
           {right}
         </div>
@@ -69,17 +69,17 @@ const InlineExpandedSplitCard: React.FC<InlineExpandedSplitCardProps> = ({
   // arbitrary-value classes are kept inline as literals so the JIT can scan
   // them; do not refactor into runtime string interpolation.
   const responsive = (
-    <div className="min-w-0 @container">
+    <div className="@container min-w-0">
       <div className="flex min-h-0 min-w-0 flex-col gap-3 @[520px]:max-h-[360px] @[520px]:flex-row @[520px]:gap-4">
         <div
-          className={`flex min-h-0 min-w-0 flex-col gap-0.5 overflow-y-auto overscroll-contain scrollbar-hide @[520px]:max-h-[360px] @[520px]:flex-1 @[520px]:pr-3 ${
+          className={`scrollbar-hide flex min-h-0 min-w-0 flex-col gap-0.5 overflow-y-auto overscroll-contain @[520px]:max-h-[360px] @[520px]:flex-1 @[520px]:pr-3 ${
             showSeparator ? "@[520px]:border-r @[520px]:border-border-2" : ""
           } ${leftClassName ?? ""}`}
         >
           {left}
         </div>
         <div
-          className={`min-h-0 min-w-0 overflow-y-auto overscroll-contain scrollbar-hide @[520px]:max-h-[360px] @[520px]:flex-1 ${rightClassName}`}
+          className={`scrollbar-hide min-h-0 min-w-0 overflow-y-auto overscroll-contain @[520px]:max-h-[360px] @[520px]:flex-1 ${rightClassName}`}
         >
           {right}
         </div>

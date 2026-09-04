@@ -23,7 +23,7 @@ import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 // Tokens
 // ============================================
 
-export const FORM_FIELD_TOKENS = {
+const FORM_FIELD_TOKENS = {
   label: `${TYPOGRAPHY.valueMedium} text-text-2`,
   labelMargin: "mb-1.5",
   hint: `mt-1 text-text-3 ${TYPOGRAPHY.secondary}`,
@@ -35,7 +35,7 @@ export const FORM_FIELD_TOKENS = {
 // Types
 // ============================================
 
-export interface FormFieldProps {
+interface FormFieldProps {
   /** Label text above the input */
   label: string;
   /** Show a red asterisk after the label */

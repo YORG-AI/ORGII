@@ -17,7 +17,7 @@ export const WIZARD_STEP_CONTENT_TOKENS = {
   container: DETAIL_PANEL_TOKENS.contentWidth,
 } as const;
 
-export interface WizardStepContentProps {
+interface WizardStepContentProps {
   title: string;
   description?: string;
   icon?: SectionHeadingProps["icon"];

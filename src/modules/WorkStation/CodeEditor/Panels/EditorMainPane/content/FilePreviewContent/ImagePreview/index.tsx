@@ -35,7 +35,7 @@ const log = createLogger("ImagePreview");
 // Types
 // ============================================
 
-export interface ImagePreviewProps {
+interface ImagePreviewProps {
   /** Absolute file path to the image */
   filePath: string;
   /** Optional class name */

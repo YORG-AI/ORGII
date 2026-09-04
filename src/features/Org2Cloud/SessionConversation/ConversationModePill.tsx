@@ -1,8 +1,10 @@
-import { Bot, MessagesSquare } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import SelectorPill from "@src/components/SelectorPill";
+import { PILL_SM_ICON_SIZE } from "@src/components/CompoundPill/config";
+import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
+import SegmentedTextPill from "@src/components/SegmentedTextPill";
+import { Infinity01Icon, HugeiconsIcon, MessagesSquareIcon } from "@src/icons";
 
 import {
   useConversationComposerMode,
@@ -10,7 +12,7 @@ import {
 } from "./useConversationComposer";
 
 /**
- * Composer target toggle: Prompt (agent turn) vs Team chat (discussion
+ * Composer target switch: Agent (agent turn) vs Team chat (discussion
  * message). Hidden entirely on sessions without a cloud discussion plane.
  */
 export function ConversationModePill({
@@ -24,30 +26,55 @@ export function ConversationModePill({
 
   if (!available || !sessionId) return null;
 
-  const teamChat = mode === "team_chat";
   return (
-    <SelectorPill
-      icon={
-        teamChat ? (
-          <MessagesSquare size={14} strokeWidth={1.75} />
-        ) : (
-          <Bot size={14} strokeWidth={1.75} />
-        )
-      }
-      label={
-        teamChat ? t("conversation.teamChatMode") : t("conversation.promptMode")
-      }
-      tooltip={
-        teamChat
-          ? t("conversation.teamChatTooltip")
-          : t("conversation.promptTooltip")
-      }
-      tooltipFramed
-      tooltipPosition="top"
-      active={teamChat}
+    <SegmentedTextPill
+      ariaLabel={`${t("conversation.promptMode")} / ${t("conversation.teamChatMode")}`}
+      className="whitespace-nowrap"
       dataTestId="conversation-mode-pill"
-      onClick={() => setMode(teamChat ? "prompt" : "team_chat")}
-      size="sm"
+      value={mode}
+      options={[
+        {
+          value: "prompt",
+          ariaLabel: t("conversation.promptMode"),
+          label: (
+            <HugeiconsIcon
+              icon={Infinity01Icon}
+              data-icon="infinity"
+              size={PILL_SM_ICON_SIZE}
+              strokeWidth={1.75}
+              className="block"
+              aria-hidden
+            />
+          ),
+          tooltip: (
+            <KeyboardShortcutTooltipContent
+              label={t("conversation.promptTooltip")}
+              noShortcut
+            />
+          ),
+        },
+        {
+          value: "team_chat",
+          ariaLabel: t("conversation.teamChatMode"),
+          label: (
+            <HugeiconsIcon
+              icon={MessagesSquareIcon}
+              data-icon="messages-square"
+              size={PILL_SM_ICON_SIZE}
+              strokeWidth={1.75}
+              className="block"
+              aria-hidden
+            />
+          ),
+          tooltip: (
+            <KeyboardShortcutTooltipContent
+              label={t("conversation.teamChatTooltip")}
+              noShortcut
+            />
+          ),
+        },
+      ]}
+      onChange={setMode}
     />
   );
 }

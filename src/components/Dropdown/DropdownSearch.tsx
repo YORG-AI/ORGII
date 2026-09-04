@@ -22,15 +22,28 @@
  * </DropdownPanel>
  * ```
  */
-import { Search } from "lucide-react";
-import React, { forwardRef, useEffect, useRef } from "react";
+import React, { forwardRef, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
+import { HugeiconsIcon, Search01Icon } from "@src/icons";
 
 import { DROPDOWN_CLASSES, DROPDOWN_SEARCH } from "./tokens";
 
-export interface DropdownSearchProps {
+type NativeSearchInputProps = Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  | "aria-label"
+  | "autoFocus"
+  | "className"
+  | "defaultValue"
+  | "onChange"
+  | "placeholder"
+  | "value"
+>;
+
+export interface DropdownSearchProps extends NativeSearchInputProps {
+  [dataAttribute: `data-${string}`]: string | number | boolean | undefined;
+
   /**
    * Search input value
    */
@@ -53,6 +66,18 @@ export interface DropdownSearchProps {
   ariaLabel?: string;
 
   /**
+   * Content before the input. Omit for the standard search icon or pass null
+   * for an intentionally iconless field.
+   */
+  leading?: React.ReactNode;
+
+  /** Additional classes for the shared search-row container. */
+  containerClassName?: string;
+
+  /** Test id applied to the shared search-row container. */
+  testId?: string;
+
+  /**
    * Auto-focus the input when mounted
    * @default false
    */
@@ -73,26 +98,49 @@ const DropdownSearch = forwardRef<HTMLInputElement, DropdownSearchProps>(
       onChange,
       placeholder,
       ariaLabel,
+      leading,
+      containerClassName,
+      testId,
       autoFocus = false,
       stopMouseDownPropagation = true,
+      type = "search",
+      autoComplete = "off",
+      autoCorrect = "off",
+      autoCapitalize = "off",
+      spellCheck = false,
+      onClick,
+      onMouseDown,
+      onKeyDown,
+      ...inputProps
     },
     ref
   ) => {
     const { t } = useTranslation("common");
     const internalRef = useRef<HTMLInputElement>(null);
-    const inputRef = (ref as React.RefObject<HTMLInputElement>) || internalRef;
     const tauriSelectAll = useTauriSelectAllShortcut();
+
+    const setInputRef = useCallback(
+      (element: HTMLInputElement | null) => {
+        internalRef.current = element;
+        if (typeof ref === "function") {
+          ref(element);
+        } else if (ref) {
+          ref.current = element;
+        }
+      },
+      [ref]
+    );
 
     // Auto-focus handling
     useEffect(() => {
-      if (autoFocus && inputRef.current) {
+      if (autoFocus && internalRef.current) {
         // Small delay to ensure dropdown is rendered
         const timer = setTimeout(() => {
-          inputRef.current?.focus();
+          internalRef.current?.focus();
         }, 10);
         return () => clearTimeout(timer);
       }
-    }, [autoFocus, inputRef]);
+    }, [autoFocus]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       onChange(e.target.value);
@@ -103,32 +151,67 @@ const DropdownSearch = forwardRef<HTMLInputElement, DropdownSearchProps>(
       event.stopPropagation();
     };
 
-    const handleMouseDown = stopMouseDownPropagation
+    const handleInputClick = (event: React.MouseEvent<HTMLInputElement>) => {
+      handlePointerGuard(event);
+      onClick?.(event);
+    };
+
+    const handleInputMouseDown = (
+      event: React.MouseEvent<HTMLInputElement>
+    ) => {
+      if (stopMouseDownPropagation) handlePointerGuard(event);
+      onMouseDown?.(event);
+    };
+
+    const handleInputKeyDown = (
+      event: React.KeyboardEvent<HTMLInputElement>
+    ) => {
+      tauriSelectAll(event);
+      if (!event.defaultPrevented) onKeyDown?.(event);
+    };
+
+    const handleContainerMouseDown = stopMouseDownPropagation
       ? handlePointerGuard
       : undefined;
 
     const resolvedPlaceholder = placeholder ?? t("actions.search");
+    const resolvedLeading =
+      leading === undefined ? (
+        <HugeiconsIcon
+          icon={Search01Icon}
+          data-icon="search"
+          size={DROPDOWN_SEARCH.iconSize}
+          className="shrink-0 text-text-3"
+        />
+      ) : (
+        leading
+      );
 
     return (
       <div
-        className={DROPDOWN_CLASSES.searchContainer}
+        className={[DROPDOWN_CLASSES.searchContainer, containerClassName]
+          .filter(Boolean)
+          .join(" ")}
+        data-testid={testId}
         onClick={handlePointerGuard}
-        onMouseDown={handleMouseDown}
+        onMouseDown={handleContainerMouseDown}
       >
-        <Search
-          size={DROPDOWN_SEARCH.iconSize}
-          className="flex-shrink-0 text-text-3"
-        />
+        {resolvedLeading}
         <input
-          ref={inputRef}
-          type="search"
+          {...inputProps}
+          ref={setInputRef}
+          type={type}
           value={value}
           onChange={handleChange}
-          onClick={handlePointerGuard}
-          onMouseDown={handleMouseDown}
-          onKeyDown={tauriSelectAll}
+          onClick={handleInputClick}
+          onMouseDown={handleInputMouseDown}
+          onKeyDown={handleInputKeyDown}
           placeholder={resolvedPlaceholder}
           aria-label={ariaLabel ?? resolvedPlaceholder}
+          autoComplete={autoComplete}
+          autoCorrect={autoCorrect}
+          autoCapitalize={autoCapitalize}
+          spellCheck={spellCheck}
           className={DROPDOWN_CLASSES.searchInput}
         />
       </div>

@@ -9,7 +9,6 @@
   "evidenceHint": "Tu mediana por señal, frente al valor neutro con el que se comparó.",
   "secondary": "Medido, pero no merece una letra",
   "secondaryNote": "— la mayoría de las verificaciones no deja rastro, así que la confianza es baja.",
-  "fanout": "El {{percent}} % de tus sesiones se ramifica en subagentes.",
   "byTool": "Por herramienta",
   "byToolHint": "Los puntos neutros son iguales en todas partes, así que estas filas son comparables. Una letra que solo se sostiene en una herramienta merece dudas.",
   "sessionCount": "{{count}} sesiones",
@@ -36,8 +35,8 @@
     "window": "Fin de ventana",
     "code": "Tipo"
   },
-  "fanoutLabel": "Ramificación en subagentes",
-  "fanoutHint": "Proporción de sesiones que se ramifican en subagentes. Se mantiene aparte de Enfocado/Enjambre: es el otro nivel de paralelismo y apunta al revés.",
+  "fanoutLabel": "Ramificación en subagents",
+  "fanoutHint": "Proporción de sesiones que se ramifican en subagents. Se mantiene aparte de Enfocado/Enjambre: es el otro nivel de paralelismo y apunta al revés.",
   "highlights": "Destacados",
   "caveat": "poco firme: {{reason}}",
   "clarity": {
@@ -191,7 +190,7 @@
       "detail": "Cambios en las instrucciones de tu agente: CLAUDE.md, rules, skills"
     },
     "fanout": {
-      "question": "¿Te ramificas en subagentes?",
+      "question": "¿Te ramificas en subagents?",
       "headline": "El {{percent}} % de las sesiones",
       "detail": "Donde un agente lanzó otros para trabajar en paralelo"
     },

@@ -9,7 +9,6 @@
   "evidenceHint": "Trung vị của bạn cho mỗi tín hiệu, so với giá trị trung tính dùng để đối chiếu.",
   "secondary": "Đã đo, nhưng chưa đủ để thành một chữ cái",
   "secondaryNote": "— phần lớn việc kiểm chứng không để lại dấu vết, nên độ tin cậy thấp.",
-  "fanout": "{{percent}}% số phiên của bạn phân nhánh thành tác tử con.",
   "byTool": "Theo công cụ",
   "byToolHint": "Điểm trung tính giống nhau ở mọi nơi nên các hàng này so sánh được. Một chữ cái chỉ đúng trong một công cụ thì đáng ngờ.",
   "sessionCount": "{{count}} phiên",
@@ -36,8 +35,8 @@
     "window": "Kết thúc cửa sổ",
     "code": "Kiểu"
   },
-  "fanoutLabel": "Phân nhánh tác tử con",
-  "fanoutHint": "Tỷ lệ phiên phân nhánh thành tác tử con. Tách riêng khỏi Tập trung/Bầy đàn: đó là tầng song song khác và hướng ngược lại.",
+  "fanoutLabel": "Phân nhánh subagent",
+  "fanoutHint": "Tỷ lệ phiên phân nhánh thành subagent. Tách riêng khỏi Tập trung/Bầy đàn: đó là tầng song song khác và hướng ngược lại.",
   "highlights": "Điểm nổi bật",
   "caveat": "chưa chắc: {{reason}}",
   "clarity": {
@@ -191,7 +190,7 @@
       "detail": "Thay đổi trong chính hướng dẫn của tác tử — CLAUDE.md, rules, skills"
     },
     "fanout": {
-      "question": "Bạn có phân nhánh thành tác tử con không?",
+      "question": "Bạn có phân nhánh thành subagent không?",
       "headline": "{{percent}}% số phiên",
       "detail": "Những lúc một tác tử sinh ra các tác tử khác để chạy song song"
     },

@@ -1,12 +1,7 @@
-import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback } from "react";
 
+import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { openWorkspaceSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
-import {
-  openWorkstationTabAtom,
-  presentedWorkstationWorkspaceKeyAtom,
-} from "@src/store/workstation/tabs";
-import { createSettingsTab } from "@src/store/workstation/tabs/factories";
 
 interface AppShellActions {
   handleSelectRepo: () => void;
@@ -14,19 +9,15 @@ interface AppShellActions {
 }
 
 export function useAppShellActions(): AppShellActions {
-  const workspace = useAtomValue(presentedWorkstationWorkspaceKeyAtom);
-  const openWorkstationTab = useSetAtom(openWorkstationTabAtom);
+  const { goToSettings } = useAppNavigation();
 
   const handleSelectRepo = useCallback(() => {
     openWorkspaceSpotlight("switch");
   }, []);
 
   const handleOpenSettings = useCallback(() => {
-    openWorkstationTab({
-      workspace,
-      tab: createSettingsTab(),
-    });
-  }, [openWorkstationTab, workspace]);
+    goToSettings({ section: "appearance", tab: "code-editor" });
+  }, [goToSettings]);
 
   return { handleSelectRepo, handleOpenSettings };
 }

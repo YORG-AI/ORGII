@@ -19,10 +19,11 @@ import {
 } from "@src/modules/shared/layouts/blocks";
 
 import { McpCategoryView } from "../Mcp/McpCategoryView";
+import type { McpCategoryTableProps } from "../Mcp/categoryTableProps";
 import type { McpDetailState } from "../Mcp/types";
 import { SkillsCategoryView } from "../Skills/SkillsCategoryView";
+import type { SkillsCategoryTableProps } from "../Skills/categoryTableProps";
 import type { SkillEditorState, SkillsHubDetailState } from "../Skills/types";
-import type { CategoryTableContentProps } from "../Tables";
 import CursorPluginsTab from "./CursorPluginsTab";
 
 export interface ExternalSkillsetsCategoryViewProps {
@@ -32,7 +33,8 @@ export interface ExternalSkillsetsCategoryViewProps {
   mcp: McpDetailState;
   skillsHub: SkillsHubDetailState;
   skillEditor: SkillEditorState;
-  tableProps: CategoryTableContentProps;
+  mcpTableProps: McpCategoryTableProps;
+  skillsTableProps: SkillsCategoryTableProps;
   fullPage: boolean;
   onBack: () => void;
   onEnterFullPage: () => void;
@@ -48,7 +50,8 @@ export const ExternalSkillsetsCategoryView: React.FC<
   mcp,
   skillsHub,
   skillEditor,
-  tableProps,
+  mcpTableProps,
+  skillsTableProps,
   fullPage,
   onBack,
   onEnterFullPage,
@@ -71,11 +74,6 @@ export const ExternalSkillsetsCategoryView: React.FC<
   const extensionKind = extensionKindForSkillsetTab(activeTab);
   const wizardOpen = mcp.addMode || skillEditor.editorMode;
 
-  const sharedTableProps: CategoryTableContentProps = {
-    ...tableProps,
-    extensionTablesEmbeddedChrome: true,
-  };
-
   const categoryContent = (() => {
     switch (extensionKind) {
       case "mcp":
@@ -83,7 +81,7 @@ export const ExternalSkillsetsCategoryView: React.FC<
           <McpCategoryView
             selectedId={selectedExtensionId}
             mcp={mcp}
-            tableProps={sharedTableProps}
+            tableProps={{ ...mcpTableProps, embedded: true }}
             fullPage={fullPage}
             onBack={onBack}
             onExpand={fullPage ? undefined : onEnterFullPage}
@@ -98,7 +96,7 @@ export const ExternalSkillsetsCategoryView: React.FC<
             selectedId={selectedExtensionId}
             skillsHub={skillsHub}
             skillEditor={skillEditor}
-            tableProps={sharedTableProps}
+            tableProps={skillsTableProps}
             fullPage={fullPage}
             onBack={onBack}
             onExpand={fullPage ? undefined : onEnterFullPage}

@@ -8,6 +8,7 @@ import {
   getShortcutKeys,
   labelWithShortcut,
 } from "@src/config/keyboard/shortcutDisplay";
+import { HugeiconsIcon } from "@src/icons";
 import {
   PANEL_HEADER_TOKENS,
   PanelHeader as SharedPanelHeader,
@@ -42,7 +43,8 @@ const PanelHeader: React.FC<PanelHeaderProps> = ({
       <Button
         {...PANEL_HEADER_TOKENS.actionButton}
         icon={
-          <ICON_CONFIG.delete
+          <HugeiconsIcon
+            icon={ICON_CONFIG.delete}
             size={PANEL_HEADER_TOKENS.buttonIconSize}
             strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
           />
@@ -54,7 +56,8 @@ const PanelHeader: React.FC<PanelHeaderProps> = ({
       <Button
         {...PANEL_HEADER_TOKENS.actionButton}
         icon={
-          <ICON_CONFIG.close
+          <HugeiconsIcon
+            icon={ICON_CONFIG.close}
             size={PANEL_HEADER_TOKENS.buttonIconSize}
             strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
           />

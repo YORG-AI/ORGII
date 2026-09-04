@@ -48,7 +48,7 @@ export interface DOMTreeNode {
   childCount: number;
   /** Child nodes (recursive) */
   children: DOMTreeNode[];
-  /** Node category — real element vs shadow/iframe boundary marker */
+  /** Node category — real element vs shadow boundary marker */
   nodeKind?: DOMNodeKind;
 }
 

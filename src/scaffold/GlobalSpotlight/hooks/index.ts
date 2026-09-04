@@ -24,26 +24,11 @@ export {
   useExternalRecentPaths,
 } from "./data/useExternalRecentPaths";
 export { useSharedRepoList } from "./data/useSharedRepoList";
-export type {
-  UseSharedRepoListOptions,
-  UseSharedRepoListReturn,
-} from "./data/useSharedRepoList";
 export { useWorkspaceSwitch } from "./data/useWorkspaceSwitch";
-export type {
-  UseWorkspaceSwitchOptions,
-  UseWorkspaceSwitchReturn,
-  WorkspaceSwitchEntry,
-} from "./data/useWorkspaceSwitch";
+export type { WorkspaceSwitchEntry } from "./data/useWorkspaceSwitch";
 
 // Account-footer helper (used by palettes with per-hovered-item footers)
 export { useAccountFooterForHovered } from "./useAccountFooterForHovered";
-export type {
-  AccountFooterCliResolverResult,
-  AccountFooterApiResolverResult,
-  AccountFooterResolverResult,
-  UseAccountFooterForHoveredOptions,
-} from "./useAccountFooterForHovered";
 
 // Path segment hook (used by palettes to resolve i18n path labels/templates)
 export { usePathSegment } from "./usePathSegment";
-export type { UsePathSegmentOptions } from "./usePathSegment";

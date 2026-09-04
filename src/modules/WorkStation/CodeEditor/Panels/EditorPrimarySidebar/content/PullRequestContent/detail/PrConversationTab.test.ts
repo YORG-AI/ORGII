@@ -29,6 +29,7 @@ vi.mock("@src/modules/shared/components/MarkdownTextareaEditor", async () => {
           ref,
           "data-testid": props.dataTestId,
           "data-min-height": props.minHeight,
+          "data-min-rows": props.minRows,
           "data-max-height": props.maxHeight,
           "data-appearance": props.appearance,
           "data-editor-kind": "write-preview",
@@ -126,11 +127,14 @@ describe("PrConversationTab", () => {
     expect(scrollRegion?.contains(flowHeader)).toBe(true);
     expect(container.querySelector('[data-testid="pr-sidebar"]')).toBeNull();
 
-    expect(editor?.getAttribute("data-min-height")).toBe("100");
+    expect(editor?.getAttribute("data-min-height")).toBe("64");
+    expect(editor?.getAttribute("data-min-rows")).toBe("2");
     expect(editor?.getAttribute("data-max-height")).toBe("500");
     expect(editor?.getAttribute("data-appearance")).toBe("plain");
     expect(editor?.getAttribute("data-editor-kind")).toBe("write-preview");
-    expect(composer?.querySelector(".flex-shrink-0")).toBeNull();
+    // Guards against the pinned composer bar (a border-t wrapper) coming
+    // back; its old flex-shrink-0 spelling no longer exists post-Tailwind-v4.
+    expect(composer?.querySelector(".border-t")).toBeNull();
     expect(input?.textContent).toContain("Submit review");
     expect(input?.textContent).toContain("Comment");
     expect(modeSwitch).not.toBeNull();
@@ -144,7 +148,7 @@ describe("PrConversationTab", () => {
     expect(commentButton?.style.height).toBe("28px");
     expect(actionRow?.className).not.toContain("border-t");
     expect(input?.className).toContain("px-1.5");
-    expect(input?.className).toContain("!pt-1.5");
+    expect(input?.className).toContain("pt-1.5!");
     expect(input?.className).toContain("pb-1.5");
     expect(actionRow?.className).toContain("px-1");
     expect(composer?.textContent).toContain("Submit review");
@@ -193,15 +197,36 @@ describe("PrConversationTab", () => {
       const dialog =
         document.body.querySelector<HTMLElement>('[role="dialog"]');
       expect(dialog?.textContent).toContain("Submit review");
-      expect(dialog?.textContent).toContain("Review decision");
+      expect(dialog?.querySelector("legend")?.className).toBe("sr-only");
       expect(dialog?.textContent).toContain("Comment");
       expect(dialog?.textContent).toContain("Approve");
       expect(dialog?.textContent).toContain("Request changes");
+
+      const modalBody =
+        dialog?.querySelector<HTMLElement>(".liquid-modal-body");
+      const reviewModalBody = dialog?.querySelector<HTMLElement>(
+        '[data-testid="pr-review-modal-body"]'
+      );
+      const decisionRow = dialog?.querySelector<HTMLElement>(
+        '[data-testid="pr-review-decision-row"]'
+      );
+      const commentRow = dialog?.querySelector<HTMLElement>(
+        '[data-testid="pr-review-comment-row"]'
+      );
+      expect(modalBody?.className).toContain("p-0");
+      expect(reviewModalBody?.className).toContain("px-5");
+      expect(reviewModalBody?.className).toContain("py-4");
+      expect(decisionRow?.className).not.toContain("grid-cols-");
+      expect(commentRow?.className).toContain("block");
+      expect(commentRow?.textContent).toContain("Review comment");
+      expect(commentRow?.querySelector("span")?.className).toBe("sr-only");
 
       const submitButton = Array.from(
         dialog?.querySelectorAll<HTMLButtonElement>("button") ?? []
       ).find((button) => button.textContent?.trim() === "Submit review");
       expect(submitButton?.disabled).toBe(true);
+      expect(submitButton?.style.height).toBe("28px");
+      expect(submitButton?.parentElement?.className).toContain("border-t");
 
       await act(async () => {
         dialog
@@ -212,6 +237,7 @@ describe("PrConversationTab", () => {
       const reviewComment = dialog?.querySelector<HTMLTextAreaElement>(
         '[data-testid="pr-review-comment"]'
       );
+      expect(reviewComment?.style.resize).toBe("none");
       await act(async () => {
         const valueSetter = Object.getOwnPropertyDescriptor(
           HTMLTextAreaElement.prototype,

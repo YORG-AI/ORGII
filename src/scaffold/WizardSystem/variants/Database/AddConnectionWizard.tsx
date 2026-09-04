@@ -34,7 +34,7 @@ import {
 
 import { useConnectionFormState } from "./useConnectionFormState";
 
-export interface AddConnectionWizardProps {
+interface AddConnectionWizardProps {
   onSave: (config: DatabaseConnectionConfig) => void;
   onCancel: () => void;
   existingConnectionNames?: string[];

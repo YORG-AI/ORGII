@@ -48,14 +48,7 @@
     "editTask": "Editar tarea",
     "deleteTask": "Eliminar tarea"
   },
-  "dialogs": {
-    "confirmDelete": "Confirmar eliminación",
-    "deleteTaskMessage": "¿Está seguro de que desea eliminar esta tarea? Esta acción no se puede deshacer.",
-    "resetMilestoneMessage": "Esto restablecerá el estado de todas las tareas en este hito. ¿Está seguro de que desea continuar?",
-    "deleteSubsequentMessage": "Esto eliminará todos los hitos después de este. ¡Esta acción no se puede deshacer!",
-    "retryWorkflowTitle": "Reintentar flujo de trabajo",
-    "retryWorkflowMessage": "¿Está seguro de que desea reintentar el flujo de trabajo fallido? Esto reiniciará la ejecución desde el punto de fallo."
-  },
+  "dialogs": {},
   "messages": {
     "taskUpdateUnavailable": "Función de actualización de tareas temporalmente no disponible (modo Session)",
     "taskEditUnavailable": "Función de edición de tareas temporalmente no disponible (modo Session)",
@@ -101,18 +94,11 @@
     "actions": "{{count}} acciones"
   },
   "taskView": {
-    "loadingTasks": "Cargando tareas...",
-    "noTasks": "No hay tareas disponibles",
-    "noTasksHint": "Las tareas aparecerán aquí una vez que se complete la planificación del flujo de trabajo",
-    "noTasksColumn": "Sin tareas",
-    "taskDescriptionPlaceholder": "Ingrese la descripción de la tarea...",
     "retry": "Reintento {{count}}",
     "session": "Session: {{id}}"
   },
   "statusBar": {
-    "loadingWorkflow": "Cargando flujo de trabajo...",
     "current": "Actual",
-    "retryFailed": "Reintentar flujo de trabajo fallido",
     "retry": "Reintentar",
     "pause": "Pausar",
     "play": "Reproducir"
@@ -150,47 +136,10 @@
     "comingSoon": "Próximamente"
   },
   "toolCalls": {
-    "readRepoFiles": "Leer archivos del repo",
-    "noFilePath": "No se especificó ruta de archivo",
-    "createFile": "Crear archivo",
-    "updateAtlasSection": "Actualizar sección de Atlas",
-    "noSectionPath": "No se especificó ruta de sección",
-    "atlasSectionContent": "Contenido de sección de Atlas",
     "result": "Resultado:",
-    "useTerminal": "Usar terminal",
-    "noCommand": "No se especificó comando",
-    "toolCall": "Llamada de herramienta",
-    "eventInfo": "Información del evento:",
-    "arguments": "Argumentos:",
-    "noAdditionalData": "No hay datos adicionales disponibles para esta llamada de herramienta",
-    "submitSpecification": "Enviar especificación",
-    "specificationDocument": "Documento de especificación",
-    "submitInitialAnalysis": "Enviar análisis inicial",
-    "workItemDescription": "Descripción del elemento de trabajo:",
-    "clarifyingQuestions": "Preguntas de aclaración ({{count}}):",
     "blocking": "bloqueante",
-    "assumptions": "Suposiciones:",
     "round": "Ronda"
   },
-  "toolDescriptions": {
-    "updatingDocumentation": "Actualizando documentación",
-    "submittingAnalysis": "Enviando resultados de análisis",
-    "creatingFiles": "Creando nuevos archivos",
-    "modifyingFiles": "Modificando archivos existentes",
-    "searchingCodebase": "Buscando en el código fuente",
-    "runningTests": "Ejecutando pruebas",
-    "runningTool": "Ejecutando {{toolName}}"
-  },
-  "stages": {
-    "initialRequest": "Solicitud inicial",
-    "specification": "Especificación",
-    "taskPlanning": "Planificación de tareas",
-    "taskExecution": "Ejecución de tareas",
-    "analyzingRequirements": "Analizando requisitos y alcance del proyecto",
-    "creatingSpecs": "Creando especificaciones técnicas",
-    "breakingDown": "Dividiendo en tareas manejables",
-    "executingTasks": "Ejecutando tareas planificadas",
-    "waitingForEvents": "Esperando eventos del flujo de trabajo...",
-    "noActivity": "No se detectó actividad"
-  }
+  "toolDescriptions": {},
+  "stages": {}
 }

@@ -1,14 +1,19 @@
 /**
  * TimelineSection Configuration
  */
-import { Diff, GitCommit, Pin, RefreshCw } from "lucide-react";
+import {
+  FileDiffIcon,
+  GitCommitIcon,
+  PinIcon,
+  Refresh04Icon,
+} from "@src/icons";
 
 // Icon configuration
 export const TIMELINE_ICONS = {
-  commit: GitCommit,
-  pin: Pin,
-  refresh: RefreshCw,
-  openDiff: Diff,
+  commit: GitCommitIcon,
+  pin: PinIcon,
+  refresh: Refresh04Icon,
+  openDiff: FileDiffIcon,
 } as const;
 
 // Constants

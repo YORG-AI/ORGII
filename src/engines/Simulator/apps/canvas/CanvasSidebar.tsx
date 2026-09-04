@@ -4,11 +4,11 @@
  * Lists every render_inline_canvas event with its title and timestamp, and
  * carries the per-row compare toggle that drives the side-by-side diff view.
  */
-import { Layout } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 
 import { Placeholder } from "@src/components/Placeholder";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { HugeiconsIcon, Layout01Icon } from "@src/icons";
 import { PrimarySidebarLayoutWithSections } from "@src/modules/WorkStation/shared";
 import type { PrimarySidebarTab } from "@src/modules/WorkStation/shared/PrimarySidebarLayout/PrimarySidebarLayoutWithSections";
 
@@ -55,7 +55,9 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
         onClick={onSelect}
         className="flex min-w-0 flex-1 items-start gap-1.5 text-left"
       >
-        <Layout
+        <HugeiconsIcon
+          icon={Layout01Icon}
+          data-icon="panels-top-left"
           size={12}
           className={[
             "mt-0.5 shrink-0",
@@ -78,7 +80,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
           "shrink-0 rounded px-1 py-0.5 text-[10px] font-medium transition-colors",
           isCompareSelected
             ? "bg-primary-6/20 text-primary-6"
-            : "text-text-4 opacity-0 hover:text-text-2 focus-visible:opacity-100 group-hover:opacity-100",
+            : "text-text-4 opacity-0 group-hover:opacity-100 hover:text-text-2 focus-visible:opacity-100",
         ].join(" ")}
       >
         {t("canvasApp.compareMark", "vs")}

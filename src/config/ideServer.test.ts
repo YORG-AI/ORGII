@@ -8,12 +8,12 @@ import {
 } from "./ideServer";
 
 afterEach(() => {
-  configureIdeServerForIdentifier("yorg.orgii");
+  configureIdeServerForIdentifier("org2ai.org2");
 });
 
 describe("configureIdeServerForIdentifier", () => {
   it("switches every local transport URL to the isolated backend", () => {
-    expect(configureIdeServerForIdentifier("yorg.orgii.instance2")).toBe(
+    expect(configureIdeServerForIdentifier("org2ai.org2.instance2")).toBe(
       13_848
     );
     expect(IDE_SERVER_PORT).toBe("13848");

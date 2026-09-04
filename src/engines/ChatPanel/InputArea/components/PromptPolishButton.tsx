@@ -1,4 +1,3 @@
-import { Loader2, Sparkles } from "lucide-react";
 import React, { memo } from "react";
 
 import {
@@ -8,6 +7,7 @@ import {
 import Tooltip from "@src/components/Tooltip";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import type { PromptPolishControl } from "@src/engines/ChatPanel/hooks/useInputArea/types";
+import { HugeiconsIcon, Loading03Icon, SparklesIcon } from "@src/icons";
 
 interface PromptPolishButtonProps {
   control: PromptPolishControl;
@@ -50,13 +50,17 @@ const PromptPolishButton: React.FC<PromptPolishButtonProps> = memo(
         }}
       >
         {control.isPolishing ? (
-          <Loader2
+          <HugeiconsIcon
+            icon={Loading03Icon}
+            data-icon="loader-2"
             size={INPUT_AREA_BUTTONS.iconSize}
             strokeWidth={2}
             className="block animate-spin"
           />
         ) : (
-          <Sparkles
+          <HugeiconsIcon
+            icon={SparklesIcon}
+            data-icon="sparkles"
             size={INPUT_AREA_BUTTONS.iconSize}
             strokeWidth={2}
             className="block"

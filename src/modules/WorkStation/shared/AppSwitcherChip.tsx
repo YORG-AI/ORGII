@@ -10,12 +10,17 @@
  * The chip never renders a sidebar collapse toggle — that lives separately in
  * the 40px workstation header.
  */
-import { ChevronDown, type LucideIcon } from "lucide-react";
 import React, { memo, useEffect } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { DROPDOWN_PANEL } from "@src/components/Dropdown/tokens";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { useDropdownEngine } from "@src/hooks/dropdown/useDropdownEngine";
+import {
+  ArrowDown01Icon,
+  HugeiconsIcon,
+  type IconSvgElement,
+} from "@src/icons";
 
 import {
   AppSwitcherDropdownPanel,
@@ -26,7 +31,7 @@ export interface AppSwitcherChipProps {
   /** When true, the container is hidden via CSS (avoids mount/unmount flash). */
   hidden?: boolean;
   /** Icon for the active app */
-  icon: LucideIcon;
+  icon: IconSvgElement;
   /** Label for the active app */
   label: string;
   /** Currently active item id (highlighted in the dropdown). */
@@ -52,7 +57,7 @@ export interface AppSwitcherChipProps {
 
 const AppSwitcherChipComponent: React.FC<AppSwitcherChipProps> = ({
   hidden = false,
-  icon: Icon,
+  icon,
   label,
   activeId,
   items,
@@ -92,13 +97,20 @@ const AppSwitcherChipComponent: React.FC<AppSwitcherChipProps> = ({
           the 20×20 sidebar toggle button in the global tab-header strip
           directly below — keeps the two icons in the same column. */}
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-        <Icon size={14} strokeWidth={1.75} className="shrink-0 text-text-1" />
+        <AnyIcon
+          icon={icon}
+          size={14}
+          strokeWidth={1.75}
+          className="shrink-0 text-text-1"
+        />
       </span>
       <span className="min-w-0 truncate text-left text-[13px] font-medium text-text-1">
         {label}
       </span>
       {hasDropdown ? (
-        <ChevronDown
+        <HugeiconsIcon
+          icon={ArrowDown01Icon}
+          data-icon="chevron-down"
           size={12}
           className={`shrink-0 text-text-3 transition-transform ${isOpen ? "rotate-180" : ""}`}
         />

@@ -2,7 +2,7 @@
  * Type definitions for ModernSplitDiff component
  */
 
-export interface ModernSplitDiffProps {
+interface ModernSplitDiffProps {
   /** Original/old content */
   oldValue: string;
   /** Modified/new content */
@@ -46,21 +46,6 @@ export interface ModernSplitDiffProps {
   className?: string;
 }
 
-export interface AlignedLine {
-  oldLine?: { number: number; content: string; type: "remove" | "context" };
-  newLine?: { number: number; content: string; type: "add" | "context" };
-  index: number; // Original index for selection tracking
-}
-
-export interface CollapsedSection {
-  type: "collapse";
-  collapsedCount: number;
-  collapsedLines: AlignedLine[];
-  collapsePosition: "start" | "middle" | "end";
-}
-
-export type DisplayLine = AlignedLine | CollapsedSection;
-
 export interface ChangeRange {
   startIndex: number;
   lineIndices: number[];
@@ -69,12 +54,6 @@ export interface ChangeRange {
 export interface DiffStats {
   additions: number;
   deletions: number;
-}
-
-export interface ChangeableIndices {
-  oldIndices: number[];
-  newIndices: number[];
-  allIndices: number[];
 }
 
 export interface DiffLine {

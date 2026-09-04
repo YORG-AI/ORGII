@@ -9,8 +9,5 @@ export {
   registerMountedTurnPlaceholder,
   unregisterMountedTurnPlaceholder,
 } from "./mountedTurnPlaceholders";
-export {
-  getSessionTurnLoader,
-  loadSessionTurnBodyIntoStore,
-} from "./turnLoaderRegistry";
+export { loadSessionTurnBodyIntoStore } from "./turnLoaderRegistry";
 export type { LoadTurnBodyIntoStoreArgs, SessionTurnLoader } from "./types";

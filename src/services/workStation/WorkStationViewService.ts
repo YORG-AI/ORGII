@@ -119,7 +119,7 @@ export const WorkStationViewService = {
       await import("@src/store/chatPanel/chatPanelTabsAtom");
 
     const store = getStore();
-    return store.set(toggleActiveChatPanelMaximizedAtom, window.innerWidth);
+    return store.set(toggleActiveChatPanelMaximizedAtom);
   },
 
   async showWorkStation(): Promise<boolean> {
@@ -140,12 +140,7 @@ export const WorkStationViewService = {
     ]);
 
     const store = getStore();
-    if (
-      !isChatPanelTabStationAvailable(
-        store.get(activeChatPanelTabAtom),
-        window.innerWidth
-      )
-    ) {
+    if (!isChatPanelTabStationAvailable(store.get(activeChatPanelTabAtom))) {
       return false;
     }
     if (store.get(chatPanelMaximizedAtom)) {
@@ -195,10 +190,7 @@ export const WorkStationViewService = {
     const store = getStore();
     if (
       isWorkbenchRoute() &&
-      !isChatPanelTabStationAvailable(
-        store.get(activeChatPanelTabAtom),
-        window.innerWidth
-      )
+      !isChatPanelTabStationAvailable(store.get(activeChatPanelTabAtom))
     ) {
       return false;
     }

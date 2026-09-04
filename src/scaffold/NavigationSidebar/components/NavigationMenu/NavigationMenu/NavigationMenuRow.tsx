@@ -1,12 +1,15 @@
-import {
-  ChevronDown,
-  ChevronRight,
-  ChevronsDownUp,
-  ChevronsUpDown,
-} from "lucide-react";
 import React, { useCallback } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
+import { SESSION_ROW_PRESENTATION } from "@src/components/SessionRowPresentation";
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  ChevronsDownUpIcon,
+  HugeiconsIcon,
+  UnfoldMoreIcon,
+} from "@src/icons";
 import { ReferenceDragGhost } from "@src/shared/dnd/ReferenceDragGhost";
 
 import type { NavigationMenuItem } from "../config";
@@ -126,7 +129,7 @@ export const NavigationMenuParentRow = React.forwardRef<
         className={`group/parent flex h-8 items-center ${
           item.disclosureFollowsLabel ? "justify-start" : "justify-between"
         } rounded-lg transition-colors duration-150 ${
-          isChild ? "pl-5 pr-2" : "px-2"
+          isChild ? "pr-2 pl-5" : "px-2"
         } ${submenuSelected ? "bg-sidebar-selected text-text-1" : "text-text-1"} ${
           item.disabled
             ? "cursor-default opacity-60"
@@ -177,8 +180,11 @@ export const NavigationMenuParentRow = React.forwardRef<
                 item.disclosureFollowsLabel ? "" : "flex-1"
               }`}
             >
-              <span className="truncate text-[13px] leading-4 text-text-1">
-                {item.label}
+              <span className="flex min-w-0 items-center gap-1">
+                <span className="truncate text-[13px] leading-4 text-text-1">
+                  {item.label}
+                </span>
+                {item.labelBadge}
               </span>
               {item.subtitle && (
                 <span className="flex min-w-0 items-center gap-1 truncate text-[11px] leading-3 text-text-3">
@@ -190,7 +196,7 @@ export const NavigationMenuParentRow = React.forwardRef<
         </div>
         {!collapsed && (
           <span
-            className={`${item.disclosureFollowsLabel ? "ml-2" : "ml-1"} inline-flex flex-shrink-0 items-center gap-1.5 leading-none`}
+            className={`${item.disclosureFollowsLabel ? "ml-2" : "ml-1"} inline-flex shrink-0 items-center gap-1.5 leading-none`}
           >
             {/* Cloud thread roots carry hover metadata (owner · time) and
                 Fork/More actions; parentHoverGroup keys the reveal on the
@@ -200,7 +206,7 @@ export const NavigationMenuParentRow = React.forwardRef<
               persistentContent={item.trailingElement}
               hoverContent={
                 item.shortcut ? (
-                  <span className="max-w-[6rem] truncate text-[11px] text-text-2">
+                  <span className="max-w-24 truncate text-[11px] text-text-2">
                     {item.shortcut}
                   </span>
                 ) : undefined
@@ -218,13 +224,17 @@ export const NavigationMenuParentRow = React.forwardRef<
             />
             {item.disclosureFollowsLabel ? (
               isOpen ? (
-                <ChevronsDownUp
+                <HugeiconsIcon
+                  icon={ChevronsDownUpIcon}
+                  data-icon="chevrons-down-up"
                   size={12}
                   strokeWidth={2}
                   className="shrink-0 text-text-2"
                 />
               ) : (
-                <ChevronsUpDown
+                <HugeiconsIcon
+                  icon={UnfoldMoreIcon}
+                  data-icon="chevrons-up-down"
                   size={12}
                   strokeWidth={2}
                   className="shrink-0 text-text-2"
@@ -232,7 +242,7 @@ export const NavigationMenuParentRow = React.forwardRef<
               )
             ) : (
               <NavigationMenuRowActionButton
-                icon={isOpen ? ChevronsDownUp : ChevronsUpDown}
+                icon={isOpen ? ChevronsDownUpIcon : UnfoldMoreIcon}
                 label={t("actions.toggle")}
                 dataTestId={
                   item.dataTestId ? `${item.dataTestId}-toggle` : undefined
@@ -338,7 +348,7 @@ export const NavigationMenuLeafRow = React.forwardRef<
     >
       {dragState && <ReferenceDragGhost dragState={dragState} />}
       {showIndentGuide && (
-        <span className="pointer-events-none absolute -bottom-0.5 -top-0.5 left-2 w-px bg-border-3" />
+        <span className="pointer-events-none absolute -top-0.5 -bottom-0.5 left-2 w-px bg-border-3" />
       )}
       <div
         data-testid={item.dataTestId}
@@ -348,8 +358,8 @@ export const NavigationMenuLeafRow = React.forwardRef<
         role="button"
         tabIndex={item.disabled ? -1 : 0}
         aria-disabled={item.disabled || undefined}
-        className={`group flex h-8 items-center justify-between overflow-hidden rounded-lg transition-colors duration-150 ${
-          isChild ? "pl-5 pr-2" : "px-2"
+        className={`group ${SESSION_ROW_PRESENTATION.row} ${
+          isChild ? "pr-2 pl-5" : "px-2"
         } ${
           item.disabled
             ? isSecondaryTone
@@ -385,31 +395,34 @@ export const NavigationMenuLeafRow = React.forwardRef<
           onRowMouseEnter(event, item.routePath)
         }
       >
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className={SESSION_ROW_PRESENTATION.content}>
           {renderLeadingIcon({
             item,
             iconColor,
             renderIcon,
           })}
           {!collapsed && (
-            <div className="flex min-w-0 flex-1 flex-col gap-0">
-              <span
-                className={`min-w-0 truncate text-[13px] leading-4 ${
-                  item.disabled
-                    ? isSecondaryTone
-                      ? "text-text-2"
-                      : "text-text-3"
-                    : isSelected
-                      ? "text-text-1"
-                      : isSecondaryTone
+            <div className={SESSION_ROW_PRESENTATION.text}>
+              <span className="flex min-w-0 items-center gap-1">
+                <span
+                  className={`${SESSION_ROW_PRESENTATION.title} ${
+                    item.disabled
+                      ? isSecondaryTone
                         ? "text-text-2"
-                        : "text-text-1"
-                }`}
-              >
-                {item.label}
+                        : "text-text-3"
+                      : isSelected
+                        ? "text-text-1"
+                        : isSecondaryTone
+                          ? "text-text-2"
+                          : "text-text-1"
+                  }`}
+                >
+                  {item.label}
+                </span>
+                {item.labelBadge}
               </span>
               {item.subtitle && (
-                <span className="flex min-w-0 items-center gap-1 truncate text-[11px] leading-3 text-text-3">
+                <span className={SESSION_ROW_PRESENTATION.subtitle}>
                   {item.subtitle}
                 </span>
               )}
@@ -447,34 +460,46 @@ function renderLeadingIcon({
     item.iconElement
   );
   const action = item.iconAction;
-  if (!action) return icon;
+  if (!action && !item.iconBadge) return icon;
 
-  const ActionIcon = action.icon ?? ChevronDown;
+  const ActionIcon = action?.icon ?? ArrowDown01Icon;
 
   return (
-    <span className="relative inline-flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center leading-none">
-      <span className="inline-flex items-center justify-center leading-none transition-opacity duration-150 group-focus-within:pointer-events-none group-focus-within:opacity-0 group-hover:pointer-events-none group-hover:opacity-0">
-        {icon}
-      </span>
-      <button
-        type="button"
-        aria-label={action.label}
-        title={action.label}
-        className={`pointer-events-none absolute left-1/2 top-1/2 flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded opacity-0 transition-[background-color,color,opacity] duration-150 hover:bg-sidebar-selected hover:text-text-1 focus:pointer-events-auto focus:opacity-100 focus:outline-none group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 ${
-          action.active ? "text-text-1" : "text-text-3"
-        }`}
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          action.onClick(event);
-        }}
-      >
-        <ActionIcon
-          size={14}
-          strokeWidth={2}
-          className={action.iconClassName}
-        />
-      </button>
+    <span className={SESSION_ROW_PRESENTATION.leadingIcon}>
+      {action ? (
+        <>
+          <span className="inline-flex items-center justify-center leading-none transition-opacity duration-150 group-focus-within:pointer-events-none group-focus-within:opacity-0 group-hover:pointer-events-none group-hover:opacity-0">
+            {icon}
+          </span>
+          <button
+            type="button"
+            aria-label={action.label}
+            title={action.label}
+            className={`pointer-events-none absolute top-1/2 left-1/2 flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded opacity-0 transition-[background-color,color,opacity] duration-150 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-sidebar-selected hover:text-text-1 focus:pointer-events-auto focus:opacity-100 focus:outline-none ${
+              action.active ? "text-text-1" : "text-text-3"
+            }`}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              action.onClick(event);
+            }}
+          >
+            <AnyIcon
+              icon={ActionIcon}
+              size={14}
+              strokeWidth={2}
+              className={action.iconClassName}
+            />
+          </button>
+        </>
+      ) : (
+        icon
+      )}
+      {item.iconBadge && (
+        <span className="pointer-events-none absolute -right-0.5 -bottom-0.5 inline-flex rounded-full bg-bg-1 ring-1 ring-bg-1">
+          {item.iconBadge}
+        </span>
+      )}
     </span>
   );
 }
@@ -509,7 +534,7 @@ function renderLeafRowAccessory({
         persistentContent={item.trailingElement}
         hoverContent={
           item.shortcut ? (
-            <span className="max-w-[4rem] truncate text-[11px] text-text-2">
+            <span className="max-w-16 truncate text-[11px] text-text-2">
               {item.shortcut}
             </span>
           ) : undefined
@@ -540,7 +565,9 @@ function renderLeafRowAccessory({
         <>
           {item.trailingElement}
           {item.showDrillDownIndicator && (
-            <ChevronRight
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
               size={12}
               strokeWidth={2}
               className={
@@ -552,7 +579,7 @@ function renderLeafRowAccessory({
       }
       hoverContent={
         item.shortcut ? (
-          <span className="max-w-[4.5rem] truncate text-[11px] text-text-3">
+          <span className="max-w-18 truncate text-[11px] text-text-3">
             {item.shortcut}
           </span>
         ) : undefined
@@ -583,6 +610,7 @@ function renderRowActions({
       <NavigationMenuRowActionButton
         key={`${action.label}:${actionIndex}`}
         icon={action.icon}
+        dataIcon={action.dataIcon}
         iconClassName={action.iconClassName}
         label={action.label}
         active={action.active}

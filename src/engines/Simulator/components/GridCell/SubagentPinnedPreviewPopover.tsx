@@ -12,10 +12,16 @@
  * without a plan from leaving a hover hot-zone that points at nothing.
  */
 import { useAtomValue } from "jotai";
-import { Check, ChevronRight, ListTodo, Lock } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import {
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  ListTodoIcon,
+  LockIcon,
+  Tick01Icon,
+} from "@src/icons";
 import {
   type TodoItem,
   getTodoBatchTitle,
@@ -41,13 +47,21 @@ const TodoStatusIcon: React.FC<{ status: string; blocked?: boolean }> = ({
   if (norm === "completed") {
     return (
       <div className="flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-green-600/80">
-        <Check size={7} strokeWidth={3} className="text-white" />
+        <HugeiconsIcon
+          icon={Tick01Icon}
+          data-icon="check"
+          size={7}
+          strokeWidth={3}
+          className="text-white"
+        />
       </div>
     );
   }
   if (norm === "in_progress") {
     return (
-      <ChevronRight
+      <HugeiconsIcon
+        icon={ArrowRight01Icon}
+        data-icon="chevron-right"
         size={12}
         strokeWidth={2}
         className="shrink-0 text-primary-6"
@@ -57,7 +71,13 @@ const TodoStatusIcon: React.FC<{ status: string; blocked?: boolean }> = ({
   if (blocked) {
     return (
       <div className="flex h-3 w-3 shrink-0 items-center justify-center rounded-full border-[1.5px] border-dashed border-text-3/40">
-        <Lock size={5} strokeWidth={2.5} className="text-text-3/60" />
+        <HugeiconsIcon
+          icon={LockIcon}
+          data-icon="lock"
+          size={5}
+          strokeWidth={2.5}
+          className="text-text-3/60"
+        />
       </div>
     );
   }
@@ -91,16 +111,22 @@ const SubagentPinnedPreviewPopoverComponent: React.FC<
   return (
     <div
       role="tooltip"
-      className={`pointer-events-none absolute left-2 right-2 top-full z-30 mt-1 max-h-[60vh] overflow-hidden rounded-lg border border-border-2 bg-bg-1 shadow-lg transition-opacity duration-150 ${
+      className={`pointer-events-none absolute top-full right-2 left-2 z-30 mt-1 max-h-[60vh] overflow-hidden rounded-lg border border-border-2 bg-bg-1 shadow-lg transition-opacity duration-150 ${
         open ? "opacity-100" : "invisible opacity-0"
       }`}
     >
       <div className="flex items-center gap-1.5 border-b border-border-2/60 px-3 py-1.5">
-        <ListTodo size={12} strokeWidth={1.75} className="text-text-2" />
+        <HugeiconsIcon
+          icon={ListTodoIcon}
+          data-icon="list-todo"
+          size={12}
+          strokeWidth={1.75}
+          className="text-text-2"
+        />
         <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-text-1">
           {label}
         </span>
-        <span className="shrink-0 rounded bg-fill-2 px-1.5 py-0.5 text-[10px] tabular-nums text-text-2">
+        <span className="shrink-0 rounded bg-fill-2 px-1.5 py-0.5 text-[10px] text-text-2 tabular-nums">
           {completedCount}/{todos.length}
         </span>
       </div>

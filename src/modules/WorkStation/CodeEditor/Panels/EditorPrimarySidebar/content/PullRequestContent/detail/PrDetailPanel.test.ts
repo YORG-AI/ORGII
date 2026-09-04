@@ -21,20 +21,13 @@ import {
   workstationSelectedPrAtomFamily,
 } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 
-import { PrDetailPanel } from "./PrDetailPanel";
+import { PrDetailPanel, PrDetailTabs } from "./PrDetailPanel";
 import { formatPrFilesCount } from "./prFilesDisplay";
 
 const childProps = vi.hoisted(() => ({
   changes: null as Record<string, unknown> | null,
   commits: null as Record<string, unknown> | null,
   conversation: null as Record<string, unknown> | null,
-}));
-
-/** Measured body width driving the rail's column-vs-stacked placement. */
-const bodyWidth = vi.hoisted(() => ({ value: 0 }));
-
-vi.mock("@src/hooks/ui/layout/useElementDimensions", () => ({
-  useElementDimensions: () => bodyWidth.value,
 }));
 
 vi.mock("react-i18next", () => ({
@@ -99,15 +92,13 @@ vi.mock("./PrConversationTab", () => ({
   PrConversationTab: (
     props: Record<string, unknown> & {
       flowHeader?: ReactNode;
-      sidebar?: ReactNode;
     }
   ) => {
     childProps.conversation = props;
     return createElement(
       "div",
       { "data-testid": "conversation-tab" },
-      props.flowHeader,
-      props.sidebar
+      props.flowHeader
     );
   },
 }));
@@ -148,8 +139,6 @@ describe("PrDetailPanel tabs", () => {
     childProps.changes = null;
     childProps.commits = null;
     childProps.conversation = null;
-    // 0 = unmeasured, which keeps the rail as its own column.
-    bodyWidth.value = 0;
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -189,7 +178,6 @@ describe("PrDetailPanel tabs", () => {
               baseBranch: "main",
             },
             repoPath: "/repo",
-            showHeader: false,
           })
         )
       );
@@ -215,9 +203,11 @@ describe("PrDetailPanel tabs", () => {
     expect(tabList?.className).toContain("border-b");
     expect(tabList?.className).not.toContain("border-t");
     expect(tabList?.className).toContain("gap-px");
+    expect(tabList?.className).toContain("h-9");
     expect(tabList?.className).not.toContain("h-10");
     expect(tabs[0]?.className).toContain("after:-bottom-px");
     expect(tabs[0]?.className).toContain("after:bg-bg-2");
+    expect(tabs[0]?.className).toContain("border-b-bg-2");
     for (const tab of tabs) {
       expect(tab.className).toContain("py-1.5");
       expect(tab.className).not.toContain("h-9");
@@ -345,8 +335,7 @@ describe("PrDetailPanel tabs", () => {
     ).toBeNull();
   });
 
-  it("stacks the details rail under the flow title when the body is narrow", () => {
-    bodyWidth.value = 640;
+  it("uses a single tabs-only row without a title header", () => {
     const store = createStore();
     const scopeKey = workstationPrScopeKey(undefined, "/repo", 42);
     store.set(workstationSelectedPrAtomFamily(scopeKey), {
@@ -363,93 +352,27 @@ describe("PrDetailPanel tabs", () => {
           createElement(PrDetailPanel, {
             identity: {
               number: 42,
-              title: "Stack the rail when space runs out",
+              title: "Use a tabs-only PR header",
               url: "https://github.com/org/repo/pull/42",
               status: "open",
-              headBranch: "feature/narrow",
+              headBranch: "feature/tabs-only-header",
               baseBranch: "main",
             },
             repoPath: "/repo",
-            showHeader: false,
           })
         )
       );
     });
 
-    // No second column: the rail is handed to the conversation, which renders
-    // it under the flow title and above the description.
+    const tabList = container.querySelector<HTMLElement>('[role="tablist"]');
+    expect(tabList?.querySelectorAll('[role="tab"]')).toHaveLength(4);
+    expect(tabList?.className).toContain("border-b");
     expect(
-      container.querySelector('[data-testid="pr-detail-sidebar-rail"]')
+      container.querySelector("[data-testid='pr-detail-header']")
     ).toBeNull();
-    expect(childProps.conversation?.sidebar).toBeTruthy();
-    const conversationTab = container.querySelector(
-      '[data-testid="conversation-tab"]'
-    );
-    const flowHeader = conversationTab?.querySelector(
-      '[data-testid="pr-flow-header"]'
-    );
-    const stackedSidebar = conversationTab?.querySelector(
-      '[data-testid="pr-sidebar"]'
-    );
-    expect(stackedSidebar).not.toBeNull();
-    expect(flowHeader?.compareDocumentPosition(stackedSidebar as Node)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
-    );
-    // The trail keeps its own narrow column while the rail is stacked.
-    const navigationRail = container.querySelector(
-      '[data-testid="pr-detail-navigation-rail"]'
-    );
-    expect(navigationRail).not.toBeNull();
-    expect(navigationRail?.className).toContain("shrink-0");
-  });
-
-  it("stacks a combined PR header below the detail-panel breakpoint without a separator", () => {
-    const store = createStore();
-    const scopeKey = workstationPrScopeKey(undefined, "/repo", 42);
-    store.set(workstationSelectedPrAtomFamily(scopeKey), {
-      ...initialSelectedPrState,
-      loading: false,
-      detail: {},
-    });
-
-    act(() => {
-      root.render(
-        createElement(
-          Provider,
-          { store },
-          createElement(PrDetailPanel, {
-            identity: {
-              number: 42,
-              title: "Use a responsive PR header",
-              url: "https://github.com/org/repo/pull/42",
-              status: "open",
-              headBranch: "feature/responsive-header",
-              baseBranch: "main",
-            },
-            repoPath: "/repo",
-            combineHeaderAndTabs: true,
-          })
-        )
-      );
-    });
-
-    const panel = container.firstElementChild;
-    const header = container.querySelector<HTMLElement>(
-      "[data-testid='pr-detail-header']"
-    );
-    const title = header?.querySelector<HTMLElement>(
-      "[data-testid='detail-header-title']"
-    );
-
-    expect(panel?.className).toContain("@container/detailheader");
-    expect(header?.className).toContain("!h-auto");
-    expect(header?.className).toContain("border-b");
-    expect(title?.parentElement?.className).toContain("flex-col");
-    expect(title?.parentElement?.className).toContain(
-      "@[960px]/detailheader:flex-row"
-    );
-    expect(header?.querySelector('[role="separator"]')).toBeNull();
-    expect(header?.querySelectorAll('[role="tab"]')).toHaveLength(4);
+    expect(
+      container.querySelector("[data-testid='detail-header-title']")
+    ).toBeNull();
   });
 
   it("keeps conflict styling while exposing the open-PR action dropdown", () => {
@@ -481,7 +404,6 @@ describe("PrDetailPanel tabs", () => {
               baseBranch: "main",
             },
             repoPath: "/repo",
-            showHeader: false,
           })
         )
       );
@@ -493,9 +415,11 @@ describe("PrDetailPanel tabs", () => {
     expect(conflictAction?.textContent).toBe("Merge conflicts");
     expect(conflictAction?.disabled).toBe(false);
     expect(conflictAction?.className).toContain("text-danger-6");
-    expect(conflictAction?.querySelector(".lucide-circle-x")).not.toBeNull();
     expect(
-      conflictAction?.parentElement?.querySelector(".lucide-chevron-down")
+      conflictAction?.querySelector('[data-icon="xcircle"]')
+    ).not.toBeNull();
+    expect(
+      conflictAction?.parentElement?.querySelector('[data-icon="chevron-down"]')
     ).not.toBeNull();
   });
 
@@ -532,7 +456,6 @@ describe("PrDetailPanel tabs", () => {
               baseBranch: "main",
             },
             repoPath: "/repo",
-            showHeader: false,
           })
         )
       );
@@ -543,11 +466,11 @@ describe("PrDetailPanel tabs", () => {
     );
     expect(draftAction?.textContent).toBe("Draft");
     expect(draftAction?.disabled).toBe(false);
-    expect(draftAction?.className).toContain("!bg-fill-3");
-    expect(draftAction?.className).toContain("!text-text-1");
+    expect(draftAction?.className).toContain("bg-fill-3!");
+    expect(draftAction?.className).toContain("text-text-1!");
     expect(draftAction?.className).not.toContain("bg-success-6");
     expect(
-      draftAction?.querySelector(".lucide-git-pull-request-draft")
+      draftAction?.querySelector('[data-icon="git-pull-request-draft"]')
     ).not.toBeNull();
     await act(async () => {
       draftAction?.click();
@@ -597,7 +520,6 @@ describe("PrDetailPanel tabs", () => {
               baseBranch: "main",
             },
             repoPath: "/repo",
-            showHeader: false,
           })
         )
       );
@@ -609,7 +531,7 @@ describe("PrDetailPanel tabs", () => {
     );
     expect(convertAction?.textContent).toContain("Convert to draft");
     expect(
-      convertAction?.querySelector(".lucide-git-pull-request-draft")
+      convertAction?.querySelector('[data-icon="git-pull-request-draft"]')
     ).not.toBeNull();
 
     // The action moved out of the merge dropdown into the actions stack.
@@ -656,7 +578,6 @@ describe("PrDetailPanel tabs", () => {
         baseBranch: "main",
       },
       repoPath: "/repo",
-      showHeader: false,
     });
 
     act(() => {
@@ -691,7 +612,7 @@ describe("PrDetailPanel tabs", () => {
     });
   });
 
-  it("keeps the GitHub header at 40px and renders the GitHub-flow title and operations sidebar", () => {
+  it("renders the tabs, GitHub-flow title, and operations sidebar", () => {
     const store = createStore();
     const scopeKey = workstationPrScopeKey(undefined, "/repo", 42);
     store.set(workstationSelectedPrAtomFamily(scopeKey), {
@@ -737,40 +658,28 @@ describe("PrDetailPanel tabs", () => {
       );
     });
 
-    const header = container.querySelector("[data-testid='pr-detail-header']");
+    const tabList = container.querySelector('[role="tablist"]');
     const flowHeader = container.querySelector(
       "[data-testid='pr-flow-header']"
     );
     const sidebar = container.querySelector("[data-testid='pr-sidebar']");
 
-    expect(header?.className).toContain("h-10");
-    expect(header?.className).toContain("!pl-4");
-    expect(header?.className).toContain("!pr-[7px]");
-    expect(header?.className).not.toContain("border-b");
-    const externalLink = header?.querySelector(
+    expect(tabList?.className).toContain("border-b");
+    const externalLink = tabList?.querySelector(
       'button[aria-label="Open in external browser"]'
     );
     expect(externalLink?.getAttribute("type")).toBe("button");
     expect(externalLink?.getAttribute("style")).toContain("height: 28px");
-    expect(externalLink?.querySelector(".lucide-chromium")).not.toBeNull();
+    expect(externalLink?.querySelector('[data-icon="chrome"]')).not.toBeNull();
     expect(
       container.querySelectorAll(
         'button[aria-label="Open in external browser"]'
       )
     ).toHaveLength(1);
-    expect(header?.textContent).toContain("Use compact PR metadata");
-    const mergedStatus = header?.querySelector(
-      "[data-testid='pr-detail-status']"
-    );
-    expect(mergedStatus?.className).toContain("text-purple-6");
-    expect(mergedStatus?.className).not.toContain("bg-purple-1");
-    expect(mergedStatus?.className).not.toContain("rounded-full");
-    expect(mergedStatus?.querySelector(".lucide-git-merge")).not.toBeNull();
-    expect(mergedStatus?.textContent).toBe("");
-    expect(header?.textContent).not.toContain("develop");
-    expect(header?.textContent).not.toContain(
-      "fix/issue-556-delete-agent-org-workers"
-    );
+    expect(tabList?.textContent).not.toContain("Use compact PR metadata");
+    expect(
+      container.querySelector("[data-testid='pr-detail-header']")
+    ).toBeNull();
 
     // GitHub-flow title: big title + muted #number over a status pill and
     // the merge-flow sentence with branch pills and the diff stat.
@@ -783,7 +692,7 @@ describe("PrDetailPanel tabs", () => {
       "[data-testid='pr-flow-status']"
     );
     expect(flowStatus?.textContent).toContain("merged");
-    expect(flowStatus?.querySelector(".lucide-git-merge")).not.toBeNull();
+    expect(flowStatus?.querySelector('[data-icon="git-merge"]')).not.toBeNull();
     expect(flowStatus?.firstElementChild?.className).toContain("bg-purple-1");
     expect(flowStatus?.firstElementChild?.className).toContain("text-purple-6");
     const subline = flowHeader?.querySelector(
@@ -829,6 +738,110 @@ describe("PrDetailPanel tabs", () => {
     ).not.toBeNull();
   });
 
+  it.each(["panel", "hostHeader"] as const)(
+    "keeps %s labels and selection through loading, hydration, and refresh",
+    (tabsPlacement) => {
+      const store = createStore();
+      const scopeKey = workstationPrScopeKey(undefined, "/repo", 42);
+      const selectedPrAtom = workstationSelectedPrAtomFamily(scopeKey);
+      const identity = {
+        number: 42,
+        title: "Render the known title immediately",
+        url: "https://github.com/org/repo/pull/42",
+        status: "open",
+        headBranch: "fix/loading-shell",
+      };
+      act(() => {
+        root.render(
+          createElement(
+            Provider,
+            { store },
+            tabsPlacement === "hostHeader"
+              ? createElement(PrDetailTabs, {
+                  identity,
+                  repoPath: "/repo",
+                  variant: "header",
+                })
+              : null,
+            createElement(PrDetailPanel, {
+              identity,
+              repoPath: "/repo",
+              tabsPlacement,
+            })
+          )
+        );
+      });
+
+      expect(container.querySelectorAll('[role="tablist"]')).toHaveLength(1);
+      const tabs = Array.from(
+        container.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      );
+      expect(tabs.map((tab) => tab.textContent)).toEqual([
+        "Conversation",
+        "Commits",
+        "Checks",
+        "Files changed",
+      ]);
+      expect(
+        container.querySelectorAll('[data-testid="detail-tab-count-skeleton"]')
+      ).toHaveLength(4);
+      expect(container.querySelector("h2")?.textContent).toContain(
+        identity.title
+      );
+      const sidebar = container.querySelector(
+        '[data-testid="github-pr-detail-skeleton-sidebar"]'
+      );
+      expect(sidebar?.textContent).toBe("ReviewersAssigneesLabelsActions");
+      expect(sidebar?.querySelector("button")).toBeNull();
+
+      act(() => {
+        store.set(selectedPrAtom, (current) => ({ ...current, loading: true }));
+        tabs[1]?.click();
+      });
+      expect(tabs[1]?.getAttribute("aria-selected")).toBe("true");
+      expect(container.querySelector('[role="tabpanel"]')?.id).toBe(
+        "pr-detail-tabpanel-commits"
+      );
+
+      act(() => {
+        store.set(selectedPrAtom, (current) => ({
+          ...current,
+          loading: false,
+          detail: {},
+          commits: [{}, {}],
+        }));
+      });
+      expect(
+        container.querySelector('[data-testid="github-pr-detail-skeleton"]')
+      ).toBeNull();
+      expect(
+        container.querySelector('[data-testid="detail-tab-count-skeleton"]')
+      ).toBeNull();
+      const loadedTabs = Array.from(container.querySelectorAll('[role="tab"]'));
+      expect(loadedTabs.map((tab) => tab.textContent)).toEqual([
+        "Conversation0",
+        "Commits2",
+        "Checks0",
+        "Files changed0",
+      ]);
+      expect(loadedTabs[1]?.getAttribute("aria-selected")).toBe("true");
+      expect(
+        container.querySelector('[data-testid="pr-detail-sidebar-rail"]')
+      ).not.toBeNull();
+
+      act(() => {
+        store.set(selectedPrAtom, (current) => ({
+          ...current,
+          refreshing: true,
+        }));
+      });
+      expect(
+        container.querySelector('[data-testid="detail-tab-count-skeleton"]')
+      ).toBeNull();
+      expect(loadedTabs[1]?.textContent).toBe("Commits2");
+    }
+  );
+
   it("shows the PR skeleton on the first render before detail loading starts", () => {
     const store = createStore();
 
@@ -847,7 +860,7 @@ describe("PrDetailPanel tabs", () => {
               baseBranch: "main",
             },
             repoPath: "/repo",
-            showHeader: false,
+            tabsPlacement: "hostHeader",
           })
         )
       );
@@ -856,6 +869,9 @@ describe("PrDetailPanel tabs", () => {
     expect(
       container.querySelector("[data-testid='github-pr-detail-skeleton']")
     ).not.toBeNull();
+    expect(
+      container.querySelector("[data-testid='github-pr-detail-skeleton-tabs']")
+    ).toBeNull();
     expect(container.querySelector('[role="tablist"]')).toBeNull();
     expect(container.querySelector(".animate-spin")).toBeNull();
   });

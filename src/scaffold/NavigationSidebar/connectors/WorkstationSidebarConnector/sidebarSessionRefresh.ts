@@ -1,9 +1,11 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   IMPORTED_HISTORY_SOURCE_DESCRIPTORS,
   externalHistoryRescanSources,
 } from "@src/api/tauri/externalHistory";
+import { createLogger } from "@src/hooks/logger";
+import { useRefreshSpin } from "@src/hooks/ui";
 import {
   loadSessionRoster,
   refreshRecentNativeSessions,
@@ -21,8 +23,11 @@ import {
   SIDEBAR_SESSION_IDLE_REFRESH_INTERVAL_MS,
 } from "../sidebarConnectorUtils";
 
+const logger = createLogger("WorkstationSidebar");
+let sidebarSessionRescanInFlight: Promise<void> | null = null;
+
 /** Rescan every enabled external source, then refresh the canonical roster. */
-export async function rescanSidebarSessions(): Promise<void> {
+async function performSidebarSessionRescan(): Promise<void> {
   const store = getInstrumentedStore();
   if (!store.get(externalSessionsEnabledAtom)) {
     // External sessions are switched off entirely — nothing to rescan, and
@@ -56,6 +61,44 @@ export async function rescanSidebarSessions(): Promise<void> {
     }
     return next;
   });
+}
+
+/** Share one manual rescan across the header and overflow-menu refresh actions. */
+export function rescanSidebarSessions(): Promise<void> {
+  if (sidebarSessionRescanInFlight) return sidebarSessionRescanInFlight;
+
+  const request = performSidebarSessionRescan().finally(() => {
+    if (sidebarSessionRescanInFlight === request) {
+      sidebarSessionRescanInFlight = null;
+    }
+  });
+  sidebarSessionRescanInFlight = request;
+  return request;
+}
+
+export function useSidebarSessionRefreshAction(): {
+  refreshSpinClass: string | undefined;
+  handleRefreshSessions: () => void;
+} {
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshSessions = useCallback(() => {
+    setRefreshing(true);
+    void rescanSidebarSessions()
+      .catch((error) => {
+        logger.warn("Failed to rescan sidebar sessions:", error);
+      })
+      .finally(() => {
+        setRefreshing(false);
+      });
+  }, []);
+  const { spinClass: refreshSpinClass, handleClick: handleRefreshSessions } =
+    useRefreshSpin(
+      refreshSessions,
+      refreshing,
+      "workstation-sidebar-session-refresh"
+    );
+
+  return { refreshSpinClass, handleRefreshSessions };
 }
 
 export function useSidebarSessionRefreshEffects(): void {

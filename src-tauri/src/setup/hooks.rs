@@ -119,6 +119,7 @@ pub(crate) fn register_settings_hooks() {
             agent_core::utils::set_global_http_version_pref(pref);
         }
         agent_core::session::housekeeper_compaction::update_from_settings(value);
+        crate::api::mobile_bridge::relay::notify_settings_changed(value);
     }));
 }
 

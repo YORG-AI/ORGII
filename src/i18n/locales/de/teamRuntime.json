@@ -74,10 +74,7 @@
   },
   "selfService": {
     "hint": "Solange die Freigabe aktiv ist, wird deine eigene Runtime mit dieser Organisation geteilt.",
-    "action": "Freigabe beenden & meine Daten entfernen",
-    "confirm": "Deine geteilten Runtime-Daten aus dieser Organisation entfernen?",
-    "confirmYes": "Beenden & entfernen",
-    "confirmNo": "Abbrechen"
+    "action": "Freigabe beenden & meine Daten entfernen"
   },
   "orgSettings": {
     "label": "Team-Runtime-Freigabe",

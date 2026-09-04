@@ -16,7 +16,4 @@ export {
   serviceValidatedAtom,
   serviceRefreshingAtom,
 } from "./useServiceAuth";
-export type {
-  UseServiceAuthReturn,
-  UseServiceAuthStateReturn,
-} from "./useServiceAuth";
+export type { UseServiceAuthStateReturn } from "./useServiceAuth";

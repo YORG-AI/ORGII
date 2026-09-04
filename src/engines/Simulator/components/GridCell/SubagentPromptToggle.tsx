@@ -15,7 +15,6 @@
  * visible without scrolling back to turn 1.
  */
 import { useAtomValue } from "jotai";
-import { Info } from "lucide-react";
 import React, { memo, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -30,6 +29,7 @@ import UserMessageContent from "@src/engines/ChatPanel/ChatHistory/components/Us
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { chatEventsForSessionAtomFamily } from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
 import { useDropdownEngine } from "@src/hooks/dropdown";
+import { HugeiconsIcon, InformationCircleIcon } from "@src/icons";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 const PROMPT_PANEL_WIDTH = 440;
@@ -113,11 +113,18 @@ const SubagentPromptToggleComponent: React.FC<SubagentPromptToggleProps> = ({
         disabled={!hasPrompt}
         data-testid="subagent-task-prompt-toggle"
         aria-pressed={isOpen}
-        className={isOpen ? "!bg-surface-hover !text-primary-6" : ""}
+        className={isOpen ? "bg-surface-hover! text-primary-6!" : ""}
         onClick={toggle}
         title={label}
         aria-label={label}
-        icon={<Info size={16} strokeWidth={1.75} />}
+        icon={
+          <HugeiconsIcon
+            icon={InformationCircleIcon}
+            data-icon="info"
+            size={16}
+            strokeWidth={1.75}
+          />
+        }
       />
 
       {isOpen &&

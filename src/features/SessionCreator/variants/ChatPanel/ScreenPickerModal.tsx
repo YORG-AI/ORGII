@@ -49,10 +49,10 @@ const ScreenPickerModal: React.FC<ScreenPickerModalProps> = memo(
                   className="flex flex-col items-center gap-2 rounded border border-border-2 bg-fill-2 p-3 transition-colors hover:border-primary-5"
                 >
                   <div
-                    className="flex items-center justify-center rounded-sm bg-bg-2 tabular-nums"
+                    className="flex items-center justify-center rounded-xs bg-bg-2 tabular-nums"
                     style={{ width: tileWidth, height: tileHeight }}
                   >
-                    <span className="text-xl font-semibold leading-none text-text-2">
+                    <span className="text-xl leading-none font-semibold text-text-2">
                       {n}
                     </span>
                   </div>

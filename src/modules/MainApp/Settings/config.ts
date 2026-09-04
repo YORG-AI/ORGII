@@ -3,20 +3,22 @@
  *
  * App settings sections. Labels use i18n keys under settings.sections.
  */
-import {
-  ChevronRight,
-  type LucideIcon,
-  SquareArrowOutUpRight,
-} from "lucide-react";
 import { createElement } from "react";
 
+import { type RenderableIcon } from "@src/components/AnyIcon";
 import { getSettingsSectionsByTab } from "@src/config/settingsUiManifest";
+import {
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  SquareArrowUpRight02Icon,
+} from "@src/icons";
 
 export interface SettingsSectionConfig {
   id: string;
   /** Translation key for the label (e.g., "general" -> t("sections.general")) */
   labelKey: string;
-  icon: LucideIcon;
+  /** Glyph data or a brand component — render via `AnyIcon`. */
+  icon: RenderableIcon;
 }
 
 // ============================================
@@ -24,10 +26,10 @@ export interface SettingsSectionConfig {
 // ============================================
 export const SECTION_IDS = {
   GENERAL: "general",
-  COLLABORATION: "collaboration",
   APPEARANCE: "appearance",
   EDITOR: "editor",
   SECURITY: "security",
+  MOBILE_REMOTE: "mobile-remote",
 
   MONITOR: "monitor",
 } as const;
@@ -64,20 +66,14 @@ export const SECTION_TAB_META: Partial<
     { key: "general", labelKey: "general.tabGeneral" },
     { key: "notifications", labelKey: "sections.notifications" },
     { key: "shortcuts", labelKey: "shortcuts.title" },
-  ],
-  [SECTION_IDS.COLLABORATION]: [
-    { key: "cloud", labelKey: "collaboration.tabs.cloud" },
-    { key: "self-hosted", labelKey: "collaboration.tabs.selfHosted" },
+    { key: "self-hosted", labelKey: "general.tabSelfHosted" },
   ],
   [SECTION_IDS.APPEARANCE]: [
     { key: "app", labelKey: "appearance.tabApp" },
     { key: "code-editor", labelKey: "appearance.tabCodeEditor" },
     { key: "chat-panel", labelKey: "appearance.tabChatPanel" },
   ],
-  [SECTION_IDS.EDITOR]: [
-    { key: "editor", labelKey: "editor.tabEditor" },
-    { key: "index", labelKey: "editor.tabIndex" },
-  ],
+  [SECTION_IDS.EDITOR]: [{ key: "editor", labelKey: "editor.tabEditor" }],
   [SECTION_IDS.MONITOR]: [
     { key: "resources", labelKey: "monitor.resourceUsage" },
     { key: "network", labelKey: "common:tabs.network" },
@@ -89,7 +85,7 @@ export const SECTION_TAB_META: Partial<
 export const SUBPAGE_BUTTON_PROPS = {
   variant: "secondary" as const,
   size: "default" as const,
-  icon: createElement(ChevronRight, { size: 14 }),
+  icon: createElement(HugeiconsIcon, { icon: ArrowRight01Icon, size: 14 }),
   iconPosition: "right" as const,
 };
 
@@ -97,6 +93,9 @@ export const SUBPAGE_BUTTON_PROPS = {
 export const NAV_BUTTON_PROPS = {
   variant: "secondary" as const,
   size: "default" as const,
-  icon: createElement(SquareArrowOutUpRight, { size: 14 }),
+  icon: createElement(HugeiconsIcon, {
+    icon: SquareArrowUpRight02Icon,
+    size: 14,
+  }),
   iconPosition: "right" as const,
 };

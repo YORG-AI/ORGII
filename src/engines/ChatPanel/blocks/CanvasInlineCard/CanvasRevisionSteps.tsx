@@ -1,8 +1,14 @@
-import { CheckCircle2, Circle, CircleX, LoaderCircle } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { SESSION_UI_TOKENS } from "@src/engines/ChatPanel/blocks/primitives";
+import {
+  CheckmarkCircle01Icon,
+  CircleIcon,
+  CircleXIcon,
+  HugeiconsIcon,
+  LoaderCircleIcon,
+} from "@src/icons";
 
 import {
   type CanvasRevisionActivityPhase,
@@ -19,11 +25,21 @@ interface CanvasRevisionStepsProps {
 const StepIcon: React.FC<{ state: CanvasRevisionStepState }> = ({ state }) => {
   const size = SESSION_UI_TOKENS.ICON.SIZE_XS;
   if (state === "complete") {
-    return <CheckCircle2 size={size} className="text-success-6" aria-hidden />;
+    return (
+      <HugeiconsIcon
+        icon={CheckmarkCircle01Icon}
+        data-icon="check-circle-2"
+        size={size}
+        className="text-success-6"
+        aria-hidden
+      />
+    );
   }
   if (state === "active") {
     return (
-      <LoaderCircle
+      <HugeiconsIcon
+        icon={LoaderCircleIcon}
+        data-icon="loader-circle"
         size={size}
         className="animate-spin text-primary-6 motion-reduce:animate-none"
         aria-hidden
@@ -31,9 +47,25 @@ const StepIcon: React.FC<{ state: CanvasRevisionStepState }> = ({ state }) => {
     );
   }
   if (state === "failed") {
-    return <CircleX size={size} className="text-danger-6" aria-hidden />;
+    return (
+      <HugeiconsIcon
+        icon={CircleXIcon}
+        data-icon="circle-x"
+        size={size}
+        className="text-danger-6"
+        aria-hidden
+      />
+    );
   }
-  return <Circle size={size} className="text-text-4" aria-hidden />;
+  return (
+    <HugeiconsIcon
+      icon={CircleIcon}
+      data-icon="circle"
+      size={size}
+      className="text-text-4"
+      aria-hidden
+    />
+  );
 };
 
 const CanvasRevisionSteps: React.FC<CanvasRevisionStepsProps> = ({
@@ -55,7 +87,7 @@ const CanvasRevisionSteps: React.FC<CanvasRevisionStepsProps> = ({
         return (
           <li
             key={`${index}-${label}`}
-            className={`chat-block-xs flex min-w-0 max-w-full items-center gap-1 ${
+            className={`chat-block-xs flex max-w-full min-w-0 items-center gap-1 ${
               state === "pending" ? "text-text-4" : "text-text-3"
             }`}
             data-step-state={state}

@@ -88,12 +88,6 @@
       "openAsFloatingPane": "Otwórz jako pływający panel"
     },
     "sessions": "Sesje",
-    "fileSearch": {
-      "placeholder": "Szukaj sesji według ścieżki pliku",
-      "noResults": "Żadna sesja nie zmieniła pasującego pliku"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "Bieżący Kanban",
     "view": {
       "list": "Lista",
       "diary": "Dziennik",
@@ -365,9 +359,6 @@
       "discarding": "Odrzucanie…",
       "confirmMessage": "Odrzucić wszystkie zmiany w tym Worktree? Tej operacji nie można cofnąć."
     },
-    "replay": {
-      "replaySession": "Powtórz"
-    },
     "diary": {
       "title": "Dziennik",
       "previousDay": "Poprzedni dzień",
@@ -473,7 +464,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajektoria",
         "tabTodo": "Lista zadań",
-        "collapsePanel": "Ukryj panel",
         "expandPanel": "Pokaż panel trajektorii i listy zadań",
         "placeholderTrajectoryTitle": "Brak zdarzeń",
         "placeholderTrajectorySubtitle": "Aktywność sesji pojawi się tutaj, gdy Agent zacznie działać",
@@ -769,9 +759,7 @@
       "showSidebar": "Pokaż pasek boczny",
       "hideSidebar": "Ukryj pasek boczny",
       "showBottomPanel": "Pokaż dolny panel",
-      "hideBottomPanel": "Ukryj dolny panel",
-      "showDevTools": "Pokaż DevTools",
-      "hideDevTools": "Ukryj DevTools"
+      "hideBottomPanel": "Ukryj dolny panel"
     },
     "multiTask": {
       "monitoringProgress": "Monitorowanie postępu {{count}} subagentów",
@@ -802,7 +790,8 @@
       "current": "Bieżące"
     },
     "agentSentMessageCaption": "{{subject}} wysłał Ci wiadomość",
-    "userSentMessageCaption": "Wysłano wiadomość do Agent"
+    "userSentMessageCaption": "Wysłano wiadomość do Agent",
+    "thoughtSentMessageCaption": "{{subject}} zastanawia się"
   },
   "terminal": {
     "findInTerminal": "Znajdź w terminalu",
@@ -882,8 +871,17 @@
     "multipleChoice": "Wielokrotny wybór",
     "typeYourAnswer": "Wpisz odpowiedź…",
     "newSession": "Nowa sesja",
-    "muteNotifications": "Wycisz powiadomienia",
     "startPage": {
+      "inputPosition": "Pole wpisu",
+      "positionBottom": "Dół",
+      "positionMiddle": "Środek",
+      "trailPosition": "Pasek kontekstu",
+      "positionUp": "Góra",
+      "positionDown": "Dół",
+      "uiControls": "Elementy interfejsu",
+      "showQuickActions": "Pokaż szybkie akcje",
+      "showSkills": "Pokaż Skills",
+      "showCliUpdate": "Pokaż aktualizacje CLI",
       "title": "Co chcesz zrobić?",
       "back": "Wróć do strony startowej",
       "newSession": {
@@ -994,6 +992,7 @@
     "fullScreenChat": "Skup panel czatu (ukryj Workstation)",
     "maximizeChatPanel": "Maksymalizuj panel czatu",
     "showWorkstation": "Pokaż Workstation",
+    "workstationUnavailableForPage": "Workstation jest niedostępny na tej stronie",
     "hideWorkstation": "Ukryj Workstation",
     "restoreSplitView": "Pokaż Workstation",
     "shrinkToWorkstation": "Zmniejsz panel czatu (pokaż Workstation)",
@@ -1009,9 +1008,12 @@
       "openInSideChat": "Otwórz w czacie bocznym"
     },
     "collapseAll": "Zwiń wszystko",
+    "copyAndExport": "Kopiowanie i eksport",
     "copyEventJson": "Kopiuj JSON zdarzeń",
     "copyEventJsonCopied": "Skopiowano!",
     "copyEventJsonFailed": "Błąd kopiowania",
+    "moveTo": "Przenieś stronę do…",
+    "projectLinks": "Powiązania projektu",
     "moveToWorkstation": "Przenieś do mojej Workstation",
     "moveToChatPanel": "Przenieś do panelu czatu",
     "rawTranscript": {
@@ -1108,7 +1110,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~pozostało {{eta}}",
     "rateLimitHintTitle": "Limit API osiągnięty",
-    "rateLimitHintBody": "Bieżący model osiągnął limit szybkości. Możesz przełączyć się do innego okna i pracować dalej podczas oczekiwania.",
+    "rateLimitHintBody": "Bieżący model osiągnął limit szybkości. Możesz przełączyć się do innego okna i pracować dalej podczas oczekiwania",
     "feedbackPending": "Opinia oczekująca",
     "executionThreads": "Wątki wykonania",
     "allThreads": "Wszystkie",
@@ -1140,6 +1142,7 @@
       "exportTitle": "Eksportuj Session JSON",
       "importTitle": "Importuj Session JSON",
       "exportAction": "Eksportuj",
+      "exportJson": "Eksportuj JSON",
       "importAction": "Importuj Session",
       "exportDescription": "Eksportuj aktywną Session jako przenośny snapshot JSON",
       "importDescription": "Importuj snapshot JSON Session do paska bocznego.",
@@ -1257,7 +1260,8 @@
       "fileCount_other": "{{count}} plików",
       "turnCount_one": "{{count}} runda",
       "turnCount_other": "{{count}} rund"
-    }
+    },
+    "parentAgentSender": "Agent nadrzędny"
   },
   "chatStatus": {
     "approved": "Zatwierdzone",
@@ -1298,7 +1302,16 @@
       "Pracuję nad tym, trwa to dłużej niż zwykle...",
       "Przemyśliwam to, trwa to dłużej niż zwykle..."
     ],
-    "compacting": "Kompaktowanie kontekstu..."
+    "compacting": "Kompaktowanie kontekstu...",
+    "statusTrail": {
+      "agentWorking": "Agent pracuje",
+      "agentWorkingFor": "Agent pracuje od {{value}}",
+      "runningTask_one": "{{count}} uruchomione zadanie",
+      "runningTask_other": "{{count}} uruchomionych zadań",
+      "idle": "Agent jest bezczynny",
+      "lastRefreshed": "Ostatnio odświeżono {{value}}",
+      "asking": "Czeka na Twoją odpowiedź"
+    }
   },
   "tools": {
     "noResultsFound": "Nie znaleziono wyników",
@@ -1392,9 +1405,7 @@
     },
     "editFileFailedNoName": "Próba edycji",
     "file": "plik",
-    "runShellRunning": "Wykonywanie polecenia",
     "terminalWaitRunning": "Oczekiwanie na zakończenie terminala",
-    "runShellDone": "Wykonano polecenie",
     "runShellFailed": "Polecenie nieudane",
     "runCommands": "Wykonaj polecenia",
     "terminalSummary": {
@@ -1560,8 +1571,6 @@
     "killProcessFailed": "Nie udało się zabić procesu",
     "listDirCount_one": "{{count}} katalog",
     "listDirCount_other": "{{count}} katalogów",
-    "listFileCount_one": "{{count}} plik",
-    "listFileCount_other": "{{count}} plików",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (skrócono na potrzeby wyświetlenia)",
     "repeatedErrorNotice": "Ten sam błąd wystąpił {{count}} razy, Agent ponawia próbę",
@@ -2135,7 +2144,11 @@
     "orgSendMessageRunning": "Wysyłanie wiadomości do {{recipient}}",
     "orgSendMessageDone": "Wysłano wiadomość do {{recipient}}",
     "orgSendMessageFailed": "Nie udało się wysłać wiadomości do {{recipient}}",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Wykonywanie polecenia",
+    "runCommandDone": "Wykonano polecenie",
+    "nFiles_one": "{{count}} plik",
+    "nFiles_other": "{{count}} plików"
   },
   "hoverCard": {
     "commits": "Commity",
@@ -2157,7 +2170,6 @@
     },
     "createTarget": {
       "agentSession": "Sesja Agent",
-      "manageAgents": "Zarządzaj Agents / Skills",
       "project": "Utwórz projekt",
       "parallelRun": "Uruchomienie równoległe",
       "workItem": "Utwórz Work Item"
@@ -2202,6 +2214,9 @@
     "launchpadQuestion": "Co chcesz zbudować za pomocą",
     "launchpadQuestionSuffix": "?",
     "manualLaunchpadQuestion": "Co chcesz zbudować?",
+    "planLaunchpadQuestion": "Co chcesz zaplanować za pomocą",
+    "planLaunchpadQuestionSuffix": "?",
+    "manualPlanLaunchpadQuestion": "Co chcesz zaplanować?",
     "start": "Start",
     "assign": "Przypisz",
     "send": "Wyślij",
@@ -2722,7 +2737,8 @@
     "update": {
       "titleStatus": "Aktualizuj status zadania",
       "titleDetail": "Aktualizuj szczegóły zadania",
-      "markedAs": "Oznaczono jako {{status}}"
+      "markedAs": "Oznaczono jako {{status}}",
+      "title": "Zaktualizowano zadanie"
     },
     "get": {
       "title": "Wyświetl szczegóły zadania"
@@ -2878,5 +2894,15 @@
       "skipped": "Pominięte",
       "pending": "Uruchamianie"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
+  },
+  "tooltips": {
+    "hidePanel": "Ukryj panel"
+  },
+  "titleBar": {
+    "showDevTools": "Pokaż DevTools",
+    "hideDevTools": "Ukryj DevTools"
   }
 }

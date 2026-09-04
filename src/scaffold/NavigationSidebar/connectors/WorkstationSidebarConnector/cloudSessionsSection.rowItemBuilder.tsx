@@ -2,15 +2,15 @@
  * Builds one `NavigationMenuItem` row for a Team Sessions fork thread
  * (`cloudSessionsSection.tsx`): icon/title/relative-time, the unresolved
  * comments badge, live-viewer chips, and the row's hover actions (Fork,
- * overflow menu with copy-url/remove). Split out because it is the single
+ * pin, and the canonical Team Conversation menu). Split out because it is the single
  * largest piece of that section's row-construction logic.
  */
 import type { TFunction } from "i18next";
 import { useAtomValue } from "jotai";
-import { GitFork, Loader2, MoreHorizontal, Pin, PinOff } from "lucide-react";
 import { useCallback } from "react";
 
-import Message from "@src/components/Message";
+import PersonAvatar from "@src/components/PersonAvatar";
+import { dismissHoverCard } from "@src/components/SessionHoverCard/singletonStore";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import {
   discussionSeenCountsAtom,
@@ -33,10 +33,23 @@ import {
 import type { Org2CloudPresenceEntry } from "@src/features/Org2Cloud/org2CloudPresenceAtom";
 import { viewersForSession } from "@src/features/Org2Cloud/org2CloudPresenceAtom";
 import { useCloudSessionDownloadProgressEntry } from "@src/features/Org2Cloud/useCloudSessionDownloadSurface";
+import { findImportedSession } from "@src/features/TeamCollaboration/engine/collabSyncEngineHelpers";
+import {
+  CloudIcon,
+  GitForkIcon,
+  HugeiconsIcon,
+  Loading03Icon,
+  MoreHorizontalIcon,
+  PinIcon,
+  PinOffIcon,
+} from "@src/icons";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
-import { copyText } from "@src/util/data/clipboard";
-import { popupNativeMenu } from "@src/util/platform/tauri/nativeMenuPopup";
+import type { Session } from "@src/store/session";
+import {
+  type NativeMenuItemOptions,
+  popupNativeMenu,
+} from "@src/util/platform/tauri/nativeMenuPopup";
 import { resolveSessionDisplayMetadata } from "@src/util/session/sessionDisplayMetadata";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
@@ -66,11 +79,13 @@ const RowBusyIndicator: React.FC<{
       data-testid={`cloud-session-row-busy-${bareSessionId}`}
     >
       {percent !== null && (
-        <span className="text-[9px] font-medium tabular-nums leading-none text-text-3">
+        <span className="text-[9px] leading-none font-medium text-text-3 tabular-nums">
           {percent}%
         </span>
       )}
-      <Loader2
+      <HugeiconsIcon
+        icon={Loading03Icon}
+        data-icon="loader-2"
         aria-hidden="true"
         className="size-3.5 animate-spin text-text-3"
       />
@@ -81,10 +96,17 @@ const RowBusyIndicator: React.FC<{
 interface UseCloudSessionRowItemBuilderParams {
   presenceMap: Record<string, Record<string, Org2CloudPresenceEntry>>;
   selfUserId: string | null;
+  sessions: readonly Session[];
+  /** Source ids proven to be writable originals on this device. */
+  localOwnSessionIds: ReadonlySet<string>;
+  /** Cloud deployment identity used by imported replay copies. */
+  sourceEndpointUrl: string | undefined;
   t: TFunction;
   tCommon: TFunction;
   runFork: (row: RemoteTeammateSessionMetadata) => void;
-  hideRemoteSession: (row: RemoteTeammateSessionMetadata) => void;
+  buildNativeMenuItems: (
+    row: RemoteTeammateSessionMetadata
+  ) => NativeMenuItemOptions[];
   /** Per-row in-flight replay/fork registry — busy rows render a spinner. */
   busySessionRows: ReadonlyMap<string, CloudSessionBusyEntry>;
   /** Viewer-local pin keys (`<orgId>|<rowId>`); never a property of the shared row. */
@@ -92,6 +114,34 @@ interface UseCloudSessionRowItemBuilderParams {
   toggleRemoteSessionPin: (orgId: string, rowId: string) => void;
   /** Read-only surfaces (ORG2 Web) reuse row chrome without desktop-only actions. */
   readOnlySurface?: boolean;
+}
+
+/**
+ * Whether a cloud row already has a usable local identity on this device.
+ * Own originals and imported replay copies are separate persistence shapes,
+ * so both must participate in the sidebar's cloud-only indicator.
+ */
+export function cloudSessionHasLocalCopy(
+  row: RemoteTeammateSessionMetadata,
+  sessions: readonly Session[],
+  selfUserId: string | null,
+  localOwnSessionIds: ReadonlySet<string>,
+  sourceEndpointUrl: string | undefined
+): boolean {
+  if (
+    row.ownerUserId === selfUserId &&
+    localOwnSessionIds.has(row.sourceSessionId)
+  ) {
+    return true;
+  }
+  return Boolean(
+    findImportedSession(
+      sessions,
+      row.orgId,
+      row.sourceSessionId,
+      sourceEndpointUrl
+    )
+  );
 }
 
 export type BuildCloudSessionRowItem = (
@@ -103,10 +153,13 @@ export type BuildCloudSessionRowItem = (
 export function useCloudSessionRowItemBuilder({
   presenceMap,
   selfUserId,
+  sessions,
+  localOwnSessionIds,
+  sourceEndpointUrl,
   t,
   tCommon,
   runFork,
-  hideRemoteSession,
+  buildNativeMenuItems,
   busySessionRows,
   pinnedRemoteSessionIds,
   toggleRemoteSessionPin,
@@ -131,7 +184,7 @@ export function useCloudSessionRowItemBuilder({
       });
       const sessionIcon =
         isFork && !display.externalSource && !display.agentType
-          ? GitFork
+          ? GitForkIcon
           : resolveAgentIcon(display.agentIconId);
       // Unread discussion messages: the 0014 live-comment counters minus the
       // viewer-local seen watermarks (stamped while the conversation is
@@ -162,7 +215,7 @@ export function useCloudSessionRowItemBuilder({
             aria-label={t("cloud.comments.unreadBadge", {
               count: unreadComments,
             })}
-            className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary-6 px-1 text-[9px] font-medium leading-none text-white"
+            className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary-6 px-1 text-[9px] leading-none font-medium text-white"
           >
             {unreadComments}
           </span>
@@ -188,9 +241,9 @@ export function useCloudSessionRowItemBuilder({
                 title={t("cloud.sidebar.viewerTooltip", {
                   name: viewer.displayName,
                 })}
-                className="inline-flex size-3.5 items-center justify-center rounded-full bg-success-6 text-[8px] font-semibold leading-none text-white ring-1 ring-bg-1"
+                className="inline-flex rounded-full ring-1 ring-bg-1"
               >
-                {(viewer.displayName || "?").slice(0, 1).toUpperCase()}
+                <PersonAvatar name={viewer.displayName} size={14} />
               </span>
             ))}
             {overflowViewers.length > 0 && (
@@ -201,7 +254,7 @@ export function useCloudSessionRowItemBuilder({
                 })}\n${overflowViewers
                   .map((viewer) => viewer.displayName)
                   .join(", ")}`}
-                className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-fill-3 px-0.5 text-[8px] font-semibold leading-none text-text-2 ring-1 ring-bg-1"
+                className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-fill-3 px-0.5 text-[8px] leading-none font-semibold text-text-2 ring-1 ring-bg-1"
               >
                 +{overflowViewers.length}
               </span>
@@ -225,20 +278,43 @@ export function useCloudSessionRowItemBuilder({
         ? false
         : isRemoteSessionPinned(pinnedRemoteSessionIds, row.orgId, row.id);
       const pinIndicator = isPinned ? (
-        <Pin
+        <HugeiconsIcon
+          icon={PinIcon}
+          data-icon="pin"
           size={11}
           strokeWidth={2}
           className="shrink-0 text-text-3"
           aria-label="Pinned"
         />
       ) : null;
+      const cloudOnlyIndicator = cloudSessionHasLocalCopy(
+        row,
+        sessions,
+        selfUserId,
+        localOwnSessionIds,
+        sourceEndpointUrl
+      ) ? null : (
+        <HugeiconsIcon
+          icon={CloudIcon}
+          data-icon="cloud"
+          size={12}
+          strokeWidth={2}
+          className="shrink-0 text-text-3"
+          aria-label={t("sidebar.groups.cloud")}
+        />
+      );
       const trailingElement =
-        pinIndicator || busyIndicator || viewerChips || commentsBadge ? (
+        pinIndicator ||
+        busyIndicator ||
+        viewerChips ||
+        commentsBadge ||
+        cloudOnlyIndicator ? (
           <span className="inline-flex items-center gap-1">
             {pinIndicator}
             {busyIndicator}
             {viewerChips}
             {commentsBadge}
+            {cloudOnlyIndicator}
           </span>
         ) : undefined;
       // Strip fork glyph(s) baked into pushed titles; the GitFork icon carries provenance.
@@ -249,6 +325,7 @@ export function useCloudSessionRowItemBuilder({
         label: displayTitle,
         searchText: `${displayTitle} ${row.ownerDisplayName}`,
         dataTestId: `sidebar-cloud-session-item-${bareSessionId}`,
+        opensChatPanelTab: true,
         pinned: isPinned,
         // Prefer the source/agent brand used by regular sessions. Cloud
         // scope is context, not the session's icon identity.
@@ -275,52 +352,27 @@ export function useCloudSessionRowItemBuilder({
         // standard overflow menu, whether this row is a leaf or thread root.
         item.rowActions = [
           {
-            icon: GitFork,
+            icon: GitForkIcon,
             label: t("cloud.orgPanel.fork"),
             onClick: () => runFork(row),
           },
           // One click on hover, matching a local row: a teammate's session is
           // pinned often enough that burying it in the overflow menu is a tax.
           {
-            icon: isPinned ? PinOff : Pin,
+            icon: isPinned ? PinOffIcon : PinIcon,
             label: isPinned
               ? tCommon("sessions:chat.unpinSession", "Unpin")
               : tCommon("sessions:chat.pinSession", "Pin"),
             onClick: () => toggleRemoteSessionPin(row.orgId, row.id),
           },
           {
-            icon: MoreHorizontal,
+            icon: MoreHorizontalIcon,
             label: tCommon("actions.more"),
             onClick: () => {
+              dismissHoverCard();
               void popupNativeMenu({
                 source: "cloud-session-row",
-                buildItems: () => [
-                  {
-                    text: t("cloud.sidebar.copyUrl"),
-                    action: () => {
-                      void copyText(buildCloudSessionReference(row))
-                        .then(() => {
-                          Message.success(tCommon("actions.copied", "Copied"));
-                        })
-                        .catch(() => {
-                          Message.error(
-                            tCommon("actions.copyFailed", "Copy failed")
-                          );
-                        });
-                    },
-                  },
-                  {
-                    text: isPinned
-                      ? tCommon("sessions:chat.unpinSession", "Unpin")
-                      : tCommon("sessions:chat.pinSession", "Pin"),
-                    action: () => toggleRemoteSessionPin(row.orgId, row.id),
-                  },
-                  { item: "Separator" as const },
-                  {
-                    text: tCommon("actions.remove", "Remove"),
-                    action: () => hideRemoteSession(row),
-                  },
-                ],
+                buildItems: () => buildNativeMenuItems(row),
               });
             },
           },
@@ -330,8 +382,11 @@ export function useCloudSessionRowItemBuilder({
     },
     [
       busySessionRows,
-      hideRemoteSession,
+      buildNativeMenuItems,
+      localOwnSessionIds,
       pinnedRemoteSessionIds,
+      sessions,
+      sourceEndpointUrl,
       toggleRemoteSessionPin,
       presenceMap,
       readOnlySurface,

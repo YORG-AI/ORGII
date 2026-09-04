@@ -19,14 +19,15 @@
  * <ModelIcon modelName="claude-3-sonnet" />
  * ```
  */
-import { Box } from "lucide-react";
 import React, { memo, useMemo } from "react";
 
 import type { ModelType } from "@src/api/types/keys";
+import { DECORATIVE_ICON_CLASS } from "@src/config/appearance/decorativeIcons";
 import {
   getModelAliasIcon,
   useModelAliasRegistryVersion,
 } from "@src/hooks/models/modelAliasRegistry";
+import { BoxIcon, HugeiconsIcon } from "@src/icons";
 
 import {
   ICON_MAP,
@@ -41,7 +42,6 @@ export type { IconProvider } from "./config";
 export {
   getIconProvider,
   getIconProviderFromModelName,
-  hasModelIcon,
   THEMEABLE_ICONS,
 } from "./config";
 
@@ -49,7 +49,7 @@ export {
 // Types
 // ============================================
 
-export interface ModelIconProps {
+interface ModelIconProps {
   /** ModelType for business logic lookups (preferred) */
   agentType?: ModelType | string;
   /** Direct icon provider type (UI layer) */
@@ -124,8 +124,8 @@ const ModelIcon: React.FC<ModelIconProps> = memo(
     // Get numeric size
     const numericSize = typeof size === "number" ? size : SIZE_MAP[size] || 20;
 
-    // Get icon component
-    const Icon = ICON_MAP[iconProvider];
+    // Get icon source: asset URL (brand artwork) or svgr component (currentColor)
+    const iconSource = ICON_MAP[iconProvider];
 
     // Determine if icon uses currentColor (themeable)
     const isThemeable = THEMEABLE_ICONS.has(iconProvider);
@@ -141,15 +141,23 @@ const ModelIcon: React.FC<ModelIconProps> = memo(
 
     const monochromeClass = monochrome ? "brightness-0 invert" : "";
 
+    // Themeable icons already draw in currentColor, and the `monochrome` prop
+    // (white-on-dark tooltips) is a stronger, deliberate override. Only brand
+    // artwork left in its own palette is subject to the monochrome setting.
+    const decorativeClass =
+      isThemeable || monochrome ? "" : DECORATIVE_ICON_CLASS;
+
     // No icon found
-    if (!Icon) {
+    if (!iconSource) {
       if (fallback) {
         return <>{fallback}</>;
       }
       // Default fallback: Box icon
       const fallbackColor = isSelected ? "text-primary-6" : "text-text-2";
       return (
-        <Box
+        <HugeiconsIcon
+          icon={BoxIcon}
+          data-icon="box"
           size={numericSize}
           className={`${fallbackColor} ${className}`.trim()}
           style={style}
@@ -157,11 +165,30 @@ const ModelIcon: React.FC<ModelIconProps> = memo(
       );
     }
 
+    const iconClassName =
+      `${colorClass} ${monochromeClass} ${decorativeClass} ${className}`.trim();
+
+    if (typeof iconSource === "string") {
+      return (
+        <img
+          src={iconSource}
+          width={numericSize}
+          height={numericSize}
+          className={iconClassName}
+          style={style}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+        />
+      );
+    }
+
+    const Icon = iconSource;
     return (
       <Icon
         width={numericSize}
         height={numericSize}
-        className={`${colorClass} ${monochromeClass} ${className}`.trim()}
+        className={iconClassName}
         style={style}
       />
     );

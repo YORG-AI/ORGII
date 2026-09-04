@@ -1,8 +1,16 @@
-export const GLOBAL_THEME_IDS = [
-  "github-light",
-  "github-dark",
-  "orgii-high-contrast",
-] as const;
+/**
+ * Global appearance mode.
+ *
+ * This module answers exactly one question: is the app currently painting in
+ * light or in dark, and which base stylesheet backs that. *Which* palette is
+ * used within a variant is a separate concern owned by `skins/registry.ts` —
+ * the user picks a light skin and a dark skin independently.
+ *
+ * Historically each named theme was its own stylesheet (`github-light`,
+ * `github-dark`, `orgii-high-contrast`). Those ids are kept as legacy aliases so
+ * existing `settings.jsonc` files and `localStorage` entries keep resolving.
+ */
+export const GLOBAL_THEME_IDS = ["light", "dark"] as const;
 
 export type GlobalThemeId = (typeof GLOBAL_THEME_IDS)[number];
 
@@ -23,75 +31,54 @@ export const APPEARANCE_MODE = {
   SYSTEM: "system",
   LIGHT: "light",
   DARK: "dark",
-  HIGH_CONTRAST: "highContrast",
 } as const;
 
 export type AppearanceMode =
   (typeof APPEARANCE_MODE)[keyof typeof APPEARANCE_MODE];
 
-export type ThemePrimaryColorPreset =
-  | "blue"
-  | "violet"
-  | "green"
-  | "teal"
-  | "orange"
-  | "gold"
-  | "red"
-  | "rose"
-  | "mono";
-
-export type ThemeCssPath =
-  | "/orgii_main.css"
-  | "/orgii_dark.css"
-  | "/orgii_high_contrast.css";
+export type ThemeCssPath = "/orgii_main.css" | "/orgii_dark.css";
 
 export interface GlobalThemeDefinition {
   id: GlobalThemeId;
   i18nKey: string;
   baseCssPath: ThemeCssPath;
   isDark: boolean;
-  defaultPrimaryColor: ThemePrimaryColorPreset;
 }
 
 const ORGII_LIGHT_THEME: GlobalThemeDefinition = {
-  id: "github-light",
-  i18nKey: "general.themeOptions.githubLight",
+  id: "light",
+  i18nKey: "general.light",
   baseCssPath: "/orgii_main.css",
   isDark: false,
-  defaultPrimaryColor: "blue",
 };
 
 const ORGII_DARK_THEME: GlobalThemeDefinition = {
-  id: "github-dark",
-  i18nKey: "general.themeOptions.githubDark",
+  id: "dark",
+  i18nKey: "general.dark",
   baseCssPath: "/orgii_dark.css",
   isDark: true,
-  defaultPrimaryColor: "blue",
-};
-
-const ORGII_HIGH_CONTRAST_THEME: GlobalThemeDefinition = {
-  id: "orgii-high-contrast",
-  i18nKey: "general.themeOptions.orgiiHighContrast",
-  baseCssPath: "/orgii_high_contrast.css",
-  isDark: true,
-  defaultPrimaryColor: "blue",
 };
 
 export const GLOBAL_THEMES: Record<GlobalThemeId, GlobalThemeDefinition> = {
-  "github-light": ORGII_LIGHT_THEME,
-  "github-dark": ORGII_DARK_THEME,
-  "orgii-high-contrast": ORGII_HIGH_CONTRAST_THEME,
+  light: ORGII_LIGHT_THEME,
+  dark: ORGII_DARK_THEME,
 };
 
+/**
+ * `orgii-high-contrast` was removed when skins landed. It resolves to dark so
+ * anyone who had it selected keeps a dark app instead of silently snapping to
+ * light; the accessibility gap is tracked separately from the skin work.
+ */
 export const LEGACY_THEME_ALIASES = {
-  light: "github-light",
-  dark: "github-dark",
-  "/orgii_main.css": "github-light",
-  "/orgii_dark.css": "github-dark",
-  "/orgii_high_contrast.css": "orgii-high-contrast",
+  "github-light": "light",
+  "github-dark": "dark",
+  "orgii-high-contrast": "dark",
+  "/orgii_main.css": "light",
+  "/orgii_dark.css": "dark",
+  "/orgii_high_contrast.css": "dark",
 } as const;
 
-export const DEFAULT_GLOBAL_THEME_ID: GlobalThemeId = "github-light";
+export const DEFAULT_GLOBAL_THEME_ID: GlobalThemeId = "light";
 export const DEFAULT_GLOBAL_THEME_PREFERENCE: GlobalThemePreference =
   THEME_PREFERENCE.SYSTEM;
 
@@ -113,9 +100,7 @@ export function getSystemColorScheme(): SystemColorScheme {
 }
 
 export function getSystemThemeId(): GlobalThemeId {
-  return getSystemColorScheme() === APPEARANCE_MODE.DARK
-    ? "github-dark"
-    : "github-light";
+  return getSystemColorScheme() === APPEARANCE_MODE.DARK ? "dark" : "light";
 }
 
 export function getSystemThemeEnglishLabel(
@@ -179,9 +164,8 @@ export const GLOBAL_THEME_GROUPS: Record<
   Exclude<AppearanceMode, typeof APPEARANCE_MODE.SYSTEM>,
   GlobalThemeId[]
 > = {
-  [APPEARANCE_MODE.LIGHT]: ["github-light"],
-  [APPEARANCE_MODE.DARK]: ["github-dark"],
-  [APPEARANCE_MODE.HIGH_CONTRAST]: ["orgii-high-contrast"],
+  [APPEARANCE_MODE.LIGHT]: ["light"],
+  [APPEARANCE_MODE.DARK]: ["dark"],
 };
 
 export function getAppearanceModeForTheme(
@@ -191,9 +175,6 @@ export function getAppearanceModeForTheme(
   if (normalizedPreference === THEME_PREFERENCE.SYSTEM) {
     return APPEARANCE_MODE.SYSTEM;
   }
-  if (normalizedPreference === "orgii-high-contrast") {
-    return APPEARANCE_MODE.HIGH_CONTRAST;
-  }
   return GLOBAL_THEMES[normalizedPreference].isDark
     ? APPEARANCE_MODE.DARK
     : APPEARANCE_MODE.LIGHT;
@@ -202,9 +183,6 @@ export function getAppearanceModeForTheme(
 export function normalizeAppearanceMode(value: string): AppearanceMode {
   if (value === APPEARANCE_MODE.SYSTEM) return APPEARANCE_MODE.SYSTEM;
   if (value === APPEARANCE_MODE.DARK) return APPEARANCE_MODE.DARK;
-  if (value === APPEARANCE_MODE.HIGH_CONTRAST) {
-    return APPEARANCE_MODE.HIGH_CONTRAST;
-  }
   return APPEARANCE_MODE.LIGHT;
 }
 
@@ -234,5 +212,4 @@ export const APPEARANCE_MODE_OPTIONS = [
   APPEARANCE_MODE.SYSTEM,
   APPEARANCE_MODE.LIGHT,
   APPEARANCE_MODE.DARK,
-  APPEARANCE_MODE.HIGH_CONTRAST,
 ] as const;

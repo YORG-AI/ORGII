@@ -12,21 +12,16 @@ import ComposerBar from "@src/components/ComposerBar";
 import ComposerShell from "@src/components/ComposerShell";
 import type { ComposerShellProps } from "@src/components/ComposerShell";
 
-export interface ComposerSurfaceProps extends Omit<
-  ComposerShellProps,
-  "children"
-> {
+interface ComposerSurfaceProps extends Omit<ComposerShellProps, "children"> {
   children?: React.ReactNode;
   /** Optional content at the left edge of the shared bottom action row. */
   leadingActions?: React.ReactNode;
   /** Optional content at the right edge of the shared bottom action row. */
   trailingActions?: React.ReactNode;
-  /** Enables the standard add-content control when paired with `onUpload`. */
+  /** Pill controls rendered after the + button (mode, model, settings…). */
+  pills?: React.ReactNode;
+  /** Enables the standard add-context control. */
   onAddContent?: () => void;
-  /** Enables the standard add-content control when paired with `onAddContent`. */
-  onUpload?: () => void;
-  onOpenSkillsTools?: () => void;
-  dropdownDirection?: "up" | "down";
   showContextInfo?: boolean;
   repoPath?: string;
   secondaryControlsPosition?: "left" | "right";
@@ -38,10 +33,8 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
       children,
       leadingActions,
       trailingActions,
+      pills,
       onAddContent,
-      onUpload,
-      onOpenSkillsTools,
-      dropdownDirection = "up",
       showContextInfo = false,
       repoPath,
       secondaryControlsPosition = "left",
@@ -52,7 +45,8 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
     const hasActionBar = Boolean(
       leadingActions ||
       trailingActions ||
-      (onAddContent && onUpload) ||
+      pills ||
+      onAddContent ||
       showContextInfo
     );
 
@@ -62,13 +56,11 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
         {hasActionBar ? (
           <ComposerBar
             onAddContent={onAddContent}
-            onUpload={onUpload}
-            onOpenSkillsTools={onOpenSkillsTools}
-            dropdownDirection={dropdownDirection}
             leftPrefix={leadingActions}
+            pills={pills}
             repoPath={repoPath}
             submitButton={trailingActions}
-            hideAddButton={!onAddContent || !onUpload}
+            hideAddButton={!onAddContent}
             showContextInfo={showContextInfo}
             secondaryControlsPosition={secondaryControlsPosition}
           />

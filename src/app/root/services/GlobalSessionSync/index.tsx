@@ -12,6 +12,7 @@
 import React from "react";
 
 import { useEventStoreBridge } from "@src/engines/SessionCore/core/store/useEventStoreBridge";
+import GlobalPlanningIndicatorBridgeSync from "@src/engines/SessionCore/hooks/replay/GlobalPlanningIndicatorBridgeSync";
 import { useQueueDispatch } from "@src/engines/SessionCore/hooks/session/useQueueDispatch";
 import { useBackgroundSessionMonitor } from "@src/hooks/cliSession/useBackgroundSessionMonitor";
 import { useNotificationApprovalBridge } from "@src/hooks/notifications/useNotificationApprovalBridge";
@@ -25,7 +26,7 @@ const GlobalSessionSync: React.FC = () => {
   useNativeSessionStatusMonitor();
   useTeamInboxNotifications();
   useQueueDispatch();
-  return null;
+  return <GlobalPlanningIndicatorBridgeSync />;
 };
 
 export default GlobalSessionSync;

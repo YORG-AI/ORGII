@@ -128,13 +128,7 @@ export interface ChatPanelTabsState {
 /** Fixed id of the shared cloud/local organization management tab. */
 export const ORGANIZATION_TAB_ID = "chat-organization-management";
 
-type ChatPanelTabStationAccess = "always" | "wide-only";
-
-/**
- * Minimum viewport width at which standalone Chat Panel surfaces may share
- * the workbench with a Station pane.
- */
-export const CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX = 1920;
+type ChatPanelTabStationAccess = "always" | "never";
 
 /**
  * When a Chat Panel tab can share the workbench with a Station surface.
@@ -142,8 +136,7 @@ export const CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX = 1920;
  * This record is intentionally exhaustive: a new tab type must make an
  * explicit layout decision instead of silently inheriting an unsafe default.
  * Conversation-oriented tabs can always remain docked beside the Station;
- * standalone management and detail surfaces unlock the split layout only on
- * a wide desktop viewport.
+ * standalone management and detail surfaces always own the full workbench.
  */
 const CHAT_PANEL_TAB_STATION_ACCESS: Record<
   ChatPanelTabType,
@@ -154,16 +147,16 @@ const CHAT_PANEL_TAB_STATION_ACCESS: Record<
   "start-page": "always",
   channel: "always",
   "run-group": "always",
-  runtime: "wide-only",
-  "team-inbox": "wide-only",
-  "work-management": "wide-only",
-  workspace: "wide-only",
-  organization: "wide-only",
-  "work-item": "wide-only",
-  "github-issue": "wide-only",
-  "github-pr": "wide-only",
-  project: "wide-only",
-  explore: "wide-only",
+  runtime: "never",
+  "team-inbox": "never",
+  "work-management": "never",
+  workspace: "never",
+  organization: "never",
+  "work-item": "never",
+  "github-issue": "never",
+  "github-pr": "never",
+  project: "never",
+  explore: "never",
 };
 
 /**
@@ -188,29 +181,20 @@ const PERSISTED_CHAT_PANEL_TAB_TYPES = new Set<ChatPanelTabType>([
 ]);
 
 export function isChatPanelTabStationAvailable(
-  tabOrType: ChatPanelTab | ChatPanelTabType | null | undefined,
-  viewportWidth: number | undefined
+  tabOrType: ChatPanelTab | ChatPanelTabType | null | undefined
 ): boolean {
   const type =
     typeof tabOrType === "string" ? tabOrType : (tabOrType?.type ?? null);
   if (type === null) return true;
-  const access = CHAT_PANEL_TAB_STATION_ACCESS[type];
-  return (
-    access === "always" ||
-    (viewportWidth !== undefined &&
-      viewportWidth >= CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX)
-  );
+  return CHAT_PANEL_TAB_STATION_ACCESS[type] === "always";
 }
 
 /** Resolve the layout without mutating the user's persisted maximize choice. */
 export function resolveChatPanelMaximizedForLayout(
   userMaximized: boolean,
-  tabOrType: ChatPanelTab | ChatPanelTabType | null | undefined,
-  viewportWidth: number | undefined
+  tabOrType: ChatPanelTab | ChatPanelTabType | null | undefined
 ): boolean {
-  return (
-    userMaximized || !isChatPanelTabStationAvailable(tabOrType, viewportWidth)
-  );
+  return userMaximized || !isChatPanelTabStationAvailable(tabOrType);
 }
 
 export function getWorkManagementFallbackTitle(
@@ -219,6 +203,8 @@ export function getWorkManagementFallbackTitle(
   switch (section) {
     case WORK_MANAGEMENT_SECTION.PROJECTS:
       return "Projects";
+    case WORK_MANAGEMENT_SECTION.INBOX:
+      return "Inbox";
     case WORK_MANAGEMENT_SECTION.GITHUB_ISSUES:
       return "GitHub Issues";
     case WORK_MANAGEMENT_SECTION.GITHUB_PRS:

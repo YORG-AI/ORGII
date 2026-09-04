@@ -1,19 +1,20 @@
 import { useAtomValue } from "jotai";
-import { Infinity, Terminal, X } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  TreeRowAction,
-  TreeRowBase,
-  type TreeRowNode,
-} from "@src/components/TreeRow";
+import { ProcessStopButton } from "@src/components/ProcessStopButton";
+import { TreeRowBase, type TreeRowNode } from "@src/components/TreeRow";
 // `types`, not the `exports` barrel — the barrel re-exports the TerminalCore
 // component and would drag xterm into the sidebar-modules chunk.
 import {
   type TerminalSession,
   getTerminalDisplayTitle,
 } from "@src/engines/TerminalCore/types";
+import {
+  Infinity01Icon,
+  ComputerTerminal01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 import { shellProcessMapAtom } from "@src/store/session/shellProcessAtom";
 
 interface AgentSessionRowProps {
@@ -31,21 +32,30 @@ export const AgentSessionRow: React.FC<AgentSessionRowProps> = memo(
       name: title,
       path: title,
       type: "file",
-      icon: <Terminal size={14} strokeWidth={1.75} />,
+      icon: (
+        <HugeiconsIcon
+          icon={ComputerTerminal01Icon}
+          data-icon="terminal"
+          size={14}
+          strokeWidth={1.75}
+        />
+      ),
     };
 
     return (
       <TreeRowBase node={node} depth={0} isSelected={isActive} onClick={onOpen}>
-        <Infinity
+        <HugeiconsIcon
+          icon={Infinity01Icon}
+          data-icon="infinity"
           size={14}
           strokeWidth={1.75}
-          className="shrink-0 text-primary-6 group-hover/item:hidden"
+          className="shrink-0 text-primary-6 group-focus-within/item:hidden group-hover/item:hidden"
         />
-        <TreeRowAction
-          icon={X}
+        <ProcessStopButton
+          size="sm"
+          className="hidden group-focus-within/item:flex group-hover/item:flex"
           onClick={onClose}
-          title={t("controlTower.sidebar.stopAgentProcess")}
-          variant="danger"
+          label={t("controlTower.sidebar.stopAgentProcess")}
         />
       </TreeRowBase>
     );
@@ -69,16 +79,23 @@ export const PtySessionRow: React.FC<PtySessionRowProps> = memo(
       name: title,
       path: session.id,
       type: "file",
-      icon: <Terminal size={14} strokeWidth={1.75} />,
+      icon: (
+        <HugeiconsIcon
+          icon={ComputerTerminal01Icon}
+          data-icon="terminal"
+          size={14}
+          strokeWidth={1.75}
+        />
+      ),
     };
 
     return (
       <TreeRowBase node={node} depth={0} isSelected={isActive} onClick={onOpen}>
-        <TreeRowAction
-          icon={X}
+        <ProcessStopButton
+          size="sm"
+          className="hidden group-focus-within/item:flex group-hover/item:flex"
           onClick={onClose}
-          title={t("controlTower.sidebar.closeSession")}
-          variant="danger"
+          label={t("common:tooltips.killTerminal")}
         />
       </TreeRowBase>
     );

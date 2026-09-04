@@ -11,9 +11,9 @@
  * - Static content (Kanban, Changes) - direct use
  * - Dynamic content (Follow) - building block for SimulatorContentArea
  */
-import type { LucideIcon } from "lucide-react";
 import React, { memo } from "react";
 
+import type { IconSvgElement } from "@src/icons";
 import type { StationMode } from "@src/store/ui/simulatorAtom";
 
 import SimulatorTitleBar from "../SimulatorTitleBar";
@@ -27,11 +27,11 @@ import {
 // Types
 // ============================================
 
-export interface SimulatorFrameProps {
+interface SimulatorFrameProps {
   /** Title to display in the header */
   title: string;
-  /** Lucide icon before title (e.g. same as dock for the active tool). */
-  titleCenterIcon?: LucideIcon;
+  /** Icon glyph before title (e.g. same as dock for the active tool). */
+  titleCenterIcon?: IconSvgElement;
   /** Border radius option: 12 (default simulator) or 20 (WorkStation) */
   radius?: FrameRadius;
   /** Custom header background color (e.g., IDE title bar theme) */
@@ -112,6 +112,3 @@ export const SimulatorFrame: React.FC<SimulatorFrameProps> = memo(
 SimulatorFrame.displayName = "SimulatorFrame";
 
 export default SimulatorFrame;
-
-// Re-export types for external use
-export type { FrameRadius } from "./config";

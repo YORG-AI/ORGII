@@ -1,19 +1,22 @@
 /**
  * Toast renderer for `Message` — split out of `index.tsx` so framer-motion
- * (and lucide icons) load lazily on the first toast instead of sitting in
+ * (and its icons) load lazily on the first toast instead of sitting in
  * the startup graph of every module that imports the `Message` API.
  */
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  AlertCircle,
-  AlertTriangle,
-  CheckCircle2,
-  Info,
-  X,
-} from "lucide-react";
 import type { FC } from "react";
 import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+
+import AnyIcon from "@src/components/AnyIcon";
+import {
+  Alert01Icon,
+  AlertCircleIcon,
+  Cancel01Icon,
+  CheckmarkCircle01Icon,
+  HugeiconsIcon,
+  InformationCircleIcon,
+} from "@src/icons";
 
 import {
   DEFAULT_DURATION,
@@ -26,11 +29,11 @@ import {
 // Config
 // ============================================
 
-const ICONS: Record<MessageType, typeof CheckCircle2> = {
-  success: CheckCircle2,
-  error: AlertCircle,
-  warning: AlertTriangle,
-  info: Info,
+const ICONS: Record<MessageType, typeof CheckmarkCircle01Icon> = {
+  success: CheckmarkCircle01Icon,
+  error: AlertCircleIcon,
+  warning: Alert01Icon,
+  info: InformationCircleIcon,
 };
 
 const TYPE_STYLES: Record<MessageType, { border: string; icon: string }> = {
@@ -97,7 +100,7 @@ const MessageItem = ({
 
   const IconComponent = ICONS[type];
   const typeStyle = TYPE_STYLES[type];
-  const iconNode = icon || <IconComponent size={18} />;
+  const iconNode = icon || <AnyIcon icon={IconComponent} size={18} />;
   const hasDescription = Boolean(title || download || cancel || action);
   const handleDownload = useCallback(() => {
     const blob =
@@ -156,12 +159,12 @@ const MessageItem = ({
       {/* Content */}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {title && (
-          <div className="text-[13px] font-semibold leading-[1.4] tracking-[-0.01em] text-text-1 max-[480px]:text-xs">
+          <div className="text-[13px] leading-[1.4] font-semibold tracking-[-0.01em] text-text-1 max-[480px]:text-xs">
             {title}
           </div>
         )}
         <div
-          className={`break-words text-[13px] leading-[1.5] max-[480px]:text-xs ${
+          className={`text-[13px] leading-normal wrap-break-word max-[480px]:text-xs ${
             title ? "font-[450] text-text-2" : "font-medium text-text-1"
           }`}
         >
@@ -172,7 +175,7 @@ const MessageItem = ({
             {cancel && (
               <button
                 type="button"
-                className="cursor-pointer border-none bg-transparent p-0 text-xs font-medium leading-[1.2] text-primary-6 hover:text-primary-5 hover:underline"
+                className="cursor-pointer border-none bg-transparent p-0 text-xs leading-[1.2] font-medium text-primary-6 hover:text-primary-5 hover:underline"
                 onClick={handleCancelAction}
               >
                 {cancel.label ?? t("actions.cancel")}
@@ -181,7 +184,7 @@ const MessageItem = ({
             {download && (
               <button
                 type="button"
-                className="cursor-pointer border-none bg-transparent p-0 text-xs font-medium leading-[1.2] text-primary-6 hover:text-primary-5 hover:underline"
+                className="cursor-pointer border-none bg-transparent p-0 text-xs leading-[1.2] font-medium text-primary-6 hover:text-primary-5 hover:underline"
                 onClick={handleDownload}
               >
                 {download.label ?? t("actions.download")}
@@ -190,7 +193,7 @@ const MessageItem = ({
             {action && (
               <button
                 type="button"
-                className="cursor-pointer border-none bg-transparent p-0 text-xs font-semibold leading-[1.2] text-primary-6 hover:text-primary-5 hover:underline"
+                className="cursor-pointer border-none bg-transparent p-0 text-xs leading-[1.2] font-semibold text-primary-6 hover:text-primary-5 hover:underline"
                 onClick={handlePrimaryAction}
               >
                 {action.label}
@@ -203,11 +206,11 @@ const MessageItem = ({
       {/* Close button */}
       {closable && (
         <button
-          className="my-[-2px] ml-1 mr-[-4px] flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-text-3 opacity-60 transition-all duration-150 ease-out hover:bg-white/10 hover:text-text-1 hover:opacity-100 active:scale-95"
+          className="my-[-2px] mr-[-4px] ml-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-text-3 opacity-60 transition-all duration-150 ease-out hover:bg-white/10 hover:text-text-1 hover:opacity-100 active:scale-95"
           onClick={handleClose}
           aria-label={t("actions.close")}
         >
-          <X size={14} />
+          <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={14} />
         </button>
       )}
     </motion.div>

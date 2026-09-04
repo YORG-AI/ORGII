@@ -270,6 +270,71 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
+    async fn gpt_5_6_upper_efforts_reach_both_chat_transports() {
+        crate::test_support::install_crypto_provider_for_tests();
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(|request: &wiremock::Request| {
+                let body: Value = request.body_json().unwrap();
+                if body["stream"] == true {
+                    ResponseTemplate::new(200)
+                        .insert_header("content-type", "text/event-stream")
+                        .set_body_string(concat!(
+                            "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\n",
+                            "data: [DONE]\n\n"
+                        ))
+                } else {
+                    ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                        "choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}]
+                    }))
+                }
+            })
+            .expect(12)
+            .mount(&server)
+            .await;
+
+        let client = OpenAICompatClient::new(
+            ProviderConfig {
+                api_key: "test-key".to_string(),
+                api_base: Some(server.uri()),
+                extra_headers: HashMap::new(),
+                is_azure: false,
+            },
+            find_by_name(provider_id::OPENAI).unwrap(),
+            "gpt-5.6-sol".to_string(),
+        );
+        let messages = [serde_json::json!({"role": "user", "content": "hello"})];
+        for base in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] {
+            for effort in ["xhigh", "max"] {
+                for stream in [false, true] {
+                    let model = format!("{base}-{effort}");
+                    if stream {
+                        client
+                            .chat_streaming(&messages, None, &model, 1024, 0.0, &|_| {}, None)
+                            .await
+                            .unwrap();
+                    } else {
+                        client
+                            .chat(&messages, None, &model, 1024, 0.0)
+                            .await
+                            .unwrap();
+                    }
+                    let requests = server.received_requests().await.unwrap();
+                    let body: Value = requests.last().unwrap().body_json().unwrap();
+                    assert_eq!(body["model"], base);
+                    assert_eq!(body["reasoning_effort"], effort);
+                    assert_eq!(
+                        body.get("stream").and_then(Value::as_bool).unwrap_or(false),
+                        stream
+                    );
+                    assert!(body.get("thinking").is_none());
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
     async fn non_streaming_standard_usage_normalizes_cached_tokens() {
         crate::test_support::install_crypto_provider_for_tests();
 

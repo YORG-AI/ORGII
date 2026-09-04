@@ -10,7 +10,7 @@ import type { ModelType } from "@src/api/tauri/rpc/schemas/validation";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import ModelSelectionBreadcrumb from "@src/components/ModelSelectionBreadcrumb";
 
-export interface ModelPillTooltipContentProps {
+interface ModelPillTooltipContentProps {
   accountName?: string;
   modelLabel: string;
   modelId?: string;

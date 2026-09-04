@@ -1,4 +1,4 @@
-import { createElement } from "react";
+import { type ReactNode, createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -7,8 +7,18 @@ import {
   GitHubWorkItemToolbarActions,
 } from "./GitHubWorkItemList";
 
+vi.mock("@src/components/KeyboardShortcut/ToolbarTooltip", () => ({
+  ToolbarTooltip: ({
+    children,
+    label,
+  }: {
+    children: ReactNode;
+    label: string;
+  }) => createElement("span", { "data-tooltip-label": label }, children),
+}));
+
 describe("GitHubWorkItemToolbarActions", () => {
-  it("renders Refresh before the compact SquarePen create action", () => {
+  it("renders Refresh before the compact square-pencil action", () => {
     const markup = renderToStaticMarkup(
       createElement(GitHubWorkItemToolbarActions, {
         refreshLabel: "Refresh",
@@ -25,16 +35,21 @@ describe("GitHubWorkItemToolbarActions", () => {
     expect(markup.indexOf('aria-label="Refresh"')).toBeLessThan(
       markup.indexOf('aria-label="Create issue"')
     );
-    expect(markup).toContain('class="lucide lucide-square-pen"');
-    expect(markup).toContain('width="14"');
-    expect(markup).toContain('height="14"');
-    expect(markup.match(/border-border-2 bg-bg-2/g)).toHaveLength(2);
-    expect(markup.match(/height:32px/g)).toHaveLength(2);
+    expect(markup).toContain('data-tooltip-label="Refresh"');
+    expect(markup).toContain('data-tooltip-label="Create issue"');
+    expect(markup).toContain('data-icon="square-pen"');
+    expect(markup).not.toContain('data-icon="plus"');
+    expect(markup).toContain('width="16"');
+    expect(markup).toContain('height="16"');
+    expect(markup.match(/border-0 bg-transparent text-text-2/g)).toHaveLength(
+      2
+    );
+    expect(markup.match(/height:28px/g)).toHaveLength(2);
   });
 });
 
 describe("GitHubWorkItemStateTabs", () => {
-  it("renders 32px text-and-icon Open and Closed buttons", () => {
+  it("renders a compact, icon-only pill switch for Open and Closed", () => {
     const markup = renderToStaticMarkup(
       createElement(GitHubWorkItemStateTabs, {
         activeTab: "open",
@@ -54,15 +69,20 @@ describe("GitHubWorkItemStateTabs", () => {
 
     expect(markup).toContain('data-testid="github-work-items-state-open"');
     expect(markup).toContain('data-testid="github-work-items-state-closed"');
-    expect(markup).toContain("lucide-circle-dot");
-    expect(markup).toContain("lucide-circle-check");
+    expect(markup).toContain('data-icon="circle-dot"');
+    expect(markup).toContain('data-icon="check-circle-2"');
     expect(markup).toContain("text-success-6");
     expect(markup).toContain("text-purple-6");
-    expect(markup).toContain(">Open</span>");
-    expect(markup).toContain(">Closed</span>");
-    expect(markup).not.toContain('class="sr-only">Open</span>');
-    expect(markup).not.toContain('class="sr-only">Closed</span>');
-    expect(markup).toContain("rounded-lg border border-border-2 bg-bg-2 p-0.5");
-    expect(markup).toContain('style="height:32px"');
+    expect(markup).not.toContain(">Open</span>");
+    expect(markup).not.toContain(">Closed</span>");
+    expect(markup).toContain('aria-label="Open"');
+    expect(markup).toContain('aria-label="Closed"');
+    expect(markup).toContain('title="Open"');
+    expect(markup).toContain('title="Closed"');
+    expect(markup).toContain("rounded-[100px]");
+    expect(markup).toContain("bg-fill-1");
+    expect(markup).not.toContain("mt-1 h-1 w-1 rounded-full");
+    expect(markup).not.toContain("rounded-lg border border-border-2 bg-bg-2");
+    expect(markup).toContain('style="height:28px"');
   });
 });

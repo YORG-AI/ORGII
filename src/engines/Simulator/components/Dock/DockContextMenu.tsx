@@ -8,11 +8,12 @@
 // ============================================
 // Menu Item Configuration
 // ============================================
-import type { LucideIcon } from "lucide-react";
 import React, { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Glass from "@src/components/Glass";
+import type { IconSvgElement } from "@src/icons";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import { AppType } from "../../types/appTypes";
@@ -47,7 +48,7 @@ export interface DockContextMenuProps {
 interface MenuItem {
   id: string;
   label: string;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   action: "switch";
 }
 
@@ -175,7 +176,7 @@ export const DockContextMenu: React.FC<DockContextMenuProps> = ({
       material="thin"
       ref={setMenuRef}
       radius={12}
-      className="animate-in fade-in zoom-in-95 fixed z-[100] min-w-[180px] p-1"
+      className="animate-in fade-in zoom-in-95 fixed z-100 min-w-[180px] p-1"
       style={{
         left: position.x,
         top: position.y,
@@ -200,10 +201,11 @@ export const DockContextMenu: React.FC<DockContextMenuProps> = ({
                 onClick={() => !isDisabled && handleItemClick(item)}
                 disabled={isDisabled}
               >
-                {React.createElement(item.icon, {
-                  size: 14,
-                  className: isDisabled ? "text-text-3" : "text-text-2",
-                })}
+                <AnyIcon
+                  icon={item.icon}
+                  size={14}
+                  className={isDisabled ? "text-text-3" : "text-text-2"}
+                />
                 <span className="flex-1">
                   {t(`simulator.dock.${item.label}`)}
                 </span>

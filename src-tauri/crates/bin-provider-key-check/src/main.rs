@@ -149,3 +149,89 @@ async fn run() -> Result<(), String> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(json: &str) -> Result<ConfigFile, serde_json::Error> {
+        serde_json::from_str(json)
+    }
+
+    #[test]
+    fn a_minimal_entry_needs_only_the_agent_type_and_key_env() {
+        // Everything else is `#[serde(default)]` so a CI config can stay as
+        // small as the provider allows.
+        let config = parse(
+            r#"{ "checks": [ { "agent_type": "openai", "api_key_env": "OPENAI_API_KEY" } ] }"#,
+        )
+        .expect("parse");
+
+        let entry = &config.checks[0];
+        assert_eq!(entry.agent_type, "openai");
+        assert_eq!(entry.api_key_env, "OPENAI_API_KEY");
+        assert_eq!(entry.base_url, None);
+        assert_eq!(entry.base_url_env, None);
+        assert_eq!(entry.session_token_env, None);
+        assert_eq!(entry.test_model, None);
+        assert_eq!(entry.protocol, None);
+    }
+
+    #[test]
+    fn every_optional_field_round_trips() {
+        let config = parse(
+            r#"{ "checks": [ {
+                   "agent_type": "cursor",
+                   "api_key_env": "CURSOR_KEY",
+                   "base_url": "https://api.example.com",
+                   "base_url_env": "CURSOR_BASE_URL",
+                   "session_token_env": "CURSOR_SESSION",
+                   "test_model": "gpt-4o-mini",
+                   "protocol": "openai"
+                 } ] }"#,
+        )
+        .expect("parse");
+
+        let entry = &config.checks[0];
+        assert_eq!(entry.base_url.as_deref(), Some("https://api.example.com"));
+        assert_eq!(entry.base_url_env.as_deref(), Some("CURSOR_BASE_URL"));
+        assert_eq!(entry.session_token_env.as_deref(), Some("CURSOR_SESSION"));
+        assert_eq!(entry.test_model.as_deref(), Some("gpt-4o-mini"));
+        assert_eq!(entry.protocol.as_deref(), Some("openai"));
+    }
+
+    #[test]
+    fn a_missing_required_field_fails_the_parse() {
+        // `agent_type` and `api_key_env` have no default; a config missing
+        // either would otherwise validate nothing and still exit 0.
+        assert!(parse(r#"{ "checks": [ { "agent_type": "openai" } ] }"#).is_err());
+        assert!(parse(r#"{ "checks": [ { "api_key_env": "KEY" } ] }"#).is_err());
+        assert!(parse(r#"{ "entries": [] }"#).is_err(), "`checks` is required");
+    }
+
+    #[test]
+    fn an_empty_checks_array_parses_and_is_rejected_later_by_run() {
+        // Parsing succeeds; `run` turns this into the "empty `checks` array"
+        // error so the operator sees why nothing was validated.
+        let config = parse(r#"{ "checks": [] }"#).expect("parse");
+        assert!(config.checks.is_empty());
+    }
+
+    #[test]
+    fn unknown_fields_are_ignored_rather_than_rejected() {
+        // No `deny_unknown_fields`: a typo like `api_key_ENV` does not fail
+        // the parse, it fails later as a missing required field. A typo in an
+        // *optional* key is silently dropped.
+        let config = parse(
+            r#"{ "checks": [ {
+                   "agent_type": "openai",
+                   "api_key_env": "OPENAI_API_KEY",
+                   "test_modell": "gpt-4o-mini"
+                 } ], "note": "ignored" }"#,
+        )
+        .expect("parse");
+
+        assert_eq!(config.checks.len(), 1);
+        assert_eq!(config.checks[0].test_model, None);
+    }
+}

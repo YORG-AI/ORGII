@@ -15,10 +15,6 @@ import {
 
 import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
-import {
-  SETUP_GUIDE_DEV_SCENARIO,
-  setupGuideDevScenarioAtom,
-} from "@src/store/ui/setupGuideDevScenarioAtom";
 
 import { CloudOrgPanelView } from "./index";
 
@@ -71,19 +67,12 @@ vi.mock("./CloudOrgSettingsSection", () => ({
 }));
 
 vi.mock("./ManagementSections", () => ({
-  CloudInvitesCard: ({
-    interactionDisabled,
-  }: {
-    interactionDisabled: boolean;
-  }) => `invite-controls:${interactionDisabled ? "disabled" : "enabled"}`,
+  CloudInvitesCard: () => "invite-controls:enabled",
   CloudMembersSection: ({
-    interactionDisabled,
     members,
   }: {
-    interactionDisabled: boolean;
     members: Array<{ userId: string; role: string }>;
-  }) =>
-    `member-controls:${interactionDisabled ? "disabled" : "enabled"}:${members[0]?.role}`,
+  }) => `member-controls:enabled:${members[0]?.role}`,
 }));
 
 vi.mock("./useCloudOrgManagement", () => ({
@@ -120,11 +109,9 @@ describe("CloudOrgPanelView guide navigation", () => {
   });
 
   beforeEach(() => {
-    vi.stubEnv("NODE_ENV", "development");
     store.set(org2CloudOrgsAtom, [
       { orgId: "org-a", name: "ORG A", role: "admin" },
     ]);
-    store.set(setupGuideDevScenarioAtom, SETUP_GUIDE_DEV_SCENARIO.LIVE);
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -136,7 +123,6 @@ describe("CloudOrgPanelView guide navigation", () => {
   });
 
   afterAll(() => {
-    vi.unstubAllEnvs();
     Reflect.deleteProperty(reactActEnvironment, "IS_REACT_ACT_ENVIRONMENT");
   });
 
@@ -211,60 +197,5 @@ describe("CloudOrgPanelView guide navigation", () => {
         `[data-guide-target="${GUIDE_TARGETS.CLOUD_ORG_MEMBERS_SECTION}"]`
       )
     ).not.toBeNull();
-  });
-
-  it("presents an admin simulation with every real management control disabled", async () => {
-    store.set(org2CloudOrgsAtom, [
-      { orgId: "org-a", name: "ORG A", role: "member" },
-    ]);
-    store.set(setupGuideDevScenarioAtom, SETUP_GUIDE_DEV_SCENARIO.ADMIN);
-
-    await act(async () => {
-      root.render(
-        React.createElement(
-          Provider,
-          { store },
-          React.createElement(CloudOrgPanelView, {
-            selectedCloudOrg: {
-              orgId: "org-a",
-              initialView: "members",
-              initialViewRequestId: 4,
-            },
-          })
-        )
-      );
-    });
-
-    expect(container.textContent).toContain("member-controls:disabled:admin");
-    expect(container.textContent).toContain("invite-controls:disabled");
-    expect(container.textContent).toContain(
-      "sidebar.guide.devSimulationActive"
-    );
-    expect(container.textContent).toContain(
-      "sidebar.guide.devSimulationReadOnly"
-    );
-  });
-
-  it("hides invite controls in a member simulation even for a real admin", async () => {
-    store.set(setupGuideDevScenarioAtom, SETUP_GUIDE_DEV_SCENARIO.MEMBER);
-
-    await act(async () => {
-      root.render(
-        React.createElement(
-          Provider,
-          { store },
-          React.createElement(CloudOrgPanelView, {
-            selectedCloudOrg: {
-              orgId: "org-a",
-              initialView: "members",
-              initialViewRequestId: 5,
-            },
-          })
-        )
-      );
-    });
-
-    expect(container.textContent).toContain("member-controls:disabled:member");
-    expect(container.textContent).not.toContain("invite-controls");
   });
 });

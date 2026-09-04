@@ -11,7 +11,6 @@
  * call stack when the session snapshot changes (e.g. on tab switch).
  */
 import { useAtomValue } from "jotai";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React, { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -22,6 +21,7 @@ import {
   buildCodexReauthPath,
 } from "@src/config/mainAppPaths";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import { sessionByIdAtom } from "@src/store/session";
 
 import {
@@ -70,23 +70,33 @@ const AgentErrorChatItem: React.FC<AgentErrorChatItemProps> = memo(
                 type="button"
                 onClick={() => setDetailsExpanded((expanded) => !expanded)}
                 aria-expanded={detailsExpanded}
-                className="mt-2 flex select-none items-center gap-1 text-text-3 transition-colors hover:text-text-1"
+                className="mt-2 flex items-center gap-1 text-text-3 transition-colors select-none hover:text-text-1"
               >
                 {detailsExpanded ? (
-                  <ChevronDown size={12} className="shrink-0" />
+                  <HugeiconsIcon
+                    icon={ArrowDown01Icon}
+                    data-icon="chevron-down"
+                    size={12}
+                    className="shrink-0"
+                  />
                 ) : (
-                  <ChevronRight size={12} className="shrink-0" />
+                  <HugeiconsIcon
+                    icon={ArrowRight01Icon}
+                    data-icon="chevron-right"
+                    size={12}
+                    className="shrink-0"
+                  />
                 )}
                 <span>{t("errors.technicalDetails")}</span>
               </button>
               {detailsExpanded && (
-                <div className="mt-1 whitespace-pre-wrap break-words text-text-2">
+                <div className="mt-1 wrap-break-word whitespace-pre-wrap text-text-2">
                   {cleanMessage}
                 </div>
               )}
             </>
           ) : (
-            <div className="whitespace-pre-wrap break-words">
+            <div className="wrap-break-word whitespace-pre-wrap">
               {cleanMessage}
             </div>
           )}

@@ -9,22 +9,12 @@ export {
 
   // Top-level convenience helpers (variadic, namespace-first)
   log,
-  logInfo,
   logDebug,
   logWarn,
   logError,
-  criticalError,
-  styledLog,
-  logGroup,
-  perfStart,
-  perfEnd,
-  logRateLimited,
-  logWarnRateLimited,
 
   // Lifecycle + level control
   initializeLogging,
-  setLogLevel,
-  getLogLevel,
   LogLevel,
 } from "./useLogger";
 

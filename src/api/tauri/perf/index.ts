@@ -5,7 +5,6 @@ export type {
   JsonStringifyResult,
   JsonValidationResult,
   LuminanceAnalysis,
-  LuminanceResult,
   MemoryMetrics,
   ProcessMetrics,
   SampleRegion,
@@ -15,35 +14,12 @@ export type {
 } from "./types";
 
 export {
-  calculateImageLuminance,
-  calculateLuminanceFromBase64,
-  calculateSingleRegionLuminance,
-} from "./luminance";
-
-export {
   checkBinaryByPath,
-  checkBinaryContent,
   checkBinaryContentEnhanced,
-  checkFileIsBinary,
   checkFileIsBinaryEnhanced,
 } from "./binary";
 
-export {
-  parseJsonBatch,
-  parseJsonFast,
-  parseJsonFile,
-  stringifyJsonFast,
-  validateJsonFast,
-} from "./json";
-
-export {
-  computeBlake3,
-  computeBlake3Batch,
-  computeBlake3Bytes,
-  computeFileHash,
-  computeSha256,
-  computeSha256Bytes,
-} from "./hash";
+export { computeFileHash } from "./hash";
 
 export {
   getMemoryUsage,

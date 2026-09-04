@@ -20,9 +20,8 @@ if (!subcommand) {
 }
 
 const rawExtraArgs = process.argv.slice(3);
-const includeSemantic = rawExtraArgs.includes("--semantic");
-const featureString = tauriFeatureString({ semantic: includeSemantic });
-const extraArgs = rawExtraArgs.filter((arg) => arg !== "--semantic");
+const featureString = tauriFeatureString();
+const extraArgs = rawExtraArgs;
 const args = [subcommand];
 if (featureString.length > 0) {
   args.push("--features", featureString);

@@ -1,13 +1,14 @@
-import { X } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
 import { SESSION_CREATOR_LAUNCH_MODE } from "@src/features/SessionCreator/types";
+import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 
 import SessionCreatorChatPanel from "../ChatPanel";
 
-export interface SessionCreatorKanbanProps {
+interface SessionCreatorKanbanProps {
   className?: string;
   onSessionStart?: () => void;
   onClose?: () => void;
@@ -31,7 +32,14 @@ const SessionCreatorKanban: React.FC<SessionCreatorKanbanProps> = ({
       size="small"
       shape="round"
       iconOnly
-      icon={<X size={14} strokeWidth={1.75} />}
+      icon={
+        <HugeiconsIcon
+          icon={Cancel01Icon}
+          data-icon="x"
+          size={14}
+          strokeWidth={1.75}
+        />
+      }
       title={t("tooltips.hidePanel")}
       aria-label={t("tooltips.hidePanel")}
       onClick={onClose}
@@ -45,6 +53,7 @@ const SessionCreatorKanban: React.FC<SessionCreatorKanbanProps> = ({
       dropdownDirection="up"
       headerLayout="compact"
       hidePresenceButton
+      innerClassName={COMPOSER_BOTTOM_DOCK_PADDING_CLASS}
       leadingActionSlot={leadingActionSlot}
       launchMode={SESSION_CREATOR_LAUNCH_MODE.START_BACKGROUND}
       onSessionStart={handleSessionStart}

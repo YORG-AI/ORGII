@@ -1,10 +1,15 @@
 // ============================================
 // PanelContent Component
 // ============================================
-import { ChevronDown, ChevronRight, ChevronsUpDown } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  UnfoldMoreIcon,
+} from "@src/icons";
 import type {
   ApiCall,
   ApiCallHotspot,
@@ -121,7 +126,7 @@ const HotspotSummary: React.FC<{ hotspots: ApiCallHotspot[] }> = ({
             }`}
           >
             <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-3">
+              <span className="text-[10px] font-semibold tracking-wide text-text-3 uppercase">
                 {hotspot.transport === "tauri" ? "IPC" : "HTTP"} ·{" "}
                 {hotspot.method}
               </span>
@@ -195,7 +200,7 @@ const TimerHotspotSummary: React.FC<{ hotspots: TimerHotspot[] }> = ({
             }`}
           >
             <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-3">
+              <span className="text-[10px] font-semibold tracking-wide text-text-3 uppercase">
                 Frontend · {hotspot.kind.toUpperCase()}
               </span>
               <span
@@ -271,7 +276,7 @@ const PushTrafficSummary: React.FC<{ hotspots: PushHotspot[] }> = ({
             }`}
           >
             <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-3">
+              <span className="text-[10px] font-semibold tracking-wide text-text-3 uppercase">
                 {PUSH_KIND_LABELS[hotspot.kind]}
               </span>
               <span
@@ -410,14 +415,26 @@ const ApiCallRow: React.FC<ApiCallRowProps> = ({
         aria-expanded={expanded}
         onClick={onToggle}
       >
-        {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        {expanded ? (
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            size={13}
+          />
+        ) : (
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            data-icon="chevron-right"
+            size={13}
+          />
+        )}
       </button>
       <span className="truncate px-2 text-[11px] text-text-2">
         {call.method}
       </span>
       <button
         type="button"
-        className="block overflow-hidden text-ellipsis whitespace-nowrap px-2 text-left text-[11px] text-primary-6"
+        className="block overflow-hidden px-2 text-left text-[11px] text-ellipsis whitespace-nowrap text-primary-6"
         onClick={onToggle}
         title={call.fullUrl}
       >
@@ -466,11 +483,13 @@ const SortHeader: React.FC<SortHeaderProps> = ({
 }) => (
   <button
     type="button"
-    className="flex h-full min-w-0 items-center gap-1 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-text-3 hover:text-text-1"
+    className="flex h-full min-w-0 items-center gap-1 px-2 text-left text-[10px] font-semibold tracking-wide text-text-3 uppercase hover:text-text-1"
     onClick={() => onSort(column)}
   >
     <span className="truncate">{label}</span>
-    <ChevronsUpDown
+    <HugeiconsIcon
+      icon={UnfoldMoreIcon}
+      data-icon="chevrons-up-down"
       size={11}
       className={sort?.key === column ? "text-primary-6" : "opacity-50"}
       aria-hidden

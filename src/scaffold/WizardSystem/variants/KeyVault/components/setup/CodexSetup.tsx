@@ -1,4 +1,3 @@
-import { Keyboard, LogIn, ScanSearch } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +5,7 @@ import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import { CodexSessionSetup } from "@src/features/SessionSetup";
+import { KeyboardIcon, Login01Icon, SearchAreaIcon } from "@src/icons";
 import {
   SECTION_CONTROL_STYLE,
   SECTION_GAP_CLASSES,
@@ -44,16 +44,16 @@ const CodexSetup: React.FC<CodexSetupProps> = ({
 
   const methodOptions: SelectionGridOption<CodexMethod>[] = useMemo(
     () => [
-      { key: "signin", label: t("keyVault.signIn"), icon: LogIn },
+      { key: "signin", label: t("keyVault.signIn"), icon: Login01Icon },
       {
         key: "autodetect",
         label: t("keyVault.autodetect"),
-        icon: ScanSearch,
+        icon: SearchAreaIcon,
       },
       {
         key: "enter_token",
         label: t("keyVault.enterToken"),
-        icon: Keyboard,
+        icon: KeyboardIcon,
       },
     ],
     [t]

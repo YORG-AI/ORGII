@@ -1,12 +1,17 @@
 import Button from "@/src/components/Button";
 import { invoke } from "@tauri-apps/api/core";
-import { Check, Copy, RefreshCw } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { isRouteErrorResponse, useRouteError } from "react-router-dom";
 
 import { stripAnsiCodes } from "@src/engines/TerminalCore/components/TerminalDisplay/utils/ansiProcessor";
 import { createLogger } from "@src/hooks/logger";
 import i18n from "@src/i18n";
+import {
+  Copy01Icon,
+  HugeiconsIcon,
+  Refresh04Icon,
+  Tick01Icon,
+} from "@src/icons";
 import { copyText } from "@src/util/data/clipboard";
 
 const logger = createLogger("ErrorPage");
@@ -189,7 +194,7 @@ const ErrorPageContent: React.FC<{ error?: unknown }> = ({ error }) => {
   return (
     // z-index must be higher than PersistentPortalTabs (z-index: 200) to ensure buttons are clickable
     <div
-      className="fixed inset-0 z-[300] flex h-screen w-screen flex-col overflow-hidden bg-bg-2"
+      className="fixed inset-0 z-300 flex h-screen w-screen flex-col overflow-hidden bg-bg-2"
       style={{
         borderRadius: "var(--border-radius-window)",
         pointerEvents: "auto",
@@ -198,7 +203,7 @@ const ErrorPageContent: React.FC<{ error?: unknown }> = ({ error }) => {
       {/* Title bar - native traffic lights via macOS decorations */}
       <div
         data-tauri-drag-region
-        className="flex h-[36px] flex-shrink-0 items-center bg-bg-2 pl-4"
+        className="flex h-[36px] shrink-0 items-center bg-bg-2 pl-4"
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       />
 
@@ -228,7 +233,13 @@ const ErrorPageContent: React.FC<{ error?: unknown }> = ({ error }) => {
               variant="primary"
               size="default"
               shape="round"
-              icon={<RefreshCw size={16} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Refresh04Icon}
+                  data-icon="refresh-cw"
+                  size={16}
+                />
+              }
               onClick={handleRestart}
             >
               {i18n.t("actions.restart")}
@@ -237,7 +248,17 @@ const ErrorPageContent: React.FC<{ error?: unknown }> = ({ error }) => {
               variant="secondary"
               size="default"
               shape="round"
-              icon={copied ? <Check size={16} /> : <Copy size={16} />}
+              icon={
+                copied ? (
+                  <HugeiconsIcon
+                    icon={Tick01Icon}
+                    data-icon="check"
+                    size={16}
+                  />
+                ) : (
+                  <HugeiconsIcon icon={Copy01Icon} data-icon="copy" size={16} />
+                )
+              }
               onClick={handleCopy}
             >
               {copied ? i18n.t("status.copied") : i18n.t("actions.copy")}

@@ -150,7 +150,6 @@ where
 /// Get the browser state from a webview using Page Agent.
 ///
 /// Returns the DOM tree with interactive elements highlighted and indexed.
-#[tauri::command]
 pub async fn internal_browser_get_state(
     app: AppHandle,
     label: String,
@@ -203,7 +202,6 @@ pub async fn internal_browser_get_location(
 }
 
 /// Click an element by its highlight index.
-#[tauri::command]
 pub async fn internal_browser_click(
     app: AppHandle,
     label: String,
@@ -223,7 +221,6 @@ pub async fn internal_browser_click(
 }
 
 /// Input text into an element by its highlight index.
-#[tauri::command]
 pub async fn internal_browser_input(
     app: AppHandle,
     label: String,
@@ -247,7 +244,6 @@ pub async fn internal_browser_input(
 }
 
 /// Select an option from a dropdown by its highlight index.
-#[tauri::command]
 pub async fn internal_browser_select(
     app: AppHandle,
     label: String,
@@ -271,7 +267,6 @@ pub async fn internal_browser_select(
 }
 
 /// Scroll the page or an element.
-#[tauri::command]
 pub async fn internal_browser_scroll(
     app: AppHandle,
     label: String,
@@ -301,7 +296,6 @@ pub async fn internal_browser_scroll(
 }
 
 /// Show the user takeover mask (blocks user interaction).
-#[tauri::command]
 pub async fn internal_browser_show_mask(
     app: AppHandle,
     label: String,
@@ -324,7 +318,6 @@ pub async fn internal_browser_show_mask(
 }
 
 /// Hide the user takeover mask (allows user interaction).
-#[tauri::command]
 pub async fn internal_browser_hide_mask(
     app: AppHandle,
     label: String,
@@ -347,7 +340,6 @@ pub async fn internal_browser_hide_mask(
 }
 
 /// Clean up element highlights.
-#[tauri::command]
 pub async fn internal_browser_clean_up(
     app: AppHandle,
     label: String,
@@ -370,7 +362,6 @@ pub async fn internal_browser_clean_up(
 }
 
 /// Check if Page Agent is initialized in a webview.
-#[tauri::command]
 pub async fn internal_browser_is_ready(app: AppHandle, label: String) -> Result<bool, String> {
     let webview = app
         .get_webview(&label)

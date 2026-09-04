@@ -1,11 +1,11 @@
 import { type MutableRefObject, useEffect } from "react";
 
 import { shortcutRegistry } from "@src/hooks/keyboard";
-import { toggleGlobalPreferencesPanel } from "@src/scaffold/GlobalPreferencesPanel";
 import { openAgentControlSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
+import { dispatchEditHistoryCommand } from "@src/util/dom/editHistoryCommand";
 import { isTauriDesktop } from "@src/util/platform/tauri";
 
 import { useGlobalKeydownShortcuts } from "./useGlobalKeydownShortcuts";
@@ -129,10 +129,6 @@ export function useShortcutRegistration(options: ShortcutRegistrationOptions) {
       shortcutRegistry.on("zoom_in", handleZoomIn),
       shortcutRegistry.on("zoom_out", handleZoomOut),
       shortcutRegistry.on("zoom_reset", handleZoomReset),
-      shortcutRegistry.on(
-        "open_global_preferences",
-        toggleGlobalPreferencesPanel
-      ),
       shortcutRegistry.on("quit_app", openQuitConfirmation),
       shortcutRegistry.on("close_tab", handleCloseCurrentTab),
       shortcutRegistry.on("hide_window", handleHideWindow),
@@ -252,6 +248,12 @@ export function useShortcutRegistration(options: ShortcutRegistrationOptions) {
         "menu-open-settings": handleOpenSettings,
         "menu-maximize-work-station": () =>
           void WorkStationViewService.showWorkStation(),
+        // Edit → Undo/Redo are custom menu items (see `app_menu.rs`) so the
+        // command reaches editors with structured history (ComposerInput)
+        // instead of only WebKit's undo manager, which never sees the
+        // composer's programmatic paste/pill edits.
+        "menu-undo": () => void dispatchEditHistoryCommand("undo"),
+        "menu-redo": () => void dispatchEditHistoryCommand("redo"),
         "menu-select-all": () => {
           const terminalEl = document.querySelector(".terminal-core");
           if (

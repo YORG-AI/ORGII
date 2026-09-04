@@ -10,7 +10,7 @@ pub(super) static TOOLS: &[ToolEntry] = &[
         description: "Read the contents of a file.",
         description_detail: "Reads text from a workspace-relative or absolute file path. Honors repository boundaries and configured size limits where applicable. Use before editing, for code review, or to pull excerpts into the conversation.",
         category: tool_categories::CODING,
-        icon_id: "file-text",
+        icon_id: "book-open-02",
         simulator_app: AppCode,
         app_subtool: FileRead,
         chat_block: CbReadFile,

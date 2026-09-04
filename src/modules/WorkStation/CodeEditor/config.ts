@@ -3,16 +3,16 @@
  *
  * Configuration constants and icons for the CodeEditor component.
  */
-import { FileCode, FolderOpen, Search } from "lucide-react";
+import { FileScriptIcon, FolderOpenIcon, Search01Icon } from "@src/icons";
 
 // ============================================
 // Icon Configuration
 // ============================================
 
 export const CODE_EDITOR_ICONS = {
-  fileCode: FileCode,
-  folderOpen: FolderOpen,
-  search: Search,
+  fileCode: FileScriptIcon,
+  folderOpen: FolderOpenIcon,
+  search: Search01Icon,
 } as const;
 
 // ============================================

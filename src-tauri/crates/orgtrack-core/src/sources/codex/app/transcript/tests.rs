@@ -4,6 +4,7 @@ use super::cache::{
     CodexTranscriptSignature, CodexTurnOffset, CodexTurnOffsetCache,
     CODEX_TURN_OFFSET_CACHE_CAPACITY, CODEX_TURN_OFFSET_LIMIT_PER_SESSION,
 };
+use super::reader::load_codex_app_mobile_tail_window_from_path_with_scan_limit;
 use super::{
     load_codex_app_cloud_turn_from_path, load_codex_app_from_path,
     load_codex_app_turn_ids_from_path,
@@ -121,4 +122,83 @@ fn codex_turn_offset_cache_bounds_sessions_and_turns() {
         cache.get(Path::new("session-8.jsonl"), signature, "turn-4096"),
         Some((4096, 4096))
     );
+}
+
+#[test]
+fn mobile_tail_window_reads_only_the_latest_bounded_turn() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-mobile-tail-window-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout.jsonl");
+    let first = r#"{"timestamp":"2026-08-29T10:00:00Z","payload":{"type":"user_message","message":"outside bound"}}"#;
+    let padding = format!(
+        "{{\"timestamp\":\"2026-08-29T10:00:01Z\",\"payload\":{{\"type\":\"reasoning\",\"summary\":[{{\"text\":\"{}\"}}]}}}}",
+        "x".repeat(2_048)
+    );
+    let latest = r#"{"timestamp":"2026-08-29T10:01:00Z","payload":{"type":"user_message","message":"latest"}}"#;
+    let reply = r#"{"timestamp":"2026-08-29T10:01:01Z","payload":{"type":"agent_message","message":"latest reply"}}"#;
+    std::fs::write(&path, format!("{first}\n{padding}\n{latest}\n{reply}\n"))
+        .expect("write fixture");
+
+    let window = load_codex_app_mobile_tail_window_from_path_with_scan_limit(
+        "codexapp-mobile-tail",
+        &path,
+        (latest.len() + reply.len() + 2) as u64,
+    )
+    .expect("load bounded mobile tail");
+    assert!(window.chunks.iter().any(|chunk| {
+        chunk
+            .result
+            .pointer("/message/content")
+            .and_then(serde_json::Value::as_str)
+            == Some("latest")
+    }));
+    assert!(window.chunks.iter().any(|chunk| {
+        chunk
+            .result
+            .get("observation")
+            .and_then(serde_json::Value::as_str)
+            == Some("latest reply")
+    }));
+    assert!(!window.chunks.iter().any(|chunk| {
+        chunk
+            .result
+            .pointer("/message/content")
+            .and_then(serde_json::Value::as_str)
+            == Some("outside bound")
+    }));
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn mobile_tail_window_fails_when_no_user_turn_is_inside_the_bound() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-mobile-tail-error-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout.jsonl");
+    std::fs::write(
+        &path,
+        concat!(
+            "{\"timestamp\":\"2026-08-29T10:00:00Z\",\"payload\":{\"type\":\"user_message\",\"message\":\"old\"}}\n",
+            "{\"timestamp\":\"2026-08-29T10:01:00Z\",\"payload\":{\"type\":\"agent_message\",\"message\":\"reply\"}}\n"
+        ),
+    )
+    .expect("write fixture");
+
+    let error = load_codex_app_mobile_tail_window_from_path_with_scan_limit(
+        "codexapp-mobile-tail",
+        &path,
+        16,
+    )
+    .expect_err("missing bounded user turn must be explicit");
+    assert!(error.contains("No recent Codex user turn"));
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
 }

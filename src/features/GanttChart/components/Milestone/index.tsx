@@ -10,7 +10,7 @@ import Tooltip from "@src/components/Tooltip";
 import type { GanttConfig, GanttMilestone } from "../../types";
 import "./index.scss";
 
-export interface GanttMilestoneProps {
+interface GanttMilestoneProps {
   milestone: GanttMilestone;
   position: number;
   config: GanttConfig;

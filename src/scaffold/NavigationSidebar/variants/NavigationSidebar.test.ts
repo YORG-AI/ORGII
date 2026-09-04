@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { NavigationMenuItem } from "../components/NavigationMenu/config";
-import { WorkItemsSidebarSkeleton } from "../connectors/WorkstationSidebarConnector/WorkItemsSidebarSkeleton";
 import NavigationSidebar from "./NavigationSidebar";
 
 vi.mock("../SidebarBase", () => ({
@@ -59,7 +58,7 @@ describe("NavigationSidebar", () => {
     );
 
     expect(markup).toContain(
-      'class="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-medium uppercase tracking-wider text-text-2"'
+      'class="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-medium tracking-wider text-text-2 uppercase"'
     );
     expect(markup).toContain('<span class="min-w-0 truncate">Browse</span>');
     expect(markup).toContain('class="flex flex-col gap-3 px-3 pt-1"');
@@ -97,7 +96,83 @@ describe("NavigationSidebar", () => {
     expect(markup).not.toContain('data-test-menu-item="projects"');
   });
 
-  it("renders surface-specific skeleton content while loading", () => {
+  it("renders actions on an existing session section header", () => {
+    const markup = renderToStaticMarkup(
+      createElement(NavigationSidebar, {
+        items: [],
+        activeKey: "",
+        onChange: vi.fn(),
+        menuItems: [
+          {
+            id: "separator-today",
+            key: "separator-today",
+            label: "Today",
+            rowActions: [
+              {
+                label: "Search sessions",
+                dataTestId: "sidebar-sessions-search",
+                onClick: vi.fn(),
+              },
+              {
+                label: "Refresh",
+                dataTestId: "sidebar-sessions-refresh",
+                onClick: vi.fn(),
+              },
+            ],
+          },
+          { id: "session-1", key: "session-1", label: "First session" },
+        ],
+        collapsibleSections: true,
+      })
+    );
+
+    expect(markup).toContain('data-sidebar-section-toggle="today"');
+    expect(markup).toContain(">Today</span>");
+    expect(markup).toContain('data-testid="sidebar-sessions-search"');
+    expect(markup).toContain('title="Search sessions"');
+    expect(markup).toContain('data-testid="sidebar-sessions-refresh"');
+    expect(markup).toContain('title="Refresh"');
+    expect(
+      markup.indexOf('data-testid="sidebar-sessions-search"')
+    ).toBeLessThan(markup.indexOf('data-testid="sidebar-sessions-refresh"'));
+  });
+
+  it("autofocuses inline search while keeping fixed navigation visible", () => {
+    const markup = renderToStaticMarkup(
+      createElement(NavigationSidebar, {
+        items: [],
+        activeKey: "",
+        onChange: vi.fn(),
+        pinnedMenuItems: [
+          { id: "new-session", key: "new-session", label: "New session" },
+        ],
+        menuItems: [
+          {
+            id: "separator-today",
+            key: "separator-today",
+            label: "Today",
+          },
+          { id: "match", key: "match", label: "Matching session" },
+          { id: "other", key: "other", label: "Unrelated task" },
+        ],
+        search: {
+          value: "matching",
+          onChange: vi.fn(),
+          placeholder: "Search sessions...",
+          autoFocus: true,
+          filterPinnedItems: false,
+        },
+      })
+    );
+
+    expect(markup).toContain('placeholder="Search sessions..."');
+    expect(markup).toContain('autofocus=""');
+    expect(markup).toContain('data-test-menu-item="new-session"');
+    expect(markup).toContain('data-test-menu-item="match"');
+    expect(markup).not.toContain('data-test-menu-item="other"');
+  });
+
+  it("renders the standard loading state without dummy rows", () => {
     const markup = renderToStaticMarkup(
       createElement(NavigationSidebar, {
         items: [],
@@ -105,15 +180,11 @@ describe("NavigationSidebar", () => {
         onChange: vi.fn(),
         menuItems: [],
         isLoading: true,
-        loadingContent: createElement(WorkItemsSidebarSkeleton, {
-          loadingLabel: "Loading work items",
-        }),
       })
     );
 
-    expect(markup).toContain('data-testid="work-items-sidebar-skeleton"');
-    expect(markup).toContain('aria-label="Loading work items"');
-    expect(markup).toContain("animate-pulse");
+    expect(markup).toContain('aria-busy="true"');
+    expect(markup).not.toContain("animate-pulse");
   });
 
   it("lets browser-hosted sidebars remove native window chrome spacing", () => {

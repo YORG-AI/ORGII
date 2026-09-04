@@ -101,12 +101,6 @@
       "openAsFloatingPane": "以悬浮面板打开"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "按文件路径搜索 Session",
-      "noResults": "没有 Session 改动过匹配的文件"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "当前看板",
     "view": {
       "list": "列表",
       "diary": "日志",
@@ -334,8 +328,8 @@
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
       "removeDraft": "删除草稿",
-      "showSubagents": "显示子代理",
-      "hideSubagents": "隐藏子代理"
+      "showSubagents": "显示subagent",
+      "hideSubagents": "隐藏subagent"
     },
     "resultStatus": {
       "completed": "已完成",
@@ -374,9 +368,6 @@
       "merge": "合并",
       "merging": "合并中…",
       "merged": "已合并"
-    },
-    "replay": {
-      "replaySession": "回放"
     },
     "detailView": {
       "trajectory": "轨迹",
@@ -489,7 +480,6 @@
       "bottomPanel": {
         "tabTrajectory": "轨迹",
         "tabTodo": "待办",
-        "collapsePanel": "隐藏面板",
         "expandPanel": "显示轨迹与待办面板",
         "placeholderTrajectoryTitle": "暂无事件",
         "placeholderTrajectorySubtitle": "Agent 运行后，会话活动将显示在这里",
@@ -809,9 +799,7 @@
       "showSidebar": "显示侧边栏",
       "hideSidebar": "隐藏侧边栏",
       "showBottomPanel": "显示底部面板",
-      "hideBottomPanel": "隐藏底部面板",
-      "showDevTools": "显示 DevTools",
-      "hideDevTools": "隐藏 DevTools"
+      "hideBottomPanel": "隐藏底部面板"
     },
     "multiTask": {
       "monitoringProgress": "正在监控 {{count}} 个 Subagent 的进度",
@@ -842,7 +830,8 @@
       "current": "当前"
     },
     "agentSentMessageCaption": "{{subject}} 给你发送了一条消息",
-    "userSentMessageCaption": "你给 Agent 发送了一条消息"
+    "userSentMessageCaption": "你给 Agent 发送了一条消息",
+    "thoughtSentMessageCaption": "{{subject}} 正在思考"
   },
   "terminal": {
     "findInTerminal": "在终端中查找",
@@ -877,6 +866,7 @@
     "editingQueuedMessage": "编辑排队消息",
     "editingSentMessage": "编辑已发送消息",
     "voiceErrorPermission": "麦克风权限被拒绝。请在系统设置中启用。",
+    "voiceErrorPermissionIos": "麦克风权限被拒绝。在 iPhone 上：设置 → Safari → 麦克风，或若已添加到主屏幕：设置 → 本应用。",
     "voiceErrorUnsupported": "当前版本不支持语音输入。",
     "voiceErrorAudio": "未检测到麦克风。",
     "voiceErrorGeneric": "语音输入失败，请重试。",
@@ -927,8 +917,17 @@
     "multipleChoice": "多选",
     "typeYourAnswer": "输入您的回答…",
     "newSession": "新建会话",
-    "muteNotifications": "静音此会话通知",
     "startPage": {
+      "inputPosition": "输入框",
+      "positionBottom": "底部",
+      "positionMiddle": "居中",
+      "trailPosition": "轨迹栏",
+      "positionUp": "上方",
+      "positionDown": "下方",
+      "uiControls": "界面控制",
+      "showQuickActions": "显示快捷操作",
+      "showSkills": "显示 Skills",
+      "showCliUpdate": "显示 CLI 更新",
       "title": "你想做什么？",
       "back": "返回起始页",
       "newSession": {
@@ -1039,6 +1038,7 @@
     "fullScreenChat": "聚焦聊天面板（隐藏工作站）",
     "maximizeChatPanel": "最大化聊天面板",
     "showWorkstation": "显示工作站",
+    "workstationUnavailableForPage": "此页面不支持使用工作站",
     "hideWorkstation": "隐藏工作站",
     "restoreSplitView": "显示工作站",
     "shrinkToWorkstation": "缩小聊天面板（显示工作站）",
@@ -1054,9 +1054,12 @@
       "openInSideChat": "在侧边聊天中打开"
     },
     "collapseAll": "全部折叠",
+    "copyAndExport": "复制与导出",
     "copyEventJson": "复制事件 JSON",
     "copyEventJsonCopied": "复制！",
     "copyEventJsonFailed": "复制失败",
+    "moveTo": "将页面移动到…",
+    "projectLinks": "项目关联",
     "moveToWorkstation": "移动到我的工作站",
     "moveToChatPanel": "移动到聊天面板",
     "rawTranscript": {
@@ -1157,7 +1160,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~还需 {{eta}}",
     "rateLimitHintTitle": "API 频率受限",
-    "rateLimitHintBody": "当前模型请求频率受限，你可以先切换到其他窗口继续工作。",
+    "rateLimitHintBody": "当前模型请求频率受限，你可以先切换到其他窗口继续工作",
     "feedbackPending": "等待反馈",
     "executionThreads": "执行线程",
     "allThreads": "全部",
@@ -1189,6 +1192,7 @@
       "exportTitle": "导出 Session JSON",
       "importTitle": "导入 Session JSON",
       "exportAction": "导出",
+      "exportJson": "导出 JSON",
       "importAction": "导入 Session",
       "exportDescription": "将当前 Session 导出为可移植的 JSON 快照",
       "importDescription": "将 Session JSON 快照导入到侧边栏。",
@@ -1294,7 +1298,8 @@
       "fileCount_other": "{{count}} 个文件",
       "turnCount_one": "{{count}} 轮",
       "turnCount_other": "{{count}} 轮"
-    }
+    },
+    "parentAgentSender": "上级 Agent"
   },
   "chatStatus": {
     "approved": "已批准",
@@ -1355,6 +1360,10 @@
       "title": "回放这轮",
       "play": "播放回放",
       "duration": "{{value}}",
+      "segmentAria": "回放第 {{number}} 轮",
+      "turnTrackAria": "Replay 轮次色带",
+      "segmentTooltip": "第 {{number}} 轮 · {{duration}} · {{start}}–{{end}}",
+      "segmentTooltipNoRange": "第 {{number}} 轮 · {{duration}}",
       "toolCalls": "{{count}} 次工具调用",
       "filesChanged": "{{count}} 个文件变更",
       "toolCalls_one": "{{count}} 次工具调用",
@@ -1409,9 +1418,7 @@
     },
     "editFileFailedNoName": "尝试编辑",
     "file": "文件",
-    "runShellRunning": "正在执行命令",
     "terminalWaitRunning": "正在等待终端完成",
-    "runShellDone": "执行命令",
     "runShellFailed": "命令执行失败",
     "runCommands": "执行命令",
     "terminalSummary": {
@@ -1476,8 +1483,8 @@
     "categorySearch": "搜索",
     "categoryGlob": "Glob",
     "categoryList": "列表",
-    "subagentFailed": "Sub Agent 失败",
-    "subagentDefaultName": "Sub Agent",
+    "subagentFailed": "Subagent 失败",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "将任务分配给 Subagent",
     "subagentRunning": "Subagent 运行中",
     "subagentDone": "Subagent 完成",
@@ -1487,9 +1494,9 @@
     "createPlanRunning": "正在创建计划",
     "createPlanDone": "创建计划",
     "createPlanFailed": "创建计划失败",
-    "subagentResultTabFallbackTitle": "Sub Agent 结果",
+    "subagentResultTabFallbackTitle": "Subagent 结果",
     "openResultInTab": "在标签页中打开",
-    "openSubagentChatInTab": "在编辑器中打开 Sub Agent 详情",
+    "openSubagentChatInTab": "在编辑器中打开 Subagent 详情",
     "executing": "执行中",
     "argumentsLabel": "参数",
     "resultLabel": "结果",
@@ -1548,8 +1555,6 @@
     "killProcessFailed": "终止进程失败",
     "listDirCount_one": "{{count}} 个目录",
     "listDirCount_other": "{{count}} 个目录",
-    "listFileCount_one": "{{count}} 个文件",
-    "listFileCount_other": "{{count}} 个文件",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n...（已截断显示）",
     "repeatedErrorNotice": "相同错误共出现 {{count}} 次，Agent 正在重试",
@@ -2134,7 +2139,11 @@
     "orgSendMessageRunning": "正在给 {{recipient}} 发消息",
     "orgSendMessageDone": "给 {{recipient}} 发消息",
     "orgSendMessageFailed": "给 {{recipient}} 发消息失败",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "正在执行命令",
+    "runCommandDone": "执行命令",
+    "nFiles_one": "{{count}} 个文件",
+    "nFiles_other": "{{count}} 个文件"
   },
   "hoverCard": {
     "commits": "提交",
@@ -2155,7 +2164,6 @@
     },
     "createTarget": {
       "agentSession": "Agent 会话",
-      "manageAgents": "管理 Agent / Skills",
       "project": "创建项目",
       "parallelRun": "并行运行",
       "workItem": "创建 Work Item"
@@ -2205,6 +2213,9 @@
     "launchpadQuestion": "你想使用",
     "launchpadQuestionSuffix": "构建什么？",
     "manualLaunchpadQuestion": "你想构建什么？",
+    "planLaunchpadQuestion": "你想使用",
+    "planLaunchpadQuestionSuffix": "规划什么？",
+    "manualPlanLaunchpadQuestion": "你想规划什么？",
     "start": "开始",
     "assign": "分配",
     "send": "发送",
@@ -2506,8 +2517,8 @@
         "feedbackLabel": "计划修改意见",
         "feedbackPlaceholder": "清楚告诉 Planner 哪些地方需要修改……",
         "paused": "请先恢复本次运行，再处理这个计划。",
-        "staleError": "这份计划已经处理或被新版本替换。请刷新后查看最新版本。",
-        "submitFailed": "计划审批结果未能保存，请重试。"
+        "staleError": "这份计划已经处理或被新版本替换。请刷新后查看最新版本",
+        "submitFailed": "计划审批结果未能保存，请重试"
       },
       "phase": {
         "coordinating": "正在协调",
@@ -2629,7 +2640,16 @@
       "正在处理，比平时更久...",
       "正在琢磨下一步，比平时更久..."
     ],
-    "compacting": "正在压缩上下文…"
+    "compacting": "正在压缩上下文…",
+    "statusTrail": {
+      "agentWorking": "Agent 工作中",
+      "agentWorkingFor": "Agent 已工作 {{value}}",
+      "runningTask_one": "{{count}} 个运行中的任务",
+      "runningTask_other": "{{count}} 个运行中的任务",
+      "idle": "Agent 空闲中",
+      "lastRefreshed": "上次刷新于 {{value}}",
+      "asking": "等待你的回复"
+    }
   },
   "revertConfirm": {
     "title": "文件有未保存的变更",
@@ -2789,7 +2809,8 @@
       "markedAs": "标记为 {{status}}",
       "runningTitle": "正在更新任务",
       "rejectedTitle": "任务更新需要修正",
-      "failedTitle": "任务更新失败"
+      "failedTitle": "任务更新失败",
+      "title": "已更新任务"
     },
     "get": {
       "title": "查看任务详情"
@@ -3046,5 +3067,15 @@
     "imagesUnsupported": "团队讨论暂不支持图片",
     "participantsTooltip": "对话参与者与讨论消息数",
     "mentionGroup": "队友"
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
+  },
+  "tooltips": {
+    "hidePanel": "隐藏面板"
+  },
+  "titleBar": {
+    "showDevTools": "显示 DevTools",
+    "hideDevTools": "隐藏 DevTools"
   }
 }

@@ -169,10 +169,49 @@ const getBase64Size = (base64: string): number => {
   return Math.round((base64Data.length * 3) / 4);
 };
 
-/**
- * Load an image from a File object
- */
-const loadImage = (file: File): Promise<HTMLImageElement> => {
+const loadImageFromDataUrl = (file: File): Promise<HTMLImageElement> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      if (typeof dataUrl !== "string") {
+        reject(
+          new ImageOptimizationError(
+            "Failed to load image. The file may be corrupted or in an unsupported format.",
+            "LOAD_FAILED"
+          )
+        );
+        return;
+      }
+
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => {
+        reject(
+          new ImageOptimizationError(
+            "Failed to load image. The file may be corrupted or in an unsupported format.",
+            "LOAD_FAILED"
+          )
+        );
+      };
+      img.src = dataUrl;
+    };
+
+    reader.onerror = () => {
+      reject(
+        new ImageOptimizationError(
+          "Failed to load image. The file may be corrupted or in an unsupported format.",
+          "LOAD_FAILED"
+        )
+      );
+    };
+
+    reader.readAsDataURL(file);
+  });
+};
+
+const loadImageFromObjectUrl = (file: File): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -194,6 +233,21 @@ const loadImage = (file: File): Promise<HTMLImageElement> => {
 
     img.src = url;
   });
+};
+
+/**
+ * Load an image from a File object
+ */
+const loadImage = async (file: File): Promise<HTMLImageElement> => {
+  if (typeof URL.createObjectURL === "function") {
+    try {
+      return await loadImageFromObjectUrl(file);
+    } catch {
+      return loadImageFromDataUrl(file);
+    }
+  }
+
+  return loadImageFromDataUrl(file);
 };
 
 /**
@@ -294,10 +348,19 @@ export const optimizeImage = async (
 
   if (!needsResize && !needsCompression) {
     // No optimization needed, return original as base64
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
+        const dataUrl = e.target?.result;
+        if (typeof dataUrl !== "string") {
+          reject(
+            new ImageOptimizationError(
+              "Failed to read image data.",
+              "LOAD_FAILED"
+            )
+          );
+          return;
+        }
         resolve({
           dataUrl,
           originalSize,
@@ -306,6 +369,14 @@ export const optimizeImage = async (
           originalDimensions,
           finalDimensions: originalDimensions,
         });
+      };
+      reader.onerror = () => {
+        reject(
+          new ImageOptimizationError(
+            "Failed to read image data.",
+            "LOAD_FAILED"
+          )
+        );
       };
       reader.readAsDataURL(file);
     });

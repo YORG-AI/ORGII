@@ -11,11 +11,12 @@ import {
   isSystemPathRepoItem,
 } from "@src/features/SessionCreator/utils/systemPathSource";
 import { REPO_KIND } from "@src/store/repo";
+import { compactRepoPathForDisplay } from "@src/util/file/repoPathDisplay";
 
 import { ICONS } from "../../config";
 import type { RepoItem, SpotlightItem, SpotlightItemData } from "../../types";
 
-export interface BuildRepoItemOptions {
+interface BuildRepoItemOptions {
   currentRepoId?: string;
   onAction: (repo: RepoItem) => void;
   /** Prefix for item IDs (avoids collisions in combined lists) */
@@ -26,6 +27,9 @@ export interface BuildRepoItemOptions {
   getSelectionState?: (
     repo: RepoItem
   ) => SpotlightItemData["selectionState"] | undefined;
+  /** Renders the repo's filesystem path under its name. Driven by the
+   *  spotlight footer's "Show path" toggle; off by default. */
+  showPath?: boolean;
 }
 
 /**
@@ -41,12 +45,17 @@ export function buildRepoSpotlightItem(
     idPrefix = "",
     manageAction,
     getSelectionState,
+    showPath = false,
   } = options;
   const inManageMode = !!manageAction;
   const copyPath = repo.fs_uri?.replace(/^file:\/\//, "").replace(/\/+$/, "");
+  const displayPath = copyPath
+    ? compactRepoPathForDisplay({ path: copyPath })
+    : "";
   return {
     id: `${idPrefix}${repo.id}`,
     label: repo.name,
+    desc: showPath && displayPath ? displayPath : undefined,
     icon: isSystemHomeRepoItem(repo)
       ? ICONS.home
       : isSystemPathRepoItem(repo) || repo.kind === REPO_KIND.FOLDER
@@ -61,7 +70,6 @@ export function buildRepoSpotlightItem(
         name: repo.name,
         path: copyPath || undefined,
       },
-      gitStatus: inManageMode ? undefined : repo.gitStatus,
       rightContent: inManageMode ? manageAction(repo) : undefined,
       selectionState: getSelectionState?.(repo),
     },

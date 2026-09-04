@@ -1,11 +1,11 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { DraftingCompass } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { sendAdeActionResult } from "@src/api/tauri/agent";
 import { DISPATCH_CATEGORY } from "@src/api/tauri/session";
 import { pendingSessionProposal } from "@src/engines/SessionCore/hooks/useAgentADEActions";
 import SessionCreatorChatPanel from "@src/features/SessionCreator/variants/ChatPanel";
+import { AiGenerativeIcon } from "@src/icons";
 import { UnifiedModelPalette } from "@src/scaffold/GlobalSpotlight/palettes/UnifiedModelPalette";
 import type { BasePaletteProps } from "@src/scaffold/GlobalSpotlight/shared";
 import { modelSelectorAtom } from "@src/store/ui/modelSelectorAtom";
@@ -98,7 +98,7 @@ const ProposalCreatorPanel: React.FC<ProposalCreatorPanelProps> = ({
       <div className="flex items-center gap-2 px-3 py-1">
         <div className="relative h-[2px] flex-1 overflow-hidden rounded-full bg-border-2/40">
           <div
-            className={`absolute left-0 top-0 h-full transition-none ${barColor}`}
+            className={`absolute top-0 left-0 h-full transition-none ${barColor}`}
             style={{ width: `${pct * 100}%` }}
           />
         </div>
@@ -114,13 +114,13 @@ const ProposalCreatorPanel: React.FC<ProposalCreatorPanelProps> = ({
         initialContent={task}
         hidePresenceButton
         onSessionStart={handleSessionStart}
-        innerClassName="!pb-3"
+        innerClassName="pb-3!"
       />
     </div>
   );
 };
 
-export interface AgentControlPaletteProps extends BasePaletteProps {
+interface AgentControlPaletteProps extends BasePaletteProps {
   asBody?: boolean;
 }
 
@@ -142,6 +142,7 @@ export const AgentControlPalette: React.FC<AgentControlPaletteProps> = ({
   const inputTrailingSlot = (
     <AgentControlInputTrailing
       selection={palette.creatorDefaultLastModel}
+      modelLabel={palette.modelLabel}
       selectModelLabel={palette.selectModelLabel}
       modelSelectorActive={isModelOpen}
       onOpenModelSelector={handleOpenModelSelector}
@@ -160,7 +161,7 @@ export const AgentControlPalette: React.FC<AgentControlPaletteProps> = ({
         placeholder={palette.placeholder}
         inputTrailingSlot={inputTrailingSlot}
         contentOverride={null}
-        inputIcon={DraftingCompass}
+        inputIcon={AiGenerativeIcon}
       />
       {palette.showStatusLine && (
         <AgentControlStatus

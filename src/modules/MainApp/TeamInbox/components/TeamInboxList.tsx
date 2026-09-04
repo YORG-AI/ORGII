@@ -1,16 +1,3 @@
-import {
-  CheckCheck,
-  GitMerge,
-  GitPullRequest,
-  GitPullRequestClosed,
-  GitPullRequestDraft,
-  Inbox,
-  Info,
-  ListChecks,
-  type LucideIcon,
-  MessageSquareMore,
-  RefreshCw,
-} from "lucide-react";
 import React, {
   type ReactNode,
   useCallback,
@@ -20,22 +7,36 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
-import { LIST_PANEL_SECTIONS } from "@src/components/ListPanel";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import { LIST_PANEL_SECTIONS, ListPanelItem } from "@src/components/ListPanel";
 import { Placeholder } from "@src/components/Placeholder";
-import SearchInput from "@src/components/SearchInput";
+import { WORKSTATION_TRAIL_SECTION_LABEL } from "@src/config/workstation/tokens";
+import {
+  GitMergeIcon,
+  GitPullRequestClosedIcon,
+  GitPullRequestDraftIcon,
+  GitPullRequestIcon,
+  HugeiconsIcon,
+  type IconSvgElement,
+  InformationCircleIcon,
+  TickDouble01Icon,
+} from "@src/icons";
 import {
   type ManagedPrItem,
   getManagedPullRequestKey,
 } from "@src/modules/MainApp/WorkManagement/githubManagedItemModel";
+import { WorkManagementRefreshButton } from "@src/modules/shared/components/WorkManagementRefreshButton";
+import { WorkManagementSearchInput } from "@src/modules/shared/components/WorkManagementSearchInput";
+import { compactRepositoryLabel } from "@src/modules/shared/githubRepositoryLabel";
+import CompactListHeader from "@src/modules/shared/layouts/CompactListHeader";
 import {
   CollapsibleSection,
   ListPanelScrollArea,
   LoadingBar,
-  PANEL_HEADER_TOKENS,
-  PanelHeader,
 } from "@src/modules/shared/layouts/blocks";
 import {
   type PrStatusIconName,
@@ -50,15 +51,12 @@ import {
   type TeamInboxUnreadCounts,
   getTeamInboxItemKey,
 } from "../domain";
-import TeamInboxListItem from "./TeamInboxListItem";
 import TeamInboxRow from "./TeamInboxRow";
-import { compactRepositoryLabel } from "./teamInboxRowMetadata";
 
 export interface TeamInboxListProps {
   filter: TeamInboxFilter;
   items: readonly TeamInboxItem[];
   selectedItemId: string | null;
-  totalUnread: number;
   unreadCounts: TeamInboxUnreadCounts;
   query: string;
   loading: boolean;
@@ -67,7 +65,6 @@ export interface TeamInboxListProps {
   pullRequestsError?: string | null;
   selectedPullRequestKey?: string | null;
   onQueryChange: (query: string) => void;
-  onFilterChange: (filter: TeamInboxFilter) => void;
   onSelectItem: (item: TeamInboxItem) => void;
   onSelectPullRequest?: (pullRequest: ManagedPrItem) => void;
   onRefresh?: () => void;
@@ -75,21 +72,15 @@ export interface TeamInboxListProps {
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
+  /** The shared split layout can own this row instead. */
+  showControls?: boolean;
 }
 
-interface TeamInboxFilterControl {
-  key: TeamInboxFilter;
-  label: string;
-  icon: React.ReactNode;
-  iconClassName: string;
-  unreadCount: number;
-}
-
-const PULL_REQUEST_ICONS: Record<PrStatusIconName, LucideIcon> = {
-  "pull-request": GitPullRequest,
-  merge: GitMerge,
-  closed: GitPullRequestClosed,
-  draft: GitPullRequestDraft,
+const PULL_REQUEST_ICONS: Record<PrStatusIconName, IconSvgElement> = {
+  "pull-request": GitPullRequestIcon,
+  merge: GitMergeIcon,
+  closed: GitPullRequestClosedIcon,
+  draft: GitPullRequestDraftIcon,
 };
 
 interface TeamInboxPullRequestSections {
@@ -132,6 +123,91 @@ function groupTeamInboxItems(
   );
 }
 
+export interface TeamInboxListControlsProps {
+  filter: TeamInboxFilter;
+  unreadCounts: TeamInboxUnreadCounts;
+  query: string;
+  loading: boolean;
+  placement: "header" | "list";
+  /** A split-list header search grows before the action buttons. */
+  fillSearch?: boolean;
+  trailingActions?: ReactNode;
+  onQueryChange: (query: string) => void;
+  onRefresh?: () => void;
+  onMarkAllRead?: () => void;
+}
+
+/** Shared Inbox controls used in the page header or compact left pane. */
+export const TeamInboxListControls: React.FC<TeamInboxListControlsProps> = ({
+  filter,
+  unreadCounts,
+  query,
+  loading,
+  placement,
+  fillSearch = false,
+  trailingActions,
+  onQueryChange,
+  onRefresh,
+  onMarkAllRead,
+}) => {
+  const { t } = useTranslation();
+  const activeFilterUnread = unreadCounts[filter];
+
+  return (
+    <div
+      className={`flex min-w-0 items-center gap-1 ${
+        placement === "list" || fillSearch ? "flex-1" : ""
+      }`.trim()}
+    >
+      <WorkManagementSearchInput
+        value={query}
+        onChange={onQueryChange}
+        placement={placement}
+        fillWidth={fillSearch}
+        placeholder={t("common:actions.search")}
+        dataTestId="team-inbox-search"
+      />
+      {(activeFilterUnread > 0 && onMarkAllRead) ||
+      onRefresh ||
+      trailingActions ? (
+        <div className="flex shrink-0 items-center gap-px">
+          {activeFilterUnread > 0 && onMarkAllRead ? (
+            <ToolbarTooltip label={t("inbox.markAllAsRead")}>
+              <Button
+                htmlType="button"
+                variant="tertiary"
+                size="small"
+                icon={
+                  <HugeiconsIcon
+                    icon={TickDouble01Icon}
+                    data-icon="check-check"
+                    size={14}
+                    strokeWidth={2}
+                  />
+                }
+                iconOnly
+                className="shrink-0"
+                aria-label={t("inbox.markAllAsRead")}
+                data-testid="team-inbox-mark-all-read"
+                onClick={onMarkAllRead}
+              />
+            </ToolbarTooltip>
+          ) : null}
+          {onRefresh ? (
+            <WorkManagementRefreshButton
+              label={t("common:actions.refresh")}
+              loading={loading}
+              onRefresh={onRefresh}
+              dataTestId="team-inbox-refresh"
+            />
+          ) : null}
+          {trailingActions}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 // Temporarily hidden until GitHub OAuth failures can name the affected
 // repositories and offer a useful recovery path. Keep the warning UI in place
 // so it can be restored without rebuilding its shared styling and behavior.
@@ -152,8 +228,8 @@ function TeamInboxListSection({
         title={title}
         compact
         headerRowClassName="mb-px h-7"
-        titleButtonClassName="group/section-title h-7 w-full gap-2 pl-2 text-xs font-medium uppercase tracking-wider text-text-2 hover:text-text-1"
-        titleClassName="order-first min-w-0 truncate text-left"
+        titleButtonClassName="group/section-title h-7 w-full gap-2 pl-2 hover:text-text-1"
+        titleClassName={`order-first min-w-0 truncate ${WORKSTATION_TRAIL_SECTION_LABEL}`}
         chevronContainerClassName="order-last hidden shrink-0 items-center leading-none group-hover/section-title:inline-flex group-focus-visible/section-title:inline-flex"
         chevronSize={14}
         chevronStrokeWidth={2}
@@ -166,23 +242,10 @@ function TeamInboxListSection({
   );
 }
 
-function FilterUnreadBadge({ count }: { count: number }): React.ReactNode {
-  if (count <= 0) return null;
-  return (
-    <span
-      aria-hidden
-      className="pointer-events-none absolute -right-1 -top-1 z-10 min-w-4 rounded-full bg-primary-6 px-1 text-center text-xs font-semibold leading-4 text-white"
-    >
-      {count > 99 ? "99+" : count}
-    </span>
-  );
-}
-
 const TeamInboxList: React.FC<TeamInboxListProps> = ({
   filter,
   items,
   selectedItemId,
-  totalUnread,
   unreadCounts,
   query,
   loading,
@@ -191,7 +254,6 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
   pullRequestsError = null,
   selectedPullRequestKey = null,
   onQueryChange,
-  onFilterChange,
   onSelectItem,
   onSelectPullRequest,
   onRefresh,
@@ -199,6 +261,7 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
   hasMore = false,
   loadingMore = false,
   onLoadMore,
+  showControls = true,
 }) => {
   const { t } = useTranslation();
   const hasQuery = query.trim().length > 0;
@@ -265,11 +328,10 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
     !pullRequestsErrorUi.dismissed;
   const showPullRequestsErrorDetails =
     Boolean(pullRequestsError) && pullRequestsErrorUi.detailed;
-  const activeFilterUnread = unreadCounts[filter];
   const showLoadingBar = loading || pullRequestsLoading || loadingMore;
   const loadMoreAction =
     hasMore && onLoadMore ? (
-      <div className="flex shrink-0 justify-center px-3 pb-2 pt-1">
+      <div className="flex shrink-0 justify-center px-3 pt-1 pb-2">
         <Button
           variant="tertiary"
           size="small"
@@ -280,33 +342,6 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
         </Button>
       </div>
     ) : null;
-  const filterTabs = useMemo<TeamInboxFilterControl[]>(
-    () => [
-      {
-        key: "all",
-        label: t("teamInbox.filters.all"),
-        icon: <Inbox size={14} strokeWidth={1.8} aria-hidden />,
-        iconClassName: "text-text-2",
-        unreadCount: unreadCounts.all,
-      },
-      {
-        key: "mentions",
-        label: t("teamInbox.filters.mentions"),
-        icon: <MessageSquareMore size={14} strokeWidth={1.8} aria-hidden />,
-        iconClassName: "text-primary-6",
-        unreadCount: unreadCounts.mentions,
-      },
-      {
-        key: "assigned",
-        label: t("teamInbox.filters.assigned"),
-        icon: <ListChecks size={14} strokeWidth={1.8} aria-hidden />,
-        iconClassName: "text-success-6",
-        unreadCount: unreadCounts.assigned,
-      },
-    ],
-    [t, unreadCounts.all, unreadCounts.mentions, unreadCounts.assigned]
-  );
-
   const selectAt = useCallback(
     (index: number) => {
       const item = orderedInboxItems[index];
@@ -354,7 +389,7 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
       const PullRequestIcon = PULL_REQUEST_ICONS[getPrStatusIconName(status)];
       const statusIconClass = getPrStatusVariant(status).textClass;
       return (
-        <TeamInboxListItem
+        <ListPanelItem
           key={key}
           id={key}
           selected={selectedPullRequestKey === key}
@@ -374,11 +409,14 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
               </span>
             </>
           }
-          leading={<PullRequestIcon size={14} strokeWidth={1.8} />}
+          leading={
+            <AnyIcon icon={PullRequestIcon} size={14} strokeWidth={1.8} />
+          }
           leadingClassName={statusIconClass}
           ariaLabel={`${pullRequest.title}, #${pullRequest.id}, ${pullRequest.author}, ${pullRequest.repo}`}
           ariaCurrent={selectedPullRequestKey === key ? "true" : undefined}
           dataAttributes={{
+            "data-team-inbox-list-item": true,
             "data-testid": "team-inbox-pr-row",
             "data-pr-number": pullRequest.id,
           }}
@@ -421,104 +459,20 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
       className="flex h-full min-h-0 flex-col"
       aria-label={t("teamInbox.listLabel")}
     >
-      <PanelHeader
-        title={t("teamInbox.title")}
-        subtitle={
-          totalUnread > 0
-            ? t("teamInbox.unreadCount", { count: totalUnread })
-            : t("teamInbox.allRead")
-        }
-        variant="list"
-        actions={
-          <>
-            {activeFilterUnread > 0 && onMarkAllRead ? (
-              <Button
-                {...PANEL_HEADER_TOKENS.actionButton}
-                icon={
-                  <CheckCheck
-                    size={PANEL_HEADER_TOKENS.buttonIconSize}
-                    strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
-                  />
-                }
-                title={t("inbox.markAllAsRead")}
-                aria-label={t("inbox.markAllAsRead")}
-                data-testid="team-inbox-mark-all-read"
-                onClick={onMarkAllRead}
-              />
-            ) : null}
-            {onRefresh ? (
-              <Button
-                htmlType="button"
-                variant="tertiary"
-                size="small"
-                icon={<RefreshCw size={14} strokeWidth={2} />}
-                iconOnly
-                disabled={showLoadingBar}
-                className="shrink-0"
-                aria-label={t("common:actions.refresh")}
-                title={t("common:actions.refresh")}
-                data-testid="team-inbox-refresh"
-                onClick={onRefresh}
-              />
-            ) : null}
-          </>
-        }
-      />
-
-      <div className="flex flex-shrink-0 items-center gap-2 bg-chat-pane px-3 pb-2">
-        <div
-          className="flex shrink-0 items-center gap-1"
-          role="group"
-          aria-label={t("common:actions.filter")}
-        >
-          {filterTabs.map((filterTab) => {
-            const isActive = filter === filterTab.key;
-            const unreadLabel =
-              filterTab.unreadCount > 0
-                ? `${filterTab.label}, ${t("teamInbox.unreadCount", {
-                    count: filterTab.unreadCount,
-                  })}`
-                : filterTab.label;
-            return (
-              <span key={filterTab.key} className="relative inline-flex">
-                <Button
-                  htmlType="button"
-                  variant="tertiary"
-                  size="small"
-                  icon={
-                    <span
-                      className={
-                        filterTab.key === "all" && isActive
-                          ? "text-primary-6"
-                          : filterTab.iconClassName
-                      }
-                    >
-                      {filterTab.icon}
-                    </span>
-                  }
-                  iconOnly
-                  className={`h-7 w-7 ${isActive ? "!bg-fill-2 !text-text-1" : ""}`}
-                  aria-label={unreadLabel}
-                  aria-pressed={isActive}
-                  title={unreadLabel}
-                  data-testid={`team-inbox-filter-${filterTab.key}`}
-                  onClick={() => onFilterChange(filterTab.key)}
-                />
-                <FilterUnreadBadge count={filterTab.unreadCount} />
-              </span>
-            );
-          })}
-        </div>
-        <SearchInput
-          variant="sidebar"
-          value={query}
-          onChange={onQueryChange}
-          placeholder={t("common:actions.search")}
-          ariaLabel={t("common:actions.search")}
-          showClearButton
-          className="min-w-0 flex-1"
-        />
-      </div>
+      {showControls ? (
+        <CompactListHeader>
+          <TeamInboxListControls
+            filter={filter}
+            unreadCounts={unreadCounts}
+            query={query}
+            loading={showLoadingBar}
+            placement="list"
+            onQueryChange={onQueryChange}
+            onRefresh={onRefresh}
+            onMarkAllRead={onMarkAllRead}
+          />
+        </CompactListHeader>
+      ) : null}
       {showLoadingBar ? <LoadingBar /> : null}
 
       {items.length === 0 && !hasPullRequestSurface ? (
@@ -563,7 +517,14 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
                     htmlType="button"
                     variant="tertiary"
                     size="small"
-                    icon={<Info size={14} strokeWidth={1.8} />}
+                    icon={
+                      <HugeiconsIcon
+                        icon={InformationCircleIcon}
+                        data-icon="info"
+                        size={14}
+                        strokeWidth={1.8}
+                      />
+                    }
                     iconOnly
                     className="h-7 w-7"
                     aria-label={t("common:common.details")}
@@ -591,7 +552,7 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
                     <div>
                       {t("teamInbox.errors.pullRequestsPartialLoadHelp")}
                     </div>
-                    <div className="break-words text-[11px] text-text-3">
+                    <div className="text-[11px] wrap-break-word text-text-3">
                       {pullRequestsError}
                     </div>
                   </div>

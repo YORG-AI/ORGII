@@ -18,6 +18,8 @@ import {
   vi,
 } from "vitest";
 
+import { HIDDEN_AGENT_STATUS_TRAIL_STATE } from "@src/engines/ChatPanel/hooks/agentStatusTrailMath";
+
 import type { OptimizedChatItem } from "../../chatItemPipeline/types";
 import type { GroupHeaderRenderPart } from "../../renderers/GroupHeaderRenderer";
 import ChatHistoryList from "../ChatHistoryList";
@@ -123,10 +125,7 @@ describe("ChatHistoryList turn identity", () => {
       flatItems,
       groupCounts: [flatItems.length],
       turnIds: ["turn-with-image"],
-      assistantCopyEventIdsByGroup: [[]],
-      resolveAssistantTurnCopyContent: () => "",
       totalFlatItems: flatItems.length,
-      lastAssistantFlatIndexPerItem: flatItems.map(() => null),
       codeBlockContainerWidth: 800,
       footerSpacerHeight: 0,
       bottomInset: 0,
@@ -134,6 +133,8 @@ describe("ChatHistoryList turn identity", () => {
       planningIndicatorCount: 0,
       planningVariantIndex: 0,
       planningFooterMode: "planning",
+      statusTrail: HIDDEN_AGENT_STATUS_TRAIL_STATE,
+      statusTrailSessionId: null,
       virtualListRef,
       virtualListDataKey,
       getIsWpGeneWorking: () => false,
@@ -161,6 +162,14 @@ describe("ChatHistoryList turn identity", () => {
     imageMounts = 0;
     imageUnmounts = 0;
     measureElementSpy.mockClear();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class ResizeObserverMock {
+        observe = vi.fn();
+        unobserve = vi.fn();
+        disconnect = vi.fn();
+      }
+    );
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -169,6 +178,7 @@ describe("ChatHistoryList turn identity", () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    vi.unstubAllGlobals();
   });
 
   afterAll(() => {

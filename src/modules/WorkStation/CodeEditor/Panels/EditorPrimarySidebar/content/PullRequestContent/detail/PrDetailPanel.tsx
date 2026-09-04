@@ -2,38 +2,26 @@
  * PrDetailPanel
  *
  * GitHub-style tabbed Pull Request detail rendered in the Source Control main
- * pane: a header (status icon · #number · title) over
- * a Conversation / Commits / Checks / Changes sub-tab bar.
+ * pane with a Conversation / Commits / Checks / Changes tab bar.
  *
  * Mounts `useWorkstationPrDetail` (which parallel-fetches every source and
  * publishes into `workstationSelectedPrAtom`) and renders each tab from that
  * shared state. The Conversation tab gets the GitHub-flow title header, and a
  * Workstation-trail details rail (reviewers / assignees / labels / merge
- * actions) is always shown: beside the tabs while the body is wide enough,
- * otherwise stacked under the flow title above the description. Reuses
- * commit-history + issue-timeline formatting throughout.
+ * actions) stays beside the content. Reuses commit-history + issue-timeline
+ * formatting throughout.
  */
 import { useAtom } from "jotai";
-import {
-  FileDiff,
-  GitCommitHorizontal,
-  ListChecks,
-  MessagesSquare,
-} from "lucide-react";
 import React, { useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import InlineBanner, {
   useDismissibleMessage,
 } from "@src/components/InlineBanner";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import { useElementDimensions } from "@src/hooks/ui/layout/useElementDimensions";
 import { ExternalBrowserButton } from "@src/modules/WorkStation/shared/ExternalBrowserButton";
 import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
+import GitHubPrDetailTabs from "@src/modules/shared/components/GitHubPrDetailTabs";
 import {
-  DetailHeaderTabs,
-  DetailTabStrip,
-  PanelHeader,
   PersistentDetailTabPanel,
   ScrollTrail,
   WORKSTATION_TRAIL_RAIL_PADDING_CLASS,
@@ -51,37 +39,27 @@ import { PrChangesTab } from "./PrChangesTab";
 import { PrChecksTab } from "./PrChecksTab";
 import { PrCommitsTab } from "./PrCommitsTab";
 import { PrConversationTab } from "./PrConversationTab";
-import { PrDetailHeaderContent } from "./PrDetailHeaderContent";
 import { PrFlowHeader } from "./PrFlowHeader";
 import { PrSidebar } from "./PrSidebar";
 import { formatPrFilesCount } from "./prFilesDisplay";
-
-export { PrDetailHeaderContent } from "./PrDetailHeaderContent";
-
-/**
- * Body width below which the details rail stops being a second column. The
- * rail is 256px plus its gutter, so anything narrower leaves the conversation
- * column too cramped to read comfortably.
- */
-const PR_DETAIL_TWO_COLUMN_WIDTH = 820;
 
 interface PrDetailPanelProps {
   identity: PrIdentity;
   repoPath: string;
   repoId?: string;
-  /** Host-owned action group replacing the default GitHub link action. */
-  headerActions?: React.ReactNode;
-  /** Optional host-specific header spacing and surface overrides. */
-  headerClassName?: string;
-  /**
-   * Render the internal status·#number·title header row. Set false
-   * when the host publishes this info elsewhere (e.g. the My Station PR tab
-   * lifts it into the 40px tab-header strip via {@link PrDetailHeaderContent}).
-   */
-  showHeader?: boolean;
-  /** Place the title and detail tabs together in the same 40px header row. */
-  combineHeaderAndTabs?: boolean;
+  /** Host-owned actions displayed at the end of the tab strip. */
+  tabActions?: React.ReactNode;
+  /** Render tabs in the host's header instead of above the panel body. */
+  tabsPlacement?: "panel" | "hostHeader";
   onFileSelect?: (path: string) => void;
+}
+
+interface PrDetailTabsProps {
+  identity: PrIdentity;
+  repoPath: string;
+  repoId?: string;
+  trailing?: React.ReactNode;
+  variant?: "row" | "header";
 }
 
 export function PrDetailExternalLinkButton({
@@ -94,14 +72,56 @@ export function PrDetailExternalLinkButton({
   return <ExternalBrowserButton href={identity.url} label={title} />;
 }
 
+/** Shared PR navigation, suitable for either a panel or a host-owned header. */
+export const PrDetailTabs: React.FC<PrDetailTabsProps> = ({
+  identity,
+  repoPath,
+  repoId,
+  trailing,
+  variant = "row",
+}) => {
+  const scopeKey = workstationPrScopeKey(repoId, repoPath, identity.number);
+  const [state, setState] = useAtom(workstationSelectedPrAtomFamily(scopeKey));
+  const activeTab = state.viewState.activeTab;
+
+  return (
+    <GitHubPrDetailTabs
+      activeTab={activeTab}
+      counts={
+        state.loading || (state.detail === null && state.error === null)
+          ? undefined
+          : {
+              conversation: state.conversation.length + state.reviews.length,
+              commits: state.commits.length,
+              checks:
+                (state.checks?.check_runs.length ?? 0) +
+                (state.checks?.statuses.length ?? 0),
+              changes: formatPrFilesCount(state.files.length),
+            }
+      }
+      trailing={trailing}
+      variant={variant}
+      onChange={(nextTab) => {
+        setState((current) => ({
+          ...current,
+          viewState: {
+            ...current.viewState,
+            activeTab: nextTab,
+          },
+        }));
+      }}
+    />
+  );
+};
+
+PrDetailTabs.displayName = "PrDetailTabs";
+
 export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
   identity,
   repoPath,
   repoId,
-  headerActions,
-  headerClassName,
-  showHeader = true,
-  combineHeaderAndTabs = false,
+  tabActions,
+  tabsPlacement = "panel",
   onFileSelect,
 }) => {
   const { t } = useTranslation("common");
@@ -123,15 +143,6 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
     [setState]
   );
   const activeTab = detailViewState.activeTab;
-  const setActiveTab = useCallback(
-    (nextTab: typeof activeTab) => {
-      setDetailViewState((current) => ({
-        ...current,
-        activeTab: nextTab,
-      }));
-    },
-    [setDetailViewState]
-  );
   const setConversationDraft = useCallback(
     (conversationDraft: string) => {
       setDetailViewState((current) => ({
@@ -214,28 +225,18 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
   const { visibleMessage: visibleError, dismiss: dismissError } =
     useDismissibleMessage(state.error);
 
-  // The details rail is always present. It is the right-hand column while the
-  // body can spare the width, and stacks under the flow title (above the
-  // description) once two columns would squeeze the conversation.
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const bodyWidth = useElementDimensions(bodyRef, { dimension: "width" });
-  const stackSidebar = bodyWidth > 0 && bodyWidth < PR_DETAIL_TWO_COLUMN_WIDTH;
   // The conversation scroll trail shares the details column, sitting under the
   // rail exactly as the session/Work Item trail does.
   const navigationTrail = (
     <div
-      className={
-        stackSidebar
-          ? "relative w-11 shrink-0"
-          : "relative ml-auto min-h-0 w-11 flex-1"
-      }
+      className="relative ml-auto min-h-0 w-11 flex-1"
       data-testid="pr-detail-navigation-rail"
     >
       <ScrollTrail
         scrollContainerRef={trailScrollContainerRef}
         contentRef={trailContentRef}
         ariaLabel={t("git.pr.navigationTrail", "Pull request navigation")}
-        alignment={stackSidebar ? "center" : "start"}
+        alignment="start"
         placement="rail"
         testId="pr-detail-navigation-trail"
       />
@@ -271,96 +272,35 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
   const baseBranch =
     state.baseRef ?? identity.baseBranch ?? t("git.pr.baseBranch", "base");
 
-  const tabs = useMemo(
-    () => [
-      {
-        key: "conversation" as const,
-        label: t("git.pr.tabs.conversation", "Conversation"),
-        icon: <MessagesSquare size={15} strokeWidth={1.8} />,
-        count: state.conversation.length + state.reviews.length,
-      },
-      {
-        key: "commits" as const,
-        label: t("git.pr.tabs.commits", "Commits"),
-        icon: <GitCommitHorizontal size={15} strokeWidth={1.8} />,
-        count: state.commits.length,
-      },
-      {
-        key: "checks" as const,
-        label: t("git.pr.tabs.checks", "Checks"),
-        icon: <ListChecks size={15} strokeWidth={1.8} />,
-        count:
-          (state.checks?.check_runs.length ?? 0) +
-          (state.checks?.statuses.length ?? 0),
-      },
-      {
-        key: "changes" as const,
-        label: t("git.pr.changes.title", "Files changed"),
-        icon: <FileDiff size={15} strokeWidth={1.8} />,
-        count: formatPrFilesCount(state.files.length),
-      },
-    ],
-    [
-      t,
-      state.conversation.length,
-      state.reviews.length,
-      state.commits.length,
-      state.checks,
-      state.files.length,
-    ]
-  );
+  const tabs =
+    tabsPlacement === "panel" ? (
+      <PrDetailTabs
+        identity={identity}
+        repoPath={repoPath}
+        repoId={repoId}
+        trailing={
+          tabActions ?? <PrDetailExternalLinkButton identity={identity} />
+        }
+      />
+    ) : null;
 
   if (state.loading || (state.detail === null && state.error === null)) {
-    return <GitHubDetailSkeleton kind="pr" showHeader={showHeader} />;
+    return (
+      <GitHubDetailSkeleton
+        kind="pr"
+        showHeader={false}
+        showTabs={tabsPlacement === "panel"}
+        tabs={tabs}
+        activeTab={activeTab}
+        title={identity.title}
+        number={identity.number}
+      />
+    );
   }
 
   return (
-    <div className="allow-select-deep flex h-full min-h-0 flex-col overflow-hidden @container/detailheader">
-      {/* Header */}
-      {showHeader ? (
-        <PanelHeader
-          className={`${headerClassName ?? DETAIL_PANEL_TOKENS.headerPadding} ${
-            combineHeaderAndTabs
-              ? "!h-auto [&>div:last-child]:mt-1.5 [&>div:last-child]:self-start @[960px]/detailheader:[&>div:last-child]:mt-0 @[960px]/detailheader:[&>div:last-child]:self-auto"
-              : ""
-          }`.trim()}
-          dataTestId="pr-detail-header"
-          borderBottom={combineHeaderAndTabs}
-          actions={
-            headerActions ?? <PrDetailExternalLinkButton identity={identity} />
-          }
-        >
-          {combineHeaderAndTabs ? (
-            <DetailHeaderTabs
-              title={<PrDetailHeaderContent identity={currentIdentity} />}
-              stackTabsBelow
-              tabs={
-                <DetailTabStrip
-                  activeTab={activeTab}
-                  ariaLabel={t("git.pr.summary.label", "Pull request summary")}
-                  idPrefix="pr-detail"
-                  tabs={tabs}
-                  onChange={setActiveTab}
-                  variant="header"
-                />
-              }
-            />
-          ) : (
-            <PrDetailHeaderContent identity={currentIdentity} />
-          )}
-        </PanelHeader>
-      ) : null}
-
-      {/* GitHub-style PR navigation */}
-      {!combineHeaderAndTabs || !showHeader ? (
-        <DetailTabStrip
-          activeTab={activeTab}
-          ariaLabel={t("git.pr.summary.label", "Pull request summary")}
-          idPrefix="pr-detail"
-          tabs={tabs}
-          onChange={setActiveTab}
-        />
-      ) : null}
+    <div className="allow-select-deep flex h-full min-h-0 flex-col overflow-hidden">
+      {tabs}
 
       {/* A background reconcile clears `state.error` as soon as it succeeds, so
           the strip holds the message until the reader dismisses it. */}
@@ -371,7 +311,7 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
       ) : null}
 
       {/* Detail tabs mount lazily, then remain mounted to preserve view state. */}
-      <div ref={bodyRef} className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <PersistentDetailTabPanel
             active={activeTab === "conversation"}
@@ -393,7 +333,6 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
                     files={state.files}
                   />
                 }
-                sidebar={stackSidebar ? sidebar : undefined}
                 detail={state.detail}
                 identity={currentIdentity}
                 conversation={state.conversation}
@@ -410,9 +349,6 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
                 trailContentRef={setConversationContentNode}
               />
             </div>
-            {/* Without a rail column of its own, the trail keeps its own
-                narrow column beside the conversation. */}
-            {stackSidebar ? navigationTrail : null}
           </PersistentDetailTabPanel>
 
           <PersistentDetailTabPanel
@@ -471,19 +407,14 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
           </PersistentDetailTabPanel>
         </div>
 
-        {/* Details rail — the GitHub-style operations sidebar on the shared
-            Workstation trail surface, beside every tab while the body is wide
-            enough. Narrower bodies stack it under the flow title instead. */}
-        {!stackSidebar ? (
-          <div
-            className={`box-border flex h-full shrink-0 flex-col ${WORKSTATION_TRAIL_RAIL_PADDING_CLASS}`}
-            style={{ width: WORKSTATION_TRAIL_WIDTH.expandedPx }}
-            data-testid="pr-detail-sidebar-rail"
-          >
-            {sidebar}
-            {activeTab === "conversation" ? navigationTrail : null}
-          </div>
-        ) : null}
+        <div
+          className={`box-border flex h-full shrink-0 flex-col ${WORKSTATION_TRAIL_RAIL_PADDING_CLASS}`}
+          style={{ width: WORKSTATION_TRAIL_WIDTH.expandedPx }}
+          data-testid="pr-detail-sidebar-rail"
+        >
+          {sidebar}
+          {activeTab === "conversation" ? navigationTrail : null}
+        </div>
       </div>
     </div>
   );

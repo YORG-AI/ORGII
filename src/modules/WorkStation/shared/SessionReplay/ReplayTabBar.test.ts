@@ -27,7 +27,7 @@ describe("ReplayTabBar", () => {
     expect(activeSurface).toContain("text-text-1");
     expect(activeSurface).not.toContain("text-primary-6");
     expect(markup).toMatch(
-      /<svg[^>]*class="[^"]*lucide-wrench[^"]*text-text-1[^"]*"/
+      /<svg[^>]*class="[^"]*text-text-1[^"]*"[^>]*data-icon="wrench"/
     );
   });
 });

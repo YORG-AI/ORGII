@@ -104,3 +104,40 @@ pub struct FileSymbolsResponse {
     pub symbols: Vec<FileSymbol>,
     pub parse_time_ms: u64,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_search_result_serializes_file_type_under_type_key() {
+        let result = FileSearchResult {
+            path: "/repo/src/lib.rs".to_string(),
+            file_type: "file".to_string(),
+            score: 42,
+            filename: "lib.rs".to_string(),
+        };
+
+        let json = serde_json::to_value(result).expect("serialize result");
+
+        assert_eq!(json["type"], "file");
+        assert!(json.get("file_type").is_none());
+    }
+
+    #[test]
+    fn file_symbol_children_default_when_absent_and_omit_when_empty() {
+        let symbol: FileSymbol = serde_json::from_value(serde_json::json!({
+            "name": "alpha",
+            "kind": "function",
+            "line": 1,
+            "column": 4,
+            "end_line": 1,
+            "end_column": 9
+        }))
+        .expect("deserialize symbol");
+        assert!(symbol.children.is_empty());
+
+        let json = serde_json::to_value(symbol).expect("serialize symbol");
+        assert!(json.get("children").is_none());
+    }
+}

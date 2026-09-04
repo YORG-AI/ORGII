@@ -9,7 +9,7 @@ import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { VirtualizedListBase } from "@src/components/TreeRow";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 import { formatDuration } from "@src/util/time/formatDuration";
 
 import { SessionDerivedViewShell } from "./SessionDerivedViewShell";
@@ -52,13 +52,13 @@ const TimelineRowView: React.FC<TimelineRowViewProps> = memo(
 
     return (
       <div
-        // Same 900px cap the transcript rows use, so switching views does not
+        // Same 800px cap the transcript rows use, so switching views does not
         // change how wide the session reads.
-        className={`flex h-[34px] items-center gap-2 px-3 text-xs ${DETAIL_PANEL_TOKENS.contentWidth}`}
+        className={`flex h-[34px] items-center gap-2 px-3 text-xs ${CHAT_PANEL_WIDTH_TOKENS.contentWidth}`}
         data-testid="session-timeline-row"
         data-turn-id={row.turnId}
       >
-        <span className="w-8 shrink-0 tabular-nums text-text-3">
+        <span className="w-8 shrink-0 text-text-3 tabular-nums">
           #{row.ordinal}
         </span>
         <span
@@ -76,11 +76,11 @@ const TimelineRowView: React.FC<TimelineRowViewProps> = memo(
             }}
           />
         </span>
-        <span className="w-14 shrink-0 text-right tabular-nums text-text-3">
+        <span className="w-14 shrink-0 text-right text-text-3 tabular-nums">
           {durationLabel}
         </span>
         <span
-          className="w-48 shrink-0 text-right tabular-nums text-text-3"
+          className="w-48 shrink-0 text-right text-text-3 tabular-nums"
           data-testid="session-timeline-range"
           data-start-ms={row.startedAtMs}
           data-end-ms={row.endedAtMs ?? undefined}

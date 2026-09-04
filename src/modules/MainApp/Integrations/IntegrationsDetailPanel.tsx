@@ -20,7 +20,9 @@ import {
 } from "@src/modules/shared/layouts/blocks";
 
 import { ConnectionsCategoryView } from "./Connections/ConnectionsCategoryView";
+import type { ConnectionsCategoryTableProps } from "./Connections/categoryTableProps";
 import { DatabasesCategoryView } from "./Databases/DatabasesCategoryView";
+import type { DatabasesCategoryTableProps } from "./Databases/categoryTableProps";
 import type {
   DatabaseIntegrationEntry,
   DatabaseProbeResult,
@@ -33,16 +35,20 @@ import MyRolesSection, {
   MY_ROLES_TAB,
   type MyRolesTab,
 } from "./KeyVault/MyRoles/MyRolesSection";
+import type { AccountsCategoryTableProps } from "./KeyVault/categoryTableProps";
 import type { useKeyVaultPage } from "./KeyVault/hooks/useKeyVaultPage";
+import type { McpCategoryTableProps } from "./Mcp/categoryTableProps";
 import type { McpDetailState } from "./Mcp/types";
 import {
   RoutinesCategoryView,
   type RoutinesDetailState,
 } from "./Routines/RoutinesCategoryView";
+import type { RoutinesCategoryTableProps } from "./Routines/categoryTableProps";
 import { RulesMemoryEvolutionCategoryView } from "./RulesMemoryEvolution/RulesMemoryEvolutionCategoryView";
+import type { RulesMemoryEvolutionCategoryTableProps } from "./RulesMemoryEvolution/categoryTableProps";
 import type { RulesMemoryEvolutionDetailState } from "./RulesMemoryEvolution/types";
+import type { SkillsCategoryTableProps } from "./Skills/categoryTableProps";
 import type { SkillEditorState, SkillsHubDetailState } from "./Skills/types";
-import type { CategoryTableContentProps } from "./Tables";
 import type { ChannelSlice, DetailMode, IntegrationCategory } from "./types";
 
 const DevToolsCategoryView = lazy(
@@ -82,7 +88,16 @@ export interface IntegrationsDetailPanelProps {
   onExitFullPage: () => void;
   onEnterFullPage: () => void;
   onClosePreview: () => void;
-  tableProps: CategoryTableContentProps;
+  accountsTableProps: AccountsCategoryTableProps;
+  databasesTableProps: DatabasesCategoryTableProps;
+  connectionsTableProps: ConnectionsCategoryTableProps;
+  mcpTableProps: McpCategoryTableProps;
+  skillsTableProps: SkillsCategoryTableProps;
+  rulesTableProps: RulesMemoryEvolutionCategoryTableProps;
+  routinesTableProps: RoutinesCategoryTableProps;
+  onSelectGitProvider: React.ComponentProps<
+    typeof GitCategoryView
+  >["onSelectProvider"];
   externalSkillsetsTab: ExternalSkillsetsTab;
   onExternalSkillsetsTabChange: (tab: ExternalSkillsetsTab) => void;
 }
@@ -107,7 +122,14 @@ const IntegrationsDetailPanel: React.FC<IntegrationsDetailPanelProps> = ({
   onExitFullPage,
   onEnterFullPage,
   onClosePreview,
-  tableProps,
+  accountsTableProps,
+  databasesTableProps,
+  connectionsTableProps,
+  mcpTableProps,
+  skillsTableProps,
+  rulesTableProps,
+  routinesTableProps,
+  onSelectGitProvider,
   externalSkillsetsTab,
   onExternalSkillsetsTabChange,
 }) => {
@@ -135,7 +157,7 @@ const IntegrationsDetailPanel: React.FC<IntegrationsDetailPanelProps> = ({
       return (
         <AccountCategoryView
           accounts={accounts}
-          tableProps={tableProps}
+          tableProps={accountsTableProps}
           fullPage={isFullPage}
           onBack={onExitFullPage}
           onExpand={onExpand}
@@ -206,7 +228,8 @@ const IntegrationsDetailPanel: React.FC<IntegrationsDetailPanelProps> = ({
           mcp={mcp}
           skillsHub={skillsHub}
           skillEditor={skillEditor}
-          tableProps={tableProps}
+          mcpTableProps={mcpTableProps}
+          skillsTableProps={skillsTableProps}
           fullPage={isFullPage}
           onBack={onExitFullPage}
           onEnterFullPage={onEnterFullPage}
@@ -224,7 +247,7 @@ const IntegrationsDetailPanel: React.FC<IntegrationsDetailPanelProps> = ({
           onRemove={databasesState.onRemove}
           addWizardOpen={databasesState.addWizardOpen}
           onCloseAddWizard={databasesState.onCloseAddWizard}
-          tableProps={tableProps}
+          tableProps={databasesTableProps}
           fullPage={isFullPage}
           onBack={onExitFullPage}
           onExpand={onExpand}
@@ -242,7 +265,7 @@ const IntegrationsDetailPanel: React.FC<IntegrationsDetailPanelProps> = ({
           selectedGitProvider={selectedGitProvider}
           onGitConnected={onGitConnected}
           channel={channel}
-          tableProps={tableProps}
+          tableProps={connectionsTableProps}
           fullPage={isFullPage}
           onBack={onExitFullPage}
           onExpand={onExpand}
@@ -254,7 +277,7 @@ const IntegrationsDetailPanel: React.FC<IntegrationsDetailPanelProps> = ({
       return (
         <GitCategoryView
           selectedProvider={selectedGitProvider}
-          onSelectProvider={tableProps.onSelectGitProvider}
+          onSelectProvider={onSelectGitProvider}
         />
       );
 
@@ -262,7 +285,7 @@ const IntegrationsDetailPanel: React.FC<IntegrationsDetailPanelProps> = ({
       return (
         <RulesMemoryEvolutionCategoryView
           policies={policies}
-          tableProps={tableProps}
+          tableProps={rulesTableProps}
           fullPage={isFullPage}
           onBack={onExitFullPage}
           onExpand={onExpand}
@@ -273,7 +296,7 @@ const IntegrationsDetailPanel: React.FC<IntegrationsDetailPanelProps> = ({
       return (
         <RoutinesCategoryView
           routines={routines}
-          tableProps={tableProps}
+          tableProps={routinesTableProps}
           fullPage={isFullPage}
           onBack={onExitFullPage}
           onExpand={onExpand}

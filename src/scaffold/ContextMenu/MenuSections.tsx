@@ -8,10 +8,10 @@ import React, { memo, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import FolderIcon from "@src/assets/fileTypeIcons/folder-base.svg";
-import DropdownHeader from "@src/components/Dropdown/DropdownHeader";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
+  DROPDOWN_PANEL,
 } from "@src/components/Dropdown/tokens";
 import FileTreePreview from "@src/components/FileTreePreview";
 import FileTypeIcon from "@src/components/FileTypeIcon";
@@ -21,12 +21,7 @@ import {
   SearchLoadingOrEmpty,
   SecondLayerEmptyState,
 } from "./ResultItems";
-import {
-  ICON_CONFIG,
-  SECOND_LAYER_CONFIG,
-  STYLE_CONFIG,
-  getFileName,
-} from "./config";
+import { SECOND_LAYER_CONFIG, STYLE_CONFIG, getFileName } from "./config";
 import type { RecentFile, SecondLayerId } from "./config";
 import type { SearchResultItem } from "./types";
 
@@ -34,8 +29,7 @@ import type { SearchResultItem } from "./types";
 // Constants
 // ============================================
 
-/** Tree panel width (220px) + gap (8px ml-2) */
-const TREE_PANEL_RESERVED = 228;
+const TREE_PANEL_WIDTH = 220;
 
 function normalizePathForDisplay(path: string): string {
   return path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
@@ -72,7 +66,7 @@ interface RecentFilesSectionProps {
   onHoverEnd: () => void;
 }
 
-export const RecentFilesSection: React.FC<RecentFilesSectionProps> = memo(
+const RecentFilesSection: React.FC<RecentFilesSectionProps> = memo(
   ({ files, onSelect, activeIndex, baseIndex, onHover, onHoverEnd }) => {
     const [expanded, setExpanded] = useState(false);
     if (files.length === 0) return null;
@@ -106,13 +100,13 @@ export const RecentFilesSection: React.FC<RecentFilesSectionProps> = memo(
                 <FolderIcon
                   width={DROPDOWN_ITEM.iconSize}
                   height={DROPDOWN_ITEM.iconSize}
-                  className="flex-shrink-0 text-text-2"
+                  className="shrink-0 text-text-2"
                 />
               ) : (
                 <FileTypeIcon
                   fileName={file.name}
                   size="small"
-                  className="flex-shrink-0 text-text-2"
+                  className="shrink-0 text-text-2"
                 />
               )}
               <span className="truncate text-[13px] text-text-1">
@@ -153,7 +147,7 @@ interface ResultItemRowProps {
   itemRef: (el: HTMLDivElement | null) => void;
 }
 
-const ResultItemRow: React.FC<ResultItemRowProps> = memo(
+export const ResultItemRow: React.FC<ResultItemRowProps> = memo(
   ({ item, index, activeIndex, onSelect, onHover, onHoverEnd, itemRef }) => {
     const displayName = item.name || getFileName(item.path);
     const displayPath = getWorkspaceRelativeDisplayPath(item);
@@ -204,8 +198,14 @@ const TreePreview: React.FC<TreePreviewProps> = memo(
     if (position === "absolute") {
       return (
         <div
-          className={`absolute top-0 ${treePosition === "left" ? "right-full mr-2" : "left-full ml-2"}`}
-          style={{ pointerEvents: "auto" }}
+          className={`absolute top-0 ${treePosition === "left" ? "right-full" : "left-full"}`}
+          style={{
+            marginLeft:
+              treePosition === "right" ? DROPDOWN_PANEL.submenuGap : undefined,
+            marginRight:
+              treePosition === "left" ? DROPDOWN_PANEL.submenuGap : undefined,
+            pointerEvents: "auto",
+          }}
         >
           <FileTreePreview
             path={item.path}
@@ -216,12 +216,12 @@ const TreePreview: React.FC<TreePreviewProps> = memo(
       );
     }
     return (
-      <div className="flex-shrink-0">
+      <div className="shrink-0">
         <FileTreePreview
           path={item.path}
           itemType={item.type}
           repoPath={item.repoPath ?? repoPath}
-          width={`${TREE_PANEL_RESERVED - 8}px`}
+          width={`${TREE_PANEL_WIDTH}px`}
         />
       </div>
     );
@@ -233,7 +233,7 @@ TreePreview.displayName = "TreePreview";
 // Search Results Panel
 // ============================================
 
-export interface SearchResultsPanelProps {
+interface SearchResultsPanelProps {
   searchQuery: string;
   results: SearchResultItem[];
   loading: boolean;
@@ -319,7 +319,7 @@ SearchResultsPanel.displayName = "SearchResultsPanel";
 // Second Layer Panel
 // ============================================
 
-export interface SecondLayerPanelProps {
+interface SecondLayerPanelProps {
   layerId: SecondLayerId;
   results: SearchResultItem[];
   loading: boolean;
@@ -327,11 +327,8 @@ export interface SecondLayerPanelProps {
   onSelect: (path: string) => void;
   onHover: (index: number) => void;
   onHoverEnd: () => void;
-  onBack: () => void;
   repoPath?: string;
   treePosition?: "left" | "right";
-  /** Override the default layer title (used for drill-down breadcrumb) */
-  titleOverride?: string;
   /** Recent files to show at the top when layerId === "files" */
   recentFiles?: RecentFile[];
 }
@@ -345,10 +342,8 @@ export const SecondLayerPanel: React.FC<SecondLayerPanelProps> = memo(
     onSelect,
     onHover,
     onHoverEnd,
-    onBack,
     repoPath,
     treePosition = "right",
-    titleOverride,
     recentFiles = [],
   }) => {
     const { t } = useTranslation("sessions");
@@ -383,33 +378,17 @@ export const SecondLayerPanel: React.FC<SecondLayerPanelProps> = memo(
           className={`relative ${DROPDOWN_CLASSES.panel}`}
           style={{ width: "100%" }}
         >
-          {/* Header with back button */}
-          <DropdownHeader>
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onBack();
-              }}
-              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-text-2 transition-colors hover:text-text-1 ${DROPDOWN_CLASSES.itemHover}`}
-              aria-label={t("creator.contextMenu.back")}
-            >
-              <ICON_CONFIG.arrowBack
-                size={DROPDOWN_ITEM.iconSize}
-                strokeWidth={1.75}
-              />
-            </button>
-            <span className="flex min-h-5 min-w-0 flex-1 items-center truncate text-[13px] font-medium leading-5 text-text-1">
-              {titleOverride ||
-                t(config.translationKey, { defaultValue: config.title })}
-            </span>
-          </DropdownHeader>
-
           {/* Results */}
           <div
             className={DROPDOWN_CLASSES.optionsContainer}
             style={{ maxHeight: STYLE_CONFIG.maxHeight }}
           >
+            <div
+              className={DROPDOWN_CLASSES.sectionLabel}
+              data-testid="context-menu-section-title"
+            >
+              {t(config.translationKey, { defaultValue: config.title })}
+            </div>
             {/* Recent files section — only shown in the files second layer */}
             {layerId === "files" && recentFiles.length > 0 && (
               <div className={DROPDOWN_CLASSES.sectionContainer}>
@@ -433,13 +412,13 @@ export const SecondLayerPanel: React.FC<SecondLayerPanelProps> = memo(
                       <FolderIcon
                         width={DROPDOWN_ITEM.iconSize}
                         height={DROPDOWN_ITEM.iconSize}
-                        className="flex-shrink-0 text-text-2"
+                        className="shrink-0 text-text-2"
                       />
                     ) : (
                       <FileTypeIcon
                         fileName={file.name}
                         size="small"
-                        className="flex-shrink-0 text-text-2"
+                        className="shrink-0 text-text-2"
                       />
                     )}
                     <span className="min-w-0 flex-1 truncate text-[13px] text-text-1">

@@ -1,7 +1,7 @@
-import type { LucideIcon } from "lucide-react";
 import React, { useCallback, useEffect, useRef } from "react";
 
 import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
+import { HugeiconsIcon, type IconSvgElement } from "@src/icons";
 
 type AnimationStrategy =
   | "stroke-draw"
@@ -459,7 +459,8 @@ export function triggerIconAnimation(containerElement: HTMLElement) {
 }
 
 interface HoverAnimatedIconProps {
-  icon: LucideIcon;
+  /** Static hugeicons glyph data — every caller passes an `@src/icons` import. */
+  icon: IconSvgElement;
   iconName?: string;
   size?: number;
   strokeWidth?: number;
@@ -479,7 +480,6 @@ export default function HoverAnimatedIcon({
 }: HoverAnimatedIconProps): React.ReactElement {
   const wrapperRef = useRef<HTMLSpanElement | null>(null);
   const previousTriggerTokenRef = useRef<number>(triggerToken);
-  const IconComponent = icon;
 
   useEffect(() => {
     injectStyles();
@@ -513,7 +513,8 @@ export default function HoverAnimatedIcon({
       data-icon-wrapper={iconName || ""}
       onMouseEnter={handleMouseEnter}
     >
-      <IconComponent
+      <HugeiconsIcon
+        icon={icon}
         size={size}
         strokeWidth={strokeWidth}
         color={color}

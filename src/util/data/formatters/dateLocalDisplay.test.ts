@@ -13,6 +13,7 @@ import zhCommon from "@src/i18n/locales/zh/common.json";
 
 import {
   addLocalDays,
+  formatDate,
   formatLocalClock,
   formatLocalMonthDay,
   formatRelativeElapsedShort,
@@ -91,6 +92,21 @@ describe("local date display helpers", () => {
         numeric: "auto",
         style: "narrow",
       }).format(-5, "minute")
+    );
+  });
+
+  it("uses an explicit locale for shared date labels", () => {
+    const options: Intl.DateTimeFormatOptions = {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: undefined,
+      minute: undefined,
+    };
+    const instant = "2026-08-06T12:00:00Z";
+
+    expect(formatDate(instant, options, "zh-CN")).toBe(
+      new Date(instant).toLocaleString("zh-CN", options)
     );
   });
 

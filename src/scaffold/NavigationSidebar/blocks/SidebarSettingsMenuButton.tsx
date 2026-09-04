@@ -1,20 +1,8 @@
-import { useAtomValue } from "jotai";
-import {
-  ChevronRight,
-  Circle,
-  ClipboardCheck,
-  Contrast,
-  FlaskConical,
-  Gauge,
-  HelpCircle,
-  Laptop,
-  MessageCircle,
-  MousePointer2,
-  Settings,
-} from "lucide-react";
+import { useAtomValue, useStore } from "jotai";
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -22,6 +10,10 @@ import React, {
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import {
+  clampSubmenuTop,
+  getSubmenuAnchor,
+} from "@src/components/Dropdown/submenuLayout";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -35,20 +27,25 @@ import {
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import type { AppearanceMode } from "@src/config/appearance/globalThemes";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
-import { ROUTES } from "@src/config/routes";
+import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import { resetOrgEntitlementCoordinator } from "@src/features/Org2Cloud/org2CloudEntitlementCoordinator";
 import {
   type DropdownEnginePosition,
   useDropdownEngine,
 } from "@src/hooks/dropdown";
 import { useAppNavigation } from "@src/hooks/navigation";
-import { useAppearanceState } from "@src/modules/MainApp/Settings/sections/useAppearanceState";
 import {
-  DeveloperTestPanel,
-  isDeveloperTestPanelEnabled,
-} from "@src/scaffold/DeveloperTestPanel";
-import { openAgentControlSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
-import { ADE_MANAGER_TOGGLE_SHORTCUT_ID } from "@src/scaffold/GlobalSpotlight/palettes/AgentControlPalette/constants";
-import { TUTORIALS_OPEN_EVENT } from "@src/scaffold/Tutorials/tutorialRegistry";
+  ArrowRight01Icon,
+  CircleIcon,
+  ContrastIcon,
+  GaugeIcon,
+  HugeiconsIcon,
+  Layout01Icon,
+  Login02Icon,
+  Logout02Icon,
+  Settings01Icon,
+} from "@src/icons";
+import { useAppearanceState } from "@src/modules/MainApp/Settings/sections/useAppearanceState";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
@@ -62,37 +59,48 @@ import {
   type SubmenuPosition,
 } from "./SidebarSettingsMenuSubmenus";
 
-const SUBMENU_WIDTH_PX = 220;
-const SUBMENU_GAP_PX = DROPDOWN_PANEL.submenuGap;
 const MENU_ICON_CLASS_NAME = "shrink-0 text-text-2";
 const MENU_ARROW_CLASS_NAME = "text-text-3";
-type SettingsUtilityPanel = "developerTests" | "ram";
+type SettingsUtilityPanel = "ram";
+
+interface SidebarSettingsMenuTriggerProps {
+  isOpen: boolean;
+  onClick: () => void;
+}
+
+interface SidebarSettingsMenuButtonProps {
+  /** Replaces the compact gear trigger while preserving this menu's behavior. */
+  renderTrigger?: (props: SidebarSettingsMenuTriggerProps) => React.ReactNode;
+  /** Adds a login action when the account trigger represents a signed-out user. */
+  onSignIn?: () => void;
+}
 
 function getSubmenuPosition(
   trigger: HTMLElement,
-  parentPanel: HTMLElement | null
+  parentPanel: HTMLElement | null,
+  opensUpward: boolean
 ): SubmenuPosition {
-  const rect = trigger.getBoundingClientRect();
-  const parentRect = parentPanel?.getBoundingClientRect();
-  const { width: vpWidth, height: vpHeight } = getViewportSize();
-  const rightSideLeft = rect.right + SUBMENU_GAP_PX;
-  const left =
-    rightSideLeft + SUBMENU_WIDTH_PX > vpWidth
-      ? rect.left - SUBMENU_WIDTH_PX - SUBMENU_GAP_PX
-      : rightSideLeft;
-  return {
-    left,
-    bottom: parentRect ? vpHeight - parentRect.bottom : 8,
-  };
+  const { width: viewportWidth, height: viewportHeight } = getViewportSize();
+  return getSubmenuAnchor({
+    triggerRect: trigger.getBoundingClientRect(),
+    parentRect: parentPanel?.getBoundingClientRect() ?? null,
+    submenuWidth: DROPDOWN_WIDTHS.panelWidth,
+    viewportWidth,
+    viewportHeight,
+    opensUpward,
+  });
 }
 
-const SidebarSettingsMenuButton: React.FC = React.memo(() => {
+const SidebarSettingsMenuButton: React.FC<SidebarSettingsMenuButtonProps> = ({
+  renderTrigger,
+  onSignIn,
+}) => {
   const { t } = useTranslation("navigation");
   const { t: tSettings } = useTranslation("settings");
-  const { goToSettings, navigateTo } = useAppNavigation();
+  const { goToSettings } = useAppNavigation();
+  const store = useStore();
+  const signedIn = useAtomValue(org2CloudAuthAtom) !== null;
   const devModeEnabled = useAtomValue(devModeEnabledAtom);
-  const developerTestPanelEnabled =
-    devModeEnabled && isDeveloperTestPanelEnabled();
   const utilityPanelRef = useRef<HTMLDivElement | null>(null);
   const submenuPanelRef = useRef<HTMLDivElement | null>(null);
   const preserveUtilityPanelOnMenuCloseRef = useRef(false);
@@ -107,6 +115,25 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
   );
   const [utilityPanelPosition, setUtilityPanelPosition] =
     useState<DropdownEnginePosition | null>(null);
+
+  useLayoutEffect(() => {
+    if (!activeSubmenu || !submenuPosition || !submenuPanelRef.current) return;
+
+    const { height: submenuHeight } =
+      submenuPanelRef.current.getBoundingClientRect();
+    const { height: viewportHeight } = getViewportSize();
+    const clampedTop = clampSubmenuTop({
+      anchor: submenuPosition,
+      submenuHeight,
+      viewportHeight,
+    });
+
+    if (clampedTop === submenuPosition.top) return;
+    setSubmenuPosition((current) =>
+      current ? { ...current, top: clampedTop } : current
+    );
+  }, [activeSubmenu, submenuPosition]);
+
   const handleSettingsMenuOpenChange = useCallback((open: boolean) => {
     if (open) return;
     setActiveSubmenu(null);
@@ -127,22 +154,15 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
     panelPosition,
   } = useDropdownEngine<HTMLDivElement>({
     placement: "top",
-    align: "right",
+    align: renderTrigger ? "left" : "right",
     gap: DROPDOWN_PANEL.triggerGap,
     onOpenChange: handleSettingsMenuOpenChange,
     additionalInsideRefs: dropdownInsideRefs,
   });
-  const {
-    appearanceMode,
-    appearanceModeOptions,
-    globalThemeId,
-    themeOptions,
-    handleAppearanceModeChange,
-    handleThemeChange,
-  } = useAppearanceState();
+  const { appearanceMode, appearanceModeOptions, handleAppearanceModeChange } =
+    useAppearanceState();
 
   const openSettingsShortcut = getShortcutKeys("open_settings");
-  const guiControlShortcut = getShortcutKeys(ADE_MANAGER_TOGGLE_SHORTCUT_ID);
   const settingsButtonClassName = isOpen ? "text-text-1" : "text-text-2";
 
   useEffect(() => {
@@ -185,14 +205,25 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
   const openSubmenu = useCallback(
     (submenu: SettingsSubmenu, target: HTMLElement) => {
       setActiveSubmenu(submenu);
-      setSubmenuPosition(getSubmenuPosition(target, panelRef.current));
+      setSubmenuPosition(
+        getSubmenuPosition(
+          target,
+          panelRef.current,
+          panelPosition.bottom !== undefined
+        )
+      );
     },
-    [panelRef]
+    [panelPosition.bottom, panelRef]
   );
 
   const handleOpenSettings = useCallback(() => {
     closeAll();
     goToSettings();
+  }, [closeAll, goToSettings]);
+
+  const handleModifyAppearance = useCallback(() => {
+    closeAll();
+    goToSettings({ section: "appearance" });
   }, [closeAll, goToSettings]);
 
   const handleOpenUtilityPanel = useCallback(
@@ -211,24 +242,16 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
     handleOpenUtilityPanel("ram");
   }, [handleOpenUtilityPanel]);
 
-  const handleOpenDeveloperTests = useCallback(() => {
-    handleOpenUtilityPanel("developerTests");
-  }, [handleOpenUtilityPanel]);
-
-  const handleOpenTutorials = useCallback(() => {
-    window.dispatchEvent(new CustomEvent(TUTORIALS_OPEN_EVENT));
+  const handleSignIn = useCallback(() => {
     closeAll();
-  }, [closeAll]);
+    onSignIn?.();
+  }, [closeAll, onSignIn]);
 
-  const handleOpenSetupChecklist = useCallback(() => {
+  const handleSignOut = useCallback(() => {
     closeAll();
-    navigateTo(ROUTES.auth.setup.path);
-  }, [closeAll, navigateTo]);
-
-  const handleOpenGuiControl = useCallback(() => {
-    openAgentControlSpotlight();
-    closeAll();
-  }, [closeAll]);
+    resetOrgEntitlementCoordinator(store);
+    store.set(org2CloudAuthAtom, null);
+  }, [closeAll, store]);
 
   const handleSelectAppearanceMode = useCallback(
     async (mode: AppearanceMode) => {
@@ -236,14 +259,6 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
       closeAll();
     },
     [closeAll, handleAppearanceModeChange]
-  );
-
-  const handleSelectTheme = useCallback(
-    async (themeId: string) => {
-      await handleThemeChange(themeId);
-      closeAll();
-    },
-    [closeAll, handleThemeChange]
   );
 
   const handleSubmenuPointerDown = useCallback(
@@ -262,34 +277,42 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
 
   return (
     <>
-      <ToolbarTooltip
-        label={t("sidebar.bottomBar.settings")}
-        shortcut={openSettingsShortcut}
-        position="top"
-        disabled={isOpen}
-      >
-        <div ref={triggerRef} className="inline-flex">
-          <button
-            type="button"
-            aria-label={t("sidebar.bottomBar.settings")}
-            className={`flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none p-0 transition-colors duration-150 ${
-              isOpen
-                ? "bg-sidebar-selected"
-                : "bg-transparent hover:bg-sidebar-selected"
-            }`}
-            onClick={handleToggle}
-            onMouseEnter={(event) => triggerIconAnimation(event.currentTarget)}
-          >
-            <HoverAnimatedIcon
-              icon={Settings}
-              iconName="settings"
-              size={16}
-              strokeWidth={2}
-              className={settingsButtonClassName}
-            />
-          </button>
+      {renderTrigger ? (
+        <div ref={triggerRef} className="flex min-w-0 flex-1">
+          {renderTrigger({ isOpen, onClick: handleToggle })}
         </div>
-      </ToolbarTooltip>
+      ) : (
+        <ToolbarTooltip
+          label={t("sidebar.bottomBar.settings")}
+          shortcut={openSettingsShortcut}
+          position="top"
+          disabled={isOpen}
+        >
+          <div ref={triggerRef} className="inline-flex">
+            <button
+              type="button"
+              aria-label={t("sidebar.bottomBar.settings")}
+              className={`flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none p-0 transition-colors duration-150 ${
+                isOpen
+                  ? "bg-sidebar-selected"
+                  : "bg-transparent hover:bg-sidebar-selected"
+              }`}
+              onClick={handleToggle}
+              onMouseEnter={(event) =>
+                triggerIconAnimation(event.currentTarget)
+              }
+            >
+              <HoverAnimatedIcon
+                icon={Settings01Icon}
+                iconName="settings"
+                size={16}
+                strokeWidth={2}
+                className={settingsButtonClassName}
+              />
+            </button>
+          </div>
+        </ToolbarTooltip>
+      )}
 
       {isOpen &&
         isPositioned &&
@@ -304,97 +327,44 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
             }}
           >
             <div className={DROPDOWN_CLASSES.itemsColumn}>
-              <button
-                type="button"
-                className={`${DROPDOWN_CLASSES.menuActionItem} justify-between`}
-                onMouseEnter={() => setActiveSubmenu(null)}
-                onFocus={() => setActiveSubmenu(null)}
-                onClick={handleOpenGuiControl}
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <MousePointer2
-                    size={DROPDOWN_ITEM.iconSize}
-                    className={MENU_ICON_CLASS_NAME}
-                  />
-                  <span className="truncate">
-                    {t("common:adeManager.menuToggle")}
-                  </span>
-                </span>
-                <KeyboardShortcut
-                  shortcut={guiControlShortcut}
-                  variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
-                />
-              </button>
-              <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
-              {devModeEnabled && (
+              {signedIn && (
                 <>
                   <button
                     type="button"
                     className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
                     onMouseEnter={() => setActiveSubmenu(null)}
                     onFocus={() => setActiveSubmenu(null)}
-                    onClick={handleViewRam}
+                    onClick={handleSignOut}
+                    data-testid="sidebar-menu-sign-out"
                   >
-                    <Gauge
+                    <HugeiconsIcon
+                      icon={Logout02Icon}
+                      data-icon="log-out"
                       size={DROPDOWN_ITEM.iconSize}
                       className={MENU_ICON_CLASS_NAME}
                     />
-                    <span>{t("sidebar.settingsMenu.viewRam")}</span>
+                    <span>{t("cloud.signOut")}</span>
                   </button>
-                  {developerTestPanelEnabled && (
-                    <button
-                      type="button"
-                      className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
-                      onMouseEnter={() => setActiveSubmenu(null)}
-                      onFocus={() => setActiveSubmenu(null)}
-                      onClick={handleOpenDeveloperTests}
-                      data-testid="sidebar-open-developer-test-panel"
-                    >
-                      <FlaskConical
-                        size={DROPDOWN_ITEM.iconSize}
-                        className={MENU_ICON_CLASS_NAME}
-                      />
-                      <span>{t("sidebar.developerTestPanel.title")}</span>
-                    </button>
-                  )}
+                  <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
                 </>
               )}
-              {/*
-                TODO(changelog-web): Restore the Changelog item here, directly
-                above Tutorials, once the maintained web destination is ready.
-              */}
-              <button
-                type="button"
-                className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
-                onMouseEnter={() => setActiveSubmenu(null)}
-                onFocus={() => setActiveSubmenu(null)}
-                onClick={handleOpenSetupChecklist}
-                data-testid="sidebar-open-setup-checklist"
-              >
-                <ClipboardCheck
-                  size={DROPDOWN_ITEM.iconSize}
-                  className={MENU_ICON_CLASS_NAME}
-                />
-                <span>
-                  {t("sidebar.settingsMenu.setupChecklist", {
-                    defaultValue: "Setup checklist",
-                  })}
-                </span>
-              </button>
-              <button
-                type="button"
-                className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
-                onMouseEnter={() => setActiveSubmenu(null)}
-                onFocus={() => setActiveSubmenu(null)}
-                onClick={handleOpenTutorials}
-              >
-                <HelpCircle
-                  size={DROPDOWN_ITEM.iconSize}
-                  className={MENU_ICON_CLASS_NAME}
-                />
-                <span>{t("sidebar.settingsMenu.tutorials")}</span>
-              </button>
-              <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
+              {devModeEnabled && (
+                <button
+                  type="button"
+                  className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
+                  onMouseEnter={() => setActiveSubmenu(null)}
+                  onFocus={() => setActiveSubmenu(null)}
+                  onClick={handleViewRam}
+                >
+                  <HugeiconsIcon
+                    icon={GaugeIcon}
+                    data-icon="gauge"
+                    size={DROPDOWN_ITEM.iconSize}
+                    className={MENU_ICON_CLASS_NAME}
+                  />
+                  <span>{t("sidebar.settingsMenu.viewRam")}</span>
+                </button>
+              )}
               <button
                 type="button"
                 className={`${DROPDOWN_CLASSES.menuActionItem} ${activeSubmenu === "presence" ? DROPDOWN_CLASSES.itemActive : ""} justify-between`}
@@ -406,7 +376,9 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
                 }
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  <Circle
+                  <HugeiconsIcon
+                    icon={CircleIcon}
+                    data-icon="circle"
                     size={DROPDOWN_ITEM.iconSize}
                     className="shrink-0 text-success-6"
                   />
@@ -414,7 +386,9 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
                     {tSettings("myRoles.tabs.presence")}
                   </span>
                 </span>
-                <ChevronRight
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
                   size={DROPDOWN_ITEM.iconSize}
                   className={MENU_ARROW_CLASS_NAME}
                 />
@@ -430,7 +404,9 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
                 }
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  <Contrast
+                  <HugeiconsIcon
+                    icon={ContrastIcon}
+                    data-icon="contrast"
                     size={DROPDOWN_ITEM.iconSize}
                     className={MENU_ICON_CLASS_NAME}
                   />
@@ -438,60 +414,41 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
                     {t("sidebar.settingsMenu.appearance")}
                   </span>
                 </span>
-                <ChevronRight
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
                   size={DROPDOWN_ITEM.iconSize}
                   className={MENU_ARROW_CLASS_NAME}
                 />
               </button>
               <button
                 type="button"
-                className={`${DROPDOWN_CLASSES.menuActionItem} ${activeSubmenu === "chatPanelLocation" ? DROPDOWN_CLASSES.itemActive : ""} justify-between`}
+                className={`${DROPDOWN_CLASSES.menuActionItem} ${activeSubmenu === "layout" ? DROPDOWN_CLASSES.itemActive : ""} justify-between`}
                 onMouseEnter={(event) =>
-                  openSubmenu("chatPanelLocation", event.currentTarget)
+                  openSubmenu("layout", event.currentTarget)
                 }
-                onFocus={(event) =>
-                  openSubmenu("chatPanelLocation", event.currentTarget)
-                }
+                onFocus={(event) => openSubmenu("layout", event.currentTarget)}
+                data-testid="sidebar-settings-layout"
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  <MessageCircle
+                  <HugeiconsIcon
+                    icon={Layout01Icon}
+                    data-icon="layout"
                     size={DROPDOWN_ITEM.iconSize}
                     className={MENU_ICON_CLASS_NAME}
                   />
                   <span className="truncate">
-                    {t("common:layoutSettings.newChatPanel")}
+                    {tSettings("general.layout")}
                   </span>
                 </span>
-                <ChevronRight
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
                   size={DROPDOWN_ITEM.iconSize}
                   className={MENU_ARROW_CLASS_NAME}
                 />
               </button>
-              <button
-                type="button"
-                className={`${DROPDOWN_CLASSES.menuActionItem} ${activeSubmenu === "workstation" ? DROPDOWN_CLASSES.itemActive : ""} justify-between`}
-                onMouseEnter={(event) =>
-                  openSubmenu("workstation", event.currentTarget)
-                }
-                onFocus={(event) =>
-                  openSubmenu("workstation", event.currentTarget)
-                }
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <Laptop
-                    size={DROPDOWN_ITEM.iconSize}
-                    className={MENU_ICON_CLASS_NAME}
-                  />
-                  <span className="truncate">
-                    {t("sidebar.settingsMenu.workstation")}
-                  </span>
-                </span>
-                <ChevronRight
-                  size={DROPDOWN_ITEM.iconSize}
-                  className={MENU_ARROW_CLASS_NAME}
-                />
-              </button>
-              <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
+              <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
               <button
                 type="button"
                 className={`${DROPDOWN_CLASSES.menuActionItem} justify-between`}
@@ -500,7 +457,9 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
                 onClick={handleOpenSettings}
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  <Settings
+                  <HugeiconsIcon
+                    icon={Settings01Icon}
+                    data-icon="settings"
                     size={DROPDOWN_ITEM.iconSize}
                     className={MENU_ICON_CLASS_NAME}
                   />
@@ -513,6 +472,27 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
                   variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
                 />
               </button>
+              {!signedIn && onSignIn && (
+                <>
+                  <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
+                  <button
+                    type="button"
+                    className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
+                    onMouseEnter={() => setActiveSubmenu(null)}
+                    onFocus={() => setActiveSubmenu(null)}
+                    onClick={handleSignIn}
+                    data-testid="sidebar-menu-sign-in"
+                  >
+                    <HugeiconsIcon
+                      icon={Login02Icon}
+                      data-icon="log-in"
+                      size={DROPDOWN_ITEM.iconSize}
+                      className={MENU_ICON_CLASS_NAME}
+                    />
+                    <span>{t("cloud.signIn")}</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>,
           document.body
@@ -520,16 +500,14 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
       <SidebarSettingsMenuSubmenus
         activeSubmenu={activeSubmenu}
         appearanceMode={appearanceMode}
-        appearanceModeLabel={tSettings("general.appearanceMode")}
+        themeLabel={tSettings("general.theme")}
         appearanceModeOptions={appearanceModeOptions}
-        globalThemeId={globalThemeId}
+        modifyAppearanceLabel={t("sidebar.settingsMenu.modifyAppearance")}
         submenuPanelRef={submenuPanelRef}
         submenuPosition={submenuPosition}
-        themeOptions={themeOptions}
-        themePresetLabel={tSettings("general.themePreset")}
+        onModifyAppearance={handleModifyAppearance}
         onPresenceSelectionComplete={closeAll}
         onSelectAppearanceMode={(mode) => void handleSelectAppearanceMode(mode)}
-        onSelectTheme={(themeId) => void handleSelectTheme(themeId)}
         onSubmenuMouseDown={handleSubmenuMouseDown}
         onSubmenuPointerDown={handleSubmenuPointerDown}
       />
@@ -540,19 +518,10 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
           panelPosition={utilityPanelPosition}
         />
       )}
-      {developerTestPanelEnabled &&
-        utilityPanel === "developerTests" &&
-        utilityPanelPosition && (
-          <DeveloperTestPanel
-            panelRef={utilityPanelRef}
-            panelPosition={utilityPanelPosition}
-            onClose={() => setUtilityPanel(null)}
-          />
-        )}
     </>
   );
-});
+};
 
 SidebarSettingsMenuButton.displayName = "SidebarSettingsMenuButton";
 
-export default SidebarSettingsMenuButton;
+export default React.memo(SidebarSettingsMenuButton);

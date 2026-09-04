@@ -5,9 +5,13 @@
  * a pure side effect keyed off the same section/selection state.
  */
 import { useSetAtom } from "jotai";
-import { useCallback, useMemo } from "react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useMemo,
+} from "react";
 
-import { createLogger } from "@src/hooks/logger";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import { type Session, markAllSessionsVisited } from "@src/store/session";
 import {
@@ -15,13 +19,11 @@ import {
   runtimeNavigationIntentAtom,
 } from "@src/store/ui/runtimeNavigationAtom";
 
+import type { SessionGroupVisibleCount } from "../types";
 import { getAllSectionIds } from "../workstationSidebarData";
 import { useSidebarBottomRightActions } from "./bottomActions";
 import { useWorkstationSidebarMemory } from "./sidebarMemory";
-import { rescanSidebarSessions } from "./sidebarSessionRefresh";
 import type { WorkstationSidebarKey } from "./types";
-
-const logger = createLogger("WorkstationSidebar");
 
 export function resolveSidebarSelectedMenuItemId({
   activeSidebarKey,
@@ -64,12 +66,18 @@ interface UseWorkstationSidebarBottomActionsParams {
   projectsWorkItemsLoading: boolean;
   projectsSidebarMenuItems: NavigationMenuItem[];
   sessionsLoading: boolean;
+  handleRefreshSessions: () => void;
   openRuntimeTab: (title: string) => void;
   runtimeLabel: string;
   groupByMode: BottomRightActionsParams["groupByMode"];
+  groupVisibleCount: SessionGroupVisibleCount;
   includeExternal: boolean;
   setGroupByMode: BottomRightActionsParams["setGroupByMode"];
+  setGroupVisibleCount: (count: SessionGroupVisibleCount) => void;
   setIncludeExternal: BottomRightActionsParams["setIncludeExternal"];
+  setGroupVisibleCounts: Dispatch<SetStateAction<Map<string, number>>>;
+  resetCloudTeamPagination: () => void;
+  resetCloudMyPagination: () => void;
   selectedCloudMenuItemId: string | null;
   selectedMenuItemId: string;
   activeSessionId: string;
@@ -87,12 +95,18 @@ export function useWorkstationSidebarBottomActions({
   projectsWorkItemsLoading,
   projectsSidebarMenuItems,
   sessionsLoading,
+  handleRefreshSessions,
   openRuntimeTab,
   runtimeLabel,
   groupByMode,
+  groupVisibleCount,
   includeExternal,
   setGroupByMode,
+  setGroupVisibleCount,
   setIncludeExternal,
+  setGroupVisibleCounts,
+  resetCloudTeamPagination,
+  resetCloudMyPagination,
   selectedCloudMenuItemId,
   selectedMenuItemId,
   activeSessionId,
@@ -109,11 +123,11 @@ export function useWorkstationSidebarBottomActions({
   const handleMarkAllRead = useCallback(() => {
     markAllSessionsVisited(sessions.map((session) => session.session_id));
   }, [sessions]);
-  const handleRefreshSessions = useCallback(() => {
-    void rescanSidebarSessions().catch((error) => {
-      logger.warn("Failed to rescan sidebar sessions:", error);
-    });
-  }, []);
+  const resetGroupVisibleCounts = useCallback(() => {
+    setGroupVisibleCounts(new Map());
+    resetCloudTeamPagination();
+    resetCloudMyPagination();
+  }, [resetCloudMyPagination, resetCloudTeamPagination, setGroupVisibleCounts]);
   const setRuntimeNavigationIntent = useSetAtom(runtimeNavigationIntentAtom);
   // The sidebar's include-external toggle is all-or-nothing; per-source
   // visibility is owned by Runtime → Scanning, so the menu links there instead
@@ -131,13 +145,16 @@ export function useWorkstationSidebarBottomActions({
   const sessionBottomRightActions = useSidebarBottomRightActions({
     activeSidebarKey: workItemsContentVisible ? "projects" : activeSidebarKey,
     groupByMode,
+    groupVisibleCount,
     includeExternal,
     handleCollapseAll,
     handleMarkAllRead,
     handleRefreshSessions,
     handleConfigureExternalSources,
     setGroupByMode,
+    setGroupVisibleCount,
     setIncludeExternal,
+    resetGroupVisibleCounts,
   });
   const sidebarBottomRightActions = channelSidebarVisible
     ? null

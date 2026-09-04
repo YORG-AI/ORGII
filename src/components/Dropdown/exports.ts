@@ -55,11 +55,23 @@ export type { DropdownSearchProps } from "./DropdownSearch";
 
 export { default as DropdownSelectedCheck } from "./DropdownSelectedCheck";
 
+// Second-level (submenu) panel geometry
+export { clampSubmenuTop, getSubmenuAnchor } from "./submenuLayout";
+export type {
+  SubmenuAnchor,
+  SubmenuAnchorInput,
+  SubmenuRect,
+  SubmenuTopInput,
+} from "./submenuLayout";
+
 export { default as DropdownHeader } from "./DropdownHeader";
 export type { DropdownHeaderProps } from "./DropdownHeader";
 
 export { default as DropdownFooter } from "./DropdownFooter";
 export type { DropdownFooterProps } from "./DropdownFooter";
+
+export { default as DropdownCollapsibleSectionHeader } from "./DropdownCollapsibleSectionHeader";
+export type { DropdownCollapsibleSectionHeaderProps } from "./DropdownCollapsibleSectionHeader";
 
 // Multi-select footer (for Select dropdownRender or custom dropdowns)
 export { default as MultiSelectFooter } from "./MultiSelectFooter";

@@ -27,7 +27,7 @@ interface PagesPreviewResult {
   data: string;
 }
 
-export interface PagesPreviewProps {
+interface PagesPreviewProps {
   filePath: string;
   className?: string;
 }

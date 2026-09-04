@@ -1,10 +1,3 @@
-// SimulatorReplaySessionContext removed - use effectiveSimulatorEventsAtom directly
-export {
-  SessionReplayPanelPlaceholder,
-  type SessionReplayPanelPlaceholderProps,
-  type SessionReplayPanelPlaceholderVariant,
-} from "./SessionReplayPanelPlaceholder";
-
 export {
   gateByActiveKind,
   type ActiveSelectionKind,
@@ -35,11 +28,9 @@ export {
   buildSimulatorReplayPrimarySidebarConfig,
   resolveReplayShellLayoutMode,
   type ReplayShellLayoutMode,
-  type SimulatorReplaySidebarState,
 } from "./replayShellHelpers";
 
 export { useReplayShell, type UseReplayShellResult } from "./useReplayShell";
-export type { UseReplayShellOptions } from "./useReplayShell";
 
 export {
   ReplayShellLayout,

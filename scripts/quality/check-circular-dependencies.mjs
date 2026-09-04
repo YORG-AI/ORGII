@@ -23,18 +23,31 @@ function isResolvableExternalSpecifier(specifier) {
   }
 }
 
-function isResolvableRootRawSpecifier(specifier) {
-  if (!specifier.startsWith("@/")) return false;
+// Path aliases from tsconfig.json that madge does not apply to specifiers
+// carrying a webpack resource query.
+const ALIAS_ROOTS = [
+  ["@src/", join(ROOT, "src")],
+  ["@/", ROOT],
+];
+const RESOURCE_QUERIES = ["raw", "url"];
 
-  // Madge reports webpack `?raw` imports as skipped before applying the
-  // repo-root alias. Accept them only when the aliased target is a real file.
+function isResolvableRootRawSpecifier(specifier) {
+  const alias = ALIAS_ROOTS.find(([prefix]) => specifier.startsWith(prefix));
+  if (!alias) return false;
+
+  // Madge reports webpack `?raw` / `?url` imports as skipped before applying
+  // the path alias. Accept them only when the aliased target is a real file.
   const queryIndex = specifier.indexOf("?");
   if (queryIndex === -1) return false;
 
   const query = new URLSearchParams(specifier.slice(queryIndex + 1));
-  if (!query.has("raw")) return false;
+  if (!RESOURCE_QUERIES.some((name) => query.has(name))) return false;
 
-  const candidate = resolve(ROOT, specifier.slice(2, queryIndex));
+  const [prefix, aliasRoot] = alias;
+  const candidate = resolve(
+    aliasRoot,
+    specifier.slice(prefix.length, queryIndex)
+  );
   if (!candidate.startsWith(`${ROOT}${sep}`) || !existsSync(candidate)) {
     return false;
   }
@@ -51,7 +64,9 @@ function printCycles(cycles) {
   }
 }
 
-const madgeConfig = JSON.parse(readFileSync(join(ROOT, ".madgerc"), "utf8"));
+const madgeConfig = JSON.parse(
+  readFileSync(join(ROOT, "config", "madge.json"), "utf8")
+);
 const result = await madge(join(ROOT, "src"), {
   ...madgeConfig,
   fileExtensions: ["ts", "tsx"],

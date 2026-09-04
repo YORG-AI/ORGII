@@ -1,5 +1,6 @@
-import { Loader2 } from "lucide-react";
 import React, { useMemo } from "react";
+
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 
 export type ButtonVariant =
   | "primary"
@@ -122,7 +123,7 @@ function getButtonStyleClasses(
     }
     if (appearance === "outline" || appearance === "dashed") {
       if (variant === "secondary" || variant === "tertiary") {
-        return "hover:border-border-3 focus-visible:border-[var(--color-primary-6)] focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]";
+        return "hover:border-border-3 focus-visible:border-(--color-primary-6) focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]";
       }
       return "";
     }
@@ -227,7 +228,12 @@ export function useButtonPresentation({
         <span
           className={`pointer-events-none inline-flex shrink-0 items-center justify-center leading-none ${iconSpacingClass}`}
         >
-          <Loader2 size={sizeConfig.iconSize} className="animate-spin" />
+          <HugeiconsIcon
+            icon={Loading03Icon}
+            data-icon="loader-2"
+            size={sizeConfig.iconSize}
+            className="animate-spin"
+          />
         </span>
       );
     }

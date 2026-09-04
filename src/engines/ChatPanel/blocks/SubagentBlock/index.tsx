@@ -12,7 +12,6 @@
  *   2. **Success** — infinity icon, assignment prompt preview when available.
  *   3. **Failed / cancelled** — infinity icon, error body.
  */
-import { Infinity, Square } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -22,10 +21,12 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { ChatBubbleAvatar, ChatBubbleBody } from "@src/components/ChatBubble";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import type { ToolUsageMetadata } from "@src/engines/SessionCore/core/types";
 import { createLogger } from "@src/hooks/logger";
+import { Infinity01Icon, HugeiconsIcon, SquareIcon } from "@src/icons";
 
 import ToolUsageBadge from "../ToolCallBlock/ToolUsageBadge";
 import {
@@ -42,7 +43,7 @@ const log = createLogger("SubagentBlock");
 // Types
 // ============================================
 
-export interface SubagentBlockProps {
+interface SubagentBlockProps {
   description: string;
   subagentType?: string;
   /**
@@ -52,7 +53,7 @@ export interface SubagentBlockProps {
    */
   agentName?: string;
   /**
-   * Lucide icon slug for the delegated agent's avatar. Falls back to the
+   * Icon slug for the delegated agent's avatar. Falls back to the
    * delegation (infinity) mark when the agent has no resolved icon.
    */
   agentIconId?: string;
@@ -154,7 +155,9 @@ const SubagentBlock: React.FC<SubagentBlockProps> = memo(
     const nameLabel = agentName?.trim() || t("tools.subagentDefaultName");
     const mention = `@${nameLabel}`;
 
-    const AgentIcon = agentIconId ? resolveAgentIcon(agentIconId) : Infinity;
+    const AgentIcon = agentIconId
+      ? resolveAgentIcon(agentIconId)
+      : Infinity01Icon;
     const showNavigate = Boolean(onNavigate) && !inSimulatorReplay;
 
     const headerRight =
@@ -165,7 +168,7 @@ const SubagentBlock: React.FC<SubagentBlockProps> = memo(
             <button
               type="button"
               data-testid="subagent-card-stop-button"
-              className="flex h-5 w-0 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border-none bg-text-2 text-white transition-colors hover:bg-text-1 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 group-hover/chat-block-header:w-5"
+              className="flex h-5 w-0 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border-none bg-text-2 text-white transition-colors group-hover/chat-block-header:w-5 hover:bg-text-1 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
               onClick={handleStop}
               disabled={effectiveIsStopping}
               title={tCommon("common:actions.stop")}
@@ -174,7 +177,13 @@ const SubagentBlock: React.FC<SubagentBlockProps> = memo(
               {effectiveIsStopping ? (
                 <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
               ) : (
-                <Square size={10} fill="currentColor" strokeWidth={0} />
+                <HugeiconsIcon
+                  icon={SquareIcon}
+                  data-icon="square"
+                  size={10}
+                  fill="currentColor"
+                  strokeWidth={0}
+                />
               )}
             </button>
           )}
@@ -190,7 +199,8 @@ const SubagentBlock: React.FC<SubagentBlockProps> = memo(
           <ChatBubbleAvatar
             className="h-7 w-7 bg-fill-2"
             icon={
-              <AgentIcon
+              <AnyIcon
+                icon={AgentIcon}
                 size={15}
                 strokeWidth={1.75}
                 className={isFailure ? "text-text-3" : "text-text-2"}
@@ -198,7 +208,7 @@ const SubagentBlock: React.FC<SubagentBlockProps> = memo(
             }
           />
         </div>
-        <div className="min-w-0 max-w-[min(750px,100%)] flex-1">
+        <div className="max-w-[min(750px,100%)] min-w-0 flex-1">
           {/* Title row — aligns with the avatar */}
           <div className="flex h-7 items-center gap-2">
             <span
@@ -226,9 +236,9 @@ const SubagentBlock: React.FC<SubagentBlockProps> = memo(
 
           <ChatBubbleBody
             variant="neutral"
-            className="!rounded-2xl !px-3 !py-2"
+            className="rounded-2xl! px-3! py-2!"
           >
-            <div className="break-words">
+            <div className="wrap-break-word">
               <span
                 className={`font-medium ${isLoading ? EVENT_LOADING_SHIMMER_TEXT_CLASSES : isFailure ? "text-text-3" : "text-primary-6"}`}
                 title={mention}

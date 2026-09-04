@@ -6,6 +6,9 @@
     transform 0.15s ease;
 }
 
+// One border layer only: the element's own border + ring. No inset ::after
+// duplicate — a second line inside the shell reads as a double border on the
+// session-creator composer.
 body[data-chat-file-dragging="true"] [data-chat-drop-target] {
   border-color: var(--color-primary-6) !important;
   box-shadow:
@@ -16,13 +19,4 @@ body[data-chat-file-dragging="true"] [data-chat-drop-target] {
     var(--color-primary-6) 7%,
     var(--color-bg-1)
   ) !important;
-}
-
-body[data-chat-file-dragging="true"] [data-chat-drop-target]::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border: 1px solid var(--color-primary-6);
-  border-radius: inherit;
-  pointer-events: none;
 }

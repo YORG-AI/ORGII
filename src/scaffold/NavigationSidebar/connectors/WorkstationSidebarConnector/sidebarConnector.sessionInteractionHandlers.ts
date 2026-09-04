@@ -7,6 +7,7 @@
  */
 import { useCallback } from "react";
 
+import Message from "@src/components/Message";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import { loadMoreCategory } from "@src/store/session";
 import {
@@ -18,22 +19,23 @@ import {
   isChatPanelTuiSessionId,
 } from "@src/util/ui/terminal/chatPanelTuiSessionId";
 
+import type { SidebarTabDisposition } from "../sidebarTabNavigation";
 import {
   executeSessionPaginationPlan,
   hasSessionPaginationPlan,
 } from "../useSessionMenuItems/paginationHelpers";
 import { useWorkstationSidebarHandlers } from "../useWorkstationSidebarHandlers";
-import {
-  CLOUD_MY_SESSIONS_LOAD_MORE_ID,
-  CLOUD_SESSION_SECTION_PAGE_SIZE,
-} from "./cloudScopedMenuItems";
+import { CLOUD_MY_SESSIONS_LOAD_MORE_ID } from "./cloudScopedMenuItems";
 
 type SidebarHandlersParams = Parameters<
   typeof useWorkstationSidebarHandlers
 >[0];
 
 interface UseWorkstationSidebarSessionInteractionHandlersParams {
-  handleCloudSessionItemClick: (item: NavigationMenuItem) => boolean;
+  handleCloudSessionItemClick: (
+    item: NavigationMenuItem,
+    disposition: SidebarTabDisposition
+  ) => boolean;
   cloudMySessionsVisibleCount: number;
   cloudMyPaginationScopeKey: string;
   setCloudMyPagination: (state: {
@@ -49,6 +51,7 @@ interface UseWorkstationSidebarSessionInteractionHandlersParams {
   openSession: SidebarHandlersParams["openSession"];
   promoteActiveSessionCreatorDraft: SidebarHandlersParams["promoteActiveSessionCreatorDraft"];
   groupByMode: SidebarHandlersParams["groupByMode"];
+  defaultGroupVisibleCount: SidebarHandlersParams["defaultGroupVisibleCount"];
   setGroupVisibleCounts: SidebarHandlersParams["setGroupVisibleCounts"];
   tCommon: SidebarHandlersParams["tCommon"];
   activateChatPanelTab: (tabId: string) => void;
@@ -65,6 +68,10 @@ interface UseWorkstationSidebarSessionInteractionHandlersParams {
     sessionId: string;
     title?: string;
   }) => void;
+  openSessionInNewWindow: (options: {
+    sessionId: string;
+    title?: string;
+  }) => Promise<boolean>;
   setExpandedSubagentParentIds: (
     updater: (previousIds: Set<string>) => Set<string>
   ) => void;
@@ -84,6 +91,7 @@ export function useWorkstationSidebarSessionInteractionHandlers({
   openSession,
   promoteActiveSessionCreatorDraft,
   groupByMode,
+  defaultGroupVisibleCount,
   setGroupVisibleCounts,
   tCommon,
   activateChatPanelTab,
@@ -93,15 +101,16 @@ export function useWorkstationSidebarSessionInteractionHandlers({
   navigateChatPanel,
   openSessionInNewChatTab,
   openSessionInWorkstation,
+  openSessionInNewWindow,
   setExpandedSubagentParentIds,
 }: UseWorkstationSidebarSessionInteractionHandlersParams) {
   const handleCloudSidebarItemClick = useCallback(
-    (item: NavigationMenuItem): boolean => {
-      if (handleCloudSessionItemClick(item)) return true;
+    (item: NavigationMenuItem, disposition: SidebarTabDisposition): boolean => {
+      if (handleCloudSessionItemClick(item, disposition)) return true;
       if (item.id !== CLOUD_MY_SESSIONS_LOAD_MORE_ID) return false;
 
       const nextVisibleCount =
-        cloudMySessionsVisibleCount + CLOUD_SESSION_SECTION_PAGE_SIZE;
+        cloudMySessionsVisibleCount + defaultGroupVisibleCount;
       setCloudMyPagination({
         scopeKey: cloudMyPaginationScopeKey,
         visibleCount: nextVisibleCount,
@@ -120,6 +129,7 @@ export function useWorkstationSidebarSessionInteractionHandlers({
     [
       cloudMyPaginationScopeKey,
       cloudMySessionsVisibleCount,
+      defaultGroupVisibleCount,
       handleCloudSessionItemClick,
       loadedCloudMySessionRowCount,
       setCloudMyPagination,
@@ -140,6 +150,7 @@ export function useWorkstationSidebarSessionInteractionHandlers({
     openSession,
     promoteActiveSessionCreatorDraft,
     groupByMode,
+    defaultGroupVisibleCount,
     setGroupVisibleCounts,
     tCommon,
     onOpenChatPanelTab: activateChatPanelTab,
@@ -187,6 +198,18 @@ export function useWorkstationSidebarSessionInteractionHandlers({
       sessionMap,
     ]
   );
+  const handleOpenInNewWindow = useCallback(
+    (sessionId: string) => {
+      const session = sessionMap.get(sessionId);
+      void openSessionInNewWindow({
+        sessionId,
+        title: session?.name,
+      }).catch((error) => {
+        Message.error(error instanceof Error ? error.message : String(error));
+      });
+    },
+    [openSessionInNewWindow, sessionMap]
+  );
 
   const handleOpenLinkedWorkItemSession = useCallback(
     (item: NavigationMenuItem) => {
@@ -230,6 +253,7 @@ export function useWorkstationSidebarSessionInteractionHandlers({
     handleTogglePin,
     handleOpenInNewTab,
     handleOpenInMyStation,
+    handleOpenInNewWindow,
     handleOpenLinkedWorkItemSession,
     handleToggleSubagentExpansion,
   };

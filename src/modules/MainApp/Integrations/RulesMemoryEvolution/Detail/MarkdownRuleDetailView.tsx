@@ -1,9 +1,9 @@
-import { BookOpen } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Switch from "@src/components/Switch";
 import type { PolicyInfo } from "@src/hooks/policies";
+import { BookOpen01Icon, HugeiconsIcon } from "@src/icons";
 import {
   CollapsibleSection,
   DETAIL_PANEL_TOKENS,
@@ -36,7 +36,14 @@ const MarkdownRuleDetailView: React.FC<MarkdownRuleDetailViewProps> = ({
   return (
     <DetailPanelContainer>
       <PanelHeader
-        iconElement={<BookOpen size={14} className="text-primary-6" />}
+        iconElement={
+          <HugeiconsIcon
+            icon={BookOpen01Icon}
+            data-icon="book-open"
+            size={14}
+            className="text-primary-6"
+          />
+        }
         breadcrumb={{
           parent: t("agentOrgs.ruleKinds.rule"),
           current: rule.name,
@@ -63,7 +70,7 @@ const MarkdownRuleDetailView: React.FC<MarkdownRuleDetailViewProps> = ({
 
           <CollapsibleSection title={t("agentOrgs.markdownContent")}>
             <div className="rounded-lg bg-fill-2 p-4">
-              <pre className="max-h-[500px] overflow-y-auto whitespace-pre-wrap text-[13px] leading-relaxed text-text-2 scrollbar-hide">
+              <pre className="scrollbar-hide max-h-[500px] overflow-y-auto text-[13px] leading-relaxed whitespace-pre-wrap text-text-2">
                 {content || t("agentOrgs.noMarkdownContent")}
               </pre>
             </div>

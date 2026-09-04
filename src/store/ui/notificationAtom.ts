@@ -32,7 +32,6 @@ export const notificationSettingsAtom = atom<NotificationSettings>((get) => {
     },
     backgroundCompletionSummary:
       settings["notifications.backgroundCompletionSummary"],
-    mutedSessionIds: settings["notifications.mutedSessionIds"],
     categories: {
       taskCompletion: settings["notifications.categories.taskCompletion"],
       agentApproval: settings["notifications.categories.agentApproval"],

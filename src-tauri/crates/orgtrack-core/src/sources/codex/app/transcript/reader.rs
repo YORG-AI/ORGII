@@ -17,7 +17,8 @@ use super::cache::{
 };
 use super::catalog::{
     codex_lazy_turn_id, codex_lazy_turn_offset, codex_lazy_turn_sequence,
-    find_recent_codex_user_offsets, load_codex_turn_catalog,
+    find_recent_codex_user_offsets, find_recent_codex_user_offsets_bounded,
+    load_codex_turn_catalog,
 };
 use super::collector::{build_unloaded_turn_placeholder_chunk, CodexTranscriptCollectionMode};
 use super::messages::user_message_chunk_from_line;
@@ -25,6 +26,7 @@ use super::parser::parse_codex_app_from_path_with_mode;
 use super::CODEX_PROVIDER_SLUG;
 
 const CODEX_TURN_HEADER_PROBE_BYTES: u64 = 8 * 1024 * 1024;
+const CODEX_MOBILE_HISTORY_SCAN_MAX_BYTES: u64 = 32 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -103,6 +105,44 @@ pub fn load_codex_app_initial_window_from_path(
     )?;
     remember_codex_turn_offsets(path, signature_before, offsets)?;
     Ok(CodexAppInitialWindow { chunks, turns })
+}
+
+pub fn load_codex_app_mobile_tail_window_from_path(
+    session_id: &str,
+    path: &Path,
+) -> Result<CodexAppInitialWindow, String> {
+    load_codex_app_mobile_tail_window_from_path_with_scan_limit(
+        session_id,
+        path,
+        CODEX_MOBILE_HISTORY_SCAN_MAX_BYTES,
+    )
+}
+
+pub(super) fn load_codex_app_mobile_tail_window_from_path_with_scan_limit(
+    session_id: &str,
+    path: &Path,
+    max_scan_bytes: u64,
+) -> Result<CodexAppInitialWindow, String> {
+    let signature = codex_transcript_file_signature(path)?;
+    let catalog =
+        find_recent_codex_user_offsets_bounded(path, signature.size_bytes, 1, max_scan_bytes)?;
+    if catalog.is_empty() {
+        return Err(format!(
+            "No recent Codex user turn found in the last {max_scan_bytes} bytes"
+        ));
+    }
+
+    let window = load_codex_app_initial_tail_window(session_id, path, 1, &catalog)?;
+    let offsets = catalog
+        .iter()
+        .map(|entry| CodexTurnOffset {
+            turn_id: codex_lazy_turn_id(entry.byte_offset),
+            byte_offset: entry.byte_offset,
+            sequence: codex_lazy_turn_sequence(entry.byte_offset),
+        })
+        .collect();
+    remember_codex_turn_offsets(path, signature, offsets)?;
+    Ok(window)
 }
 
 pub fn load_codex_app_turn_from_path(

@@ -1,7 +1,8 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
 import React from "react";
 
 import Button from "@src/components/Button";
+import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
+import { ArrowDown01Icon, ArrowUp01Icon, HugeiconsIcon } from "@src/icons";
 
 import { MemoryStatRow } from "./MemoryStatRow";
 import type { MemoryBreakdownRow } from "./types";
@@ -30,7 +31,7 @@ export const MemoryBreakdownSection: React.FC<MemoryBreakdownSectionProps> = ({
       return (
         <React.Fragment key={row.key}>
           {row.key === "webViewEstimatesGroup" && (
-            <div className="my-2 border-t border-border-2" />
+            <div className={`${DROPDOWN_CLASSES.menuGroupSeparator} my-0.5!`} />
           )}
           <MemoryStatRow
             label={
@@ -56,9 +57,19 @@ export const MemoryBreakdownSection: React.FC<MemoryBreakdownSectionProps> = ({
       aria-label={toggleAriaLabel}
       icon={
         showAttributionHints ? (
-          <ChevronUp size={13} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={ArrowUp01Icon}
+            data-icon="chevron-up"
+            size={13}
+            strokeWidth={2}
+          />
         ) : (
-          <ChevronDown size={13} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            size={13}
+            strokeWidth={2}
+          />
         )
       }
       onClick={onToggleAttributionHints}

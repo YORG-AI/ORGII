@@ -15,7 +15,6 @@ import {
   API_BASE_URLS,
   DEFAULT_TIMEOUT,
   ERROR_CONFIG,
-  HOSTED_SERVICE_TIMEOUT,
   NOTIFICATION_DURATION,
 } from "./config";
 import {
@@ -26,7 +25,6 @@ import {
   showTimeoutErrorNotification,
   showWorkflowErrorNotification,
 } from "./errorHandling";
-import { getOrRefreshHostedToken } from "./tokenRefresh";
 import type {
   ApiErrorResponse,
   ApiTarget,
@@ -50,18 +48,6 @@ export async function makeRequest<T>(
   const { onError, onNoAuth, signal, captureId, timeout, silent } = options;
   const headers = getGlobalCommonHeaders();
 
-  const defaultTimeout =
-    target === "hostedService" ? HOSTED_SERVICE_TIMEOUT : DEFAULT_TIMEOUT;
-
-  if (target === "hostedService") {
-    const hostedToken = await getOrRefreshHostedToken();
-    if (hostedToken) {
-      headers.Authorization = `Bearer ${hostedToken}`;
-    } else {
-      delete headers.Authorization;
-    }
-  }
-
   const baseUrl = API_BASE_URLS[target];
   const fullUrl = baseUrl + url;
   const isAgentApi = target === "agent";
@@ -71,7 +57,7 @@ export async function makeRequest<T>(
     url: fullUrl,
     headers,
     signal,
-    timeout: timeout ?? defaultTimeout,
+    timeout: timeout ?? DEFAULT_TIMEOUT,
     __captureId: captureId,
   };
 
@@ -153,25 +139,15 @@ export async function makeRequest<T>(
         | undefined;
       const detail = errorData?.detail || errorData?.message;
 
-      if (target !== "hostedService") {
-        log.error("[API] 401 Unauthorized - Session expired or invalid token");
-        triggerSessionExpired();
-      } else {
-        log.warn(
-          "[API] 401 Hosted-service token invalid - main session unaffected"
-        );
-      }
+      log.error("[API] 401 Unauthorized - Session expired or invalid token");
+      triggerSessionExpired();
       onNoAuth?.();
 
       return {
         status: 1,
         data: {
           title: "Authentication Required",
-          message:
-            detail ||
-            (target === "hostedService"
-              ? "Please sign in to the hosted service first"
-              : "Please log in first"),
+          message: detail || "Please log in first",
         },
       } as DataField<T>;
     }
@@ -196,12 +172,8 @@ export async function makeRequest<T>(
         | undefined;
       const detail = errorData?.detail || errorData?.message;
       if (detail === "Not authenticated" || detail === "Expired token") {
-        if (target !== "hostedService") {
-          log.error("[API] 403 Forbidden - Session expired:", detail);
-          triggerSessionExpired();
-        } else {
-          log.warn("[API] 403 Hosted-service auth error:", detail);
-        }
+        log.error("[API] 403 Forbidden - Session expired:", detail);
+        triggerSessionExpired();
         onNoAuth?.();
       }
       return {
@@ -255,15 +227,6 @@ export async function makeDeleteRequest<T>(
   const { onError, onNoAuth, captureId } = options;
   const headers = getGlobalCommonHeaders();
 
-  if (target === "hostedService") {
-    const hostedToken = await getOrRefreshHostedToken();
-    if (hostedToken) {
-      headers.Authorization = `Bearer ${hostedToken}`;
-    } else {
-      delete headers.Authorization;
-    }
-  }
-
   const baseUrl = API_BASE_URLS[target];
   const isAgentApi = target === "agent";
   const fullUrl = baseUrl + url;
@@ -296,9 +259,7 @@ export async function makeDeleteRequest<T>(
     if (status === 401) {
       const detail = typedError.response?.data?.detail;
       log.error("[API DELETE] 401 Unauthorized - Session expired");
-      if (target !== "hostedService") {
-        triggerSessionExpired();
-      }
+      triggerSessionExpired();
       return {
         status: 1,
         data: { message: detail || "Authentication required" },
@@ -309,9 +270,7 @@ export async function makeDeleteRequest<T>(
       const detail = typedError.response?.data?.detail;
       if (detail === "Not authenticated" || detail === "Expired token") {
         log.error("[API DELETE] 403 Forbidden - Session expired:", detail);
-        if (target !== "hostedService") {
-          triggerSessionExpired();
-        }
+        triggerSessionExpired();
         onNoAuth?.();
       }
       return {

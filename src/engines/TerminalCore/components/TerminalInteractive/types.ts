@@ -2,7 +2,7 @@
  * Terminal View Types
  */
 
-export interface TerminalSelectionInfo {
+interface TerminalSelectionInfo {
   text: string;
   position: { x: number; y: number };
   /** 1-based buffer row where the selection starts (from xterm getSelectionPosition) */
@@ -42,7 +42,7 @@ export interface TerminalViewHandle {
   redrawAfterShow: () => void;
 }
 
-export interface ShellIntegrationEvents {
+interface ShellIntegrationEvents {
   onPromptStart?: () => void;
   onCommandExecuted?: (commandLine: string | undefined) => void;
   onCommandFinished?: (exitCode: number) => void;
@@ -95,6 +95,8 @@ export interface TerminalViewProps {
   nameOverride?: string;
   /** Overrides the xterm surface background for embedded contexts. */
   backgroundColor?: string;
+  /** Font size in pixels for this view; defaults to the terminal setting. */
+  fontSize?: number;
   /** Shell integration event callbacks (OSC 633) */
   shellIntegration?: ShellIntegrationEvents;
 }

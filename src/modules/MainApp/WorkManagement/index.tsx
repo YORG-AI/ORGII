@@ -5,12 +5,10 @@
  * agent status inside Workstation.
  *
  * Two host contexts:
- *   - Chat pane (default): republishes its controls into the chat shell's
- *     shared 40px published-header row.
- *   - WorkStation tab (`embedded`): the WorkStation already renders the shared
- *     40px `WorkstationTabHeader`, so we suppress our own header row and instead
- *     republish the same controls into the `code` host slot — avoiding a
- *     duplicate header bar.
+ *   - Chat pane (default): uses the Chat Panel tab bar and its published row.
+ *   - WorkStation tab (`embedded`): uses the WorkStation tab bar and its
+ *     published row. In either host, split surfaces move this chrome into
+ *     their own left-column header rows and hide the shell-wide strip.
  */
 import { useAtomValue, useSetAtom } from "jotai";
 import React from "react";
@@ -39,6 +37,7 @@ import {
   type WorkManagementDataset,
   resolveWorkManagementDataset,
 } from "./workManagementDataset";
+import { WorkManagementSplitHeaderContext } from "./workManagementSplitHeaderContext";
 
 const TaskKanban = React.lazy(() => import("@src/features/TaskKanban"));
 const GitHubWorkItemsSurface = React.lazy(
@@ -50,19 +49,25 @@ const WorkManagementProjectsSurface = React.lazy(
 const WorkManagementTaskCreator = React.lazy(
   () => import("./WorkManagementTaskCreator")
 );
+const ConnectedTeamInboxView = React.lazy(
+  () => import("@src/modules/MainApp/TeamInbox/ConnectedTeamInboxView")
+);
 const RoutineRunsSurface = React.lazy(() => import("./RoutineRunsSurface"));
 
-export interface WorkManagementPageProps {
+interface WorkManagementPageProps {
   /**
-   * When true, the pane is hosted inside a WorkStation tab that already renders
-   * the shared 40px header. The pane hides its own header row and republishes
-   * its controls into the `code` host slot instead.
+   * When true, the pane is hosted inside a WorkStation tab. Non-split surfaces
+   * use its shared header; split surfaces render their controls in the left
+   * column and hide that shell-wide row.
    */
   embedded?: boolean;
+  /** Whether the host currently renders a tab row above this surface. */
+  hasTabBar?: boolean;
 }
 
 const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
   embedded = false,
+  hasTabBar = true,
 }) => {
   const activeHomeTab = useAtomValue(activeWorkManagementSectionAtom);
   const projectsView = useAtomValue(workManagementProjectsViewAtom);
@@ -95,6 +100,12 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
         });
         return;
       }
+      if (dataset === WORK_MANAGEMENT_DATASET.INBOX) {
+        setActiveWorkManagementSection({
+          section: WORK_MANAGEMENT_SECTION.INBOX,
+        });
+        return;
+      }
       setActiveWorkManagementSection({
         section:
           dataset === WORK_MANAGEMENT_DATASET.GITHUB_ISSUES
@@ -121,6 +132,19 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
     return null;
   }, [activeDataset, handleDatasetChange, showViewSwitch]);
 
+  // A split list uses an icon-only dataset switch; a full-width surface keeps
+  // the readable dataset title in its own row beneath the host tab bar.
+  const splitDatasetControl = React.useMemo(() => {
+    if (!activeDataset || showViewSwitch) return null;
+    return (
+      <WorkManagementDatasetSwitch
+        activeDataset={activeDataset}
+        onChange={handleDatasetChange}
+        compact
+      />
+    );
+  }, [activeDataset, handleDatasetChange, showViewSwitch]);
+
   const headerLeading = React.useMemo(() => {
     if (!headerLeadingControl) return null;
     return showViewSwitch ? (
@@ -138,6 +162,7 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
   }, [headerLeadingControl, showViewSwitch]);
 
   const headerPrimaryContent = React.useMemo(() => {
+    if (headerSlots?.hidden) return null;
     if (!headerLeading && !headerSlots?.content) return null;
     return (
       <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -145,19 +170,30 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
         {headerSlots?.content}
       </div>
     );
-  }, [headerLeading, headerSlots?.content]);
+  }, [headerLeading, headerSlots?.content, headerSlots?.hidden]);
 
-  // WorkStation embed: publish the pane's controls into the shared 40px bar.
+  // WorkStation embed: publish the pane's controls into the shared 36px bar.
   // Work Management has no shell-owned sidebar, so its content uses the bar's
   // standard left inset without reserving an empty toggle/action gutter.
+  const splitOwnsSurfaceHeader = headerSlots?.hidden ?? false;
+  const publishedHeaderHidden = hasTabBar && splitOwnsSurfaceHeader;
+  const publishedHeaderTrailing = splitOwnsSurfaceHeader
+    ? null
+    : (headerSlots?.trailing ?? null);
   const embeddedHeaderContent = React.useMemo(
     () => ({
       content: headerPrimaryContent,
-      trailing: headerSlots?.trailing ?? null,
+      trailing: publishedHeaderTrailing,
       shellLeadingChromeHidden: true,
       joinWithFollowingRow: headerSlots?.joinWithFollowingRow ?? false,
+      hidden: publishedHeaderHidden,
     }),
-    [headerPrimaryContent, headerSlots]
+    [
+      headerPrimaryContent,
+      headerSlots,
+      publishedHeaderHidden,
+      publishedHeaderTrailing,
+    ]
   );
   usePublishWorkstationTabHeader({
     host: "code",
@@ -168,10 +204,16 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
   const chatHeaderContent = React.useMemo(
     () => ({
       content: headerPrimaryContent,
-      trailing: headerSlots?.trailing ?? null,
+      trailing: publishedHeaderTrailing,
       joinWithFollowingRow: headerSlots?.joinWithFollowingRow ?? false,
+      hidden: publishedHeaderHidden,
     }),
-    [headerPrimaryContent, headerSlots]
+    [
+      headerPrimaryContent,
+      headerSlots,
+      publishedHeaderHidden,
+      publishedHeaderTrailing,
+    ]
   );
   usePublishChatPanelHeader({
     content: chatHeaderContent,
@@ -192,6 +234,8 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
         >
           {activeHomeTab === WORK_MANAGEMENT_SECTION.PROJECTS ? (
             <WorkManagementProjectsSurface detailHost={detailHost} />
+          ) : activeHomeTab === WORK_MANAGEMENT_SECTION.INBOX ? (
+            <ConnectedTeamInboxView />
           ) : activeHomeTab === WORK_MANAGEMENT_SECTION.GITHUB_ISSUES ? (
             <GitHubWorkItemsSurface scope="issue" detailHost={detailHost} />
           ) : activeHomeTab === WORK_MANAGEMENT_SECTION.GITHUB_PRS ? (
@@ -209,7 +253,19 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
     </div>
   );
 
-  return <div className="h-full min-h-0 w-full">{mainContent}</div>;
+  const splitHeaderContextValue = React.useMemo(
+    () => ({
+      splitDatasetControl,
+      surfaceDatasetControl: headerLeadingControl,
+    }),
+    [headerLeadingControl, splitDatasetControl]
+  );
+
+  return (
+    <WorkManagementSplitHeaderContext.Provider value={splitHeaderContextValue}>
+      <div className="h-full min-h-0 w-full">{mainContent}</div>
+    </WorkManagementSplitHeaderContext.Provider>
+  );
 };
 
 export default WorkManagementPage;

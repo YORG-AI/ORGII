@@ -31,6 +31,7 @@ fn account_uses_anthropic_native_messages(entry: &ModelKey) -> bool {
 pub const CLAUDE_CODE_OAUTH_MODELS: &[&str] = &[
     "claude-opus-5",
     "claude-sonnet-5",
+    "claude-fable-5-1",
     "claude-fable-5",
     "claude-opus-4-8",
     "claude-opus-4-7",
@@ -43,6 +44,7 @@ pub const CLAUDE_CODE_OAUTH_MODELS: &[&str] = &[
 pub const CLAUDE_CODE_OAUTH_DEFAULT_ENABLED_MODELS: &[&str] = &[
     "claude-opus-5",
     "claude-sonnet-5",
+    "claude-fable-5-1",
     "claude-fable-5",
     "claude-opus-4-8",
     "claude-opus-4-7",
@@ -176,6 +178,9 @@ fn codex_effort_variants_for_base_model(base_model: &str) -> Vec<ModelVariantInf
     let mut out = Vec::new();
     let supports_fast = codex_model_supports_fast_tier(base_model);
     let mut efforts = vec!["low", "medium", "high", "xhigh"];
+    if matches!(base_model, "gpt-5.6-sol" | "gpt-5.6-terra" | "gpt-5.6-luna") {
+        efforts.push("max");
+    }
     if codex_model_supports_ultra_tier(base_model) {
         efforts.push("ultra");
     }

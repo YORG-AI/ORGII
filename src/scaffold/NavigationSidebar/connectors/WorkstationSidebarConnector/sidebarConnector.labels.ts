@@ -56,9 +56,6 @@ export function buildWorkstationSidebarLabels({
   const workspaceUnavailableMessage = tSessions(
     "chat.workspaceUnavailableMessage"
   );
-  const searchPlaceholder = tCommon("common.searchPlaceholder", "Search...");
-  const noSearchResultsTitle = t("sidebar.empty.noSearchResults");
-
   return {
     untitledSession,
     newSessionLabel,
@@ -80,7 +77,5 @@ export function buildWorkstationSidebarLabels({
     revealWorkspaceLabel,
     workspaceUnavailableTitle,
     workspaceUnavailableMessage,
-    searchPlaceholder,
-    noSearchResultsTitle,
   };
 }

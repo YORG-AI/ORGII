@@ -58,6 +58,17 @@ pub async fn codex_app_initial_window(
     .map_err(|err| format!("Task join error: {err}"))?
 }
 
+pub async fn codex_app_mobile_tail_window(
+    session_id: String,
+) -> Result<codex_app::CodexAppInitialWindow, String> {
+    tokio::task::spawn_blocking(move || {
+        let conn = open_cache_conn()?;
+        codex_app::load_codex_app_mobile_tail_window_for_session(&conn, &session_id)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
 #[tauri::command]
 pub async fn codex_app_turn_window(
     session_id: String,
@@ -262,23 +273,12 @@ pub async fn cursor_cli_history_chunks(
     .map_err(|err| format!("Task join error: {err}"))?
 }
 
-/// Cheap freshness probe for the replay auto-refresh, folding the store's
-/// `-wal` sidecar in (a WAL commit doesn't touch the main file's mtime).
-#[tauri::command]
-pub async fn cursor_cli_history_stat(
-    session_id: String,
-) -> Result<Option<ImportedTranscriptStat>, String> {
+/// Internal terminal-barrier probe used before advertising a managed Cursor
+/// CLI turn as replayable to remote clients.
+pub async fn cursor_cli_history_is_readable(session_id: String) -> Result<bool, String> {
     tokio::task::spawn_blocking(move || {
         let conn = open_cache_conn()?;
-        Ok(
-            cursor_cli_history::stat_cursor_cli_history_for_session(&conn, &session_id)?.map(
-                |(mtime_ms, size_bytes)| ImportedTranscriptStat {
-                    mtime_ms,
-                    size_bytes,
-                    store_size_bytes: None,
-                },
-            ),
-        )
+        cursor_cli_history::cursor_cli_history_is_readable_for_session(&conn, &session_id)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?

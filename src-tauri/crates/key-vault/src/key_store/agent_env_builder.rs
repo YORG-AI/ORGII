@@ -346,6 +346,14 @@ impl KeyService {
                     env.insert("OPENCODE_BASE_URL".to_string(), url.clone());
                 }
             }
+            ModelType::DeepseekHarness => {
+                if let Some(ref key) = entry.api_key {
+                    env.insert("DEEPSEEK_API_KEY".to_string(), key.clone());
+                }
+                if let Some(ref url) = entry.base_url {
+                    env.insert("DEEPSEEK_BASE_URL".to_string(), url.clone());
+                }
+            }
             // Extended CLI agents — api_key available under ORGII_API_KEY if set.
             ModelType::Aider
             | ModelType::Goose
@@ -516,6 +524,10 @@ impl KeyService {
             ModelType::OpenCode => {
                 // OpenCode uses its own config for provider credentials.
                 // Proxy token is available via ORGII_PROXY_TOKEN (set above).
+            }
+            ModelType::DeepseekHarness => {
+                env.insert("DEEPSEEK_API_KEY".to_string(), proxy_token.to_string());
+                env.insert("DEEPSEEK_BASE_URL".to_string(), proxy_url.to_string());
             }
             // Extended CLI agents — proxy token available via ORGII_PROXY_TOKEN.
             ModelType::Aider

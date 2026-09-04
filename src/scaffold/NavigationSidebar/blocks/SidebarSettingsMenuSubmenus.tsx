@@ -1,50 +1,50 @@
 import React from "react";
 import { createPortal } from "react-dom";
 
-import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
+import { PILL_SM_ICON_SIZE } from "@src/components/CompoundPill/config";
+import DropdownItem from "@src/components/Dropdown/DropdownItem";
+import type { SubmenuAnchor } from "@src/components/Dropdown/submenuLayout";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
-import type { AppearanceMode } from "@src/config/appearance/globalThemes";
+import SegmentedTextPill from "@src/components/SegmentedTextPill";
+import {
+  APPEARANCE_MODE,
+  type AppearanceMode,
+} from "@src/config/appearance/globalThemes";
+import {
+  ArrowUpRight01Icon,
+  HugeiconsIcon,
+  MonitorIcon,
+  MoonIcon,
+  Sun01Icon,
+} from "@src/icons";
 
 import { PresenceMenuItems } from "./SidebarBottomBar";
-import { SidebarWorkstationSettingsSubmenu } from "./SidebarWorkstationSettingsSubmenu";
+import { SidebarLayoutSettingsSubmenu } from "./SidebarLayoutSettingsSubmenu";
 
-export type SettingsSubmenu =
-  | "presence"
-  | "appearance"
-  | "chatPanelLocation"
-  | "workstation";
+export type SettingsSubmenu = "presence" | "appearance" | "layout";
 
-export interface SubmenuPosition {
-  left: number;
-  bottom: number;
-}
+/** Placement of a settings submenu, computed by the shared submenu geometry. */
+export type SubmenuPosition = SubmenuAnchor;
 
 interface AppearanceOption {
   value: AppearanceMode;
   label: string;
 }
 
-interface ThemeOption {
-  value: string | number;
-  label: string;
-}
-
 interface SidebarSettingsMenuSubmenusProps {
   activeSubmenu: SettingsSubmenu | null;
   appearanceMode: AppearanceMode;
-  appearanceModeLabel: string;
+  themeLabel: string;
   appearanceModeOptions: readonly AppearanceOption[];
-  globalThemeId: string;
+  modifyAppearanceLabel: string;
   submenuPanelRef: React.Ref<HTMLDivElement>;
   submenuPosition: SubmenuPosition | null;
-  themeOptions: readonly ThemeOption[];
-  themePresetLabel: string;
+  onModifyAppearance: () => void;
   onPresenceSelectionComplete: () => void;
   onSelectAppearanceMode: (mode: AppearanceMode) => void;
-  onSelectTheme: (themeId: string) => void;
   onSubmenuMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void;
   onSubmenuPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
 }
@@ -52,16 +52,14 @@ interface SidebarSettingsMenuSubmenusProps {
 export function SidebarSettingsMenuSubmenus({
   activeSubmenu,
   appearanceMode,
-  appearanceModeLabel,
+  themeLabel,
   appearanceModeOptions,
-  globalThemeId,
+  modifyAppearanceLabel,
   submenuPanelRef,
   submenuPosition,
-  themeOptions,
-  themePresetLabel,
+  onModifyAppearance,
   onPresenceSelectionComplete,
   onSelectAppearanceMode,
-  onSelectTheme,
   onSubmenuMouseDown,
   onSubmenuPointerDown,
 }: SidebarSettingsMenuSubmenusProps): React.ReactPortal | null {
@@ -72,7 +70,7 @@ export function SidebarSettingsMenuSubmenus({
       <div
         ref={submenuPanelRef}
         className={`${DROPDOWN_CLASSES.menuPanelBase} ${DROPDOWN_WIDTHS.panelWidthClass} fixed`}
-        style={{ left: submenuPosition.left, bottom: submenuPosition.bottom }}
+        style={{ left: submenuPosition.left, top: submenuPosition.top }}
         onPointerDown={onSubmenuPointerDown}
         onMouseDown={onSubmenuMouseDown}
       >
@@ -82,15 +80,11 @@ export function SidebarSettingsMenuSubmenus({
     );
   }
 
-  if (
-    activeSubmenu === "chatPanelLocation" ||
-    activeSubmenu === "workstation"
-  ) {
+  if (activeSubmenu === "layout") {
     return createPortal(
-      <SidebarWorkstationSettingsSubmenu
+      <SidebarLayoutSettingsSubmenu
         panelRef={submenuPanelRef}
         position={submenuPosition}
-        mode={activeSubmenu}
         onPointerDown={onSubmenuPointerDown}
         onMouseDown={onSubmenuMouseDown}
       />,
@@ -99,54 +93,69 @@ export function SidebarSettingsMenuSubmenus({
   }
 
   if (activeSubmenu === "appearance") {
+    const appearanceModePillOptions = appearanceModeOptions.map((option) => {
+      const icon =
+        option.value === APPEARANCE_MODE.SYSTEM
+          ? MonitorIcon
+          : option.value === APPEARANCE_MODE.LIGHT
+            ? Sun01Icon
+            : MoonIcon;
+
+      return {
+        value: option.value,
+        ariaLabel: option.label,
+        label: (
+          <HugeiconsIcon
+            icon={icon}
+            data-icon={`theme-${option.value}`}
+            size={PILL_SM_ICON_SIZE}
+            strokeWidth={1.75}
+            className="block"
+            aria-hidden
+          />
+        ),
+      };
+    });
+
     return createPortal(
       <div
         ref={submenuPanelRef}
         className={`${DROPDOWN_CLASSES.menuPanelWithHeaderBase} ${DROPDOWN_WIDTHS.panelWidthClass} fixed`}
-        style={{ left: submenuPosition.left, bottom: submenuPosition.bottom }}
+        style={{ left: submenuPosition.left, top: submenuPosition.top }}
         onPointerDown={onSubmenuPointerDown}
         onMouseDown={onSubmenuMouseDown}
       >
         <div
-          className={`${DROPDOWN_CLASSES.itemsColumnPadded} scrollbar-overlay max-h-[320px] overflow-y-auto`}
+          className={`${DROPDOWN_CLASSES.itemsColumnPadded} scrollbar-overlay max-h-80 overflow-y-auto`}
         >
-          <div className={DROPDOWN_CLASSES.sectionLabel}>
-            {appearanceModeLabel}
+          <div className={DROPDOWN_CLASSES.menuControlItem}>
+            <span className="min-w-0 flex-1 truncate">{themeLabel}</span>
+            <SegmentedTextPill
+              ariaLabel={themeLabel}
+              size="small"
+              value={appearanceMode}
+              options={appearanceModePillOptions}
+              onChange={onSelectAppearanceMode}
+            />
           </div>
-          {appearanceModeOptions.map((option) => {
-            const selected = appearanceMode === option.value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                className={`${DROPDOWN_CLASSES.menuActionItem} ${selected ? DROPDOWN_CLASSES.itemSelected : ""} justify-between`}
-                onClick={() => onSelectAppearanceMode(option.value)}
-                aria-selected={selected}
-              >
-                <span>{option.label}</span>
-                {selected && <DropdownSelectedCheck />}
-              </button>
-            );
-          })}
-          <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
-          <div className={DROPDOWN_CLASSES.sectionLabel}>
-            {themePresetLabel}
-          </div>
-          {themeOptions.map((theme) => {
-            const selected = globalThemeId === theme.value;
-            return (
-              <button
-                key={theme.value}
-                type="button"
-                className={`${DROPDOWN_CLASSES.menuActionItem} ${selected ? DROPDOWN_CLASSES.itemSelected : ""} justify-between`}
-                onClick={() => onSelectTheme(String(theme.value))}
-                aria-selected={selected}
-              >
-                <span>{theme.label}</span>
-                {selected && <DropdownSelectedCheck />}
-              </button>
-            );
-          })}
+          <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
+          <DropdownItem
+            fullWidth
+            tabIndex={0}
+            onClick={onModifyAppearance}
+            role="menuitem"
+            suffix={
+              <HugeiconsIcon
+                icon={ArrowUpRight01Icon}
+                data-icon="arrow-up-right"
+                size={13}
+                strokeWidth={2}
+                className="text-text-3"
+              />
+            }
+          >
+            {modifyAppearanceLabel}
+          </DropdownItem>
         </div>
       </div>,
       document.body

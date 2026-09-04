@@ -4,9 +4,8 @@
  * Renders a text button with Plus icon.  Pass as the `footer` prop of
  * SettingsTable, or use the `addFooter` shorthand prop (see SettingsTable).
  */
-import { Plus } from "lucide-react";
-
 import Button from "@src/components/Button";
+import { Add01Icon, HugeiconsIcon } from "@src/icons";
 
 export interface SettingsTableAddFooterProps {
   label: string;
@@ -29,12 +28,12 @@ export function SettingsTableAddFooter({
 }: SettingsTableAddFooterProps) {
   return (
     <div
-      className={`flex items-center rounded-b-xl bg-[var(--settings-table-surface)] py-2 ${noPx ? "px-0" : "px-4"}`}
+      className={`flex items-center rounded-b-xl bg-(--settings-table-surface) py-2 ${noPx ? "px-0" : "px-4"}`}
     >
       <Button
         variant="tertiary"
         size="default"
-        icon={<Plus size={14} />}
+        icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />}
         onClick={onClick}
         disabled={disabled}
         className={ADD_BUTTON_CLASS}

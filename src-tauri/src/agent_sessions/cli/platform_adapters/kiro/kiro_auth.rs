@@ -713,22 +713,6 @@ pub async fn close_kiro_auth_webview(app: AppHandle, label: String) -> Result<()
     Ok(())
 }
 
-/// Read Kiro tokens from local storage (Keychain/SQLite)
-///
-/// Returns tokens if found, None otherwise.
-#[tauri::command]
-pub async fn read_kiro_tokens() -> Result<Option<serde_json::Value>, String> {
-    // Use existing validation/kiro.rs function to get tokens
-    if let Some(kiro_token) = get_local_kiro_token() {
-        return Ok(Some(serde_json::json!({
-            "access_token": kiro_token.access_token,
-            "refresh_token": kiro_token.refresh_token.unwrap_or_default()
-        })));
-    }
-
-    Ok(None)
-}
-
 // ============================================
 // Internal Functions
 // ============================================

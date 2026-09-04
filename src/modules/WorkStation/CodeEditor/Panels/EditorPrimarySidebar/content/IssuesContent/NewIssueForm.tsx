@@ -1,4 +1,3 @@
-import { X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +7,7 @@ import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Tag from "@src/components/Tag";
 import { TYPOGRAPHY } from "@src/config/workstation/tokens";
+import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 import { getLabelColorStyle } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
 import MarkdownTextareaEditor, {
   type MarkdownEditorMode,
@@ -104,7 +104,7 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
         {/* Labels */}
         {repoLabels.length > 0 && (
           <div className="flex flex-col gap-1">
-            <span className={`${TYPOGRAPHY.badge} uppercase text-text-3`}>
+            <span className={`${TYPOGRAPHY.badge} text-text-3 uppercase`}>
               Labels
             </span>
             <div className="flex flex-wrap gap-1">
@@ -124,7 +124,7 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
                     checkable
                     checked={isSelected}
                     onCheck={() => handleLabelToggle(label.name)}
-                    className={`${TYPOGRAPHY.badge} !px-1.5 !py-[1px] !leading-tight transition-opacity ${
+                    className={`${TYPOGRAPHY.badge} px-1.5! py-px! leading-tight! transition-opacity ${
                       isSelected
                         ? "opacity-100"
                         : "border border-border-2 text-text-2 opacity-60 hover:opacity-100"
@@ -142,7 +142,7 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
         {/* Assignees */}
         {collaborators.length > 0 && (
           <div className="flex flex-col gap-1">
-            <span className={`${TYPOGRAPHY.badge} uppercase text-text-3`}>
+            <span className={`${TYPOGRAPHY.badge} text-text-3 uppercase`}>
               Assignees
             </span>
             <div className="flex flex-wrap gap-1">
@@ -154,6 +154,7 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
                     variant="selectable"
                     selected={isSelected}
                     avatarSize={14}
+                    avatarName={user.login}
                     avatarSrc={user.avatar_url}
                     label={user.login}
                     className={TYPOGRAPHY.secondary}
@@ -178,7 +179,9 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
               htmlType="button"
               variant="tertiary"
               size="mini"
-              icon={<X size={11} />}
+              icon={
+                <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={11} />
+              }
               disabled={loading}
               onClick={onCancel}
             >

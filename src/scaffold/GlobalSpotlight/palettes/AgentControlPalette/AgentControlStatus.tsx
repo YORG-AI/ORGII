@@ -1,13 +1,10 @@
 import React from "react";
 
 import Markdown from "@src/components/MarkDown";
+import { HugeiconsIcon, type IconSvgElement } from "@src/icons";
 
-export interface AgentControlStatusProps {
-  icon: React.ComponentType<{
-    size?: number;
-    strokeWidth?: number;
-    className?: string;
-  }>;
+interface AgentControlStatusProps {
+  icon: IconSvgElement;
   label: string;
   detail: string;
   spinning?: boolean;
@@ -15,7 +12,7 @@ export interface AgentControlStatusProps {
 }
 
 export const AgentControlStatus: React.FC<AgentControlStatusProps> = ({
-  icon: Icon,
+  icon,
   label,
   detail,
   spinning = false,
@@ -25,7 +22,8 @@ export const AgentControlStatus: React.FC<AgentControlStatusProps> = ({
     <div className="border-t border-border-2/50 px-4 py-3 text-[12px] text-text-2">
       <div className="min-w-0 space-y-1">
         <div className="flex items-center gap-1.5 text-text-1">
-          <Icon
+          <HugeiconsIcon
+            icon={icon}
             size={12}
             strokeWidth={1.8}
             className={spinning ? "animate-spin" : undefined}
@@ -42,7 +40,7 @@ export const AgentControlStatus: React.FC<AgentControlStatusProps> = ({
             />
           </div>
         ) : (
-          <div className="whitespace-normal break-words leading-5">
+          <div className="leading-5 wrap-break-word whitespace-normal">
             {detail}
           </div>
         )}

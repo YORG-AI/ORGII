@@ -12,17 +12,17 @@
  * - /orgii/app/settings/*  - Settings inside the Workbench shell
  * - /orgii/app/*           - Standalone application pages
  */
-import type { LucideIcon } from "lucide-react";
+import type { IconSvgElement } from "@src/icons";
 
 import { ICON_NAME_MAP } from "./iconMapping";
 // Route group constants — imported for use below and re-exported for consumers
 import {
   APP_AGENT_ORGS_ROUTE,
   APP_IDEA_ROUTES,
-  APP_MARKET_ROUTES,
   APP_SELECT_REPO_ROUTE,
   APP_SETTINGS_ROUTE,
   AUTH_ROUTES,
+  MOBILE_REMOTE_ROUTE,
   WORK_STATION_ROUTES,
 } from "./routeGroups";
 // Shared route-display metadata stays independent from router state.
@@ -34,10 +34,10 @@ export type { RouteLabelContext, RouteInfo };
 export {
   APP_AGENT_ORGS_ROUTE,
   APP_IDEA_ROUTES,
-  APP_MARKET_ROUTES,
   APP_SELECT_REPO_ROUTE,
   APP_SETTINGS_ROUTE,
   AUTH_ROUTES,
+  MOBILE_REMOTE_ROUTE,
   WORK_STATION_ROUTES,
 };
 
@@ -54,7 +54,6 @@ export const ROUTES = {
     agentOrgs: APP_AGENT_ORGS_ROUTE,
     settings: APP_SETTINGS_ROUTE,
     ideas: APP_IDEA_ROUTES,
-    market: APP_MARKET_ROUTES,
   },
 } as const;
 
@@ -166,7 +165,7 @@ export function getIconForPath(path: string): string | undefined {
 /**
  * Get icon component for a path
  */
-export function getIconComponentForPath(path: string): LucideIcon | null {
+export function getIconComponentForPath(path: string): IconSvgElement | null {
   const iconName = getIconForPath(path);
   if (!iconName) return null;
   return ICON_NAME_MAP[iconName] ?? null;

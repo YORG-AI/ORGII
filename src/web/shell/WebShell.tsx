@@ -1,9 +1,9 @@
-import { Menu, X } from "lucide-react";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet } from "react-router-dom";
 
 import Button from "@src/components/Button";
+import { Cancel01Icon, HugeiconsIcon, Menu01Icon } from "@src/icons";
 import { DEFAULT_SIDEBAR_WIDTH } from "@src/store/ui/sidebarAtom";
 
 import { WebSessionSidebar } from "./WebSessionSidebar";
@@ -41,7 +41,13 @@ export function WebShell() {
             iconOnly
             size="mini"
             appearance="ghost"
-            icon={mobileSidebarOpen ? <X size={16} /> : <Menu size={16} />}
+            icon={
+              <HugeiconsIcon
+                icon={mobileSidebarOpen ? Cancel01Icon : Menu01Icon}
+                data-icon={mobileSidebarOpen ? "x" : "menu"}
+                size={16}
+              />
+            }
             title={t("web.sessionsNav")}
             aria-label={t("web.sessionsNav")}
             onClick={() => setMobileSidebarOpen((open) => !open)}

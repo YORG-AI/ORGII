@@ -1,7 +1,6 @@
 import type { Terminal } from "@xterm/xterm";
 import { type RefObject, useEffect } from "react";
 
-import type { PrimaryColorPreset } from "@src/config/appearance/primaryColors";
 // Direct leaf import to avoid pulling @src/store's barrel — which transitively
 // reaches SidebarModules/Terminal → engines/TerminalCore → this file.
 import { createLogger } from "@src/hooks/logger";
@@ -38,8 +37,12 @@ interface UseTerminalAppearanceOptions {
   isReady: boolean;
   terminalTheme: TerminalThemeName;
   isDarkTheme: boolean;
-  /** Only a repaint trigger — the cursor color itself comes from CSS tokens. */
-  primaryColorPreset: PrimaryColorPreset;
+  /**
+   * Only a repaint trigger — the cursor, selection, and background colors all
+   * come from CSS tokens. Any change to the accent preset or the active skin
+   * moves those tokens, so callers pass a composite of both.
+   */
+  appearanceRevision: string;
   terminalFontSize: number;
   terminalLetterSpacing: number;
   codeFontFamily: string;
@@ -52,7 +55,7 @@ export function useTerminalAppearance({
   isReady,
   terminalTheme,
   isDarkTheme,
-  primaryColorPreset,
+  appearanceRevision,
   terminalFontSize,
   terminalLetterSpacing,
   codeFontFamily,
@@ -81,8 +84,8 @@ export function useTerminalAppearance({
       frameId = requestAnimationFrame(() => {
         if (terminalRef.current !== terminal) return;
         // The CSS tokens this theme is resolved from can settle a frame late:
-        // the theme <link> swap is async, and the primary-color preset (which
-        // --terminal-caret aliases) is written to body's inline style by a
+        // the theme <link> swap is async, and the skin + accent tokens (which
+        // --terminal-caret aliases) are written to body's inline style by a
         // root-level effect that runs after this one. Re-resolve once the
         // frame has committed and repaint only if a color actually moved.
         runForLiveTerminal(terminalRef, terminal, () => {
@@ -108,7 +111,7 @@ export function useTerminalAppearance({
     terminalTheme,
     backgroundColor,
     isDarkTheme,
-    primaryColorPreset,
+    appearanceRevision,
     isReady,
     fitTerminal,
     terminalRef,

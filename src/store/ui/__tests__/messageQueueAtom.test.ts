@@ -319,6 +319,18 @@ describe("messageQueueAtom", () => {
   // =============================================
 
   describe("editMessageAtom", () => {
+    it("saves edited display and agent copies without leading blank lines", () => {
+      store.set(messageQueueAtom, [makeMessage({ id: "m1" })]);
+      store.set(editMessageAtom, {
+        messageId: "m1",
+        content: "\n \t\n    first line\n\n  next line\n",
+      });
+
+      const message = store.get(messageQueueAtom)[0];
+      expect(message.displayContent).toBe("    first line\n\n  next line\n");
+      expect(message.content).toBe(message.displayContent);
+    });
+
     it("updates content and displayContent", () => {
       store.set(enqueueMessageAtom, makeMessage({ id: "m1" }));
       store.set(editMessageAtom, { messageId: "m1", content: "updated" });

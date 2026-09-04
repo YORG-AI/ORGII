@@ -22,7 +22,6 @@
  * />
  */
 import { useAtomValue } from "jotai";
-import { History, Plus } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -34,10 +33,12 @@ import React, {
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
 } from "@src/components/Dropdown/tokens";
+import { Add01Icon, HugeiconsIcon, WorkHistoryIcon } from "@src/icons";
 import { Session, recentSessionsAtom } from "@src/store/session";
 import { stripPillReferences } from "@src/util/session/stripPillReferences";
 import { getViewportSize } from "@src/util/ui/window/viewport";
@@ -91,7 +92,8 @@ const MenuItemRow: React.FC<MenuItemRowProps> = memo(
         <span>{label}</span>
       </div>
       {hasArrow && (
-        <ICON_CONFIG.arrow
+        <AnyIcon
+          icon={ICON_CONFIG.arrow}
           size={DROPDOWN_ITEM.iconSize}
           className="text-text-3"
           strokeWidth={1.75}
@@ -131,13 +133,14 @@ const SessionSelectorPanel: React.FC<SessionSelectorPanelProps> = memo(
         className={DROPDOWN_CLASSES.panel}
         style={{ width: STYLE_CONFIG.secondLayerWidth }}
       >
-        <div className={DROPDOWN_CLASSES.searchContainer}>
+        <div className={DROPDOWN_CLASSES.panelHeaderRow}>
           <button
             onMouseDown={(event) => event.preventDefault()}
             onClick={onBack}
             className="flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-text-2 hover:bg-fill-1"
           >
-            <ICON_CONFIG.arrowBack
+            <AnyIcon
+              icon={ICON_CONFIG.arrowBack}
               size={DROPDOWN_ITEM.iconSize}
               strokeWidth={1.75}
             />
@@ -167,13 +170,18 @@ const SessionSelectorPanel: React.FC<SessionSelectorPanelProps> = memo(
             onMouseEnter={() => onHover(0)}
             onMouseLeave={onHoverEnd}
           >
-            <Plus size={DROPDOWN_ITEM.iconSize} className="text-text-2" />
+            <HugeiconsIcon
+              icon={Add01Icon}
+              data-icon="plus"
+              size={DROPDOWN_ITEM.iconSize}
+              className="text-text-2"
+            />
             <span className="text-[13px] text-text-1">New Session</span>
           </div>
 
-          {/* Divider */}
+          {/* Compact group separator */}
           {sessions.length > 0 && (
-            <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
+            <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
           )}
 
           {/* Existing sessions */}
@@ -195,9 +203,11 @@ const SessionSelectorPanel: React.FC<SessionSelectorPanelProps> = memo(
                 onMouseEnter={() => onHover(itemIndex)}
                 onMouseLeave={onHoverEnd}
               >
-                <History
+                <HugeiconsIcon
+                  icon={WorkHistoryIcon}
+                  data-icon="history"
                   size={DROPDOWN_ITEM.iconSize}
-                  className="flex-shrink-0 text-text-2"
+                  className="shrink-0 text-text-2"
                 />
                 <span className="min-w-0 flex-1 truncate text-[13px] text-text-1">
                   {session.name}
@@ -528,7 +538,6 @@ const TextSelectionDropdown: React.FC<TextSelectionDropdownProps> = ({
         >
           <div className={DROPDOWN_CLASSES.itemsColumnPadded}>
             {menuItems.map((item, index) => {
-              const IconComponent = item.icon;
               let label: string;
               if (item.id === "add-to-chat") {
                 label = t("selectionMenu.addToChat");
@@ -547,7 +556,8 @@ const TextSelectionDropdown: React.FC<TextSelectionDropdownProps> = ({
                 <MenuItemRow
                   key={item.id}
                   icon={
-                    <IconComponent
+                    <AnyIcon
+                      icon={item.icon}
                       size={DROPDOWN_ITEM.iconSize}
                       className="text-text-2"
                       strokeWidth={1.75}

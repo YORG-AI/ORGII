@@ -7,7 +7,6 @@
  *  - `memory`    — embedded {@link WorkspaceMemoryBrowser}
  *  - `evolution` — empty placeholder, agent-evolution surface lands here
  */
-import { Pencil, Plus, Trash2 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -21,6 +20,7 @@ import Switch from "@src/components/Switch";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
 import { MODEL_TABLE_SWITCH_SIZE } from "@src/config/modelTable";
 import type { CursorRepo, PolicyInfo } from "@src/hooks/policies";
+import { Add01Icon, Delete02Icon, HugeiconsIcon, Pen01Icon } from "@src/icons";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
@@ -254,7 +254,9 @@ export const RulesMemoryEvolutionTable: React.FC<
             <Button
               variant="secondary"
               size="small"
-              icon={<Pencil size={14} />}
+              icon={
+                <HugeiconsIcon icon={Pen01Icon} data-icon="pencil" size={14} />
+              }
               iconOnly
               onClick={() => openRuleInEditor(rule)}
               aria-label={t("common:actions.edit")}
@@ -265,7 +267,13 @@ export const RulesMemoryEvolutionTable: React.FC<
                 variant="danger"
                 appearance="outline"
                 size="small"
-                icon={<Trash2 size={14} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Delete02Icon}
+                    data-icon="trash-2"
+                    size={14}
+                  />
+                }
                 iconOnly
                 onClick={() => onDeleteMarkdownRule(rule)}
                 aria-label={t("common:actions.remove")}
@@ -299,7 +307,7 @@ export const RulesMemoryEvolutionTable: React.FC<
     <Button
       variant="secondary"
       size="default"
-      icon={<Plus size={14} />}
+      icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />}
       onClick={onAdd}
     >
       {t("addOptions.addRule")}

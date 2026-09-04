@@ -1,5 +1,6 @@
-import { ChevronRight } from "lucide-react";
 import React from "react";
+
+import { ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 
 const CARD_BASE = "mt-1.5 flex w-full max-w-[600px] rounded-lg p-3";
 
@@ -21,14 +22,20 @@ export const ReferenceCard: React.FC<ReferenceCardProps> = ({
 }) => (
   <button
     type="button"
-    className={`${CARD_BASE} items-center gap-2 border border-border-2 text-left transition-colors hover:bg-fill-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30`}
+    className={`${CARD_BASE} items-center gap-2 border border-border-2 text-left transition-colors hover:bg-fill-1 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none`}
     data-testid={testId}
     aria-label={ariaLabel}
     onClick={onOpen}
     {...identity}
   >
     <div className="flex min-w-0 flex-1 flex-col gap-2">{children}</div>
-    <ChevronRight size={14} className="shrink-0 text-text-3" aria-hidden />
+    <HugeiconsIcon
+      icon={ArrowRight01Icon}
+      data-icon="chevron-right"
+      size={14}
+      className="shrink-0 text-text-3"
+      aria-hidden
+    />
   </button>
 );
 

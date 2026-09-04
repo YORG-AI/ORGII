@@ -5,7 +5,8 @@
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import InlineAlert from "@src/components/InlineAlert";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 import { CHAT_PANEL_GLASS_SURFACE_CLASS } from "@src/engines/ChatPanel/header/chatPanelHeaderLayout";
 
 export interface SessionDerivedViewShellProps {
@@ -40,13 +41,14 @@ export const SessionDerivedViewShell: React.FC<SessionDerivedViewShellProps> =
       if (error) {
         return (
           <div className="flex min-h-0 flex-1 flex-col" style={insetStyle}>
-            <div
+            <InlineAlert
+              type="danger"
               role="alert"
-              data-testid={`${testId}-error`}
-              className="m-3 rounded-md border border-danger-6/40 bg-danger-1 px-3 py-2 text-sm text-danger-6"
+              dataTestId={`${testId}-error`}
+              className="m-3"
             >
               {error}
-            </div>
+            </InlineAlert>
           </div>
         );
       }
@@ -84,10 +86,10 @@ export const SessionDerivedViewShell: React.FC<SessionDerivedViewShellProps> =
           }`}
           data-testid={`${testId}-summary`}
         >
-          {/* Capped to the same 900px as the rows below, so the stats sit over
+          {/* Capped to the same 800px as the rows below, so the stats sit over
               the right edge of the content rather than the panel. */}
           <div
-            className={`flex h-8 items-center justify-end px-3 text-xs text-text-3 ${DETAIL_PANEL_TOKENS.contentWidth}`}
+            className={`flex h-8 items-center justify-end px-3 text-xs text-text-3 ${CHAT_PANEL_WIDTH_TOKENS.contentWidth}`}
           >
             {summary}
           </div>

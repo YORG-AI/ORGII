@@ -8,12 +8,17 @@
  * - Row count
  * - Scrollable results table
  */
-import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Placeholder } from "@src/components/Placeholder";
 import type { QueryResult } from "@src/engines/DatabaseCore";
+import {
+  AlertCircleIcon,
+  CheckmarkCircle01Icon,
+  Clock01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 
 // ============================================
 // Types
@@ -49,19 +54,21 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
         <div className="flex h-full flex-col">
           {/* Error header */}
           <div className="bg-[color-mix(in srgb, var(--color-danger-6) 10%, transparent)] flex items-center gap-2 border-b border-border-1 px-3 py-2">
-            <AlertCircle
+            <HugeiconsIcon
+              icon={AlertCircleIcon}
+              data-icon="alert-circle"
               size={14}
               strokeWidth={1.75}
-              className="text-[var(--color-danger-6)]"
+              className="text-(--color-danger-6)"
             />
-            <span className="text-xs font-medium text-[var(--color-danger-6)]">
+            <span className="text-xs font-medium text-(--color-danger-6)">
               {t("sqlEditor.queryFailed")}
             </span>
           </div>
 
           {/* Error message */}
           <div className="flex-1 overflow-auto p-3">
-            <pre className="whitespace-pre-wrap text-xs text-[var(--color-danger-6)]">
+            <pre className="text-xs whitespace-pre-wrap text-(--color-danger-6)">
               {error}
             </pre>
           </div>
@@ -86,17 +93,24 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
           {/* Success header */}
           <div className="bg-[color-mix(in srgb, var(--color-success-6) 10%, transparent)] flex items-center gap-3 border-b border-border-1 px-3 py-2">
             <div className="flex items-center gap-1.5">
-              <CheckCircle2
+              <HugeiconsIcon
+                icon={CheckmarkCircle01Icon}
+                data-icon="check-circle-2"
                 size={14}
                 strokeWidth={1.75}
-                className="text-[var(--color-success-6)]"
+                className="text-(--color-success-6)"
               />
-              <span className="text-xs font-medium text-[var(--color-success-6)]">
+              <span className="text-xs font-medium text-(--color-success-6)">
                 {t("sqlEditor.queryCompleted")}
               </span>
             </div>
             <div className="flex items-center gap-1 text-xs text-text-3">
-              <Clock size={12} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={Clock01Icon}
+                data-icon="clock"
+                size={12}
+                strokeWidth={1.75}
+              />
               <span>{result.duration.toFixed(1)}ms</span>
             </div>
           </div>
@@ -123,17 +137,24 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
         {/* Success header with stats */}
         <div className="flex items-center gap-3 border-b border-border-1 bg-[color-mix(in_srgb,var(--color-success-6)_5%,transparent)] px-3 py-2">
           <div className="flex items-center gap-1.5">
-            <CheckCircle2
+            <HugeiconsIcon
+              icon={CheckmarkCircle01Icon}
+              data-icon="check-circle-2"
               size={14}
               strokeWidth={1.75}
-              className="text-[var(--color-success-6)]"
+              className="text-(--color-success-6)"
             />
             <span className="text-xs font-medium text-text-1">
               {rowCountLabel}
             </span>
           </div>
           <div className="flex items-center gap-1 text-xs text-text-3">
-            <Clock size={12} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={Clock01Icon}
+              data-icon="clock"
+              size={12}
+              strokeWidth={1.75}
+            />
             <span>{result.duration.toFixed(1)}ms</span>
           </div>
         </div>
@@ -146,7 +167,7 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
                 {result.columns.map((column, idx) => (
                   <th
                     key={idx}
-                    className="border-b border-r border-border-1 px-3 py-2 text-left font-medium text-text-2 last:border-r-0"
+                    className="border-r border-b border-border-1 px-3 py-2 text-left font-medium text-text-2 last:border-r-0"
                   >
                     {column}
                   </th>
@@ -159,7 +180,7 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
                   {row.map((cell, cellIdx) => (
                     <td
                       key={cellIdx}
-                      className="border-b border-r border-border-1 px-3 py-1.5 last:border-r-0"
+                      className="border-r border-b border-border-1 px-3 py-1.5 last:border-r-0"
                     >
                       {renderCellValue(cell, t)}
                     </td>
@@ -183,7 +204,7 @@ type TranslateFn = (key: string) => string;
 function renderCellValue(value: unknown, t: TranslateFn): React.ReactNode {
   if (value === null) {
     return (
-      <span className="italic text-text-4">{t("sqlEditor.nullValue")}</span>
+      <span className="text-text-4 italic">{t("sqlEditor.nullValue")}</span>
     );
   }
   if (value === undefined) {
@@ -191,13 +212,13 @@ function renderCellValue(value: unknown, t: TranslateFn): React.ReactNode {
   }
   if (typeof value === "boolean") {
     return (
-      <span className="text-[var(--color-primary-6)]">
+      <span className="text-(--color-primary-6)">
         {value ? t("sqlEditor.booleanTrue") : t("sqlEditor.booleanFalse")}
       </span>
     );
   }
   if (typeof value === "number") {
-    return <span className="text-[var(--color-primary-5)]">{value}</span>;
+    return <span className="text-(--color-primary-5)">{value}</span>;
   }
   // Truncate long strings
   const strValue = String(value);

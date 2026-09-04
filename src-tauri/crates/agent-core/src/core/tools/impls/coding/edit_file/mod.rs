@@ -157,11 +157,17 @@ impl Tool for EditTool {
         // (some providers emit sibling optional fields even for a pure
         // search-replace). Overwrite is destructive, so it must NOT be the
         // default resolution of an ambiguous call: only treat `content` as a
-        // whole-file write when NO edit fields are present. When `content`
-        // coexists with `old_string`/`new_string`, honor the search-replace
-        // intent and ignore the stray `content`.
-        let has_edit_fields = old_string.is_some() || new_string.is_some();
+        // whole-file write when no non-empty edit fields are present. Empty
+        // optional placeholders are ignored.
+        let has_edit_fields = old_string.as_ref().is_some_and(|value| !value.is_empty())
+            || new_string.as_ref().is_some_and(|value| !value.is_empty());
         let content = if has_edit_fields { None } else { content };
+
+        if content.is_none() && old_string.as_deref() == Some("") {
+            return Err(ToolError::InvalidParams(
+                "'old_string' must not be empty".to_string(),
+            ));
+        }
 
         // Validate path against the live session workspace (single source
         // of truth): primary root = live working_dir(); extras = every

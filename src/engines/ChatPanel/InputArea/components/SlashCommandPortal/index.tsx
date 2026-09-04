@@ -10,7 +10,7 @@ import React from "react";
 import SlashCommandMenu from "./SlashCommandMenu";
 import type { SlashCommandPortalProps } from "./types";
 
-export type { SlashCommandPortalProps, SlashCommandSearchMode } from "./types";
+export type { SlashCommandPortalProps } from "./types";
 
 const SlashCommandPortal: React.FC<SlashCommandPortalProps> = (props) => {
   const { visible } = props;

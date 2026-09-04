@@ -1,7 +1,7 @@
 import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 import type { RuntimeOrganizationNavigationIntent } from "@src/store/ui/runtimeNavigationAtom";
 
-export interface SidebarGuideTeamUsageNavigation {
+interface SidebarGuideTeamUsageNavigation {
   intent: RuntimeOrganizationNavigationIntent;
   spotlight: {
     targetId: typeof GUIDE_TARGETS.TEAM_RUNTIME_TABS;

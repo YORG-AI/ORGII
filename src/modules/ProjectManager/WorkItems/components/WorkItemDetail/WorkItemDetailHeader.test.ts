@@ -100,8 +100,54 @@ describe("WorkItemDetailHeaderActions", () => {
       })
     );
 
-    expect(markup).toContain("lucide-trash-2");
-    expect(markup).not.toContain("lucide-square-arrow-out-up-right");
+    expect(markup).toContain('data-icon="trash-2"');
+    expect(markup).not.toContain('data-icon="link-square-02"');
     expect(markup).not.toContain("common:actions.openInNewTab");
+  });
+
+  it("shows an explicit open-in-new-tab action for split-pane details", () => {
+    const workItem = {
+      session_id: "work-item-1",
+      name: "Ship dedicated tabs",
+      status: "planned",
+    } as WorkItem;
+    const markup = renderToStaticMarkup(
+      React.createElement(WorkItemDetailHeaderActions, {
+        workItem,
+        propertiesOpen: true,
+        hasPrev: false,
+        hasNext: false,
+        onNavigate: vi.fn(),
+        onOpenInNewTab: vi.fn(),
+        t: (key: string) => key,
+      })
+    );
+
+    expect(markup).toContain('data-testid="work-item-open-in-new-tab"');
+    expect(markup).toContain('data-icon="link-square-02"');
+    expect(markup).toContain("common:actions.openInNewTab");
+  });
+
+  it("shows an explicit close action for returning to the full list", () => {
+    const workItem = {
+      session_id: "work-item-1",
+      name: "Close the split detail",
+      status: "planned",
+    } as WorkItem;
+    const markup = renderToStaticMarkup(
+      React.createElement(WorkItemDetailHeaderActions, {
+        workItem,
+        propertiesOpen: false,
+        hasPrev: false,
+        hasNext: false,
+        onNavigate: vi.fn(),
+        onClose: vi.fn(),
+        t: (key: string) => key,
+      })
+    );
+
+    expect(markup).toContain('data-testid="work-item-close-detail"');
+    expect(markup).toContain('data-icon="x"');
+    expect(markup).toContain("actions.close");
   });
 });

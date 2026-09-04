@@ -120,4 +120,17 @@ describe("formatRelativeTime date fallback", () => {
       "2 days ago"
     );
   });
+
+  it("uses Intl-relative phrasing when the caller provides a locale", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const instant = NOW - 2 * 60 * 60 * 1000;
+
+    expect(formatRelativeTime(instant, "long", "zh-CN")).toBe(
+      new Intl.RelativeTimeFormat("zh-CN", {
+        numeric: "auto",
+        style: "long",
+      }).format(-2, "hour")
+    );
+  });
 });

@@ -18,7 +18,7 @@ import "./index.scss";
 // Types
 // ============================================
 
-export interface DocxPreviewProps {
+interface DocxPreviewProps {
   filePath: string;
   className?: string;
 }

@@ -4,8 +4,7 @@
  * Manages all state and effects for the Elements panel inside WebDevTools:
  * - DOM tree (webview DOM hook, expand/collapse, reveal on selection)
  * - Style editor (computed styles, live edits, pending count)
- * - Source navigation (enrich source location, definition + usages lookup)
- * - Component index (build / clear / status)
+ * - Source navigation (direct metadata + bounded filename/content search)
  * - Selection sync from inspector → tree
  *
  * Extracted from WebDevTools/index.tsx to keep that component under the
@@ -13,7 +12,6 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { createLogger } from "@src/hooks/logger";
 import { useRefreshSpin } from "@src/hooks/ui";
 import { useSourceNavigation } from "@src/modules/WorkStation/Browser/hooks/useSourceNavigation";
 import { useWebviewDOMTree } from "@src/modules/WorkStation/Browser/hooks/useWebviewDOMTree";
@@ -21,8 +19,6 @@ import type { SourceLocation } from "@src/modules/WorkStation/Browser/hooks/useW
 import { useWebviewStyleEditor } from "@src/modules/WorkStation/Browser/hooks/useWebviewStyleEditor";
 
 import type { WebDevToolsProps } from "../types";
-
-const log = createLogger("WebDevTools");
 
 const DOM_TREE_DIRTY_POLL_MS = 1500;
 
@@ -62,12 +58,8 @@ export interface UseWebDevToolsElementsPanelReturn {
   handleStyleEditsUndo: () => void;
   handleStyleEditsSend: () => void;
 
-  // Source / component index
-  enrichedSourceLocation: SourceLocation | null;
-  componentDefinition: { path: string; line?: number } | null;
-  componentUsages: Array<{ path: string; line?: number }>;
-  isLookingUp: boolean;
-  isIndexBuilt: boolean;
+  // Source navigation
+  sourceLocation: SourceLocation | null;
   openFileAtLine: ReturnType<typeof useSourceNavigation>["openFileAtLine"];
   searchForComponent: ReturnType<
     typeof useSourceNavigation
@@ -75,9 +67,6 @@ export interface UseWebDevToolsElementsPanelReturn {
   canSearchForComponent: ReturnType<
     typeof useSourceNavigation
   >["canSearchForComponent"];
-  handleBuildIndex: () => Promise<void>;
-  handleClearIndex: () => Promise<void>;
-  indexRefreshKey: number;
 }
 
 export function useWebDevToolsElementsPanel({
@@ -89,109 +78,9 @@ export function useWebDevToolsElementsPanel({
   selectedElement,
 }: UseWebDevToolsElementsPanelOptions): UseWebDevToolsElementsPanelReturn {
   // ---- Source Navigation ----
-  const {
-    openFileAtLine,
-    canSearchForComponent,
-    searchForComponent,
-    enrichSourceLocation,
-    getDefinitionAndUsages,
-  } = useSourceNavigation({ repoPath });
-
-  const [enrichedSourceLocation, setEnrichedSourceLocation] =
-    useState<SourceLocation | null>(null);
-  const [componentDefinition, setComponentDefinition] = useState<{
-    path: string;
-    line?: number;
-  } | null>(null);
-  const [componentUsages, setComponentUsages] = useState<
-    Array<{ path: string; line?: number }>
-  >([]);
-  const [isLookingUp, setIsLookingUp] = useState(false);
-  const [indexRefreshKey, setIndexRefreshKey] = useState(0);
-  const [isIndexBuilt, setIsIndexBuilt] = useState(false);
-
-  // Check index status when repoPath changes or after refresh
-  useEffect(() => {
-    if (!repoPath) {
-      setIsIndexBuilt(false);
-      return;
-    }
-    import("@tauri-apps/api/core").then(({ invoke }) => {
-      invoke<boolean>("ui_index_is_repo_indexed", { repoPath })
-        .then((indexed) => setIsIndexBuilt(indexed))
-        .catch(() => setIsIndexBuilt(false));
-    });
-  }, [repoPath, indexRefreshKey]);
-
-  // Build component index
-  const handleBuildIndex = useCallback(async () => {
-    if (isIndexBuilt || !repoPath) return;
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("ui_index_build_repo", { repoPath });
-      setIsIndexBuilt(true);
-      setIndexRefreshKey((k) => k + 1);
-    } catch (error) {
-      log.error("[WebDevTools] Failed to build index:", error);
-    }
-  }, [isIndexBuilt, repoPath]);
-
-  // Clear component index
-  const handleClearIndex = useCallback(async () => {
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("ui_index_clear", { repoPath });
-      setComponentDefinition(null);
-      setComponentUsages([]);
-      setIsIndexBuilt(false);
-      setIndexRefreshKey((k) => k + 1);
-    } catch (error) {
-      log.error("[WebDevTools] Failed to clear index:", error);
-    }
-  }, [repoPath]);
-
-  // Auto-enrich source location when element is selected
-  useEffect(() => {
-    const sourceLocation = selectedElement?.sourceLocation;
-    if (!sourceLocation) {
-      setEnrichedSourceLocation(null);
-      setComponentDefinition(null);
-      setComponentUsages([]);
-      return;
-    }
-
-    let cancelled = false;
-    setIsLookingUp(true);
-
-    Promise.all([
-      enrichSourceLocation(sourceLocation),
-      getDefinitionAndUsages(sourceLocation),
-    ]).then(([enriched, { definition, usages }]) => {
-      if (!cancelled) {
-        if (definition && enriched) {
-          setEnrichedSourceLocation({
-            ...enriched,
-            path: enriched.path || definition.path,
-            line: enriched.line ?? definition.line ?? null,
-            method: "component-index",
-          });
-        } else {
-          setEnrichedSourceLocation(enriched);
-        }
-        setComponentDefinition(definition);
-        setComponentUsages(usages);
-        setIsLookingUp(false);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    selectedElement?.sourceLocation,
-    enrichSourceLocation,
-    getDefinitionAndUsages,
-  ]);
+  const { openFileAtLine, canSearchForComponent, searchForComponent } =
+    useSourceNavigation({ repoPath });
+  const sourceLocation = selectedElement?.sourceLocation ?? null;
 
   // ---- DOM Tree ----
   const {
@@ -217,6 +106,18 @@ export function useWebDevToolsElementsPanel({
     handleClick: handleRefreshTreeClick,
   } = useRefreshSpin(refreshTree, treeLoading);
 
+  // ---- Selection ----
+  const [localSelectedXPath, setLocalSelectedXPath] = useState<string | null>(
+    null
+  );
+  const [revealState, setRevealState] = useState<{
+    xpath: string | null;
+    key: number;
+  }>({
+    xpath: null,
+    key: 0,
+  });
+
   // Auto-refresh DOM tree on URL changes
   const prevUrlRef = useRef(currentUrl);
   useEffect(() => {
@@ -229,18 +130,6 @@ export function useWebDevToolsElementsPanel({
       return () => clearTimeout(timer);
     }
   }, [currentUrl, refreshTree]);
-
-  // ---- Selection ----
-  const [localSelectedXPath, setLocalSelectedXPath] = useState<string | null>(
-    null
-  );
-  const [revealState, setRevealState] = useState<{
-    xpath: string | null;
-    key: number;
-  }>({
-    xpath: null,
-    key: 0,
-  });
 
   const triggerReveal = useCallback((xpath: string) => {
     setRevealState((prev) => ({ xpath, key: prev.key + 1 }));
@@ -263,25 +152,24 @@ export function useWebDevToolsElementsPanel({
 
   // Two-phase expand → reveal
   const prevXpathForExpandRef = useRef<string | null>(null);
-  const [pendingRevealXpath, setPendingRevealXpath] = useState<string | null>(
-    null
-  );
+  const pendingRevealXpathRef = useRef<string | null>(null);
 
   useEffect(() => {
     const xpath = selectedElement?.xpath;
     if (!xpath) {
       prevXpathForExpandRef.current = null;
-      setPendingRevealXpath(null);
+      pendingRevealXpathRef.current = null;
       return;
     }
     if (xpath !== prevXpathForExpandRef.current) {
       prevXpathForExpandRef.current = xpath;
       expandToNode(xpath);
-      setPendingRevealXpath(xpath);
+      pendingRevealXpathRef.current = xpath;
     }
   }, [selectedElement?.xpath, expandToNode]);
 
   useEffect(() => {
+    const pendingRevealXpath = pendingRevealXpathRef.current;
     if (!pendingRevealXpath || !domTree) return;
 
     const parts = pendingRevealXpath.split("/").filter(Boolean);
@@ -293,10 +181,9 @@ export function useWebDevToolsElementsPanel({
       if (!expandedNodes.has(parentPath)) return;
     }
 
-    const xpath = pendingRevealXpath;
-    setPendingRevealXpath(null);
-    triggerReveal(xpath);
-  }, [pendingRevealXpath, domTree, expandedNodes, triggerReveal]);
+    pendingRevealXpathRef.current = null;
+    triggerReveal(pendingRevealXpath);
+  }, [selectedElement?.xpath, domTree, expandedNodes, triggerReveal]);
 
   // ---- Style Editor ----
   const {
@@ -333,27 +220,40 @@ export function useWebDevToolsElementsPanel({
     }
   }, [effectiveSelectedXPath, refreshStyles]);
 
-  const [styleEditCount, setStyleEditCount] = useState(0);
-
-  useEffect(() => {
-    setStyleEditCount(0);
-  }, [effectiveSelectedXPath]);
+  const [styleEditState, setStyleEditState] = useState<{
+    xpath: string | null;
+    count: number;
+  }>({ xpath: effectiveSelectedXPath, count: 0 });
+  const styleEditCount =
+    styleEditState.xpath === effectiveSelectedXPath ? styleEditState.count : 0;
 
   const handleStyleChange = useCallback(
     async (property: string, value: string) => {
       const success = await setStyle(property, value);
-      if (success) setStyleEditCount((n) => n + 1);
+      if (success) {
+        setStyleEditState((current) => ({
+          xpath: effectiveSelectedXPath,
+          count:
+            current.xpath === effectiveSelectedXPath ? current.count + 1 : 1,
+        }));
+      }
     },
-    [setStyle]
+    [effectiveSelectedXPath, setStyle]
   );
 
   const handleStyleEditsUndo = useCallback(() => {
-    setStyleEditCount((n) => Math.max(0, n - 1));
-  }, []);
+    setStyleEditState((current) => ({
+      xpath: effectiveSelectedXPath,
+      count:
+        current.xpath === effectiveSelectedXPath
+          ? Math.max(0, current.count - 1)
+          : 0,
+    }));
+  }, [effectiveSelectedXPath]);
 
   const handleStyleEditsSend = useCallback(() => {
-    setStyleEditCount(0);
-  }, []);
+    setStyleEditState({ xpath: effectiveSelectedXPath, count: 0 });
+  }, [effectiveSelectedXPath]);
 
   return {
     domTree,
@@ -376,16 +276,9 @@ export function useWebDevToolsElementsPanel({
     handleStyleChange,
     handleStyleEditsUndo,
     handleStyleEditsSend,
-    enrichedSourceLocation,
-    componentDefinition,
-    componentUsages,
-    isLookingUp,
-    isIndexBuilt,
+    sourceLocation,
     openFileAtLine,
     searchForComponent,
     canSearchForComponent,
-    handleBuildIndex,
-    handleClearIndex,
-    indexRefreshKey,
   };
 }

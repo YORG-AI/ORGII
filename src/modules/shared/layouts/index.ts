@@ -5,13 +5,33 @@
  */
 
 export { AppLayout } from "./AppLayout";
-export type { AppLayoutProps } from "./AppLayout";
 export { GlobalModals } from "./GlobalModals";
 export { MainContentArea } from "./MainContentArea";
+export {
+  default as DetailPaneLayout,
+  DetailPaneCloseAction,
+  DetailPanePlaceholder,
+  type DetailPaneCloseActionProps,
+  type DetailPaneHeaderProps,
+  type DetailPaneLayoutProps,
+  type DetailPanePlaceholderProps,
+} from "./DetailPaneLayout";
+export {
+  default as CompactListHeader,
+  type CompactListHeaderProps,
+} from "./CompactListHeader";
 export { default as SplitViewLayout } from "./SplitViewLayout";
-export type { SplitViewLayoutProps, SplitViewSubpage } from "./SplitViewLayout";
+export { default as SplitListFullscreenButton } from "./SplitListFullscreenButton";
+export {
+  default as SplitListHeader,
+  type SplitListHeaderProps,
+} from "./SplitListHeader";
+export {
+  default as InboxListDetailLayout,
+  INBOX_LIST_DETAIL_WIDTH,
+  type InboxListDetailLayoutProps,
+} from "./InboxListDetailLayout";
 export { OnboardingLayout } from "./OnboardingLayout";
-export type { OnboardingLayoutProps } from "./OnboardingLayout";
 export { OnboardingLoadingVideo } from "./OnboardingLoadingVideo";
 export {
   ONBOARDING_LOGIN_TOKENS,
@@ -20,8 +40,4 @@ export {
   ONBOARDING_LOADING_VIDEO_WIDTH_CLASS,
 } from "./onboardingTokens";
 export { default as Section } from "./Section";
-export type { SectionProps } from "./Section";
 export { default as SubpageLayout } from "./SubpageLayout";
-export type { SubpageLayoutProps, SubpageAnchor } from "./SubpageLayout";
-export { default as ConfigListItem } from "./ListDetailSubpage/ConfigListItem";
-export type { ConfigListItemProps } from "./ListDetailSubpage/ConfigListItem";

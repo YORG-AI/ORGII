@@ -1,13 +1,14 @@
-import { Box } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import {
   HEADER_CLASSES,
   HEADER_ICON_SIZE,
 } from "@src/config/workstation/tokens";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { DeliveryBox01Icon, HugeiconsIcon } from "@src/icons";
+import SplitListHeader from "@src/modules/shared/layouts/SplitListHeader";
 
 import { WorkItemsHeaderContent } from "./WorkItemsHeaderContent";
 import type { WorkItemsPageHeaderProps } from "./types";
@@ -36,13 +37,15 @@ const WorkItemsPageHeader = ({
   visibleTabs: _visibleTabs,
   leadingControls,
   trailingControls,
+  endControls,
+  splitListHeader = false,
+  splitHeaderLeading,
   publishToWorkstationHeader = false,
   workstationHeaderHost = "project",
+  sidebarToggleDisabled = false,
   className = "",
 }: WorkItemsPageHeaderProps) => {
   const { t } = useTranslation("projects");
-  const { spinClass: refreshSpinClass, handleClick: handleRefreshClick } =
-    useRefreshSpin(onRefresh ?? (() => {}), refreshLoading);
   const resolvedBreadcrumbSegments = useMemo(() => {
     const segments = breadcrumbSegments ?? [
       { label: t("projects.dashboardTitle") },
@@ -53,7 +56,12 @@ const WorkItemsPageHeader = ({
         return {
           ...segment,
           icon: segment.icon ?? identityIcon ?? (
-            <Box size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={DeliveryBox01Icon}
+              data-icon="box"
+              size={HEADER_ICON_SIZE.sm}
+              strokeWidth={1.75}
+            />
           ),
         };
       }
@@ -69,6 +77,7 @@ const WorkItemsPageHeader = ({
     breadcrumbSegments: resolvedBreadcrumbSegments,
     leadingControls,
     trailingControls,
+    endControls,
     onSearch,
     statusFilter,
     onStatusFilterChange,
@@ -80,22 +89,47 @@ const WorkItemsPageHeader = ({
     onAddWorkItem,
     onToggleProperties,
     showProperties,
-    refreshSpinClass,
-    onRefreshClick: handleRefreshClick,
+    refreshLoading,
     t,
   };
   const headerContent = (
     <WorkItemsHeaderContent section="content" {...sharedContentProps} />
   );
   const headerTrailing = (
-    <WorkItemsHeaderContent section="trailing" {...sharedContentProps} />
+    <WorkItemsHeaderContent
+      section="trailing"
+      placement={splitListHeader ? "list" : "header"}
+      {...sharedContentProps}
+    />
   );
 
   usePublishWorkstationTabHeader({
     host: workstationHeaderHost,
-    content: { content: headerContent, trailing: headerTrailing },
+    content: {
+      content: headerContent,
+      trailing: headerTrailing,
+      sidebarToggleDisabled,
+      hidden: splitListHeader,
+    },
     enabled: publishToWorkstationHeader,
   });
+
+  if (splitListHeader) {
+    return (
+      <SplitListHeader
+        primary={
+          <>
+            {splitHeaderLeading}
+            {splitHeaderLeading ? (
+              <HeaderSectionSeparator className="mx-0.5" />
+            ) : null}
+            {headerContent}
+          </>
+        }
+        secondary={headerTrailing}
+      />
+    );
+  }
 
   if (publishToWorkstationHeader) return null;
 

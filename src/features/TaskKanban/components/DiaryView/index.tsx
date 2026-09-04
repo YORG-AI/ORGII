@@ -19,7 +19,7 @@ import DiaryPanel from "../DiaryPanel";
 
 const log = createLogger("DiaryView");
 
-export interface DiaryViewProps {
+interface DiaryViewProps {
   tasks: KanbanTask[];
   date: Date;
   onTaskClick?: (task: KanbanTask) => void;

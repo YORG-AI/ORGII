@@ -1,5 +1,6 @@
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { estimateRuntimeValueBytes } from "@src/hooks/perf/runtimeMemoryStats";
+import { registerCache } from "@src/util/memory/cacheRegistry";
 
 const MAX_HYDRATED_EVENTS = 600;
 
@@ -49,3 +50,10 @@ export function getHydratedEventStats(): { entries: number; bytes: number } {
   }
   return { entries: hydratedEvents.size, bytes };
 }
+
+registerCache({
+  id: "simulator.hydratedEvents",
+  tier: 1,
+  estimate: getHydratedEventStats,
+  trim: clearHydratedEvents,
+});

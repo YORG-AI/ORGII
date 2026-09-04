@@ -44,22 +44,22 @@ import {
 /** How long an unserved autoReplay request stays honourable. */
 export const AUTO_REPLAY_REQUEST_TTL_MS = 120_000;
 
-export const cloudAutoReplayConsumedRequestIdAtom = atom(0);
+const cloudAutoReplayConsumedRequestIdAtom = atom(0);
 cloudAutoReplayConsumedRequestIdAtom.debugLabel =
   "cloudAutoReplayConsumedRequestIdAtom";
 
-export interface CloudAutoReplayProbe {
+interface CloudAutoReplayProbe {
   requestId: number;
   /** `fetchedAt` observed when the forced refresh was asked for. */
   fetchedAt: number;
 }
 
-export const cloudAutoReplayProbeAtom = atom<CloudAutoReplayProbe | null>(null);
+const cloudAutoReplayProbeAtom = atom<CloudAutoReplayProbe | null>(null);
 cloudAutoReplayProbeAtom.debugLabel = "cloudAutoReplayProbeAtom";
 
 export type CloudAutoReplaySkipReason = "not-found" | "not-replayable";
 
-export type CloudAutoReplayDecision =
+type CloudAutoReplayDecision =
   | { kind: "replay"; requestId: number; row: RemoteTeammateSessionMetadata }
   | { kind: "reveal-local"; requestId: number; sessionId: string }
   | {

@@ -58,6 +58,10 @@ export interface ManagedPrItem {
 
 export type ManagedGitHubItem = ManagedIssueItem | ManagedPrItem;
 
+export function getManagedGitHubItemKey(item: ManagedGitHubItem): string {
+  return `${item.kind}-${item.repo}-${item.id}`;
+}
+
 export function getManagedPullRequestKey(pullRequest: ManagedPrItem): string {
   return `${pullRequest.repo}#${pullRequest.id}`;
 }
@@ -146,10 +150,9 @@ export function mapPrToManagedItem(
 
 export function managedItemMatchesRepo(
   item: ManagedGitHubItem,
-  repoFilter: string,
-  allReposValue: string
+  repoFullName: string
 ): boolean {
-  return repoFilter === allReposValue || item.repo === repoFilter;
+  return item.repo === repoFullName;
 }
 
 function getSearchableParts(item: ManagedGitHubItem): string[] {

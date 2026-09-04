@@ -1,10 +1,10 @@
-import { Download } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
+import { Download01Icon, HugeiconsIcon } from "@src/icons";
 import {
   installAvailableAppUpdate,
   useAvailableAppUpdate,
@@ -40,7 +40,9 @@ const SidebarUpdateButton: React.FC = React.memo(() => {
         size="small"
         shape="circle"
         iconOnly
-        icon={<Download size={14} />}
+        icon={
+          <HugeiconsIcon icon={Download01Icon} data-icon="download" size={14} />
+        }
         loading={installing}
         onClick={handleInstallUpdate}
       />

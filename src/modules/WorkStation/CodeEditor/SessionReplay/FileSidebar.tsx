@@ -8,12 +8,19 @@
  * Shows files read/edited and search operations
  * up to the current replay point via tab-specific tree panels.
  */
-import { Compass, GitBranch, List, ListTree, Terminal } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SectionHeaderAction } from "@src/components/TreePanelSidebar/types";
 import { resolveToolName } from "@src/engines/SessionCore/rendering/registry/toolAliases";
+import {
+  CompassIcon,
+  ComputerTerminal01Icon,
+  HierarchyFilesIcon,
+  HugeiconsIcon,
+  ListIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import { formatToolArg } from "@src/util/ui/rendering/formatToolName";
 import { getToolDisplayLabelFromRegistry } from "@src/util/ui/rendering/registryToolLabel";
 
@@ -109,12 +116,16 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
         key: "simulator-file-view-mode",
         icon:
           fileOperationsViewMode === "list" ? (
-            <ListTree
+            <HugeiconsIcon
+              icon={HierarchyFilesIcon}
+              data-icon="list-tree"
               size={PANEL_CONSTANTS.ACTION_ICON_SIZE}
               strokeWidth={PANEL_CONSTANTS.ACTION_ICON_STROKE}
             />
           ) : (
-            <List
+            <HugeiconsIcon
+              icon={ListIcon}
+              data-icon="list"
               size={PANEL_CONSTANTS.ACTION_ICON_SIZE}
               strokeWidth={PANEL_CONSTANTS.ACTION_ICON_STROKE}
             />
@@ -311,7 +322,13 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
       {
         key: FILE_PANEL_VIEW_MODE.EXPLORE,
         label: t("simulator.replay.ide.fileSidebar.tabExplore"),
-        icon: <Compass size={PANEL_CONSTANTS.TAB_ICON_SIZE} />,
+        icon: (
+          <HugeiconsIcon
+            icon={CompassIcon}
+            data-icon="compass"
+            size={PANEL_CONSTANTS.TAB_ICON_SIZE}
+          />
+        ),
         sections: [
           {
             key: "files-read",
@@ -357,7 +374,13 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
       {
         key: FILE_PANEL_VIEW_MODE.WRITE,
         label: t("simulator.replay.ide.fileSidebar.tabEdit"),
-        icon: <GitBranch size={PANEL_CONSTANTS.TAB_ICON_SIZE} />,
+        icon: (
+          <HugeiconsIcon
+            icon={WorkflowCircle05Icon}
+            data-icon="git-branch"
+            size={PANEL_CONSTANTS.TAB_ICON_SIZE}
+          />
+        ),
         sections: [
           {
             key: "files-edited",
@@ -385,7 +408,13 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
       {
         key: FILE_PANEL_VIEW_MODE.TERMINAL,
         label: t("simulator.replay.ide.fileSidebar.tabTerminal"),
-        icon: <Terminal size={PANEL_CONSTANTS.TAB_ICON_SIZE} />,
+        icon: (
+          <HugeiconsIcon
+            icon={ComputerTerminal01Icon}
+            data-icon="terminal"
+            size={PANEL_CONSTANTS.TAB_ICON_SIZE}
+          />
+        ),
         sections: [
           {
             key: "shell-commands",

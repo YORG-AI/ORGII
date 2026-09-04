@@ -12,6 +12,16 @@
 
 use super::file_io;
 
+fn reject_retired_profile_settings(settings: &serde_json::Value) -> Result<(), String> {
+    if file_io::contains_retired_profile_settings(settings) {
+        return Err(
+            "Multiple user profiles are no longer supported; update the canonical user profile fields instead"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 /// Read all settings from `~/.orgii/settings.jsonc`.
 /// Returns the parsed JSON as a `serde_json::Value`.
 /// If the file doesn't exist, creates it with an empty object.
@@ -24,6 +34,8 @@ pub async fn settings_read() -> Result<serde_json::Value, String> {
 /// The frontend sends the full JSONC string (with comments).
 #[tauri::command]
 pub async fn settings_write(content: String) -> Result<(), String> {
+    let settings = file_io::parse_settings_jsonc(&content)?;
+    reject_retired_profile_settings(&settings)?;
     file_io::write_settings_jsonc(&content)
 }
 
@@ -31,7 +43,8 @@ pub async fn settings_write(content: String) -> Result<(), String> {
 /// Reads current settings, applies the partial update, and writes back (without comments).
 #[tauri::command]
 pub async fn settings_write_partial(partial: serde_json::Value) -> Result<(), String> {
-    let mut current = file_io::read_settings()?;
+    reject_retired_profile_settings(&partial)?;
+    let mut current = file_io::read_settings_unfiltered()?;
 
     if let (Some(current_obj), Some(partial_obj)) = (current.as_object_mut(), partial.as_object()) {
         for (key, value) in partial_obj {
@@ -44,12 +57,43 @@ pub async fn settings_write_partial(partial: serde_json::Value) -> Result<(), St
     file_io::write_settings_json(&current)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn rejects_multi_profile_settings_at_the_write_boundary() {
+        let result = reject_retired_profile_settings(&json!({
+            "general.profilePresets": [{ "id": "another-profile" }],
+        }));
+
+        assert!(result.is_err());
+
+        let result = reject_retired_profile_settings(&json!({
+            "general.activeProfileId": "another-profile",
+        }));
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn accepts_canonical_single_profile_fields() {
+        let result = reject_retired_profile_settings(&json!({
+            "general.profileTechSavvy": "expert",
+            "general.profileJobRoles": ["Engineer"],
+        }));
+
+        assert!(result.is_ok());
+    }
+}
+
 /// Reset settings by deleting the file.
 /// The file watcher will detect the deletion and the frontend will reset to defaults.
 /// The file will be recreated with defaults on the next `settings_read`.
 #[tauri::command]
 pub async fn settings_reset() -> Result<(), String> {
-    let path = file_io::get_settings_path()?;
+    let path = file_io::get_settings_path();
     if path.exists() {
         std::fs::remove_file(&path)
             .map_err(|err| format!("Failed to delete settings file: {err}"))?;
@@ -61,15 +105,15 @@ pub async fn settings_reset() -> Result<(), String> {
 /// Useful for displaying to users or for agents to know where to edit.
 #[tauri::command]
 pub async fn settings_get_path() -> Result<String, String> {
-    file_io::get_settings_path().map(|path| path.to_string_lossy().to_string())
+    Ok(file_io::get_settings_path().to_string_lossy().to_string())
 }
 
 /// Write the JSON Schema file alongside the settings file.
 /// The schema enables autocomplete in external editors (VS Code, etc.).
 #[tauri::command]
 pub async fn settings_write_schema(schema_content: String) -> Result<(), String> {
-    let path = file_io::get_schema_path()?;
-    let dir = file_io::get_settings_dir()?;
+    let path = file_io::get_schema_path();
+    let dir = file_io::get_settings_dir();
 
     std::fs::create_dir_all(&dir).map_err(|err| format!("Failed to create settings dir: {err}"))?;
     std::fs::write(&path, &schema_content)

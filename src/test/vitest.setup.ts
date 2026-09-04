@@ -423,7 +423,12 @@ const BUILTIN_ACTIONS_FIXTURE: Map<string, ToolActionInfo[]> = new Map([
 ]);
 
 /**
- * Builtin tool name → icon_id (from builtin_tools_list.rs)
+ * Builtin tool name → icon_id (from the ToolEntry tables in
+ * `src-tauri/crates/agent-core/src/core/tools/builtin_tools/table/*.rs`).
+ * Mirror the live registry only: retired tools (manage_story,
+ * manage_work_item) have no ToolEntry row anymore, so they get no icon id
+ * here either — replayed legacy sessions resolve their icons by name via
+ * the frontend fallback chain, exactly as in production.
  */
 const BUILTIN_ICON_ID_FIXTURE: Map<string, string> = new Map([
   ["read_file", "file-text"],
@@ -449,7 +454,7 @@ const BUILTIN_ICON_ID_FIXTURE: Map<string, string> = new Map([
   ["control_browser_with_playwright", "chrome"],
   ["control_external_browser", "chrome"],
   ["control_desktop_with_peekaboo", "monitor"],
-  ["control_orgii", "cog"],
+  ["control_orgii", "mouse-pointer-click"],
   ["manage_nodes", "network"],
   ["query_knowledge", "book-search"],
   ["ask_user_questions", "message-circle-question-mark"],
@@ -459,8 +464,6 @@ const BUILTIN_ICON_ID_FIXTURE: Map<string, string> = new Map([
   ["agent", "arrow-right-left"],
   ["worktree", "git-branch"],
   ["tool_search", "book-search"],
-  ["manage_story", "layout-list"],
-  ["manage_work_item", "layout-list"],
 ]);
 
 /**

@@ -24,12 +24,106 @@ use super::proxy_release::release_proxy_token_for_session;
 use super::token_sync::sync_codex_cli_auth_to_key_vault;
 use crate::api::websocket_handler;
 
+const CURSOR_HISTORY_READY_ATTEMPTS: usize = 3;
+const CURSOR_HISTORY_READY_RETRY_MS: u64 = 100;
+
 fn normalized_total_tokens(input_tokens: u64, output_tokens: u64, reported_total: u64) -> u64 {
     if reported_total > 0 {
         reported_total
     } else {
         input_tokens.saturating_add(output_tokens)
     }
+}
+
+fn cursor_cli_history_changed_message(
+    session_id: &str,
+    history_session_id: &str,
+    turn_intent_id: Option<&str>,
+) -> serde_json::Value {
+    let mut message = serde_json::json!({
+        "type": "code_session.history_changed",
+        "session_id": session_id,
+        "history_session_id": history_session_id,
+        "source": "cursor_cli",
+        "status": "turn_settled",
+    });
+    if let Some(turn_intent_id) = turn_intent_id {
+        message["turn_intent_id"] = serde_json::Value::String(turn_intent_id.to_string());
+    }
+    message
+}
+
+/// Advertise replay invalidation only after the provider-owned Cursor store
+/// is bound to the managed id and its current meta/root manifest can be read.
+async fn notify_cursor_cli_history_changed_when_readable(
+    session_id: &str,
+    turn_intent_id: Option<&str>,
+) {
+    let managed_session_id = session_id.to_string();
+    let history_session_id = match tokio::task::spawn_blocking(move || {
+        super::super::native_transcript::imported_transcript_id_for_managed_session(
+            &managed_session_id,
+        )
+    })
+    .await
+    {
+        Ok(Some(history_session_id)) => history_session_id,
+        Ok(None) => {
+            tracing::warn!(
+                session_id,
+                "Cursor CLI turn settled without a persisted native transcript binding"
+            );
+            return;
+        }
+        Err(err) => {
+            tracing::warn!(
+                session_id,
+                error = %err,
+                "Cursor CLI native transcript binding probe failed"
+            );
+            return;
+        }
+    };
+
+    for attempt in 0..CURSOR_HISTORY_READY_ATTEMPTS {
+        match crate::orgtrack::history_commands::cursor_cli_history_is_readable(
+            history_session_id.clone(),
+        )
+        .await
+        {
+            Ok(true) => {
+                websocket_handler::broadcast(
+                    cursor_cli_history_changed_message(
+                        session_id,
+                        &history_session_id,
+                        turn_intent_id,
+                    )
+                    .to_string(),
+                );
+                return;
+            }
+            Ok(false) => {}
+            Err(err) => tracing::debug!(
+                session_id,
+                history_session_id,
+                attempt,
+                error = %err,
+                "Cursor CLI transcript is not readable yet"
+            ),
+        }
+        if attempt + 1 < CURSOR_HISTORY_READY_ATTEMPTS {
+            tokio::time::sleep(tokio::time::Duration::from_millis(
+                CURSOR_HISTORY_READY_RETRY_MS,
+            ))
+            .await;
+        }
+    }
+
+    tracing::warn!(
+        session_id,
+        history_session_id,
+        "Cursor CLI turn settled but its provider transcript remained unreadable"
+    );
 }
 
 /// Outcome of the spawn/stdout loop, consumed by [`finalize_session_run`].
@@ -446,6 +540,15 @@ pub(super) async fn finalize_session_run(
     }
     websocket_handler::broadcast(status_msg.to_string());
 
+    // The generic terminal status preserves the existing lifecycle contract,
+    // but it is not a replay-readiness barrier: Cursor may commit the provider
+    // transcript through SQLite/WAL independently of ORGII's stream flush.
+    // Advertise the dedicated history invalidation only after that transcript
+    // and its managed-session binding are both readable.
+    if *agent == ModelType::CursorCli {
+        notify_cursor_cli_history_changed_when_readable(session_id, turn_intent_id).await;
+    }
+
     // ── Worktree: commit changes on completion ──
     if raw_final_status == SessionStatus::Completed {
         if let Some(ref wt_repo_path) = session.repo_path {
@@ -508,7 +611,7 @@ pub(super) async fn finalize_session_run(
 
 #[cfg(test)]
 mod usage_tests {
-    use super::normalized_total_tokens;
+    use super::{cursor_cli_history_changed_message, normalized_total_tokens};
 
     #[test]
     fn reported_total_wins_when_present() {
@@ -518,5 +621,36 @@ mod usage_tests {
     #[test]
     fn missing_total_is_derived_from_input_and_output() {
         assert_eq!(normalized_total_tokens(91_133, 1_876, 0), 93_009);
+    }
+
+    #[test]
+    fn cursor_history_changed_event_is_session_scoped_and_turn_settled() {
+        let message = cursor_cli_history_changed_message(
+            "cliagent-managed",
+            "cursorcliapp-native",
+            Some("intent-1"),
+        );
+
+        assert_eq!(
+            message,
+            serde_json::json!({
+                "type": "code_session.history_changed",
+                "session_id": "cliagent-managed",
+                "history_session_id": "cursorcliapp-native",
+                "source": "cursor_cli",
+                "status": "turn_settled",
+                "turn_intent_id": "intent-1",
+            })
+        );
+    }
+
+    #[test]
+    fn cursor_history_changed_event_omits_absent_turn_intent() {
+        let message =
+            cursor_cli_history_changed_message("cliagent-managed", "cursorcliapp-native", None);
+
+        assert!(message.get("turn_intent_id").is_none());
+        assert_eq!(message["session_id"], "cliagent-managed");
+        assert_eq!(message["history_session_id"], "cursorcliapp-native");
     }
 }

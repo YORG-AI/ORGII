@@ -1,32 +1,100 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CONVERSATION_MINIMAP_FLUSH_CONTAINER_PX,
   findNearestConversationMarker,
   getConversationMarkerWidthClass,
   getConversationMinimapPlacementClasses,
   getConversationPreviewPositionClass,
   getNavigableConversationGroupIndices,
+  hasConversationMinimapRail,
   resolveActiveConversationMarker,
+  resolveConversationMinimapVisibilityClass,
   resolveHighlightedConversationMarkers,
   sampleConversationGroupIndices,
 } from "../ConversationMinimap";
 
 describe("getConversationMinimapPlacementClasses", () => {
-  it("centers the navigator in the workstation rail host", () => {
-    const classes = getConversationMinimapPlacementClasses(true);
+  const railed = getConversationMinimapPlacementClasses(true);
+  const side = getConversationMinimapPlacementClasses(false);
 
-    expect(classes.nav).toContain("left-1/2");
-    expect(classes.nav).toContain("-translate-x-1/2");
-    expect(classes.nav).toContain("@[1100px]/focusedchat:top-2");
-    expect(classes.marker).toContain("w-9");
-    expect(classes.marker).toContain("justify-center");
+  it("floats the identical pill in both panes", () => {
+    // The floating half is one shared literal: a maximized pane that is too
+    // narrow for a column must look exactly like the side pane, not like a
+    // wider variant of itself.
+    const floatingHalf = (classes: string) =>
+      classes
+        .split(" ")
+        .filter((token) => !token.startsWith("@["))
+        .join(" ");
+
+    expect(floatingHalf(railed.nav)).toBe(floatingHalf(side.nav));
+    expect(floatingHalf(railed.marker)).toBe(floatingHalf(side.marker));
+    expect(floatingHalf(railed.markerButton)).toBe(
+      floatingHalf(side.markerButton)
+    );
   });
 
-  it("keeps the standalone navigator anchored to the chat edge", () => {
-    const classes = getConversationMinimapPlacementClasses(false);
+  it("gives the floating pill compact right-hugging markers", () => {
+    for (const classes of [railed, side]) {
+      expect(classes.nav).toContain("right-3");
+      expect(classes.nav).toContain("rounded-xl");
+      expect(classes.marker).toContain("w-2");
+      expect(classes.marker).toContain("justify-end");
+    }
+  });
 
-    expect(classes.nav).toContain("right-3");
-    expect(classes.nav).not.toContain("left-1/2");
+  it("crosses over to a flush rail at each pane's own width", () => {
+    expect(railed.nav).toContain("@[850px]/focusedchat:right-0");
+    expect(railed.nav).toContain("@[850px]/focusedchat:shadow-none");
+    expect(railed.marker).toContain("@[850px]/focusedchat:w-9");
+    expect(railed.nav).toContain("@[1100px]/focusedchat:top-2");
+
+    expect(side.nav).toContain(
+      `@[${CONVERSATION_MINIMAP_FLUSH_CONTAINER_PX}px]/chatbody:right-0`
+    );
+    expect(side.nav).toContain("@[960px]/chatbody:shadow-none");
+    expect(side.marker).toContain("@[960px]/chatbody:w-9");
+  });
+});
+
+describe("resolveConversationMinimapVisibilityClass", () => {
+  it("shows the rail outright while scrolling or hovering, in either pane", () => {
+    for (const inWorkstationRail of [true, false]) {
+      expect(
+        resolveConversationMinimapVisibilityClass({
+          showFloatingMinimap: true,
+          inWorkstationRail,
+        })
+      ).toBe("flex");
+    }
+  });
+
+  it("uses the side pane's idle rule while the maximized rail floats", () => {
+    // Floating is floating: a narrow maximized pane must not keep the rail
+    // up when the side pane would have hidden it.
+    const maximized = resolveConversationMinimapVisibilityClass({
+      showFloatingMinimap: false,
+      inWorkstationRail: true,
+    });
+    const side = resolveConversationMinimapVisibilityClass({
+      showFloatingMinimap: false,
+      inWorkstationRail: false,
+    });
+
+    expect(side).toBe("hidden @[640px]/chatbody:flex");
+    expect(maximized.startsWith(side)).toBe(true);
+  });
+
+  it("keeps the rail up once a maximized pane gives it a column", () => {
+    // A wide trail can leave the body under 640px, so the column state has
+    // to say so itself rather than relying on the body-width rule.
+    expect(
+      resolveConversationMinimapVisibilityClass({
+        showFloatingMinimap: false,
+        inWorkstationRail: true,
+      })
+    ).toContain("@[850px]/focusedchat:flex");
   });
 });
 
@@ -77,6 +145,21 @@ describe("getConversationMarkerWidthClass", () => {
 
   it("keeps resting handles at eight pixels", () => {
     expect(getConversationMarkerWidthClass(3, -1)).toBe("w-2");
+  });
+});
+
+describe("hasConversationMinimapRail", () => {
+  it("shows the rail once two rounds are navigable", () => {
+    expect(hasConversationMinimapRail([{}, {}], [1, 1])).toBe(true);
+  });
+
+  it("keeps the rail hidden for empty and single-round conversations", () => {
+    expect(hasConversationMinimapRail([], [])).toBe(false);
+    expect(hasConversationMinimapRail([{}], [3])).toBe(false);
+  });
+
+  it("ignores fully empty groups when counting navigable rounds", () => {
+    expect(hasConversationMinimapRail([{}, null], [2, 0])).toBe(false);
   });
 });
 

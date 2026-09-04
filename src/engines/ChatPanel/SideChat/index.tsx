@@ -29,7 +29,6 @@
  *                  background launch adopts the new session in place.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { MessageCircle, SquareArrowOutUpRight, SquarePen } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -44,6 +43,12 @@ import {
 import { ChatProvider } from "@src/contexts/workspace/ChatContext";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
 import { createLogger } from "@src/hooks/logger";
+import {
+  BubbleChatIcon,
+  HugeiconsIcon,
+  LinkSquare02Icon,
+  PencilEdit02Icon,
+} from "@src/icons";
 import {
   activeChatPanelTabTypeAtom,
   openOrFocusSessionInChatPanelTabAtom,
@@ -74,12 +79,12 @@ const log = createLogger("ChatPanelSideChat");
 
 // The overlay is the drag/resize bounds: the whole pane surface (chat slot
 // z-10 + workbench z-0) minus a 12px inset, so the window can never touch or
-// cross an edge. z-[70] floats above both and above the kanban tab's own
+// cross an edge. z-70 floats above both and above the kanban tab's own
 // overlays (z-[60]).
 const SIDE_CHAT_OVERLAY_CLASS =
-  "pointer-events-none absolute inset-0 z-[70] flex items-end justify-end p-3";
+  "pointer-events-none absolute inset-0 z-70 flex items-end justify-end p-3";
 const SIDE_CHAT_LAUNCHER_CLASS =
-  "pointer-events-none absolute bottom-4 right-4 z-[70]";
+  "pointer-events-none absolute bottom-4 right-4 z-70";
 
 // Initial fluid geometry: bottom-right corner, px-capped (kanban preview
 // pattern: fill small panes, stop growing past the cap on large ones). The
@@ -99,7 +104,7 @@ const SIDE_CHAT_MIN_HEIGHT = 360;
 const SIDE_CHAT_MAX_WIDTH = 640;
 const SIDE_CHAT_MAX_HEIGHT = 720;
 
-export interface ChatPanelSideChatProps {
+interface ChatPanelSideChatProps {
   /**
    * Same injected creator the chat pane start page renders — passed through
    * so new-session mode shares the pane's launch surface (and its ADE
@@ -124,7 +129,14 @@ export function SideChatLauncher({
         size="large"
         shape="circle"
         iconOnly
-        icon={<MessageCircle size={HEADER_ICON_SIZE.md} strokeWidth={1.9} />}
+        icon={
+          <HugeiconsIcon
+            icon={BubbleChatIcon}
+            data-icon="message-circle"
+            size={HEADER_ICON_SIZE.md}
+            strokeWidth={1.9}
+          />
+        }
         onClick={onOpen}
         title={label}
         aria-label={label}
@@ -215,16 +227,25 @@ const SideChatWindow: React.FC<ChatPanelSideChatProps> = ({
               <button
                 className={HEADER_BUTTON.action}
                 onClick={handleOpenInTab}
-                title={tCommon("actions.openInTab")}
+                title={tCommon("actions.openInNewTab")}
+                aria-label={tCommon("actions.openInNewTab")}
               >
-                <SquareArrowOutUpRight size={HEADER_ICON_SIZE.sm} />
+                <HugeiconsIcon
+                  icon={LinkSquare02Icon}
+                  data-icon="link-square-02"
+                  size={HEADER_ICON_SIZE.sm}
+                />
               </button>
               <button
                 className={HEADER_BUTTON.action}
                 onClick={handleNewSession}
                 title={t("chat.newSession")}
               >
-                <SquarePen size={HEADER_ICON_SIZE.sm} />
+                <HugeiconsIcon
+                  icon={PencilEdit02Icon}
+                  data-icon="square-pen"
+                  size={HEADER_ICON_SIZE.sm}
+                />
               </button>
             </div>
           ) : undefined
@@ -307,11 +328,10 @@ const SideChatSessionBody: React.FC<SideChatSessionBodyProps> = ({
               planningIndicatorScope={{ sessionId, isLive }}
             />
           </div>
-          <div className="shrink-0 px-1.5 pb-1.5 pt-0.5">
+          <div className="shrink-0 px-1.5 pt-0.5 pb-1.5">
             <InputArea
               key={sessionId}
               omitChatHeader
-              bottomAnchored
               sessionId={sessionId}
               sessionScope="none"
               onSubmitOverride={handleSubmit}

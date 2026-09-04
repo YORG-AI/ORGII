@@ -47,7 +47,7 @@ import "./index.scss";
 
 const logger = createLogger("XtermOutput");
 
-export interface XtermOutputProps {
+interface XtermOutputProps {
   /** Raw terminal output — may contain full VT100/ANSI escape sequences */
   content: string;
   /** Fixed height in px. Defaults to auto-fit based on line count (capped at 320px). */

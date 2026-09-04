@@ -23,10 +23,7 @@ import {
   continuationLineagesForRevealedSessions,
   isRosterSiblingOfRevealedContinuation,
 } from "./continuationVisibility";
-import {
-  DEFAULT_GROUP_VISIBLE_COUNT,
-  type DateGroupKey,
-} from "./dateGroupingHelpers";
+import { type DateGroupKey } from "./dateGroupingHelpers";
 import { buildSessionMenuItem, separator } from "./menuItemBuilders";
 import {
   buildByAgentMenuItems,
@@ -128,7 +125,7 @@ function buildChildSessionMenuItem(
     visualTone: "secondary",
     dataTestId: `sidebar-subagent-session-item-${session.session_id}`,
     // Subagent rows don't carry a meaningful read status, so drop the dot.
-    workingIndicator: undefined,
+    iconBadge: undefined,
     trailingElement: undefined,
   };
 }
@@ -173,6 +170,7 @@ export function useSessionMenuItems({
   excludedSessionIds,
   includeExternal,
   groupVisibleCounts,
+  defaultGroupVisibleCount,
   showAllLoadedGroupSessions = false,
   expandedSubagentParentIds = new Set(),
   revealedSessionIds = new Set(),
@@ -489,7 +487,7 @@ export function useSessionMenuItems({
       const visibleCount =
         isFiltering || showAllLoadedGroupSessions
           ? groupSessions.length
-          : (groupVisibleCounts.get(groupId) ?? DEFAULT_GROUP_VISIBLE_COUNT);
+          : (groupVisibleCounts.get(groupId) ?? defaultGroupVisibleCount);
       const revealedIndex = groupSessions.reduce(
         (lastIndex, session, index) =>
           revealedSessionIds.has(session.session_id) ? index : lastIndex,
@@ -506,6 +504,7 @@ export function useSessionMenuItems({
     },
     [
       buildSessionRow,
+      defaultGroupVisibleCount,
       groupVisibleCounts,
       isFiltering,
       revealedSessionIds,

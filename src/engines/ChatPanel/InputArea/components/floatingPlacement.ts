@@ -21,6 +21,36 @@ export interface FloatingPosition {
   availableHeight: number;
 }
 
+export interface FloatingHorizontalFrame {
+  left: number;
+  width: number;
+}
+
+/** Inset a floating surface equally from both sides of its horizontal frame. */
+export function insetFloatingHorizontalFrame({
+  left,
+  width,
+  inset,
+}: FloatingHorizontalFrame & { inset: number }): FloatingHorizontalFrame {
+  const resolvedInset = Math.min(Math.max(0, inset), width / 2);
+  return {
+    left: left + resolvedInset,
+    width: width - resolvedInset * 2,
+  };
+}
+
+/** Preserve vertical geometry when applying a separately measured frame. */
+export function applyFloatingHorizontalFrame(
+  anchorRect: FloatingAnchorRect,
+  horizontalFrame: FloatingHorizontalFrame
+): FloatingAnchorRect {
+  return {
+    top: anchorRect.top,
+    bottom: anchorRect.bottom,
+    left: horizontalFrame.left,
+  };
+}
+
 interface ComputeFloatingPositionOptions {
   anchorRect: FloatingAnchorRect;
   floatingWidth: number;
@@ -29,6 +59,7 @@ interface ComputeFloatingPositionOptions {
   viewportWidth?: number;
   viewportHeight?: number;
   margin?: number;
+  gap?: number;
   minAvailableHeight?: number;
 }
 
@@ -68,9 +99,9 @@ export function computeFloatingPosition({
   viewportWidth = getViewportSize().width,
   viewportHeight = getViewportSize().height,
   margin = DEFAULT_VIEWPORT_MARGIN,
+  gap = DROPDOWN_PANEL.triggerGap,
   minAvailableHeight = DEFAULT_MIN_AVAILABLE_HEIGHT,
 }: ComputeFloatingPositionOptions): FloatingPosition {
-  const gap = DROPDOWN_PANEL.triggerGap;
   const spaceAbove = anchorRect.top - gap - margin;
   const spaceBelow = viewportHeight - anchorRect.bottom - gap - margin;
   const resolvedPlacement = resolveFloatingPlacement(

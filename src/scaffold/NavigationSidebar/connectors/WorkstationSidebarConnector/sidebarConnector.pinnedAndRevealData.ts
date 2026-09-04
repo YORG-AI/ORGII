@@ -28,6 +28,11 @@ interface UseWorkstationSidebarPinnedAndRevealDataParams {
   menuItems: readonly NavigationMenuItem[];
   sessionCreatorDrafts: readonly SessionCreatorDraft[];
   activeViewKey: WorkstationSidebarViewKey;
+  sessionSearchLabel: string;
+  sessionRefreshLabel: string;
+  sessionRefreshIconClassName?: string;
+  onSessionSearch: () => void;
+  onSessionRefresh: () => void;
   createProjectLabel: string;
   createWorkItemLabel: string;
   importGithubIssuesLabel: string;
@@ -45,6 +50,11 @@ export function useWorkstationSidebarPinnedAndRevealData({
   menuItems,
   sessionCreatorDrafts,
   activeViewKey,
+  sessionSearchLabel,
+  sessionRefreshLabel,
+  sessionRefreshIconClassName,
+  onSessionSearch,
+  onSessionRefresh,
   createProjectLabel,
   createWorkItemLabel,
   importGithubIssuesLabel,
@@ -93,6 +103,11 @@ export function useWorkstationSidebarPinnedAndRevealData({
   const sessionSidebarMenuItems = useSessionSidebarMenuItems({
     menuItems,
     sessionCreatorDrafts,
+    searchLabel: sessionSearchLabel,
+    refreshLabel: sessionRefreshLabel,
+    refreshIconClassName: sessionRefreshIconClassName,
+    onSearch: onSessionSearch,
+    onRefresh: onSessionRefresh,
     t,
   });
   const loadedCloudMySessionRowCount = useMemo(

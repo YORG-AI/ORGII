@@ -6,9 +6,7 @@
 
 // Layout shell
 export { WorkStationShell } from "./WorkStationShell";
-export type { WorkStationShellProps } from "./WorkStationShell";
 export { ExternalBrowserButton } from "./ExternalBrowserButton";
-export type { ExternalBrowserButtonProps } from "./ExternalBrowserButton";
 
 // Shell configuration
 export {
@@ -17,7 +15,6 @@ export {
   DEFAULT_PRIMARY_SIDEBAR_CONFIG,
 } from "./WorkStationShell/config";
 export type {
-  PanelConfig,
   PrimarySidebarConfig,
   SecondaryPanelConfig,
   SecondaryPanelPosition,
@@ -25,43 +22,27 @@ export type {
 
 // Shared panel tab-bar chrome (position-aware tab header + position toggle)
 export { default as PanelTabBar, PanelPositionToggle } from "./PanelTabBar";
-export type {
-  PanelTabBarProps,
-  PanelTabBarTab,
-  PanelTabIconName,
-} from "./PanelTabBar";
+export type { PanelTabBarTab } from "./PanelTabBar";
 
 export { TerminalInfoButton } from "./TerminalInfoButton";
-export type { TerminalInfoButtonProps } from "./TerminalInfoButton";
 export { TerminalNewSessionSplitButton } from "./TerminalNewSessionSplitButton";
 export type { NewTerminalSessionOptions } from "./TerminalNewSessionSplitButton";
 
 // Diff display
 export { default as DiffFileSection } from "./DiffFileSection";
-export type {
-  DiffFileSectionData,
-  DiffFileSectionProps,
-} from "./DiffFileSection";
+export type { DiffFileSectionData } from "./DiffFileSection";
 export { default as DiffSectionList } from "./DiffSectionList";
-export type {
-  DiffSectionListItem,
-  DiffSectionListProps,
-} from "./DiffSectionList";
+export type { DiffSectionListItem } from "./DiffSectionList";
 export { default as DiffFileNavigationList } from "./DiffFileNavigationList";
-export type {
-  DiffFileNavigationItem,
-  DiffFileNavigationListProps,
-} from "./DiffFileNavigationList";
+export type { DiffFileNavigationItem } from "./DiffFileNavigationList";
 export {
   buildConsolidatedSessionReplayDiffSectionItems,
   buildSessionReplayDiffSectionItems,
   type SessionReplayDiffEntryLike,
-  type SessionReplayDiffSectionItem,
 } from "./DiffSectionList/sessionReplaySections";
 
 // Count badges (for diagnostic counts: errors, warnings, etc.)
 export { CountBadge } from "./CountBadge";
-export type { CountBadgeProps, CountVariant } from "./CountBadge";
 
 // Primary sidebar layout
 export {
@@ -72,7 +53,6 @@ export {
 export type {
   CollapsibleSectionProps,
   PanelSection,
-  PrimarySidebarLayoutProps,
   PrimarySidebarLayoutWithSectionsProps,
   PrimarySidebarTab,
 } from "./PrimarySidebarLayout";
@@ -108,7 +88,7 @@ export {
   MAX_VISIBLE_TABS,
   STATUS_LABELS,
 } from "./TabBar";
-export type { WorkStationTab, TabBarProps } from "./TabBar";
+export type { WorkStationTab } from "./TabBar";
 export { StationTabBarLeading } from "./StationTabBarLeading";
 export { TabBarLeadingLayout } from "./TabBarLeadingLayout";
 
@@ -121,7 +101,6 @@ export type {
 } from "@src/modules/shared/components/FileHeader";
 
 export { default as GitFileList } from "./GitFileList";
-export type { GitFileListProps, FileListViewMode } from "./GitFileList";
 export {
   gitFileListWidthAtom,
   GIT_FILE_LIST_DEFAULT_WIDTH,
@@ -137,10 +116,6 @@ export {
 
 // Floating bar (unsaved changes, review next, etc.)
 export { FloatingBar, UnsavedChangesBar } from "./UnsavedChangesBar";
-export type {
-  FloatingBarProps,
-  UnsavedChangesBarProps,
-} from "./UnsavedChangesBar";
 
 // Quick actions panel — types only. The component (framer-motion) is not
 // re-exported: nothing imports it through this barrel, and a value export
@@ -149,10 +124,7 @@ export type { QuickAction, QuickActionsPanelProps } from "./QuickActionsPanel";
 
 // No tabs placeholder (with quick actions)
 export { NoTabsPlaceholder } from "./NoTabsPlaceholder";
-export type {
-  NoTabsPlaceholderProps,
-  PlaceholderIcon,
-} from "./NoTabsPlaceholder";
+export type { PlaceholderIcon } from "./NoTabsPlaceholder";
 
 export {
   useSimulatorAwaitingAgentCaption,
@@ -204,13 +176,9 @@ export {
   SimulatorSidebarToggleButton,
   WorkStationSidebarToggleButton,
 } from "./SidebarToggleButton";
-export type { SidebarToggleButtonProps } from "./SidebarToggleButton";
 
 // Tab bar trailing controls (per-app panel toggles)
-export {
-  TabBarBottomPanelToggle,
-  TabBarDevToolsToggle,
-} from "./TabBarTrailingControls";
+export { TabBarBottomPanelToggle } from "./TabBarTrailingControls";
 
 // Header and typography tokens (shared dimensions, button styles, class strings)
 export {

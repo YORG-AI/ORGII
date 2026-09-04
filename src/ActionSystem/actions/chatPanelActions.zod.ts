@@ -10,8 +10,7 @@ import {
 } from "@src/store/ui/chatPanelAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import {
-  sessionChatPositionAtom,
-  workStationChatPositionAtom,
+  chatPanelPositionAtom,
   workStationLayoutModePersistAtom,
 } from "@src/store/ui/workStationAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
@@ -53,15 +52,10 @@ function defineEmptyAction(
   );
 }
 
-function setMyStationChatPosition(position: ChatPanelPosition): void {
+function setChatPanelPosition(position: ChatPanelPosition): void {
   const store = getInstrumentedStore();
   showActiveStationChatIfNeeded();
-  store.set(workStationChatPositionAtom, position);
-}
-
-function setAgentStationChatPosition(position: ChatPanelPosition): void {
-  const store = getInstrumentedStore();
-  store.set(sessionChatPositionAtom, position);
+  store.set(chatPanelPositionAtom, position);
 }
 
 function setModelPickerStyle(style: ModelPickerStyle): void {
@@ -69,40 +63,22 @@ function setModelPickerStyle(style: ModelPickerStyle): void {
   store.set(modelPickerStyleAtom, style);
 }
 
-const chatPanelSetMyStationLeft = defineEmptyAction(
-  ACTION_ID.CHAT_PANEL_SET_MY_STATION_LEFT,
+const chatPanelSetLeft = defineEmptyAction(
+  ACTION_ID.CHAT_PANEL_SET_LEFT,
   "settings",
-  "Move the My Station chat panel to the left",
-  "My Station chat panel moved left",
-  ["move my station chat left", "put chat panel on the left"],
-  () => setMyStationChatPosition("left")
+  "Move the chat panel to the left in every station layout",
+  "Chat panel moved left",
+  ["move chat panel left", "put chat panel on the left"],
+  () => setChatPanelPosition("left")
 );
 
-const chatPanelSetMyStationRight = defineEmptyAction(
-  ACTION_ID.CHAT_PANEL_SET_MY_STATION_RIGHT,
+const chatPanelSetRight = defineEmptyAction(
+  ACTION_ID.CHAT_PANEL_SET_RIGHT,
   "settings",
-  "Move the My Station chat panel to the right",
-  "My Station chat panel moved right",
-  ["move my station chat right", "put chat panel on the right"],
-  () => setMyStationChatPosition("right")
-);
-
-const chatPanelSetAgentStationLeft = defineEmptyAction(
-  ACTION_ID.CHAT_PANEL_SET_AGENT_STATION_LEFT,
-  "settings",
-  "Move the Agent Station chat panel to the left",
-  "Agent Station chat panel moved left",
-  ["move agent station chat left", "put agent chat on the left"],
-  () => setAgentStationChatPosition("left")
-);
-
-const chatPanelSetAgentStationRight = defineEmptyAction(
-  ACTION_ID.CHAT_PANEL_SET_AGENT_STATION_RIGHT,
-  "settings",
-  "Move the Agent Station chat panel to the right",
-  "Agent Station chat panel moved right",
-  ["move agent station chat right", "put agent chat on the right"],
-  () => setAgentStationChatPosition("right")
+  "Move the chat panel to the right in every station layout",
+  "Chat panel moved right",
+  ["move chat panel right", "put chat panel on the right"],
+  () => setChatPanelPosition("right")
 );
 
 const chatPanelEnablePagination = defineEmptyAction(
@@ -172,10 +148,8 @@ const workstationSetSidebarRight = defineEmptyAction(
 );
 
 export const chatPanelZodActions = [
-  chatPanelSetMyStationLeft,
-  chatPanelSetMyStationRight,
-  chatPanelSetAgentStationLeft,
-  chatPanelSetAgentStationRight,
+  chatPanelSetLeft,
+  chatPanelSetRight,
   chatPanelEnablePagination,
   chatPanelDisablePagination,
   chatPanelUseModelPickerSpotlight,

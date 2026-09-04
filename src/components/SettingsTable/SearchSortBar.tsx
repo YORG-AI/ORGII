@@ -1,5 +1,4 @@
 /** SettingsTable-owned search, sort, and filter toolbar. */
-import { Filter, Search } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +6,7 @@ import Button from "@src/components/Button";
 import Input, { type InputProps } from "@src/components/Input";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
+import { FilterIcon, HugeiconsIcon, Search01Icon } from "@src/icons";
 
 export interface SearchSortBarFilterConfig {
   pills: React.ReactNode;
@@ -76,12 +76,14 @@ const SearchSortBar: React.FC<SearchSortBarProps> = ({
         iconOnly
         onClick={filterConfig.onToggle}
         icon={
-          <Filter
+          <HugeiconsIcon
+            icon={FilterIcon}
+            data-icon="filter"
             size={14}
             className={filterConfig.active ? "text-primary-6" : ""}
           />
         }
-        title={filterConfig.title ?? t("labels.filter")}
+        title={filterConfig.title ?? t("actions.filter")}
       />
     ) : undefined);
 
@@ -91,12 +93,12 @@ const SearchSortBar: React.FC<SearchSortBarProps> = ({
 
   const showTopRow =
     hasSearchInput || !!leftContent || !!effectiveRightContent || showSort;
-  const tabPillsRowClassName = `min-w-0 flex-shrink-0 overflow-x-auto overflow-y-hidden pb-2 ${showTopRow ? "" : "pt-2"} ${noPadding ? "" : "px-4"}`;
+  const tabPillsRowClassName = `min-w-0 shrink-0 overflow-x-auto overflow-y-hidden pb-2 ${showTopRow ? "" : "pt-2"} ${noPadding ? "" : "px-4"}`;
 
   return (
     <>
       {showTopRow && (
-        <div className={`flex-shrink-0 pb-2 pt-2 ${noPadding ? "" : "px-4"}`}>
+        <div className={`shrink-0 pt-2 pb-2 ${noPadding ? "" : "px-4"}`}>
           <div className="flex items-center gap-1.5">
             {leftContent}
             {hasSearchInput && (
@@ -108,7 +110,13 @@ const SearchSortBar: React.FC<SearchSortBarProps> = ({
                   value={searchValue}
                   placeholder={searchPlaceholder}
                   prefix={
-                    <Search size={14} className="text-text-3" aria-hidden />
+                    <HugeiconsIcon
+                      icon={Search01Icon}
+                      data-icon="search"
+                      size={14}
+                      className="text-text-3"
+                      aria-hidden
+                    />
                   }
                   onChange={(value) => onSearchChange(value)}
                   allowClear={allowSearchClear}

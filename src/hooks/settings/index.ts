@@ -6,26 +6,15 @@
 
 export {
   useCrossWindowSettingsSync,
-  useSettingChangeListener,
   SETTINGS_CHANGED_EVENT,
-  type SettingsChangedEvent,
 } from "./useCrossWindowSettingsSync";
 
 export {
   useEditorAppearanceSettings,
   useEditorAppearanceStyles,
-  type EditorAppearanceSettings,
 } from "./useEditorAppearance";
 
-export {
-  useSetting,
-  useSettingValue,
-  useAllSettings,
-  useSettingsLoaded,
-  useUpdateSettingsBatch,
-  useResetAllSettings,
-  useSettingsJson,
-} from "./useSettings";
+export { useSetting, useSettingValue, useAllSettings } from "./useSettings";
 
 export { useDevModeGuard } from "./useDevModeGuard";
 
@@ -39,6 +28,5 @@ export { useSleepInhibitor } from "./useSleepInhibitor";
 
 export {
   useLearningsBrowser,
-  type UseLearningsBrowserReturn,
   type LearningsBrowserFilters,
 } from "./useLearningsBrowser";

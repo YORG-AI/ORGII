@@ -260,6 +260,50 @@ fn claude_native_key_info_exposes_output_config_effort_variants() {
     }));
 }
 
+/// Claude Fable 5.1 (`claude-fable-5-1`) is the newest Claude model. It ships
+/// in the baked Claude Code OAuth catalog and, being the same family as Fable
+/// 5, must get the Fable effort ladder (the five Anthropic rungs plus
+/// `ultracode`) rather than the generic Anthropic one. The `-1` minor-version
+/// segment must not be mistaken for an effort suffix.
+#[test]
+fn claude_fable_5_1_is_catalogued_and_gets_the_fable_effort_ladder() {
+    use crate::commands::crud::KeyInfo;
+    use crate::commands::crud::{
+        CLAUDE_CODE_OAUTH_DEFAULT_ENABLED_MODELS, CLAUDE_CODE_OAUTH_MODELS,
+    };
+    use crate::key_store::{AuthMethod, ModelKey, ModelType};
+
+    assert!(CLAUDE_CODE_OAUTH_MODELS.contains(&"claude-fable-5-1"));
+    assert!(CLAUDE_CODE_OAUTH_DEFAULT_ENABLED_MODELS.contains(&"claude-fable-5-1"));
+
+    let mut key = ModelKey::new(ModelType::ClaudeCode);
+    key.auth_method = AuthMethod::Oauth;
+    key.session_token = Some("access-token".to_string());
+    key.available_models = vec!["claude-fable-5-1".to_string()];
+
+    let info = KeyInfo::from(key);
+    let model_ids: Vec<_> = info
+        .model_variants
+        .iter()
+        .filter(|variant| variant.base_model == "claude-fable-5-1")
+        .map(|variant| variant.model.as_str())
+        .collect();
+    assert_eq!(
+        model_ids,
+        vec![
+            "claude-fable-5-1-low",
+            "claude-fable-5-1-medium",
+            "claude-fable-5-1-high",
+            "claude-fable-5-1-xhigh",
+            "claude-fable-5-1-max",
+            "claude-fable-5-1-ultracode",
+        ]
+    );
+    assert!(info.default_variants.iter().any(|variant| {
+        variant.base_model == "claude-fable-5-1" && variant.model == "claude-fable-5-1-high"
+    }));
+}
+
 #[test]
 fn codex_key_info_exposes_requested_gpt_effort_and_speed_variants() {
     use crate::commands::crud::KeyInfo;
@@ -309,7 +353,7 @@ fn codex_key_info_exposes_requested_gpt_effort_and_speed_variants() {
 }
 
 #[test]
-fn codex_gpt_5_6_ultra_tier_limited_to_sol_and_terra() {
+fn codex_gpt_5_6_exposes_max_and_limits_ultra_to_sol_and_terra() {
     use crate::commands::crud::KeyInfo;
     use crate::key_store::{AuthMethod, ModelKey, ModelType};
 
@@ -324,14 +368,26 @@ fn codex_gpt_5_6_ultra_tier_limited_to_sol_and_terra() {
 
     let info = KeyInfo::from(key);
 
-    // sol/terra: low/medium/high/xhigh/ultra × {non-fast, fast} = 10 variants.
+    // sol/terra: low/medium/high/xhigh/max/ultra × {non-fast, fast}.
     for base in ["gpt-5.6-sol", "gpt-5.6-terra"] {
         let variants: Vec<_> = info
             .model_variants
             .iter()
             .filter(|variant| variant.base_model == base)
             .collect();
-        assert_eq!(variants.len(), 10, "{base} should expose ultra tier");
+        assert_eq!(
+            variants.len(),
+            12,
+            "{base} should expose max and ultra tiers"
+        );
+        assert_eq!(
+            variants
+                .iter()
+                .filter(|variant| !variant.fast)
+                .map(|variant| variant.reasoning.as_deref().unwrap())
+                .collect::<Vec<_>>(),
+            vec!["low", "medium", "high", "xhigh", "max", "ultra"]
+        );
         assert!(variants
             .iter()
             .any(|variant| variant.model == format!("{base}-ultra") && !variant.fast));
@@ -340,19 +396,27 @@ fn codex_gpt_5_6_ultra_tier_limited_to_sol_and_terra() {
             .any(|variant| variant.model == format!("{base}-ultra-fast") && variant.fast));
     }
 
-    // luna: no ultra tier → low/medium/high/xhigh × {non-fast, fast} = 8 variants.
+    // luna: low/medium/high/xhigh/max × {non-fast, fast}; no Ultra.
     let luna_variants: Vec<_> = info
         .model_variants
         .iter()
         .filter(|variant| variant.base_model == "gpt-5.6-luna")
         .collect();
-    assert_eq!(luna_variants.len(), 8);
+    assert_eq!(luna_variants.len(), 10);
     assert!(luna_variants
         .iter()
         .all(|variant| variant.model != "gpt-5.6-luna-ultra"));
     assert!(luna_variants
         .iter()
         .any(|variant| variant.model == "gpt-5.6-luna-high-fast" && variant.fast));
+    for base in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] {
+        for suffix in ["max", "max-fast"] {
+            assert!(info.model_variants.iter().any(|variant| {
+                variant.model == format!("{base}-{suffix}")
+                    && variant.reasoning.as_deref() == Some("max")
+            }));
+        }
+    }
 }
 
 #[test]

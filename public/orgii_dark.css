@@ -101,7 +101,7 @@
 body {
   --color-bg-1: #0f0f0f;
   --color-bg-2: #141414;
-  --windows-native-chrome-opacity: 82%;
+  --windows-native-chrome-opacity: 52%;
   --color-bg-3: #2a2a2b;
   --color-bg-4: #313132;
   --color-neutral-1: #f7f8fa;
@@ -111,7 +111,7 @@ body {
   --color-text-3: #8b8b8d;
   --color-text-4: #5d5d5f;
   --color-text-white: #e8e8e8;
-  --color-border-1: #2e2e30;
+  --color-border-1: #38383a;
   --color-border-2: #3c3c3c;
   --color-border-3: #5f5f60;
   --color-fill-1: #1f1f1f;
@@ -130,9 +130,10 @@ body {
     transparent
   );
   --sidebar-backdrop: blur(12px) saturate(150%);
-  --sidebar-edge-shadow:
-    inset -1px 0 0 rgba(255, 255, 255, 0.07),
-    inset -8px 0 12px -12px rgba(0, 0, 0, 0.9);
+  --sidebar-edge-shadow: inset -8px 0 12px -12px rgba(0, 0, 0, 0.9);
+  --windows-page-edge-shadow:
+    inset 1px 0 0 rgba(255, 255, 255, 0.07),
+    inset 8px 0 12px -10px rgba(0, 0, 0, 0.9);
   --sidebar-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.3);
 
   /* Start Page */

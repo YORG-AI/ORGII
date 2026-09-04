@@ -59,6 +59,8 @@ export interface WorkItemContentProps {
   githubIssueTimeline?: {
     items: GitHubIssueTimelineItem[];
     loading: boolean;
+    /** Surfaced inline so a failed activity load is never a blank thread. */
+    error?: string | null;
   };
   /** Inline GitHub-native body, comment, and status actions for thread surfaces. */
   githubIssueInteraction?: GitHubIssueInteractionConfig;
@@ -77,7 +79,7 @@ export interface WorkItemContentProps {
   onCreatePr?: () => Promise<{ url?: string; error?: string }>;
 }
 
-export type GitHubIssueCloseReason = "completed" | "not_planned" | "duplicate";
+type GitHubIssueCloseReason = "completed" | "not_planned" | "duplicate";
 
 export interface GitHubIssueStatusChangeOptions {
   stateReason?: GitHubIssueCloseReason;

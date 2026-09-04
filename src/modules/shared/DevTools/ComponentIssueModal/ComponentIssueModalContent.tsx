@@ -7,9 +7,9 @@
  * - ComponentIssuePayloadView: full payload detail view
  * - ComponentIssueSuggestions: component suggestions list / empty state / legend
  */
-import { Copy } from "lucide-react";
 import React from "react";
 
+import { Copy01Icon, HugeiconsIcon } from "@src/icons";
 import { getConfidenceLabel } from "@src/util/config/componentMapping";
 import type { ComponentIssuePayload } from "@src/util/core/error/componentIssueTracker/";
 
@@ -72,7 +72,7 @@ export function ComponentIssueDetailSection({
             onClick={() => onCopyField(label, copyValue)}
             aria-label={`Copy ${label}`}
           >
-            <Copy size={16} />
+            <HugeiconsIcon icon={Copy01Icon} data-icon="copy" size={16} />
           </button>
         )}
       </div>
@@ -126,7 +126,7 @@ export function ComponentIssueSuggestions({
                   onClick={() => onCopyField("File path", suggestion.filePath)}
                   title="Copy file path"
                 >
-                  <Copy size={16} />
+                  <HugeiconsIcon icon={Copy01Icon} data-icon="copy" size={16} />
                 </button>
               </div>
               <div className="component-issue-suggestion-file">

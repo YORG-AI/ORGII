@@ -85,36 +85,45 @@ export function useGitOperations(
 ): UseGitOperationsReturn {
   const { repoPath, repoId } = options;
 
-  const cleanupRef = useRef<(() => void) | null>(null);
+  // One cleanup ref PER operation. A single shared ref meant starting any
+  // operation closed the previous operation's event source — whose promise
+  // then never settled (its callbacks can no longer fire), leaving that
+  // operation's loading flag stuck for the rest of the session (e.g. Fetch
+  // permanently disabled after clicking Pull mid-fetch).
+  const pushCleanupRef = useRef<(() => void) | null>(null);
+  const pullCleanupRef = useRef<(() => void) | null>(null);
+  const fetchCleanupRef = useRef<(() => void) | null>(null);
 
-  // Build operation context
-  const getContext = useCallback((): OperationContext => {
-    return {
-      repoPath,
-      repoId,
-      cleanupRef,
-    };
-  }, [repoPath, repoId]);
+  const makeContext = useCallback(
+    (cleanupRef: OperationContext["cleanupRef"]): OperationContext => {
+      return {
+        repoPath,
+        repoId,
+        cleanupRef,
+      };
+    },
+    [repoPath, repoId]
+  );
 
   const pushWithOutput = useCallback(
     (params: PushParams): Promise<GitOperationResult> => {
-      return handlePush(getContext(), params);
+      return handlePush(makeContext(pushCleanupRef), params);
     },
-    [getContext]
+    [makeContext]
   );
 
   const pullWithOutput = useCallback(
     (params: PullParams): Promise<GitOperationResult> => {
-      return handlePull(getContext(), params);
+      return handlePull(makeContext(pullCleanupRef), params);
     },
-    [getContext]
+    [makeContext]
   );
 
   const fetchWithOutput = useCallback(
     (params: FetchParams): Promise<GitOperationResult> => {
-      return handleFetch(getContext(), params);
+      return handleFetch(makeContext(fetchCleanupRef), params);
     },
-    [getContext]
+    [makeContext]
   );
 
   return {

@@ -1,9 +1,9 @@
-import { Check } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { STORY_SYNC_AUTH_METHOD } from "@src/api/http/integrations";
 import Button from "@src/components/Button";
+import { HugeiconsIcon, Tick01Icon } from "@src/icons";
 
 import type { ProjectSyncAuthMethod } from "./channelWizardTypes";
 
@@ -124,7 +124,12 @@ export const ChannelWizardFooterStatus: React.FC<
 
   return (
     <div className="flex items-center gap-1.5">
-      <Check size={14} className="text-success-6" />
+      <HugeiconsIcon
+        icon={Tick01Icon}
+        data-icon="check"
+        size={14}
+        className="text-success-6"
+      />
       <span className="text-[12px] text-success-6">
         {t("integrations.verified")}
       </span>

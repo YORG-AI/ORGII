@@ -5,7 +5,7 @@ import {
 import { isLiveRuntimeResourceEvent } from "@src/engines/SessionCore/core/runningEventGate";
 import type { DerivedSnapshot } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-import { isVisibleInChat } from "@src/engines/SessionCore/ingestion";
+import { isVisibleInChat } from "@src/engines/SessionCore/ingestion/visibilityFilters";
 
 function eventTime(event: SessionEvent): number {
   const parsed = Date.parse(event.createdAt);

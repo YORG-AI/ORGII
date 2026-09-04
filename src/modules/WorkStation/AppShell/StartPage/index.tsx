@@ -9,10 +9,10 @@
  * Rendered as a compact quick-action list: icon, label, and keyboard hint.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { Infinity as InfinityIcon, type LucideIcon } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import {
   KEYBOARD_SHORTCUT_VARIANT,
@@ -22,6 +22,7 @@ import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { useActiveRepoRef } from "@src/hooks/git/useActiveRepoRef";
 import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotals";
+import { Infinity01Icon, type IconSvgElement } from "@src/icons";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/modules/WorkStation/shared/tokens";
 import { hasActiveSessionAtom } from "@src/store/session/viewAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
@@ -32,7 +33,7 @@ import {
 } from "../useWorkStationLaunchActions";
 
 interface StartActionRowProps {
-  icon: LucideIcon;
+  icon: IconSvgElement;
   label: string;
   shortcut?: string;
   /** Working-tree diff totals shown beside the label (Review row only). */
@@ -42,7 +43,7 @@ interface StartActionRowProps {
 }
 
 const StartActionRow = memo<StartActionRowProps>(
-  ({ icon: Icon, label, shortcut, additions, deletions, onClick }) => {
+  ({ icon, label, shortcut, additions, deletions, onClick }) => {
     const showDiff =
       additions !== undefined &&
       deletions !== undefined &&
@@ -54,7 +55,12 @@ const StartActionRow = memo<StartActionRowProps>(
         className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${SURFACE_TOKENS.hover} active:bg-fill-3`}
       >
         <span className="flex min-w-0 items-center gap-2.5">
-          <Icon size={16} strokeWidth={1.75} className="shrink-0 text-text-3" />
+          <AnyIcon
+            icon={icon}
+            size={16}
+            strokeWidth={1.75}
+            className="shrink-0 text-text-3"
+          />
           <span className="truncate text-[14px] font-medium text-text-2">
             {label}
           </span>
@@ -103,7 +109,7 @@ export const WorkStationStartPage: React.FC = memo(() => {
           {hasActiveSession ? (
             <>
               <StartActionRow
-                icon={InfinityIcon}
+                icon={Infinity01Icon}
                 label={t("spotlightActions.openAgentStation")}
                 shortcut={getShortcutKeys("open_agent_station")}
                 onClick={() => setStationMode("agent-station")}

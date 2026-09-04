@@ -29,7 +29,7 @@ function storeOverride(value: unknown): void {
 
 afterEach(() => {
   localStorage.removeItem(ORG2_CLOUD_ENDPOINT_OVERRIDE_STORAGE_KEY);
-  configureCloudAuthCallbackForIdentifier("yorg.orgii");
+  configureCloudAuthCallbackForIdentifier("org2ai.org2");
 });
 
 describe("getCloudEndpoint", () => {
@@ -88,7 +88,7 @@ describe("buildCloudAuthCallbackUrl", () => {
 
   it("derives an isolated callback from the runtime Tauri identifier", () => {
     expect(
-      configureCloudAuthCallbackForIdentifier("yorg.orgii.instance2")
+      configureCloudAuthCallbackForIdentifier("org2ai.org2.instance2")
     ).toBe("orgii-instance2://auth/callback");
     expect(
       new URL(buildOrg2CloudLoginUrl()).searchParams.get("return_to")
@@ -97,9 +97,9 @@ describe("buildCloudAuthCallbackUrl", () => {
 
   it("rejects malformed and unbounded runtime instance identifiers", () => {
     for (const identifier of [
-      "yorg.orgii.instance1",
-      "yorg.orgii.instance100",
-      "yorg.orgii.instance2.extra",
+      "org2ai.org2.instance1",
+      "org2ai.org2.instance100",
+      "org2ai.org2.instance2.extra",
       "other.orgii.instance2",
     ]) {
       expect(configureCloudAuthCallbackForIdentifier(identifier)).toBe(

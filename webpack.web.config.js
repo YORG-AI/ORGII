@@ -1,7 +1,7 @@
 const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 
-const createDesktopConfig = require("./webpack.config");
+const createDesktopConfig = require("./config/webpack.config");
 
 /**
  * Browser entry that reuses the desktop compiler, aliases, design tokens and
@@ -28,7 +28,7 @@ module.exports = (env, argv) => {
     version: `${config.cache.version}-web`,
     buildDependencies: {
       ...config.cache.buildDependencies,
-      config: [__filename, path.resolve(__dirname, "webpack.config.js")],
+      config: [__filename, path.resolve(__dirname, "config/webpack.config.js")],
     },
   };
   config.resolve.alias = {

@@ -442,14 +442,14 @@ describe("clearProjectRepoCache", () => {
   });
 
   it("deletes unrelated keys that merely contain a matched substring (documents over-breadth — see report)", () => {
-    // Every key below is a real key this app writes today, none of which is
+    // Every key below is a real current or legacy app key, none of which is
     // project/repo cache. They are destroyed because the sweep matches a bare
     // substring ("workspace"/"Workspace", "repo"/"Repo", "project") or the
     // "cur" prefix, and none of them trips the theme/setting/config exemption:
     //   orgii_recent_workspaces
     //     -> src/services/workspace/WorkspaceService.ts:21          ("workspace")
     //   orgii:codeSearchIndexedRepos
-    //     -> src/store/search/codeSearchIndexAtom.ts:39             ("Repo")
+    //     -> legacy code-search index registry                      ("Repo")
     //   orgii:kanbanGitHub:selectedRepo:v1
     //     -> src/modules/MainApp/WorkManagement/
     //        useGitHubWorkItemsViewState.ts:42                      ("Repo")

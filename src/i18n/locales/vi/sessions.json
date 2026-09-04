@@ -88,12 +88,6 @@
       "openAsFloatingPane": "Mở dạng bảng nổi"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "Tìm phiên theo đường dẫn tệp",
-      "noResults": "Không có phiên nào sửa tệp phù hợp"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "Kanban hiện tại",
     "view": {
       "list": "Danh sách",
       "diary": "Nhật ký",
@@ -357,9 +351,6 @@
       "merging": "Đang hợp nhất…",
       "merged": "Đã hợp nhất"
     },
-    "replay": {
-      "replaySession": "Phát lại"
-    },
     "discard": {
       "discard": "Hủy bỏ",
       "discarding": "Đang hủy…",
@@ -464,7 +455,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "Ẩn bảng",
         "expandPanel": "Hiện bảng trajectory và todo",
         "placeholderTrajectoryTitle": "Chưa có sự kiện",
         "placeholderTrajectorySubtitle": "Hoạt động phiên sẽ hiển thị khi Agent chạy",
@@ -765,9 +755,7 @@
       "showSidebar": "Hiện thanh bên",
       "hideSidebar": "Ẩn thanh bên",
       "showBottomPanel": "Hiện bảng dưới",
-      "hideBottomPanel": "Ẩn bảng dưới",
-      "showDevTools": "Hiện DevTools",
-      "hideDevTools": "Ẩn DevTools"
+      "hideBottomPanel": "Ẩn bảng dưới"
     },
     "multiTask": {
       "monitoringProgress": "Đang theo dõi tiến độ của {{count}} subagent",
@@ -798,7 +786,8 @@
       "current": "Hiện tại"
     },
     "agentSentMessageCaption": "{{subject}} đã gửi cho bạn một tin nhắn",
-    "userSentMessageCaption": "Bạn đã gửi một tin nhắn cho Agent"
+    "userSentMessageCaption": "Bạn đã gửi một tin nhắn cho Agent",
+    "thoughtSentMessageCaption": "{{subject}} đang suy nghĩ"
   },
   "terminal": {
     "findInTerminal": "Tìm trong terminal",
@@ -878,8 +867,17 @@
     "multipleChoice": "Chọn nhiều",
     "typeYourAnswer": "Nhập câu trả lời của bạn…",
     "newSession": "Phiên mới",
-    "muteNotifications": "Tắt thông báo",
     "startPage": {
+      "inputPosition": "Ô nhập",
+      "positionBottom": "Dưới",
+      "positionMiddle": "Giữa",
+      "trailPosition": "Thanh ngữ cảnh",
+      "positionUp": "Trên",
+      "positionDown": "Dưới",
+      "uiControls": "Điều khiển giao diện",
+      "showQuickActions": "Hiển thị thao tác nhanh",
+      "showSkills": "Hiển thị Skills",
+      "showCliUpdate": "Hiển thị bản cập nhật CLI",
       "title": "Bạn muốn làm gì?",
       "back": "Quay lại trang bắt đầu",
       "newSession": {
@@ -990,6 +988,7 @@
     "fullScreenChat": "Tập trung bảng chat (ẩn Workstation)",
     "maximizeChatPanel": "Phóng to bảng chat",
     "showWorkstation": "Hiện Workstation",
+    "workstationUnavailableForPage": "Workstation không khả dụng trên trang này",
     "hideWorkstation": "Ẩn Workstation",
     "restoreSplitView": "Hiện Workstation",
     "shrinkToWorkstation": "Thu nhỏ bảng chat (hiện Workstation)",
@@ -1005,9 +1004,12 @@
       "openInSideChat": "Mở trong trò chuyện bên"
     },
     "collapseAll": "Thu gọn tất cả",
+    "copyAndExport": "Sao chép và xuất",
     "copyEventJson": "Sao chép JSON sự kiện",
     "copyEventJsonCopied": "Đã sao chép!",
     "copyEventJsonFailed": "Sao chép thất bại",
+    "moveTo": "Chuyển trang đến…",
+    "projectLinks": "Liên kết dự án",
     "moveToWorkstation": "Chuyển sang Workstation của tôi",
     "moveToChatPanel": "Chuyển sang bảng trò chuyện",
     "rawTranscript": {
@@ -1104,7 +1106,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~còn {{eta}}",
     "rateLimitHintTitle": "API bị giới hạn tốc độ",
-    "rateLimitHintBody": "Mô hình hiện tại đang bị giới hạn tốc độ. Bạn có thể chuyển sang cửa sổ khác để tiếp tục làm việc trong khi chờ đợi.",
+    "rateLimitHintBody": "Mô hình hiện tại đang bị giới hạn tốc độ. Bạn có thể chuyển sang cửa sổ khác để tiếp tục làm việc trong khi chờ đợi",
     "feedbackPending": "Đang chờ phản hồi",
     "executionThreads": "Luồng thực thi",
     "allThreads": "Tất cả",
@@ -1136,6 +1138,7 @@
       "exportTitle": "Xuất Session JSON",
       "importTitle": "Nhập Session JSON",
       "exportAction": "Xuất",
+      "exportJson": "Xuất JSON",
       "importAction": "Nhập Session",
       "exportDescription": "Xuất Session đang hoạt động thành ảnh chụp nhanh JSON di động",
       "importDescription": "Nhập ảnh chụp nhanh Session JSON vào thanh bên.",
@@ -1241,7 +1244,8 @@
       "fileCount_other": "{{count}} tệp",
       "turnCount_one": "{{count}} lượt",
       "turnCount_other": "{{count}} lượt"
-    }
+    },
+    "parentAgentSender": "Tác nhân cha"
   },
   "chatStatus": {
     "approved": "Đã phê duyệt",
@@ -1356,9 +1360,7 @@
     },
     "editFileFailedNoName": "Đã thử chỉnh sửa",
     "file": "tệp",
-    "runShellRunning": "Đang chạy lệnh",
     "terminalWaitRunning": "Đang chờ terminal hoàn tất",
-    "runShellDone": "Đã chạy lệnh",
     "runShellFailed": "Lệnh thất bại",
     "runCommands": "Chạy lệnh",
     "terminalSummary": {
@@ -1487,8 +1489,6 @@
     "killProcessFailed": "Không thể kết thúc tiến trình",
     "listDirCount_one": "{{count}} thư mục",
     "listDirCount_other": "{{count}} thư mục",
-    "listFileCount_one": "{{count}} tệp",
-    "listFileCount_other": "{{count}} tệp",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (đã rút gọn để hiển thị)",
     "repeatedErrorNotice": "Lỗi tương tự xảy ra {{count}} lần, agent đang thử lại",
@@ -2081,7 +2081,11 @@
     "orgSendMessageRunning": "Đang gửi tin nhắn đến {{recipient}}",
     "orgSendMessageDone": "Đã gửi tin nhắn đến {{recipient}}",
     "orgSendMessageFailed": "Không gửi được tin nhắn đến {{recipient}}",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Đang chạy lệnh",
+    "runCommandDone": "Đã chạy lệnh",
+    "nFiles_one": "{{count}} tệp",
+    "nFiles_other": "{{count}} tệp"
   },
   "hoverCard": {
     "commits": "Commit",
@@ -2101,7 +2105,6 @@
     },
     "createTarget": {
       "agentSession": "Phiên Agent",
-      "manageAgents": "Quản lý Agents / Skills",
       "project": "Tạo dự án",
       "parallelRun": "Chạy song song",
       "workItem": "Tạo Work Item"
@@ -2146,6 +2149,9 @@
     "launchpadQuestion": "Bạn muốn xây dựng gì với",
     "launchpadQuestionSuffix": "?",
     "manualLaunchpadQuestion": "Bạn muốn xây dựng gì?",
+    "planLaunchpadQuestion": "Bạn muốn lên kế hoạch gì với",
+    "planLaunchpadQuestionSuffix": "?",
+    "manualPlanLaunchpadQuestion": "Bạn muốn lên kế hoạch gì?",
     "start": "Bắt đầu",
     "assign": "Gán",
     "send": "Gửi",
@@ -2536,7 +2542,16 @@
       "Đang xử lý, lâu hơn bình thường...",
       "Đang cân nhắc bước tiếp theo, lâu hơn bình thường..."
     ],
-    "compacting": "Đang nén ngữ cảnh..."
+    "compacting": "Đang nén ngữ cảnh...",
+    "statusTrail": {
+      "agentWorking": "Agent đang làm việc",
+      "agentWorkingFor": "Agent đã làm việc {{value}}",
+      "runningTask_one": "{{count}} tác vụ đang chạy",
+      "runningTask_other": "{{count}} tác vụ đang chạy",
+      "idle": "Agent đang rảnh",
+      "lastRefreshed": "Làm mới lần cuối {{value}}",
+      "asking": "Đang chờ bạn trả lời"
+    }
   },
   "revertConfirm": {
     "title": "Thay đổi tệp chưa được lưu",
@@ -2682,7 +2697,8 @@
     "update": {
       "titleStatus": "Cập nhật trạng thái việc",
       "titleDetail": "Cập nhật chi tiết việc",
-      "markedAs": "Đã đánh dấu là {{status}}"
+      "markedAs": "Đã đánh dấu là {{status}}",
+      "title": "Đã cập nhật nhiệm vụ"
     },
     "get": {
       "title": "Xem chi tiết nhiệm vụ"
@@ -2838,5 +2854,15 @@
       "skipped": "Đã bỏ qua",
       "pending": "Đang khởi động"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
+  },
+  "tooltips": {
+    "hidePanel": "Ẩn bảng"
+  },
+  "titleBar": {
+    "showDevTools": "Hiện DevTools",
+    "hideDevTools": "Ẩn DevTools"
   }
 }

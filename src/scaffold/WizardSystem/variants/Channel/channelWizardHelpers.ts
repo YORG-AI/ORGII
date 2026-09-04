@@ -65,7 +65,7 @@ export function hasDuplicateAccountName(
   );
 }
 
-export interface AccountNameValidationMessages {
+interface AccountNameValidationMessages {
   duplicate: string;
 }
 

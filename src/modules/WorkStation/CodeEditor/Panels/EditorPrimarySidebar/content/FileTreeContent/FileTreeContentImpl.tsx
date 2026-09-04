@@ -21,7 +21,6 @@ import {
   workspaceFolderStatusMapAtom,
 } from "@/src/store/git";
 import { useAtomValue, useSetAtom } from "jotai";
-import { ChevronDown, ChevronRight, Filter as FilterIcon } from "lucide-react";
 import React, {
   forwardRef,
   memo,
@@ -58,6 +57,12 @@ import {
   updateFileTreeMemoryEntry,
 } from "@src/hooks/perf/runtimeMemoryStats";
 import { useElementDimensions } from "@src/hooks/ui/layout/useElementDimensions";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  Search01Icon,
+} from "@src/icons";
 import { FolderHeaderRow } from "@src/modules/WorkStation/shared/FolderHeaderRow";
 import { fileTreeSelectedPathAtom } from "@src/store/ui/fileTreeSelectionAtom";
 
@@ -77,7 +82,7 @@ import {
 } from "./useFileTreeMutationState";
 import { flattenTree } from "./utils/treeUtils";
 
-const DEFAULT_FILTER_PLACEHOLDER = "Filter files";
+const DEFAULT_FILTER_PLACEHOLDER = "Search files";
 const DEFAULT_EMPTY_MESSAGE = "No files found";
 const DEFAULT_NO_RESULTS_MESSAGE = "No files matching filter";
 
@@ -119,7 +124,7 @@ export const FileTreeContent = memo(
       const { t } = useTranslation();
       const resolvedFilterPlaceholder =
         filterPlaceholder ??
-        t("placeholders.filterFiles", {
+        t("placeholders.searchFiles", {
           defaultValue: DEFAULT_FILTER_PLACEHOLDER,
         });
       const resolvedEmptyMessage =
@@ -318,12 +323,16 @@ export const FileTreeContent = memo(
             >
               <div className={STICKY_ROW.chevronBox}>
                 {isExpanded ? (
-                  <ChevronDown
+                  <HugeiconsIcon
+                    icon={ArrowDown01Icon}
+                    data-icon="chevron-down"
                     size={CHEVRON_SIZE}
                     className={STICKY_ROW.chevronIcon}
                   />
                 ) : (
-                  <ChevronRight
+                  <HugeiconsIcon
+                    icon={ArrowRight01Icon}
+                    data-icon="chevron-right"
                     size={CHEVRON_SIZE}
                     className={STICKY_ROW.chevronIcon}
                   />
@@ -332,7 +341,7 @@ export const FileTreeContent = memo(
 
               <span className={STICKY_ROW.name}>{node.name}</span>
 
-              <div className="flex h-3.5 w-5 flex-shrink-0 items-center justify-center">
+              <div className="flex h-3.5 w-5 shrink-0 items-center justify-center">
                 {gitInfo && (
                   <div
                     className={`h-1.5 w-1.5 rounded-full ${getStatusBgColor(gitInfo.status)}`}
@@ -400,9 +409,16 @@ export const FileTreeContent = memo(
             }}
           >
             {showFilter && (
-              <div className="flex-shrink-0 px-3 pb-2">
+              <div className="shrink-0 px-3 pb-2">
                 <Input
-                  prefix={<FilterIcon size={14} strokeWidth={1.75} />}
+                  prefix={
+                    <HugeiconsIcon
+                      icon={Search01Icon}
+                      data-icon="search-icon"
+                      size={14}
+                      strokeWidth={1.75}
+                    />
+                  }
                   placeholder={resolvedFilterPlaceholder}
                   value={filterQuery}
                   onChange={onFilterChange}

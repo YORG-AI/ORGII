@@ -88,12 +88,6 @@
       "openAsFloatingPane": "フローティングパネルで開く"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "ファイルパスでセッションを検索",
-      "noResults": "一致するファイルを変更したセッションはありません"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "現在のKanban",
     "view": {
       "list": "リスト",
       "diary": "日誌",
@@ -318,8 +312,8 @@
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
       "removeDraft": "ドラフトを削除",
-      "showSubagents": "サブエージェントを表示",
-      "hideSubagents": "サブエージェントを非表示"
+      "showSubagents": "subagentを表示",
+      "hideSubagents": "subagentを非表示"
     },
     "resultStatus": {
       "completed": "完了",
@@ -358,9 +352,6 @@
       "merge": "マージ",
       "merging": "マージ中…",
       "merged": "マージ済み"
-    },
-    "replay": {
-      "replaySession": "リプレイ"
     },
     "discard": {
       "discard": "破棄",
@@ -466,7 +457,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "パネルを隠す",
         "expandPanel": "Trajectory / Todo パネルを表示",
         "placeholderTrajectoryTitle": "イベントがありません",
         "placeholderTrajectorySubtitle": "Agent が実行されると、セッションの活動がここに表示されます",
@@ -767,9 +757,7 @@
       "showSidebar": "サイドバーを表示",
       "hideSidebar": "サイドバーを非表示",
       "showBottomPanel": "下部パネルを表示",
-      "hideBottomPanel": "下部パネルを非表示",
-      "showDevTools": "DevTools を表示",
-      "hideDevTools": "DevTools を非表示"
+      "hideBottomPanel": "下部パネルを非表示"
     },
     "multiTask": {
       "monitoringProgress": "{{count}} 体の Subagent の進捗を監視中",
@@ -800,7 +788,8 @@
       "current": "現在"
     },
     "agentSentMessageCaption": "{{subject}} からメッセージが届きました",
-    "userSentMessageCaption": "Agent にメッセージを送信しました"
+    "userSentMessageCaption": "Agent にメッセージを送信しました",
+    "thoughtSentMessageCaption": "{{subject}} が考えています"
   },
   "terminal": {
     "findInTerminal": "ターミナル内を検索",
@@ -880,8 +869,17 @@
     "multipleChoice": "複数選択",
     "typeYourAnswer": "回答を入力…",
     "newSession": "新しいセッション",
-    "muteNotifications": "通知をミュート",
     "startPage": {
+      "inputPosition": "入力欄",
+      "positionBottom": "下部",
+      "positionMiddle": "中央",
+      "trailPosition": "コンテキストバー",
+      "positionUp": "上",
+      "positionDown": "下",
+      "uiControls": "UI コントロール",
+      "showQuickActions": "クイックアクションを表示",
+      "showSkills": "Skills を表示",
+      "showCliUpdate": "CLI の更新を表示",
       "title": "何をしますか？",
       "back": "スタートページに戻る",
       "newSession": {
@@ -992,6 +990,7 @@
     "fullScreenChat": "Chat パネルにフォーカス（Workstation を非表示）",
     "maximizeChatPanel": "Chat パネルを最大化",
     "showWorkstation": "Workstation を表示",
+    "workstationUnavailableForPage": "このページでは Workstation を利用できません",
     "hideWorkstation": "Workstation を非表示",
     "restoreSplitView": "Workstation を表示",
     "shrinkToWorkstation": "Chat パネルを縮小（Workstation を表示）",
@@ -1007,9 +1006,12 @@
       "openInSideChat": "サイドチャットで開く"
     },
     "collapseAll": "すべて折りたたむ",
+    "copyAndExport": "コピーとエクスポート",
     "copyEventJson": "イベント JSON をコピー",
     "copyEventJsonCopied": "コピーしました！",
     "copyEventJsonFailed": "コピー失敗",
+    "moveTo": "ページの移動先…",
+    "projectLinks": "プロジェクトの関連付け",
     "moveToWorkstation": "マイ Workstation に移動",
     "moveToChatPanel": "チャットパネルに移動",
     "rawTranscript": {
@@ -1106,7 +1108,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~残り {{eta}}",
     "rateLimitHintTitle": "APIレート制限",
-    "rateLimitHintBody": "現在のモデルがレート制限されています。待機中は別のウィンドウに切り替えて作業を続けることができます。",
+    "rateLimitHintBody": "現在のモデルがレート制限されています。待機中は別のウィンドウに切り替えて作業を続けることができます",
     "feedbackPending": "フィードバック待ち",
     "executionThreads": "実行スレッド",
     "allThreads": "すべて",
@@ -1138,6 +1140,7 @@
       "exportTitle": "Session JSON をエクスポート",
       "importTitle": "Session JSON をインポート",
       "exportAction": "エクスポート",
+      "exportJson": "JSON をエクスポート",
       "importAction": "Session をインポート",
       "exportDescription": "アクティブな Session をポータブルな JSON スナップショットとしてエクスポートします",
       "importDescription": "Session JSON スナップショットをサイドバーにインポートします。",
@@ -1243,7 +1246,8 @@
       "fileCount_other": "{{count}} ファイル",
       "turnCount_one": "{{count}} ラウンド",
       "turnCount_other": "{{count}} ラウンド"
-    }
+    },
+    "parentAgentSender": "親エージェント"
   },
   "chatStatus": {
     "approved": "承認済み",
@@ -1358,9 +1362,7 @@
     },
     "editFileFailedNoName": "編集を試行",
     "file": "ファイル",
-    "runShellRunning": "コマンド実行中",
     "terminalWaitRunning": "Terminal の完了を待機中",
-    "runShellDone": "コマンド実行完了",
     "runShellFailed": "コマンド実行に失敗しました",
     "runCommands": "コマンドを実行",
     "terminalSummary": {
@@ -1425,8 +1427,8 @@
     "categorySearch": "検索",
     "categoryGlob": "Glob",
     "categoryList": "リスト",
-    "subagentFailed": "Sub Agent 失敗",
-    "subagentDefaultName": "Sub Agent",
+    "subagentFailed": "Subagent 失敗",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "タスクを Subagent に割り当て済み",
     "subagentRunning": "Subagent 実行中",
     "subagentDone": "Subagent 完了",
@@ -1436,9 +1438,9 @@
     "createPlanRunning": "Plan を作成しています",
     "createPlanDone": "Plan を作成しました",
     "createPlanFailed": "Plan の作成に失敗しました",
-    "subagentResultTabFallbackTitle": "Sub Agent の結果",
+    "subagentResultTabFallbackTitle": "Subagent の結果",
     "openResultInTab": "タブで開く",
-    "openSubagentChatInTab": "Sub Agent の詳細をエディタで開く",
+    "openSubagentChatInTab": "Subagent の詳細をエディタで開く",
     "executing": "実行中",
     "argumentsLabel": "引数",
     "resultLabel": "結果",
@@ -1497,8 +1499,6 @@
     "killProcessFailed": "プロセスの終了に失敗しました",
     "listDirCount_one": "ディレクトリ {{count}} 件",
     "listDirCount_other": "ディレクトリ {{count}} 件",
-    "listFileCount_one": "ファイル {{count}} 件",
-    "listFileCount_other": "ファイル {{count}} 件",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n...（表示のため省略）",
     "repeatedErrorNotice": "同じエラーが {{count}} 回発生しました、Agent が再試行中",
@@ -2083,7 +2083,11 @@
     "orgSendMessageRunning": "{{recipient}} にメッセージを送信中",
     "orgSendMessageDone": "{{recipient}} にメッセージを送信しました",
     "orgSendMessageFailed": "{{recipient}} へのメッセージ送信に失敗",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "コマンド実行中",
+    "runCommandDone": "コマンド実行完了",
+    "nFiles_one": "ファイル {{count}} 件",
+    "nFiles_other": "ファイル {{count}} 件"
   },
   "hoverCard": {
     "commits": "コミット",
@@ -2103,7 +2107,6 @@
     },
     "createTarget": {
       "agentSession": "Agent セッション",
-      "manageAgents": "Agents / Skills を管理",
       "project": "プロジェクトを作成",
       "parallelRun": "並列実行",
       "workItem": "Work Item を作成"
@@ -2148,6 +2151,9 @@
     "launchpadQuestion": "選択した",
     "launchpadQuestionSuffix": "で何を作りますか？",
     "manualLaunchpadQuestion": "何を作りますか？",
+    "planLaunchpadQuestion": "",
+    "planLaunchpadQuestionSuffix": "で何を計画しますか？",
+    "manualPlanLaunchpadQuestion": "何を計画しますか？",
     "start": "開始",
     "assign": "割り当て",
     "send": "送信",
@@ -2538,7 +2544,16 @@
       "作業中、いつもより時間がかかっています...",
       "次に何をするか検討中、いつもより時間がかかっています..."
     ],
-    "compacting": "コンテキストを圧縮中..."
+    "compacting": "コンテキストを圧縮中...",
+    "statusTrail": {
+      "agentWorking": "Agent 稼働中",
+      "agentWorkingFor": "Agent は {{value}} 稼働中",
+      "runningTask_one": "実行中のタスク {{count}} 件",
+      "runningTask_other": "実行中のタスク {{count}} 件",
+      "idle": "Agent は待機中",
+      "lastRefreshed": "最終更新 {{value}}",
+      "asking": "返信を待っています"
+    }
   },
   "revertConfirm": {
     "title": "未保存のファイル変更",
@@ -2684,7 +2699,8 @@
     "update": {
       "titleStatus": "タスクのステータスを更新",
       "titleDetail": "タスクの詳細を更新",
-      "markedAs": "{{status}} に変更"
+      "markedAs": "{{status}} に変更",
+      "title": "タスクを更新しました"
     },
     "get": {
       "title": "タスク詳細を表示"
@@ -2840,5 +2856,15 @@
       "skipped": "スキップ",
       "pending": "開始中"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
+  },
+  "tooltips": {
+    "hidePanel": "パネルを隠す"
+  },
+  "titleBar": {
+    "showDevTools": "DevTools を表示",
+    "hideDevTools": "DevTools を非表示"
   }
 }

@@ -208,7 +208,7 @@ export const EditorPrimarySidebar: React.FC<EditorPrimarySidebarProps> = memo(
     // ============================================
     // Text
     // ============================================
-    const filterPlaceholder = t(HUMANTOOLS_TEXT_KEYS.placeholders.filterFiles);
+    const filterPlaceholder = t(HUMANTOOLS_TEXT_KEYS.placeholders.searchFiles);
     const emptyMessage =
       viewMode === "search"
         ? t(HUMANTOOLS_TEXT_KEYS.placeholders.noResults)

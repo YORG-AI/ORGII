@@ -25,7 +25,7 @@ import {
   subscribeShareableScopeKeys,
 } from "../../repoScopeResolver";
 
-export interface ForkCheckoutRequest {
+interface ForkCheckoutRequest {
   /** Normalized scope key of the SOURCE repo the fork must land in. */
   sourceScopeKey: string;
   /** Source session title (dialog context line). */
@@ -53,10 +53,7 @@ function repoScopeKeys(repo: RepoItem): string[] | null | undefined {
 const ForkCheckoutPickerDialog: React.FC = () => {
   const { t } = useTranslation("navigation");
   const [request, setRequest] = useAtom(forkCheckoutRequestAtom);
-  const { repos, repoLoading, loadRepos } = useSharedRepoList({
-    enabled: false,
-    searchQuery: "",
-  });
+  const { repos, repoLoading, loadRepos } = useSharedRepoList("");
   // Re-render when async remote resolutions land in the shared cache.
   React.useSyncExternalStore(
     subscribeShareableScopeKeys,
@@ -125,7 +122,7 @@ const ForkCheckoutPickerDialog: React.FC = () => {
                     request.resolve(localPath);
                     setRequest(null);
                   }}
-                  className={`flex flex-col px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-6/30 ${
+                  className={`flex flex-col px-3 py-2 text-left focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none focus-visible:ring-inset ${
                     selectable
                       ? "cursor-pointer hover:bg-fill-2"
                       : "cursor-not-allowed opacity-50"

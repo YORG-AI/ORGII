@@ -130,3 +130,88 @@ pub struct FileSearchParams {
     #[serde(default)]
     pub exclude_dirs: Option<Vec<String>>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn search_files_maps_successful_results_and_applies_filters() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        std::fs::create_dir_all(dir.path().join("src")).expect("create src");
+        std::fs::write(dir.path().join("src/lib.rs"), "pub fn library() {}")
+            .expect("write Rust file");
+        std::fs::write(dir.path().join("src/library.md"), "docs").expect("write docs file");
+        std::fs::write(dir.path().join("README.md"), "readme").expect("write readme");
+
+        let Json(response) = search_files(Query(FileSearchParams {
+            query: "lib".to_string(),
+            root_path: dir.path().to_string_lossy().into_owned(),
+            max_results: Some(10),
+            file_extensions: Some(vec![".rs".to_string()]),
+            exclude_dirs: None,
+        }))
+        .await
+        .expect("successful search");
+
+        assert_eq!(response.files.len(), 1);
+        assert_eq!(response.files[0].filename, "lib.rs");
+        assert_eq!(response.files[0].file_type, "file");
+        assert!(response.files[0].path.ends_with("src/lib.rs"));
+        assert!(response.folders.is_empty());
+        assert_eq!(response.total_indexed, 4);
+    }
+
+    #[tokio::test]
+    async fn index_files_excludes_requested_directories_and_reports_count() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        std::fs::create_dir_all(dir.path().join("src")).expect("create src");
+        std::fs::create_dir_all(dir.path().join("generated")).expect("create generated");
+        std::fs::write(dir.path().join("src/lib.rs"), "pub fn covered() {}").expect("write source");
+        std::fs::write(dir.path().join("generated/output.rs"), "generated")
+            .expect("write excluded source");
+
+        let root_path = dir.path().to_string_lossy().into_owned();
+        let Json(response) = index_files(Json(FileIndexRequest {
+            root_path: root_path.clone(),
+            exclude_dirs: Some(vec!["generated".to_string()]),
+        }))
+        .await
+        .expect("successful index");
+
+        assert_eq!(response.count, 2);
+        assert_eq!(response.message, format!("Indexed 2 files in {root_path}"));
+    }
+
+    #[tokio::test]
+    async fn missing_roots_return_bad_request_errors() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let missing = dir.path().join("missing").to_string_lossy().into_owned();
+
+        let (search_status, Json(search_error)) = search_files(Query(FileSearchParams {
+            query: "anything".to_string(),
+            root_path: missing.clone(),
+            max_results: None,
+            file_extensions: None,
+            exclude_dirs: None,
+        }))
+        .await
+        .expect_err("missing search root");
+        assert_eq!(search_status, StatusCode::BAD_REQUEST);
+        assert!(search_error.error.contains("Path does not exist"));
+
+        let (index_status, Json(index_error)) = index_files(Json(FileIndexRequest {
+            root_path: missing,
+            exclude_dirs: None,
+        }))
+        .await
+        .expect_err("missing index root");
+        assert_eq!(index_status, StatusCode::BAD_REQUEST);
+        assert!(index_error.error.contains("Path does not exist"));
+    }
+
+    #[tokio::test]
+    async fn clear_cache_returns_ok() {
+        assert_eq!(clear_cache().await, StatusCode::OK);
+    }
+}

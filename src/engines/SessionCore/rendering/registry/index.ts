@@ -78,6 +78,5 @@ export {
   requiresItemIndex,
   getRegisteredActionTypes,
   prefetchCommonComponents,
-  getTrajectoryTimelineIcon,
 } from "./registryAccessors";
 export type { ComponentOption } from "./registryAccessors";

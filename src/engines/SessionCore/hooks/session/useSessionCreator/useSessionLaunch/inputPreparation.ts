@@ -72,7 +72,7 @@ export async function prepareLaunchInput(
   });
 
   return {
-    userInput,
-    agentInput: projection.agentContent ?? userInput,
+    userInput: projection.displayContent,
+    agentInput: projection.agentContent ?? projection.displayContent,
   };
 }

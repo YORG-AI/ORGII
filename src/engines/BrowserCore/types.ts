@@ -18,21 +18,14 @@ export interface BrowserSession {
   incognito?: boolean;
 }
 
-export interface BrowserTabData {
+/** Browser session state and commands consumed by BrowserCore surfaces. */
+export interface BrowserState {
   sessions: BrowserSession[];
   activeSessionId: string;
-  useProxy: boolean;
-  homeUrl: string;
-}
-
-export interface ProxyResponse {
-  body: string;
-  content_type: string;
-  status: number;
-  is_binary: boolean;
-}
-
-export interface NavigationAction {
-  type: "navigate" | "back" | "forward" | "refresh" | "home";
-  url?: string;
+  activeSession: BrowserSession | undefined;
+  addSession: (url?: string, incognito?: boolean) => string;
+  closeSession: (sessionId: string) => void;
+  setActiveSession: (sessionId: string) => void;
+  updateSession: (sessionId: string, updates: Partial<BrowserSession>) => void;
+  forceSave?: () => void;
 }

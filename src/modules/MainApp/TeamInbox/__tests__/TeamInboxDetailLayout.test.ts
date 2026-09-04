@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import { ClipboardList, Globe, SquareArrowOutUpRight } from "lucide-react";
 import { act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import {
@@ -12,6 +11,13 @@ import {
   it,
   vi,
 } from "vitest";
+
+import {
+  ClipboardListIcon,
+  HugeiconsIcon,
+  InternetIcon,
+  LinkSquare02Icon,
+} from "@src/icons";
 
 import TeamInboxDetailLayout from "../components/TeamInboxDetailLayout";
 
@@ -55,20 +61,23 @@ describe("TeamInboxDetailLayout header actions", () => {
         createElement(TeamInboxDetailLayout, {
           title: "Assigned work item",
           subtitle: "Assigned to you",
-          icon: ClipboardList,
+          icon: ClipboardListIcon,
           unread: false,
           markReadLabel: "Mark read",
           markUnreadLabel: "Mark unread",
-          openLabel: "Open work item",
-          openIcon: createElement(SquareArrowOutUpRight, {
+          openLabel: "Open in New Tab",
+          openIcon: createElement(HugeiconsIcon, {
+            icon: LinkSquare02Icon,
             "aria-hidden": true,
           }),
           headerAuxiliaryAction: {
             label: "Open in browser",
-            icon: createElement(Globe, { "aria-hidden": true }),
+            icon: createElement(HugeiconsIcon, {
+              icon: InternetIcon,
+              "aria-hidden": true,
+            }),
             onClick: onOpenInBrowser,
           },
-          openPlacement: "header",
           onMarkUnread,
           onOpen,
         })
@@ -79,12 +88,15 @@ describe("TeamInboxDetailLayout header actions", () => {
       'button[aria-label="Mark unread"]'
     );
     const open = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Open work item"]'
+      'button[aria-label="Open in New Tab"]'
     );
     const openInBrowser = container.querySelector<HTMLButtonElement>(
       'button[aria-label="Open in browser"]'
     );
 
+    expect(
+      container.querySelector('[data-detail-pane-layout="true"]')
+    ).not.toBeNull();
     expect(markUnread).not.toBeNull();
     expect(openInBrowser).not.toBeNull();
     expect(open).not.toBeNull();
@@ -112,11 +124,12 @@ describe("TeamInboxDetailLayout header actions", () => {
       Array.from(actions?.querySelectorAll("button") ?? []).map((button) =>
         button.getAttribute("aria-label")
       )
-    ).toEqual(["Mark unread", "Open in browser", "Open work item"]);
-    expect(header?.className).toContain("h-10");
+    ).toEqual(["Mark unread", "Open in browser", "Open in New Tab"]);
+    expect(header?.className).toContain("h-9");
+    expect(header?.className).not.toContain("h-10");
     expect(header?.className).toContain("items-center");
-    expect(header?.className).toContain("!pl-4");
-    expect(header?.className).toContain("!pr-[7px]");
+    expect(header?.className).toContain("pl-4!");
+    expect(header?.className).toContain("pr-[7px]!");
 
     markUnread?.click();
     openInBrowser?.click();
@@ -124,6 +137,45 @@ describe("TeamInboxDetailLayout header actions", () => {
     expect(onMarkUnread).toHaveBeenCalledOnce();
     expect(onOpenInBrowser).toHaveBeenCalledOnce();
     expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  it("lets shared detail tabs own the header while the full title lives below", () => {
+    act(() => {
+      root.render(
+        createElement(TeamInboxDetailLayout, {
+          title: "Support Agent Browser",
+          subtitle: "Assigned to you",
+          icon: ClipboardListIcon,
+          headerContent: createElement(
+            "span",
+            { "data-testid": "canonical-inbox-title" },
+            "Issue #47"
+          ),
+          headerTabs: createElement(
+            "nav",
+            { "data-testid": "shared-inbox-tabs" },
+            "Conversation Linked"
+          ),
+          unread: true,
+          markReadLabel: "Mark read",
+          openLabel: "Open in New Tab",
+          openIcon: createElement(HugeiconsIcon, {
+            icon: LinkSquare02Icon,
+            "aria-hidden": true,
+          }),
+        })
+      );
+    });
+
+    expect(
+      container.querySelector("[data-testid='canonical-inbox-title']")
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-testid='shared-inbox-tabs']")
+    ).not.toBeNull();
+    expect(
+      container.querySelector("[data-testid='shared-inbox-tabs']")?.textContent
+    ).toBe("Conversation Linked");
   });
 
   it("shows the shared shortcut-style tooltip for each action", () => {
@@ -134,15 +186,15 @@ describe("TeamInboxDetailLayout header actions", () => {
           createElement(TeamInboxDetailLayout, {
             title: "Assigned work item",
             subtitle: "Assigned to you",
-            icon: ClipboardList,
+            icon: ClipboardListIcon,
             unread: false,
             markReadLabel: "Mark read",
             markUnreadLabel: "Mark unread",
-            openLabel: "Open work item",
-            openIcon: createElement(SquareArrowOutUpRight, {
+            openLabel: "Open in New Tab",
+            openIcon: createElement(HugeiconsIcon, {
+              icon: LinkSquare02Icon,
               "aria-hidden": true,
             }),
-            openPlacement: "header",
             onMarkUnread: vi.fn(),
             onOpen: vi.fn(),
           })

@@ -60,6 +60,8 @@ export interface TerminalCoreProps {
   className?: string;
   /** Background color override */
   backgroundColor?: string;
+  /** Font size in pixels for this host; defaults to the terminal setting. */
+  fontSize?: number;
   /** Repository path for terminal working directory */
   repoPath?: string;
   /** Opens file references detected in terminal output */
@@ -68,6 +70,17 @@ export interface TerminalCoreProps {
   visible?: boolean;
   /** Host-owned renderer for SessionCore read-only terminal sessions. */
   renderReadOnlySession?: (agentSessionId: string) => React.ReactNode;
+  /**
+   * Sessions another host currently mounts (today: the terminal docked
+   * under the Workstation trail). A PTY is bound to one xterm through
+   * `TerminalView`'s `sessionKey`, so mounting it here as well would give
+   * one PTY two writers and two competing resizes. Suppressed sessions stay in
+   * `terminalState.sessions` — only their mount is skipped — and remount
+   * through the normal PTY attach/restore path once released.
+   */
+  suppressedSessionIds?: ReadonlySet<string>;
+  /** Host-owned placeholder shown when the active session is suppressed. */
+  renderSuppressedSession?: (sessionId: string) => React.ReactNode;
 }
 
 // ============================================
@@ -78,10 +91,13 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
   terminalState,
   className = "",
   backgroundColor,
+  fontSize,
   repoPath,
   onOpenFileLink,
   visible = true,
   renderReadOnlySession,
+  suppressedSessionIds,
+  renderSuppressedSession,
 }) => {
   const { sessions, activeSessionId, initializedSessions, updateSessionInfo } =
     terminalState;
@@ -325,11 +341,14 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
 
   const bgColor = backgroundColor || "var(--cm-editor-background)";
 
+  const activeSessionSuppressed =
+    suppressedSessionIds?.has(activeSessionId) === true;
   const visibleSessions = selectMountedTerminalSessions(
     sessions,
     activeSessionId,
     initializedSessions,
-    recentTerminalIds
+    recentTerminalIds,
+    suppressedSessionIds
   );
 
   return (
@@ -347,9 +366,13 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
         className="terminal-content-area relative flex flex-1 flex-col overflow-hidden"
         style={{ backgroundColor: bgColor }}
       >
-        {visibleSessions.length === 0 && (
+        {activeSessionSuppressed ? (
+          (renderSuppressedSession?.(activeSessionId) ?? (
+            <Placeholder variant="empty" fillParentHeight />
+          ))
+        ) : visibleSessions.length === 0 ? (
           <Placeholder variant="empty" fillParentHeight />
-        )}
+        ) : null}
         {visibleSessions.map((session) => (
           <div
             key={session.id}
@@ -371,11 +394,26 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
                   }
                 }}
                 sessionKey={session.id}
+                // Every session in this list stays mounted and is hidden with
+                // `display: none`, so the pane itself has to say whether it is
+                // on screen. Without it every terminal ever opened claims a
+                // foreground output schedule and a GPU context forever.
+                //
+                // `visible` is as load-bearing as the active-session check.
+                // A host can mount a *single-session* TerminalCore whose
+                // `activeSessionId` is that one session (the chat pane does
+                // this, one host per terminal tab), which makes the comparison
+                // below vacuously true. Such a host is hidden with its own
+                // `display: none` and reports that through `visible`, so
+                // without this conjunct every background chat terminal would
+                // hold a GPU context and a foreground drain.
+                isForeground={visible && session.id === activeSessionId}
                 onSelectionChange={handleSelectionChange}
                 repoPath={session.cwd || repoPath}
                 workingDirectory={session.liveCwd || session.cwd}
                 onOpenFileLink={onOpenFileLink}
                 backgroundColor={bgColor}
+                fontSize={fontSize}
                 // Managed CLI terminals use the configured default shell.
                 // `session.shell` becomes runtime metadata after the PTY connects,
                 // so reusing it as a launch override would recreate xterm.

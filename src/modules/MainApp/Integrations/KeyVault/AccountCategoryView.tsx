@@ -2,13 +2,13 @@ import React from "react";
 
 import { KeyVaultWizard } from "@src/scaffold/WizardSystem/variants/KeyVault";
 
-import type { CategoryTableContentProps } from "../Tables";
-import { CategoryTableContent } from "../Tables";
+import { AccountsTable } from "./Table/AccountsTable";
+import type { AccountsCategoryTableProps } from "./categoryTableProps";
 import type { useKeyVaultPage } from "./hooks/useKeyVaultPage";
 
 export const AccountCategoryView: React.FC<{
   accounts: ReturnType<typeof useKeyVaultPage>;
-  tableProps: CategoryTableContentProps;
+  tableProps: AccountsCategoryTableProps;
   fullPage: boolean;
   onBack: () => void;
   onExpand?: () => void;
@@ -28,5 +28,5 @@ export const AccountCategoryView: React.FC<{
     );
   }
 
-  return <CategoryTableContent {...tableProps} category="models" />;
+  return <AccountsTable {...tableProps} />;
 };

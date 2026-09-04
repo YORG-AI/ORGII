@@ -35,6 +35,7 @@ const ProjectDashboardTabRenderer: React.FC<UnifiedTabContentProps> = memo(
         allowExternalSources={allowExternalSources}
         publishToWorkstationHeader
         workStationTabId={tab.id}
+        sidebarToggleDisabled
       />
     );
   }

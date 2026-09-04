@@ -106,9 +106,3 @@ pub async fn cursor_sandbox_config_write_partial(partial: serde_json::Value) -> 
     .await
     .map_err(|err| format!("Task join error: {err}"))?
 }
-
-/// Return the absolute path to `~/.cursor/sandbox.json`.
-#[tauri::command]
-pub async fn cursor_sandbox_config_get_path() -> Result<String, String> {
-    Ok(sandbox_config_path().to_string_lossy().to_string())
-}

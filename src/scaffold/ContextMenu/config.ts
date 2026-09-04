@@ -5,17 +5,16 @@
  * Includes icon definitions, menu items, and keyboard shortcuts.
  */
 import {
-  ArrowLeft,
-  ArrowRight,
-  Clock,
-  File,
-  Folder,
-  History,
-  ListChecks,
-  Loader2,
-  Search,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+  ArrowRight02Icon,
+  Clock01Icon,
+  File01Icon,
+  FolderClosedIcon,
+  type IconSvgElement,
+  ListChecksIcon,
+  Loading03Icon,
+  Search01Icon,
+  WorkHistoryIcon,
+} from "@src/icons";
 
 // ============================================
 // Types
@@ -36,13 +35,13 @@ export type MenuItemId =
   | "workitem"
   | "browser";
 
-export type SecondLayerId = "files" | "sessions" | "projects";
+export type SecondLayerId = "files" | "sessions";
 
 export interface MenuItem {
   id: MenuItemId;
   label: string;
   translationKey: string;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   hasSecondLayer: boolean;
   shortcut?: string;
 }
@@ -58,16 +57,15 @@ export interface RecentFile {
 // ============================================
 
 export const ICON_CONFIG = {
-  recent: Clock,
-  files: File,
-  folders: Folder,
-  sessions: History,
-  projects: ListChecks,
-  arrow: ArrowRight,
-  arrowBack: ArrowLeft,
-  search: Search,
-  loading: Loader2,
-  empty: File,
+  recent: Clock01Icon,
+  files: File01Icon,
+  folders: FolderClosedIcon,
+  sessions: WorkHistoryIcon,
+  projects: ListChecksIcon,
+  arrow: ArrowRight02Icon,
+  search: Search01Icon,
+  loading: Loading03Icon,
+  empty: File01Icon,
 } as const;
 
 // ============================================
@@ -77,7 +75,7 @@ export const ICON_CONFIG = {
 export interface SecondLayerConfig {
   title: string;
   translationKey: string;
-  icon: LucideIcon;
+  icon: IconSvgElement;
 }
 
 export const SECOND_LAYER_CONFIG: Record<SecondLayerId, SecondLayerConfig> = {
@@ -90,11 +88,6 @@ export const SECOND_LAYER_CONFIG: Record<SecondLayerId, SecondLayerConfig> = {
     title: "Session",
     translationKey: "creator.contextMenu.session",
     icon: ICON_CONFIG.sessions,
-  },
-  projects: {
-    title: "Work Items",
-    translationKey: "creator.contextMenu.workItems",
-    icon: ICON_CONFIG.projects,
   },
 };
 
@@ -122,7 +115,7 @@ export const MENU_ITEMS: MenuItem[] = [
     label: "Work Items",
     translationKey: "creator.contextMenu.workItems",
     icon: ICON_CONFIG.projects,
-    hasSecondLayer: true,
+    hasSecondLayer: false,
   },
 ];
 

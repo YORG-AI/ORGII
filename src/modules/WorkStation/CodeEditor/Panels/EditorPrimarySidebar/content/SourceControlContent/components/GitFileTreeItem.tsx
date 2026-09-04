@@ -7,7 +7,6 @@
  *
  * Uses shared TreeRow components for base rendering.
  */
-import { Check, Minus, Plus, Undo2 } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -17,6 +16,7 @@ import {
   TreeRowBase,
 } from "@src/components/TreeRow";
 import type { GitStatusInfo, TreeRowNode } from "@src/components/TreeRow";
+import { Add01Icon, MinusSignIcon, Tick01Icon, Undo02Icon } from "@src/icons";
 import type { GitFile } from "@src/types/git/types";
 
 export interface GitFileTreeNode {
@@ -147,7 +147,7 @@ const GitFileTreeItem: React.FC<GitFileTreeItemProps> = React.memo(
             {/* Discard action button */}
             {onDiscard && (
               <TreeRowAction
-                icon={Undo2}
+                icon={Undo02Icon}
                 variant="danger"
                 onClick={handleDiscard}
                 title={t("workstation.discardChanges")}
@@ -156,7 +156,13 @@ const GitFileTreeItem: React.FC<GitFileTreeItemProps> = React.memo(
             {/* Stage/Unstage action button */}
             {onStageToggle && (
               <TreeRowAction
-                icon={isConflictFile ? Check : isStaged ? Minus : Plus}
+                icon={
+                  isConflictFile
+                    ? Tick01Icon
+                    : isStaged
+                      ? MinusSignIcon
+                      : Add01Icon
+                }
                 variant={isConflictFile ? "success" : "default"}
                 onClick={handleStageToggle}
                 title={

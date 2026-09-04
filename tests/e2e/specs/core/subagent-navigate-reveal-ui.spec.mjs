@@ -58,7 +58,8 @@ const MONITOR_TASK = `MonitorCellTask${RUN_ID}`;
 // Recent timestamps (fixed offsets from now) so the 24h zombie-row fuse never
 // closes the terminal clip early in a surprising way.
 const BASE_MS = Date.now() - 30 * 60 * 1000;
-const atOffset = (minutes) => new Date(BASE_MS + minutes * 60_000).toISOString();
+const atOffset = (minutes) =>
+  new Date(BASE_MS + minutes * 60_000).toISOString();
 
 const DELEGATE_EVENT_ID = `${PARENT_SESSION_ID}-delegate`;
 const LATE_EVENT_ID = `${PARENT_SESSION_ID}-late`;

@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "ORG2",
   "version": "1.3.0",
-  "identifier": "yorg.orgii",
+  "identifier": "org2ai.org2",
   "build": {
     "frontendDist": "../build",
     "devUrl": "http://localhost:1998",
@@ -69,7 +69,7 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://github.com/yorgai/ORG2/releases/latest/download/latest.json"
+        "https://github.com/org2AI/ORG2/releases/latest/download/latest.json"
       ],
       "dialog": false,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDExNEQ5NjIzMjA1ODI5OUMKUldTY0tWZ2dJNVpORWFiWXB3NW5UaWwyOHVxRXhzVmRVbXl2WktZNnhiN2tqcXlVY3gxTTlPV3EK"

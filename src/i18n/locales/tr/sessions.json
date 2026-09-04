@@ -88,12 +88,6 @@
       "openAsFloatingPane": "Yüzen Panelde Aç"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "Dosya yoluna göre oturum ara",
-      "noResults": "Eşleşen bir dosyayı değiştiren oturum yok"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "Mevcut Kanban",
     "view": {
       "list": "Liste",
       "diary": "Günlük",
@@ -319,8 +313,8 @@
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
       "removeDraft": "Taslağı kaldır",
-      "showSubagents": "Alt aracıları göster",
-      "hideSubagents": "Alt aracıları gizle"
+      "showSubagents": "subagent'ları göster",
+      "hideSubagents": "subagent'ları gizle"
     },
     "resultStatus": {
       "completed": "Tamamlandı",
@@ -359,9 +353,6 @@
       "merge": "Birleştir",
       "merging": "Birleştiriliyor…",
       "merged": "Birleştirildi"
-    },
-    "replay": {
-      "replaySession": "Oynat"
     },
     "discard": {
       "discard": "Sil",
@@ -467,7 +458,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "Paneli gizle",
         "expandPanel": "Trajectory ve todo panelini göster",
         "placeholderTrajectoryTitle": "Henüz olay yok",
         "placeholderTrajectorySubtitle": "Agent çalıştığında oturum etkinliği burada görünür",
@@ -768,9 +758,7 @@
       "showSidebar": "Kenar çubuğunu göster",
       "hideSidebar": "Kenar çubuğunu gizle",
       "showBottomPanel": "Alt paneli göster",
-      "hideBottomPanel": "Alt paneli gizle",
-      "showDevTools": "DevTools'u göster",
-      "hideDevTools": "DevTools'u gizle"
+      "hideBottomPanel": "Alt paneli gizle"
     },
     "multiTask": {
       "monitoringProgress": "{{count}} subagent'in ilerlemesi izleniyor",
@@ -801,7 +789,8 @@
       "current": "Geçerli"
     },
     "agentSentMessageCaption": "{{subject}} size bir mesaj gönderdi",
-    "userSentMessageCaption": "Agent'a bir mesaj gönderdiniz"
+    "userSentMessageCaption": "Agent'a bir mesaj gönderdiniz",
+    "thoughtSentMessageCaption": "{{subject}} düşünüyor"
   },
   "terminal": {
     "findInTerminal": "Terminalde ara",
@@ -881,8 +870,17 @@
     "multipleChoice": "Çoklu seçim",
     "typeYourAnswer": "Cevabınızı yazın…",
     "newSession": "Yeni oturum",
-    "muteNotifications": "Bildirimleri sessize al",
     "startPage": {
+      "inputPosition": "Girdi",
+      "positionBottom": "Alt",
+      "positionMiddle": "Orta",
+      "trailPosition": "Bağlam çubuğu",
+      "positionUp": "Üst",
+      "positionDown": "Alt",
+      "uiControls": "Arayüz kontrolleri",
+      "showQuickActions": "Hızlı eylemleri göster",
+      "showSkills": "Skills göster",
+      "showCliUpdate": "CLI güncellemelerini göster",
       "title": "Ne yapmak istersiniz?",
       "back": "Başlangıç sayfasına dön",
       "newSession": {
@@ -993,6 +991,7 @@
     "fullScreenChat": "Chat paneline odaklan (Workstation'i gizle)",
     "maximizeChatPanel": "Chat panelini büyüt",
     "showWorkstation": "Workstation'i göster",
+    "workstationUnavailableForPage": "Workstation bu sayfada kullanılamaz",
     "hideWorkstation": "Workstation'i gizle",
     "restoreSplitView": "Workstation'i göster",
     "shrinkToWorkstation": "Chat panelini küçült (Workstation'i göster)",
@@ -1008,9 +1007,12 @@
       "openInSideChat": "Yan sohbette aç"
     },
     "collapseAll": "Tümünü daralt",
+    "copyAndExport": "Kopyala ve dışa aktar",
     "copyEventJson": "Olay JSON'unu kopyala",
     "copyEventJsonCopied": "Kopyalandı!",
     "copyEventJsonFailed": "Kopyalama başarısız",
+    "moveTo": "Sayfayı şuraya taşı…",
+    "projectLinks": "Proje bağlantıları",
     "moveToWorkstation": "Workstation'ıma taşı",
     "moveToChatPanel": "Sohbet paneline taşı",
     "rawTranscript": {
@@ -1107,7 +1109,7 @@
     "hudThroughput": "~{{rate}} tok/sn",
     "hudEta": "~{{eta}} kaldı",
     "rateLimitHintTitle": "API Hız Sınırı",
-    "rateLimitHintBody": "Mevcut model hız sınırına ulaştı. Beklerken başka bir pencereye geçerek çalışmaya devam edebilirsiniz.",
+    "rateLimitHintBody": "Mevcut model hız sınırına ulaştı. Beklerken başka bir pencereye geçerek çalışmaya devam edebilirsiniz",
     "feedbackPending": "Geri bildirim bekleniyor",
     "executionThreads": "Yürütme İş Parçacıkları",
     "allThreads": "Tümü",
@@ -1139,6 +1141,7 @@
       "exportTitle": "Session JSON dışa aktar",
       "importTitle": "Session JSON içe aktar",
       "exportAction": "Dışa aktar",
+      "exportJson": "JSON dışa aktar",
       "importAction": "Session içe aktar",
       "exportDescription": "Etkin Session'ı taşınabilir bir JSON anlık görüntüsü olarak dışa aktarın",
       "importDescription": "Bir Session JSON anlık görüntüsünü kenar çubuğuna içe aktarın.",
@@ -1244,7 +1247,8 @@
       "fileCount_other": "{{count}} dosya",
       "turnCount_one": "{{count}} tur",
       "turnCount_other": "{{count}} tur"
-    }
+    },
+    "parentAgentSender": "Üst aracı"
   },
   "chatStatus": {
     "approved": "Onaylandı",
@@ -1359,9 +1363,7 @@
     },
     "editFileFailedNoName": "Düzenlemeyi denedi",
     "file": "dosya",
-    "runShellRunning": "Komut çalıştırılıyor",
     "terminalWaitRunning": "Terminalin bitmesi bekleniyor",
-    "runShellDone": "Komut çalıştırıldı",
     "runShellFailed": "Komut başarısız",
     "runCommands": "Komutları çalıştır",
     "terminalSummary": {
@@ -1430,8 +1432,8 @@
     "categorySearch": "Ara",
     "categoryGlob": "Glob",
     "categoryList": "Listele",
-    "subagentFailed": "Sub Agent başarısız",
-    "subagentDefaultName": "Sub Agent",
+    "subagentFailed": "Subagent başarısız",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "Görev subagent'e atandı",
     "subagentRunning": "Subagent çalışıyor",
     "subagentDone": "Subagent tamamlandı",
@@ -1441,9 +1443,9 @@
     "createPlanRunning": "Plan oluşturuluyor",
     "createPlanDone": "Plan oluşturuldu",
     "createPlanFailed": "Plan oluşturulamadı",
-    "subagentResultTabFallbackTitle": "Sub Agent sonucu",
+    "subagentResultTabFallbackTitle": "Subagent sonucu",
     "openResultInTab": "Sekmede aç",
-    "openSubagentChatInTab": "Sub Agent ayrıntılarını editörde aç",
+    "openSubagentChatInTab": "Subagent ayrıntılarını editörde aç",
     "executing": "Çalıştırılıyor",
     "argumentsLabel": "Argümanlar",
     "resultLabel": "Sonuç",
@@ -1494,8 +1496,6 @@
     "killProcessFailed": "İşlem sonlandırılamadı",
     "listDirCount_one": "{{count}} klasör",
     "listDirCount_other": "{{count}} klasör",
-    "listFileCount_one": "{{count}} dosya",
-    "listFileCount_other": "{{count}} dosya",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (görüntü için kısaltıldı)",
     "repeatedErrorNotice": "Aynı hata {{count}} kez oluştu, ajan yeniden deniyor",
@@ -1694,7 +1694,7 @@
     "awaitOutputSummaryUnknown_one": "bir arka plan görevi",
     "awaitOutputSummaryUnknown_other": "{{count}} arka plan görevi",
     "awaitOutputSummaryMixed": "{{shell}}, {{subagent}}",
-    "runningSubagent": "Alt ajana delege ediliyor...",
+    "runningSubagent": "subagent'a delege ediliyor...",
     "subagentStatusCompleted": "Tamamlandı",
     "subagentStatusError": "Başarısız",
     "openSubagentSessionTab": "Oturum oynatmayı aç",
@@ -2084,7 +2084,11 @@
     "orgSendMessageRunning": "{{recipient}} adresine mesaj gönderiliyor",
     "orgSendMessageDone": "{{recipient}} adresine mesaj gönderildi",
     "orgSendMessageFailed": "{{recipient}} adresine mesaj gönderilemedi",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Komut çalıştırılıyor",
+    "runCommandDone": "Komut çalıştırıldı",
+    "nFiles_one": "{{count}} dosya",
+    "nFiles_other": "{{count}} dosya"
   },
   "hoverCard": {
     "commits": "Commit",
@@ -2104,7 +2108,6 @@
     },
     "createTarget": {
       "agentSession": "Agent oturumu",
-      "manageAgents": "Agents / Skills yönet",
       "project": "Proje oluştur",
       "parallelRun": "Paralel çalıştırma",
       "workItem": "Work Item oluştur"
@@ -2149,6 +2152,9 @@
     "launchpadQuestion": "Seçtiğiniz",
     "launchpadQuestionSuffix": "ile ne oluşturmak istersiniz?",
     "manualLaunchpadQuestion": "Ne oluşturmak istersiniz?",
+    "planLaunchpadQuestion": "",
+    "planLaunchpadQuestionSuffix": "ile ne planlamak istersiniz?",
+    "manualPlanLaunchpadQuestion": "Ne planlamak istersiniz?",
     "start": "Başlat",
     "assign": "Ata",
     "send": "Gönder",
@@ -2540,7 +2546,16 @@
       "Üzerinde çalışılıyor, olağandan uzun sürüyor...",
       "Sırada ne olacağı değerlendiriliyor, olağandan uzun sürüyor..."
     ],
-    "compacting": "Bağlam sıkıştırılıyor..."
+    "compacting": "Bağlam sıkıştırılıyor...",
+    "statusTrail": {
+      "agentWorking": "Agent çalışıyor",
+      "agentWorkingFor": "Agent {{value}} süredir çalışıyor",
+      "runningTask_one": "{{count}} çalışan görev",
+      "runningTask_other": "{{count}} çalışan görev",
+      "idle": "Agent boşta",
+      "lastRefreshed": "Son yenileme {{value}}",
+      "asking": "Yanıtınız bekleniyor"
+    }
   },
   "revertConfirm": {
     "title": "Kaydedilmemiş dosya değişiklikleri",
@@ -2686,7 +2701,8 @@
     "update": {
       "titleStatus": "Görev durumunu güncelle",
       "titleDetail": "Görev detayını güncelle",
-      "markedAs": "{{status}} olarak işaretlendi"
+      "markedAs": "{{status}} olarak işaretlendi",
+      "title": "Görev güncellendi"
     },
     "get": {
       "title": "Görev ayrıntılarını görüntüle"
@@ -2842,5 +2858,15 @@
       "skipped": "Atlandı",
       "pending": "Başlatılıyor"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
+  },
+  "tooltips": {
+    "hidePanel": "Paneli gizle"
+  },
+  "titleBar": {
+    "showDevTools": "DevTools'u göster",
+    "hideDevTools": "DevTools'u gizle"
   }
 }

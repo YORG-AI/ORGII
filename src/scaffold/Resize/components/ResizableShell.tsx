@@ -88,7 +88,7 @@ export const ResizableShell: React.FC<ResizableShellProps> = memo(
     return (
       <div
         ref={containerRef}
-        className={`resizable-shell flex-shrink-0 overflow-hidden ${className}`}
+        className={`resizable-shell shrink-0 overflow-hidden ${className}`}
         style={containerStyles}
       >
         {/* Ghost Layer - Only visible during resize */}

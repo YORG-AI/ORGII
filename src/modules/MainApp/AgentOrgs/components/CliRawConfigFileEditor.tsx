@@ -1,4 +1,3 @@
-import { Copy, FolderOpen, Pencil } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +6,12 @@ import type { AvailableAgent } from "@src/api/tauri/rpc/schemas/validation";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
 import { CodeMirrorEditor } from "@src/features/CodeMirror/Editor";
+import {
+  Copy01Icon,
+  FolderOpenIcon,
+  HugeiconsIcon,
+  Pen01Icon,
+} from "@src/icons";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SECTION_PATH_TEXT_CLASSES,
@@ -121,7 +126,7 @@ const CliRawConfigFileEditor: React.FC<CliRawConfigFileEditorProps> = ({
 
   const handleCopy = useCallback(async () => {
     await copyText(value);
-    Message.success(t("common:common.copied"));
+    Message.success(t("common:status.copied"));
   }, [t, value]);
 
   const handleRevealConfig = useCallback(() => {
@@ -167,7 +172,9 @@ const CliRawConfigFileEditor: React.FC<CliRawConfigFileEditorProps> = ({
           )}
           {activeTab !== "edit" && (
             <Button
-              icon={<Pencil size={14} />}
+              icon={
+                <HugeiconsIcon icon={Pen01Icon} data-icon="pencil" size={14} />
+              }
               iconOnly
               onClick={handleEdit}
               aria-label={t("common:actions.edit")}
@@ -176,7 +183,9 @@ const CliRawConfigFileEditor: React.FC<CliRawConfigFileEditorProps> = ({
             />
           )}
           <Button
-            icon={<Copy size={14} />}
+            icon={
+              <HugeiconsIcon icon={Copy01Icon} data-icon="copy" size={14} />
+            }
             iconOnly
             onClick={handleCopy}
             disabled={!value.trim()}
@@ -184,7 +193,13 @@ const CliRawConfigFileEditor: React.FC<CliRawConfigFileEditorProps> = ({
             title={t("common:actions.copy")}
           />
           <Button
-            icon={<FolderOpen size={14} />}
+            icon={
+              <HugeiconsIcon
+                icon={FolderOpenIcon}
+                data-icon="folder-open"
+                size={14}
+              />
+            }
             iconOnly
             onClick={handleRevealConfig}
             aria-label={t("agentOrgs.cliAgentDetail.revealConfigFile")}
@@ -214,7 +229,7 @@ const CliRawConfigFileEditor: React.FC<CliRawConfigFileEditorProps> = ({
           )}
         </div>
       </SectionRow>
-      <SectionRow showHeader={false} className="!pt-0">
+      <SectionRow showHeader={false} className="pt-0!">
         <div
           className="h-[360px] overflow-hidden rounded-lg border border-border-2"
           data-testid="agent-orgs-cli-config-editor"

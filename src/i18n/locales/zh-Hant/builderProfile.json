@@ -9,7 +9,6 @@
   "evidenceHint": "每項訊號你的中位數，與它所對照的中性值。",
   "secondary": "已測量，但不足以佔一個字母",
   "secondaryNote": "——大部分驗證不會在紀錄裡留下痕跡，所以信賴度低。",
-  "fanout": "{{percent}}% 的工作階段會派生子代理。",
   "byTool": "依工具",
   "byToolHint": "各處中性點相同，所以這些列可以橫向比較。只在一個工具裡成立的字母值得懷疑。",
   "sessionCount": "{{count}} 個工作階段",
@@ -36,8 +35,8 @@
     "window": "視窗結束於",
     "code": "類型"
   },
-  "fanoutLabel": "子代理分叉",
-  "fanoutHint": "分叉出子代理的工作階段占比。與「專注／叢集」分開計：那是另一層並行，而且方向相反。",
+  "fanoutLabel": "subagent分叉",
+  "fanoutHint": "分叉出subagent的工作階段占比。與「專注／叢集」分開計：那是另一層並行，而且方向相反。",
   "highlights": "亮點",
   "caveat": "把握不牢：{{reason}}",
   "clarity": {
@@ -191,7 +190,7 @@
       "detail": "對代理自身指令的改動——CLAUDE.md、rules、skills"
     },
     "fanout": {
-      "question": "你會分叉出子代理嗎？",
+      "question": "你會分叉出subagent嗎？",
       "headline": "{{percent}}% 的工作階段",
       "detail": "一個代理派生出其他代理並行工作的那些工作階段"
     },

@@ -5,11 +5,14 @@
  * changed-file rows (collapsed middle) and file-path hover tooltips
  * (`maxSegments={null}` renders the untruncated path).
  */
-import { Slash } from "lucide-react";
 import React, { useMemo } from "react";
 
+import { HugeiconsIcon, SlashIcon } from "@src/icons";
+
 const PATH_SEPARATOR = (
-  <Slash
+  <HugeiconsIcon
+    icon={SlashIcon}
+    data-icon="slash"
     size={10}
     strokeWidth={1.5}
     className="shrink-0 -rotate-12 text-text-4/50"
@@ -47,7 +50,7 @@ const FilePathBreadcrumb: React.FC<FilePathBreadcrumbProps> = ({
 
   return (
     <span
-      className={`inline-flex min-w-0 max-w-full items-center gap-0.5 text-xs ${
+      className={`inline-flex max-w-full min-w-0 items-center gap-0.5 text-xs ${
         showsFullPath ? "flex-wrap whitespace-normal" : "whitespace-nowrap"
       } ${className}`}
     >
@@ -56,7 +59,7 @@ const FilePathBreadcrumb: React.FC<FilePathBreadcrumbProps> = ({
         return (
           <span
             key={`${segment}-${index}`}
-            className={`inline-flex min-w-0 max-w-full items-center gap-0.5 ${
+            className={`inline-flex max-w-full min-w-0 items-center gap-0.5 ${
               showsFullPath ? "shrink-0" : ""
             }`}
           >
@@ -76,4 +79,3 @@ const FilePathBreadcrumb: React.FC<FilePathBreadcrumbProps> = ({
 };
 
 export default FilePathBreadcrumb;
-export type { FilePathBreadcrumbProps };

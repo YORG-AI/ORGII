@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const createWebpackConfig = require("../../webpack.config.js");
+const createWebpackConfig = require("../../config/webpack.config.js");
 
 function withEnv(overrides, fn) {
   const previous = {};

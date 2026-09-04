@@ -1,3 +1,40 @@
+import { atom } from "jotai";
+
+import type { StreamRetryStatus } from "@src/store/session/cliSessionStatusAtom";
+import type { SubagentJobMap } from "@src/store/session/subagentJobAtom";
+import type { CliSessionStatus } from "@src/types/session/session";
+
+import { derivedSnapshotAtom } from "../core/atoms/events";
+import { isInteractiveTool } from "../core/interactiveTools";
+import {
+  hasLiveRuntimeResourceInLatestTurn,
+  hasRunningAwaitWaitForInLatestTurn,
+} from "../core/runningEventGate";
+
+/**
+ * Stable noop atoms for scoped planning-indicator surfaces. When a
+ * ChatHistory instance passes a session scope, the hook reads scoped
+ * snapshot meta instead of the global pipeline atoms — these prevent
+ * unrelated global subscriptions from waking scoped-only consumers.
+ */
+export const noopPlanningBooleanAtom = atom(false);
+noopPlanningBooleanAtom.debugLabel = "planning/noopBoolean";
+
+export const noopPlanningRuntimeStatusAtom = atom<CliSessionStatus>("idle");
+noopPlanningRuntimeStatusAtom.debugLabel = "planning/noopRuntimeStatus";
+
+export const noopPlanningVersionAtom = atom(0);
+noopPlanningVersionAtom.debugLabel = "planning/noopVersion";
+
+export const noopPlanningSessionIdAtom = atom<string | null>(null);
+noopPlanningSessionIdAtom.debugLabel = "planning/noopSessionId";
+
+export const noopSubagentJobMapAtom = atom<SubagentJobMap>(new Map());
+noopSubagentJobMapAtom.debugLabel = "planning/noopSubagentJobMap";
+
+export const noopStreamRetryStatusAtom = atom<StreamRetryStatus | null>(null);
+noopStreamRetryStatusAtom.debugLabel = "planning/noopStreamRetryStatus";
+
 /**
  * Stable derived atoms for the global planning-indicator booleans.
  *
@@ -11,14 +48,6 @@
  * every snapshot update (i.e. every token) because `derivedSnapshotAtom`
  * itself changed that frequently.
  */
-import { atom } from "jotai";
-
-import { derivedSnapshotAtom } from "../core/atoms/events";
-import { isInteractiveTool } from "../core/interactiveTools";
-import {
-  hasLiveRuntimeResourceInLatestTurn,
-  hasRunningAwaitWaitForInLatestTurn,
-} from "../core/runningEventGate";
 
 /**
  * True when the latest agent turn has at least one live runtime resource
@@ -63,27 +92,3 @@ export const globalHasAwaitingUserInteractionAtom = atom((get) => {
 });
 globalHasAwaitingUserInteractionAtom.debugLabel =
   "planning/globalHasAwaitingUserInteraction";
-
-/**
- * True when the last chat-visible event is a settled (non-streaming)
- * assistant message. In this state the slow-hint is suppressed so the
- * user isn't confused while the backend winds down after a completed reply.
- * Changes only when the last event changes, not on every streaming token.
- */
-export const globalLastIsSettledAssistantMessageAtom = atom((get) => {
-  const snapshot = get(derivedSnapshotAtom);
-  if (!snapshot) return false;
-  const chat =
-    "chatEvents" in snapshot && Array.isArray(snapshot.chatEvents)
-      ? snapshot.chatEvents
-      : [];
-  const last = chat[chat.length - 1];
-  if (!last) return false;
-  return (
-    last.actionType === "assistant" &&
-    last.displayStatus === "completed" &&
-    !last.isDelta
-  );
-});
-globalLastIsSettledAssistantMessageAtom.debugLabel =
-  "planning/globalLastIsSettledAssistantMessage";

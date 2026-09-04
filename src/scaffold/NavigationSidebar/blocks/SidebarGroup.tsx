@@ -4,9 +4,15 @@
  * Collapsible group component for sidebar items.
  * Styled to match NavigationMenu for consistency.
  */
-import { ChevronsDownUp, ChevronsUpDown, Plus } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+
+import {
+  Add01Icon,
+  ChevronsDownUpIcon,
+  HugeiconsIcon,
+  UnfoldMoreIcon,
+} from "@src/icons";
 
 import { NavigationMenuRowActionButton } from "../components/NavigationMenu/NavigationMenu/RowActionButton";
 import type { SidebarGroupProps, SidebarItemData } from "../types";
@@ -108,16 +114,21 @@ function SidebarGroupInner<T extends SidebarItemData = SidebarItemData>({
                   e.stopPropagation();
                   group.onAddNew?.();
                 }}
-                className="flex h-5 w-5 items-center justify-center rounded text-text-3 opacity-0 transition-all hover:bg-sidebar-selected hover:text-text-1 group-hover:opacity-100"
+                className="flex h-5 w-5 items-center justify-center rounded text-text-3 opacity-0 transition-all group-hover:opacity-100 hover:bg-sidebar-selected hover:text-text-1"
                 title={group.addButtonLabel || t("sidebar.actions.addNew")}
               >
-                <Plus size={12} strokeWidth={2} />
+                <HugeiconsIcon
+                  icon={Add01Icon}
+                  data-icon="plus"
+                  size={12}
+                  strokeWidth={2}
+                />
               </button>
             )}
             {/* Chevron */}
             <NavigationMenuRowActionButton
-              icon={isCollapsed ? ChevronsUpDown : ChevronsDownUp}
-              label={t("common:actions.toggle")}
+              icon={isCollapsed ? UnfoldMoreIcon : ChevronsDownUpIcon}
+              label={t("sidebar.actions.toggleGroup")}
               onClick={handleToggle}
             />
           </div>
@@ -127,7 +138,7 @@ function SidebarGroupInner<T extends SidebarItemData = SidebarItemData>({
       {/* Non-collapsible header */}
       {group.title && group.collapsible === false && (
         <div className="mx-2 flex h-8 items-center px-3">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-text-3">
+          <span className="text-[11px] font-medium tracking-wider text-text-3 uppercase">
             {group.title}
           </span>
         </div>

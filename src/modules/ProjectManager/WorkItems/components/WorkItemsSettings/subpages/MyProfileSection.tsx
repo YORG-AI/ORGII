@@ -10,15 +10,23 @@
  * Layout matches MembersSection / RepoMembersSection for consistency.
  */
 import type { TFunction } from "i18next";
-import { Check, Copy, Minus, Pencil, X } from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { LinkedEmail, MemberEntry } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
+import PersonAvatar from "@src/components/PersonAvatar";
 import { createLogger } from "@src/hooks/logger";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
+import {
+  Cancel01Icon,
+  Copy01Icon,
+  HugeiconsIcon,
+  MinusSignIcon,
+  Pen01Icon,
+  Tick01Icon,
+} from "@src/icons";
 import { ClaimIdentityModal } from "@src/modules/ProjectManager/shared/components";
 import {
   SECTION_DESCRIPTION_CLASSES,
@@ -70,7 +78,9 @@ const LinkedEmailRow: React.FC<{
       </div>
       {!isPrimary && onUnlink && (
         <Button
-          icon={<Minus size={14} />}
+          icon={
+            <HugeiconsIcon icon={MinusSignIcon} data-icon="minus" size={14} />
+          }
           iconOnly
           onClick={onUnlink}
           title={t("settings.unlinkIdentity")}
@@ -97,17 +107,9 @@ const SuggestedMatchRow: React.FC<{
 
   return (
     <div className="flex items-center gap-2 py-2">
-      {member.avatar ? (
-        <img
-          src={member.avatar}
-          alt={member.name}
-          className="h-7 w-7 flex-shrink-0 rounded-full opacity-60"
-        />
-      ) : (
-        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-fill-3 text-[11px] font-medium text-text-2 opacity-60">
-          {member.name.charAt(0).toUpperCase()}
-        </div>
-      )}
+      <span className="inline-flex shrink-0 opacity-60">
+        <PersonAvatar name={member.name} src={member.avatar} size={28} />
+      </span>
       <div className="min-w-0 flex-1">
         <div className="text-[14px] text-text-1">{member.email}</div>
         <div className={SECTION_DESCRIPTION_CLASSES}>
@@ -173,21 +175,31 @@ const EditableField: React.FC<{
         )}
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         {editing ? (
           <>
             <Button
-              icon={<Check size={14} />}
+              icon={
+                <HugeiconsIcon icon={Tick01Icon} data-icon="check" size={14} />
+              }
               iconOnly
               onClick={() => {
                 if (inputRef.current) handleSave(inputRef.current.value);
               }}
             />
-            <Button icon={<X size={14} />} iconOnly onClick={handleCancel} />
+            <Button
+              icon={
+                <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={14} />
+              }
+              iconOnly
+              onClick={handleCancel}
+            />
           </>
         ) : (
           <Button
-            icon={<Pencil size={14} />}
+            icon={
+              <HugeiconsIcon icon={Pen01Icon} data-icon="pencil" size={14} />
+            }
             iconOnly
             onClick={handleStartEdit}
           />
@@ -366,7 +378,9 @@ const MyProfileSection: React.FC<MyProfileSectionProps> = ({
           <div className="flex items-center gap-2">
             <span className="text-[14px] text-text-1">{myMember.id}</span>
             <Button
-              icon={<Copy size={14} />}
+              icon={
+                <HugeiconsIcon icon={Copy01Icon} data-icon="copy" size={14} />
+              }
               iconOnly
               onClick={() => {
                 copyText(myMember.id).catch((err) => {

@@ -8,12 +8,17 @@
  *
  * Used by AskQuestionCard, AskQuestionPreview, and QuestionBubble.
  */
-import { ChevronDown, ChevronUp, CircleHelp } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import IconButton from "@src/components/IconButton";
 import { COMPOSER_CARD_SHELL_CLASSES } from "@src/config/composerStackTokens";
+import {
+  ArrowDown01Icon,
+  ArrowUp01Icon,
+  HelpCircleIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 
 import ComposerStackHeader from "../components/ComposerStackHeader";
 import {
@@ -119,7 +124,13 @@ export function QuestionCardShell({
   return (
     <div className={COMPOSER_CARD_SHELL_CLASSES}>
       <ComposerStackHeader
-        icon={<CircleHelp size={14} />}
+        icon={
+          <HugeiconsIcon
+            icon={HelpCircleIcon}
+            data-icon="circle-help"
+            size={14}
+          />
+        }
         label={t("chat.questionsPrompt")}
         labelVariant="primary"
         expanded={expanded}
@@ -140,7 +151,11 @@ export function QuestionCardShell({
                 onClick={handlePrevQuestion}
                 disabled={focusedQuestion === 0}
               >
-                <ChevronUp size={12} />
+                <HugeiconsIcon
+                  icon={ArrowUp01Icon}
+                  data-icon="chevron-up"
+                  size={12}
+                />
               </IconButton>
               <span className="min-w-[44px] text-center text-[10px] text-text-1">
                 {t("chat.xOfY", {
@@ -153,7 +168,11 @@ export function QuestionCardShell({
                 onClick={handleNextQuestion}
                 disabled={focusedQuestion >= questions.length - 1}
               >
-                <ChevronDown size={12} />
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
+                  size={12}
+                />
               </IconButton>
             </div>
           ) : undefined

@@ -4,7 +4,6 @@
     "workItems": "工作項",
     "codeSearch": "代碼搜索",
     "dbManager": "數據庫管理",
-    "economy": "經濟",
     "sourceControl": "原始碼控制",
     "startSession": "開始會話",
     "newSession": "新建會話",
@@ -19,9 +18,6 @@
     "codeEditor": "代碼編輯器",
     "databaseManager": "數據庫管理器",
     "integrations": "集成",
-    "wallet": "我的賬戶",
-    "earnings": "收益",
-    "boost": "推廣",
     "indexing": "Index",
     "index": "Index",
     "billing": "賬單",
@@ -52,11 +48,7 @@
     "terminals": "終端機"
   },
   "trajectoryPanel": {
-    "title": "軌跡",
-    "viewUi": "UI",
-    "viewJson": "JSON",
-    "emptyTitle": "暫無事件",
-    "emptySubtitle": "事件將在此顯示"
+    "title": "軌跡"
   },
   "routes": {
     "session": "聊天",
@@ -66,16 +58,11 @@
     "inbox": "收件箱",
     "login": "登錄",
     "setup": "設置嚮導",
-    "tokenMarket": "Token 市場",
     "taskMarket": "任務市場",
     "channels": "Channel",
     "apiKeys": "模型",
-    "myProfile": "我的資料",
     "myProfiles": "我的資料",
     "models": "模型目錄",
-    "agentMarket": "Agent 市場",
-    "agentStudio": "Agent 工作室",
-    "serviceMarket": "Service 市場",
     "signingIn": "正在登錄...",
     "launchpad": "啟動台",
     "appLauncher": "應用啓動器",
@@ -96,6 +83,11 @@
       "byTime": "按時間",
       "byAgent": "按 Agent",
       "byWorkspace": "按工作區"
+    },
+    "show": {
+      "title": "顯示",
+      "recent5": "最近 5 個",
+      "recent10": "最近 10 個"
     },
     "filters": {
       "includeExternal": "包含外部",
@@ -120,7 +112,8 @@
     "actions": {
       "addNew": "新建",
       "collapseAll": "全部摺疊",
-      "markAllRead": "全部標為已讀"
+      "markAllRead": "全部標為已讀",
+      "toggleGroup": "切換分組"
     },
     "search": {
       "folders": "搜尋工作區...",
@@ -139,12 +132,11 @@
     },
     "settingsMenu": {
       "appearance": "外觀",
+      "modifyAppearance": "修改外觀",
       "language": "語言",
-      "workstation": "工作站",
       "viewRam": "查看 RAM",
       "tutorials": "教學",
-      "openSettings": "開啟設定",
-      "setupChecklist": "快速設定"
+      "openSettings": "開啟設定"
     },
     "empty": {
       "noItems": "暫無內容",
@@ -172,32 +164,18 @@
       "trigger": "開啟使用引導",
       "title": "開始使用 ORGII",
       "startSession": "建立第一個工作階段",
-      "quickSetup": "語言與外觀",
       "close": "關閉引導",
-      "progressLabel": "已完成 {{completed}}/{{total}} 項設定",
       "localWorkspace": "本機工作區",
       "connectOrganization": "連接或建立組織",
       "createOrganizationHint": "輸入組織名稱，然後點選「建立」。雲端組織建立成功後，引導會進入下一步。",
       "inviteTeammate": "邀請一位團隊成員",
       "inviteTeammateHint": "在這裡建立邀請連結，然後傳送給你的團隊成員。",
       "invitePermissionHint": "你可以在這裡查看成員列表；邀請需要由組織管理員或 Owner 建立。",
-      "devPanelTitle": "Onboarding 測試狀態",
-      "devPanelHint": "僅在目前程序預覽邀請流程，不會修改後端組織資料。",
-      "devScenarioLive": "真實資料",
-      "devScenarioNoOrganization": "無組織",
-      "devScenarioMember": "一般成員 · 無邀請權限",
-      "devScenarioAdmin": "管理員 · 有邀請權限",
-      "devScenarioOwner": "Owner · 有邀請權限",
-      "devScenarioRequiresOrganization": "角色預覽至少需要一個真實雲端組織。",
-      "devSimulationActive": "開發模擬已啟用",
-      "devSimulationReadOnly": "成員頁僅供預覽，組織管理操作已停用。",
       "viewTeamActivity": "查看團隊用量",
       "viewTeamActivityHint": "已開啟「執行階段 > 成員」。選擇一位團隊成員即可查看 Codex、Claude 和 Cursor 用量；若無資料，請先啟用團隊執行階段同步。",
       "exploreProduct": "瞭解主要頁面",
-      "nextStep": "下一步"
-    },
-    "developerTestPanel": {
-      "title": "開發測試面板"
+      "nextStep": "下一步",
+      "dismiss": "關閉指南"
     }
   },
   "appLauncher": {
@@ -293,8 +271,7 @@
   },
   "myRole": {
     "tabs": {
-      "status": "我的狀態",
-      "about": "關於我"
+      "status": "我的狀態"
     }
   },
   "launchpad": {
@@ -462,7 +439,8 @@
       "newBrowserTab": "新增瀏覽器分頁",
       "newPrivateBrowserTab": "新增私密瀏覽器分頁",
       "workItems": "工作項目",
-      "projects": "專案"
+      "projects": "專案",
+      "recentlyClosed": "最近"
     }
   },
   "collaboration": {
@@ -550,7 +528,6 @@
     "signOut": "登出",
     "signedInToast": "已登入 ORG2 雲端",
     "sessionExpired": "ORG2 雲端登入已過期，請重新登入後繼續。",
-    "recommendedBadge": "推薦",
     "recommendedDesc": "託管式工作階段共享、重播儲存、團隊權限與安全分享連結，無需自行架設 Supabase。ORG2 為你管理 Auth、資料庫遷移、RLS 政策、計費、資料保留、配額與後端升級",
     "customEndpoint": {
       "title": "自訂 ORG2 Cloud 後端",
@@ -1058,6 +1035,7 @@
       "on": "開啟",
       "off": "關閉",
       "memberNote": "由管理員開啟——無需開啟該組織，符合條件的會話也會在背景上傳。"
-    }
+    },
+    "userName": "使用者名稱"
   }
 }

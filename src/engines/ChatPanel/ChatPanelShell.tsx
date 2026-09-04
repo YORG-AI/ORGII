@@ -18,12 +18,16 @@ interface ChatPanelShellProps {
   chatWidthStyleValue: string | number;
   embedded: boolean;
   focusedWorkstationRail?: React.ReactNode;
+  hasTabBar: boolean;
   headerSection: React.ReactNode;
   isDragging: boolean;
   isLeftPosition: boolean;
   isTerminalTabActive: boolean;
   onResizeMouseDown: React.MouseEventHandler;
   panelRef: React.RefObject<HTMLDivElement | null>;
+  resizeIndicatorHost?: HTMLElement | null;
+  resizeTooltipLabel: React.ReactNode;
+  resizeTooltipShortcut: string;
   sessionModals: React.ReactNode;
   showResizeHandle: boolean;
   terminalTabs: ChatPanelTab[];
@@ -39,12 +43,16 @@ export function ChatPanelShell({
   chatWidthStyleValue,
   embedded,
   focusedWorkstationRail,
+  hasTabBar,
   headerSection,
   isDragging,
   isLeftPosition,
   isTerminalTabActive,
   onResizeMouseDown,
   panelRef,
+  resizeIndicatorHost,
+  resizeTooltipLabel,
+  resizeTooltipShortcut,
   sessionModals,
   showResizeHandle,
   terminalTabs,
@@ -53,8 +61,15 @@ export function ChatPanelShell({
   const dragHandle = showResizeHandle && (
     <VerticalResizeHandle
       key="chat-panel-resize-handle"
-      className={`!z-[80] ${isLeftPosition ? "-ml-px" : "-mr-px"}`}
+      className={`z-80! ${isLeftPosition ? "-ml-px" : "-mr-px"}`}
+      indicatorHost={resizeIndicatorHost}
+      indicatorPlacement={
+        resizeIndicatorHost ? "center" : isLeftPosition ? "start" : "end"
+      }
+      isResizing={isDragging}
       onMouseDown={onResizeMouseDown}
+      tooltipLabel={resizeTooltipLabel}
+      tooltipShortcut={resizeTooltipShortcut}
       variant={embedded ? "border" : "transparent"}
       noAccent={!embedded}
     />
@@ -67,8 +82,8 @@ export function ChatPanelShell({
       data-chat-panel
       data-testid="chat-panel"
       data-guide-target={GUIDE_TARGETS.CHAT_PANEL}
-      className={`relative flex h-full max-w-full flex-col overflow-hidden bg-chat-pane text-sm @container/focusedchat ${
-        useExternalWidth ? "min-w-0 flex-1" : "flex-shrink-0"
+      className={`@container/focusedchat relative flex h-full max-w-full flex-col overflow-hidden bg-chat-pane text-sm ${
+        useExternalWidth ? "min-w-0 flex-1" : "shrink-0"
       } ${borderClasses}`}
       style={{
         ...(useExternalWidth
@@ -88,6 +103,7 @@ export function ChatPanelShell({
           <UnifiedChatPanelTabContent
             activeTab={activeTab}
             chatColumn={chatColumn}
+            hasTabBar={hasTabBar}
             isTerminalTabActive={isTerminalTabActive}
             terminalTabs={terminalTabs}
           />
@@ -105,7 +121,7 @@ export function ChatPanelShell({
     <>
       <div
         className={`relative flex h-full flex-row ${
-          useExternalWidth ? "w-full min-w-0" : "flex-shrink-0"
+          useExternalWidth ? "w-full min-w-0" : "shrink-0"
         }`}
       >
         {panelChildren}

@@ -1,17 +1,21 @@
-import { BookDashed, BookOpen, Diamond } from "lucide-react";
-
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
 } from "@src/components/Dropdown/tokens";
-import IntegrationIcon from "@src/components/IntegrationIcon";
 import { PropertyDropdownField } from "@src/components/PropertyField/PropertyDropdownField";
 import {
   FieldRow,
   type FieldRowVariant,
   Option,
   SearchableDropdown,
+  getPropertyDropdownAlign,
 } from "@src/components/PropertyField/PropertyFieldEditable";
+import {
+  Book02Icon,
+  DeliveryBox01Icon,
+  DiamondIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import type {
   WorkItem as WorkItemExtended,
   WorkItemMilestone,
@@ -47,7 +51,6 @@ export function PlanningSection({
   availableMilestones,
   handlers,
   t,
-  projectIconType,
   projectReadonly = false,
   fieldVariant = "row",
   visibleFields,
@@ -64,16 +67,17 @@ export function PlanningSection({
           label={workItem.project?.name ?? t("workItems.properties.noProject")}
           icon={
             workItem.project ? (
-              projectIconType ? (
-                <IntegrationIcon
-                  type={projectIconType}
-                  size={DROPDOWN_ITEM.iconSize}
-                />
-              ) : (
-                <BookOpen size={DROPDOWN_ITEM.iconSize} />
-              )
+              <HugeiconsIcon
+                icon={DeliveryBox01Icon}
+                data-icon="box"
+                size={DROPDOWN_ITEM.iconSize}
+              />
             ) : (
-              <BookDashed size={DROPDOWN_ITEM.iconSize} />
+              <HugeiconsIcon
+                icon={Book02Icon}
+                data-icon="book-dashed"
+                size={DROPDOWN_ITEM.iconSize}
+              />
             )
           }
           iconColor={workItem.project?.color}
@@ -102,7 +106,13 @@ export function PlanningSection({
               <>
                 {!searchQuery && (
                   <Option
-                    icon={<BookDashed size={DROPDOWN_ITEM.iconSize} />}
+                    icon={
+                      <HugeiconsIcon
+                        icon={Book02Icon}
+                        data-icon="book-dashed"
+                        size={DROPDOWN_ITEM.iconSize}
+                      />
+                    }
                     label={t("workItems.properties.noProject")}
                     isSelected={!workItem.project}
                     onClick={() => select(null)}
@@ -117,15 +127,11 @@ export function PlanningSection({
                   <Option
                     key={projectItem.id}
                     icon={
-                      projectIconType &&
-                      projectItem.id === workItem.project?.id ? (
-                        <IntegrationIcon
-                          type={projectIconType}
-                          size={DROPDOWN_ITEM.iconSize}
-                        />
-                      ) : (
-                        <BookOpen size={DROPDOWN_ITEM.iconSize} />
-                      )
+                      <HugeiconsIcon
+                        icon={DeliveryBox01Icon}
+                        data-icon="box"
+                        size={DROPDOWN_ITEM.iconSize}
+                      />
                     }
                     iconColor={projectItem.color}
                     label={projectItem.name}
@@ -143,12 +149,18 @@ export function PlanningSection({
         <div
           className={
             fieldVariant === "pill"
-              ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+              ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
               : "relative flex min-h-8 w-full items-center"
           }
         >
           <FieldRow
-            icon={<Diamond size={DROPDOWN_ITEM.iconSize} />}
+            icon={
+              <HugeiconsIcon
+                icon={DiamondIcon}
+                data-icon="diamond"
+                size={DROPDOWN_ITEM.iconSize}
+              />
+            }
             value={
               workItem.milestone?.name || t("workItems.properties.noMilestone")
             }
@@ -163,7 +175,7 @@ export function PlanningSection({
             <SearchableDropdown
               placeholder={t("common:actions.search")}
               widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-              align={fieldVariant === "pill" ? "auto" : "left"}
+              align={getPropertyDropdownAlign(fieldVariant)}
             >
               {(searchQuery) => {
                 const filtered = searchQuery
@@ -184,7 +196,13 @@ export function PlanningSection({
                     {filtered.map((milestone) => (
                       <Option
                         key={milestone.id}
-                        icon={<Diamond size={DROPDOWN_ITEM.iconSize} />}
+                        icon={
+                          <HugeiconsIcon
+                            icon={DiamondIcon}
+                            data-icon="diamond"
+                            size={DROPDOWN_ITEM.iconSize}
+                          />
+                        }
                         label={milestone.name}
                         isSelected={workItem.milestone?.id === milestone.id}
                         onClick={() =>

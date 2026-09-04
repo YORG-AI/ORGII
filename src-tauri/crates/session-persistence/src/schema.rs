@@ -93,6 +93,7 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
             modified_files_json TEXT NOT NULL DEFAULT '[]',
             resource_interactions_json TEXT NOT NULL DEFAULT '[]',
             git_artifacts_json TEXT NOT NULL DEFAULT '[]',
+            turn_intent_id TEXT,
             PRIMARY KEY (session_id, turn_id)
         )",
         [],
@@ -127,6 +128,14 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
     // shell results by the same parser as the live event pipeline.
     conn.execute(
         "ALTER TABLE session_turns ADD COLUMN git_artifacts_json TEXT NOT NULL DEFAULT '[]'",
+        [],
+    )
+    .ok();
+    // Canonical logical-submit identity for the round. Nullable preserves
+    // imported and legacy turns whose provider transcript predates ORGII's
+    // turn-intent lifecycle.
+    conn.execute(
+        "ALTER TABLE session_turns ADD COLUMN turn_intent_id TEXT",
         [],
     )
     .ok();
@@ -557,10 +566,55 @@ mod tests {
         assert!(index_exists(&conn, "idx_stool_session_iteration"));
         assert!(index_exists(&conn, "idx_stu_session_created_at_id"));
         assert!(column_exists(&conn, "session_turn_intents", "org_run_id"));
+        assert!(column_exists(&conn, "session_turns", "turn_intent_id"));
         assert!(index_exists(
             &conn,
             "idx_session_turn_intents_org_run_status"
         ));
+    }
+
+    #[test]
+    fn init_session_tables_adds_turn_intent_id_to_existing_turn_index() {
+        let conn = Connection::open_in_memory().expect("open in-memory sqlite");
+        conn.execute_batch(
+            "CREATE TABLE session_turns (
+                 session_id TEXT NOT NULL,
+                 turn_id TEXT NOT NULL,
+                 start_sequence INTEGER NOT NULL,
+                 end_sequence INTEGER,
+                 next_turn_id TEXT,
+                 started_at TEXT NOT NULL,
+                 ended_at TEXT,
+                 duration_ms INTEGER,
+                 user_event_ids_json TEXT NOT NULL DEFAULT '[]',
+                 user_preview TEXT NOT NULL DEFAULT '',
+                 event_count INTEGER NOT NULL DEFAULT 0,
+                 body_event_count INTEGER NOT NULL DEFAULT 0,
+                 status TEXT NOT NULL,
+                 interrupted INTEGER NOT NULL DEFAULT 0,
+                 updated_at TEXT NOT NULL,
+                 PRIMARY KEY (session_id, turn_id)
+             );
+             INSERT INTO session_turns (
+                 session_id, turn_id, start_sequence, started_at, status, updated_at
+             ) VALUES ('legacy-session', 'legacy-turn', 1,
+                       '2026-01-01T00:00:00Z', 'completed',
+                       '2026-01-01T00:00:00Z');",
+        )
+        .expect("seed legacy turn-index schema");
+
+        init_session_tables(&conn).expect("upgrade session schema");
+
+        assert!(column_exists(&conn, "session_turns", "turn_intent_id"));
+        let legacy_intent: Option<String> = conn
+            .query_row(
+                "SELECT turn_intent_id FROM session_turns
+                 WHERE session_id='legacy-session' AND turn_id='legacy-turn'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("legacy turn remains readable");
+        assert_eq!(legacy_intent, None, "legacy identity must not be guessed");
     }
 
     #[test]

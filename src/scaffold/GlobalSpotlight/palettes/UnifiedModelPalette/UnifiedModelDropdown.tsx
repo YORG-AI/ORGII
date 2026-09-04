@@ -10,7 +10,6 @@
  * active variant is chosen by the `general.modelPickerStyle` setting and
  * dispatched in `ModelPill`.
  */
-import { Check, ChevronRight, Search } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -20,6 +19,8 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 
+import AnyIcon from "@src/components/AnyIcon";
+import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import HoverSafeSubmenuBridge from "@src/components/Dropdown/HoverSafeSubmenuBridge";
 import {
   DROPDOWN_CLASSES,
@@ -31,8 +32,8 @@ import {
   type UseDropdownListNavigationReturn,
   useDropdownEngine,
 } from "@src/hooks/dropdown";
-import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import { useFilteredItems } from "@src/hooks/search";
+import { ArrowRight01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import type { SpotlightItem } from "../../shared";
@@ -82,21 +83,16 @@ const DropdownRow: React.FC<DropdownRowProps> = ({
   const renderedIcon = useMemo(() => {
     if (isCurrent) {
       return (
-        <Check
+        <HugeiconsIcon
+          icon={Tick01Icon}
+          data-icon="check"
           size={DROPDOWN_ITEM.iconSize}
           strokeWidth={2.25}
           className="text-primary-6"
         />
       );
     }
-    if (!item.icon) return null;
-    if (typeof item.icon === "string") {
-      return <i className={`${item.icon} text-[14px] text-text-2`} />;
-    }
-    return React.createElement(item.icon, {
-      size: 14,
-      className: "text-text-2",
-    });
+    return <AnyIcon icon={item.icon} size={14} className="text-text-2" />;
   }, [item.icon, isCurrent]);
 
   if (isHeaderItem(item)) {
@@ -127,14 +123,14 @@ const DropdownRow: React.FC<DropdownRowProps> = ({
       data-testid={testId}
       {...keyboardProps}
       onMouseEnter={handleMouseEnter}
-      className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} group/model-row w-full justify-start [&_button]:!font-normal [&_span]:!font-normal`}
+      className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} group/model-row w-full justify-start [&_button]:font-normal! [&_span]:font-normal!`}
     >
       {renderedIcon && (
         <span className="flex h-5 w-5 shrink-0 items-center justify-center text-text-1">
           {renderedIcon}
         </span>
       )}
-      <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden truncate text-[13px]">
+      <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate overflow-hidden text-[13px]">
         {labelContent ?? item.label}
       </span>
       {rightContent ? (
@@ -149,7 +145,9 @@ const DropdownRow: React.FC<DropdownRowProps> = ({
         )
       )}
       {submenuSide && (
-        <ChevronRight
+        <HugeiconsIcon
+          icon={ArrowRight01Icon}
+          data-icon="chevron-right"
           size={DROPDOWN_ITEM.iconSize}
           className="shrink-0 text-text-3"
         />
@@ -176,7 +174,6 @@ export const UnifiedModelDropdown: React.FC<UnifiedModelDropdownProps> = ({
   placement = "bottom",
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  const tauriSelectAll = useTauriSelectAllShortcut();
 
   const {
     recentItems,
@@ -476,20 +473,13 @@ export const UnifiedModelDropdown: React.FC<UnifiedModelDropdownProps> = ({
           width: DROPDOWN_WIDTH,
         }}
       >
-        <div className={DROPDOWN_CLASSES.searchContainer}>
-          <Search
-            size={DROPDOWN_ITEM.iconSize}
-            className="shrink-0 text-text-3"
-          />
-          <input
-            ref={inputRef}
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            onKeyDown={tauriSelectAll}
-            placeholder={placeholder}
-            className={DROPDOWN_CLASSES.searchInput}
-          />
-        </div>
+        <DropdownSearch
+          ref={inputRef}
+          type="text"
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder={placeholder}
+        />
 
         <div
           className={DROPDOWN_CLASSES.optionsContainerOverlay}

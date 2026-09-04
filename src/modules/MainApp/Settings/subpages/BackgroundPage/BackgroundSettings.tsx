@@ -46,8 +46,9 @@ export const BackgroundSettings: React.FC<BackgroundSettingsProps> = ({
     config,
     appearanceMode,
     appearanceModeOptions,
-    globalThemeId,
-    themeOptions,
+    skinOptions,
+    activeSkinId,
+    handleSkinChange,
     isOptimizing,
     images,
     storageInfo,
@@ -65,7 +66,6 @@ export const BackgroundSettings: React.FC<BackgroundSettingsProps> = ({
     handleUpload,
     handleDeleteCustomImage,
     handleAppearanceModeChange,
-    handleThemePresetChange,
   } = useBackgroundSettings();
 
   const initialBackgroundSource: BackgroundContentSource =
@@ -101,11 +101,11 @@ export const BackgroundSettings: React.FC<BackgroundSettingsProps> = ({
               style={SECTION_CONTROL_STYLE}
             />
           </SectionRow>
-          <SectionRow compact label={t("general.themePreset")}>
+          <SectionRow compact label={t("general.skins")}>
             <Select
-              value={globalThemeId}
-              onChange={handleThemePresetChange}
-              options={themeOptions}
+              value={activeSkinId}
+              onChange={handleSkinChange}
+              options={skinOptions}
               showSearch
               size="default"
               style={SECTION_CONTROL_STYLE}
@@ -202,7 +202,7 @@ export const BackgroundSettings: React.FC<BackgroundSettingsProps> = ({
         />
       )}
 
-      <ScrollFadeContainer className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 scrollbar-hide">
+      <ScrollFadeContainer className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-6 pb-6">
         <div
           className={`${DETAIL_PANEL_TOKENS.contentWidth} flex flex-col gap-3`}
         >

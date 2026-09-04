@@ -18,8 +18,11 @@ import type { CloudSessionFilter } from "@src/features/Org2Cloud/cloudSessionFil
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { Session } from "@src/store/session";
 
-import { useCloudChannelsSection } from "./channelsSection";
+import type { SidebarTabDisposition } from "../sidebarTabNavigation";
+import type { SessionGroupVisibleCount } from "../types";
 import { useCloudSessionsSection } from "./cloudSessionsSection";
+import type { UseCloudSessionsSectionParams } from "./cloudSessionsSection.types";
+import { useChannelsSidebarSurface } from "./useChannelsSidebarSurface";
 
 interface UseWorkstationSidebarCloudMenuDataParams {
   activeCloudOrgId: string | null;
@@ -27,8 +30,10 @@ interface UseWorkstationSidebarCloudMenuDataParams {
   cloudSessionFilter: CloudSessionFilter;
   activeSessionId: string;
   cloudMySessionsVisibleCount: number;
+  groupVisibleCount: SessionGroupVisibleCount;
   revealedCloudOrgId: string | undefined;
   revealedSidebarItemId: string | undefined;
+  openSessionAtDestination: UseCloudSessionsSectionParams["openSessionAtDestination"];
   handleCloudSessionFilterChange: (filter: CloudSessionFilter) => void;
   personalHiddenCloudTaggedIds: ReadonlySet<string> | undefined;
   cloudTaggedSessionIds: ReadonlySet<string> | undefined;
@@ -49,8 +54,10 @@ export function useWorkstationSidebarCloudMenuData({
   cloudSessionFilter,
   activeSessionId,
   cloudMySessionsVisibleCount,
+  groupVisibleCount,
   revealedCloudOrgId,
   revealedSidebarItemId,
+  openSessionAtDestination,
   handleCloudSessionFilterChange,
   personalHiddenCloudTaggedIds,
   cloudTaggedSessionIds,
@@ -62,7 +69,7 @@ export function useWorkstationSidebarCloudMenuData({
     selectedCloudMenuItemId,
     handleCloudSessionItemClick,
     resetCloudTeamPagination,
-    handleCloudRemoteItemRemove,
+    buildCloudRemoteItemMenuItems,
     cloudMemberFilterDropdown,
     cloudRemoteRowMap,
     cloudRemoteViewerMap,
@@ -72,32 +79,31 @@ export function useWorkstationSidebarCloudMenuData({
     filter: cloudSessionFilter,
     activeSessionId,
     localSessionHydrationLimit: cloudMySessionsVisibleCount,
+    groupVisibleCount,
     revealedMenuItemId:
       revealedCloudOrgId === activeCloudOrgId
         ? revealedSidebarItemId
         : undefined,
+    openSessionAtDestination,
     onFilterChange: handleCloudSessionFilterChange,
   });
 
-  const {
-    channelsMenuItems,
-    handleChannelsItemClick,
-    selectedChannelMenuItemId,
-    channelsDialogs,
-  } = useCloudChannelsSection({ orgId: activeCloudOrgId });
+  const channels = useChannelsSidebarSurface(activeCloudOrgId);
 
   // Channels lead Team Sessions; the My Sessions separator is appended
   // downstream by buildCloudScopedMenuItems.
   const mergedCloudMenuItems = useMemo(
-    () => mergeCloudSidebarSections(channelsMenuItems, cloudMenuItems),
-    [channelsMenuItems, cloudMenuItems]
+    () => mergeCloudSidebarSections(channels.cloudMenuItems, cloudMenuItems),
+    [channels.cloudMenuItems, cloudMenuItems]
   );
 
   // Channel rows resolve first: their ids can never collide with
   // `cloudremote-` / pagination ids, so an early claim is unambiguous.
+  const { handleItemClick: handleChannelsItemClick } = channels;
   const handleCloudScopedItemClick = useCallback(
-    (item: NavigationMenuItem): boolean =>
-      handleChannelsItemClick(item) || handleCloudSessionItemClick(item),
+    (item: NavigationMenuItem, disposition: SidebarTabDisposition): boolean =>
+      handleChannelsItemClick(item, disposition) ||
+      handleCloudSessionItemClick(item, disposition),
     [handleChannelsItemClick, handleCloudSessionItemClick]
   );
 
@@ -123,19 +129,20 @@ export function useWorkstationSidebarCloudMenuData({
   return {
     cloudMenuItems: mergedCloudMenuItems,
     cloudSessionMenuItems: cloudMenuItems,
-    channelMenuItems: channelsMenuItems,
+    channelMenuItems: channels.menuItems,
     // An open channel surface wins over the team-sessions selection: it is
     // the tab the pane is actually showing.
     selectedCloudMenuItemId:
-      selectedChannelMenuItemId ?? selectedCloudMenuItemId,
+      channels.selectedMenuItemId ?? selectedCloudMenuItemId,
     handleCloudSessionItemClick: handleCloudScopedItemClick,
     resetCloudTeamPagination,
-    handleCloudRemoteItemRemove,
+    buildCloudRemoteItemMenuItems,
     cloudMemberFilterDropdown,
     cloudRemoteRowMap,
     cloudRemoteViewerMap,
     sessionListExcludedIds,
     cloudScopedExtraSessionIds,
-    cloudChannelsDialogs: channelsDialogs,
+    cloudChannelsDialogs: channels.cloudDialogs,
+    localChannelsDialogs: channels.localDialogs,
   };
 }

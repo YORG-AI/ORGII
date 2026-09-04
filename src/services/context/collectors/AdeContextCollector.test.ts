@@ -3,31 +3,37 @@ import { describe, expect, it } from "vitest";
 import { buildUserProfileWire } from "./AdeContextCollector";
 
 describe("buildUserProfileWire", () => {
-  it("uses the active profile preset when selected", () => {
+  it("uses the one persisted user profile", () => {
     const profile = buildUserProfileWire({
-      "general.profileTechSavvy": "beginner",
-      "general.profileJobRoles": ["Frontend Engineer"],
-      "general.profileFamiliarTechStacks": ["React"],
-      "general.profileDescription": "Default profile",
-      "general.activeProfileId": "profile-data-science",
-      "general.profilePresets": [
-        {
-          id: "profile-data-science",
-          name: "Data Science",
-          techSavvy: "expert",
-          jobRoles: ["Data Scientist"],
-          familiarTechStacks: ["Python", "SQL"],
-          description: "Prefers statistical detail.",
-        },
-      ],
+      "general.profileTechSavvy": "expert",
+      "general.profileJobRoles": ["Data Scientist"],
+      "general.profileFamiliarTechStacks": ["Python", "SQL"],
+      "general.profileDescription": "Prefers statistical detail.",
     });
 
     expect(profile).toEqual({
-      name: "Data Science",
       techSavvy: "expert",
       jobRoles: ["Data Scientist"],
       familiarTechStacks: ["Python", "SQL"],
       description: "Prefers statistical detail.",
     });
+  });
+
+  it("ignores retired profile presets", () => {
+    const profile = buildUserProfileWire({
+      "general.profileTechSavvy": "beginner",
+      "general.activeProfileId": "another-profile",
+      "general.profilePresets": [
+        {
+          id: "another-profile",
+          techSavvy: "expert",
+          jobRoles: ["Data Scientist"],
+          familiarTechStacks: ["Python"],
+          description: "This must not replace the canonical profile.",
+        },
+      ],
+    });
+
+    expect(profile).toEqual({ techSavvy: "beginner" });
   });
 });

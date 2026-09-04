@@ -1,36 +1,55 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Message from "@src/components/Message";
+import type { SelectOptionGroup } from "@src/components/Select/types";
 import { APPLICATION_UI_FONT_IDS } from "@src/config/appearance/applicationUiFonts";
 import {
   APPEARANCE_MODE,
   APPEARANCE_MODE_OPTIONS,
-  GLOBAL_THEMES,
-  THEME_PREFERENCE,
   getAppearanceModeForTheme,
   getDefaultThemePreferenceForAppearanceMode,
   getFollowSystemThemeLabel,
   getGlobalTheme,
-  getThemeOptionsForAppearanceMode,
   normalizeAppearanceMode,
   normalizeGlobalThemePreference,
   resolveGlobalThemePreference,
 } from "@src/config/appearance/globalThemes";
-import { PRIMARY_COLOR_PRESETS } from "@src/config/appearance/primaryColors";
+import {
+  ACCENT_PRESETS,
+  type AccentPreset,
+  getAccentSwatch,
+} from "@src/config/appearance/skins/accent";
+import {
+  getSkinSeed,
+  getSkinsForVariant,
+  getUnifiedSkins,
+  supportsBothVariants,
+} from "@src/config/appearance/skins/registry";
+import type { SkinVariant } from "@src/config/appearance/skins/types";
 import {
   UI_SCALE_CONFIG,
+  activeSkinIdAtom,
   applicationUiFontAtom,
+  darkAccentPresetAtom,
+  darkSkinIdAtom,
   globalThemeIdAtom,
-  primaryColorPresetAtom,
+  iconStyleAtom,
+  lightAccentPresetAtom,
+  lightSkinIdAtom,
+  linkSkinVariantsAtom,
+  skinVariantAtom,
   spotlightPlacementAtom,
   systemColorSchemeAtom,
+  translucentSidebarAtom,
   uiScaleAtom,
   updateSettingsBatchAtom,
 } from "@src/store";
 import { swapThemeCss } from "@src/util/ui/theme/swapThemeCss";
 import { showThemeTransitionCover } from "@src/util/ui/theme/themeTransitionCover";
+
+import { AccentSwatch, SkinSwatch } from "./SkinSwatch";
 
 const getApproxFontSize = (scale: number): string => {
   const baseFontSize = 14;
@@ -51,9 +70,6 @@ export function useAppearanceState() {
   const { t } = useTranslation("settings");
 
   const globalThemeId = useAtomValue(globalThemeIdAtom);
-  const [primaryColorPreset, setPrimaryColorPreset] = useAtom(
-    primaryColorPresetAtom
-  );
   const [uiScale, setUIScale] = useAtom(uiScaleAtom);
   const [applicationUiFont, setApplicationUiFont] = useAtom(
     applicationUiFontAtom
@@ -61,6 +77,17 @@ export function useAppearanceState() {
   const [spotlightPlacement, setSpotlightPlacement] = useAtom(
     spotlightPlacementAtom
   );
+  const [linkSkinVariants, setLinkSkinVariants] = useAtom(linkSkinVariantsAtom);
+  const [lightSkinId, setLightSkinId] = useAtom(lightSkinIdAtom);
+  const [darkSkinId, setDarkSkinId] = useAtom(darkSkinIdAtom);
+  const [lightAccent, setLightAccent] = useAtom(lightAccentPresetAtom);
+  const [darkAccent, setDarkAccent] = useAtom(darkAccentPresetAtom);
+  const [iconStyle, setIconStyle] = useAtom(iconStyleAtom);
+  const [translucentSidebar, setTranslucentSidebar] = useAtom(
+    translucentSidebarAtom
+  );
+  const skinVariant = useAtomValue(skinVariantAtom);
+  const activeSkinId = useAtomValue(activeSkinIdAtom);
   const updateSettingsBatch = useSetAtom(updateSettingsBatchAtom);
   const systemColorScheme = useAtomValue(systemColorSchemeAtom);
   const followSystemThemeLabel = getFollowSystemThemeLabel(
@@ -83,7 +110,6 @@ export function useAppearanceState() {
         await swapThemeCss(selectedTheme.baseCssPath);
         updateSettingsBatch({
           "general.theme": themePreference,
-          "general.primaryColor": selectedTheme.defaultPrimaryColor,
         });
         localStorage.setItem("theme", themePreference);
       } finally {
@@ -130,13 +156,111 @@ export function useAppearanceState() {
     [followSystemThemeLabel, t]
   );
 
-  const primaryColorOptions = useMemo(
-    () =>
-      PRIMARY_COLOR_PRESETS.map((preset) => ({
+  /**
+   * Skins are grouped by origin so ORGII's own designs stay at the top of a
+   * list that Codex otherwise dominates by count.
+   */
+  const buildSkinOptions = useCallback(
+    (variant: SkinVariant): SelectOptionGroup[] => {
+      const skins = getSkinsForVariant(variant);
+      const toOption = (skin: (typeof skins)[number]) => ({
+        label: skin.label,
+        value: skin.id,
+        icon: React.createElement(SkinSwatch, { skinId: skin.id, variant }),
+      });
+      const groups: SelectOptionGroup[] = [];
+      const orgii = skins.filter((skin) => skin.source === "orgii");
+      const codex = skins.filter((skin) => skin.source === "codex");
+      if (orgii.length > 0) {
+        groups.push({
+          label: t("general.skinGroups.orgii"),
+          options: orgii.map(toOption),
+        });
+      }
+      if (codex.length > 0) {
+        groups.push({
+          label: t("general.skinGroups.codex"),
+          options: codex.map(toOption),
+        });
+      }
+      return groups;
+    },
+    [t]
+  );
+
+  const lightSkinOptions = useMemo(
+    () => buildSkinOptions("light"),
+    [buildSkinOptions]
+  );
+  const darkSkinOptions = useMemo(
+    () => buildSkinOptions("dark"),
+    [buildSkinOptions]
+  );
+
+  const buildAccentOptions = useCallback(
+    (variant: SkinVariant, skinId: string) => {
+      const seed = getSkinSeed(skinId, variant);
+      return ACCENT_PRESETS.map((preset) => ({
         label: t(`general.primaryColorOptions.${preset}`),
         value: preset,
-      })),
+        icon: React.createElement(AccentSwatch, {
+          color: getAccentSwatch(preset, variant, seed),
+        }),
+      }));
+    },
     [t]
+  );
+
+  const lightAccentOptions = useMemo(
+    () => buildAccentOptions("light", lightSkinId),
+    [buildAccentOptions, lightSkinId]
+  );
+  const darkAccentOptions = useMemo(
+    () => buildAccentOptions("dark", darkSkinId),
+    [buildAccentOptions, darkSkinId]
+  );
+
+  /**
+   * While linked, only skins shipping both variants can be chosen, and the
+   * swatch previews the variant the user is currently looking at.
+   */
+  const unifiedSkinOptions = useMemo(
+    () =>
+      getUnifiedSkins().map((skin) => ({
+        label: skin.label,
+        value: skin.id,
+        icon: React.createElement(SkinSwatch, {
+          skinId: skin.id,
+          variant: skinVariant,
+        }),
+      })),
+    [skinVariant]
+  );
+
+  const unifiedSkinId = useMemo(
+    () => (supportsBothVariants(lightSkinId) ? lightSkinId : darkSkinId),
+    [lightSkinId, darkSkinId]
+  );
+
+  const unifiedAccentOptions = useMemo(
+    () => buildAccentOptions(skinVariant, unifiedSkinId),
+    [buildAccentOptions, skinVariant, unifiedSkinId]
+  );
+
+  const unifiedAccent = skinVariant === "dark" ? darkAccent : lightAccent;
+
+  /** Quick-switch entry point for the sidebar menu: acts on the live variant. */
+  const activeSkinOptions = useMemo(
+    () => (skinVariant === "dark" ? darkSkinOptions : lightSkinOptions),
+    [skinVariant, darkSkinOptions, lightSkinOptions]
+  );
+
+  const handleActiveSkinChange = useCallback(
+    (skinId: string) => {
+      if (skinVariant === "dark") setDarkSkinId(skinId);
+      else setLightSkinId(skinId);
+    },
+    [skinVariant, setDarkSkinId, setLightSkinId]
   );
 
   const applicationUiFontOptions = useMemo(
@@ -148,22 +272,16 @@ export function useAppearanceState() {
     [t]
   );
 
-  const themeOptions = useMemo(
+  const iconStyleOptions = useMemo(
     () =>
-      getThemeOptionsForAppearanceMode(appearanceMode).map((themeId) => ({
-        label:
-          themeId === THEME_PREFERENCE.SYSTEM
-            ? followSystemThemeLabel
-            : t(GLOBAL_THEMES[themeId].i18nKey),
-        value: themeId,
+      (["colorful", "monochrome"] as const).map((style) => ({
+        label: t(`general.iconStyleOptions.${style}`),
+        value: style,
       })),
-    [appearanceMode, followSystemThemeLabel, t]
+    [t]
   );
 
   return {
-    globalThemeId,
-    primaryColorPreset,
-    setPrimaryColorPreset,
     uiScale,
     applicationUiFont,
     setApplicationUiFont,
@@ -171,12 +289,40 @@ export function useAppearanceState() {
     setSpotlightPlacement,
     appearanceMode,
     appearanceModeOptions,
-    themeOptions,
-    primaryColorOptions,
     applicationUiFontOptions,
-    handleThemeChange,
     handleAppearanceModeChange,
     handleUIScaleChange,
-    getApproxFontSize,
+
+    // Skins
+    linkSkinVariants,
+    setLinkSkinVariants,
+    unifiedSkinId,
+    unifiedSkinOptions,
+    unifiedAccent,
+    unifiedAccentOptions,
+    activeSkinId,
+    activeSkinOptions,
+    handleActiveSkinChange,
+    lightSkinId,
+    setLightSkinId,
+    darkSkinId,
+    setDarkSkinId,
+    lightSkinOptions,
+    darkSkinOptions,
+
+    // Accent
+    lightAccent,
+    setLightAccent: setLightAccent as (value: AccentPreset) => void,
+    darkAccent,
+    setDarkAccent: setDarkAccent as (value: AccentPreset) => void,
+    lightAccentOptions,
+    darkAccentOptions,
+
+    // Surface + icons
+    translucentSidebar,
+    setTranslucentSidebar,
+    iconStyle,
+    setIconStyle,
+    iconStyleOptions,
   };
 }

@@ -33,15 +33,15 @@
  * <Switch checked={checked} onCheckedChange={setChecked} showAxLabel />
  * ```
  */
-import { Loader2 } from "lucide-react";
 import React, { forwardRef, useCallback, useState } from "react";
 
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import "./index.scss";
 
-export interface SwitchProps {
+interface SwitchProps {
   /**
    * Checked state (controlled)
    */
@@ -209,7 +209,12 @@ const Switch = forwardRef<HTMLButtonElement, SwitchProps>(
         {/* Knob/Handle */}
         <span className="switch-handle">
           {loading ? (
-            <Loader2 size={SPINNER_TOKENS.small} className="animate-spin" />
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              data-icon="loader-2"
+              size={SPINNER_TOKENS.small}
+              className="animate-spin"
+            />
           ) : (
             currentIcon
           )}

@@ -1,68 +1,33 @@
 /**
- * KeyBadge - Renders keyboard shortcuts with Lucide icons for modifier keys
+ * KeyBadge - Renders keyboard shortcuts with icon glyphs for modifier keys
  *
  * Used in: Toolbar search bar, Settings Shortcuts page
- * Replaces text symbols (⌘, ⌥, etc.) with Lucide icons for consistency.
+ * Replaces text symbols (⌘, ⌥, etc.) with icon glyphs for consistency.
  */
-import {
-  ArrowBigUp,
-  ArrowDown,
-  ArrowLeft,
-  ArrowRight,
-  ArrowUp,
-  ChevronUp,
-  Command,
-  CornerDownLeft,
-  Delete,
-  Option,
-  Space,
-} from "lucide-react";
 import React from "react";
+
+import {
+  ArrowDown02Icon,
+  ArrowLeft02Icon,
+  ArrowRight02Icon,
+  ArrowUp01Icon,
+  ArrowUp02Icon,
+  ArrowUpBigIcon,
+  CommandIcon,
+  CornerDownLeftIcon,
+  Delete01Icon,
+  HugeiconsIcon,
+  OptionIcon,
+  SaturnIcon,
+} from "@src/icons";
 
 const MAC_MODIFIERS = new Set(["⌘", "⌥", "⇧", "⌃"]);
 const DEFAULT_ICON_SIZE = 14;
 
 /**
- * Tokens (case-insensitive) that `renderKeyContent` renders as a Lucide icon.
- * These always get the square 24×24 pill regardless of token length, so
- * `"Enter"` and `"↵"` render identically.
+ * Render special keys with icon glyphs
  */
-const ICON_RENDERED_TOKENS = new Set([
-  "↑",
-  "↓",
-  "←",
-  "→",
-  "arrowup",
-  "arrowdown",
-  "arrowleft",
-  "arrowright",
-  "enter",
-  "return",
-  "↵",
-  "⏎",
-  "⮐",
-  "⌫",
-  "backspace",
-  "delete",
-  "space",
-  "⌘",
-  "command",
-  "cmd",
-  "⌥",
-  "option",
-  "opt",
-  "alt",
-  "⇧",
-  "shift",
-  "⌃",
-  "control",
-  "ctrl",
-]);
-
-/**
- * Render special keys with Lucide icons
- */
-export function renderKeyContent(
+function renderKeyContent(
   key: string,
   iconSize: number = DEFAULT_ICON_SIZE
 ): React.ReactNode {
@@ -71,37 +36,75 @@ export function renderKeyContent(
   switch (normalizedKey) {
     case "↑":
     case "arrowup":
-      return <ArrowUp size={iconSize} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowUp02Icon}
+          data-icon="arrow-up"
+          size={iconSize}
+        />
+      );
     case "↓":
     case "arrowdown":
-      return <ArrowDown size={iconSize} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowDown02Icon}
+          data-icon="arrow-down"
+          size={iconSize}
+        />
+      );
     case "←":
     case "arrowleft":
-      return <ArrowLeft size={iconSize} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowLeft02Icon}
+          data-icon="arrow-left"
+          size={iconSize}
+        />
+      );
     case "→":
     case "arrowright":
-      return <ArrowRight size={iconSize} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowRight02Icon}
+          data-icon="arrow-right"
+          size={iconSize}
+        />
+      );
     case "enter":
     case "return":
     case "↵":
     case "⏎":
     case "⮐":
-      return <CornerDownLeft size={iconSize} />;
+      return (
+        <HugeiconsIcon
+          icon={CornerDownLeftIcon}
+          data-icon="corner-down-left"
+          size={iconSize}
+        />
+      );
     case "⌫":
     case "backspace":
     case "delete":
-      return <Delete size={iconSize} />;
+      return (
+        <HugeiconsIcon icon={Delete01Icon} data-icon="delete" size={iconSize} />
+      );
     case "space":
-      return <Space size={iconSize} />;
+      return (
+        <HugeiconsIcon icon={SaturnIcon} data-icon="space" size={iconSize} />
+      );
     case "⌘":
     case "command":
     case "cmd":
-      return <Command size={iconSize} />;
+      return (
+        <HugeiconsIcon icon={CommandIcon} data-icon="command" size={iconSize} />
+      );
     case "⌥":
     case "option":
     case "opt":
     case "alt":
-      return <Option size={iconSize} />;
+      return (
+        <HugeiconsIcon icon={OptionIcon} data-icon="option" size={iconSize} />
+      );
     case "esc":
     case "escape":
       return "Esc";
@@ -109,11 +112,23 @@ export function renderKeyContent(
       return "Tab";
     case "⇧":
     case "shift":
-      return <ArrowBigUp size={iconSize} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowUpBigIcon}
+          data-icon="arrow-big-up"
+          size={iconSize}
+        />
+      );
     case "⌃":
     case "control":
     case "ctrl":
-      return <ChevronUp size={iconSize} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowUp01Icon}
+          data-icon="chevron-up"
+          size={iconSize}
+        />
+      );
     default:
       return key;
   }
@@ -129,7 +144,7 @@ export function renderKeyContent(
  *   - A mix of the above:  `"⌘⌥ →"`
  *   - Literal `+` key:  `"⌘++"` / `"Ctrl++"`  (double `+` = sep then literal `+`)
  */
-export function parseKeys(keyString: string): string[] {
+function parseKeys(keyString: string): string[] {
   const trimmed = keyString.trim();
   if (!trimmed) return [];
 
@@ -193,17 +208,15 @@ export function parseKeys(keyString: string): string[] {
   return result;
 }
 
-export interface KeyBadgeProps {
+interface KeyBadgeProps {
   keys: string;
   /** Icon size for modifier keys */
   iconSize?: number;
-  /** Single pill (toolbar) vs multiple kbd elements (settings table) */
+  /** Compact inherited styling vs the settings-table presentation */
   variant?: "compact" | "default";
   /**
-   * Render a visible `+` between adjacent key pills (e.g. `⌘ + ⌥ + →`).
-   * Defaults to `true` for the legible toolbar look; set `false` when the
-   * surrounding context already makes the chord obvious (e.g. the
-   * Settings Shortcuts table).
+   * Render a visible `+` between tokens inside the joined shortcut pill.
+   * Set `false` for the compact Codex-style chord presentation.
    */
   showSeparator?: boolean;
   className?: string;
@@ -242,6 +255,7 @@ const KeyBadge: React.FC<KeyBadgeProps> = ({
   }
 
   const keyParts = parseKeys(keys);
+  if (keyParts.length === 0) return null;
 
   if (variant === "compact") {
     return (
@@ -260,35 +274,24 @@ const KeyBadge: React.FC<KeyBadgeProps> = ({
     );
   }
 
-  // Per-pill sizing: tokens that render as a Lucide icon, plus any
-  // single-character key, get a fixed 24×24 square. Multi-character text
-  // labels (`Esc`, `Tab`) get horizontal padding instead. Keeping these
-  // two rules in sync with `ICON_RENDERED_TOKENS` ensures `"Enter"` and
-  // `"↵"` always render in the same pill shape.
-  const isIconPill = (part: string): boolean =>
-    ICON_RENDERED_TOKENS.has(part.toLowerCase()) || part.length === 1;
-
   return (
-    <div className="inline-flex items-center gap-0.5">
+    <kbd
+      className={`inline-flex h-6 shrink-0 items-center justify-center gap-0.5 rounded-full bg-fill-2 px-2 text-xs leading-none font-medium text-text-2 ${className ?? ""}`}
+      style={style}
+    >
       {keyParts.map((part, index) => (
         <React.Fragment key={index}>
-          <kbd
-            className={
-              isIconPill(part)
-                ? "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-border-2 bg-bg-2 text-xs font-medium text-text-1"
-                : "inline-flex h-6 min-w-[24px] items-center justify-center rounded border border-border-2 bg-bg-2 px-1.5 text-xs font-medium text-text-1"
-            }
-          >
+          <span className="inline-flex items-center justify-center">
             {renderKeyContent(part, iconSize)}
-          </kbd>
+          </span>
           {showSeparator &&
             index < keyParts.length - 1 &&
             keyParts[index + 1] !== "+" && (
-              <span className="select-none text-xs text-text-4">+</span>
+              <span className="text-xs text-text-4 select-none">+</span>
             )}
         </React.Fragment>
       ))}
-    </div>
+    </kbd>
   );
 };
 

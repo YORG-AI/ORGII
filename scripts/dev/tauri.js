@@ -196,8 +196,10 @@ function shouldSuppressLine(clean) {
       "Info Watching /Users/laptop-h/Documents/GitHub/yorg_frontend/src-tauri for changes..." ||
     /^> orgii@/.test(clean) ||
     clean === "> node scripts/dev/webpack-server.js" ||
+    clean === "> node scripts/dev/rspack-server.js" ||
     clean === "webpack compiled successfully" ||
     /^webpack compiled successfully in \d+ ms$/.test(clean) ||
+    /^Rspack compiled (successfully|with warnings)? ?in .+$/.test(clean) ||
     clean.includes("[builtin-overrides] Loaded ") ||
     clean.includes("Started watching repository:") ||
     clean.includes("Successfully started watching repo:") ||
@@ -496,6 +498,12 @@ function pipeProcessLines(childProcess, onLine) {
 function startFrontendDev() {
   const scriptName = createFrontendScriptName({
     lightDev: process.env.ORGII_LIGHT_DEV === "true",
+    rspack:
+      process.env.ORGII_RSPACK === "true"
+        ? true
+        : process.env.ORGII_RSPACK === "false"
+          ? false
+          : undefined,
   });
   const pnpmCli = createPnpmCliCommand();
 

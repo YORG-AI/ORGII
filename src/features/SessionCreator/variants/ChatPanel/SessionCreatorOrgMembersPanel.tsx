@@ -1,4 +1,3 @@
-import { Grip, Users } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +6,7 @@ import {
   DISPATCH_CATEGORY,
   type DispatchCategory,
 } from "@src/api/tauri/session";
+import AnyIcon from "@src/components/AnyIcon";
 import { PILL_SM_ICON_SIZE } from "@src/components/CompoundPill/config";
 import ModelIcon from "@src/components/ModelIcon";
 import ModelSelectionBreadcrumb from "@src/components/ModelSelectionBreadcrumb";
@@ -15,6 +15,7 @@ import Switch from "@src/components/Switch";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { useModelPillLabel } from "@src/hooks/models";
+import { AiSettingIcon, HugeiconsIcon, UserMultipleIcon } from "@src/icons";
 import {
   type AgentDefinition,
   type AvailableCliAgent,
@@ -27,6 +28,10 @@ import { DispatchCategoryPalette } from "@src/scaffold/GlobalSpotlight/palettes/
 import type { AgentSelection } from "@src/scaffold/GlobalSpotlight/palettes/DispatchCategoryPalette";
 import { UnifiedModelPalette } from "@src/scaffold/GlobalSpotlight/palettes/UnifiedModelPalette";
 import { flattenOrgToMembers } from "@src/scaffold/WizardSystem/variants/AgentOrg/orgTree";
+import {
+  BUILTIN_SDE_DEF_ID,
+  SDE_AGENT_ICON_ID,
+} from "@src/util/session/sessionDispatch";
 
 import {
   applyAgentRuntimeConfig,
@@ -92,7 +97,9 @@ function resolveMemberAgent(
   const definition = allAgents.find((agent) => agent.id === agentId);
   return {
     label: definition?.name ?? agentId,
-    iconId: definition?.iconId ?? "code",
+    iconId:
+      definition?.iconId ??
+      (agentId === BUILTIN_SDE_DEF_ID ? SDE_AGENT_ICON_ID : "code"),
     cliAgentType: null,
   };
 }
@@ -240,9 +247,9 @@ const SessionCreatorOrgMembersPanel: React.FC<SessionCreatorOrgMembersPanelProps
                   ? resolveAgentIcon(resolvedAgent.iconId)
                   : null;
                 const agentPillIcon = IconComponent ? (
-                  <IconComponent
+                  <AnyIcon
+                    icon={IconComponent}
                     size={PILL_SM_ICON_SIZE}
-                    strokeWidth={1.85}
                     className="text-text-1"
                   />
                 ) : resolvedAgent.cliAgentType ? (
@@ -309,7 +316,9 @@ const SessionCreatorOrgMembersPanel: React.FC<SessionCreatorOrgMembersPanelProps
                               size={PILL_SM_ICON_SIZE}
                             />
                           ) : (
-                            <Grip
+                            <HugeiconsIcon
+                              icon={AiSettingIcon}
+                              data-icon="ai-setting"
                               size={PILL_SM_ICON_SIZE}
                               strokeWidth={1.75}
                               className="text-primary-6"
@@ -341,7 +350,7 @@ const SessionCreatorOrgMembersPanel: React.FC<SessionCreatorOrgMembersPanelProps
           )}
 
           <div
-            className="mt-1 flex items-center justify-end gap-2 border-t border-border-2 px-2 pb-1 pt-2"
+            className="mt-1 flex items-center justify-end gap-2 border-t border-border-2 px-2 pt-2 pb-1"
             data-testid="session-creator-org-members-apply-future-row"
           >
             <span className="text-[12px] text-text-3">
@@ -362,7 +371,7 @@ const SessionCreatorOrgMembersPanel: React.FC<SessionCreatorOrgMembersPanelProps
             hideOrgs
             hideCliAgents
             titleLabel={agentPickerMember?.name}
-            titleIcon={Users}
+            titleIcon={UserMultipleIcon}
             placeholderLabel={
               agentPickerMember
                 ? t("creator.orgMembers.selectBaseAgentForRole", {

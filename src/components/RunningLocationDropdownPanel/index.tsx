@@ -12,6 +12,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
 import {
   DROPDOWN_CLASSES,
@@ -29,7 +30,7 @@ import { RUNNING_LOCATIONS } from "@src/config/sessionCreatorConfig";
  * each row wires highlight-on-hover, click-to-select, and
  * keyboard-driven selection.
  */
-export interface RunningLocationItemProps {
+interface RunningLocationItemProps {
   "data-dropdown-item-index": number;
   "data-dropdown-keyboard-highlight"?: "true";
   "aria-selected": boolean;
@@ -37,7 +38,7 @@ export interface RunningLocationItemProps {
   onClick: () => void;
 }
 
-export interface RunningLocationDropdownPanelProps {
+interface RunningLocationDropdownPanelProps {
   selected: RunningLocation;
   onSelect: (location: RunningLocation) => void;
   panelRef?:
@@ -130,7 +131,8 @@ const LocationOption: React.FC<LocationOptionProps> = ({
       } w-full justify-between`}
     >
       <div className="flex items-center gap-2">
-        <Icon
+        <AnyIcon
+          icon={Icon}
           size={DROPDOWN_ITEM.iconSize}
           strokeWidth={1.75}
           className={entry.iconClassName}

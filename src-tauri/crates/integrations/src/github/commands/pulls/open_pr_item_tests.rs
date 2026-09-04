@@ -1,6 +1,22 @@
 use super::*;
 
 #[test]
+fn list_pagination_keeps_defaults_and_bounds_page_size() {
+    assert_eq!(
+        pull_request_list_path("org/repo", "open", None, None),
+        "/repos/org/repo/pulls?state=open&sort=updated&direction=desc&per_page=30&page=1"
+    );
+    assert!(
+        pull_request_list_path("org/repo", "open", Some(500), Some(2))
+            .ends_with("per_page=100&page=2")
+    );
+    assert!(
+        pull_request_list_path("org/repo", "closed", Some(0), Some(0))
+            .ends_with("per_page=1&page=1")
+    );
+}
+
+#[test]
 fn serializes_author_and_only_outstanding_requested_reviewers() {
     let item = json!({
         "number": 17,
@@ -71,6 +87,7 @@ fn maps_batched_pull_request_list_metadata() {
         parse_open_pr_item(&json!({ "number": 19 })),
         parse_open_pr_item(&json!({ "number": 20 })),
         parse_open_pr_item(&json!({ "number": 21 })),
+        parse_open_pr_item(&json!({ "number": 22 })),
     ];
 
     apply_pull_request_list_metadata(
@@ -156,6 +173,8 @@ fn maps_batched_pull_request_list_metadata() {
     assert_eq!(items[2].ci_status, PullRequestCiStatus::None);
     assert_eq!(items[3].ci_status, PullRequestCiStatus::Failure);
     assert_eq!(items[4].ci_status, PullRequestCiStatus::Failure);
+    // Missing/failed enrichment is unknown, never reported as passing or no checks.
+    assert_eq!(items[5].ci_status, PullRequestCiStatus::Unavailable);
 }
 
 #[test]

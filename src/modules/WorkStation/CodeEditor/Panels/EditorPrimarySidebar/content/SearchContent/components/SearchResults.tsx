@@ -10,7 +10,6 @@
  *   - Match line
  */
 import { useSetAtom } from "jotai";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React, {
   forwardRef,
   memo,
@@ -41,6 +40,7 @@ import {
   stickyRowPadding,
 } from "@src/components/VirtualizedStickyTree";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import { usePrimarySidebarSurface } from "@src/modules/WorkStation/shared/hooks/usePrimarySidebarSurface";
 import {
   COUNT_BADGE,
@@ -140,17 +140,27 @@ const FileHeader: React.FC<FileHeaderProps> = React.memo(
         expanded: isExpanded,
         icon: (
           <div className="flex items-center gap-1.5">
-            <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+            <div className="flex h-4 w-4 shrink-0 items-center justify-center">
               {isExpanded ? (
-                <ChevronDown size={14} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
+                  size={14}
+                  className="text-text-3"
+                />
               ) : (
-                <ChevronRight size={14} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
+                  size={14}
+                  className="text-text-3"
+                />
               )}
             </div>
             <FileTypeIcon
               fileName={node.fileName || node.name}
               size="small"
-              className="flex-shrink-0"
+              className="shrink-0"
             />
           </div>
         ),
@@ -221,9 +231,7 @@ const MatchLine: React.FC<MatchLineProps> = React.memo(({ node, onClick }) => {
         <span className="bg-primary-6/20 text-primary-6">{matchText}</span>
         {after}
       </span>
-      <span className="flex-shrink-0 text-[11px] text-text-4">
-        {match.line}
-      </span>
+      <span className="shrink-0 text-[11px] text-text-4">{match.line}</span>
     </div>
   );
 });
@@ -420,12 +428,16 @@ const SearchResultsInner = forwardRef<SearchResultsHandle, SearchResultsProps>(
           >
             <div className={STICKY_ROW.chevronBox}>
               {isExpanded ? (
-                <ChevronDown
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
                   size={CHEVRON_SIZE}
                   className={STICKY_ROW.chevronIcon}
                 />
               ) : (
-                <ChevronRight
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
                   size={CHEVRON_SIZE}
                   className={STICKY_ROW.chevronIcon}
                 />
@@ -435,7 +447,7 @@ const SearchResultsInner = forwardRef<SearchResultsHandle, SearchResultsProps>(
             <FileTypeIcon
               fileName={node.fileName || node.name}
               size="small"
-              className="flex-shrink-0"
+              className="shrink-0"
             />
 
             <span className={STICKY_ROW.name}>

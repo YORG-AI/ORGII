@@ -6,7 +6,7 @@
  * while the extracted item renderer keeps this coordinator focused on menu
  * state and repository diff data.
  */
-import { Plus } from "lucide-react";
+import { useAtomValue, useSetAtom } from "jotai";
 import React, { memo, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -15,11 +15,18 @@ import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import { RecentlyClosedTabsMenuSection } from "@src/components/RecentlyClosedTabsMenuSection";
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
+import { SessionIdentityIconById } from "@src/engines/ChatPanel/components/SessionIdentityIcon";
 import { useActiveRepoRef } from "@src/hooks/git/useActiveRepoRef";
 import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotals";
+import { Add01Icon, HugeiconsIcon } from "@src/icons";
 import { CODE_EDITOR_TOUR_TARGETS } from "@src/scaffold/Tutorials/codeEditorTourConfig";
+import {
+  recentlyClosedWorkstationTabsAtom,
+  restoreRecentlyClosedWorkstationTabAtom,
+} from "@src/store/workstation";
 
 import {
   LAUNCHPAD_ACTION_IDS,
@@ -47,6 +54,8 @@ const TabBarPlusMenuComponent: React.FC<TabBarPlusMenuProps> = ({
   const { repoId, repoPath } = useActiveRepoRef();
   const { additions, deletions } = useWorkingTreeDiffTotals(repoId, repoPath);
   const [menuVisible, setMenuVisible] = useState(false);
+  const recentlyClosedTabs = useAtomValue(recentlyClosedWorkstationTabsAtom);
+  const restoreTab = useSetAtom(restoreRecentlyClosedWorkstationTabAtom);
 
   // ⌘T (`new_tab`) is exclusively bound to opening this menu. Only one
   // TabBarPlusMenu is mounted at a time per surface, so there is no double-fire.
@@ -72,6 +81,30 @@ const TabBarPlusMenuComponent: React.FC<TabBarPlusMenuProps> = ({
           deletions={deletions}
           onActionComplete={() => setMenuVisible(false)}
         />
+        <RecentlyClosedTabsMenuSection
+          tabs={recentlyClosedTabs.map((tab) => {
+            const sessionId =
+              tab.type === "chat-session" &&
+              typeof tab.data.sessionId === "string"
+                ? tab.data.sessionId
+                : null;
+            return {
+              id: tab.id,
+              title: tab.title,
+              leadingIcon: sessionId ? (
+                <SessionIdentityIconById
+                  sessionId={sessionId}
+                  isSelected={false}
+                />
+              ) : undefined,
+            };
+          })}
+          label={t("workstation.plusMenu.recentlyClosed")}
+          onRestore={(tabId) => {
+            setMenuVisible(false);
+            restoreTab(tabId);
+          }}
+        />
       </div>
     </div>
   );
@@ -95,9 +128,14 @@ const TabBarPlusMenuComponent: React.FC<TabBarPlusMenuProps> = ({
           shortcutId="new_tab"
           tooltipDisabled={menuVisible}
           active={menuVisible}
-          className="flex-shrink-0"
+          className="shrink-0"
         >
-          <Plus size={HEADER_ICON_SIZE.md} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={Add01Icon}
+            data-icon="plus"
+            size={HEADER_ICON_SIZE.md}
+            strokeWidth={2}
+          />
         </TabBarTrailingIconButton>
       </span>
     </Dropdown>

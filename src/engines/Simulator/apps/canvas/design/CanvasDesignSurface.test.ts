@@ -310,7 +310,7 @@ describe("CanvasDesignSurface", () => {
     );
     expect(selectionPill).not.toBeNull();
     expect(
-      selectionPill?.querySelector(".lucide-mouse-pointer-2")
+      selectionPill?.querySelector('[data-icon="mouse-pointer-2"]')
     ).not.toBeNull();
 
     act(() =>
@@ -318,7 +318,7 @@ describe("CanvasDesignSurface", () => {
         new MouseEvent("mouseover", { bubbles: true })
       )
     );
-    expect(selectionPill?.querySelector(".lucide-x")).not.toBeNull();
+    expect(selectionPill?.querySelector('[data-icon="x"]')).not.toBeNull();
 
     act(() => selectionPill?.click());
     expect(
@@ -355,7 +355,6 @@ describe("CanvasDesignSurface", () => {
       window.innerHeight - 650 + 72
     );
     expect(prompt?.style.top).toBe("");
-    expect(testState.inputAreaProps).toMatchObject({ bottomAnchored: true });
   });
 
   it("keeps the compact prompt below the selection when one row fits", () => {
@@ -382,7 +381,6 @@ describe("CanvasDesignSurface", () => {
     expect(prompt?.dataset.placement).toBe("below");
     expect(prompt?.style.top).toBe("272px");
     expect(prompt?.style.bottom).toBe("");
-    expect(testState.inputAreaProps).toMatchObject({ bottomAnchored: false });
   });
 
   it("docks a tall outer element instead of flipping the prompt above the Canvas", () => {

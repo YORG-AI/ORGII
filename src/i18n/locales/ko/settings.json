@@ -66,7 +66,7 @@
       "connections": "연결",
       "git": "Git",
       "databases": "데이터베이스",
-      "housekeeper": "MiniCPM Housekeeper",
+      "housekeeper": "로컬 인텔리전스",
       "externalSkillsets": "Skills, MCPs, Plugins"
     }
   },
@@ -120,7 +120,6 @@
     "checking": "확인 중...",
     "signIn": "로그인",
     "signOut": "로그아웃",
-    "setupWalkthrough": "설정 마법사",
     "profile": "프로필",
     "settingsFile": "설정 JSON 위치",
     "settingsFileSection": "설정 파일",
@@ -129,7 +128,7 @@
     "themePreset": "테마 프리셋",
     "background": "배경",
     "applicationFont": "인터페이스 글꼴",
-    "applicationFontDesc": "앱 UI용 시스템 글꼴 스택입니다. 코드 편집기는 편집기 설정의 고정폭 글꼴을 그대로 사용합니다.",
+    "applicationFontDesc": "앱 UI용 시스템 글꼴 스택입니다. 코드 편집기는 편집기 설정의 고정폭 글꼴을 그대로 사용합니다",
     "applicationFontOptions": {
       "default": "기본(PingFang)",
       "systemUi": "OS와 동일",
@@ -170,7 +169,6 @@
     "sidebarEdgeDepth": "사이드바 경계 깊이",
     "selectedItemTransparency": "선택한 항목 투명도",
     "spotlightPlacement": "Spotlight 위치",
-    "spotlightPlacementDesc": "Spotlight 명령 팔레트가 열릴 위치를 선택합니다",
     "spotlightPlacementOptions": {
       "top": "상단",
       "center": "페이지 중앙"
@@ -230,7 +228,9 @@
     "presenceGuidanceOnlineDefault": "저는 키보드 앞에 있습니다. 언제든 확인 질문을 해도 되고, 파괴적인 작업을 실행하기 전에는 저에게 확인해 주세요",
     "presenceGuidanceInvisibleDefault": "근처에 있지만 오프라인으로 표시 중입니다. 기본적으로 자율적으로 진행하고, 고위험 작업이나 큰 리팩터링일 때만 알려 주세요. 그 외 질문은 하나씩 묻지 말고 한 번에 요약해 주세요",
     "presenceGuidanceAwayDefault": "저는 자리를 비웠습니다. 제 답변을 기다리지 말고 현재 정보로 최선의 결정을 내려 완료할 수 있는 일을 마치고, 돌아왔을 때 볼 수 있도록 결과와 열린 질문을 간단히 남겨 주세요",
-    "followSystem": "시스템 설정 따르기"
+    "followSystem": "시스템 설정 따르기",
+    "login": "로그인",
+    "tabSelfHosted": "자체 호스팅"
   },
   "background": {
     "title": "배경",
@@ -271,7 +271,7 @@
     "failedToDelete": "이미지 삭제 실패",
     "customImagesStorage": "사용자 지정 이미지 저장 위치",
     "adaptiveColors": "툴바 자동 색상 조정",
-    "adaptiveColorsDesc": "배경 밝기에 따라 툴바 텍스트와 버튼 색을 조정합니다.",
+    "adaptiveColorsDesc": "배경 밝기에 따라 툴바 텍스트와 버튼 색을 조정합니다",
     "imageOptimized": "이미지 최적화됨: {{from}} → {{to}}({{savings}}% 감소)",
     "failedToProcess": "이미지 처리 실패: {{detail}}",
     "uploadButton": "업로드",
@@ -398,8 +398,8 @@
     "contextWindowAutoDesc": "모델 이름에서 자동 감지 (예: Claude = 200K, GPT-4o = 128K)",
     "contextWindowCustomTokens": "사용자 지정 Token 한도",
     "compactionModel": "요약 모델",
-    "compactionModelDesc": "요약용 모델 (빈 값 = Agent 메인 모델 사용). 빠른 모델 권장.",
-    "compactionModelDescFallback": "현재 Agent의 기본 모델을 요약에 사용합니다.",
+    "compactionModelDesc": "요약용 모델 (빈 값 = Agent 메인 모델 사용). 빠른 모델 권장",
+    "compactionModelDescFallback": "현재 Agent의 기본 모델을 요약에 사용합니다",
     "compactionModelPlaceholder": "기본 모델 사용",
     "compactionSummaryMaxTokens": "요약 최대 Token",
     "compactionSummaryMaxTokensDesc": "요약 응답의 최대 Token 수",
@@ -567,9 +567,9 @@
     "memorySearchModel": "Embedding 모델",
     "memorySearchModelDesc": "Embedding 모델 이름 오버라이드 (빈 값 = Provider 기본값)",
     "localEmbedderReady": "준비 완료",
-    "localEmbedderReadyDesc": "CodeRankEmbed를 로컬 Embedding에 사용할 수 있습니다 — API key 불필요.",
+    "localEmbedderReadyDesc": "CodeRankEmbed를 로컬 Embedding에 사용할 수 있습니다 — API key 불필요",
     "localEmbedderNotReady": "설정 필요",
-    "localEmbedderNotReadyDesc": "로컬 Embedding 모델이 설정되지 않았습니다. Index  설정에서 구성하세요.",
+    "localEmbedderNotReadyDesc": "로컬 Embedding 모델이 설정되지 않았습니다. Index  설정에서 구성하세요",
     "localEmbedderGoToIndexing": "설정으로",
     "localEmbedderStatus": "로컬 Embedding",
     "desktopPermissionGranted": "허용됨",
@@ -580,7 +580,7 @@
     "desktopRecheckPermissions": "권한 다시 확인",
     "desktopRecheckPermissionsDesc": "시스템 설정에서 권한을 방금 변경했다면 OS에 다시 조회합니다",
     "desktopSafetyDeepLinkLabel": "작업별 안전 토글",
-    "desktopSafetyDeepLinkDesc": "커서 애니메이션, 작업 전 숨김, 클립보드 입력 등 세분화된 하위 게이트는 이를 소유한 에이전트에 있습니다.",
+    "desktopSafetyDeepLinkDesc": "커서 애니메이션, 작업 전 숨김, 클립보드 입력 등 세분화된 하위 게이트는 이를 소유한 에이전트에 있습니다",
     "desktopSafetyDeepLinkAction": "Wingman → Safety 열기",
     "desktopConfig": {
       "title": "Desktop Safety",
@@ -606,13 +606,13 @@
     "skillNoDescription": "설명 없음 — Agent가 이 Skill을 발견하지 못합니다",
     "skillShortDescription": "설명이 너무 짧습니다 — 확장을 고려하세요",
     "desktopUnsupportedPlatformTitle": "데스크톱 제어는 macOS 전용입니다",
-    "desktopUnsupportedPlatformDesc": "마우스, 키보드 및 화면 캡처 도구는 현재 macOS에서만 지원됩니다."
+    "desktopUnsupportedPlatformDesc": "마우스, 키보드 및 화면 캡처 도구는 현재 macOS에서만 지원됩니다"
   },
   "agentTools": {
     "title": "도구 접근",
     "systemPinned": "시스템 역할에 의해 고정됨",
     "systemPinnedShort": "시스템",
-    "poolDesc": "공유 도구 풀. Agent별로 각 도구를 사용 또는 사용 중지합니다.",
+    "poolDesc": "공유 도구 풀. Agent별로 각 도구를 사용 또는 사용 중지합니다",
     "typeColumn": "유형",
     "toolColumn": "도구",
     "descriptionColumn": "설명",
@@ -652,7 +652,7 @@
       "serverColumn": "서버",
       "transportColumn": "전송 방식",
       "noServers": "구성된 MCP 서버 없음",
-      "noServersDesc": "Extensions > MCP에서 서버를 추가하세요.",
+      "noServersDesc": "Extensions > MCP에서 서버를 추가하세요",
       "searchPlaceholder": "서버 검색…",
       "noTools": "이 서버는 아직 도구를 노출하지 않았습니다.",
       "toolsRequireConnection": "먼저 이 서버에 연결하세요 — 연결이 끊긴 상태에서는 도구 목록을 가져올 수 없습니다.",
@@ -670,7 +670,7 @@
       "tokensColumn": "Token",
       "addRule": "규칙 추가",
       "noRules": "Policies를 찾을 수 없음",
-      "noRulesDesc": "Cursor에서 가져오거나 .orgii/rules/*.md 파일을 만드세요."
+      "noRulesDesc": "Cursor에서 가져오거나 .orgii/rules/*.md 파일을 만드세요"
     }
   },
   "notifications": {
@@ -718,16 +718,13 @@
     "quietHours": "방해 금지 일정",
     "quietHoursDesc": "매일 지정한 시간대에는 일반 알림을 끕니다",
     "quietHoursSchedule": "방해 금지 시간",
-    "quietHoursScheduleDesc": "기기의 현지 시간을 사용합니다. 시작과 종료 시간이 같으면 사용되지 않습니다.",
+    "quietHoursScheduleDesc": "기기의 현지 시간을 사용합니다. 시작과 종료 시간이 같으면 사용되지 않습니다",
     "quietHoursStart": "시작",
     "quietHoursEnd": "종료",
     "allowCriticalDuringQuietHours": "중요 알림 허용",
     "allowCriticalDuringQuietHoursDesc": "승인 요청과 실패는 시스템 알림을 표시할 수 있지만 소리는 재생되지 않습니다",
     "backgroundCompletionSummary": "백그라운드 완료 요약",
     "backgroundCompletionSummaryDesc": "방해 금지 시간이 끝나면 하나로 묶어 알립니다",
-    "mutedSessions": "음소거된 Session",
-    "mutedSessionsDesc": "이 기기에서 {{count}}개의 Session이 음소거되었습니다",
-    "clearMutedSessions": "모두 해제",
     "test": {
       "sent": "테스트 알림 발송됨",
       "permissionWarning": "테스트 알림 전송 실패. 권한을 확인하세요.",
@@ -1174,7 +1171,7 @@
   },
   "mcpServers": {
     "noServers": "구성된 MCP 서버가 없습니다",
-    "noServersDesc": "MCP 서버를 추가하여 에이전트의 외부 도구 기능을 확장하세요.",
+    "noServersDesc": "MCP 서버를 추가하여 에이전트의 외부 도구 기능을 확장하세요",
     "addServer": "서버 추가",
     "configureServer": "서버 구성",
     "serverName": "서버 이름",
@@ -1203,7 +1200,7 @@
   "skills": {
     "title": "Agent Skills",
     "noSkills": "Skill을 찾을 수 없습니다",
-    "noSkillsDesc": ".orgii/skills/ 또는 ~/.orgii/skills/에 SKILL.md 파일을 배치하세요.",
+    "noSkillsDesc": ".orgii/skills/ 또는 ~/.orgii/skills/에 SKILL.md 파일을 배치하세요",
     "noDescription": "설명 없음",
     "unavailable": "사용 불가",
     "alwaysLoaded": "매 프롬프트에 포함",
@@ -1228,14 +1225,14 @@
   },
   "agentMemory": {
     "learningsEnabled": "장기 메모리",
-    "learningsEnabledDesc": "통합된 학습을 프롬프트에 로드하고 이 Agent 세션에서 발생한 새 메모리를 저장합니다.",
+    "learningsEnabledDesc": "통합된 학습을 프롬프트에 로드하고 이 Agent 세션에서 발생한 새 메모리를 저장합니다",
     "extractMemoriesEnabled": "세션에서 메모리 추출",
-    "extractMemoriesEnabledDesc": "각 세션 후 기록을 분석하여 Tier-1 메모리 항목을 생성합니다.",
+    "extractMemoriesEnabledDesc": "각 세션 후 기록을 분석하여 Tier-1 메모리 항목을 생성합니다",
     "autoDreamEnabled": "Auto-dream 통합",
-    "autoDreamEnabledDesc": "유휴 시간에 Tier-1 항목을 Tier-2 테마로 주기적으로 통합합니다.",
+    "autoDreamEnabledDesc": "유휴 시간에 Tier-1 항목을 Tier-2 테마로 주기적으로 통합합니다",
     "coreTitle": "메모리 및 진화",
     "learningsTitle": "Learnings",
-    "learningsDesc": "이 에이전트 세션에서 수집된 메모리입니다. 대기 중 항목을 활성으로 승격하면 프롬프트에 주입됩니다.",
+    "learningsDesc": "이 에이전트 세션에서 수집된 메모리입니다. 대기 중 항목을 활성으로 승격하면 프롬프트에 주입됩니다",
     "memoryEvolutionTabLabel": "Memory & Evolution"
   },
   "agentEvolution": {

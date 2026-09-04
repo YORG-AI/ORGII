@@ -18,7 +18,7 @@ import type { SlashItem } from "@src/types/extensions";
 /**
  * Handler interface for keyboard navigation in context menu
  */
-export interface ContextMenuKeyboardHandler {
+interface ContextMenuKeyboardHandler {
   handleKeyDown: (e: KeyboardEvent) => boolean;
 }
 
@@ -70,7 +70,6 @@ export interface UseSessionCreatorReturn {
   includeProjectMode: boolean;
   filteredSlashItems: SlashItem[];
   slashLoading: boolean;
-  prefetchSlashItems: (query: string) => void;
 
   // Event handlers
   handleFileUpload: (e: ChangeEvent<HTMLInputElement>) => void;
@@ -79,7 +78,6 @@ export interface UseSessionCreatorReturn {
   handleContentChange: (text: string) => void;
   handleAtMention: (query: string, position: { x: number; y: number }) => void;
   handleAtMentionClose: () => void;
-  handleAtMentionClick: () => void;
   handleAtSelect: (type: string, value?: string, displayName?: string) => void;
   handleLaunch: () => Promise<boolean>;
   canLaunch: boolean;

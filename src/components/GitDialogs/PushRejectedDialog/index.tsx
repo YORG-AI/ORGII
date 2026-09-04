@@ -26,9 +26,9 @@
 // Types
 // ============================================
 
-export type PushRejectedResult = "pull_push" | "force" | "cancel";
+type PushRejectedResult = "pull_push" | "force" | "cancel";
 
-export interface PushRejectedOptions {
+interface PushRejectedOptions {
   branchName?: string;
   remoteName?: string;
   behindCount?: number;

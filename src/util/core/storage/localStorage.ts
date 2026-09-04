@@ -138,7 +138,7 @@ export function setCached(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
   } catch (error) {
-    log.error(`[localStorageCache] Failed to write ${key}:`, error);
+    log.error(`Failed to write ${key}:`, error);
   }
 }
 
@@ -157,7 +157,7 @@ export function removeCached(key: string): void {
   try {
     localStorage.removeItem(key);
   } catch (error) {
-    log.error(`[localStorageCache] Failed to remove ${key}:`, error);
+    log.error(`Failed to remove ${key}:`, error);
   }
 }
 

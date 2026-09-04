@@ -88,11 +88,6 @@ const TerminalEntry: RendererEntry = {
   debugLabel: "terminal",
 };
 
-const SettingsEntry: RendererEntry = {
-  Component: lazy(() => import("./renderers/settings")),
-  debugLabel: "settings",
-};
-
 const SearchEntry: RendererEntry = {
   Component: lazy(() => import("./renderers/search")),
   requiresRepo: true,
@@ -243,7 +238,6 @@ export const REGISTRY: TabContentRegistry = {
   "terminal-content": TerminalContentEntry,
   "dom-component-preview": DomComponentPreviewEntry,
   terminal: TerminalEntry,
-  settings: SettingsEntry,
   search: SearchEntry,
   "ai-impact": AIImpactEntry,
   "search-sessions": SearchSessionsEntry,

@@ -1,4 +1,5 @@
 const WEB_AUTH_STATE_BYTE_LENGTH = 32;
+type WebAuthRandomBuffer = Uint8Array<ArrayBuffer>;
 
 export const WEB_AUTH_STATE_STORAGE_KEY = "orgii:web-auth-state";
 
@@ -7,7 +8,7 @@ type WebAuthStateStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 interface CreateWebAuthCallbackUrlOptions {
   origin?: string;
   storage?: WebAuthStateStorage;
-  fillRandom?: (buffer: Uint8Array) => Uint8Array;
+  fillRandom?: (buffer: WebAuthRandomBuffer) => WebAuthRandomBuffer;
 }
 
 interface ValidateWebAuthCallbackStateOptions {
@@ -19,11 +20,13 @@ function browserStorage(): WebAuthStateStorage {
   return window.sessionStorage;
 }
 
-function browserRandom(buffer: Uint8Array): Uint8Array {
+function browserRandom(buffer: WebAuthRandomBuffer): WebAuthRandomBuffer {
   return window.crypto.getRandomValues(buffer);
 }
 
-function randomState(fillRandom: (buffer: Uint8Array) => Uint8Array): string {
+function randomState(
+  fillRandom: (buffer: WebAuthRandomBuffer) => WebAuthRandomBuffer
+): string {
   const bytes = fillRandom(new Uint8Array(WEB_AUTH_STATE_BYTE_LENGTH));
   if (bytes.length !== WEB_AUTH_STATE_BYTE_LENGTH) {
     throw new Error("Web auth state generator returned the wrong byte length");

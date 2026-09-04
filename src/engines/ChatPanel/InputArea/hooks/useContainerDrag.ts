@@ -26,9 +26,14 @@ import { useTabDragHover } from "./useTabDragHover";
  * over the chat panel. GlobalDragDrop sets `data-chat-file-dragging="true"` on
  * `document.body` during Tauri native drag events so we observe that attribute
  * via a MutationObserver rather than relying on unavailable HTML5 drag events.
+ *
+ * Exported so every composer shell with `data-chat-drop-target` can swap in
+ * the same React drag highlight during OS file drags. A shell that skips this
+ * shows GlobalDragDrop's scss fallback (hard 1px ring + inset `::after` line)
+ * stacked on its own border — which reads as a double border.
  */
-function useExternalFileDragOver(
-  containerRef: React.RefObject<HTMLDivElement | null>
+export function useExternalFileDragOver(
+  containerRef: React.RefObject<HTMLElement | null>
 ): boolean {
   const [isExternalDragOver, setIsExternalDragOver] = useState(false);
 

@@ -1,4 +1,3 @@
-import { RefreshCw, X } from "lucide-react";
 import {
   Suspense,
   lazy,
@@ -26,6 +25,7 @@ import Select from "@src/components/Select";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
 import { DEBOUNCE_DELAYS, useDebouncedCallback } from "@src/hooks/perf";
 import { useRefreshSpin } from "@src/hooks/ui";
+import { Cancel01Icon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
@@ -440,7 +440,14 @@ export default function SessionUsagePanel() {
           aria-label={t("usage.refresh")}
           title={t("usage.refresh")}
           onClick={handleUsageRefreshClick}
-          icon={<RefreshCw size={14} className={spinClass} />}
+          icon={
+            <HugeiconsIcon
+              icon={Refresh04Icon}
+              data-icon="refresh-cw"
+              size={14}
+              className={spinClass}
+            />
+          }
           data-testid="usage-refresh"
         >
           {t("usage.refresh")}
@@ -459,7 +466,7 @@ export default function SessionUsagePanel() {
         >
           <span className="text-text-3">{t("usage.roundsTable.session")}:</span>
           <span className="max-w-[260px] truncate">{session.name}</span>
-          <X size={12} />
+          <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={12} />
         </button>
       )}
 

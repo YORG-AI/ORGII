@@ -214,7 +214,7 @@ pub async fn cache_load_session_turn_body(
     })
 }
 
-pub(super) async fn load_initial_turn_window_events(
+pub(crate) async fn load_initial_turn_window_events(
     session_id: &str,
     recent_turn_count: Option<usize>,
 ) -> Result<SessionInitialTurnWindow, String> {

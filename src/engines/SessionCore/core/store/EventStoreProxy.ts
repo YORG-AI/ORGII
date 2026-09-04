@@ -24,6 +24,7 @@
 import { rpc } from "@src/api/tauri/rpc";
 import { TURN_WINDOW_RECENT_BODY_COUNT } from "@src/engines/SessionCore/turns/turnWindowConfig";
 import { createLogger } from "@src/hooks/logger";
+import { registerCache } from "@src/util/memory/cacheRegistry";
 
 import type { EventPayloadBody, SessionEvent } from "../types";
 import type {
@@ -577,4 +578,13 @@ class EventStoreProxyImpl {
  * that are fed from snapshot notifications.
  */
 export const eventStoreProxy = new EventStoreProxyImpl();
+
+registerCache({
+  id: "sessionCore.snapshotCache",
+  tier: 1,
+  estimate: () => {
+    const stats = eventStoreProxy.getMemoryStats();
+    return { bytes: stats.bytes, entries: stats.cachedEvents };
+  },
+});
 export type { EventStoreProxyImpl as EventStoreProxy };

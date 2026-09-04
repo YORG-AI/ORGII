@@ -42,11 +42,12 @@ function renderProjectRow(nextProject: Project, onUnlinkSource?: () => void) {
 }
 
 describe("ProjectRow source UI", () => {
-  it("uses the canonical GitHub SVG and exposes unlink for GitHub projects", () => {
+  it("uses the project icon and preserves source actions for GitHub projects", () => {
     const markup = renderProjectRow(project, vi.fn());
 
     expect(markup).toContain('data-project-source-icon="github"');
-    expect(markup).toContain('data-integration-icon="github"');
+    expect(markup).toContain('data-icon="box"');
+    expect(markup).not.toContain('data-integration-icon="github"');
     expect(markup).toContain('data-testid="project-unlink-source-project-1"');
     expect(markup).toContain("GitHub Issues · yorgai/ORGII");
     expect(markup).not.toContain("同步。");
@@ -60,6 +61,7 @@ describe("ProjectRow source UI", () => {
     });
 
     expect(markup).toContain('data-project-source-icon="local"');
+    expect(markup).toContain('data-icon="box"');
     expect(markup).not.toContain('data-integration-icon="github"');
     expect(markup).not.toContain("project-unlink-source-local-project");
   });

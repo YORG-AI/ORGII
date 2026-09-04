@@ -11,12 +11,12 @@
  *   in play, so neither the raw document nor the turn index is held while the
  *   reader is back in the transcript.
  */
-import { Clipboard, RefreshCw } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import Select from "@src/components/Select";
+import { ClipboardIcon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import type { Session } from "@src/store/session";
 
 import { useSessionTurnIndex } from "../../hooks/useSessionTurnIndex";
@@ -31,11 +31,11 @@ import SessionTimelineView from "./SessionTimelineView";
 const RAW_ACTION_ICON_SIZE = 14;
 
 export const SESSION_VIEW_SELECTOR_CLASS =
-  "!gap-1 !px-1 [&_.select-suffix]:!ml-0 [&_.select-value>span:last-child]:hidden " +
-  "@[600px]/sessionview:!gap-2 @[600px]/sessionview:[&_.select-suffix]:!ml-1 " +
+  "gap-1! px-1! [&_.select-suffix]:ml-0! [&_.select-value>span:last-child]:hidden " +
+  "@[600px]/sessionview:gap-2! @[600px]/sessionview:[&_.select-suffix]:ml-1! " +
   "@[600px]/sessionview:[&_.select-value>span:last-child]:inline";
 
-export interface SessionHeaderViewControlsProps {
+interface SessionHeaderViewControlsProps {
   session: Session | null | undefined;
   sessionId: string;
   fallbackName: string;
@@ -66,7 +66,7 @@ export const SessionHeaderViewControls: React.FC<SessionHeaderViewControlsProps>
         typeof selectedLabel === "string" ? selectedLabel : undefined;
 
       return (
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 @container/sessionview">
+        <div className="@container/sessionview flex min-w-0 flex-1 items-center gap-1.5">
           <SessionHeaderBreadcrumb
             session={session}
             sessionId={sessionId}
@@ -103,7 +103,7 @@ export const SessionHeaderViewControls: React.FC<SessionHeaderViewControlsProps>
 
 SessionHeaderViewControls.displayName = "SessionHeaderViewControls";
 
-export interface SessionRawToolbarActionsProps {
+interface SessionRawToolbarActionsProps {
   view: UseSessionViewModeResult;
   /** Test id prefix so each host keeps distinguishable selectors. */
   testIdPrefix: string;
@@ -123,7 +123,14 @@ export const SessionRawToolbarActions: React.FC<SessionRawToolbarActionsProps> =
         <Button
           size="small"
           variant="tertiary"
-          icon={<RefreshCw size={RAW_ACTION_ICON_SIZE} strokeWidth={2} />}
+          icon={
+            <HugeiconsIcon
+              icon={Refresh04Icon}
+              data-icon="refresh-cw"
+              size={RAW_ACTION_ICON_SIZE}
+              strokeWidth={2}
+            />
+          }
           iconOnly
           loading={transcript.loading}
           aria-label={refreshLabel}
@@ -134,7 +141,14 @@ export const SessionRawToolbarActions: React.FC<SessionRawToolbarActionsProps> =
         <Button
           size="small"
           variant="tertiary"
-          icon={<Clipboard size={RAW_ACTION_ICON_SIZE} strokeWidth={2} />}
+          icon={
+            <HugeiconsIcon
+              icon={ClipboardIcon}
+              data-icon="clipboard"
+              size={RAW_ACTION_ICON_SIZE}
+              strokeWidth={2}
+            />
+          }
           iconOnly
           disabled={!transcript.snapshot || transcript.loading}
           aria-label={copyLabel}
@@ -148,7 +162,7 @@ export const SessionRawToolbarActions: React.FC<SessionRawToolbarActionsProps> =
 
 SessionRawToolbarActions.displayName = "SessionRawToolbarActions";
 
-export interface SessionAlternateSurfaceProps {
+interface SessionAlternateSurfaceProps {
   sessionId: string | null;
   view: UseSessionViewModeResult;
   /** Space reserved for host chrome that overlays the view. */

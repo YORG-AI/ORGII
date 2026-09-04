@@ -18,7 +18,7 @@ import {
 import type { KanbanTask, TaskStatus } from "@src/features/KanbanBoard";
 import { useCurrentUserMemberIds } from "@src/hooks/project";
 import type { LinearProjectSelection } from "@src/modules/ProjectManager/Panels/ProjectManagerSidebar/content/WorkspaceTreeContent";
-import { toWorkItemPartialUpdate } from "@src/modules/ProjectManager/WorkItems/workItemPartialUpdate";
+import { applyWorkItemUpdate } from "@src/modules/ProjectManager/WorkItems/workItemSource";
 import {
   WORK_ITEMS_KANBAN_GROUP,
   type WorkItemsKanbanGroup,
@@ -36,6 +36,7 @@ import type {
   AggregatedWorkItem,
   ProjectWorkItemSelection,
 } from "./ProjectWorkItemsTabContentTypes";
+import { toProjectWorkItemSelection } from "./projectWorkItemSelection";
 
 interface UseProjectWorkItemsTabContentInteractionsParams {
   workItems: WorkspaceWorkItem[];
@@ -146,15 +147,7 @@ export function useProjectWorkItemsTabContentInteractions({
         });
         return;
       }
-      onOpenWorkItem({
-        workItem: workItem.item,
-        shortId: workItem.shortId,
-        orgId: workItem.orgId,
-        orgName: workItem.orgName,
-        projectId: workItem.project?.meta.id,
-        projectName: workItem.project?.meta.name,
-        projectSlug: workItem.project?.slug,
-      });
+      onOpenWorkItem(toProjectWorkItemSelection(workItem));
     },
     [workItemById, onOpenLinearProject, onOpenWorkItem]
   );
@@ -204,14 +197,13 @@ export function useProjectWorkItemsTabContentInteractions({
         return;
       }
 
-      const payload = toWorkItemPartialUpdate(updates, currentUser);
-      if (Object.keys(payload).length === 0) return;
-
-      const updated = await projectApi.updateWorkItemPartial(
+      const updated = await applyWorkItemUpdate(
         entry.project.slug,
         entry.item.session_id,
-        payload
+        updates,
+        currentUser
       );
+      if (!updated) return;
       const updatedItem = {
         ...enrichedWorkItemToUI(updated),
         project: entry.item.project,

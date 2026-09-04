@@ -20,13 +20,18 @@ export interface DetailPanelContainerProps {
   /** Optional stable test id for E2E specs to assert which detail view is mounted. */
   testId?: string;
   rootProps?: React.HTMLAttributes<HTMLDivElement>;
+  dataAttributes?: Record<
+    `data-${string}`,
+    boolean | number | string | undefined
+  >;
 }
 
 const DetailPanelContainer: React.FC<DetailPanelContainerProps> = memo(
-  ({ children, className = "", testId, rootProps }) => (
+  ({ children, className = "", testId, rootProps, dataAttributes }) => (
     <div
       {...rootProps}
-      className={`flex h-full min-w-0 flex-col overflow-hidden @container ${className}`}
+      {...dataAttributes}
+      className={`@container flex h-full min-w-0 flex-col overflow-hidden ${className}`}
       data-testid={testId}
     >
       <NarrowPlaceholder className="flex-1 @[300px]:hidden" />

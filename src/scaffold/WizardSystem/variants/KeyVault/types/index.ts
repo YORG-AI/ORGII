@@ -33,7 +33,7 @@ export interface ModelAlias {
   icon?: string;
 }
 
-export interface ModelVariant {
+interface ModelVariant {
   model: string;
   baseModel: string;
   reasoning?: string;

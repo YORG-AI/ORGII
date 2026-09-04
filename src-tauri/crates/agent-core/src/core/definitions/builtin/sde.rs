@@ -114,7 +114,7 @@ pub fn sde_agent() -> AgentDefinition {
         selected_account_id: None,
         selected_model_id: None,
 
-        icon_id: Some("code".to_string()),
+        icon_id: Some("ai-programming".to_string()),
 
         animate: None,
         execution_mode: None,
@@ -134,6 +134,15 @@ pub fn sde_agent() -> AgentDefinition {
 mod tests {
     use super::*;
     use crate::tools::names as tool_names;
+
+    #[test]
+    fn sde_agent_uses_the_programming_icon() {
+        assert_eq!(
+            sde_agent().icon_id.as_deref(),
+            Some("ai-programming"),
+            "SDE Agent must keep its coding-specific icon identity"
+        );
+    }
 
     #[test]
     fn sde_agent_excludes_desktop_tools_by_default() {

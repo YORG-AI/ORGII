@@ -23,7 +23,6 @@
  * ordinary replies with a tiny agent affix, and a thread whose round is live
  * shows one minimal "Agent is addressing…" line.
  */
-import { AtSign, Bot, Check, Loader2, Pencil, Trash2 } from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -37,6 +36,15 @@ import {
 } from "@src/components/Dropdown/tokens";
 import Message from "@src/components/Message";
 import Tooltip from "@src/components/Tooltip";
+import {
+  AtIcon,
+  BotIcon,
+  Delete02Icon,
+  HugeiconsIcon,
+  Loading03Icon,
+  PencilEdit01Icon,
+  Tick01Icon,
+} from "@src/icons";
 import { MarkdownContent } from "@src/modules/shared/components/MarkdownContent";
 import MarkdownTextareaEditor, {
   type MarkdownEditorMode,
@@ -91,7 +99,7 @@ const MemberMentionChip: React.FC<
   ResolvedMention & { dataTestId?: string }
 > = ({ name, dataTestId }) => (
   <span
-    className="max-w-[160px] truncate rounded-full border border-primary-3 bg-primary-1 px-1.5 py-0.5 text-[10px] font-medium leading-none text-primary-7"
+    className="max-w-[160px] truncate rounded-full border border-primary-3 bg-primary-1 px-1.5 py-0.5 text-[10px] leading-none font-medium text-primary-7"
     data-testid={dataTestId}
   >
     @{name}
@@ -245,7 +253,14 @@ const CommentComposer: React.FC<ComposerProps> = ({
             variant="tertiary"
             size="small"
             shape="round"
-            icon={<AtSign size={12} strokeWidth={2} />}
+            icon={
+              <HugeiconsIcon
+                icon={AtIcon}
+                data-icon="at-sign"
+                size={12}
+                strokeWidth={2}
+              />
+            }
             className={
               mentionDropdownOpen ? PILL_CONTROL_ACTIVE_ACCENT_CLASS : ""
             }
@@ -333,7 +348,7 @@ const CommentComposer: React.FC<ComposerProps> = ({
         {showAgentSuggestion ? (
           <button
             type="button"
-            className="flex items-center gap-1.5 rounded-md border border-border-2 bg-bg-1 px-2 py-1.5 text-left text-[11px] text-text-2 transition-colors hover:bg-fill-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+            className="flex items-center gap-1.5 rounded-md border border-border-2 bg-bg-1 px-2 py-1.5 text-left text-[11px] text-text-2 transition-colors hover:bg-fill-1 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none"
             data-testid="session-comment-agent-suggestion"
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => {
@@ -341,7 +356,13 @@ const CommentComposer: React.FC<ComposerProps> = ({
               editorRef.current?.focus();
             }}
           >
-            <Bot size={12} strokeWidth={2} className="text-primary-6" />
+            <HugeiconsIcon
+              icon={BotIcon}
+              data-icon="bot"
+              size={12}
+              strokeWidth={2}
+              className="text-primary-6"
+            />
             <span className="font-medium">@agent</span>
             <span className="text-text-3">
               {t("cloud.comments.task.mentionSuggestion")}
@@ -440,7 +461,13 @@ const CommentRow: React.FC<CommentRowProps> = ({
             className="inline-flex max-w-[180px] items-center gap-1 truncate font-medium text-text-2"
             data-testid="comment-agent-affix"
           >
-            <Bot size={11} strokeWidth={2} className="shrink-0 text-text-3" />
+            <HugeiconsIcon
+              icon={BotIcon}
+              data-icon="bot"
+              size={11}
+              strokeWidth={2}
+              className="shrink-0 text-text-3"
+            />
             {t("cloud.comments.agentAuthor", {
               name: comment.authorDisplayName ?? comment.authorUserId,
             })}
@@ -463,7 +490,12 @@ const CommentRow: React.FC<CommentRowProps> = ({
             className="inline-flex items-center gap-0.5 text-success-6"
             data-testid="session-comment-resolved-marker"
           >
-            <Check size={10} strokeWidth={2.5} />
+            <HugeiconsIcon
+              icon={Tick01Icon}
+              data-icon="check"
+              size={10}
+              strokeWidth={2.5}
+            />
             {t("cloud.comments.resolved")}
           </span>
         )}
@@ -488,7 +520,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
                   disabled={anyBusy}
                   aria-pressed={status === currentStatus}
                   data-testid={`session-comment-status-${status}`}
-                  className={`px-1.5 py-0.5 text-[10px] leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-6/30 ${
+                  className={`px-1.5 py-0.5 text-[10px] leading-none transition-colors focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none focus-visible:ring-inset ${
                     status === currentStatus
                       ? "bg-fill-2 font-medium text-text-1"
                       : "text-text-3 hover:bg-fill-1 hover:text-text-1"
@@ -516,7 +548,14 @@ const CommentRow: React.FC<CommentRowProps> = ({
                 disabled={anyBusy}
                 aria-label={t("cloud.comments.edit")}
                 data-testid="session-comment-edit"
-                icon={<Pencil size={12} strokeWidth={2} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={PencilEdit01Icon}
+                    data-icon="pencil"
+                    size={12}
+                    strokeWidth={2}
+                  />
+                }
                 onClick={() => {
                   setEditBody(comment.body);
                   setEditMode("write");
@@ -535,7 +574,14 @@ const CommentRow: React.FC<CommentRowProps> = ({
                 disabled={anyBusy}
                 aria-label={t("cloud.comments.delete")}
                 data-testid="session-comment-delete"
-                icon={<Trash2 size={12} strokeWidth={2} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Delete02Icon}
+                    data-icon="trash-2"
+                    size={12}
+                    strokeWidth={2}
+                  />
+                }
                 onClick={() =>
                   void run(
                     () => onDelete(comment.id),
@@ -602,7 +648,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
           />
         </ComposerSurface>
       ) : isTombstone ? (
-        <div className="text-[12px] italic text-text-3">
+        <div className="text-[12px] text-text-3 italic">
           {t("cloud.comments.deletedComment")}
         </div>
       ) : (
@@ -620,18 +666,24 @@ const CommentRow: React.FC<CommentRowProps> = ({
           ) : null}
           {agentMention ? (
             <span
-              className="inline-flex w-fit items-center gap-1 rounded-full border border-primary-3 bg-primary-1 px-1.5 py-0.5 text-[10px] font-medium leading-none text-primary-7"
+              className="inline-flex w-fit items-center gap-1 rounded-full border border-primary-3 bg-primary-1 px-1.5 py-0.5 text-[10px] leading-none font-medium text-primary-7"
               data-testid="comment-agent-mention-pill"
               aria-label={agentMention.mention}
             >
-              <Bot size={10} strokeWidth={2.25} aria-hidden="true" />
+              <HugeiconsIcon
+                icon={BotIcon}
+                data-icon="bot"
+                size={10}
+                strokeWidth={2.25}
+                aria-hidden="true"
+              />
               {agentMention.mention}
             </span>
           ) : null}
           <MarkdownContent
             body={agentMention?.brief ?? comment.body}
             clamped={false}
-            className="break-words text-[12px]"
+            className="text-[12px] break-words"
           />
         </>
       )}
@@ -702,7 +754,13 @@ const ThreadBlock: React.FC<ThreadBlockProps> = ({
           data-testid="comment-thread-agent-status"
           data-run-state="active"
         >
-          <Loader2 size={12} strokeWidth={2} className="animate-spin" />
+          <HugeiconsIcon
+            icon={Loading03Icon}
+            data-icon="loader-2"
+            size={12}
+            strokeWidth={2}
+            className="animate-spin"
+          />
           {t("cloud.comments.agentAddressing")}
         </div>
       )}

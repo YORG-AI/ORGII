@@ -204,7 +204,7 @@ export const ProjectOrgHubContent: React.FC<ProjectOrgHubContentProps> = ({
         />
       )}
       {renderSurfaceControlsInline ? (
-        <div className="shrink-0 px-4 pb-4 pt-2">
+        <div className="shrink-0 px-4 pt-2 pb-4">
           {inlineOrgSurfaceControls}
         </div>
       ) : null}

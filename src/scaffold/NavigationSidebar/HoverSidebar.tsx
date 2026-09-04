@@ -33,7 +33,7 @@ const HOVER_SIDEBAR_WIDTH = DEFAULT_SIDEBAR_WIDTH; // Width of the hover sidebar
  * Invisible trigger zone on the left edge of the screen
  * Shows sidebar when user hovers over it
  */
-export const HoverSidebarTrigger: React.FC = () => {
+const HoverSidebarTrigger: React.FC = () => {
   const location = useLocation();
   const isSidebarCollapsed = useAtomValue(sidebarCollapsedAtom);
   const setIsHoverSidebarOpen = useSetAtom(hoverSidebarOpenAtom);
@@ -69,7 +69,7 @@ export const HoverSidebarTrigger: React.FC = () => {
 
   return (
     <div
-      className="fixed left-0 top-0 z-[9999] h-full"
+      className="fixed top-0 left-0 z-9999 h-full"
       style={{ width: `${HOVER_TRIGGER_WIDTH}px` }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -89,7 +89,7 @@ interface HoverSidebarContainerProps {
  * Container that wraps the actual sidebar content when in hover mode
  * Acts as a positioned wrapper - the sidebar content handles its own styling
  */
-export const HoverSidebarContainer: React.FC<HoverSidebarContainerProps> = ({
+const HoverSidebarContainer: React.FC<HoverSidebarContainerProps> = ({
   children,
 }) => {
   const isSidebarCollapsed = useAtomValue(sidebarCollapsedAtom);
@@ -148,7 +148,7 @@ export const HoverSidebarContainer: React.FC<HoverSidebarContainerProps> = ({
   return (
     <div
       ref={containerRef}
-      className="animate-in slide-in-from-left fixed left-0 top-0 z-[9998] h-full shadow-2xl duration-150"
+      className="animate-in slide-in-from-left fixed top-0 left-0 z-9998 h-full shadow-2xl duration-150"
       style={{
         width: `${HOVER_SIDEBAR_WIDTH}px`,
       }}

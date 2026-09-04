@@ -1,9 +1,13 @@
 import { useAtomValue } from "jotai";
-import { ArrowDownToDot, ArrowUpFromDot } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ToolUsageMetadata } from "@src/engines/SessionCore/core/types";
+import {
+  ArrowDownToDotIcon,
+  ArrowUpFromDotIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import { chatTokenUsageVisibleAtom } from "@src/store/ui/chatPanelAtom";
 
 interface UsagePairBadgeProps {
@@ -39,7 +43,12 @@ export const UsagePairBadge: React.FC<UsagePairBadgeProps> = ({
     >
       {inputTokens > 0 && (
         <span className="inline-flex items-center gap-0.5">
-          <ArrowUpFromDot size={11} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={ArrowUpFromDotIcon}
+            data-icon="arrow-up-from-dot"
+            size={11}
+            strokeWidth={2}
+          />
           {formatToolUsageTokenCount(inputTokens)}
         </span>
       )}
@@ -48,7 +57,12 @@ export const UsagePairBadge: React.FC<UsagePairBadgeProps> = ({
       )}
       {outputTokens > 0 && (
         <span className="inline-flex items-center gap-0.5">
-          <ArrowDownToDot size={11} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={ArrowDownToDotIcon}
+            data-icon="arrow-down-to-dot"
+            size={11}
+            strokeWidth={2}
+          />
           {formatToolUsageTokenCount(outputTokens)}
         </span>
       )}

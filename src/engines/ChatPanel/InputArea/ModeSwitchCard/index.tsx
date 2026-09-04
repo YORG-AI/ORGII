@@ -10,53 +10,31 @@
  * actionable state.
  */
 import { useAtomValue } from "jotai";
+import { selectAtom } from "jotai/utils";
 import { useCallback, useEffect, useState } from "react";
 
 import { eventsAtom } from "@src/engines/SessionCore/core/atoms";
-import { stripMcpPrefix } from "@src/engines/SessionCore/core/interactiveTools";
 import { createLogger } from "@src/hooks/logger";
 
 import { ModeSwitchCardBody } from "./ModeSwitchCardBody";
+import {
+  extractPendingModeSwitch,
+  pendingModeSwitchEqual,
+} from "./pendingModeSwitch";
 import { isResolved, skipMode, switchMode } from "./useModeSwitchActions";
 
 const log = createLogger("ModeSwitchInputCard");
 
-// ============================================
-// Hook
-// ============================================
+const pendingModeSwitchAtom = selectAtom(
+  eventsAtom,
+  extractPendingModeSwitch,
+  pendingModeSwitchEqual
+);
 
-interface PendingModeSwitch {
-  eventId: string;
-  targetMode: string;
-  reason: string;
-  createdAt?: string;
-}
-
-function useModeSwitchPending(): PendingModeSwitch | null {
-  const events = useAtomValue(eventsAtom);
-
-  for (let idx = events.length - 1; idx >= 0; idx--) {
-    const event = events[idx];
-    if (stripMcpPrefix(event.functionName ?? "") !== "suggest_mode_switch")
-      continue;
-    if (event.activityStatus === "processed") continue;
-    const eventId = event.id ?? "";
-    if (isResolved(eventId)) continue;
-
-    return {
-      eventId,
-      targetMode:
-        (event.args.target_mode as string | undefined) ??
-        (event.args.targetModeId as string | undefined) ??
-        "plan",
-      reason:
-        (event.args.reason as string | undefined) ??
-        (event.args.explanation as string | undefined) ??
-        "",
-      createdAt: event.createdAt,
-    };
-  }
-  return null;
+function useModeSwitchPending() {
+  const pending = useAtomValue(pendingModeSwitchAtom);
+  if (pending && isResolved(pending.eventId)) return null;
+  return pending;
 }
 
 // ============================================

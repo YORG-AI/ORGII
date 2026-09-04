@@ -103,35 +103,6 @@ pub async fn browser_automation_stop(
     Ok(())
 }
 
-/// Get the current status of the browser automation system.
-#[tauri::command]
-pub async fn browser_automation_status(
-    agent_browser: State<'_, Arc<Mutex<AgentBrowserController>>>,
-) -> Result<BrowserAutomationStatus, String> {
-    let controller = agent_browser.lock().await;
-
-    let current_url = if controller.is_running() {
-        controller
-            .request("GET", "/", None)
-            .await
-            .ok()
-            .and_then(|val| {
-                val.get("url")
-                    .and_then(|url| url.as_str())
-                    .map(|url| url.to_string())
-            })
-    } else {
-        None
-    };
-
-    Ok(BrowserAutomationStatus {
-        running: controller.is_running(),
-        paused: controller.is_paused(),
-        port: controller.port(),
-        current_url,
-    })
-}
-
 /// Pause agent automation and bring Chrome to the foreground for user takeover.
 ///
 /// Flow:

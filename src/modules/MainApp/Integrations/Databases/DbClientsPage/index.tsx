@@ -5,12 +5,12 @@
  * Embedded inside the Databases integrations section.
  * Row selection opens a preview panel when embedded.
  */
-import { RefreshCw } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { useRefreshSpin } from "@src/hooks/ui";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import {
   type DependencyStatus,
   useSystemDependencies,
@@ -72,7 +72,9 @@ const DbClientsPage: React.FC<DbClientsPageProps> = ({
             onClick={handleRefreshClick}
             disabled={isRefreshing}
             icon={
-              <RefreshCw
+              <HugeiconsIcon
+                icon={Refresh04Icon}
+                data-icon="refresh-cw"
                 size={PANEL_HEADER_TOKENS.buttonIconSize}
                 strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
                 className={refreshSpinClass}

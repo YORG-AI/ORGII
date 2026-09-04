@@ -1,15 +1,3 @@
-import {
-  Bold,
-  Code,
-  Heading2,
-  Italic,
-  Link as LinkIcon,
-  List,
-  ListChecks,
-  ListOrdered,
-  Quote,
-  Strikethrough,
-} from "lucide-react";
 import React, {
   forwardRef,
   useCallback,
@@ -24,6 +12,19 @@ import type { PillIconType } from "@src/components/ComposerInput/types";
 import { serializePillNode } from "@src/components/ComposerInput/utils";
 import "@src/components/MarkdownFormattingToolbar/index.scss";
 import Textarea from "@src/components/Textarea";
+import {
+  CodeXmlIcon,
+  Heading02Icon,
+  HugeiconsIcon,
+  LeftToRightListNumberIcon,
+  Link01Icon,
+  ListChecksIcon,
+  ListIcon,
+  QuoteIcon,
+  TextBoldIcon,
+  TextItalicIcon,
+  TextStrikethroughIcon,
+} from "@src/icons";
 import { MarkdownContent } from "@src/modules/shared/components/MarkdownContent";
 
 import MarkdownEditorModeSwitch, {
@@ -38,13 +39,10 @@ import {
 } from "./formatting";
 
 export { default as MarkdownEditorModeSwitch } from "./ModeSwitch";
-export type {
-  MarkdownEditorMode,
-  MarkdownEditorModeSwitchProps,
-} from "./ModeSwitch";
+export type { MarkdownEditorMode } from "./ModeSwitch";
 
 const TOOLBAR_ICON_SIZE = 14;
-const COMPACT_TOOLBAR_CLASS = "!min-h-0 !border-b-0 !pb-0.5 [&_svg]:size-3.5";
+const COMPACT_TOOLBAR_CLASS = "min-h-0! border-b-0! pb-0.5! [&_svg]:size-3.5";
 const DROPDOWN_KEYS = ["ArrowUp", "ArrowDown", "Enter", "Tab", "Escape"];
 
 type InlineTrigger = {
@@ -53,7 +51,7 @@ type InlineTrigger = {
   hasTriggerCharacter: boolean;
 };
 
-export interface MarkdownTextareaInsertOptions {
+interface MarkdownTextareaInsertOptions {
   separateFromAdjacentText?: boolean;
   clientX?: number;
   clientY?: number;
@@ -75,14 +73,20 @@ export interface MarkdownTextareaEditorRef {
     displayName?: string
   ) => void;
   triggerAtMention: () => void;
-  triggerSlashContext: () => void;
+  consumeMentionQuery: () => void;
 }
 
-export interface MarkdownTextareaEditorProps {
+interface MarkdownTextareaEditorProps {
   value: string;
   onChange: (markdown: string, plainText: string) => void;
   placeholder?: string;
   minHeight?: number | string;
+  /**
+   * Rows the autosize floor reserves. The floor is applied as an explicit
+   * height, so it wins over `minHeight` whenever it is taller — a composer
+   * that wants `minHeight` to govern passes a smaller value.
+   */
+  minRows?: number;
   maxHeight?: number | string;
   maxLength?: number;
   disabled?: boolean;
@@ -154,6 +158,7 @@ const MarkdownTextareaEditor = forwardRef<
     onChange,
     placeholder,
     minHeight = 72,
+    minRows = 3,
     maxHeight = 240,
     maxLength,
     disabled = false,
@@ -212,6 +217,18 @@ const MarkdownTextareaEditor = forwardRef<
     if (trigger?.kind === "slash") onSlashCommandClose?.();
   }, [onAtMentionClose, onSlashCommandClose]);
 
+  const setInlineTrigger = useCallback(
+    (nextTrigger: InlineTrigger) => {
+      const previousTrigger = inlineTriggerRef.current;
+      if (previousTrigger && previousTrigger.kind !== nextTrigger.kind) {
+        if (previousTrigger.kind === "mention") onAtMentionClose?.();
+        if (previousTrigger.kind === "slash") onSlashCommandClose?.();
+      }
+      inlineTriggerRef.current = nextTrigger;
+    },
+    [onAtMentionClose, onSlashCommandClose]
+  );
+
   const insertEdit = useCallback(
     (edit: MarkdownTextareaEdit) => {
       if (!emitChange(edit.value)) return;
@@ -267,7 +284,7 @@ const MarkdownTextareaEditor = forwardRef<
       if (activeMode === "preview") setMode("write");
       const textarea = textareaRef.current;
       const start = textarea?.selectionEnd ?? valueRef.current.length;
-      inlineTriggerRef.current = { kind, start, hasTriggerCharacter };
+      setInlineTrigger({ kind, start, hasTriggerCharacter });
       if (kind === "mention") {
         onAtMention?.("", textarea ? cursorPosition(textarea) : { x: 0, y: 0 });
       } else {
@@ -275,7 +292,14 @@ const MarkdownTextareaEditor = forwardRef<
       }
       textarea?.focus();
     },
-    [activeMode, canWrite, onAtMention, onSlashCommand, setMode]
+    [
+      activeMode,
+      canWrite,
+      onAtMention,
+      onSlashCommand,
+      setInlineTrigger,
+      setMode,
+    ]
   );
 
   useImperativeHandle(
@@ -331,7 +355,20 @@ const MarkdownTextareaEditor = forwardRef<
         );
       },
       triggerAtMention: () => openInlineTrigger("mention"),
-      triggerSlashContext: () => openInlineTrigger("slash"),
+      consumeMentionQuery: () => {
+        const trigger = inlineTriggerRef.current;
+        if (!trigger || trigger.kind !== "mention") return;
+        const textarea = textareaRef.current;
+        const cursor = textarea?.selectionEnd ?? valueRef.current.length;
+        const from = trigger.hasTriggerCharacter
+          ? Math.max(0, trigger.start - 1)
+          : trigger.start;
+        insertEdit({
+          value: `${valueRef.current.slice(0, from)}${valueRef.current.slice(cursor)}`,
+          selectionStart: from,
+          selectionEnd: from,
+        });
+      },
     }),
     [emitChange, focus, insertEdit, insertText, openInlineTrigger]
   );
@@ -408,58 +445,118 @@ const MarkdownTextareaEditor = forwardRef<
     {
       format: "heading",
       label: t("creator.toolbar.heading2"),
-      icon: <Heading2 size={TOOLBAR_ICON_SIZE} />,
+      icon: (
+        <HugeiconsIcon
+          icon={Heading02Icon}
+          data-icon="heading-2"
+          size={TOOLBAR_ICON_SIZE}
+        />
+      ),
     },
     {
       format: "bold",
       label: t("creator.toolbar.bold"),
-      icon: <Bold size={TOOLBAR_ICON_SIZE} />,
+      icon: (
+        <HugeiconsIcon
+          icon={TextBoldIcon}
+          data-icon="bold"
+          size={TOOLBAR_ICON_SIZE}
+        />
+      ),
     },
     {
       format: "italic",
       label: t("creator.toolbar.italic"),
-      icon: <Italic size={TOOLBAR_ICON_SIZE} />,
+      icon: (
+        <HugeiconsIcon
+          icon={TextItalicIcon}
+          data-icon="italic"
+          size={TOOLBAR_ICON_SIZE}
+        />
+      ),
     },
     {
       format: "strikethrough",
       label: t("creator.toolbar.strikethrough"),
-      icon: <Strikethrough size={TOOLBAR_ICON_SIZE} />,
+      icon: (
+        <HugeiconsIcon
+          icon={TextStrikethroughIcon}
+          data-icon="strikethrough"
+          size={TOOLBAR_ICON_SIZE}
+        />
+      ),
     },
     {
       format: "inlineCode",
       label: t("creator.toolbar.inlineCode"),
-      icon: <Code size={TOOLBAR_ICON_SIZE} />,
+      icon: (
+        <HugeiconsIcon
+          icon={CodeXmlIcon}
+          data-icon="code"
+          size={TOOLBAR_ICON_SIZE}
+        />
+      ),
     },
     {
       format: "link",
       label: t("creator.toolbar.link"),
-      icon: <LinkIcon size={TOOLBAR_ICON_SIZE} />,
+      icon: (
+        <HugeiconsIcon
+          icon={Link01Icon}
+          data-icon="link-icon"
+          size={TOOLBAR_ICON_SIZE}
+        />
+      ),
     },
     {
       format: "quote",
       label: t("creator.toolbar.quote"),
-      icon: <Quote size={TOOLBAR_ICON_SIZE} />,
+      icon: (
+        <HugeiconsIcon
+          icon={QuoteIcon}
+          data-icon="quote"
+          size={TOOLBAR_ICON_SIZE}
+        />
+      ),
     },
     {
       format: "bulletList",
       label: t("creator.toolbar.bulletList"),
-      icon: <List size={TOOLBAR_ICON_SIZE} />,
+      icon: (
+        <HugeiconsIcon
+          icon={ListIcon}
+          data-icon="list"
+          size={TOOLBAR_ICON_SIZE}
+        />
+      ),
     },
     {
       format: "numberedList",
       label: t("creator.toolbar.numberedList"),
-      icon: <ListOrdered size={TOOLBAR_ICON_SIZE} />,
+      icon: (
+        <HugeiconsIcon
+          icon={LeftToRightListNumberIcon}
+          data-icon="list-ordered"
+          size={TOOLBAR_ICON_SIZE}
+        />
+      ),
     },
     {
       format: "taskList",
       label: t("creator.toolbar.taskList"),
-      icon: <ListChecks size={TOOLBAR_ICON_SIZE} />,
+      icon: (
+        <HugeiconsIcon
+          icon={ListChecksIcon}
+          data-icon="list-checks"
+          size={TOOLBAR_ICON_SIZE}
+        />
+      ),
     },
   ];
 
   const surfaceClassName =
     appearance === "outlined"
-      ? "rounded-md border border-border-2 bg-primary-container"
+      ? "composer-surface-shadow relative rounded-md border border-border-2 bg-primary-container"
       : "";
 
   return (
@@ -502,8 +599,8 @@ const MarkdownTextareaEditor = forwardRef<
             placeholder={placeholder}
             size="small"
             appearance="bare"
-            autoSize={{ minRows: 3, maxRows: 10 }}
-            rows={3}
+            autoSize={{ minRows, maxRows: 10 }}
+            rows={minRows}
             maxLength={maxLength}
             disabled={!canWrite}
             autoFocus={autoFocus}
@@ -552,11 +649,11 @@ const MarkdownTextareaEditor = forwardRef<
                 return;
               }
               if (event.key === "@" && onAtMention) {
-                inlineTriggerRef.current = {
+                setInlineTrigger({
                   kind: "mention",
                   start: event.currentTarget.selectionStart + 1,
                   hasTriggerCharacter: true,
-                };
+                });
                 onAtMention("", cursorPosition(event.currentTarget));
               } else if (
                 event.key === "/" &&
@@ -566,11 +663,11 @@ const MarkdownTextareaEditor = forwardRef<
                     value.charAt(event.currentTarget.selectionStart - 1)
                   ))
               ) {
-                inlineTriggerRef.current = {
+                setInlineTrigger({
                   kind: "slash",
                   start: event.currentTarget.selectionStart + 1,
                   hasTriggerCharacter: true,
-                };
+                });
                 onSlashCommand("");
               }
               if (!(event.metaKey || event.ctrlKey)) return;

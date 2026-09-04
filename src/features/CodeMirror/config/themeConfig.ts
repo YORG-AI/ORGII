@@ -24,10 +24,37 @@ export const CODE_LINE_HEIGHT = "var(--cm-line-height)";
 // ============================================
 
 /**
+ * Both theme factories below return a cached singleton rather than a fresh
+ * extension per call.
+ *
+ * `createGithubTheme()` builds an `EditorView.theme` plus a `HighlightStyle`,
+ * i.e. two style-mod `StyleModule`s. style-mod mounts a module's rules into
+ * the document and never removes them again — its own docs say to "treat them
+ * as one-time allocations". `@uiw/react-codemirror` reconfigures whenever the
+ * `theme` extension's identity changes, and `Editor/index.tsx` calls this from
+ * its render body, so before this cache every render mounted a fresh set of
+ * CSS rules that outlived the editor.
+ *
+ * A single instance stays correct across app-theme swaps: every color in these
+ * themes is a `var(--…)` reference resolved at paint time (see
+ * `themes/github.ts`), so the JS objects hold no palette of their own.
+ *
+ * Cached lazily so the module stays free of declaration-order constraints —
+ * the theme constants these read are declared further down this file.
+ */
+let cachedCodeMirrorTheme: Extension | null = null;
+
+/**
  * Get the app-theme-backed CodeMirror theme.
  */
 export function getCodeMirrorTheme(): Extension {
-  return [createGithubTheme(), CODEMIRROR_VISUAL_OVERRIDE_THEME];
+  if (!cachedCodeMirrorTheme) {
+    cachedCodeMirrorTheme = [
+      createGithubTheme(),
+      CODEMIRROR_VISUAL_OVERRIDE_THEME,
+    ];
+  }
+  return cachedCodeMirrorTheme;
 }
 
 // ============================================
@@ -124,6 +151,14 @@ export const CODEMIRROR_BASE_LAYOUT_THEME = EditorView.theme({
   },
 });
 
+let cachedCodeMirrorLayoutTheme: Extension | null = null;
+
 export function createCodeMirrorTheme(): Extension {
-  return [CODEMIRROR_BASE_LAYOUT_THEME, CODEMIRROR_VISUAL_OVERRIDE_THEME];
+  if (!cachedCodeMirrorLayoutTheme) {
+    cachedCodeMirrorLayoutTheme = [
+      CODEMIRROR_BASE_LAYOUT_THEME,
+      CODEMIRROR_VISUAL_OVERRIDE_THEME,
+    ];
+  }
+  return cachedCodeMirrorLayoutTheme;
 }

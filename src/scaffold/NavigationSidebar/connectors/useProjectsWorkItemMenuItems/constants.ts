@@ -14,8 +14,6 @@ export const PROJECTS_LOCAL_ORG_PREFIX = "projects-local-org:";
 export const PROJECTS_LINEAR_ORG_PREFIX = "projects-linear-org:";
 export const PROJECTS_WORK_ITEM_CREATE_PREFIX = `${PROJECTS_NEW_WORK_ITEM_MENU_ITEM_ID}:`;
 export const PROJECTS_WORK_ITEM_GROUP_PREFIX = "projects-work-items:";
-export const UNKNOWN_ORG_KEY = "__unknown_org__";
-export const UNKNOWN_PROJECT_KEY = "__unknown_project__";
 
 export const WORK_ITEM_STATUS_ORDER: readonly WorkItemStatus[] = [
   "in_progress",

@@ -5,14 +5,6 @@
  * Users select a repository before proceeding to the main app.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import {
-  Code,
-  Folder,
-  FolderTree,
-  Search,
-  Settings,
-  SquareArrowRight,
-} from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -23,6 +15,15 @@ import { Placeholder } from "@src/components/Placeholder";
 import { ROUTES } from "@src/config/routes";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { createLogger } from "@src/hooks/logger";
+import {
+  CodeXmlIcon,
+  FolderClosedIcon,
+  FolderLibraryIcon,
+  HugeiconsIcon,
+  Search01Icon,
+  Settings01Icon,
+  SquareArrowRight01Icon,
+} from "@src/icons";
 import {
   ONBOARDING_LOADING_VIDEO_MAX_WIDTH_CLASS,
   OnboardingLayout,
@@ -104,10 +105,12 @@ const SelectRepoActionsList: React.FC<SelectRepoActionsListProps> = ({
         onClick={() => onOpenPalette({ initialAddMenu: true })}
       >
         <div className="flex w-full items-center gap-3">
-          <SquareArrowRight
+          <HugeiconsIcon
+            icon={SquareArrowRight01Icon}
+            data-icon="square-arrow-right"
             size={16}
             strokeWidth={1.5}
-            className="h-4 w-4 flex-shrink-0 text-text-2"
+            className="h-4 w-4 shrink-0 text-text-2"
           />
           <span className="flex-1 text-left text-sm font-normal text-text-1">
             {t("selectors.repo.addEntry")}
@@ -120,10 +123,12 @@ const SelectRepoActionsList: React.FC<SelectRepoActionsListProps> = ({
         onClick={() => onOpenPalette({ initialAddStage: "create-workspace" })}
       >
         <div className="flex w-full items-center gap-3">
-          <FolderTree
+          <HugeiconsIcon
+            icon={FolderLibraryIcon}
+            data-icon="folder-library"
             size={16}
             strokeWidth={1.5}
-            className="h-4 w-4 flex-shrink-0 text-text-2"
+            className="h-4 w-4 shrink-0 text-text-2"
           />
           <span className="flex-1 text-left text-sm font-normal text-text-1">
             {t("workspaceForm.createWorkspace")}
@@ -136,10 +141,12 @@ const SelectRepoActionsList: React.FC<SelectRepoActionsListProps> = ({
         onClick={() => onOpenPalette({ initialManageMode: true })}
       >
         <div className="flex w-full items-center gap-3">
-          <Settings
+          <HugeiconsIcon
+            icon={Settings01Icon}
+            data-icon="settings"
             size={16}
             strokeWidth={1.5}
-            className="h-4 w-4 flex-shrink-0 text-text-2"
+            className="h-4 w-4 shrink-0 text-text-2"
           />
           <span className="flex-1 text-left text-sm font-normal text-text-1">
             {t("actions.manage")}
@@ -205,7 +212,7 @@ const RepoListContent: React.FC<RepoListContentProps> = ({
 
   return (
     <>
-      <div className="flex flex-shrink-0 px-3 pb-1 pt-3">
+      <div className="flex shrink-0 px-3 pt-3 pb-1">
         <Input
           type="search"
           value={searchQuery}
@@ -216,11 +223,18 @@ const RepoListContent: React.FC<RepoListContentProps> = ({
             "Search repos..."
           )}
           className="h-[34px] rounded-lg bg-fill-1 text-[14px]"
-          prefix={<Search size={16} className="text-text-2" />}
+          prefix={
+            <HugeiconsIcon
+              icon={Search01Icon}
+              data-icon="search"
+              size={16}
+              className="text-text-2"
+            />
+          }
         />
       </div>
 
-      <div className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 pt-1">
+      <div className="scrollbar-overlay min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-3 pt-1">
         {repoLoading ? (
           <Placeholder
             variant="loading"
@@ -248,14 +262,19 @@ const RepoListContent: React.FC<RepoListContentProps> = ({
                   className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 transition-colors duration-150 hover:bg-fill-2"
                   onClick={() => onWorkspaceClick(ws)}
                 >
-                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-violet-600 shadow-[0_1px_3px_rgba(0,0,0,0.1)]">
-                    <FolderTree size={20} className="text-white" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-violet-500 to-violet-600 shadow-[0_1px_3px_rgba(0,0,0,0.1)]">
+                    <HugeiconsIcon
+                      icon={FolderLibraryIcon}
+                      data-icon="folder-library"
+                      size={20}
+                      className="text-white"
+                    />
                   </div>
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <div className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium text-text-1">
+                    <div className="overflow-hidden text-sm font-medium text-ellipsis whitespace-nowrap text-text-1">
                       {ws.name}
                     </div>
-                    <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-text-3">
+                    <div className="overflow-hidden text-[11px] text-ellipsis whitespace-nowrap text-text-3">
                       {ws.folders.length} repos: {names.join(", ")}
                     </div>
                   </div>
@@ -270,23 +289,33 @@ const RepoListContent: React.FC<RepoListContentProps> = ({
                 onClick={() => onRepoClick(repo.id)}
               >
                 <div
-                  className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.1)] ${
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg shadow-[0_1px_3px_rgba(0,0,0,0.1)] ${
                     repo.kind === REPO_KIND.FOLDER
-                      ? "bg-gradient-to-br from-amber-500 to-amber-600"
-                      : "bg-gradient-to-br from-primary-5 to-primary-6"
+                      ? "bg-linear-to-br from-amber-500 to-amber-600"
+                      : "bg-linear-to-br from-primary-5 to-primary-6"
                   }`}
                 >
                   {repo.kind === REPO_KIND.FOLDER ? (
-                    <Folder size={20} className="text-white" />
+                    <HugeiconsIcon
+                      icon={FolderClosedIcon}
+                      data-icon="folder"
+                      size={20}
+                      className="text-white"
+                    />
                   ) : (
-                    <Code size={20} className="text-white" />
+                    <HugeiconsIcon
+                      icon={CodeXmlIcon}
+                      data-icon="code"
+                      size={20}
+                      className="text-white"
+                    />
                   )}
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <div className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium text-text-1">
+                  <div className="overflow-hidden text-sm font-medium text-ellipsis whitespace-nowrap text-text-1">
                     {repo.name}
                   </div>
-                  <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-text-3">
+                  <div className="overflow-hidden text-[11px] text-ellipsis whitespace-nowrap text-text-3">
                     {repo.fs_uri
                       ?.replace("file://", "")
                       ?.replace(/^\/Users\/[^/]+/, "~") ||

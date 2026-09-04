@@ -20,12 +20,12 @@
  * depth / url).
  */
 import { invoke } from "@tauri-apps/api/core";
-import { PenTool } from "lucide-react";
 import React, { Suspense, memo, useCallback, useMemo, useState } from "react";
 
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { Placeholder } from "@src/components/Placeholder";
 import { createLogger } from "@src/hooks/logger";
+import { HugeiconsIcon, PenTool01Icon } from "@src/icons";
 import { FileHeader } from "@src/modules/WorkStation/shared";
 import type { ToggleOption } from "@src/modules/shared/components/FileHeader";
 import { IFRAME_STYLE_NONCE } from "@src/util/iframeCspNonce";
@@ -320,7 +320,11 @@ const MetaStrip: React.FC<MetaStripProps> = memo(
             aria-label="Inspect with DevTools"
             className="ml-auto inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded border-none bg-transparent p-0 text-text-3 hover:bg-fill-2 hover:text-text-2"
           >
-            <PenTool size={14} />
+            <HugeiconsIcon
+              icon={PenTool01Icon}
+              data-icon="pen-tool"
+              size={14}
+            />
           </button>
         </ToolbarTooltip>
       </div>

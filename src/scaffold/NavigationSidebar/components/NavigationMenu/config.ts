@@ -1,14 +1,17 @@
 // ============================================
 // NavigationMenu Configuration
 // ============================================
-import type { LucideIcon } from "lucide-react";
 import type { MouseEvent, ReactNode } from "react";
 
+import type { AnyIconSource } from "@src/components/AnyIcon";
+import type { IconSvgElement } from "@src/icons";
 import type { TabDragPillPayload } from "@src/modules/WorkStation/shared/TabBar/tabDragTypes";
 
 export interface NavigationMenuRowAction {
-  icon?: LucideIcon;
-  /** Optional class applied to the rendered Lucide icon (for example refresh spin). */
+  icon?: IconSvgElement;
+  /** Stable `data-icon` hook stamped on the rendered glyph (tests/debugging). */
+  dataIcon?: string;
+  /** Optional class applied to the rendered icon (for example refresh spin). */
   iconClassName?: string;
   label: string;
   active?: boolean;
@@ -17,7 +20,7 @@ export interface NavigationMenuRowAction {
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
 }
 
-export type NavigationMenuIconAction = NavigationMenuRowAction;
+type NavigationMenuIconAction = NavigationMenuRowAction;
 
 /**
  * Navigation menu item configuration
@@ -35,12 +38,21 @@ export interface NavigationMenuItem {
   searchText?: string;
   /** Optional secondary line rendered below the label (e.g. branch name). */
   subtitle?: ReactNode;
-  icon?: LucideIcon | string;
+  /** Glyph data or a brand component (`""` = no icon) — rendered via `AnyIcon`. */
+  icon?: AnyIconSource;
   iconName?: string;
   /** Arbitrary rendered icon — takes precedence over `icon` when set. */
   iconElement?: ReactNode;
+  /** Small status badge overlaid on the leading icon, including when collapsed. */
+  iconBadge?: ReactNode;
   /** Optional hover/focus action that replaces the leading icon in-place. */
   iconAction?: NavigationMenuIconAction;
+  /**
+   * Small element pinned to the label's trailing edge — it tracks the text,
+   * not the row. Use for a counter that reads as part of the label (an unread
+   * count); `trailingElement` right-aligns to the row edge instead.
+   */
+  labelBadge?: ReactNode;
   /** Optional element rendered at the far right edge of the row. */
   trailingElement?: ReactNode;
   /**
@@ -64,11 +76,13 @@ export interface NavigationMenuItem {
   /** Show hover-only row action buttons. */
   showMoreActions?: boolean;
   rowActions?: NavigationMenuRowAction[];
-  rowActionIcon?: LucideIcon;
+  rowActionIcon?: IconSvgElement;
   rowActionLabel?: string;
   onRowActionClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   /** Let a primary click on the selected row open its context menu. */
   openContextMenuOnSelectedClick?: boolean;
+  /** This row opens a chat-panel tab and supports explicit new-tab navigation. */
+  opensChatPanelTab?: boolean;
   routePath?: string;
   /** Tab type for proper tab handling */
   tabType?: "app" | "terminal" | "browser" | "editor";

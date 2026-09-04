@@ -50,6 +50,7 @@ import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import type { Session } from "@src/store/session/sessionAtom/types";
 import { activeSessionIdAtom } from "@src/store/session/viewAtom";
 import { chatPanelSelectedCloudOrgAtom } from "@src/store/ui/chatPanelAtom";
+import { isMainAppWindow } from "@src/util/platform/tauri/windowIdentity";
 
 import {
   bumpConversationPlaneSignal,
@@ -62,6 +63,7 @@ import {
   org2CloudChannelsVersionAtom,
 } from "./channels/channelsAtom";
 import { getFreshCloudAccessToken } from "./cloudShortId";
+import { startCrossWindowFocusPublisher } from "./crossWindowFocus";
 import { org2CloudSharingFloorAtom } from "./org2CloudAccessSettings";
 import {
   commitRefreshedAuth,
@@ -414,12 +416,23 @@ export function useOrg2CloudRealtime(): void {
 
   const connectionRef = useRef<Org2CloudRealtimeConnection | null>(null);
 
+  // EVERY window (main and detached) advertises its focus state so the main
+  // window's lease treats "the app is foregrounded in ANY window" as
+  // foreground — a user working in a detached window must not cost main its
+  // socket after the blur grace.
+  useEffect(() => startCrossWindowFocusPublisher(), []);
+
   // --- Connection + Slice A (roster). Rebuilds on user / endpoint / active
   // org. A fresh connection on scope switch avoids supabase-js reusing a
   // presence topic whose asynchronous leave has not finished yet.
   useEffect(() => {
     const current = authRef.current;
-    if (!userId || !current || !activeRealtimeOrgId) {
+    // Socket ownership is main-window-only: a secondary window opening a
+    // second Realtime connection would double the billable socket count and
+    // flap Presence (the presence key is the userId, so two windows publish
+    // two metas for one user). Main's webview is never destroyed while the
+    // app runs, so this ownership rule is stable.
+    if (!isMainAppWindow() || !userId || !current || !activeRealtimeOrgId) {
       return undefined;
     }
     const connection = createOrg2CloudRealtimeConnection(

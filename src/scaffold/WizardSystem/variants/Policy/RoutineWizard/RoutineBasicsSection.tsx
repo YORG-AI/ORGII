@@ -1,13 +1,14 @@
-import { Network } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import Textarea from "@src/components/Textarea";
 import TimePicker from "@src/components/TimePicker";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import { useTimezoneSelect } from "@src/hooks/geo/useTimezoneSelect";
+import { HierarchyCircle01Icon, HugeiconsIcon } from "@src/icons";
 import {
   type CronParts,
   type ScheduleFrequency,
@@ -320,12 +321,22 @@ const RoutineBasicsSection: React.FC<RoutineBasicsSectionProps> = ({
             prefix={(() => {
               if (!draft.target) return null;
               if (draft.targetIsOrg) {
-                return <Network size={16} className="text-text-2" />;
+                return (
+                  <HugeiconsIcon
+                    icon={HierarchyCircle01Icon}
+                    data-icon="network"
+                    size={16}
+                    className="text-text-2"
+                  />
+                );
               }
-              return React.createElement(resolveAgentIcon(draft.targetIconId), {
-                size: 16,
-                className: "text-text-2",
-              });
+              return (
+                <AnyIcon
+                  icon={resolveAgentIcon(draft.targetIconId)}
+                  size={16}
+                  className="text-text-2"
+                />
+              );
             })()}
             dataTestId="routine-wizard-agent-trigger"
             ariaLabel={t("routineFields.agentResponsible")}

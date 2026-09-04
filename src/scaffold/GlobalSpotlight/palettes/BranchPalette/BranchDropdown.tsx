@@ -9,7 +9,6 @@
  * Chosen by `general.modelPickerStyle === "dropdown"`. Falls through to
  * `BranchPalette` (Spotlight) otherwise.
  */
-import { Check, Folder, GitBranch, Search } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -20,6 +19,7 @@ import React, {
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -29,18 +29,33 @@ import {
   type UseDropdownListNavigationReturn,
   useDropdownEngine,
 } from "@src/hooks/dropdown";
-import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import { useFilteredItems } from "@src/hooks/search";
+import {
+  FolderClosedIcon,
+  HugeiconsIcon,
+  Tick01Icon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import type { BranchItem } from "../../types";
 import { categorizeBranches } from "../../utils/branchUtils";
+import { BranchDropdownList } from "./BranchDropdownList";
+import { type BranchPickerTab, BranchPickerTabs } from "./BranchPickerTabs";
+import { BranchPullRequestPicker } from "./BranchPullRequestPicker";
 import { useBranchFetch } from "./useBranchFetch";
 import { useWorktreeMap } from "./useWorktreeMap";
 
 const LIST_MAX_HEIGHT = 360;
 const VIEWPORT_MARGIN = 12;
-const MIN_DROPDOWN_WIDTH = 280;
+
+interface BranchListRow {
+  branch: BranchItem;
+  heading: string | null;
+}
+const branchRowKey = (row: BranchListRow) => row.branch.name;
+const branchRowHeight = (row: BranchListRow) =>
+  DROPDOWN_ITEM.height + (row.heading ? 24 : 0);
 
 interface BranchRowProps {
   branch: BranchItem;
@@ -64,11 +79,26 @@ const BranchRow: React.FC<BranchRowProps> = ({
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">
         {isCurrent ? (
-          <Check size={DROPDOWN_ITEM.iconSize} className="text-primary-6" />
+          <HugeiconsIcon
+            icon={Tick01Icon}
+            data-icon="check"
+            size={DROPDOWN_ITEM.iconSize}
+            className="text-primary-6"
+          />
         ) : branch.worktreePath ? (
-          <Folder size={DROPDOWN_ITEM.iconSize} className="text-text-2" />
+          <HugeiconsIcon
+            icon={FolderClosedIcon}
+            data-icon="folder"
+            size={DROPDOWN_ITEM.iconSize}
+            className="text-text-2"
+          />
         ) : (
-          <GitBranch size={DROPDOWN_ITEM.iconSize} className="text-text-2" />
+          <HugeiconsIcon
+            icon={WorkflowCircle05Icon}
+            data-icon="git-branch"
+            size={DROPDOWN_ITEM.iconSize}
+            className="text-text-2"
+          />
         )}
       </span>
       <span className="truncate">{branch.name}</span>
@@ -76,7 +106,7 @@ const BranchRow: React.FC<BranchRowProps> = ({
   );
 };
 
-export interface BranchDropdownProps {
+interface BranchDropdownProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (
@@ -110,19 +140,28 @@ export const BranchDropdown: React.FC<BranchDropdownProps> = ({
 }) => {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
-  const tauriSelectAll = useTauriSelectAllShortcut();
 
+  const [tab, setTab] = useState<BranchPickerTab>("branches");
+  const branchTabOpen = isOpen && tab === "branches";
   const [searchQuery, setSearchQuery] = useState("");
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
   if (isOpen !== prevIsOpen) {
     setPrevIsOpen(isOpen);
-    if (!isOpen && searchQuery) setSearchQuery("");
+    if (!isOpen) {
+      setSearchQuery("");
+      setTab("branches");
+    }
   }
 
   const isGitHubRepo = Boolean(githubConnectionId && githubRepoFullName);
 
-  const { branches: rawBranches, isLoading } = useBranchFetch({
-    isOpen,
+  const {
+    branches: rawBranches,
+    isLoading,
+    repoPath: resolvedRepoPath,
+    refresh: refreshBranches,
+  } = useBranchFetch({
+    isOpen: branchTabOpen,
     repoId,
     repoPath: repoPath || "",
     isGitHubRepo,
@@ -131,7 +170,7 @@ export const BranchDropdown: React.FC<BranchDropdownProps> = ({
   });
 
   const worktreeMap = useWorktreeMap({
-    enabled: isOpen && groupWorktreeBranches,
+    enabled: branchTabOpen && groupWorktreeBranches,
     repoId,
     repoPath,
     isLocalRepo: !isGitHubRepo,
@@ -183,10 +222,17 @@ export const BranchDropdown: React.FC<BranchDropdownProps> = ({
     return result;
   }, [filteredBranches, t]);
 
-  const visibleBranches = useMemo(
-    () => sections.flatMap((section) => section.items),
+  const rows = useMemo(
+    () =>
+      sections.flatMap((section) =>
+        section.items.map((branch, index) => ({
+          branch,
+          heading: index === 0 ? section.label : null,
+        }))
+      ),
     [sections]
   );
+  const visibleBranches = useMemo(() => rows.map((row) => row.branch), [rows]);
 
   const handleSelect = useCallback(
     async (branch: BranchItem) => {
@@ -202,7 +248,7 @@ export const BranchDropdown: React.FC<BranchDropdownProps> = ({
     HTMLElement,
     BranchItem
   >({
-    open: isOpen,
+    open: branchTabOpen,
     onOpenChange: (open) => {
       if (!open) onClose();
     },
@@ -217,17 +263,35 @@ export const BranchDropdown: React.FC<BranchDropdownProps> = ({
   });
 
   useEffect(() => {
-    if (!isOpen || !isPositioned) return;
+    if (!branchTabOpen || !isPositioned) return;
     const frame = requestAnimationFrame(() => {
       inputRef.current?.focus();
     });
     return () => cancelAnimationFrame(frame);
-  }, [isOpen, isPositioned]);
+  }, [branchTabOpen, isPositioned]);
 
+  if (isOpen && tab === "prs")
+    return (
+      <BranchPullRequestPicker
+        key={`${repoId}:${resolvedRepoPath}`}
+        repoId={repoId}
+        repoPath={resolvedRepoPath}
+        onSelect={onSelect}
+        onClose={onClose}
+        onBranchPrepared={refreshBranches}
+        onTabChange={setTab}
+        presentation="dropdown"
+        anchorRef={anchorRef}
+        placement={placement}
+      />
+    );
   if (!isOpen || !isPositioned) return null;
 
-  const width = Math.max(MIN_DROPDOWN_WIDTH, panelPosition.width);
   const { width: vw } = getViewportSize();
+  const width = Math.min(
+    Math.max(420, panelPosition.width),
+    vw - VIEWPORT_MARGIN * 2
+  );
   const left = Math.max(
     VIEWPORT_MARGIN,
     Math.min(panelPosition.left, vw - VIEWPORT_MARGIN - width)
@@ -236,6 +300,7 @@ export const BranchDropdown: React.FC<BranchDropdownProps> = ({
   return createPortal(
     <div
       ref={panelRef}
+      data-spotlight-tabs-scope
       className={`${DROPDOWN_CLASSES.panel} fixed flex flex-col`}
       style={{
         top: panelPosition.top,
@@ -244,58 +309,52 @@ export const BranchDropdown: React.FC<BranchDropdownProps> = ({
         width,
       }}
     >
-      <div className={DROPDOWN_CLASSES.searchContainer}>
-        <Search
-          size={DROPDOWN_ITEM.iconSize}
-          className="shrink-0 text-text-3"
-        />
-        <input
-          ref={inputRef}
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          onKeyDown={tauriSelectAll}
-          placeholder={t("selectors.spotlight.placeholders.branch")}
-          className={DROPDOWN_CLASSES.searchInput}
-        />
-      </div>
+      <DropdownSearch
+        leading={<BranchPickerTabs value={tab} onChange={setTab} />}
+        containerClassName="gap-2"
+        ref={inputRef}
+        type="text"
+        value={searchQuery}
+        onChange={(value) => {
+          setSearchQuery(value);
+          keyboard.setSelectedIndex(-1);
+        }}
+        placeholder={t("selectors.spotlight.placeholders.branch")}
+      />
 
-      <div
-        className={DROPDOWN_CLASSES.optionsContainerOverlay}
-        style={{ maxHeight: LIST_MAX_HEIGHT }}
-      >
-        {isLoading && filteredBranches.length === 0 ? (
+      {filteredBranches.length === 0 ? (
+        <div
+          className={DROPDOWN_CLASSES.optionsContainerOverlay}
+          style={{ maxHeight: LIST_MAX_HEIGHT }}
+        >
           <div className={DROPDOWN_CLASSES.listMessage}>
-            {t("status.loading")}
+            {t(
+              isLoading ? "status.loading" : "selectors.modelSelector.noResults"
+            )}
           </div>
-        ) : filteredBranches.length === 0 ? (
-          <div className={DROPDOWN_CLASSES.listMessage}>
-            {t("selectors.modelSelector.noResults")}
-          </div>
-        ) : (
-          sections.map((section) => (
-            <React.Fragment key={section.key}>
-              {section.label && (
-                <div className={DROPDOWN_CLASSES.sectionLabel}>
-                  {section.label}
-                </div>
+        </div>
+      ) : (
+        <BranchDropdownList
+          items={rows}
+          getKey={branchRowKey}
+          estimateHeight={branchRowHeight}
+          selectedIndex={keyboard.selectedIndex}
+          keyboardNavigated={keyboard.keyboardNavigated}
+          searchQuery={searchQuery}
+          renderItem={({ branch, heading }, index) => (
+            <>
+              {heading && (
+                <div className={DROPDOWN_CLASSES.sectionLabel}>{heading}</div>
               )}
-              {section.items.map((branch) => {
-                const index = visibleBranches.findIndex(
-                  (visibleBranch) => visibleBranch.name === branch.name
-                );
-                return (
-                  <BranchRow
-                    key={branch.name}
-                    branch={branch}
-                    isCurrent={branch.name === currentBranchName}
-                    keyboardProps={keyboard.getItemProps(index)}
-                  />
-                );
-              })}
-            </React.Fragment>
-          ))
-        )}
-      </div>
+              <BranchRow
+                branch={branch}
+                isCurrent={branch.name === currentBranchName}
+                keyboardProps={keyboard.getItemProps(index)}
+              />
+            </>
+          )}
+        />
+      )}
     </div>,
     document.body
   );

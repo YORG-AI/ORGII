@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   getChatRenderedTreeMemoryStats,
+  getLoadedScriptSourceStats,
   registerChatRenderedTreeMemoryEntry,
 } from "./runtimeMemoryStats";
 
@@ -46,6 +47,39 @@ describe("chat rendered-tree memory diagnostics", () => {
       entries: 0,
       items: 0,
       topEntries: [],
+    });
+  });
+});
+
+describe("getLoadedScriptSourceStats", () => {
+  it("sums module factory source text across every chunk registry", () => {
+    const factoryA = function moduleA() {
+      return "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    };
+    const factoryB = () => 1;
+    const fakeGlobal = {
+      rspackChunkorgii: [
+        [["main"], { "./a.js": factoryA }],
+        [["src_App_tsx"], { "./b.js": factoryB, "./not-a-module": "x" }],
+      ],
+      webpackChunkother: [[["x"], {}]],
+      unrelated: [[["y"], { "./c.js": factoryB }]],
+    };
+
+    expect(getLoadedScriptSourceStats(fakeGlobal)).toEqual({
+      chunks: 3,
+      modules: 2,
+      sourceBytes:
+        Function.prototype.toString.call(factoryA).length +
+        Function.prototype.toString.call(factoryB).length,
+    });
+  });
+
+  it("returns zeros when no chunk registry exists", () => {
+    expect(getLoadedScriptSourceStats({ foo: 1 })).toEqual({
+      chunks: 0,
+      modules: 0,
+      sourceBytes: 0,
     });
   });
 });

@@ -7,8 +7,8 @@ import type { GitErrorType } from "@src/api/http/git/streaming";
 import { CheckoutBlockedDialog } from "@src/components/GitDialogs/CheckoutBlockedDialog";
 import { CheckoutConflictDialog } from "@src/components/GitDialogs/CheckoutConflictDialog";
 
-import { TerminalService } from "../../terminal";
 import { runGuardedCheckout } from "./guardedCheckout";
+import { noRepoContextFailure } from "./noRepoContext";
 import {
   type GitOperationResult,
   getRepoContext,
@@ -30,7 +30,6 @@ export async function checkoutRaw(
   branch: string,
   create?: boolean
 ): Promise<GitOperationResult> {
-  const cmd = create ? `git checkout -b ${branch}` : `git checkout ${branch}`;
   const repo = getRepoContext();
 
   if (repo) {
@@ -54,17 +53,7 @@ export async function checkoutRaw(
     };
   }
 
-  try {
-    await TerminalService.execute(cmd);
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  return noRepoContextFailure("the checkout");
 }
 
 /**
@@ -95,24 +84,7 @@ export async function stash(
     }
   }
 
-  let cmd = "git stash push";
-  if (includeUntracked) {
-    cmd += " --include-untracked";
-  }
-  if (message) {
-    cmd += ` -m "${message}"`;
-  }
-  try {
-    await TerminalService.execute(cmd);
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  return noRepoContextFailure("the stash");
 }
 
 /**
@@ -140,17 +112,7 @@ export async function stashPop(index: number = 0): Promise<GitOperationResult> {
     }
   }
 
-  try {
-    await TerminalService.execute(`git stash pop stash@{${index}}`);
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  return noRepoContextFailure("the stash pop");
 }
 
 /**
@@ -179,17 +141,7 @@ export async function stashApply(
     }
   }
 
-  try {
-    await TerminalService.execute(`git stash apply stash@{${index}}`);
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  return noRepoContextFailure("the stash apply");
 }
 
 /**
@@ -218,17 +170,9 @@ export async function stashDrop(
     }
   }
 
-  try {
-    await TerminalService.execute(`git stash drop stash@{${index}}`);
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  // Destructive: the old fallback dropped whatever stash index N meant in
+  // the terminal's own repository.
+  return noRepoContextFailure("the stash drop");
 }
 
 // ============================================

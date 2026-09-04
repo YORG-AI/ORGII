@@ -27,6 +27,13 @@ vi.mock("@src/components/IntegrationIcon", () => ({
     }),
 }));
 
+vi.mock("../components/SessionIdentityIcon", () => ({
+  default: ({ sessionId }: { sessionId: string }) =>
+    createElement("span", { "data-session-identity-icon": sessionId }),
+  SessionIdentityIconById: ({ sessionId }: { sessionId: string }) =>
+    createElement("span", { "data-session-identity-icon": sessionId }),
+}));
+
 vi.mock(
   "@src/modules/ProjectManager/WorkItems/components/WorkItemHoverCard",
   () => ({
@@ -83,7 +90,7 @@ vi.mock("@src/components/PrHoverCard", () => ({
 }));
 
 describe("ChatPanelTabBar", () => {
-  it("renders the close control inside the shared tab surface", () => {
+  it("uses the sidebar new-session icon inside the shared tab surface", () => {
     const store = createStore();
     store.set(chatPanelTabsAtom, {
       tabs: [
@@ -105,7 +112,7 @@ describe("ChatPanelTabBar", () => {
     );
     expect(markup.match(/<button type="button"/g)).toHaveLength(1);
     expect(markup).toMatch(
-      /bg-gradient-to-l[^"<]*transition-opacity[^"<]*duration-150[^"<]*opacity-0/
+      /bg-linear-to-l[^"<]*transition-opacity[^"<]*duration-150[^"<]*opacity-0/
     );
     const activeSurface = markup.match(
       /<div[^>]*work-station-editor-tab--active[^>]*>/
@@ -113,13 +120,25 @@ describe("ChatPanelTabBar", () => {
     expect(activeSurface).toContain("text-text-1");
     expect(activeSurface).not.toContain("text-primary-6");
     expect(markup).toMatch(
-      /<svg[^>]*class="[^"]*lucide-layout-grid[^"]*text-text-1[^"]*"/
+      /<svg[^>]*class="[^"]*text-text-1[^"]*"[^>]*data-icon="message-add"/
     );
     expect(markup).toContain("sessions:chat.startPage.newSession.title");
     expect(markup).not.toContain("navigation:routes.launchpad");
   });
 
-  it("uses the GitHub SVG for a GitHub-imported project tab", () => {
+  it("uses the sidebar new-work-item icon for its start-page tab", () => {
+    const store = createStore();
+    store.set(chatPanelCreateTargetAtom, CHAT_PANEL_CREATE_TARGET.WORK_ITEM);
+
+    const markup = renderToStaticMarkup(
+      createElement(Provider, { store }, createElement(ChatPanelTabBar))
+    );
+
+    expect(markup).toContain("sessions:creator.createTarget.workItem");
+    expect(markup).toContain('data-icon="square-pen"');
+  });
+
+  it("uses the project icon for a GitHub-imported project tab", () => {
     const store = createStore();
     store.set(chatPanelTabsAtom, {
       tabs: [
@@ -142,8 +161,8 @@ describe("ChatPanelTabBar", () => {
       createElement(Provider, { store }, createElement(ChatPanelTabBar))
     );
 
-    expect(markup).toContain('data-integration-icon="github"');
-    expect(markup).toContain('data-icon-size="16"');
+    expect(markup).toContain('data-icon="box"');
+    expect(markup).not.toContain('data-integration-icon="github"');
   });
 
   it("uses the localized project label in the Workstation-style tab", () => {
@@ -155,7 +174,7 @@ describe("ChatPanelTabBar", () => {
     );
 
     expect(markup).toContain("sessions:creator.createTarget.project");
-    expect(markup).toContain("lucide-box");
+    expect(markup).toContain('data-icon="box"');
     expect(markup).toContain("work-station-editor-tab");
   });
 
@@ -234,8 +253,8 @@ describe("ChatPanelTabBar", () => {
       createElement(Provider, { store }, createElement(ChatPanelTabBar))
     );
 
-    expect(markup).toContain("lucide-box");
-    expect(markup).toContain("lucide-list-checks");
+    expect(markup).toContain('data-icon="box"');
+    expect(markup).toContain('data-icon="list-checks"');
   });
 
   it("reuses the sidebar hover cards for work-item and pull-request tabs", () => {
@@ -307,6 +326,15 @@ describe("ChatPanelTabBar", () => {
         onNewProject: vi.fn(),
         onNewWorkItem: vi.fn(),
         onOpenSideChat: vi.fn(),
+        recentlyClosedTabs: [
+          {
+            id: "closed-chat",
+            type: "session",
+            title: "Closed chat",
+            sessionId: "codexapp-closed-chat",
+          },
+        ],
+        onRestoreTab: vi.fn(),
         onClose: vi.fn(),
       })
     );
@@ -316,5 +344,11 @@ describe("ChatPanelTabBar", () => {
     expect(markup).toContain("sessions:creator.createTarget.project");
     expect(markup).toContain("chat.startPage.newWorkItem.title");
     expect(markup).toContain("sessions:chat.sideChat.title");
+    expect(markup).toContain("navigation:workstation.plusMenu.recentlyClosed");
+    expect(markup).toContain('data-recently-closed-tab-id="closed-chat"');
+    expect(markup).toContain(
+      'data-session-identity-icon="codexapp-closed-chat"'
+    );
+    expect(markup).not.toContain('data-icon="work-history"');
   });
 });

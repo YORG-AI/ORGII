@@ -56,7 +56,9 @@
 }
 
 .chat-markdown-body pre div {
-  @apply rounded-lg;
+  // Was `@apply rounded-lg`; Tailwind v4 only resolves @apply in stylesheets
+  // that import tailwind.css, and this file is compiled standalone.
+  border-radius: 0.5rem;
 }
 
 .chat-markdown-body pre > code {

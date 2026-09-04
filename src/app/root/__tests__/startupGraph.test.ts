@@ -112,7 +112,7 @@ describe("startup static import graph", () => {
     // The constant has to exist, otherwise `undefined === "true"` is not
     // foldable and webpack walks both arms again.
     const webpackConfig = readFileSync(
-      path.join(SRC_ROOT, "..", "webpack.config.js"),
+      path.join(SRC_ROOT, "..", "config", "webpack.config.js"),
       "utf8"
     );
     expect(webpackConfig).toContain('"process.env.ORGII_DEV_EAGER_APP"');

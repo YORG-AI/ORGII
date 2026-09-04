@@ -1,8 +1,7 @@
 //! Small utility helpers shared across workspace crates.
 //!
-//! Currently just JSON file I/O (`json::*`) used by the CLI agent config
-//! modules and any sensitive token store. Stays a true leaf — depends only
-//! on `app_paths` for `set_sensitive_file_permissions`.
+//! JSON file I/O (`json::*`) used by CLI agent config modules, Serde
+//! defaults, and opt-in test fixtures. No workspace-crate dependencies.
 //!
 //! Add new general-purpose helpers here when two or more workspace crates
 //! would otherwise duplicate them. If a helper is specific to one domain

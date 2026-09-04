@@ -1,4 +1,3 @@
-import { Box, CornerDownRight, Trash2 } from "lucide-react";
 import React from "react";
 
 import Button from "@src/components/Button";
@@ -8,6 +7,12 @@ import Select from "@src/components/Select";
 import { SETTINGS_TABLE_CELL } from "@src/components/SettingsTable";
 import Switch from "@src/components/Switch";
 import { MODEL_TABLE_CONTROL_SIZE } from "@src/config/modelTable";
+import {
+  BoxIcon,
+  CornerDownRightIcon,
+  Delete02Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 import type { ModelTableModelAlias } from "@src/types/modelTable";
 import { formatModelNameFull } from "@src/util/formatModelName";
 
@@ -47,7 +52,14 @@ export function renderModelIconSelect(
       showSearch
       allowClear={args.hasIconOverride(model)}
       size={MODEL_TABLE_CONTROL_SIZE}
-      placeholder={<Box size={14} className="text-text-3" />}
+      placeholder={
+        <HugeiconsIcon
+          icon={BoxIcon}
+          data-icon="box"
+          size={14}
+          className="text-text-3"
+        />
+      }
       dropdownWidthMode="min-match"
       dropdownMinWidth={180}
       className="w-20 shrink-0"
@@ -169,7 +181,12 @@ export function renderGroupSummaryCell(
 export function renderExpandedCatalogModelCell(model: string): React.ReactNode {
   return (
     <div key={`model-${model}`} className="flex min-w-0 items-center gap-1">
-      <CornerDownRight size={12} className="shrink-0 text-text-4" />
+      <HugeiconsIcon
+        icon={CornerDownRightIcon}
+        data-icon="corner-down-right"
+        size={12}
+        className="shrink-0 text-text-4"
+      />
       <ModelIcon modelName={model} size="small" />
       <span className={SETTINGS_TABLE_CELL.primary}>
         {formatModelNameFull(model)}
@@ -191,7 +208,12 @@ export function renderExpandedUnifiedModelCell(
       key={`model-${model}`}
       className="flex w-full min-w-0 items-center gap-2"
     >
-      <CornerDownRight size={12} className="shrink-0 text-text-4" />
+      <HugeiconsIcon
+        icon={CornerDownRightIcon}
+        data-icon="corner-down-right"
+        size={12}
+        className="shrink-0 text-text-4"
+      />
       {renderModelIconSelect(model, args)}
       <Input
         value={model}
@@ -231,7 +253,14 @@ function renderRemoveButton(
     <Button
       variant="secondary"
       size="default"
-      icon={<Trash2 size={14} className="text-danger-6" />}
+      icon={
+        <HugeiconsIcon
+          icon={Delete02Icon}
+          data-icon="trash-2"
+          size={14}
+          className="text-danger-6"
+        />
+      }
       iconOnly
       className="shrink-0"
       onClick={() => handleRemove(model)}

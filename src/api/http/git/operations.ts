@@ -51,7 +51,11 @@ export const gitFetch = async (params: {
       method: "POST",
       body: JSON.stringify({
         remote: params.remote ?? "origin",
-        prune: params.prune ?? true,
+        // Prune deletes local remote-tracking refs; a destructive flag must
+        // be sent only when the caller explicitly asked for it. (The Rust
+        // handler's own default is prune=true when the field is absent, so
+        // the explicit false here is load-bearing.)
+        prune: params.prune ?? false,
         auth_username: params.authUsername ?? null,
         auth_token: params.authToken ?? null,
         store_auth: params.storeAuth ?? false,

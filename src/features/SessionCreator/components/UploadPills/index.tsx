@@ -12,10 +12,10 @@
  *   onRemove={(fileId) => handleRemoveFile(fileId)}
  * />
  */
-import { Image, X } from "lucide-react";
 import React, { createElement, useCallback, useEffect, useMemo } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import { Cancel01Icon, HugeiconsIcon, Image01Icon } from "@src/icons";
 import { getPreviewType } from "@src/util/file/previewTypes";
 
 import { STYLE_CONFIG, getFileTypeIcon } from "./config";
@@ -93,7 +93,12 @@ const ImagePill: React.FC<ImagePillProps> = ({
         style={{ width: IMAGE_PREVIEW_SIZE, height: IMAGE_PREVIEW_SIZE }}
       >
         <div className="flex h-full w-full items-center justify-center">
-          <Image size={20} className="text-text-3" />
+          <HugeiconsIcon
+            icon={Image01Icon}
+            data-icon="image"
+            size={20}
+            className="text-text-3"
+          />
         </div>
       </div>
     );
@@ -117,21 +122,31 @@ const ImagePill: React.FC<ImagePillProps> = ({
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-bg-3">
-          <Image size={20} className="text-text-3" />
+          <HugeiconsIcon
+            icon={Image01Icon}
+            data-icon="image"
+            size={20}
+            className="text-text-3"
+          />
         </div>
       )}
 
       {/* Remove Button - appears on hover */}
       <button
-        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-bg-overlay text-text-white opacity-0 transition-all hover:bg-bg-overlay-heavy group-hover:opacity-100"
+        className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-bg-overlay text-text-white opacity-0 transition-all group-hover:opacity-100 hover:bg-bg-overlay-heavy"
         onClick={handleRemove}
         aria-label={`Remove ${file.name || "image"}`}
       >
-        <X size={12} strokeWidth={2} />
+        <HugeiconsIcon
+          icon={Cancel01Icon}
+          data-icon="x"
+          size={12}
+          strokeWidth={2}
+        />
       </button>
 
       {/* File name tooltip on hover */}
-      <div className="absolute bottom-0 left-0 right-0 bg-bg-overlay px-1 py-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="absolute right-0 bottom-0 left-0 bg-bg-overlay px-1 py-0.5 opacity-0 transition-opacity group-hover:opacity-100">
         <span
           className="block truncate text-[10px] text-text-white"
           title={file.name || "Image"}
@@ -168,8 +183,12 @@ const UploadPill: React.FC<UploadPillProps> = ({
       className={`group relative flex items-center gap-2 rounded-[8px] bg-bg-2 px-3 py-2 ${className}`}
     >
       {/* File Icon */}
-      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-bg-3">
-        {createElement(fileIcon, { size: 16, className: "text-text-2" })}
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-bg-3">
+        {createElement(HugeiconsIcon, {
+          icon: fileIcon,
+          size: 16,
+          className: "text-text-2",
+        })}
       </div>
 
       {/* File Info */}
@@ -186,11 +205,16 @@ const UploadPill: React.FC<UploadPillProps> = ({
 
       {/* Remove Button */}
       <button
-        className="hover:bg-bg-4 absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-bg-3 text-text-3 opacity-0 transition-all hover:text-text-1 group-hover:opacity-100"
+        className="hover:bg-bg-4 absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-bg-3 text-text-3 opacity-0 transition-all group-hover:opacity-100 hover:text-text-1"
         onClick={handleRemove}
         aria-label={`Remove ${file.name}`}
       >
-        <X size={10} strokeWidth={2} />
+        <HugeiconsIcon
+          icon={Cancel01Icon}
+          data-icon="x"
+          size={10}
+          strokeWidth={2}
+        />
       </button>
     </div>
   );
@@ -308,5 +332,4 @@ const UploadPills: React.FC<UploadPillsProps> = ({
 };
 
 export default UploadPills;
-export { UploadPill };
-export type { UploadPillProps, UploadPillsProps, UploadedFile } from "./types";
+export type { UploadedFile } from "./types";

@@ -37,18 +37,21 @@ vi.mock("@src/modules/shared/components/MarkdownTextareaEditor", () => ({
     editable,
     dataTestId,
     minHeight,
+    minRows,
   }: {
     value: string;
     onChange?: (markdown: string) => void;
     editable?: boolean;
     dataTestId?: string;
     minHeight?: number;
+    minRows?: number;
   }) =>
     createElement("textarea", {
       value,
       readOnly: !editable,
       "data-testid": dataTestId,
       "data-min-height": minHeight,
+      "data-min-rows": minRows,
       onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) =>
         onChange?.(event.target.value),
     }),
@@ -128,7 +131,8 @@ describe("GitHubIssueComposer", () => {
       "[data-testid='github-issue-comment-editor']"
     );
     expect(editor).not.toBeNull();
-    expect(editor?.dataset.minHeight).toBe("100");
+    expect(editor?.dataset.minHeight).toBe("64");
+    expect(editor?.dataset.minRows).toBe("2");
     const levelActions = container.querySelector(
       "[data-testid='github-issue-level-actions']"
     );
@@ -146,7 +150,7 @@ describe("GitHubIssueComposer", () => {
       input?.querySelector("[data-testid='github-issue-comment-submit']")
     ).not.toBeNull();
     expect(input?.className).toContain("px-1.5");
-    expect(input?.className).toContain("!pt-1.5");
+    expect(input?.className).toContain("pt-1.5!");
     expect(input?.className).toContain("pb-1.5");
     expect(
       input?.querySelector("[data-testid='github-issue-comment-submit']")

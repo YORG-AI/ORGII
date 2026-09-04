@@ -96,7 +96,7 @@ describe("CustomPropertiesSection", () => {
     expect(section?.innerHTML).not.toContain("bg-bg-2 p-3");
     expect(row?.className).toContain("rounded-lg px-0 py-1");
     expect(
-      container.querySelector(".lucide-list-chevrons-up-down")
+      container.querySelector('[data-icon="list-chevrons-up-down"]')
     ).not.toBeNull();
 
     const addButton = container.querySelector<HTMLButtonElement>(
@@ -105,6 +105,6 @@ describe("CustomPropertiesSection", () => {
     expect(addButton?.textContent).toBe("");
     expect(addButton?.getAttribute("aria-label")).toBe("Add property");
     expect(addButton?.title).toBe("Add property");
-    expect(addButton?.querySelector(".lucide-plus")).not.toBeNull();
+    expect(addButton?.querySelector('[data-icon="plus"]')).not.toBeNull();
   });
 });

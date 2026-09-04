@@ -15,6 +15,7 @@ import {
 
 import { derivedSnapshotAtom } from "@src/engines/SessionCore/core/atoms/events";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { chatFindInChatOpenAtomFamily } from "@src/store/ui/chatPanelAtom";
 
 import { useSessionHeaderActions } from "./useSessionHeaderActions";
 
@@ -49,7 +50,10 @@ const onReady = vi.fn((value: HeaderActions) => {
 });
 
 function Harness({ onActions }: { onActions: (value: HeaderActions) => void }) {
-  const value = useSessionHeaderActions({ handleReloadSession: vi.fn() });
+  const value = useSessionHeaderActions({
+    sessionId: "session-1",
+    handleReloadSession: vi.fn(),
+  });
   useEffect(() => onActions(value), [onActions, value]);
   return null;
 }
@@ -138,6 +142,15 @@ describe("useSessionHeaderActions", () => {
 
   afterAll(() => {
     Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
+  });
+
+  it("opens find-in-chat for the active session via atom", () => {
+    expect(store.get(chatFindInChatOpenAtomFamily("session-1"))).toBe(false);
+
+    act(() => actions?.handleOpenSearch());
+
+    expect(store.get(chatFindInChatOpenAtomFamily("session-1"))).toBe(true);
+    expect(dropdownMocks.close).toHaveBeenCalledOnce();
   });
 
   it("reads the latest events on demand without subscribing to event updates", async () => {

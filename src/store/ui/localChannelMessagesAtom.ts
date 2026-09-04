@@ -27,7 +27,10 @@ import { atomFamily } from "jotai-family";
 import { atomWithStorage } from "jotai/utils";
 import { z } from "zod/v4";
 
+import { createLogger } from "@src/hooks/logger";
 import { createZodJsonStorage } from "@src/util/core/storage/zodStorage";
+
+const log = createLogger("localChannelMessages");
 
 /** Colon-style key (codebase convention); the dot-style original is adopted below. */
 export const LOCAL_CHANNEL_MESSAGES_STORAGE_KEY =
@@ -105,7 +108,7 @@ const StoredLocalChannelMessagesSchema: z.ZodType<LocalChannelMessage[]> = z
       const parsed = LocalChannelMessageSchema.safeParse(row);
       if (!parsed.success) {
         // Trace per-row drops — the next whole-list write makes them final.
-        console.warn("[localChannelMessages] dropped malformed row", row);
+        log.warn("dropped malformed row", row);
         return [];
       }
       return [parsed.data];
@@ -117,10 +120,7 @@ export const localChannelMessagesAtom = atomWithStorage<LocalChannelMessage[]>(
   [],
   createZodJsonStorage(StoredLocalChannelMessagesSchema, {
     onInvalid: (key, _rawValue, error) => {
-      console.warn(
-        `[localChannelMessages] invalid stored payload for ${key}`,
-        error
-      );
+      log.warn(`invalid stored payload for ${key}`, error);
     },
   }),
   { getOnInit: true }

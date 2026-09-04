@@ -5,7 +5,6 @@
  * The progress slider is now handled by MusicPlayerReplayBar on the dock border.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { Bot, Keyboard } from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -18,6 +17,7 @@ import {
 } from "@src/engines/SessionCore";
 import { getToolDisplayBehavior } from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
 import { useHousekeeperConfig } from "@src/hooks/housekeeper";
+import { BotIcon, HugeiconsIcon, KeyboardIcon } from "@src/icons";
 import { chatVisibleAtom } from "@src/store/ui/chatPanelAtom";
 import {
   type SimulatorPlaybackSpeed,
@@ -166,7 +166,7 @@ const FloatingReplayContainer: React.FC = memo(() => {
   }, [setIsReplaying]);
 
   return (
-    <div className="pointer-events-none absolute bottom-2 left-0 right-0 z-30 flex flex-col items-center gap-2 px-2">
+    <div className="pointer-events-none absolute right-0 bottom-2 left-0 z-30 flex flex-col items-center gap-2 px-2">
       <div className="pointer-events-auto flex w-max max-w-full items-center gap-1.5">
         <SimulatorStatusBar
           isReplaying={isReplaying}
@@ -183,7 +183,13 @@ const FloatingReplayContainer: React.FC = memo(() => {
             shape="circle"
             iconOnly
             icon={
-              <Bot size={16} strokeWidth={1.75} className="text-primary-6" />
+              <HugeiconsIcon
+                icon={BotIcon}
+                data-icon="bot"
+                size={16}
+                strokeWidth={1.75}
+                className="text-primary-6"
+              />
             }
             className="shadow-md"
             onClick={() => showMiniCPMStepExplanation(true)}
@@ -198,7 +204,9 @@ const FloatingReplayContainer: React.FC = memo(() => {
             shape="circle"
             iconOnly
             icon={
-              <Keyboard
+              <HugeiconsIcon
+                icon={KeyboardIcon}
+                data-icon="keyboard"
                 size={16}
                 strokeWidth={1.75}
                 className={

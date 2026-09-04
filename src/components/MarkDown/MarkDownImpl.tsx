@@ -28,6 +28,7 @@ import { activeWorkspaceRootAtom } from "@src/store/workspace";
 
 import LinkHoverCard from "./LinkHoverCard";
 import CodeBlock from "./MarkdownCodeBlock";
+import MarkdownFilePathHoverCard from "./MarkdownFilePathHoverCard";
 import MarkdownLinkIcon, { hasMarkdownLinkIcon } from "./MarkdownLinkIcon";
 import MarkdownLocalImage, { openLocalMarkdownRef } from "./MarkdownLocalImage";
 import MermaidBlock from "./MermaidBlock";
@@ -52,6 +53,7 @@ import {
   preprocessTextContent,
   renderChildren,
 } from "./markdownUtils";
+import { useMarkdownFileRootPath } from "./markdownWorkspaceRoot";
 import { remarkCloudSessionReferences } from "./remarkCloudSessionReferences";
 import { projectMarkdownSessionReferences } from "./sessionReferenceProjection";
 
@@ -183,6 +185,13 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
   const themes = useAtomValue(themesAtom);
   const activeWorkspaceRoot = useAtomValue(activeWorkspaceRootAtom);
   const activeWorkspaceRootPath = activeWorkspaceRoot?.path ?? "";
+  /**
+   * File hrefs, local images and file previews resolve against the repo the
+   * transcript was recorded in, not the folder the reader currently has
+   * focused. `activeWorkspaceRootPath` stays for the pull-request affordance
+   * below, which acts on the workspace that is actually open.
+   */
+  const fileRootPath = useMarkdownFileRootPath();
   const sessionProjection = useMemo(
     () =>
       sessionReferencesAsCards
@@ -195,10 +204,7 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
     (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
       event.preventDefault();
       event.stopPropagation();
-      const linkTarget = classifyMarkdownLinkTarget(
-        href,
-        activeWorkspaceRootPath
-      );
+      const linkTarget = classifyMarkdownLinkTarget(href, fileRootPath);
       if (linkTarget.kind === "local") {
         void openLocalMarkdownRef(
           linkTarget.path,
@@ -208,7 +214,7 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
       }
       openMarkdownLinkInBrowserApp(linkTarget.url);
     },
-    [activeWorkspaceRootPath]
+    [fileRootPath]
   );
 
   // Memoize dark mode calculation
@@ -302,7 +308,7 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
           if (useChatCodeBlock) {
             const openFilePath = resolveCurrentRepoFilePath(
               fenceMeta.filePath,
-              activeWorkspaceRootPath
+              fileRootPath
             );
             return (
               <div className="chat-markdown-fenced-block">
@@ -330,7 +336,7 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
 
           const openFilePath = resolveCurrentRepoFilePath(
             fenceMeta.filePath,
-            activeWorkspaceRootPath
+            fileRootPath
           );
           return (
             <CodeBlock
@@ -403,7 +409,7 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
           <MarkdownLocalImage
             src={typeof src === "string" ? src : undefined}
             alt={typeof alt === "string" ? alt : undefined}
-            workspaceRootPath={activeWorkspaceRootPath}
+            workspaceRootPath={fileRootPath}
           />
         );
       },
@@ -435,11 +441,39 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
             </a>
           );
         }
-        const linkTarget = classifyMarkdownLinkTarget(
-          url,
-          activeWorkspaceRootPath
-        );
+        const linkTarget = classifyMarkdownLinkTarget(url, fileRootPath);
         const linkHasIcon = hasMarkdownLinkIcon(url, linkTarget);
+        const anchor = (
+          <a
+            {...props}
+            className={
+              linkHasIcon
+                ? ["markdown-link-with-icon", props.className]
+                    .filter(Boolean)
+                    .join(" ")
+                : props.className
+            }
+            href={url}
+            title={undefined}
+            onClick={(event) => handleLinkClick(event, url)}
+          >
+            <MarkdownLinkIcon href={url} target={linkTarget} />
+            {children}
+          </a>
+        );
+        // A workspace path is not an HTTP URL, so `LinkHoverCard` renders
+        // nothing for it. Route local targets to the file-tree card instead so
+        // both kinds of link carry a hover preview.
+        if (linkTarget.kind === "local") {
+          return (
+            <MarkdownFilePathHoverCard
+              path={linkTarget.path}
+              workspaceRootPath={fileRootPath}
+            >
+              {anchor}
+            </MarkdownFilePathHoverCard>
+          );
+        }
         return (
           <LinkHoverCard
             url={url}
@@ -447,22 +481,7 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
             workspaceRootRepoId={activeWorkspaceRoot?.repoId}
             workspaceRootRepoUrl={activeWorkspaceRoot?.repo?.repo_url}
           >
-            <a
-              {...props}
-              className={
-                linkHasIcon
-                  ? ["markdown-link-with-icon", props.className]
-                      .filter(Boolean)
-                      .join(" ")
-                  : props.className
-              }
-              href={url}
-              title={undefined}
-              onClick={(event) => handleLinkClick(event, url)}
-            >
-              <MarkdownLinkIcon href={url} target={linkTarget} />
-              {children}
-            </a>
+            {anchor}
           </LinkHoverCard>
         );
       },
@@ -496,6 +515,7 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
     handleLinkClick,
     activeWorkspaceRoot,
     activeWorkspaceRootPath,
+    fileRootPath,
     disableCanvasInline,
   ]);
 

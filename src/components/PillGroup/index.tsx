@@ -28,10 +28,10 @@ import SelectorPill from "@src/components/SelectorPill";
 import type { TooltipProps } from "@src/components/Tooltip";
 
 const HOVER_LEAVE_DELAY_MS = 200;
-const GHOST_PILL_HOVER_SURFACE_CLASS = "enabled:hover:!bg-fill-3";
-const GHOST_PILL_ACTIVE_SURFACE_CLASS = "!bg-fill-3";
+const GHOST_PILL_HOVER_SURFACE_CLASS = "enabled:hover:bg-fill-3!";
+const GHOST_PILL_ACTIVE_SURFACE_CLASS = "bg-fill-3!";
 
-export interface PillGroupSegmentButtonProps {
+interface PillGroupSegmentButtonProps {
   active: boolean;
   segmentClassName?: string;
   onMouseEnter: () => void;
@@ -85,6 +85,8 @@ export interface PillGroupSegment {
   activateOnMouseDown?: boolean;
   /** Hard cap on the label width — applies overflow ellipsis */
   maxLabelWidth?: number;
+  /** Drop left padding so the icon lines up with composer editor text. */
+  leadingFlush?: boolean;
   /** Forwarded ref for the underlying button — useful for dropdown positioning */
   buttonRef?: React.Ref<HTMLButtonElement>;
   /**
@@ -201,6 +203,7 @@ const PillGroupSegmentRow: React.FC<PillGroupSegmentRowProps> = ({
       tooltipMouseEnterDelay={segment.tooltipMouseEnterDelay}
       ariaLabel={segment.ariaLabel}
       dataTestId={segment.dataTestId}
+      appearance={usesFill3Surface ? "bare" : "default"}
       className={resolvedSegmentClassName}
       labelStyle={
         segment.maxLabelWidth ? { maxWidth: segment.maxLabelWidth } : undefined
@@ -212,6 +215,7 @@ const PillGroupSegmentRow: React.FC<PillGroupSegmentRowProps> = ({
       onFocus={buttonProps.onFocus}
       onBlur={buttonProps.onBlur}
       size="sm"
+      leadingFlush={segment.leadingFlush}
     />
   );
   /* eslint-enable react-hooks/refs */
@@ -231,7 +235,7 @@ const PillGroupSegmentRow: React.FC<PillGroupSegmentRowProps> = ({
   );
 };
 
-export interface PillGroupProps {
+interface PillGroupProps {
   segments: PillGroupSegment[];
   /** Optional class on the outer wrapper (e.g. flex-wrap, text size overrides) */
   className?: string;

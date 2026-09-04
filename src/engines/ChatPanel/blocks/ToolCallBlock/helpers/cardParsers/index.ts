@@ -15,6 +15,5 @@ export { parseAgentMessageCard } from "./agentMessage";
 export { parseCommandResult } from "./command";
 export { parseFileCardResult } from "./file";
 export { parseOrgtrackEnvelope } from "./orgtrackEnvelope";
-export type { OrgtrackEnvelopeContext } from "./orgtrackEnvelope";
 export { parseWebsiteCardResult } from "./website";
 export { parseProjectCardResult, parseWorkItemCardResult } from "./workItem";

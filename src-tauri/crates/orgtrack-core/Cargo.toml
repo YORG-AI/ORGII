@@ -36,7 +36,6 @@ serde_json = "1.0"
 chrono = { workspace = true }
 rusqlite = { workspace = true, optional = true }
 sha2 = { version = "0.10", optional = true }
-dirs = "6.0"
 similar = "2.6"
 # Diagnostics only: report records this crate skips rather than raises
 # (already a transitive dep via `app_paths`).

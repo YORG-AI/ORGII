@@ -1,11 +1,17 @@
 import type { TFunction } from "i18next";
-import { Info, ListChevronsDownUp, RefreshCw, Search } from "lucide-react";
 
 import Button from "@src/components/Button";
 import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
+import {
+  HugeiconsIcon,
+  InformationCircleIcon,
+  ListChevronsDownUpIcon,
+  Search01Icon,
+} from "@src/icons";
 import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
+import { WorkManagementRefreshButton } from "@src/modules/shared/components/WorkManagementRefreshButton";
 
 import type { StatusFilterType } from "../../types";
 import WorkItemsStatusFilterSelect from "../WorkItemsStatusFilterSelect";
@@ -13,11 +19,11 @@ import { AddActionsButton } from "./AddActionsButton";
 import { shouldShowCollapseAll, shouldShowWorkItemStatusFilter } from "./model";
 import type { WorkItemsPageHeaderProps } from "./types";
 
-interface WorkItemsHeaderContentProps extends Pick<
+export interface WorkItemsHeaderActionsProps extends Pick<
   WorkItemsPageHeaderProps,
   | "activeTab"
-  | "leadingControls"
   | "trailingControls"
+  | "endControls"
   | "onSearch"
   | "statusFilter"
   | "onStatusFilterChange"
@@ -29,22 +35,27 @@ interface WorkItemsHeaderContentProps extends Pick<
   | "onAddWorkItem"
   | "onToggleProperties"
   | "showProperties"
+  | "refreshLoading"
 > {
+  t: TFunction<"projects">;
+  placement?: "header" | "list";
+}
+
+interface WorkItemsHeaderContentProps
+  extends
+    WorkItemsHeaderActionsProps,
+    Pick<WorkItemsPageHeaderProps, "leadingControls"> {
   section: "content" | "trailing";
   breadcrumbSegments: NonNullable<
     WorkItemsPageHeaderProps["breadcrumbSegments"]
   >;
-  refreshSpinClass?: string;
-  onRefreshClick: () => void;
-  t: TFunction<"projects">;
 }
 
-export function WorkItemsHeaderContent({
-  section,
+/** List-scoped controls reused in the page header and compact split pane. */
+export function WorkItemsHeaderActions({
   activeTab,
-  breadcrumbSegments,
-  leadingControls,
   trailingControls,
+  endControls,
   onSearch,
   statusFilter,
   onStatusFilterChange,
@@ -56,10 +67,10 @@ export function WorkItemsHeaderContent({
   onAddWorkItem,
   onToggleProperties,
   showProperties = true,
-  refreshSpinClass,
-  onRefreshClick,
+  refreshLoading = false,
   t,
-}: WorkItemsHeaderContentProps) {
+  placement = "header",
+}: WorkItemsHeaderActionsProps) {
   const showStatusFilter = shouldShowWorkItemStatusFilter(
     activeTab,
     statusFilter,
@@ -69,32 +80,19 @@ export function WorkItemsHeaderContent({
     activeTab,
     Boolean(onCollapseAll)
   );
+  const showPrimaryActions = Boolean(
+    showCollapseAll || onRefresh || onAddProject || onAddWorkItem
+  );
   const propertiesLabel = showProperties
     ? t("workItems.hideProperties")
     : t("workItems.showProperties");
 
-  if (section === "content") {
-    if (breadcrumbSegments.length === 0) {
-      return leadingControls ? (
-        <div className="contents">{leadingControls}</div>
-      ) : null;
-    }
-    return (
-      <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        <ProjectManagerBreadcrumb
-          segments={breadcrumbSegments}
-          trailingNode={leadingControls}
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-shrink-0 items-center gap-px">
-      {trailingControls}
-      {trailingControls && (onSearch || showStatusFilter) && (
-        <HeaderSectionSeparator className="mx-0.5" />
-      )}
+    <div
+      className={`flex min-w-0 items-center gap-px ${
+        placement === "list" ? "flex-1" : "shrink-0"
+      }`}
+    >
       {onSearch && (
         <ToolbarTooltip label={t("common:actions.search")}>
           <Button
@@ -104,7 +102,13 @@ export function WorkItemsHeaderContent({
             iconOnly
             onClick={onSearch}
             aria-label={t("common:actions.search")}
-            icon={<Search size={HEADER_ICON_SIZE.sm} />}
+            icon={
+              <HugeiconsIcon
+                icon={Search01Icon}
+                data-icon="search"
+                size={HEADER_ICON_SIZE.sm}
+              />
+            }
           />
         </ToolbarTooltip>
       )}
@@ -116,9 +120,9 @@ export function WorkItemsHeaderContent({
           filterKeys={statusFilterKeys}
         />
       )}
-      {showStatusFilter && <HeaderSectionSeparator className="mx-1" />}
-      {(showCollapseAll || onRefresh || onAddProject || onAddWorkItem) && (
-        <div className="flex flex-shrink-0 items-center gap-px">
+      {trailingControls}
+      {showPrimaryActions && (
+        <div className="flex shrink-0 items-center gap-px">
           {showCollapseAll && (
             <ToolbarTooltip label={t("common:actions.collapseAll")}>
               <Button
@@ -128,28 +132,22 @@ export function WorkItemsHeaderContent({
                 iconOnly
                 onClick={onCollapseAll}
                 aria-label={t("common:actions.collapseAll")}
-                icon={<ListChevronsDownUp size={HEADER_ICON_SIZE.md} />}
-              />
-            </ToolbarTooltip>
-          )}
-          {onRefresh && (
-            <ToolbarTooltip label={t("common:actions.refresh")}>
-              <Button
-                htmlType="button"
-                variant="tertiary"
-                size="small"
-                iconOnly
-                onClick={onRefreshClick}
-                aria-label={t("common:actions.refresh")}
                 icon={
-                  <RefreshCw
-                    size={HEADER_ICON_SIZE.sm}
-                    strokeWidth={2}
-                    className={refreshSpinClass}
+                  <HugeiconsIcon
+                    icon={ListChevronsDownUpIcon}
+                    data-icon="list-chevrons-down-up"
+                    size={HEADER_ICON_SIZE.md}
                   />
                 }
               />
             </ToolbarTooltip>
+          )}
+          {onRefresh && (
+            <WorkManagementRefreshButton
+              label={t("common:actions.refresh")}
+              loading={refreshLoading}
+              onRefresh={onRefresh}
+            />
           )}
           <AddActionsButton
             onAddProject={onAddProject}
@@ -169,15 +167,46 @@ export function WorkItemsHeaderContent({
               size="small"
               iconOnly
               className={
-                showProperties ? "!bg-surface-selected !text-primary-6" : ""
+                showProperties ? "bg-surface-selected! text-primary-6!" : ""
               }
               onClick={onToggleProperties}
               aria-label={propertiesLabel}
-              icon={<Info size={HEADER_ICON_SIZE.sm} />}
+              icon={
+                <HugeiconsIcon
+                  icon={InformationCircleIcon}
+                  data-icon="info"
+                  size={HEADER_ICON_SIZE.sm}
+                />
+              }
             />
           </ToolbarTooltip>
         </>
       )}
+      {endControls}
+    </div>
+  );
+}
+
+export function WorkItemsHeaderContent({
+  section,
+  breadcrumbSegments,
+  leadingControls,
+  ...actionProps
+}: WorkItemsHeaderContentProps) {
+  if (section === "trailing") {
+    return <WorkItemsHeaderActions {...actionProps} />;
+  }
+  if (breadcrumbSegments.length === 0) {
+    return leadingControls ? (
+      <div className="contents">{leadingControls}</div>
+    ) : null;
+  }
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+      <ProjectManagerBreadcrumb
+        segments={breadcrumbSegments}
+        trailingNode={leadingControls}
+      />
     </div>
   );
 }

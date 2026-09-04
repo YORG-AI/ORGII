@@ -10,7 +10,6 @@
  * `WorkspacePalette` (Spotlight) otherwise.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { Check, Search } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -22,11 +21,14 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { repoApi } from "@src/api/tauri/repo";
+import AnyIcon from "@src/components/AnyIcon";
+import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
   DROPDOWN_PANEL,
 } from "@src/components/Dropdown/tokens";
+import Tooltip from "@src/components/Tooltip";
 import {
   isSystemHomeRepoItem,
   isSystemPathRepoItem,
@@ -36,7 +38,7 @@ import {
   type UseDropdownListNavigationReturn,
   useDropdownEngine,
 } from "@src/hooks/dropdown";
-import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
+import { HugeiconsIcon, Tick01Icon } from "@src/icons";
 import { REPO_KIND, cachedReposAtom } from "@src/store/repo";
 import {
   isMultiRootWorkspaceAtom,
@@ -58,8 +60,9 @@ import { buildOpenPathItem } from "./pathActionItem";
 import { importWorkspacePath } from "./pathImport";
 
 const LIST_MAX_HEIGHT = 360;
-const VIEWPORT_MARGIN = 12;
 const MIN_DROPDOWN_WIDTH = 320;
+/** Long enough that scanning the list doesn't flash a popup on every row. */
+const ROW_DETAIL_TOOLTIP_DELAY = 200;
 
 type DropdownRepoItem =
   | { kind: "repo"; repo: RepoItem }
@@ -79,7 +82,9 @@ type WorkspaceDropdownSectionKey =
   | "system"
   | "externalRecent"
   | "workspace"
-  | "repo";
+  | "repo"
+  | "thisOrg"
+  | "outsideOrg";
 
 interface WorkspaceDropdownSection {
   key: WorkspaceDropdownSectionKey;
@@ -103,6 +108,43 @@ interface WorkspaceRowProps {
   keyboardProps: ReturnType<UseDropdownListNavigationReturn["getItemProps"]>;
 }
 
+interface RowDetailTooltipProps {
+  /** Secondary text to reveal on hover — a repo description, or the
+   *  filesystem path for externally-used and open-path rows. Rows without
+   *  one render bare. */
+  detail?: string;
+  children: React.ReactElement;
+}
+
+/**
+ * Reveals a row's secondary text on hover instead of on a second line.
+ *
+ * A second line overflows the token-fixed 32px row and pushes the list past
+ * its max height, so the detail moves into a framed side tooltip. Tooltip
+ * measures side placements from the enclosing `role="menu"` panel and offsets
+ * by `DROPDOWN_PANEL.submenuGap`, so the popup clears the panel border by the
+ * same distance a submenu would rather than landing on top of it.
+ */
+const RowDetailTooltip: React.FC<RowDetailTooltipProps> = ({
+  detail,
+  children,
+}) => {
+  if (!detail) return children;
+
+  return (
+    <Tooltip
+      content={detail}
+      position="right"
+      mouseEnterDelay={ROW_DETAIL_TOOLTIP_DELAY}
+      framedPanel
+      framedPanelWide
+      smartPlacement
+    >
+      {children}
+    </Tooltip>
+  );
+};
+
 const RepoRow: React.FC<RepoRowProps> = ({
   repo,
   isCurrent,
@@ -111,36 +153,38 @@ const RepoRow: React.FC<RepoRowProps> = ({
   const isSystemPath = isSystemPathRepoItem(repo);
   const Icon = isSystemHomeRepoItem(repo)
     ? ICONS.home
-    : isSystemPath
+    : isSystemPath || repo.kind === REPO_KIND.FOLDER
       ? ICONS.folder
       : ICONS.repo;
-  const shouldShowDescription = Boolean(repo.description && !isSystemPath);
+  // System-path rows are self-describing ("Home"), so they keep no hover text.
+  const hoverDetail = isSystemPath ? undefined : repo.description;
 
   return (
-    <button
-      type="button"
-      data-testid={`repo-dropdown-row-${repo.id}`}
-      {...keyboardProps}
-      className={`${DROPDOWN_CLASSES.item} ${
-        isCurrent ? DROPDOWN_CLASSES.itemSelected : DROPDOWN_CLASSES.itemHover
-      } w-full justify-start`}
-    >
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-        {isCurrent ? (
-          <Check size={DROPDOWN_ITEM.iconSize} className="text-primary-6" />
-        ) : (
-          <Icon size={DROPDOWN_ITEM.iconSize} />
-        )}
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col items-start">
-        <span className="truncate">{repo.name}</span>
-        {shouldShowDescription && (
-          <span className="truncate text-[11px] text-text-3">
-            {repo.description}
-          </span>
-        )}
-      </div>
-    </button>
+    <RowDetailTooltip detail={hoverDetail}>
+      <button
+        type="button"
+        role="menuitem"
+        data-testid={`repo-dropdown-row-${repo.id}`}
+        {...keyboardProps}
+        className={`${DROPDOWN_CLASSES.item} ${
+          isCurrent ? DROPDOWN_CLASSES.itemSelected : DROPDOWN_CLASSES.itemHover
+        } w-full justify-start`}
+      >
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+          {isCurrent ? (
+            <HugeiconsIcon
+              icon={Tick01Icon}
+              data-icon="check"
+              size={DROPDOWN_ITEM.iconSize}
+              className="text-primary-6"
+            />
+          ) : (
+            <AnyIcon icon={Icon} size={DROPDOWN_ITEM.iconSize} />
+          )}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-left">{repo.name}</span>
+      </button>
+    </RowDetailTooltip>
   );
 };
 
@@ -153,6 +197,7 @@ const WorkspaceRow: React.FC<WorkspaceRowProps> = ({
   return (
     <button
       type="button"
+      role="menuitem"
       data-testid={`repo-dropdown-workspace-row-${workspace.workspaceId}`}
       {...keyboardProps}
       className={`${DROPDOWN_CLASSES.item} ${
@@ -161,9 +206,14 @@ const WorkspaceRow: React.FC<WorkspaceRowProps> = ({
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">
         {isActive ? (
-          <Check size={DROPDOWN_ITEM.iconSize} className="text-primary-6" />
+          <HugeiconsIcon
+            icon={Tick01Icon}
+            data-icon="check"
+            size={DROPDOWN_ITEM.iconSize}
+            className="text-primary-6"
+          />
         ) : (
-          <ICONS.workspace size={DROPDOWN_ITEM.iconSize} />
+          <HugeiconsIcon icon={ICONS.workspace} size={DROPDOWN_ITEM.iconSize} />
         )}
       </span>
       <span className="min-w-0 flex-1 truncate text-left">
@@ -177,26 +227,24 @@ const OpenPathRow: React.FC<OpenPathRowProps> = ({ item, keyboardProps }) => {
   const Icon = typeof item.icon === "string" ? ICONS.folder : item.icon;
 
   return (
-    <button
-      type="button"
-      data-testid="repo-dropdown-open-path-row"
-      {...keyboardProps}
-      className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full justify-start`}
-    >
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-        {Icon && <Icon size={DROPDOWN_ITEM.iconSize} />}
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col items-start">
-        <span className="truncate">{item.label}</span>
-        {item.desc && (
-          <span className="truncate text-[11px] text-text-3">{item.desc}</span>
-        )}
-      </div>
-    </button>
+    <RowDetailTooltip detail={item.desc}>
+      <button
+        type="button"
+        role="menuitem"
+        data-testid="repo-dropdown-open-path-row"
+        {...keyboardProps}
+        className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full justify-start`}
+      >
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+          {Icon && <AnyIcon icon={Icon} size={DROPDOWN_ITEM.iconSize} />}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+      </button>
+    </RowDetailTooltip>
   );
 };
 
-export interface WorkspaceDropdownProps {
+interface WorkspaceDropdownProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (repoId: string, repo: RepoItem) => void;
@@ -226,7 +274,6 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
 }) => {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
-  const tauriSelectAll = useTauriSelectAllShortcut();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
@@ -251,11 +298,7 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
   });
 
   const { repos, filteredRepos, repoLoading, refreshReposForce } =
-    useSharedRepoList({
-      enabled: isOpen,
-      currentRepoId,
-      searchQuery,
-    });
+    useSharedRepoList(searchQuery);
   const cachedRepos = useAtomValue(cachedReposAtom);
 
   const existingRepoPaths = useMemo(
@@ -277,49 +320,47 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
     onActivate: onClose,
   });
 
-  // System-path rows bypass the scope filter; running repoFilter on them
-  // would prime git-remote resolution against the user's home directory.
-  const eligibleRepoIds = useMemo(() => {
+  // Org scope never hides rows — non-matching ones group under "Outside
+  // this org". System-path rows bypass the predicate; running repoFilter on
+  // them would prime git-remote resolution against the user's home directory.
+  const outsideOrgRepoIds = useMemo(() => {
     if (!repoFilter) return null;
     const ids = new Set<string>();
     for (const repo of [...leadingRepos, ...repos]) {
-      if (isSystemPathRepoItem(repo) || repoFilter(repo)) ids.add(repo.id);
+      if (!isSystemPathRepoItem(repo) && !repoFilter(repo)) ids.add(repo.id);
     }
     return ids;
   }, [leadingRepos, repos, repoFilter]);
 
-  const eligibleExternalRecentRepos = useMemo(
-    () =>
-      repoFilter ? externalRecentRepos.filter(repoFilter) : externalRecentRepos,
-    [externalRecentRepos, repoFilter]
-  );
-
-  const eligibleWorkspaces = useMemo(
-    () =>
-      repoFilter
-        ? workspaces.filter((entry) =>
-            workspaceMatchesRepoFilter(
-              entry.workspace.folders.map((folder) => folder.folderPath),
-              repoFilter
-            )
-          )
-        : workspaces,
-    [workspaces, repoFilter]
-  );
+  const outsideOrgWorkspaceIds = useMemo(() => {
+    if (!repoFilter) return null;
+    const ids = new Set<string>();
+    for (const entry of workspaces) {
+      if (
+        !workspaceMatchesRepoFilter(
+          entry.workspace.folders.map((folder) => folder.folderPath),
+          repoFilter
+        )
+      ) {
+        ids.add(entry.workspace.workspaceId);
+      }
+    }
+    return ids;
+  }, [workspaces, repoFilter]);
 
   // Filter multi-repo workspaces by the same query as repos. Match against
   // workspace name and member folder names so users can find a workspace by
   // any of its repos.
   const filteredWorkspaces = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return eligibleWorkspaces;
-    return eligibleWorkspaces.filter((entry) => {
+    if (!query) return workspaces;
+    return workspaces.filter((entry) => {
       if (entry.workspace.name.toLowerCase().includes(query)) return true;
       return entry.folderNames.some((name) =>
         name.toLowerCase().includes(query)
       );
     });
-  }, [eligibleWorkspaces, searchQuery]);
+  }, [workspaces, searchQuery]);
   const invalidPathTitle = t("selectors.repo.pathImport.invalidTitle");
   const invalidPathMessage = useCallback(
     (path: string) => t("selectors.repo.pathImport.invalidMessage", { path }),
@@ -350,15 +391,12 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
   );
 
   const sections = useMemo<WorkspaceDropdownSection[]>(() => {
-    const allRepos = eligibleRepoIds
-      ? [...leadingRepos, ...filteredRepos].filter((repo) =>
-          eligibleRepoIds.has(repo.id)
-        )
-      : [...leadingRepos, ...filteredRepos];
+    const allRepos = [...leadingRepos, ...filteredRepos];
     const currentItems: DropdownRepoRowItem[] = [];
     const systemItems: DropdownRepoRowItem[] = [];
-    const externalRecentItems: DropdownRepoRowItem[] =
-      eligibleExternalRecentRepos.map((repo) => ({ kind: "repo", repo }));
+    const externalRecentItems: DropdownRepoRowItem[] = externalRecentRepos.map(
+      (repo) => ({ kind: "repo", repo })
+    );
     const folderWorkspaceItems: DropdownRepoRowItem[] = [];
     const repoItems: DropdownRepoRowItem[] = [];
 
@@ -378,12 +416,18 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
     const recentRepoRanks = new Map(
       cachedRepos.map((repo, index) => [repo.id, index])
     );
+    // With an org scope active, Recent is scoped to the org too — out-of-org
+    // rows appear only under "Outside this org", never in Recent.
     const recentRepoItems = [
       ...repoItems,
       ...folderWorkspaceItems,
       ...systemItems,
     ]
-      .filter((item) => recentRepoRanks.has(item.repo.id))
+      .filter(
+        (item) =>
+          recentRepoRanks.has(item.repo.id) &&
+          !outsideOrgRepoIds?.has(item.repo.id)
+      )
       .sort(
         (itemA, itemB) =>
           (recentRepoRanks.get(itemA.repo.id) ?? Number.MAX_SAFE_INTEGER) -
@@ -404,12 +448,15 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
       }
     }
 
+    inactiveWorkspaceItems.sort((itemA, itemB) =>
+      itemB.entry.workspace.updatedAt.localeCompare(
+        itemA.entry.workspace.updatedAt
+      )
+    );
     const recentItems = [
       ...recentRepoItems,
-      ...inactiveWorkspaceItems.sort((itemA, itemB) =>
-        itemB.entry.workspace.updatedAt.localeCompare(
-          itemA.entry.workspace.updatedAt
-        )
+      ...inactiveWorkspaceItems.filter(
+        (item) => !outsideOrgWorkspaceIds?.has(item.entry.workspace.workspaceId)
       ),
     ].slice(0, 3);
     const recentRepoIds = new Set(
@@ -454,32 +501,62 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
     const regularRepoItems = repoItems.filter(
       (item) => !recentRepoIds.has(item.repo.id)
     );
-    if (regularRepoItems.length > 0) {
-      nextSections.push({
-        key: "repo",
-        label: t("selectors.repo.sections.repo"),
-        items: regularRepoItems,
-      });
-    }
     const regularInactiveWorkspaceItems = inactiveWorkspaceItems.filter(
       (item) => !recentWorkspaceIds.has(item.entry.workspace.workspaceId)
     );
-    if (regularInactiveWorkspaceItems.length > 0) {
-      nextSections.push({
-        key: "multiRepoWorkspace",
-        label: t("workspaceForm.multiRepoWorkspace", "Multi-Repo Workspace"),
-        items: regularInactiveWorkspaceItems,
-      });
-    }
     const regularFolderWorkspaceItems = folderWorkspaceItems.filter(
       (item) => !recentRepoIds.has(item.repo.id)
     );
-    if (regularFolderWorkspaceItems.length > 0) {
-      nextSections.push({
-        key: "workspace",
-        label: t("selectors.repo.sections.workspace"),
-        items: regularFolderWorkspaceItems,
-      });
+    if (outsideOrgRepoIds) {
+      const isOutsideOrgItem = (item: DropdownRepoItem) =>
+        item.kind === "repo"
+          ? outsideOrgRepoIds.has(item.repo.id)
+          : item.kind === "workspace"
+            ? !!outsideOrgWorkspaceIds?.has(item.entry.workspace.workspaceId)
+            : false;
+      const orgOrdered: DropdownRepoItem[] = [
+        ...regularRepoItems,
+        ...regularInactiveWorkspaceItems,
+        ...regularFolderWorkspaceItems,
+      ];
+      const thisOrgItems = orgOrdered.filter((item) => !isOutsideOrgItem(item));
+      const outsideOrgItems = orgOrdered.filter(isOutsideOrgItem);
+      if (thisOrgItems.length > 0) {
+        nextSections.push({
+          key: "thisOrg",
+          label: t("selectors.repo.sections.thisOrg", "This org"),
+          items: thisOrgItems,
+        });
+      }
+      if (outsideOrgItems.length > 0) {
+        nextSections.push({
+          key: "outsideOrg",
+          label: t("selectors.repo.sections.outsideOrg", "Outside this org"),
+          items: outsideOrgItems,
+        });
+      }
+    } else {
+      if (regularRepoItems.length > 0) {
+        nextSections.push({
+          key: "repo",
+          label: t("selectors.repo.sections.repo"),
+          items: regularRepoItems,
+        });
+      }
+      if (regularInactiveWorkspaceItems.length > 0) {
+        nextSections.push({
+          key: "multiRepoWorkspace",
+          label: t("workspaceForm.multiRepoWorkspace", "Multi-Repo Workspace"),
+          items: regularInactiveWorkspaceItems,
+        });
+      }
+      if (regularFolderWorkspaceItems.length > 0) {
+        nextSections.push({
+          key: "workspace",
+          label: t("selectors.repo.sections.workspace"),
+          items: regularFolderWorkspaceItems,
+        });
+      }
     }
     const regularSystemItems = systemItems.filter(
       (item) => !recentRepoIds.has(item.repo.id)
@@ -504,8 +581,9 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
     filteredWorkspaces,
     cachedRepos,
     currentRepoId,
-    eligibleExternalRecentRepos,
-    eligibleRepoIds,
+    externalRecentRepos,
+    outsideOrgRepoIds,
+    outsideOrgWorkspaceIds,
     leadingRepos,
     openPathItem,
     searchQuery,
@@ -584,14 +662,16 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
 
   const width = Math.max(MIN_DROPDOWN_WIDTH, panelPosition.width);
   const { width: vw } = getViewportSize();
+  const viewportMargin = DROPDOWN_PANEL.viewportPadding;
   const left = Math.max(
-    VIEWPORT_MARGIN,
-    Math.min(panelPosition.left, vw - VIEWPORT_MARGIN - width)
+    viewportMargin,
+    Math.min(panelPosition.left, vw - viewportMargin - width)
   );
 
   return createPortal(
     <div
       ref={panelRef}
+      role="menu"
       className={`${DROPDOWN_CLASSES.panel} fixed flex flex-col`}
       style={{
         top: panelPosition.top,
@@ -600,20 +680,13 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
         width,
       }}
     >
-      <div className={DROPDOWN_CLASSES.searchContainer}>
-        <Search
-          size={DROPDOWN_ITEM.iconSize}
-          className="shrink-0 text-text-3"
-        />
-        <input
-          ref={inputRef}
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          onKeyDown={tauriSelectAll}
-          placeholder={t("selectors.spotlight.placeholders.workspace")}
-          className={DROPDOWN_CLASSES.searchInput}
-        />
-      </div>
+      <DropdownSearch
+        ref={inputRef}
+        type="text"
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder={t("selectors.spotlight.placeholders.workspace")}
+      />
 
       <div
         className={DROPDOWN_CLASSES.optionsContainerOverlay}

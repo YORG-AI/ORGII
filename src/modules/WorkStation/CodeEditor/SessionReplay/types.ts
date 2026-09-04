@@ -82,7 +82,7 @@ export interface FileOperationEntry {
   relatedOperations?: FileOperationEntry[];
 }
 
-export interface CurrentFileData {
+interface CurrentFileData {
   filePath: string;
   fileName: string;
   content?: string;
@@ -144,7 +144,7 @@ export interface ShellOperationEntry {
   customOutputComponent?: ReactNode;
 }
 
-export interface CurrentShellData {
+interface CurrentShellData {
   command: string;
   shortCommand?: string;
   commandKeywords?: string;
@@ -288,12 +288,6 @@ export interface SimulatorIDEState extends SimulatorAppBaseState {
   fileViewMode: FilePanelViewMode;
 }
 
-// ============================================
-// SimulatorIDE Component Types
-// ============================================
-
-export type SimulatorIDETab = "code" | "terminal";
-
 export type CodePanelMode = "file" | "explore" | "terminal" | "tool";
 export const CODE_PANEL_MODE: Record<
   Uppercase<CodePanelMode>,
@@ -306,7 +300,7 @@ export const CODE_PANEL_MODE: Record<
 };
 
 /** Current event type for the IDE */
-export type IDEEventType = "read" | "write" | "shell" | "explore" | "tool";
+type IDEEventType = "read" | "write" | "shell" | "explore" | "tool";
 
 export const IDE_EVENT_TYPE: Record<Uppercase<IDEEventType>, IDEEventType> = {
   READ: "read",

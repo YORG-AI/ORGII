@@ -9,7 +9,7 @@ const SessionRawTranscriptContent = lazy(
     import("@src/engines/ChatPanel/components/SessionRawTranscriptDialog/SessionRawTranscriptContent")
 );
 
-export interface SessionRawTranscriptViewProps {
+interface SessionRawTranscriptViewProps {
   sessionId: string;
   transcript: ReturnType<typeof useSessionRawTranscript>;
   /** Space reserved for host chrome that overlays the view. */

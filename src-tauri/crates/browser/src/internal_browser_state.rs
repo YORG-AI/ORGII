@@ -173,7 +173,6 @@ pub fn clear_active_internal_browser_state(
 }
 
 /// Return the active internal browser target, if any.
-#[tauri::command]
 pub fn get_active_internal_browser_state() -> Result<Option<ActiveInternalBrowserState>, String> {
     active_state()
         .lock()
@@ -182,7 +181,6 @@ pub fn get_active_internal_browser_state() -> Result<Option<ActiveInternalBrowse
 }
 
 /// List inline WebViews that look like ORGII browser sessions.
-#[tauri::command]
 pub fn list_internal_browser_targets(app: AppHandle) -> Result<InternalBrowserTargetList, String> {
     let active = get_active_internal_browser_state()?;
     let webviews = app.webviews();

@@ -4,11 +4,11 @@
  * Form for creating a new local workspace folder.
  */
 import Button from "@/src/components/Button";
-import { Code, Folder } from "lucide-react";
 import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import Input from "@src/components/Input";
+import { CodeXmlIcon, FolderClosedIcon, HugeiconsIcon } from "@src/icons";
 import { PanelFooter } from "@src/modules/shared/layouts/blocks";
 import { joinPathForDisplay } from "@src/util/file/pathUtils";
 
@@ -88,7 +88,7 @@ const CreateWorkspaceFolderForm: React.FC<CreateWorkspaceFolderFormProps> = ({
       <SpotlightFormShell>
         <SpotlightFormBody>
           <div className="mb-3">
-            <label className="mb-2 block text-[14px] font-[400] text-text-2">
+            <label className="mb-2 block text-[14px] font-normal text-text-2">
               {t("selectors.repo.forms.workspaceName")}
             </label>
             <Input
@@ -96,7 +96,14 @@ const CreateWorkspaceFolderForm: React.FC<CreateWorkspaceFolderFormProps> = ({
               value={workspaceName}
               onChange={handleWorkspaceNameChange}
               className="h-[32px] rounded-lg bg-fill-1 text-[14px]"
-              prefix={<Code className="text-[16px] text-text-2" size={16} />}
+              prefix={
+                <HugeiconsIcon
+                  icon={CodeXmlIcon}
+                  data-icon="code"
+                  className="text-[16px] text-text-2"
+                  size={16}
+                />
+              }
               autoCorrect="off"
               autoComplete="off"
               autoCapitalize="off"
@@ -104,7 +111,7 @@ const CreateWorkspaceFolderForm: React.FC<CreateWorkspaceFolderFormProps> = ({
             />
           </div>
           <div className="mb-3">
-            <label className="mb-2 block text-[14px] font-[400] text-text-2">
+            <label className="mb-2 block text-[14px] font-normal text-text-2">
               {t("selectors.repo.forms.localPath")}
             </label>
             <div className="flex gap-3">
@@ -115,7 +122,12 @@ const CreateWorkspaceFolderForm: React.FC<CreateWorkspaceFolderFormProps> = ({
                   placeholder={t("selectors.repo.forms.chooseDestinationPath")}
                   className="h-[32px] rounded-lg bg-fill-1 text-[14px]"
                   prefix={
-                    <Folder className="text-[16px] text-text-2" size={16} />
+                    <HugeiconsIcon
+                      icon={FolderClosedIcon}
+                      data-icon="folder"
+                      className="text-[16px] text-text-2"
+                      size={16}
+                    />
                   }
                 />
               </div>

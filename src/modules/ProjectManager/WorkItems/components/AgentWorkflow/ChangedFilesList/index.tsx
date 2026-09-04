@@ -1,4 +1,3 @@
-import { ChevronDown, ChevronRight, SquareArrowOutUpRight } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +7,12 @@ import type {
   ReviewComment,
 } from "@src/api/http/project";
 import Button from "@src/components/Button";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  SquareArrowUpRight02Icon,
+} from "@src/icons";
 
 import DiffSummary from "./DiffSummary";
 import FileRow from "./FileRow";
@@ -104,12 +109,22 @@ const ChangedFilesList: React.FC<ChangedFilesListProps> = ({
           onClick={() => setExpanded(!expanded)}
           icon={
             expanded ? (
-              <ChevronDown size={13} className="text-text-4" />
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={13}
+                className="text-text-4"
+              />
             ) : (
-              <ChevronRight size={13} className="text-text-4" />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={13}
+                className="text-text-4"
+              />
             )
           }
-          className="!flex min-w-0 flex-1 items-center justify-between !rounded-md !px-3 !py-2"
+          className="flex! min-w-0 flex-1 items-center justify-between rounded-md! px-3! py-2!"
         >
           <span className="text-xs font-medium text-text-1">
             {t("workItems.changedFiles.title")} ({filesCount})
@@ -134,7 +149,11 @@ const ChangedFilesList: React.FC<ChangedFilesListProps> = ({
             title={t("workItems.changedFiles.reviewInEditor")}
             className="mr-2 shrink-0 rounded-md p-1.5 text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
           >
-            <SquareArrowOutUpRight size={13} />
+            <HugeiconsIcon
+              icon={SquareArrowUpRight02Icon}
+              data-icon="square-arrow-out-up-right"
+              size={13}
+            />
           </button>
         )}
       </div>

@@ -1,7 +1,6 @@
 /**
  * Combined diff view for multiple edits on the same file in session replay.
  */
-import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -16,6 +15,7 @@ import Button from "@src/components/Button";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import { VirtualizedModernDiff } from "@src/features/CodeViewer/VirtualizedModernDiff";
+import { ChevronsDownUpIcon, HugeiconsIcon, UnfoldMoreIcon } from "@src/icons";
 
 import { shouldTrustDiffStartLines } from "../converters/fileConverter";
 import { resolveFileOperationPayload } from "../resolveFilePayload";
@@ -72,9 +72,19 @@ const EditSection: React.FC<{
         className={`sticky top-0 z-10 flex h-10 w-full cursor-pointer items-center gap-2 border-t border-border-2 px-3 text-[11px] hover:bg-fill-2 ${EDITOR_TAB_CANVAS_BG_CLASS}`}
       >
         {isCollapsed ? (
-          <ChevronsUpDown size={14} className="shrink-0 text-text-3" />
+          <HugeiconsIcon
+            icon={UnfoldMoreIcon}
+            data-icon="chevrons-up-down"
+            size={14}
+            className="shrink-0 text-text-3"
+          />
         ) : (
-          <ChevronsDownUp size={14} className="shrink-0 text-text-3" />
+          <HugeiconsIcon
+            icon={ChevronsDownUpIcon}
+            data-icon="chevrons-down-up"
+            size={14}
+            className="shrink-0 text-text-3"
+          />
         )}
         <span className="font-medium text-text-2">
           {t("simulator.replay.ide.codePanel.editHeader", {
@@ -185,7 +195,13 @@ export const CombinedDiffView: React.FC<{
             htmlType="button"
             variant="tertiary"
             size="small"
-            icon={<ChevronsUpDown size={14} />}
+            icon={
+              <HugeiconsIcon
+                icon={UnfoldMoreIcon}
+                data-icon="chevrons-up-down"
+                size={14}
+              />
+            }
             onClick={handleLoadEarlierEdits}
           >
             {t("simulator.replay.ide.codePanel.loadEarlierEdits", {

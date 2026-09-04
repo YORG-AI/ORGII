@@ -36,6 +36,7 @@ import React, {
 } from "react";
 
 import { useDropdownAutoKeyboard } from "@src/hooks/dropdown";
+import { useMenuHoverGrace } from "@src/hooks/dropdown/useMenuHoverGrace";
 import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 
 import DropdownMenuSurface from "./DropdownMenuSurface";
@@ -79,7 +80,7 @@ export interface DropdownProps {
   /** @default 'click' */
   trigger?: "click" | "hover";
 
-  /** Hover close delay in milliseconds. */
+  /** Hover close delay in milliseconds (default 350). Set 0 for immediate close. */
   hoverCloseDelayMs?: number;
 
   /** Controlled visible state */
@@ -104,6 +105,13 @@ export interface DropdownProps {
 
   /** Clamp portal dropdowns inside the viewport and flip horizontally when needed. */
   avoidViewportOverflow?: boolean;
+
+  /**
+   * Extra elements the outside-click close treats as inside the dropdown —
+   * e.g. a second-level submenu panel portaled to `document.body`, which is
+   * outside this panel's DOM but logically part of the open menu.
+   */
+  additionalInsideRefs?: ReadonlyArray<React.RefObject<HTMLElement | null>>;
 
   /** Option items. When provided, enables options mode (droplist is ignored). */
   options?: (DropdownOption | DropdownOptionGroup)[];
@@ -150,7 +158,7 @@ const Dropdown: React.FC<DropdownProps> = ({
   children,
   position = "bottom-end",
   trigger = "click",
-  hoverCloseDelayMs = 100,
+  hoverCloseDelayMs,
   popupVisible: controlledVisible,
   defaultPopupVisible = false,
   onVisibleChange,
@@ -159,6 +167,7 @@ const Dropdown: React.FC<DropdownProps> = ({
   className = "",
   style,
   avoidViewportOverflow = false,
+  additionalInsideRefs,
   options: rawOptions,
   value,
   onSelect,
@@ -186,23 +195,27 @@ const Dropdown: React.FC<DropdownProps> = ({
   });
   const triggerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const positionFrameRef = useRef<number | null>(null);
 
   const isControlled = controlledVisible !== undefined;
   const visible = isControlled ? controlledVisible : internalVisible;
+  const { cancel: cancelHover, schedule: scheduleHover } = useMenuHoverGrace(
+    visible && trigger === "hover" && !disabled,
+    hoverCloseDelayMs
+  );
 
   useOverlayLayer(visible);
 
   const setVisible = useCallback(
     (newVisible: boolean) => {
+      if (!newVisible) cancelHover();
       if (!isControlled) {
         setInternalVisible(newVisible);
       }
       onVisibleChange?.(newVisible);
     },
-    [isControlled, onVisibleChange]
+    [cancelHover, isControlled, onVisibleChange]
   );
 
   // Droplist mode parity with `useDropdownEngine`: discover button rows in
@@ -282,6 +295,9 @@ const Dropdown: React.FC<DropdownProps> = ({
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
+      if (additionalInsideRefs?.some((ref) => ref.current?.contains(target))) {
+        return;
+      }
       if (
         triggerRef.current &&
         !triggerRef.current.contains(target) &&
@@ -297,32 +313,27 @@ const Dropdown: React.FC<DropdownProps> = ({
     };
 
     return subscribeToDropdownOutsideMouseDown(document, handleClickOutside);
-  }, [visible, trigger, setVisible, isOptionsMode, resetHighlight]);
+  }, [
+    visible,
+    trigger,
+    setVisible,
+    isOptionsMode,
+    resetHighlight,
+    additionalInsideRefs,
+  ]);
 
   const handleMouseEnter = useCallback(() => {
     if (trigger === "hover" && !disabled) {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      cancelHover();
       setVisible(true);
     }
-  }, [trigger, disabled, setVisible]);
+  }, [trigger, disabled, setVisible, cancelHover]);
 
   const handleMouseLeave = useCallback(() => {
     if (trigger !== "hover") return;
 
-    if (hoverCloseDelayMs <= 0) {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      setVisible(false);
-      return;
-    }
-
-    timeoutRef.current = setTimeout(() => setVisible(false), hoverCloseDelayMs);
-  }, [trigger, hoverCloseDelayMs, setVisible]);
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
+    scheduleHover(() => setVisible(false));
+  }, [trigger, scheduleHover, setVisible]);
 
   const updatePosition = useCallback(() => {
     const triggerElement = triggerRef.current;
