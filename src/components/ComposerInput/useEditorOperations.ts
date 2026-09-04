@@ -21,7 +21,11 @@ import {
   placeCaretAtEnd,
   rangeInsideHost,
 } from "./selection";
-import type { ComposerPillAttrs, ComposerSnapshot } from "./types";
+import type {
+  ComposerExternalEdit,
+  ComposerPillAttrs,
+  ComposerSnapshot,
+} from "./types";
 import { PILL_DATA_ATTR, extractPlainText, pillDataAttributes } from "./utils";
 
 const PILL_ID_ATTR = "data-pill-id";
@@ -47,13 +51,28 @@ function snapshotsEqual(
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function pushHistoryEntry(
-  stack: ComposerSnapshot[],
-  snapshot: ComposerSnapshot
-): void {
+/**
+ * One undo step: the document to restore, plus an optional edit outside the
+ * document (an image attachment) that is undone/redone alongside it.
+ */
+interface HistoryEntry {
+  snapshot: ComposerSnapshot;
+  external?: ComposerExternalEdit;
+}
+
+function pushHistoryEntry(stack: HistoryEntry[], entry: HistoryEntry): void {
   const previous = stack[stack.length - 1];
-  if (previous && snapshotsEqual(previous, snapshot)) return;
-  stack.push(snapshot);
+  // Two plain snapshots of the same document are one step; an external edit
+  // is always its own step even when the document did not change.
+  if (
+    previous &&
+    !previous.external &&
+    !entry.external &&
+    snapshotsEqual(previous.snapshot, entry.snapshot)
+  ) {
+    return;
+  }
+  stack.push(entry);
   if (stack.length > MAX_HISTORY_ENTRIES) stack.shift();
 }
 
@@ -106,6 +125,12 @@ export interface UseEditorOperationsResult {
   markHistoryBoundary: () => void;
   /** Store the current programmatic edit as one undoable transaction. */
   commitHistoryBoundary: (options?: CommitHistoryOptions) => void;
+  /**
+   * Record an edit that happened outside the document (image attachment)
+   * as its own undo step. Undoing it restores the current document and runs
+   * `edit.undo()`; redo runs `edit.redo()`.
+   */
+  recordExternalEdit: (edit: ComposerExternalEdit) => void;
   /** Undo the latest programmatic editor transaction. */
   undo: () => boolean;
   /** Redo the latest undone programmatic editor transaction. */
@@ -142,8 +167,8 @@ export function useEditorOperations(): UseEditorOperationsResult {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const pillHostsRef = useRef<Map<string, HTMLSpanElement>>(new Map());
   const pillAttrsRef = useRef<Map<string, ComposerPillAttrs>>(new Map());
-  const undoStackRef = useRef<ComposerSnapshot[]>([]);
-  const redoStackRef = useRef<ComposerSnapshot[]>([]);
+  const undoStackRef = useRef<HistoryEntry[]>([]);
+  const redoStackRef = useRef<HistoryEntry[]>([]);
   const historyBoundaryRef = useRef<ComposerSnapshot | null>(null);
   const lastCommitKeyRef = useRef<string | null>(null);
   const lastCommitAtRef = useRef(0);
@@ -408,7 +433,19 @@ export function useEditorOperations(): UseEditorOperationsResult {
       // Extending a group keeps the entry pushed when the group opened; its
       // "before" already predates every keystroke in the burst.
       if (extendsOpenGroup) return;
-      pushHistoryEntry(undoStackRef.current, before);
+      pushHistoryEntry(undoStackRef.current, { snapshot: before });
+    },
+    [captureSnapshot]
+  );
+
+  const recordExternalEdit = useCallback(
+    (edit: ComposerExternalEdit) => {
+      pushHistoryEntry(undoStackRef.current, {
+        snapshot: captureSnapshot(),
+        external: edit,
+      });
+      redoStackRef.current = [];
+      lastCommitKeyRef.current = null;
     },
     [captureSnapshot]
   );
@@ -416,24 +453,32 @@ export function useEditorOperations(): UseEditorOperationsResult {
   const undo = useCallback(() => {
     const previous = undoStackRef.current.pop();
     if (!previous) return false;
-    pushHistoryEntry(redoStackRef.current, captureSnapshot());
-    const restored = restoreSnapshotContent(previous);
+    pushHistoryEntry(redoStackRef.current, {
+      snapshot: captureSnapshot(),
+      external: previous.external,
+    });
+    const restored = restoreSnapshotContent(previous.snapshot);
     const host = hostRef.current;
     if (restored && host) placeCaretAtEnd(host);
     historyBoundaryRef.current = null;
     lastCommitKeyRef.current = null;
+    previous.external?.undo();
     return restored;
   }, [captureSnapshot, restoreSnapshotContent]);
 
   const redo = useCallback(() => {
     const next = redoStackRef.current.pop();
     if (!next) return false;
-    pushHistoryEntry(undoStackRef.current, captureSnapshot());
-    const restored = restoreSnapshotContent(next);
+    pushHistoryEntry(undoStackRef.current, {
+      snapshot: captureSnapshot(),
+      external: next.external,
+    });
+    const restored = restoreSnapshotContent(next.snapshot);
     const host = hostRef.current;
     if (restored && host) placeCaretAtEnd(host);
     historyBoundaryRef.current = null;
     lastCommitKeyRef.current = null;
+    next.external?.redo();
     return restored;
   }, [captureSnapshot, restoreSnapshotContent]);
 
@@ -533,6 +578,7 @@ export function useEditorOperations(): UseEditorOperationsResult {
       insertTextAtCaret,
       markHistoryBoundary,
       commitHistoryBoundary,
+      recordExternalEdit,
       undo,
       redo,
       resetHistory,
@@ -553,6 +599,7 @@ export function useEditorOperations(): UseEditorOperationsResult {
       insertTextAtCaret,
       markHistoryBoundary,
       commitHistoryBoundary,
+      recordExternalEdit,
       undo,
       redo,
       resetHistory,

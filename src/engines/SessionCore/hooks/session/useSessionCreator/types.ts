@@ -4,7 +4,10 @@
 import type { ChangeEvent, MutableRefObject, RefObject } from "react";
 
 import type { AgentInfo, ProviderInfo } from "@src/api/http/config";
-import type { ComposerInputRef } from "@src/components/ComposerInput";
+import type {
+  ComposerExternalEdit,
+  ComposerInputRef,
+} from "@src/components/ComposerInput";
 import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
 import type {
   AdvancedConfig,
@@ -101,6 +104,8 @@ export interface UseSessionCreatorReturn {
   // Image attachments
   attachedImages: ChatImageAttachment[];
   handleImagePaste: (files: File[]) => void;
+  /** Composer `onImagePaste` handler; returns the undo/redo pair for Cmd+Z. */
+  handleComposerImagePaste: (files: File[]) => ComposerExternalEdit;
   removeImage: (id: string) => void;
   clearImages: () => void;
   hasImages: boolean;

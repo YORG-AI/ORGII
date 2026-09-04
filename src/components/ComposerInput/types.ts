@@ -45,6 +45,18 @@ export interface ComposerPillAttrs {
   lineEnd: number | null;
 }
 
+/**
+ * Undo/redo pair for an edit that lives outside the composer's document but
+ * was triggered from it (an image attachment created by a clipboard paste).
+ * Returned from `onImagePaste` so the composer can fold the paste into its
+ * undo history; both callbacks may run before or after any async work the
+ * owner does, and must tolerate the attachment already being gone.
+ */
+export interface ComposerExternalEdit {
+  undo: () => void;
+  redo: () => void;
+}
+
 export interface ComposerInputProps {
   /** Placeholder text shown while the editor is empty */
   placeholder?: string;
@@ -96,8 +108,12 @@ export interface ComposerInputProps {
    * Slash behavior for command vs context surfaces.
    */
   slashTriggerMode?: "command" | "context";
-  /** Called for clipboard image attachments */
-  onImagePaste?: (files: File[]) => void;
+  /**
+   * Called for clipboard image attachments. Return a `ComposerExternalEdit`
+   * to make the paste undoable with Cmd+Z / Edit → Undo; return nothing to
+   * keep it outside the composer's history.
+   */
+  onImagePaste?: (files: File[]) => void | ComposerExternalEdit;
 }
 
 /**

@@ -12,7 +12,10 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import ComposerBar from "@src/components/ComposerBar";
-import ComposerInput, { ComposerInputRef } from "@src/components/ComposerInput";
+import ComposerInput, {
+  type ComposerInputProps,
+  ComposerInputRef,
+} from "@src/components/ComposerInput";
 import ComposerShell from "@src/components/ComposerShell";
 import Message from "@src/components/Message";
 import { VoiceInputButton, VoiceRecordingBar } from "@src/components/Voice";
@@ -119,7 +122,7 @@ export interface EditorAreaProps {
   /** Whether to hide the session info line (when rendered externally) */
   hideInfoLine?: boolean;
   /** Callback when images are pasted from clipboard */
-  onImagePaste?: (files: File[]) => void;
+  onImagePaste?: ComposerInputProps["onImagePaste"];
   /** Currently attached images */
   attachedImages?: ChatImageAttachment[];
   /** Remove an attached image by ID */

@@ -46,7 +46,13 @@ import type { ComposerInputProps, ComposerInputRef } from "./types";
 import { useEditorOperations } from "./useEditorOperations";
 import { PILL_DATA_ATTR, extractPlainText } from "./utils";
 
-export type { ComposerInputRef, ComposerSnapshot, PillIconType } from "./types";
+export type {
+  ComposerExternalEdit,
+  ComposerInputProps,
+  ComposerInputRef,
+  ComposerSnapshot,
+  PillIconType,
+} from "./types";
 /** Attribute marking a pill host span — read-only surfaces route clicks on it. */
 export { PILL_DATA_ATTR, serializePillNode } from "./utils";
 
@@ -233,6 +239,7 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
             ops.insertPill(attrs);
           },
           insertTextAtCaret: ops.insertTextAtCaret,
+          recordExternalEdit: ops.recordExternalEdit,
           getOnImagePaste: () => onImagePasteRef.current,
           getInstalledSkills: () => installedSkillsRef.current,
         }),

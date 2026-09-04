@@ -753,6 +753,7 @@ export function useInputArea(
     // Image attachments
     attachedImages: imageAttachment.images,
     handleImagePaste: imageAttachment.handleImagePaste,
+    handleComposerImagePaste: imageAttachment.handleImagePasteUndoable,
     hasImages: imageAttachment.hasImages,
     clearAttachedImages: imageAttachment.clearImages,
   };

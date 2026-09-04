@@ -250,7 +250,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       currentRepoPath,
       skillWorkspacePaths,
       attachedImages,
-      handleImagePaste,
+      handleComposerImagePaste,
       hasImages,
       clearAttachedImages,
       promptPolish,
@@ -498,7 +498,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onImagePaste={
-                  allowFileAttachments ? handleImagePaste : undefined
+                  allowFileAttachments ? handleComposerImagePaste : undefined
                 }
                 onAddContent={handleOpenContextMenu}
                 isCiteCode={isCiteCode}
@@ -540,7 +540,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onImagePaste={
-                  allowFileAttachments ? handleImagePaste : undefined
+                  allowFileAttachments ? handleComposerImagePaste : undefined
                 }
                 onAddContent={handleOpenContextMenu}
                 isCiteCode={isCiteCode}

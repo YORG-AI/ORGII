@@ -7,6 +7,8 @@
  * strip (`ImageAttachmentPreview`) renders uniformly.
  *
  *  - `handleImagePaste(files)`    — browser `File[]` (paste event, input element)
+ *  - `handleImagePasteUndoable(files)` — same, returning the undo/redo pair
+ *    the composer folds into its Cmd+Z history
  *  - `handleImagePath(path, name?)` — absolute filesystem path (Tauri drag-drop)
  */
 import { readFile } from "@tauri-apps/plugin-fs";
@@ -14,6 +16,7 @@ import { useAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { ComposerExternalEdit } from "@src/components/ComposerInput";
 import Message from "@src/components/Message";
 import { createLogger } from "@src/hooks/logger";
 import {
@@ -62,16 +65,17 @@ export function useImageAttachment(ownerId?: string) {
   /**
    * Shared tail: run each File through `optimizeImage` and push the results
    * into `chatImageAttachmentsAtom`.  Enforces the per-chat image cap (and
-   * warns the user if the incoming batch would exceed it).
+   * warns the user if the incoming batch would exceed it). Resolves with the
+   * attachments that were actually added so callers can undo them.
    */
   const ingestFiles = useCallback(
-    async (files: File[]) => {
-      if (files.length === 0) return;
+    async (files: File[]): Promise<ChatImageAttachment[]> => {
+      if (files.length === 0) return [];
 
       const remaining = MAX_CHAT_IMAGES - imagesLengthRef.current;
       if (remaining <= 0) {
         Message.warning(t("chatImage.maxReached", { max: MAX_CHAT_IMAGES }));
-        return;
+        return [];
       }
 
       const filesToProcess = files.slice(0, remaining);
@@ -116,6 +120,7 @@ export function useImageAttachment(ownerId?: string) {
       if (newAttachments.length > 0) {
         setImages((prev) => [...prev, ...newAttachments]);
       }
+      return newAttachments;
     },
     [setImages, ownerId, t]
   );
@@ -126,6 +131,44 @@ export function useImageAttachment(ownerId?: string) {
       await ingestFiles(validFiles);
     },
     [ingestFiles]
+  );
+
+  /**
+   * Paste entry point for the composer: same ingest as `handleImagePaste`,
+   * but returns the undo/redo pair synchronously so the composer can record
+   * the paste as an undo step before optimization finishes. Undo removes
+   * exactly the attachments this paste added (a no-op for ones the user
+   * already removed); redo re-adds them without re-optimizing.
+   */
+  const handleImagePasteUndoable = useCallback(
+    (files: File[]): ComposerExternalEdit => {
+      const ingested = ingestFiles(files.filter(isChatImageFile)).catch(
+        (error: unknown) => {
+          log.error("Failed to ingest pasted images", error);
+          return [] as ChatImageAttachment[];
+        }
+      );
+      return {
+        undo: () => {
+          void ingested.then((added) => {
+            if (added.length === 0) return;
+            const ids = new Set(added.map((image) => image.id));
+            setImages((prev) => prev.filter((image) => !ids.has(image.id)));
+          });
+        },
+        redo: () => {
+          void ingested.then((added) => {
+            if (added.length === 0) return;
+            setImages((prev) => {
+              const present = new Set(prev.map((image) => image.id));
+              const missing = added.filter((image) => !present.has(image.id));
+              return missing.length > 0 ? [...prev, ...missing] : prev;
+            });
+          });
+        },
+      };
+    },
+    [ingestFiles, setImages]
   );
 
   useEffect(() => {
@@ -265,6 +308,7 @@ export function useImageAttachment(ownerId?: string) {
   return {
     images: ownerImages,
     handleImagePaste,
+    handleImagePasteUndoable,
     handleImagePath,
     clearImages,
     removeImage,

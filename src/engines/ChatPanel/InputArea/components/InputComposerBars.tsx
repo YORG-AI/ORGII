@@ -3,7 +3,10 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import ComposerBar from "@src/components/ComposerBar";
-import type { ComposerInputRef } from "@src/components/ComposerInput";
+import type {
+  ComposerInputProps,
+  ComposerInputRef,
+} from "@src/components/ComposerInput";
 import { VoiceInputButton, VoiceRecordingBar } from "@src/components/Voice";
 import { INPUT_AREA_CONTROL_GROUP_CLASS } from "@src/config/inputAreaTokens";
 import type { PromptPolishControl } from "@src/engines/ChatPanel/hooks/useInputArea/types";
@@ -35,7 +38,7 @@ interface SharedComposerBarProps {
   onDragOver: (event: React.DragEvent<HTMLDivElement>) => void;
   onDragLeave: (event: React.DragEvent<HTMLDivElement>) => void;
   onDrop: (event: React.DragEvent<HTMLDivElement>) => void;
-  onImagePaste?: (files: File[]) => void;
+  onImagePaste?: ComposerInputProps["onImagePaste"];
   onAddContent: () => void;
   isCiteCode: boolean;
   selectedCiteRange: { start: number; end: number } | null;

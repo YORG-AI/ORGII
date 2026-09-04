@@ -325,6 +325,7 @@ export function useSessionCreator(
   const {
     images: attachedImages,
     handleImagePaste,
+    handleImagePasteUndoable: handleComposerImagePaste,
     clearImages,
     removeImage,
     hasImages,
@@ -523,6 +524,7 @@ export function useSessionCreator(
     // Image attachments
     attachedImages,
     handleImagePaste,
+    handleComposerImagePaste,
     removeImage,
     clearImages,
     hasImages,

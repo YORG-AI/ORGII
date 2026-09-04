@@ -9,7 +9,10 @@ import type {
   RefObject,
 } from "react";
 
-import type { ComposerInputRef } from "@src/components/ComposerInput";
+import type {
+  ComposerExternalEdit,
+  ComposerInputRef,
+} from "@src/components/ComposerInput";
 import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
 import type { MenuItemId } from "@src/scaffold/ContextMenu/config";
 import type { ChatImageAttachment } from "@src/store/ui/chatImageAtom";
@@ -264,6 +267,8 @@ export interface UseInputAreaReturn {
   // Image attachments
   attachedImages: ChatImageAttachment[];
   handleImagePaste: (files: File[]) => void;
+  /** Composer `onImagePaste` handler; returns the undo/redo pair for Cmd+Z. */
+  handleComposerImagePaste: (files: File[]) => ComposerExternalEdit;
   hasImages: boolean;
   clearAttachedImages: () => void;
 }

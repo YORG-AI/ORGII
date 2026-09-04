@@ -26,7 +26,7 @@ import { extractSkillNameFromPath } from "@src/util/skills/skillPath";
 import type { ComposerFragmentPart } from "./cutHandler";
 import { parseGitHubPillUrl } from "./githubUrl";
 import { parseHttpUrlPill } from "./httpUrl";
-import type { ComposerPillAttrs } from "./types";
+import type { ComposerExternalEdit, ComposerPillAttrs } from "./types";
 import { TERMINAL_COPY_MAX_AGE, sanitizeText } from "./utils";
 
 const logger = createLogger("ComposerInput");
@@ -34,7 +34,11 @@ const logger = createLogger("ComposerInput");
 export interface PasteHandlerContext {
   insertPill: (attrs: ComposerPillAttrs) => void;
   insertTextAtCaret: (text: string) => void;
-  getOnImagePaste: () => ((files: File[]) => void) | undefined;
+  /** Fold an attachment-side edit into the composer's undo history. */
+  recordExternalEdit: (edit: ComposerExternalEdit) => void;
+  getOnImagePaste: () =>
+    | ((files: File[]) => void | ComposerExternalEdit)
+    | undefined;
   /** Returns the current installed-skills list for paste-time matching. */
   getInstalledSkills: () => InstalledSkill[];
 }
@@ -213,7 +217,10 @@ export function createPasteHandler(ctx: PasteHandlerContext) {
     const onImagePaste = ctx.getOnImagePaste();
     if (imageFiles.length > 0 && onImagePaste) {
       event.preventDefault();
-      onImagePaste(imageFiles);
+      // Attachments live outside the document, so without this the paste
+      // left no undo step and Cmd+Z skipped straight past it.
+      const externalEdit = onImagePaste(imageFiles);
+      if (externalEdit) ctx.recordExternalEdit(externalEdit);
       return true;
     }
 

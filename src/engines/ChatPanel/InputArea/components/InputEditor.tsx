@@ -8,7 +8,10 @@ import { clsx } from "clsx";
 import { useAtomValue } from "jotai";
 import React, { memo, useCallback, useRef } from "react";
 
-import ComposerInput, { ComposerInputRef } from "@src/components/ComposerInput";
+import ComposerInput, {
+  type ComposerInputProps,
+  ComposerInputRef,
+} from "@src/components/ComposerInput";
 import {
   INPUT_AREA_EDITOR_CLASS,
   INPUT_AREA_EDITOR_HEIGHT,
@@ -51,7 +54,7 @@ export interface InputEditorProps {
   /** Inline ghost hint after the last content node (see ComposerInput) */
   trailingHint?: string | null;
   /** Callback when images are pasted from clipboard */
-  onImagePaste?: (files: File[]) => void;
+  onImagePaste?: ComposerInputProps["onImagePaste"];
   /** Whether inline "/" slash command menu is visible */
   showSlashMenu?: boolean;
   /** Keyboard handler ref for the inline "/" slash command menu */

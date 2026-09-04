@@ -218,7 +218,7 @@ const SessionCreatorChatPanelContent: React.FC<
     handleLaunch: originalHandleLaunch,
     handleBranchChange,
     attachedImages,
-    handleImagePaste,
+    handleComposerImagePaste,
     removeImage,
     clearImages,
     editorContent,
@@ -527,7 +527,7 @@ const SessionCreatorChatPanelContent: React.FC<
         branchName:
           isOSMode && !sessionRepoId ? undefined : effectiveBranchName,
         onBranchChange: handleBranchChange,
-        onImagePaste: isHumanMode ? undefined : handleImagePaste,
+        onImagePaste: isHumanMode ? undefined : handleComposerImagePaste,
         attachedImages: isHumanMode ? [] : attachedImages,
         onRemoveImage: isHumanMode ? undefined : removeImage,
         launchDisabled: isHumanMode ? !humanNoteHasContent : !composerCanLaunch,
