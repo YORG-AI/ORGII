@@ -159,14 +159,8 @@ const SidebarSettingsMenuButton: React.FC<SidebarSettingsMenuButtonProps> = ({
     onOpenChange: handleSettingsMenuOpenChange,
     additionalInsideRefs: dropdownInsideRefs,
   });
-  const {
-    appearanceMode,
-    appearanceModeOptions,
-    activeSkinId,
-    activeSkinOptions,
-    handleAppearanceModeChange,
-    handleActiveSkinChange,
-  } = useAppearanceState();
+  const { appearanceMode, appearanceModeOptions, handleAppearanceModeChange } =
+    useAppearanceState();
 
   const openSettingsShortcut = getShortcutKeys("open_settings");
   const settingsButtonClassName = isOpen ? "text-text-1" : "text-text-2";
@@ -227,6 +221,11 @@ const SidebarSettingsMenuButton: React.FC<SidebarSettingsMenuButtonProps> = ({
     goToSettings();
   }, [closeAll, goToSettings]);
 
+  const handleModifyAppearance = useCallback(() => {
+    closeAll();
+    goToSettings({ section: "appearance" });
+  }, [closeAll, goToSettings]);
+
   const handleOpenUtilityPanel = useCallback(
     (panel: SettingsUtilityPanel) => {
       setActiveSubmenu(null);
@@ -260,14 +259,6 @@ const SidebarSettingsMenuButton: React.FC<SidebarSettingsMenuButtonProps> = ({
       closeAll();
     },
     [closeAll, handleAppearanceModeChange]
-  );
-
-  const handleSelectSkin = useCallback(
-    (skinId: string) => {
-      handleActiveSkinChange(skinId);
-      closeAll();
-    },
-    [closeAll, handleActiveSkinChange]
   );
 
   const handleSubmenuPointerDown = useCallback(
@@ -509,16 +500,14 @@ const SidebarSettingsMenuButton: React.FC<SidebarSettingsMenuButtonProps> = ({
       <SidebarSettingsMenuSubmenus
         activeSubmenu={activeSubmenu}
         appearanceMode={appearanceMode}
-        appearanceModeLabel={tSettings("general.appearanceMode")}
+        themeLabel={tSettings("general.theme")}
         appearanceModeOptions={appearanceModeOptions}
-        skinId={activeSkinId}
+        modifyAppearanceLabel={t("sidebar.settingsMenu.modifyAppearance")}
         submenuPanelRef={submenuPanelRef}
         submenuPosition={submenuPosition}
-        skinOptions={activeSkinOptions}
-        skinLabel={tSettings("general.skins")}
+        onModifyAppearance={handleModifyAppearance}
         onPresenceSelectionComplete={closeAll}
         onSelectAppearanceMode={(mode) => void handleSelectAppearanceMode(mode)}
-        onSelectSkin={handleSelectSkin}
         onSubmenuMouseDown={handleSubmenuMouseDown}
         onSubmenuPointerDown={handleSubmenuPointerDown}
       />

@@ -58,18 +58,10 @@ export interface InputEditorProps {
   slashCommandKeyboardHandlerRef?: React.MutableRefObject<
     ((e: KeyboardEvent) => boolean) | null
   >;
-  /** Whether "+" button slash command menu is visible */
-  showPlusSlashMenu?: boolean;
-  /** Keyboard handler ref for the "+" button slash command menu */
-  plusSlashCommandKeyboardHandlerRef?: React.MutableRefObject<
-    ((e: KeyboardEvent) => boolean) | null
-  >;
   /** Slash command handler */
   onSlashCommand?: (query: string) => void;
   /** Slash command close handler */
   onSlashCommandClose?: () => void;
-  /** Called when the user clicks into the editable input surface. */
-  onInputMouseDown?: () => void;
   /** Slash trigger behavior for this editor surface. */
   slashTriggerMode?: "command" | "context";
   /** Focus the contenteditable host after mount. */
@@ -106,11 +98,8 @@ const InputEditor: React.FC<InputEditorProps> = memo(
     onImagePaste,
     showSlashMenu,
     slashCommandKeyboardHandlerRef,
-    showPlusSlashMenu,
-    plusSlashCommandKeyboardHandlerRef,
     onSlashCommand,
     onSlashCommandClose,
-    onInputMouseDown,
     slashTriggerMode = "command",
     autoFocus = false,
     leadingContent,
@@ -144,26 +133,15 @@ const InputEditor: React.FC<InputEditorProps> = memo(
       [showContextMenu, contextMenuKeyboardHandlerRef]
     );
 
-    /**
-     * Delegate keyboard events to whichever slash command dropdown is open.
-     * The "+" menu takes priority; falls back to the inline "/" menu.
-     */
+    /** Delegate keyboard events to the inline slash command dropdown. */
     const handleKeyDownForSlashDropdown = useCallback(
       (event: KeyboardEvent): boolean => {
-        if (showPlusSlashMenu && plusSlashCommandKeyboardHandlerRef?.current) {
-          return plusSlashCommandKeyboardHandlerRef.current(event);
-        }
         if (showSlashMenu && slashCommandKeyboardHandlerRef?.current) {
           return slashCommandKeyboardHandlerRef.current(event);
         }
         return false;
       },
-      [
-        showPlusSlashMenu,
-        plusSlashCommandKeyboardHandlerRef,
-        showSlashMenu,
-        slashCommandKeyboardHandlerRef,
-      ]
+      [showSlashMenu, slashCommandKeyboardHandlerRef]
     );
 
     // ============================================
@@ -207,7 +185,6 @@ const InputEditor: React.FC<InputEditorProps> = memo(
           onKeyDownForDropdown={handleKeyDownForDropdown}
           onSlashCommand={onSlashCommand}
           onSlashCommandClose={onSlashCommandClose}
-          onInputMouseDown={onInputMouseDown}
           onKeyDownForSlashDropdown={handleKeyDownForSlashDropdown}
           slashTriggerMode={slashTriggerMode}
           onImagePaste={onImagePaste}

@@ -19,6 +19,10 @@ export { default as WorkItemsListSurface } from "./WorkItemsListSurface";
 export { default as WorkItemsOverview } from "./WorkItemsOverview";
 export { MultiSelectBar } from "./WorkItemsFooterBars";
 export { default as WorkItemsPageHeader } from "./WorkItemsPageHeader";
+export {
+  WorkItemsHeaderActions,
+  type WorkItemsHeaderActionsProps,
+} from "./WorkItemsPageHeader/WorkItemsHeaderContent";
 export { default as WorkItemsSettings } from "./WorkItemsSettings";
 export { default as WorkItemsTabContent } from "./WorkItemsTabContent";
 export type { WorkItemsViewTab } from "../types";

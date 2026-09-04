@@ -27,13 +27,8 @@ interface SharedComposerBarProps {
   slashCommandKeyboardHandlerRef: React.MutableRefObject<
     ((event: KeyboardEvent) => boolean) | null
   >;
-  showPlusSlashMenu: boolean;
-  plusSlashCommandKeyboardHandlerRef: React.MutableRefObject<
-    ((event: KeyboardEvent) => boolean) | null
-  >;
   onSlashCommand: (query: string) => void;
   onSlashCommandClose: () => void;
-  onPlusSlashClose: () => void;
   onAtMention: (query: string, position: { x: number; y: number }) => void;
   onAtMentionClose: () => void;
   onFocus: () => void;
@@ -42,8 +37,6 @@ interface SharedComposerBarProps {
   onDrop: (event: React.DragEvent<HTMLDivElement>) => void;
   onImagePaste?: (files: File[]) => void;
   onAddContent: () => void;
-  onUpload: () => void;
-  onOpenSkillsTools: () => void;
   isCiteCode: boolean;
   selectedCiteRange: { start: number; end: number } | null;
   citeFileName: string;
@@ -106,11 +99,8 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
   contextMenuKeyboardHandlerRef,
   showSlashMenu,
   slashCommandKeyboardHandlerRef,
-  showPlusSlashMenu,
-  plusSlashCommandKeyboardHandlerRef,
   onSlashCommand,
   onSlashCommandClose,
-  onPlusSlashClose,
   onContentChange,
   onAtMention,
   onAtMentionClose,
@@ -122,8 +112,6 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
   onDrop,
   onImagePaste,
   onAddContent,
-  onUpload,
-  onOpenSkillsTools,
   isCiteCode,
   selectedCiteRange,
   citeFileName,
@@ -149,9 +137,6 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
   return (
     <ComposerBar
       onAddContent={onAddContent}
-      onUpload={onUpload}
-      onOpenSkillsTools={onOpenSkillsTools}
-      dropdownDirection="down"
       showContextInfo={!isCursorIde}
       editorSlot={
         <InputEditor
@@ -160,13 +145,8 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
           contextMenuKeyboardHandlerRef={contextMenuKeyboardHandlerRef}
           showSlashMenu={showSlashMenu}
           slashCommandKeyboardHandlerRef={slashCommandKeyboardHandlerRef}
-          showPlusSlashMenu={showPlusSlashMenu}
-          plusSlashCommandKeyboardHandlerRef={
-            plusSlashCommandKeyboardHandlerRef
-          }
           onSlashCommand={onSlashCommand}
           onSlashCommandClose={onSlashCommandClose}
-          onInputMouseDown={onPlusSlashClose}
           slashTriggerMode="command"
           onContentChange={onContentChange}
           onAtMention={onAtMention}
@@ -308,11 +288,8 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
   contextMenuKeyboardHandlerRef,
   showSlashMenu,
   slashCommandKeyboardHandlerRef,
-  showPlusSlashMenu,
-  plusSlashCommandKeyboardHandlerRef,
   onSlashCommand,
   onSlashCommandClose,
-  onPlusSlashClose,
   onContentChange,
   onAtMention,
   onAtMentionClose,
@@ -324,8 +301,6 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
   onDrop,
   onImagePaste,
   onAddContent,
-  onUpload,
-  onOpenSkillsTools,
   isCiteCode,
   selectedCiteRange,
   citeFileName,
@@ -378,9 +353,6 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
       ) : (
         <ComposerBar
           onAddContent={onAddContent}
-          onUpload={onUpload}
-          onOpenSkillsTools={onOpenSkillsTools}
-          dropdownDirection="up"
           repoPath={currentRepoPath}
           showContextInfo={
             showAgentControls && !isCursorIde && !contextualPanel
@@ -393,13 +365,8 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
               contextMenuKeyboardHandlerRef={contextMenuKeyboardHandlerRef}
               showSlashMenu={showSlashMenu}
               slashCommandKeyboardHandlerRef={slashCommandKeyboardHandlerRef}
-              showPlusSlashMenu={showPlusSlashMenu}
-              plusSlashCommandKeyboardHandlerRef={
-                plusSlashCommandKeyboardHandlerRef
-              }
               onSlashCommand={onSlashCommand}
               onSlashCommandClose={onSlashCommandClose}
-              onInputMouseDown={onPlusSlashClose}
               onContentChange={onContentChange}
               onAtMention={onAtMention}
               onAtMentionClose={onAtMentionClose}

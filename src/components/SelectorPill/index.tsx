@@ -62,6 +62,16 @@ const ICON_SIZES = {
 
 type SelectorPillSize = keyof typeof SIZE_CLASSES;
 
+function resolveHorizontalPaddingClass(
+  size: SelectorPillSize,
+  leadingFlush: boolean
+): string {
+  if (!leadingFlush) return SIZE_CLASSES[size];
+  if (size === "sm") return `${PILL_SM_HEIGHT_CLASS} pl-0 pr-3 text-[12px]`;
+  if (size === "md") return "h-[32px] pl-0 pr-3 text-[14px]";
+  return SIZE_CLASSES[size];
+}
+
 interface SelectorPillContentProps {
   icon: React.ReactNode;
   label: string;
@@ -245,6 +255,8 @@ interface SelectorPillProps {
   labelStyle?: React.CSSProperties;
   dataTestId?: string;
   disabled?: boolean;
+  /** Drop left padding so the icon lines up with composer editor text. */
+  leadingFlush?: boolean;
 }
 
 export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
@@ -281,6 +293,7 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
       labelStyle,
       dataTestId,
       disabled,
+      leadingFlush = false,
     },
     ref
   ) => {
@@ -316,7 +329,7 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
     }, []);
 
     const buttonSizeClass = label
-      ? SIZE_CLASSES[size]
+      ? resolveHorizontalPaddingClass(size, leadingFlush)
       : "h-[28px] w-[28px] justify-center px-0";
 
     const button = (

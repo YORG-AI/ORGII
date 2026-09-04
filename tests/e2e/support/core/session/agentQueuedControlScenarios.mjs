@@ -309,7 +309,7 @@ async function imageUploadPickerState() {
   return execJS(`
     return {
       uploadClickCount: window.__orgiiE2EUploadClickCount || 0,
-      menuOpen: !!document.querySelector('[data-testid="slash-command-menu"]'),
+      menuOpen: !!document.querySelector('[data-context-menu-portal]'),
     };
   `);
 }
@@ -318,7 +318,7 @@ async function assertRealPlusImageUploadPathOpensFilePicker(label) {
   await browser.waitUntil(
     async () =>
       (await execJS(
-        js.exists('[data-testid="composer-skills-tools-button"]')
+        js.exists('[data-testid="composer-add-context-button"]')
       )) && (await execJS(js.exists('[data-testid="chat-file-upload-input"]'))),
     {
       timeout: 30_000,
@@ -328,16 +328,16 @@ async function assertRealPlusImageUploadPathOpensFilePicker(label) {
   );
 
   const opened = await execJS(
-    js.visibleClick('[data-testid="composer-skills-tools-button"]')
+    js.visibleClick('[data-testid="composer-add-context-button"]')
   );
   if (opened !== "clicked") {
     throw new Error(
-      `${label} real + image path did not open Skills & Tools: ${opened}; dump=${JSON.stringify(summarizePageDump(await execJS(js.pageDump)))}`
+      `${label} real + image path did not open context actions: ${opened}; dump=${JSON.stringify(summarizePageDump(await execJS(js.pageDump)))}`
     );
   }
   await browser.waitUntil(
     async () =>
-      (await execJS(js.exists('[data-testid="slash-command-image-upload"]'))) &&
+      (await execJS(js.exists('[data-testid="context-menu-image-upload"]'))) &&
       (await execJS(js.exists('[data-testid="chat-file-upload-input"]'))),
     {
       timeout: 5_000,
@@ -351,7 +351,7 @@ async function assertRealPlusImageUploadPathOpensFilePicker(label) {
   // viewport. Regression guard for the queue-edit "+" menu rendering off the
   // bottom edge (placement was hardcoded "down" for every edit-mode composer).
   const menuGeometry = await execJS(`
-    const menu = document.querySelector('[data-testid="slash-command-menu"]');
+    const menu = document.querySelector('[data-context-menu-portal] .context-menu');
     const shell = document.querySelector('[data-testid="chat-input"]');
     if (!menu || !shell) return { ok: false, reason: "missing-menu-or-shell" };
     const menuRect = menu.getBoundingClientRect();
@@ -400,7 +400,7 @@ async function assertRealPlusImageUploadPathOpensFilePicker(label) {
     );
   }
   const clicked = await execJS(`
-    const row = document.querySelector('[data-testid="slash-command-image-upload"]');
+    const row = document.querySelector('[data-testid="context-menu-image-upload"]');
     if (!row) return "missing";
     row.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window, button: 0 }));
     return "clicked";

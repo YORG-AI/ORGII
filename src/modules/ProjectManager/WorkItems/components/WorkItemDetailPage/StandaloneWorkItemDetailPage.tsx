@@ -3,9 +3,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { projectApi, workItemDataToUI } from "@src/api/http/project";
-import { Placeholder } from "@src/components/Placeholder";
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
+import DetailPaneLayout, {
+  DetailPanePlaceholder,
+} from "@src/modules/shared/layouts/DetailPaneLayout";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 import type { WorkItem } from "@src/types/core/workItem";
 
@@ -105,12 +107,12 @@ export function StandaloneWorkItemDetailPage({
 
   if (!workItem) {
     return (
-      <Placeholder
-        variant={loading ? "loading" : "empty"}
-        placement="detail-panel"
-        title={loading ? undefined : t("workItems.noWorkItems")}
-        fillParentHeight
-      />
+      <DetailPaneLayout>
+        <DetailPanePlaceholder
+          variant={loading ? "loading" : "empty"}
+          title={loading ? undefined : t("workItems.noWorkItems")}
+        />
+      </DetailPaneLayout>
     );
   }
 

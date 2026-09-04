@@ -32,11 +32,12 @@ function createFrontendScriptName({
   // Light dev wins over rspack: the light mode's esbuild/no-HMR tradeoffs
   // have no rspack equivalent yet.
   if (lightDev) return "dev:frontend:light";
-  // Default: rspack on macOS, webpack elsewhere. Linux needs the webpack
-  // server's WebKitGTK eager-App + retry-loader path; Windows has not been
-  // exercised on rspack yet. ORGII_RSPACK=true/false (--rspack/--webpack)
-  // overrides the platform default in either direction.
-  const useRspack = rspack ?? platform === "darwin";
+  // Default: rspack everywhere except Windows. config/rspack.config.js now
+  // carries the WebKitGTK eager-App + retry-loader path Linux needs, and that
+  // path is verified against a real Tauri boot; Windows has not been exercised
+  // on rspack yet. ORGII_RSPACK=true/false (--rspack/--webpack) overrides the
+  // platform default in either direction.
+  const useRspack = rspack ?? platform !== "win32";
   return useRspack ? "dev:frontend:rspack" : "dev:frontend";
 }
 

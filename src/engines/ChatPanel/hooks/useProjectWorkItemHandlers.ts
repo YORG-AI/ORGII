@@ -98,22 +98,6 @@ export function useProjectWorkItemHandlers({
     setWorkItemCreateDraft,
   ]);
 
-  const handleCancelCollabOrgCreate = useCallback(() => {
-    setCreateTarget(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
-    handleReturnToSessionCreator();
-  }, [handleReturnToSessionCreator, setCreateTarget]);
-
-  const handleCancelProjectCreate = useCallback(() => {
-    setShowProjectAgentCreator(sessionCreatorAvailable);
-    setCreateTarget(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
-    handleReturnToSessionCreator();
-  }, [
-    handleReturnToSessionCreator,
-    sessionCreatorAvailable,
-    setCreateTarget,
-    setShowProjectAgentCreator,
-  ]);
-
   const handleWorkItemAgentCreatorToggle = useCallback(
     (enabled: boolean) => {
       setShowWorkItemAgentCreator(sessionCreatorAvailable && enabled);
@@ -193,8 +177,6 @@ export function useProjectWorkItemHandlers({
   );
 
   return {
-    handleCancelCollabOrgCreate,
-    handleCancelProjectCreate,
     handleCancelWorkItemCreate,
     handleChatPanelProjectCreated,
     handleChatPanelWorkItemCreated,

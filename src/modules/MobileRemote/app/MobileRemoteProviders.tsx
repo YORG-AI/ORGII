@@ -20,6 +20,10 @@ import type {
   InitializeResult,
   MobileConnectionConfig,
   MobileConnectionState,
+  MobileModelOption,
+  MobileSendAttachment,
+  MobileSessionModelConfig,
+  MobileSessionModelState,
   MobileSessionRow,
 } from "../connection/types";
 import {
@@ -67,6 +71,33 @@ const CONNECT_TIMEOUT_MS = 15_000;
 const PAIRING_TIMEOUT_MS = 130_000;
 const MAX_RECONNECT_SECONDS = 30;
 
+const INITIAL_SESSION_MODEL_STATE: MobileSessionModelState = {
+  config: null,
+  options: [],
+  loading: false,
+  patching: false,
+};
+
+const DEMO_SESSION_MODEL: MobileSessionModelConfig = {
+  sessionId: "fix-auth-tests",
+  model: "claude-sonnet-4-5",
+  accountId: "demo-account",
+  modelEditable: true,
+};
+
+const DEMO_MODEL_OPTIONS: MobileModelOption[] = [
+  {
+    id: "claude-sonnet-4-5",
+    accountId: "demo-account",
+    accountLabel: "Demo Anthropic",
+  },
+  {
+    id: "claude-opus-4-5",
+    accountId: "demo-account",
+    accountLabel: "Demo Anthropic",
+  },
+];
+
 export interface MobileRemoteContextValue {
   connection: MobileConnectionState;
   sessions: MobileSessionRow[];
@@ -92,7 +123,11 @@ export interface MobileRemoteContextValue {
   unsubscribeSession: () => Promise<void>;
   selectRound: (roundId: string | null) => void;
   retrySelectedRound: () => void;
-  sendMessage: (sessionId: string, content: string) => Promise<void>;
+  sendMessage: (
+    sessionId: string,
+    content: string,
+    attachments?: MobileSendAttachment[]
+  ) => Promise<void>;
   openSessionFileInDesktop: (
     sessionId: string,
     roundId: string,
@@ -104,6 +139,12 @@ export interface MobileRemoteContextValue {
   ) => Promise<void>;
   dismissPermissionHead: () => void;
   stopSession: (sessionId: string) => Promise<void>;
+  sessionModel: MobileSessionModelState;
+  refreshSessionModel: (sessionId: string) => Promise<void>;
+  setSessionModel: (
+    sessionId: string,
+    option: MobileModelOption
+  ) => Promise<void>;
 }
 
 export interface MobileSendStatus {
@@ -347,6 +388,9 @@ export function MobileRemoteProviders({
   const [sendStatus, setSendStatus] = useState<MobileSendStatus | null>(null);
   const [interactionQueue, setInteractionQueue] =
     useState<InteractionQueueState>({ queue: [] });
+  const [sessionModel, setSessionModelState] =
+    useState<MobileSessionModelState>(INITIAL_SESSION_MODEL_STATE);
+  const sessionModelRequestRef = useRef(0);
 
   const persistConnection = useCallback(
     (config: MobileConnectionConfig | null) => {
@@ -837,6 +881,141 @@ export function MobileRemoteProviders({
     await requestSessionList(client);
   }, [connection.demoMode, connection.presence, requestSessionList]);
 
+  const requireWritableClient = useCallback((): MobileRpcClient => {
+    const client = clientRef.current;
+    if (
+      !client ||
+      connection.status !== "connected" ||
+      connection.presence !== "online"
+    ) {
+      throw new Error("Desktop is offline");
+    }
+    if (connection.tier === "read_only") {
+      throw new Error("This device has read-only access");
+    }
+    return client;
+  }, [connection.presence, connection.status, connection.tier]);
+
+  const refreshSessionModel = useCallback(async (sessionId: string) => {
+    const requestGeneration = ++sessionModelRequestRef.current;
+    setSessionModelState((prev) => ({
+      ...prev,
+      loading: true,
+      error: undefined,
+    }));
+    const currentConnection = connectionRef.current;
+    if (currentConnection.demoMode) {
+      if (requestGeneration !== sessionModelRequestRef.current) return;
+      setSessionModelState({
+        config: { ...DEMO_SESSION_MODEL, sessionId },
+        options: DEMO_MODEL_OPTIONS,
+        loading: false,
+        patching: false,
+      });
+      return;
+    }
+    const client = clientRef.current;
+    if (!client || currentConnection.presence !== "online") {
+      setSessionModelState((prev) => ({
+        ...prev,
+        loading: false,
+        error: "Desktop is offline",
+      }));
+      return;
+    }
+    try {
+      const [config, list] = await Promise.all([
+        client.call<MobileSessionModelConfig>("session/config", { sessionId }),
+        client.call<{ models?: MobileModelOption[] }>("models/list", {
+          sessionId,
+        }),
+      ]);
+      if (
+        requestGeneration !== sessionModelRequestRef.current ||
+        activeSessionRef.current !== sessionId
+      ) {
+        return;
+      }
+      setSessionModelState({
+        config,
+        options: list.models ?? [],
+        loading: false,
+        patching: false,
+      });
+    } catch (error) {
+      if (requestGeneration !== sessionModelRequestRef.current) return;
+      setSessionModelState((prev) => ({
+        ...prev,
+        loading: false,
+        error: toMobileRpcError(error).message,
+      }));
+    }
+  }, []);
+
+  const setSessionModel = useCallback(
+    async (sessionId: string, option: MobileModelOption) => {
+      setSessionModelState((prev) => ({
+        ...prev,
+        patching: true,
+        error: undefined,
+      }));
+      const currentConnection = connectionRef.current;
+      if (currentConnection.demoMode) {
+        setSessionModelState((prev) => ({
+          ...prev,
+          patching: false,
+          config: prev.config
+            ? {
+                ...prev.config,
+                sessionId,
+                model: option.id,
+                accountId: option.accountId,
+              }
+            : {
+                sessionId,
+                model: option.id,
+                accountId: option.accountId,
+                modelEditable: true,
+              },
+        }));
+        return;
+      }
+      try {
+        await requireWritableClient().call("session/patch", {
+          sessionId,
+          patch: {
+            model: option.id,
+            accountId: option.accountId || undefined,
+          },
+        });
+        setSessionModelState((prev) => ({
+          ...prev,
+          patching: false,
+          config: prev.config
+            ? {
+                ...prev.config,
+                model: option.id,
+                accountId: option.accountId,
+              }
+            : {
+                sessionId,
+                model: option.id,
+                accountId: option.accountId,
+                modelEditable: true,
+              },
+        }));
+      } catch (error) {
+        setSessionModelState((prev) => ({
+          ...prev,
+          patching: false,
+          error: toMobileRpcError(error).message,
+        }));
+        throw error;
+      }
+    },
+    [requireWritableClient]
+  );
+
   const subscribeSession = useCallback(
     async (sessionId: string) => {
       activeSessionRef.current = sessionId;
@@ -854,6 +1033,7 @@ export function MobileRemoteProviders({
             demoTranscriptItems()
           )
         );
+        await refreshSessionModel(sessionId);
         return;
       }
       const client = clientRef.current;
@@ -870,16 +1050,19 @@ export function MobileRemoteProviders({
         throw error;
       }
       await requestSessionSnapshot(client, sessionId, subscriptionGeneration);
+      await refreshSessionModel(sessionId);
     },
-    [requestSessionSnapshot]
+    [refreshSessionModel, requestSessionSnapshot]
   );
 
   const unsubscribeSession = useCallback(async () => {
     const sessionId = activeSessionRef.current;
     activeSessionRef.current = null;
     subscriptionGenerationRef.current += 1;
+    sessionModelRequestRef.current += 1;
     setTranscript(createInitialTranscriptLoadState());
     setSendStatus(null);
+    setSessionModelState(INITIAL_SESSION_MODEL_STATE);
     const currentConnection = connectionRef.current;
     if (currentConnection.demoMode || !sessionId) return;
     if (clientRef.current && currentConnection.presence === "online") {
@@ -974,33 +1157,34 @@ export function MobileRemoteProviders({
     transcript.sessionId,
   ]);
 
-  const requireWritableClient = useCallback((): MobileRpcClient => {
-    const client = clientRef.current;
-    if (
-      !client ||
-      connection.status !== "connected" ||
-      connection.presence !== "online"
-    ) {
-      throw new Error("Desktop is offline");
-    }
-    if (connection.tier === "read_only") {
-      throw new Error("This device has read-only access");
-    }
-    return client;
-  }, [connection.presence, connection.status, connection.tier]);
-
   const sendMessage = useCallback(
-    async (sessionId: string, content: string) => {
+    async (
+      sessionId: string,
+      content: string,
+      attachments: MobileSendAttachment[] = []
+    ) => {
       const trimmed = content.trim();
-      if (!trimmed) return;
+      if (!trimmed && attachments.length === 0) return;
       const turnIntentId = platform.runtime.randomUUID();
+      const optimisticPreview =
+        trimmed ||
+        attachments
+          .map((attachment) => attachment.fileName?.trim())
+          .filter(Boolean)
+          .join(", ") ||
+        "Photo";
       setSendStatus({
         sessionId,
         turnIntentId,
         phase: "submitting",
       });
       setTranscript((prev) =>
-        appendOptimisticUserMessage(prev, sessionId, turnIntentId, trimmed)
+        appendOptimisticUserMessage(
+          prev,
+          sessionId,
+          turnIntentId,
+          optimisticPreview
+        )
       );
       if (connection.demoMode) {
         setInteractionQueue({
@@ -1014,6 +1198,7 @@ export function MobileRemoteProviders({
         return;
       }
       try {
+        const selectedModel = sessionModel.config?.model;
         await requireWritableClient().call<{
           execution?: string;
         }>("session/send", {
@@ -1021,7 +1206,8 @@ export function MobileRemoteProviders({
           content: trimmed,
           turnIntentId,
           turnIntentSource: "mobile_remote",
-          attachments: [],
+          attachments,
+          ...(selectedModel ? { model: selectedModel } : {}),
         });
         setSendStatus((current) =>
           current?.sessionId === sessionId &&
@@ -1052,7 +1238,12 @@ export function MobileRemoteProviders({
         throw error;
       }
     },
-    [connection.demoMode, platform.runtime, requireWritableClient]
+    [
+      connection.demoMode,
+      platform.runtime,
+      requireWritableClient,
+      sessionModel.config?.model,
+    ]
   );
 
   const openSessionFileInDesktop = useCallback(
@@ -1193,6 +1384,9 @@ export function MobileRemoteProviders({
       respondPermission,
       dismissPermissionHead,
       stopSession,
+      sessionModel,
+      refreshSessionModel,
+      setSessionModel,
     }),
     [
       activePermission,
@@ -1203,6 +1397,7 @@ export function MobileRemoteProviders({
       disconnect,
       enterDemoMode,
       interactionQueue.queue.length,
+      refreshSessionModel,
       refreshSessions,
       openSessionFileInDesktop,
       respondPermission,
@@ -1210,7 +1405,9 @@ export function MobileRemoteProviders({
       selectRound,
       sendMessage,
       sendStatus,
+      sessionModel,
       sessions,
+      setSessionModel,
       stopSession,
       subscribeSession,
       transcript.rounds,

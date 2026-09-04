@@ -5,6 +5,7 @@ import type { GitHubIssue, OpenPRItem } from "@src/api/tauri/github";
 import {
   GITHUB_ITEM_KIND,
   formatGitHubItemTimeAgo,
+  getManagedGitHubItemKey,
   managedItemMatchesQuery,
   managedItemMatchesRepo,
   mapIssueToManagedItem,
@@ -72,10 +73,19 @@ describe("GitHub managed-item model", () => {
     vi.useRealTimers();
   });
 
+  it("keys right-pane selections by kind, repository, and number", () => {
+    expect(getManagedGitHubItemKey(mapIssueToManagedItem(issue, source))).toBe(
+      "issue-acme/repo-42"
+    );
+    expect(getManagedGitHubItemKey(mapPrToManagedItem(pr, source))).toBe(
+      "pr-acme/repo-7"
+    );
+  });
+
   it("matches repository, @me, labels, state, and free text", () => {
     const item = mapIssueToManagedItem(issue, source);
-    expect(managedItemMatchesRepo(item, "acme/repo", "all")).toBe(true);
-    expect(managedItemMatchesRepo(item, "other/repo", "all")).toBe(false);
+    expect(managedItemMatchesRepo(item, "acme/repo")).toBe(true);
+    expect(managedItemMatchesRepo(item, "other/repo")).toBe(false);
     expect(
       managedItemMatchesQuery(
         item,

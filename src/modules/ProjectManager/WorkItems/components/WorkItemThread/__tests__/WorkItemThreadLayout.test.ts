@@ -91,7 +91,7 @@ describe("WorkItemThreadLayout floating footer", () => {
       '[data-testid="work-item-thread-floating-footer"]'
     );
     const content = container.querySelector(
-      '[data-testid="work-item-thread-section"] > div'
+      '[data-testid="work-item-thread-content-body"]'
     );
     expect(footer?.className).toContain("absolute");
     expect(footer?.className).toContain("bottom-0");
@@ -252,5 +252,30 @@ describe("WorkItemThreadLayout floating footer", () => {
         '[data-testid="work-item-thread-floating-footer"]'
       )?.className
     ).toContain("right-11");
+  });
+  it("renders alerts above the title they concern", () => {
+    const props: ComponentProps<typeof WorkItemThreadLayout> = {
+      alerts: createElement("div", { "data-testid": "alert" }, "Unavailable"),
+      flowHeader: createElement("h1", null, "Issue title"),
+      children: createElement("div", null, "Timeline"),
+    };
+
+    act(() => {
+      root.render(createElement(WorkItemThreadLayout, props));
+    });
+
+    const alerts = container.querySelector(
+      '[data-testid="work-item-thread-alerts"]'
+    );
+    const header = container.querySelector(
+      '[data-testid="work-item-thread-flow-header"]'
+    );
+    expect(alerts).not.toBeNull();
+    expect(header).not.toBeNull();
+    if (!alerts || !header) throw new Error("Expected alert and flow header");
+    // An alert that lands under the title reads as commentary on the body.
+    expect(
+      alerts.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 });

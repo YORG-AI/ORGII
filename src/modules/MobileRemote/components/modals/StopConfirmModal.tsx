@@ -45,11 +45,10 @@ export function StopConfirmModal({
             {t("stopConfirm.cancel")}
           </Button>
           <Button
-            variant="primary"
+            variant="danger"
             onClick={handleConfirm}
             loading={confirming}
             data-modal-primary-action
-            className="!bg-danger-6 hover:!bg-danger-5"
           >
             {t("stopConfirm.confirm")}
           </Button>

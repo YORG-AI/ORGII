@@ -6,16 +6,21 @@
  * Category: "spotlight"
  */
 import { z } from "zod";
+import type { ZodTypeAny } from "zod";
 
 import { ACTION_ID } from "@src/ActionSystem/actionIds";
 import { defineAppActionRegistration } from "@src/ActionSystem/schema/actionRegistration";
-import { defineZodAction } from "@src/ActionSystem/schema/defineZodAction";
+import {
+  type ZodAction,
+  defineZodAction,
+} from "@src/ActionSystem/schema/defineZodAction";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import {
   openAgentControlSpotlight,
   openAgentSessionSearchSpotlight,
   openAllSessionsSearchSpotlight,
   openBranchSpotlight,
+  openCollabOrgSpotlight,
   openEditorSpotlight,
   openSessionCreatorSpotlight,
   openWorkspaceSpotlight,
@@ -28,6 +33,16 @@ import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 // ============================================
 
 const workspacePickerModeSchema = z.enum(["switch", "open", "add", "create"]);
+const collabOrgContextSchema = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("create"),
+    source: z.enum(["local", "cloud"]).optional(),
+  }),
+  z.object({
+    mode: z.literal("join"),
+    source: z.literal("cloud").optional(),
+  }),
+]);
 
 const spotlightOpen = defineZodAction(
   {
@@ -235,11 +250,37 @@ const spotlightOpenSessionCreator = defineZodAction(
   }
 );
 
+const spotlightOpenCollabOrg = defineZodAction(
+  {
+    id: ACTION_ID.SPOTLIGHT_OPEN_COLLAB_ORG,
+    category: "spotlight",
+    description: "Open Spotlight's organization create or join flow",
+    params: collabOrgContextSchema,
+    layer: "gui",
+    examples: [
+      "create an organization",
+      "create an ORG",
+      "join an organization",
+      "join an ORG",
+    ],
+  },
+  async ({ mode, source }) => {
+    openCollabOrgSpotlight({
+      mode,
+      source: mode === "join" ? "cloud" : source,
+    });
+    return {
+      success: true,
+      message: `Opened organization ${mode} flow`,
+    };
+  }
+);
+
 // ============================================
 // Export
 // ============================================
 
-export const spotlightZodActions = [
+export const spotlightZodActions: ZodAction<ZodTypeAny>[] = [
   spotlightOpen,
   spotlightClose,
   spotlightToggle,
@@ -252,6 +293,7 @@ export const spotlightZodActions = [
   spotlightOpenAllSessionsSearch,
   spotlightOpenAgentControl,
   spotlightOpenSessionCreator,
+  spotlightOpenCollabOrg,
 ];
 
 export const spotlightActionRegistration =

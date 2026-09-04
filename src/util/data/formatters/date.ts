@@ -27,11 +27,13 @@ export { parseApiDate };
  *
  * @param dateString - The date string from the API (assumed UTC if no timezone)
  * @param options - Intl.DateTimeFormat options
+ * @param locale - BCP 47 locale used for the rendered date
  * @returns A formatted date string in the user's timezone
  */
 export const formatDate = (
   dateString: string | null | undefined,
-  options?: Intl.DateTimeFormatOptions
+  options?: Intl.DateTimeFormatOptions,
+  locale = "en-US"
 ): string => {
   if (!dateString) return "—";
 
@@ -55,7 +57,7 @@ export const formatDate = (
       formatOptions.timeZone = timezone === "utc" ? "UTC" : timezone;
     }
 
-    return date.toLocaleString("en-US", formatOptions);
+    return date.toLocaleString(locale, formatOptions);
   } catch {
     return "—";
   }

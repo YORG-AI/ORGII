@@ -15,7 +15,7 @@ const CollapsedTabHeadingLabel: React.FC<{ tab: ChatPanelTab }> = ({ tab }) => (
 );
 
 /**
- * Names the lone surface in the collapsed 40px header.
+ * Names the lone surface in the collapsed 36px header.
  *
  * Only surfaces that publish no header content of their own reach this: with
  * the tab row folded away, a terminal or Launchpad tab would otherwise sit

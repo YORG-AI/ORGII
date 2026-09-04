@@ -28,13 +28,13 @@ vi.mock("@src/modules/shared/hooks/useGitHubIssueDetailState", () => ({
 vi.mock(
   "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/IssuesContent/IssueDetailPanel",
   () => ({
-    IssueDetailExternalLinkButton: () =>
-      createElement("button", { type: "button" }, "Open on GitHub"),
     IssueDetailPanel: ({ showHeader }: { showHeader?: boolean }) =>
       createElement("div", {
         "data-testid": "issue",
         "data-show-header": String(showHeader),
       }),
+    IssueDetailTabs: () =>
+      createElement("div", { "data-testid": "issue-tabs" }),
   })
 );
 
@@ -58,7 +58,7 @@ describe("GitHubIssuePanelView loading", () => {
     expect(markup).not.toContain("animate-spin");
   });
 
-  it("publishes the issue title and suppresses the duplicate internal header", () => {
+  it("lets the issue surface own the same internal tab header as PR details", () => {
     Reflect.set(mocks.selectedState, "issue", {
       number: 586,
       title: "Align the issue header",
@@ -76,7 +76,7 @@ describe("GitHubIssuePanelView loading", () => {
         })
       );
 
-      expect(markup).toContain('data-show-header="false"');
+      expect(markup).toContain('data-show-header="undefined"');
     } finally {
       Reflect.set(mocks.selectedState, "issue", null);
     }

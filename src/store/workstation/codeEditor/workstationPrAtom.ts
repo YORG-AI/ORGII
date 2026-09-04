@@ -52,10 +52,6 @@ export const workstationPrAtomFamily = atomFamily((scopeKey: string) => {
   return scopedAtom;
 });
 
-export const workstationPrAtom = workstationPrAtomFamily(
-  DEFAULT_WORKSTATION_REPO_SCOPE
-);
-
 /**
  * Latest Source Control commit message for the active workstation repo.
  *
@@ -73,9 +69,6 @@ export const workstationPrCommitMessageAtomFamily = atomFamily(
     return scopedAtom;
   }
 );
-export const workstationPrCommitMessageAtom =
-  workstationPrCommitMessageAtomFamily(DEFAULT_WORKSTATION_REPO_SCOPE);
-
 /**
  * All open pull requests for the active workstation repo.
  * Written by `useWorkstationPr` when the PR page requests the list.
@@ -88,10 +81,6 @@ export const workstationAllOpenPrsAtomFamily = atomFamily(
     return scopedAtom;
   }
 );
-export const workstationAllOpenPrsAtom = workstationAllOpenPrsAtomFamily(
-  DEFAULT_WORKSTATION_REPO_SCOPE
-);
-
 /** Closed pull requests, loaded lazily when the CLOSED section is expanded. */
 export const workstationAllClosedPrsAtomFamily = atomFamily(
   (scopeKey: string) => {
@@ -100,10 +89,6 @@ export const workstationAllClosedPrsAtomFamily = atomFamily(
     return scopedAtom;
   }
 );
-export const workstationAllClosedPrsAtom = workstationAllClosedPrsAtomFamily(
-  DEFAULT_WORKSTATION_REPO_SCOPE
-);
-
 /**
  * Load lifecycle for `workstationAllOpenPrsAtom`. Lets the PR sidebar
  * distinguish "still fetching" from "truly empty" / "failed to fetch".
@@ -125,9 +110,6 @@ export const workstationOpenPrsLoadStateAtomFamily = atomFamily(
     return scopedAtom;
   }
 );
-export const workstationOpenPrsLoadStateAtom =
-  workstationOpenPrsLoadStateAtomFamily(DEFAULT_WORKSTATION_REPO_SCOPE);
-
 export const workstationOpenPrsErrorAtomFamily = atomFamily(
   (scopeKey: string) => {
     const scopedAtom = atom<string | null>(null);
@@ -135,10 +117,6 @@ export const workstationOpenPrsErrorAtomFamily = atomFamily(
     return scopedAtom;
   }
 );
-export const workstationOpenPrsErrorAtom = workstationOpenPrsErrorAtomFamily(
-  DEFAULT_WORKSTATION_REPO_SCOPE
-);
-
 export const workstationClosedPrsLoadStateAtomFamily = atomFamily(
   (scopeKey: string) => {
     const scopedAtom = atom<WorkstationOpenPrsLoadState>("idle");
@@ -146,9 +124,6 @@ export const workstationClosedPrsLoadStateAtomFamily = atomFamily(
     return scopedAtom;
   }
 );
-export const workstationClosedPrsLoadStateAtom =
-  workstationClosedPrsLoadStateAtomFamily(DEFAULT_WORKSTATION_REPO_SCOPE);
-
 export const workstationClosedPrsErrorAtomFamily = atomFamily(
   (scopeKey: string) => {
     const scopedAtom = atom<string | null>(null);
@@ -156,9 +131,6 @@ export const workstationClosedPrsErrorAtomFamily = atomFamily(
     return scopedAtom;
   }
 );
-export const workstationClosedPrsErrorAtom =
-  workstationClosedPrsErrorAtomFamily(DEFAULT_WORKSTATION_REPO_SCOPE);
-
 /**
  * Stable ref-backed callback for triggering PR creation from Source Control UI.
  * Stored as a ref container to avoid stale closure issues with atom-stored functions.
@@ -182,7 +154,4 @@ export const workstationPrCallbackAtomFamily = atomFamily(
     scopedAtom.debugLabel = `workstationPrCallbackAtom(${scopeKey})`;
     return scopedAtom;
   }
-);
-export const workstationPrCallbackAtom = workstationPrCallbackAtomFamily(
-  DEFAULT_WORKSTATION_REPO_SCOPE
 );

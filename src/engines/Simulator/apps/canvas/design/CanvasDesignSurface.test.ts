@@ -355,7 +355,6 @@ describe("CanvasDesignSurface", () => {
       window.innerHeight - 650 + 72
     );
     expect(prompt?.style.top).toBe("");
-    expect(testState.inputAreaProps).toMatchObject({ bottomAnchored: true });
   });
 
   it("keeps the compact prompt below the selection when one row fits", () => {
@@ -382,7 +381,6 @@ describe("CanvasDesignSurface", () => {
     expect(prompt?.dataset.placement).toBe("below");
     expect(prompt?.style.top).toBe("272px");
     expect(prompt?.style.bottom).toBe("");
-    expect(testState.inputAreaProps).toMatchObject({ bottomAnchored: false });
   });
 
   it("docks a tall outer element instead of flipping the prompt above the Canvas", () => {

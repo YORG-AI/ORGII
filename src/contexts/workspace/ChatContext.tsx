@@ -250,26 +250,4 @@ export const useChatHistory = () => {
   };
 };
 
-export const useChatWidth = () => {
-  const { chatWidth, setChatWidth } = useChatContext();
-  return { chatWidth, setChatWidth };
-};
-
-export const useChatScroll = () => {
-  const {
-    isChatScrolledToBottom,
-    setIsChatScrolledToBottom,
-    chatContainerRef,
-    unreadCount,
-    setUnreadCount,
-  } = useChatContext();
-  return {
-    isChatScrolledToBottom,
-    setIsChatScrolledToBottom,
-    chatContainerRef,
-    unreadCount,
-    setUnreadCount,
-  };
-};
-
 export { ChatContext };

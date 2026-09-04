@@ -88,12 +88,6 @@
       "openAsFloatingPane": "Открыть во всплывающей панели"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "Поиск сессий по пути файла",
-      "noResults": "Нет сессий, изменивших подходящий файл"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "Текущий Kanban",
     "view": {
       "list": "Список",
       "diary": "Дневник",
@@ -361,9 +355,6 @@
       "merge": "Слить",
       "merging": "Слияние…",
       "merged": "Слито"
-    },
-    "replay": {
-      "replaySession": "Воспроизвести"
     },
     "discard": {
       "discard": "Отменить",
@@ -891,6 +882,8 @@
       "positionUp": "Сверху",
       "positionDown": "Снизу",
       "uiControls": "Элементы интерфейса",
+      "showQuickActions": "Показывать быстрые действия",
+      "showSkills": "Показывать Skills",
       "showCliUpdate": "Показывать обновления CLI",
       "title": "Что вы хотите сделать?",
       "back": "Назад к стартовой странице",
@@ -1002,6 +995,7 @@
     "fullScreenChat": "Фокус на панели чата (скрыть Workstation)",
     "maximizeChatPanel": "Развернуть панель чата",
     "showWorkstation": "Показать Workstation",
+    "workstationUnavailableForPage": "Workstation недоступна на этой странице",
     "hideWorkstation": "Скрыть Workstation",
     "restoreSplitView": "Показать Workstation",
     "shrinkToWorkstation": "Свернуть панель чата (показать Workstation)",
@@ -1119,7 +1113,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~осталось {{eta}}",
     "rateLimitHintTitle": "Лимит запросов API",
-    "rateLimitHintBody": "Текущая модель ограничена по частоте запросов. Вы можете переключиться на другое окно и продолжить работу, пока ожидаете.",
+    "rateLimitHintBody": "Текущая модель ограничена по частоте запросов. Вы можете переключиться на другое окно и продолжить работу, пока ожидаете",
     "feedbackPending": "Ожидание отзыва",
     "executionThreads": "Потоки выполнения",
     "allThreads": "Все",

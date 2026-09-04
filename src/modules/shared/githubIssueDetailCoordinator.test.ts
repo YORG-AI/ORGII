@@ -4,11 +4,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GitHubIssue } from "@src/api/tauri/github";
 
 import {
+  UNRESOLVED_AUTH_SCOPE,
   getGitHubIssueDetailCoordinatorStats,
   loadGitHubDuplicateCandidates,
   loadGitHubIssueDetailBundle,
+  loadGitHubIssueMetadata,
   resetGitHubIssueDetailCoordinator,
+  resolveGitHubDetailAuthScope,
 } from "./githubIssueDetailCoordinator";
+
+const mocks = vi.hoisted(() => ({
+  getGitCredentialForRemote: vi.fn(),
+}));
+
+vi.mock("@src/api/tauri/github", () => mocks);
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -91,6 +100,53 @@ describe("githubIssueDetailCoordinator", () => {
     ).toBe(0);
   });
 
+  it("single-flights and bounds auth-scoped linked-issue metadata", async () => {
+    const store = createStore();
+    const pending = deferred<GitHubIssue>();
+    const loader = vi.fn(() => pending.promise);
+
+    const first = loadGitHubIssueMetadata(
+      store,
+      "auth-a",
+      "org/repo",
+      1,
+      loader
+    );
+    const second = loadGitHubIssueMetadata(
+      store,
+      "auth-a",
+      "org/repo",
+      1,
+      loader
+    );
+
+    expect(first).toBe(second);
+    expect(loader).toHaveBeenCalledOnce();
+    pending.resolve({ number: 1 } as GitHubIssue);
+    await first;
+
+    await loadGitHubIssueMetadata(
+      store,
+      "auth-b",
+      "org/repo",
+      1,
+      async () => ({ number: 1 }) as GitHubIssue
+    );
+    for (let number = 2; number <= 40; number += 1) {
+      await loadGitHubIssueMetadata(
+        store,
+        "auth-a",
+        "org/repo",
+        number,
+        async () => ({ number }) as GitHubIssue
+      );
+    }
+
+    expect(
+      getGitHubIssueDetailCoordinatorStats(store).issueMetadata
+    ).toMatchObject({ entries: 24, maxEntries: 24, inFlight: 0 });
+  });
+
   it("keeps duplicate-candidate results scoped to the current issue", async () => {
     const store = createStore();
     const loader = vi.fn(async () => []);
@@ -99,5 +155,32 @@ describe("githubIssueDetailCoordinator", () => {
     await loadGitHubDuplicateCandidates(store, "auth", "org/repo", 2, loader);
 
     expect(loader).toHaveBeenCalledTimes(2);
+  });
+  it("namespaces reads without letting a failed credential lookup deny them", async () => {
+    // The scope is a cache namespace, not an authorization check. Rejecting
+    // here once left every issue surface unable to build a request key, while
+    // pull requests — which never consult it — kept loading.
+    mocks.getGitCredentialForRemote.mockResolvedValue({
+      connection_id: "connection-1",
+      source: "pat",
+      username: "x-access-token",
+    });
+    await expect(resolveGitHubDetailAuthScope()).resolves.toBe(
+      "github.com:connection-1:pat:x-access-token"
+    );
+
+    mocks.getGitCredentialForRemote.mockResolvedValue(null);
+    await expect(resolveGitHubDetailAuthScope()).resolves.toBe(
+      "github.com:anonymous"
+    );
+
+    mocks.getGitCredentialForRemote.mockRejectedValue(
+      new Error("keychain_locked")
+    );
+    await expect(resolveGitHubDetailAuthScope()).resolves.toBe(
+      UNRESOLVED_AUTH_SCOPE
+    );
+    // A failed lookup must not share a bucket with a known-anonymous read.
+    expect(UNRESOLVED_AUTH_SCOPE).not.toBe("github.com:anonymous");
   });
 });

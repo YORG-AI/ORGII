@@ -33,7 +33,7 @@ import {
 import GitCommitDetailContent from "@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/GitCommitDetailContent";
 import { ActivityHeaderActionButton } from "@src/modules/shared/components/ActivityTimeline";
 import { copyText } from "@src/util/data/clipboard";
-import { formatDate } from "@src/util/data/formatters/date";
+import { formatDate, toIntlLocaleTag } from "@src/util/data/formatters/date";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 interface PrCommitRow {
@@ -107,18 +107,23 @@ function mapPrCommit(
 
 function groupCommits(
   rows: PrCommitRow[],
-  unknownDate: string
+  unknownDate: string,
+  locale: string
 ): PrCommitGroup[] {
   const groups: PrCommitGroup[] = [];
   for (const commit of rows) {
     const dateLabel = commit.author.date
-      ? formatDate(commit.author.date, {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-          hour: undefined,
-          minute: undefined,
-        })
+      ? formatDate(
+          commit.author.date,
+          {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: undefined,
+            minute: undefined,
+          },
+          locale
+        )
       : unknownDate;
     const key = commit.author.date ? dateLabel : "unknown";
     const previous = groups.at(-1);
@@ -175,17 +180,19 @@ function CommitCheckStatus({
 function PrCommitCard({
   commit,
   checks,
+  locale,
   onSelect,
 }: {
   commit: PrCommitRow;
   checks: GitHubChecksSummary | null | undefined;
+  locale: string;
   onSelect: (commit: PrCommitRow) => void;
 }): React.ReactNode {
   const { t } = useTranslation("common");
   const copySha = useCallback(() => copyText(commit.sha), [commit.sha]);
   const { copied, handleCopy } = useCopyCheck(copySha);
   const commitChecks = readCommitChecks(checks, commit.sha);
-  const relativeTime = formatRelativeTime(commit.author.date, "long");
+  const relativeTime = formatRelativeTime(commit.author.date, "long", locale);
 
   return (
     <article className="group flex min-w-0 items-center overflow-hidden rounded-xl border border-border-1 bg-primary-container transition-colors hover:border-border-2">
@@ -219,7 +226,7 @@ function PrCommitCard({
           {commit.author.date ? (
             <time
               dateTime={commit.author.date}
-              title={formatDate(commit.author.date)}
+              title={formatDate(commit.author.date, undefined, locale)}
             >
               {relativeTime}
             </time>
@@ -323,7 +330,8 @@ export const PrCommitsTab: React.FC<PrCommitsTabProps> = ({
   onSelectedCommitShaChange,
   onFileSelect,
 }) => {
-  const { t } = useTranslation("common");
+  const { t, i18n } = useTranslation("common");
+  const locale = toIntlLocaleTag(i18n.resolvedLanguage);
   const [internalSelectedCommitSha, setInternalSelectedCommitSha] = useState<
     string | null
   >(null);
@@ -352,8 +360,8 @@ export const PrCommitsTab: React.FC<PrCommitsTabProps> = ({
     [commits, unknownAuthor]
   );
   const groups = useMemo(
-    () => groupCommits(rows, unknownDate),
-    [rows, unknownDate]
+    () => groupCommits(rows, unknownDate, locale),
+    [locale, rows, unknownDate]
   );
   const selected = useMemo(
     () => rows.find((commit) => commit.sha === selectedCommitSha) ?? null,
@@ -461,6 +469,7 @@ export const PrCommitsTab: React.FC<PrCommitsTabProps> = ({
                     key={commit.sha}
                     commit={commit}
                     checks={checks}
+                    locale={locale}
                     onSelect={handleSelect}
                   />
                 ))}

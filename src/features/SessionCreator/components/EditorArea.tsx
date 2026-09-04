@@ -84,8 +84,6 @@ export interface EditorAreaProps {
   onAtSelect: (type: MenuItemId, value?: string, displayName?: string) => void;
   /** Repo path for context menu */
   repoPath?: string;
-  /** @ mention click handler */
-  onAtMentionClick: () => void;
   /** Upload click handler */
   onUploadClick: () => void;
   /** Is loading state */
@@ -165,8 +163,6 @@ export interface EditorAreaProps {
   includeProjectMode?: boolean;
   filteredSlashItems?: SlashItem[];
   slashLoading?: boolean;
-  /** Fetch+filter slash items without opening the inline "/" menu. */
-  onPrefetchSlashItems?: (query: string) => void;
 }
 
 // ============================================
@@ -188,7 +184,6 @@ const EditorArea: React.FC<EditorAreaProps> = ({
   setAtSearchQuery,
   onAtSelect,
   repoPath,
-  onAtMentionClick,
   onUploadClick,
   isLoading,
   onLaunch,
@@ -228,7 +223,6 @@ const EditorArea: React.FC<EditorAreaProps> = ({
   currentMode = "build",
   filteredSlashItems = [],
   slashLoading = false,
-  onPrefetchSlashItems,
 }) => {
   const isChatPanelFullScreen = variant === "chatPanelFullScreen";
   const resolvedDropdownDirection =
@@ -252,41 +246,27 @@ const EditorArea: React.FC<EditorAreaProps> = ({
   const slashCommandKeyboardHandlerRef =
     externalSlashKbRef ?? internalSlashKbRef;
 
-  // Plus-button slash menu (header search mode)
-  const [showPlusSlashMenu, setShowPlusSlashMenu] = useState(false);
-  const [plusSlashQuery, setPlusSlashQuery] = useState("");
-  const [contextMenuKeyboardOpened, setContextMenuKeyboardOpened] =
-    useState(false);
-
-  const handleOpenSkillsTools = useCallback(() => {
-    setPlusSlashQuery("");
-    setShowPlusSlashMenu(true);
-    onPrefetchSlashItems?.("");
-  }, [onPrefetchSlashItems]);
-
-  const handlePlusSlashClose = useCallback(() => {
-    setShowPlusSlashMenu(false);
-    setPlusSlashQuery("");
-  }, []);
-
   const handleContextMenuClose = useCallback(() => {
-    setContextMenuKeyboardOpened(false);
     setShowContextMenu(false);
     setAtSearchQuery("");
   }, [setAtSearchQuery, setShowContextMenu]);
 
-  const handlePlusSlashQueryChange = useCallback(
-    (query: string) => {
-      setPlusSlashQuery(query);
-      onPrefetchSlashItems?.(query);
-    },
-    [onPrefetchSlashItems]
-  );
+  const handleManualContextMenuClick = useCallback(() => {
+    composerInputRef.current?.triggerAtMention();
+  }, [composerInputRef]);
 
-  const handleManualAtMentionClick = useCallback(() => {
-    setContextMenuKeyboardOpened(false);
-    onAtMentionClick();
-  }, [onAtMentionClick]);
+  const handleContextModeSelect = useCallback(
+    (mode: ComposerModeEntry["id"]) => {
+      onModeSelect?.(mode);
+      composerInputRef.current?.consumeMentionQuery();
+      handleContextMenuClose();
+    },
+    [composerInputRef, handleContextMenuClose, onModeSelect]
+  );
+  const handleContextImageUpload = useCallback(() => {
+    composerInputRef.current?.consumeMentionQuery();
+    onUploadClick();
+  }, [composerInputRef, onUploadClick]);
 
   const editorContainerRef = React.useRef<HTMLDivElement>(null);
 
@@ -452,7 +432,6 @@ const EditorArea: React.FC<EditorAreaProps> = ({
 
   const handleAtMention = useCallback(
     (query: string, position: { x: number; y: number }) => {
-      setContextMenuKeyboardOpened(true);
       onAtMention?.(query, position);
     },
     [onAtMention]
@@ -501,20 +480,19 @@ const EditorArea: React.FC<EditorAreaProps> = ({
    */
   const handleKeyDownForSlashDropdown = useCallback(
     (event: KeyboardEvent): boolean => {
-      if (
-        (showSlashMenu || showPlusSlashMenu) &&
-        slashCommandKeyboardHandlerRef.current
-      ) {
+      if (showSlashMenu && slashCommandKeyboardHandlerRef.current) {
         return slashCommandKeyboardHandlerRef.current(event);
       }
       return false;
     },
-    [showSlashMenu, showPlusSlashMenu, slashCommandKeyboardHandlerRef]
+    [showSlashMenu, slashCommandKeyboardHandlerRef]
   );
 
   // ============================================
   // Render
   // ============================================
+
+  const menuPortalFrame = { containerRef: editorContainerRef };
 
   return (
     <div
@@ -590,73 +568,38 @@ const EditorArea: React.FC<EditorAreaProps> = ({
           onKeyDownForDropdown={handleKeyDownForDropdown}
           onSlashCommand={onSlashCommand}
           onSlashCommandClose={onSlashCommandClose}
-          onInputMouseDown={handlePlusSlashClose}
           onKeyDownForSlashDropdown={handleKeyDownForSlashDropdown}
           onImagePaste={onImagePaste}
         />
 
-        {/* Context Menu for @ mentions - rendered via portal to avoid clipping */}
+        {/* Shared + / @ menu - rendered via portal to avoid clipping */}
         <ContextMenuPortal
           visible={showContextMenu}
-          containerRef={editorContainerRef}
+          {...menuPortalFrame}
           onClose={handleContextMenuClose}
           onSelect={onAtSelect}
+          onImageUpload={handleContextImageUpload}
+          currentMode={currentMode}
+          onModeSelect={handleContextModeSelect}
+          includeProjectMode={includeProjectMode}
           searchQuery={atSearchQuery}
-          keyboardOpened={contextMenuKeyboardOpened}
           repoPath={repoPath}
           keyboardHandlerRef={contextMenuFunctionRef}
-          placement={resolvedDropdownDirection}
         />
 
         {/* Slash Command Menu - inline "/" trigger */}
         {onSlashCommand && (
           <SlashCommandPortal
             visible={showSlashMenu}
-            containerRef={editorContainerRef}
-            placement={resolvedDropdownDirection}
-            items={filteredSlashItems}
+            {...menuPortalFrame}
+            items={filteredSlashItems.filter(
+              (item) => item.category === "skill"
+            )}
             loading={slashLoading}
-            currentMode={currentMode}
-            includeProjectMode={includeProjectMode}
             searchQuery={slashQuery}
-            onClose={onSlashCommandClose ?? handlePlusSlashClose}
+            onClose={() => onSlashCommandClose?.()}
             onSelect={(item) => onSlashSelect?.(item)}
-            onModeSelect={(mode) => onModeSelect?.(mode)}
             keyboardHandlerRef={slashCommandKeyboardHandlerRef}
-            showActionFlyouts
-            onImageUpload={onUploadClick}
-          />
-        )}
-
-        {/* Slash Command Menu - "+" button trigger (header search mode) */}
-        {onSlashCommand && (
-          <SlashCommandPortal
-            visible={showPlusSlashMenu}
-            containerRef={editorContainerRef}
-            anchorSelector="[data-composer-plus-menu-trigger]"
-            placement={resolvedDropdownDirection}
-            items={filteredSlashItems}
-            loading={slashLoading}
-            currentMode={currentMode}
-            includeProjectMode={includeProjectMode}
-            searchQuery={plusSlashQuery}
-            onClose={handlePlusSlashClose}
-            onSelect={(item) => {
-              onSlashSelect?.(item);
-              handlePlusSlashClose();
-            }}
-            onModeSelect={(mode) => {
-              onModeSelect?.(mode);
-              handlePlusSlashClose();
-            }}
-            keyboardHandlerRef={slashCommandKeyboardHandlerRef}
-            searchMode="header"
-            showActionFlyouts
-            onSearchQueryChange={handlePlusSlashQueryChange}
-            onImageUpload={() => {
-              handlePlusSlashClose();
-              onUploadClick();
-            }}
           />
         )}
 
@@ -666,16 +609,11 @@ const EditorArea: React.FC<EditorAreaProps> = ({
             elapsedSeconds={voice.elapsedSeconds}
             onCancel={voice.cancel}
             onAccept={voice.stop}
-            onAddContent={handleManualAtMentionClick}
+            onAddContent={handleManualContextMenuClick}
           />
         ) : (
           <ComposerBar
-            onAddContent={handleManualAtMentionClick}
-            onUpload={onUploadClick}
-            onOpenSkillsTools={
-              onSlashCommand ? handleOpenSkillsTools : undefined
-            }
-            dropdownDirection={resolvedDropdownDirection}
+            onAddContent={handleManualContextMenuClick}
             repoPath={repoPath}
             showContextInfo={false}
             pills={

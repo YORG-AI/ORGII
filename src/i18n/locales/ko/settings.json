@@ -66,7 +66,7 @@
       "connections": "연결",
       "git": "Git",
       "databases": "데이터베이스",
-      "housekeeper": "MiniCPM Housekeeper",
+      "housekeeper": "로컬 인텔리전스",
       "externalSkillsets": "Skills, MCPs, Plugins"
     }
   },
@@ -113,7 +113,9 @@
     }
   },
   "general": {
+    "login": "로그인",
     "tabGeneral": "일반",
+    "tabSelfHosted": "자체 호스팅",
     "loginStatus": "로그인 상태",
     "loggedIn": "로그인됨",
     "notLoggedIn": "로그인되지 않음",
@@ -169,7 +171,6 @@
     "sidebarEdgeDepth": "사이드바 경계 깊이",
     "selectedItemTransparency": "선택한 항목 투명도",
     "spotlightPlacement": "Spotlight 위치",
-    "spotlightPlacementDesc": "Spotlight 명령 팔레트가 열릴 위치를 선택합니다",
     "spotlightPlacementOptions": {
       "top": "상단",
       "center": "페이지 중앙"

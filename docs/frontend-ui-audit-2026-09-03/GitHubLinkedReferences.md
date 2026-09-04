@@ -1,0 +1,14 @@
+# GitHubLinkedReferences UI audit
+
+Scope: the shared related-items timeline in
+`src/modules/shared/components/GitHubLinkedReferences/index.tsx`.
+
+| Line                | Element                                | Verdict          | Reason                                                                                                                                                     | Suggested change                                                                                                                 |
+| ------------------- | -------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `index.tsx:324-364` | Related-items group and connector rail | fix (applied)    | The previous nested `TimelineCard` made a one-item list look like a panel inside a panel and separated the count from the item hierarchy.                  | Uses the same heading → connector rail → cards structure as `PrCommitsTab`, while retaining the shared width and padding tokens. |
+| `index.tsx:142-200` | Related-item card and control          | keep with reason | The semantic `article`/`listitem` wrapper supplies the list structure that has no design-system primitive; interaction remains the design-system `Button`. | None.                                                                                                                            |
+| `index.tsx:353-363` | Connector rail                         | keep with reason | Deliberately mirrors the established `PrCommitsTab` timeline rail; extracting it at two sites would create a premature abstraction.                        | Revisit a shared timeline-list primitive if a third detail surface needs this exact layout.                                      |
+| `index.tsx:105-107` | Issue state pill                       | watch            | The issue branch still duplicates the compact state-pill colors used by the issue detail header. This is only the second site.                             | Extract a shared `IssueStatusPill` if a third consumer appears.                                                                  |
+| `index.tsx:171-181` | Title and metadata text sizes          | keep with reason | `text-[13px]` and `text-[12px]` match the commit-card hierarchy this component now follows; no smaller typography token exists for this metadata scale.    | None.                                                                                                                            |
+
+Verdict totals: **1 fix (applied)**, **3 keep with reason**, **0 abstract**, **1 watch**.

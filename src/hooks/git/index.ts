@@ -5,7 +5,6 @@
  * - useGitOperations: Unified hook for git push/pull/fetch/publish/sync
  * - useRepoSelection: Main hook for repo/branch selection
  * - useRepoState: Read-only hook for components that just need state
- * - useRepoDropdownActions: Dropdown menu actions
  * - useGitHubConnections: GitHub connection management
  *
  * Git status is now handled by:
@@ -32,7 +31,7 @@ export { useRepoGitInitialization } from "./useRepoGitInitialization";
 export type { RepoGitInitializationState } from "./useRepoGitInitialization";
 
 // Git error dialog (standalone function for git errors)
-export { showGitErrorAndHandle } from "./useGitErrorDialog";
+export { showGitErrorAndHandle } from "./gitErrorDialog";
 
 // File history hook
 export { useFileHistory } from "./useFileHistory";

@@ -9,7 +9,7 @@ import { InputAreaTopRows } from "./InputAreaChrome";
 
 vi.mock("../ChatHeader", () => ({ default: () => null }));
 vi.mock("./PlanTodoPill", () => ({ default: () => null }));
-vi.mock("./PinnedActionsBar", async () => {
+vi.mock("./PinnedActionsBar/LazyPinnedActionsBar", async () => {
   const ReactModule = await import("react");
   return {
     default: ({ showPinnedActions }: { showPinnedActions?: boolean }) =>

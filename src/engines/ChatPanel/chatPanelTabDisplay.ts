@@ -11,6 +11,7 @@ export interface ChatPanelTabDisplayLabels {
   teamInbox: string;
   workManagement: {
     kanban: string;
+    inbox: string;
     work: string;
   };
   sessionFallback: string;
@@ -22,13 +23,20 @@ function resolveWorkManagementTabTitle(
   labels: ChatPanelTabDisplayLabels["workManagement"]
 ): string {
   switch (tab.managementSection) {
+    case WORK_MANAGEMENT_SECTION.INBOX:
+      return labels.inbox;
     case WORK_MANAGEMENT_SECTION.PROJECTS:
     case WORK_MANAGEMENT_SECTION.GITHUB_ISSUES:
     case WORK_MANAGEMENT_SECTION.GITHUB_PRS:
       return labels.work;
     case WORK_MANAGEMENT_SECTION.KANBAN:
-    default:
       return labels.kanban;
+    default:
+      // During initial atom hydration a Work tab can render before its
+      // management section is available. Its stored title was set by the
+      // opening action and is already localized, so preserve that identity
+      // instead of briefly presenting the unrelated Kanban fallback.
+      return tab.title;
   }
 }
 

@@ -15,6 +15,7 @@ import {
 } from "@src/components/CompoundPill/config";
 import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
+import { getPositionedOverlayVisibilityStyle } from "@src/components/Dropdown/positioning";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -173,18 +174,28 @@ export const FieldRow: React.FC<FieldRowProps> = ({
 export type DropdownWidthMode = "match-parent" | "menu";
 export type DropdownAlign = "left" | "right" | "auto";
 
+/**
+ * Property pills use their trailing edge as the menu anchor. This keeps wide
+ * pickers inside the detail panel and gives every pill field the same menu
+ * edge, rather than letting each caller choose an initial side independently.
+ */
+export function getPropertyDropdownAlign(
+  fieldVariant: FieldRowVariant
+): Exclude<DropdownAlign, "auto"> {
+  return fieldVariant === "pill" ? "right" : "left";
+}
+
 function useResolvedDropdownAlign(align: DropdownAlign) {
-  const [resolvedAlign, setResolvedAlign] = useState<"left" | "right">(
-    align === "right" ? "right" : "left"
-  );
+  const [autoAlign, setAutoAlign] = useState<"left" | "right">("left");
+  // Auto alignment needs the rendered panel width. Keep the panel hidden
+  // until its callback ref has resolved that width; otherwise it paints
+  // left-aligned for one frame before moving to the right-aligned position.
+  const [isAutoPositioned, setIsAutoPositioned] = useState(false);
 
   const dropdownRef = useCallback(
     (dropdown: HTMLDivElement | null) => {
       if (!dropdown) return;
-      if (align !== "auto") {
-        if (resolvedAlign !== align) setResolvedAlign(align);
-        return;
-      }
+      if (align !== "auto") return;
 
       const rect = dropdown.getBoundingClientRect();
       const viewportPadding = 12;
@@ -192,12 +203,17 @@ function useResolvedDropdownAlign(align: DropdownAlign) {
         rect.right > getViewportSize().width - viewportPadding
           ? "right"
           : "left";
-      if (resolvedAlign !== nextAlign) setResolvedAlign(nextAlign);
+      setAutoAlign(nextAlign);
+      setIsAutoPositioned(true);
     },
-    [align, resolvedAlign]
+    [align]
   );
 
-  return { dropdownRef, resolvedAlign };
+  return {
+    dropdownRef,
+    resolvedAlign: align === "auto" ? autoAlign : align,
+    isPositioned: align !== "auto" || isAutoPositioned,
+  };
 }
 
 export interface DropdownProps {
@@ -213,7 +229,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
   align = "left",
   widthMode = "match-parent",
 }) => {
-  const { dropdownRef, resolvedAlign } = useResolvedDropdownAlign(align);
+  const { dropdownRef, resolvedAlign, isPositioned } =
+    useResolvedDropdownAlign(align);
   const positionClass =
     widthMode === "menu"
       ? resolvedAlign === "right"
@@ -229,6 +246,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
       ref={dropdownRef}
       data-property-dropdown
       className={`absolute ${positionClass} top-full mt-1 flex flex-col ${widthClass} ${DROPDOWN_CLASSES.panelAnimated} ${className}`}
+      style={getPositionedOverlayVisibilityStyle(isPositioned)}
     >
       {children}
     </div>
@@ -265,7 +283,8 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
     width?: number;
   } | null>(null);
   const anchorRef = useRef<HTMLDivElement | null>(null);
-  const { dropdownRef, resolvedAlign } = useResolvedDropdownAlign(align);
+  const { dropdownRef, resolvedAlign, isPositioned } =
+    useResolvedDropdownAlign(align);
   const positionClass =
     widthMode === "menu"
       ? resolvedAlign === "right"
@@ -345,6 +364,7 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
             data-property-dropdown
             className={`fixed flex flex-col ${widthClass} ${DROPDOWN_CLASSES.panelAnimated} ${className}`}
             style={{
+              ...getPositionedOverlayVisibilityStyle(isPositioned),
               top: portalPosition.top,
               left: portalPosition.left,
               right: portalPosition.right,

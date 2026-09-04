@@ -66,6 +66,7 @@ export const ACTION_ID = {
   SPOTLIGHT_OPEN_ALL_SESSIONS_SEARCH: "spotlight.openAllSessionsSearch",
   SPOTLIGHT_OPEN_AGENT_CONTROL: "spotlight.openAgentControl",
   SPOTLIGHT_OPEN_SESSION_CREATOR: "spotlight.openSessionCreator",
+  SPOTLIGHT_OPEN_COLLAB_ORG: "spotlight.openCollabOrg",
   WORKSTATION_CREATE_PROJECT: "workstation.createProject",
   WORKSTATION_CREATE_WORK_ITEM: "workstation.createWorkItem",
   FILE_OPEN: "file.open",

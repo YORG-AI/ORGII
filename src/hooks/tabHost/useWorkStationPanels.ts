@@ -185,32 +185,3 @@ export function usePrimarySidebarState() {
     closePrimarySidebar,
   };
 }
-
-/**
- * Hook for bottom panel state only.
- * Use this instead of useWorkStationPanels when you only need bottom panel.
- */
-export function useBottomPanelState() {
-  const bottomPanelCollapsed = useAtomValue(
-    workStationEditorSecondaryCollapsedAtom
-  );
-  const setBottomPanelCollapsed = useSetAtom(
-    workStationEditorSecondaryCollapsedPersistAtom
-  );
-  const bottomPanelHeight = useAtomValue(workStationBottomPanelHeightAtom);
-  const setBottomPanelHeight = useSetAtom(
-    workStationBottomPanelHeightPersistAtom
-  );
-
-  const toggleBottomPanel = useCallback(() => {
-    setBottomPanelCollapsed(!bottomPanelCollapsed);
-  }, [bottomPanelCollapsed, setBottomPanelCollapsed]);
-
-  return {
-    bottomPanelCollapsed,
-    setBottomPanelCollapsed,
-    toggleBottomPanel,
-    bottomPanelHeight,
-    setBottomPanelHeight,
-  };
-}

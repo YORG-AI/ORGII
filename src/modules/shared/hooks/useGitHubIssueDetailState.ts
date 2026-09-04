@@ -55,6 +55,45 @@ import {
 } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 
+/**
+ * Reported when a request settled without an issue and the failing call left no
+ * message of its own — an unresolvable repository, or auth-scope resolution
+ * that failed before any request could be keyed.
+ */
+export const GITHUB_ISSUE_UNAVAILABLE_ERROR = "github_issue_unavailable";
+
+/** Reported when the detail request outlived its deadline without settling. */
+export const GITHUB_ISSUE_TIMEOUT_ERROR = "github_issue_request_timeout";
+
+/**
+ * Deadline for one issue-detail read. A transport that never settles is
+ * indistinguishable from a slow one, so without a bound the surface waits on a
+ * skeleton forever and can never explain itself. The underlying request is not
+ * cancellable and keeps running — if it does finish, it still populates the
+ * shared cache for the next attempt.
+ */
+const ISSUE_DETAIL_REQUEST_TIMEOUT_MS = 30_000;
+
+function withDeadline<T>(
+  request: Promise<T>,
+  timeoutMs: number,
+  onTimeout: () => T
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => resolve(onTimeout()), timeoutMs);
+    request.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    );
+  });
+}
+
 export interface GitHubIssueDetailStateOptions {
   /** Omit for repo-scoped Source Control, which already owns the selection. */
   issueNumber?: number;
@@ -182,6 +221,13 @@ export function useGitHubIssueDetailState({
   const authScope =
     providedAuthScope ??
     (resolvedAuth?.key === authResolutionKey ? resolvedAuth.scope : null);
+  /**
+   * Auth-scope resolution has produced an answer for this repository — either a
+   * scope or a definitive failure. Until it has, a missing scope is pending
+   * rather than terminal.
+   */
+  const authScopeResolved =
+    providedAuthScope !== undefined || resolvedAuth?.key === authResolutionKey;
   const selectedIssueRef = useRef(selectedState.issue);
   const selectedTimelineRef = useRef(selectedState.timeline);
   const requestGenerationRef = useRef(0);
@@ -246,6 +292,21 @@ export function useGitHubIssueDetailState({
     selectedState.resourceKey === requestKey &&
     selectedState.issue?.number === issueNumber;
   const currentResolution = resolution?.key === requestKey ? resolution : null;
+  /**
+   * A host that names its own issue has three outcomes, not two: the request is
+   * still running, it settled with the issue, or it settled without one — a
+   * failed fetch, an unresolvable repository, or auth-scope resolution that
+   * failed outright. Only the first is loading. Folding the third into
+   * "loading" strands every consumer on a skeleton that never resolves and
+   * erases the error that explains it, so keep the outcomes separable here.
+   */
+  const ownsRequestedIssue = Boolean(requestedIssueNumber && remoteUrl);
+  const requestSettledWithoutIssue =
+    ownsRequestedIssue &&
+    !selectedStateMatches &&
+    (requestKey
+      ? selectedState.resourceKey === requestKey && !selectedState.loading
+      : authScopeResolved);
 
   useEffect(() => {
     if (!requestKey || issueNumber <= 0 || selectedStateMatches) {
@@ -261,41 +322,50 @@ export function useGitHubIssueDetailState({
       timelineLoading: true,
       error: null,
     }));
-    void loadGitHubIssueDetailBundle(store, requestKey, async () => {
-      const issueResultPromise = remoteUrl
-        ? fetchIssue(remoteUrl, issueNumber)
-        : getIssueLocal(repoFullName!, issueNumber).then((issue) => ({
-            data: issue,
-            error: null,
-          }));
-      let timeline: GitHubIssueTimelineItem[] = [];
-      let timelineError: string | null = null;
-      try {
-        timeline = await loadGitHubIssueTimeline(
-          store,
-          requestKey,
-          async () => {
-            if (!remoteUrl) {
-              return listIssueTimelineLocal(repoFullName!, issueNumber);
+    void withDeadline(
+      loadGitHubIssueDetailBundle(store, requestKey, async () => {
+        const issueResultPromise = remoteUrl
+          ? fetchIssue(remoteUrl, issueNumber)
+          : getIssueLocal(repoFullName!, issueNumber).then((issue) => ({
+              data: issue,
+              error: null,
+            }));
+        let timeline: GitHubIssueTimelineItem[] = [];
+        let timelineError: string | null = null;
+        try {
+          timeline = await loadGitHubIssueTimeline(
+            store,
+            requestKey,
+            async () => {
+              if (!remoteUrl) {
+                return listIssueTimelineLocal(repoFullName!, issueNumber);
+              }
+              const timelineResult = await fetchIssueTimeline({
+                remoteUrl,
+                issueNumber,
+              });
+              if (timelineResult.error) throw new Error(timelineResult.error);
+              return timelineResult.data ?? [];
             }
-            const timelineResult = await fetchIssueTimeline({
-              remoteUrl,
-              issueNumber,
-            });
-            if (timelineResult.error) throw new Error(timelineResult.error);
-            return timelineResult.data ?? [];
-          }
-        );
-      } catch (error) {
-        timelineError = error instanceof Error ? error.message : String(error);
-      }
-      const issueResult = await issueResultPromise;
-      return {
-        issue: issueResult.data ?? null,
-        timeline,
-        error: issueResult.error ?? timelineError,
-      };
-    })
+          );
+        } catch (error) {
+          timelineError =
+            error instanceof Error ? error.message : String(error);
+        }
+        const issueResult = await issueResultPromise;
+        return {
+          issue: issueResult.data ?? null,
+          timeline,
+          error: issueResult.error ?? timelineError,
+        };
+      }),
+      ISSUE_DETAIL_REQUEST_TIMEOUT_MS,
+      () => ({
+        issue: null,
+        timeline: [],
+        error: GITHUB_ISSUE_TIMEOUT_ERROR,
+      })
+    )
       .then((bundle) => {
         if (cancelled) return;
         setSelectedState((prev) =>
@@ -890,7 +960,8 @@ export function useGitHubIssueDetailState({
       duplicateCandidatesError:
         currentResolution?.duplicateCandidatesError ?? false,
       loading:
-        Boolean(requestedIssueNumber && remoteUrl) &&
+        ownsRequestedIssue &&
+        !requestSettledWithoutIssue &&
         (!authScope || !selectedStateMatches || !currentResolution),
       canComment: Boolean(currentResolution?.viewer),
       canEditBody: canManageStatus,
@@ -910,8 +981,8 @@ export function useGitHubIssueDetailState({
     currentResolution,
     loadDuplicateCandidates,
     authScope,
-    remoteUrl,
-    requestedIssueNumber,
+    ownsRequestedIssue,
+    requestSettledWithoutIssue,
     selectedStateMatches,
     selectedState.issue,
     selectedState.timeline,
@@ -959,16 +1030,31 @@ export function useGitHubIssueDetailState({
   ]);
 
   const visibleSelectedState =
-    requestedIssueNumber && remoteUrl && !selectedStateMatches
-      ? {
-          ...selectedState,
-          issue: null,
-          timeline: [],
-          loading: true,
-          timelineLoading: true,
-          error: null,
-        }
-      : selectedState;
+    !ownsRequestedIssue || selectedStateMatches
+      ? selectedState
+      : requestSettledWithoutIssue
+        ? {
+            ...selectedState,
+            issue: null,
+            timeline: [],
+            loading: false,
+            timelineLoading: false,
+            // Never surface an error left behind by a previous selection.
+            error:
+              requestKey &&
+              selectedState.resourceKey === requestKey &&
+              selectedState.error
+                ? selectedState.error
+                : GITHUB_ISSUE_UNAVAILABLE_ERROR,
+          }
+        : {
+            ...selectedState,
+            issue: null,
+            timeline: [],
+            loading: true,
+            timelineLoading: true,
+            error: null,
+          };
 
   return { selectedState: visibleSelectedState, interaction, assigneeConfig };
 }

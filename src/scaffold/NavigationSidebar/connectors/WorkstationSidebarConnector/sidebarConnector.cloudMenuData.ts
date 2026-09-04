@@ -18,6 +18,7 @@ import type { CloudSessionFilter } from "@src/features/Org2Cloud/cloudSessionFil
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { Session } from "@src/store/session";
 
+import type { SidebarTabDisposition } from "../sidebarTabNavigation";
 import { useCloudSessionsSection } from "./cloudSessionsSection";
 import type { UseCloudSessionsSectionParams } from "./cloudSessionsSection.types";
 import { useChannelsSidebarSurface } from "./useChannelsSidebarSurface";
@@ -96,8 +97,9 @@ export function useWorkstationSidebarCloudMenuData({
   // `cloudremote-` / pagination ids, so an early claim is unambiguous.
   const { handleItemClick: handleChannelsItemClick } = channels;
   const handleCloudScopedItemClick = useCallback(
-    (item: NavigationMenuItem): boolean =>
-      handleChannelsItemClick(item) || handleCloudSessionItemClick(item),
+    (item: NavigationMenuItem, disposition: SidebarTabDisposition): boolean =>
+      handleChannelsItemClick(item, disposition) ||
+      handleCloudSessionItemClick(item, disposition),
     [handleChannelsItemClick, handleCloudSessionItemClick]
   );
 

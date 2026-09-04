@@ -68,7 +68,7 @@
       "git": "Git",
       "databases": "数据库",
       "externalSkillsets": "Skills、MCPs、Plugins",
-      "housekeeper": "MiniCPM 常驻管家"
+      "housekeeper": "本地智能"
     }
   },
   "security": {
@@ -91,6 +91,9 @@
     "relayEnabledDesc": "桌面只建立出站 WSS 连接，不需要开放路由器端口",
     "relayUrl": "Relay 地址",
     "relayUrlDesc": "填写部署后的 ws:// 或 wss:// 地址，例如 wss://relay.example.com/v1/mobile/ws",
+    "relayPresetAria": "选择 Relay 环境预设",
+    "relayPresetLocal": "本地",
+    "relayPresetProduction": "生产",
     "desktopToken": "桌面访问密钥",
     "desktopTokenDesc": "必须与 Relay 服务端的 ORGII_RELAY_DESKTOP_TOKEN 一致，至少 24 个字符",
     "relayStatus": "Relay 状态",
@@ -178,7 +181,9 @@
     }
   },
   "general": {
+    "login": "登录",
     "tabGeneral": "通用",
+    "tabSelfHosted": "自托管",
     "loginStatus": "登录状态",
     "loggedIn": "已登录",
     "notLoggedIn": "未登录",
@@ -233,7 +238,6 @@
     "sidebarEdgeDepth": "侧边栏边缘层次",
     "selectedItemTransparency": "选中项目透明度",
     "spotlightPlacement": "Spotlight 位置",
-    "spotlightPlacementDesc": "选择 Spotlight 命令面板打开的位置",
     "spotlightPlacementOptions": {
       "top": "顶部",
       "center": "页面居中"
@@ -286,7 +290,6 @@
     "darkSkin": "深色皮肤",
     "lightAccent": "浅色强调色",
     "darkAccent": "深色强调色",
-    "accentDesc": "“跟随皮肤”会使用所选皮肤自带的强调色",
     "skinGroups": {
       "orgii": "ORGII",
       "codex": "Codex"
@@ -298,8 +301,6 @@
       "monochrome": "单色"
     },
     "translucentSidebar": "半透明侧边栏",
-    "translucentSidebarDesc": "让侧边栏模糊并透出背后的内容；关闭后为纯色面板",
-    "sidebarOpacityDesc": "背景透出的程度",
     "skin": "皮肤",
     "accent": "强调色",
     "linkSkinVariants": "统一浅色与深色",

@@ -28,7 +28,7 @@ const log = createLogger("TaskKanban");
 export interface UseKanbanCardContextMenuParams {
   /**
    * Open the board's floating preview — the same action the primary click
-   * performs, including the team-session replay import it may have to start.
+   * performs, including the team-session import it may have to start.
    */
   onOpenFloatingPane: (task: KanbanTask) => void;
   /** Teammate cloud cards keyed by task id, as projected by `useKanbanTasks`. */

@@ -21,18 +21,15 @@
  * effect in `modules/index.tsx`. See `viewAtom.ts` for the full
  * two-atom model.
  */
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Placeholder } from "@src/components/Placeholder";
 import SessionContentView from "@src/engines/ChatPanel/SessionContentView";
-import { useChatEventReplay } from "@src/engines/ChatPanel/hooks/useChatEventReplay";
-import { sortedEventsAtom } from "@src/engines/SessionCore/core/atoms";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
 import { sessionMapAtom } from "@src/store/session";
 import { chatTurnPaginationEnabledAtom } from "@src/store/ui/chatPanelAtom";
-import { simulatorSessionPlaybackPlayingAtom } from "@src/store/ui/simulatorAtom";
 
 import type { KanbanTask } from "../../types";
 import TaskDetailHeader from "./TaskDetailHeader";
@@ -114,12 +111,7 @@ const SessionTaskPanel: React.FC<SessionTaskPanelProps> = ({
   const { t } = useTranslation("sessions");
   const sessionMap = useAtomValue(sessionMapAtom);
   const session = sessionMap.get(sessionId);
-  const { replayEventById, canReplay } = useChatEventReplay();
-  const setSessionPlaybackPlaying = useSetAtom(
-    simulatorSessionPlaybackPlayingAtom
-  );
   const turnPaginationEnabled = useAtomValue(chatTurnPaginationEnabledAtom);
-  const sortedEvents = useAtomValue(sortedEventsAtom);
 
   const [detailView, setDetailView] = useState<TaskDetailView>("trajectory");
   const touchedFiles = session?.touchedFiles ?? [];
@@ -187,14 +179,6 @@ const SessionTaskPanel: React.FC<SessionTaskPanelProps> = ({
     }
   }, [sessionId, t]);
 
-  const handleReplay = useCallback(() => {
-    if (!canReplay) return;
-    const firstEventId = sortedEvents[0]?.id;
-    if (!firstEventId) return;
-    replayEventById(firstEventId);
-    setSessionPlaybackPlaying(true);
-  }, [canReplay, sortedEvents, replayEventById, setSessionPlaybackPlaying]);
-
   const handleToggleStrategy = useCallback(() => {
     setStrategyOpen((open) => !open);
   }, []);
@@ -223,7 +207,6 @@ const SessionTaskPanel: React.FC<SessionTaskPanelProps> = ({
               onChange={setDetailView}
             />
             <TaskDetailHeaderActions
-              canReplay={canReplay}
               canMerge={canMerge}
               mergeLoading={mergeLoading}
               discardLoading={discardLoading}
@@ -232,7 +215,6 @@ const SessionTaskPanel: React.FC<SessionTaskPanelProps> = ({
               mergeButtonTitle={mergeButtonTitle}
               strategyRef={strategyRef}
               t={t}
-              onReplay={handleReplay}
               onMerge={handleMerge}
               onDiscard={handleDiscard}
               onToggleStrategy={handleToggleStrategy}

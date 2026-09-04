@@ -50,12 +50,30 @@ describe("mobile transcript bubbles", () => {
     expect(html).toContain("<strong>Important</strong>");
     expect(html).toContain(">first</li>");
     expect(html).not.toContain(":::writing");
+    expect(html).not.toContain("[REDACTED]");
     expect(html).toContain('data-testid="mobile-agent-message"');
     expect(html).toContain("chat-text");
     expect(html).toContain("resultBgc");
     expect(html).toContain("w-full min-w-0");
     expect(html).not.toContain("rounded-2xl");
     expect(html).not.toContain("max-w-[85%]");
+  });
+
+  it("hides status writing-block placeholders at the message tail", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(AgentBubble, {
+        text: [
+          "是的，我运行在 Cursor 里。",
+          "",
+          ':::writing{variant="status" id="step-1"}',
+          "[REDACTED]",
+          ":::",
+        ].join("\n"),
+      })
+    );
+
+    expect(html).toContain("是的，我运行在 Cursor 里。");
+    expect(html).not.toContain("[REDACTED]");
   });
 
   it("keeps the user message in a compact chat bubble", () => {

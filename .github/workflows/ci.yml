@@ -106,10 +106,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Type check
-        run: pnpm typecheck
-        env:
-          NODE_OPTIONS: "--max-old-space-size=6144"
+      # tsgo (@typescript/native-preview): native full-project check,
+      # measured ~10s idle vs 65s warm-incremental / >10min cold for tsc on
+      # this codebase. tsc remains the arbiter in nightly-full-checks.yml —
+      # if the preview compiler ever disagrees, nightly surfaces it within
+      # 24h and this step can be pointed back at `pnpm typecheck`.
+      - name: Type check (tsgo)
+        run: pnpm typecheck:fast
 
       # Every rule in package.json#eslintConfig judges one file at a time, so a pull request
       # cannot make an untouched file newly non-compliant; whole-tree linting

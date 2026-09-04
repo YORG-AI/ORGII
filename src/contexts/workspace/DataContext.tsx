@@ -281,44 +281,4 @@ export const useDataContext = () => {
   return context;
 };
 
-// Selector hooks
-export const useDiffList = () => {
-  const {
-    diffList,
-    setDiffList,
-    diffListCache,
-    setDiffListCache,
-    resultList,
-    setResultList,
-  } = useDataContext();
-  return {
-    diffList,
-    setDiffList,
-    diffListCache,
-    setDiffListCache,
-    resultList,
-    setResultList,
-  };
-};
-
-export const useFileContent = () => {
-  const {
-    focusFileContent,
-    setFocusFileContent,
-    localContextList,
-    setLocalContextList,
-  } = useDataContext();
-  return {
-    focusFileContent,
-    setFocusFileContent,
-    localContextList,
-    setLocalContextList,
-  };
-};
-
-export const useWorkLog = () => {
-  const { workStatusList, setWorkStatusList } = useDataContext();
-  return { workStatusList, setWorkStatusList };
-};
-
 export { DataContext };

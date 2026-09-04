@@ -13,7 +13,6 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { isTauriProduction } from "@src/config/serviceAuth";
 import { createLogger } from "@src/hooks/logger";
 
 import {
@@ -22,6 +21,18 @@ import {
   type SpeechRecognitionLike,
   getSpeechRecognitionCtor,
 } from "./speechRecognitionTypes";
+
+function isTauriProduction(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.location.origin.startsWith("tauri://");
+}
+
+function isTauriRuntime(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
+  );
+}
 
 const logger = createLogger("VoiceInput");
 
@@ -166,7 +177,11 @@ export function useVoiceInput(
 
   const [isSupported] = useState<boolean>(() => {
     probeSpeechRecognitionOnce();
-    return !isTauriProduction() || getSpeechRecognitionCtor() != null;
+    // Tauri dev shows a preview UI even without a native recognizer.
+    if (isTauriRuntime() && !isTauriProduction()) {
+      return true;
+    }
+    return getSpeechRecognitionCtor() != null;
   });
 
   const clearTimer = useCallback(() => {
@@ -194,7 +209,7 @@ export function useVoiceInput(
   const start = useCallback(() => {
     if (isRecording) return;
 
-    if (!isTauriProduction()) {
+    if (isTauriRuntime() && !isTauriProduction()) {
       startTimeRef.current = Date.now();
       setIsRecording(true);
       setElapsedSeconds(0);

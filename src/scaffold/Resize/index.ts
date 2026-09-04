@@ -40,10 +40,6 @@
  *   <Pane id="left"><Left /></Pane>
  *   <Pane id="right"><Right /></Pane>
  * </SplitGroup>
- *
- * // 5. Use layout atoms for state
- * import { leftPanelWidthAtom } from "@src/scaffold/Resize";
- * const [width, setWidth] = useAtom(leftPanelWidthAtom);
  * ```
  */
 

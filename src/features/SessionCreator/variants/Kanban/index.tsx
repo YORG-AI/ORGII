@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
 import { SESSION_CREATOR_LAUNCH_MODE } from "@src/features/SessionCreator/types";
 import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 
@@ -52,6 +53,7 @@ const SessionCreatorKanban: React.FC<SessionCreatorKanbanProps> = ({
       dropdownDirection="up"
       headerLayout="compact"
       hidePresenceButton
+      innerClassName={COMPOSER_BOTTOM_DOCK_PADDING_CLASS}
       leadingActionSlot={leadingActionSlot}
       launchMode={SESSION_CREATOR_LAUNCH_MODE.START_BACKGROUND}
       onSessionStart={handleSessionStart}

@@ -126,6 +126,7 @@
     },
     "settingsMenu": {
       "appearance": "모양",
+      "modifyAppearance": "모양 수정",
       "language": "언어",
       "viewRam": "RAM 보기",
       "tutorials": "튜토리얼",

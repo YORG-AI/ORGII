@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   appOpenPlan: vi.fn(),
   openInApp: vi.fn(),
   messageError: vi.fn(),
+  pinnedActionsVisible: false,
+  setPinnedActionsVisible: vi.fn(),
 }));
 
 vi.mock("@src/api/tauri/externalHistory/appOpen", () => ({
@@ -46,6 +48,7 @@ vi.mock("@src/assets/modelIcons/openai.svg", () => ({
 }));
 vi.mock("jotai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("jotai")>()),
+  useAtom: () => [mocks.pinnedActionsVisible, mocks.setPinnedActionsVisible],
   useAtomValue: () => mocks.session,
   useSetAtom: () => mocks.openWindow,
 }));
@@ -139,6 +142,7 @@ beforeEach(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
   mocks.eligible = true;
+  mocks.pinnedActionsVisible = false;
   mocks.appOpenPlan.mockResolvedValue(null);
   mocks.openInApp.mockResolvedValue(undefined);
   container = document.createElement("div");
@@ -397,7 +401,7 @@ describe("SessionHeaderActionsMenu", () => {
     expect(props.toggleHeaderActionsMenu).not.toHaveBeenCalled();
   });
 
-  it("nests the four display switches under UI settings without closing on toggle", () => {
+  it("nests the five display switches under UI settings without closing on toggle", () => {
     render();
     expect(document.querySelector('[role="switch"]')).toBeNull();
     expect(element("session-ui-settings-submenu").textContent).toBe(
@@ -410,6 +414,7 @@ describe("SessionHeaderActionsMenu", () => {
     expect(
       [...switches].map((control) => control.getAttribute("aria-label"))
     ).toEqual([
+      "chat.startPage.showSkills",
       "chat.showTokenUsage",
       "chat.showTurnMetadata",
       "common:pagination.title",
@@ -421,6 +426,10 @@ describe("SessionHeaderActionsMenu", () => {
     key("ArrowDown");
     expect(document.activeElement).toBe(switches[1]);
     act(() => switches.forEach((control) => control.click()));
+    expect(mocks.setPinnedActionsVisible).toHaveBeenCalledWith(
+      true,
+      expect.anything()
+    );
     expect(props.handleTokenUsageVisibleToggle).toHaveBeenCalledWith(
       true,
       expect.anything()

@@ -61,7 +61,7 @@
     "taskMarket": "Рынок задач",
     "channels": "Каналы",
     "apiKeys": "Модели",
-    "myProfiles": "Мои профили",
+    "myProfiles": "Мой профиль",
     "models": "Модели",
     "signingIn": "Выполняется вход...",
     "launchpad": "Панель запуска",
@@ -126,6 +126,7 @@
     },
     "settingsMenu": {
       "appearance": "Внешний вид",
+      "modifyAppearance": "Изменить оформление",
       "language": "Язык",
       "viewRam": "Показать RAM",
       "tutorials": "Обучение",

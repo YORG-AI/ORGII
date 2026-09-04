@@ -2,7 +2,7 @@
 
 use serde_json::{json, Value};
 
-use super::adapters::{file_navigation, interaction, session};
+use super::adapters::{file_navigation, interaction, model, session};
 use super::auth::MobileRemoteSettings;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -135,6 +135,19 @@ async fn dispatch_method(
             require_full_tier(ctx)?;
             file_navigation::open_session_file(params).await
         }
+        "session/config" => {
+            require_initialized(ctx)?;
+            model::session_config(params).await
+        }
+        "session/patch" => {
+            require_initialized(ctx)?;
+            require_full_tier(ctx)?;
+            model::session_patch(params).await
+        }
+        "models/list" => {
+            require_initialized(ctx)?;
+            model::models_list(params).await
+        }
         "interaction/respond_permission" => {
             require_initialized(ctx)?;
             require_full_tier(ctx)?;
@@ -213,6 +226,7 @@ fn handle_initialize(ctx: &mut RpcContext, params: &Value) -> Result<Value, RpcE
             "maxConcurrentSubscriptions": 4,
             "roundHistory": true,
             "openSessionFile": true,
+            "modelSelection": true,
         }
     }))
 }

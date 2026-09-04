@@ -1,12 +1,39 @@
 // @vitest-environment jsdom
 import { act, createElement } from "react";
+import type { ComponentProps, ComponentType, PropsWithChildren } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import {
+  MOBILE_COMPOSER_CONTENT_INSET_PX,
+  MOBILE_COMPOSER_CONTENT_INSET_X_CLASS,
+} from "@src/config/composerStackTokens";
+import { MobileRemotePlatformProvider } from "@src/modules/MobileRemote/platform";
+import { createBrowserMobileRemotePlatform } from "@src/modules/MobileRemote/platform/browser";
+
 import { MobileComposer } from "./MobileComposer";
 
+vi.mock("@src/components/ModelIcon", () => ({
+  default: () => null,
+}));
+
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (_key: string, fallback: string) => fallback }),
+  useTranslation: () => ({
+    t: (key: string, fallback?: string) => fallback ?? key,
+  }),
+}));
+
+vi.mock("@src/hooks/voice", () => ({
+  useVoiceInput: () => ({
+    isRecording: false,
+    isSupported: true,
+    liveTranscript: "",
+    elapsedSeconds: 0,
+    start: vi.fn(),
+    stop: vi.fn(),
+    cancel: vi.fn(),
+    toggle: vi.fn(),
+  }),
 }));
 
 (
@@ -32,7 +59,13 @@ async function renderComposer(
   document.body.append(host);
   root = createRoot(host);
   await act(async () => {
-    root?.render(createElement(MobileComposer, { onSend }));
+    root?.render(
+      createElement(
+        TestMobileRemotePlatformProvider,
+        { platform: testPlatform },
+        createElement(MobileComposer, { onSend })
+      )
+    );
   });
   const textarea = host.querySelector("textarea");
   const button = host.querySelector<HTMLButtonElement>(
@@ -51,6 +84,17 @@ function enterText(textarea: HTMLTextAreaElement, value: string) {
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+// The model dropdown portals through the platform port, so these renders
+// need a mounted platform exactly like the app tree provides.
+const testPlatform = createBrowserMobileRemotePlatform();
+
+const TestMobileRemotePlatformProvider =
+  MobileRemotePlatformProvider as ComponentType<
+    PropsWithChildren<
+      Omit<ComponentProps<typeof MobileRemotePlatformProvider>, "children">
+    >
+  >;
+
 describe("MobileComposer submission lifecycle", () => {
   it("uses the shared Desktop shell, toolbar layout, and submit control", async () => {
     const { textarea, button } = await renderComposer(vi.fn());
@@ -63,6 +107,9 @@ describe("MobileComposer submission lifecycle", () => {
     expect(textarea.rows).toBe(1);
     expect(textarea.style.minHeight).toBe("36px");
     expect(button.closest("[data-composer-bar-layout=true]")).not.toBeNull();
+    expect(
+      host?.querySelector("[data-testid=composer-voice-input-button]")
+    ).not.toBeNull();
     expect(button.dataset.state).toBe("submit");
     expect(button.className).toContain("opacity-50");
 
@@ -70,6 +117,154 @@ describe("MobileComposer submission lifecycle", () => {
 
     expect(button.className).toContain("bg-primary-6");
     expect(button.className).not.toContain("opacity-50");
+  });
+
+  it("renders the model pill inside the composer footer", async () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(
+        createElement(
+          TestMobileRemotePlatformProvider,
+          { platform: testPlatform },
+          createElement(MobileComposer, {
+            onSend: vi.fn(),
+            modelPicker: {
+              config: {
+                sessionId: "session-a",
+                model: "claude-sonnet-4-5",
+                accountId: "acct-1",
+                modelEditable: true,
+              },
+              options: [
+                {
+                  id: "claude-sonnet-4-5",
+                  accountId: "acct-1",
+                  accountLabel: "Anthropic",
+                },
+              ],
+              open: false,
+              onOpen: vi.fn(),
+              onClose: vi.fn(),
+              onSelect: vi.fn(),
+            },
+          })
+        )
+      );
+    });
+
+    const layout = host.querySelector("[data-composer-bar-layout=true]");
+    const pill = layout?.querySelector(
+      "[data-testid=mobile-model-picker-pill]"
+    );
+    expect(layout).not.toBeNull();
+    expect(pill).not.toBeNull();
+    expect(
+      host?.querySelector("[data-composer-bar-layout=true]")?.parentElement
+    ).not.toBeNull();
+  });
+
+  it("aligns the footer toolbar padding with the editor textarea", async () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(
+        createElement(
+          TestMobileRemotePlatformProvider,
+          { platform: testPlatform },
+          createElement(MobileComposer, {
+            onSend: vi.fn(),
+            modelPicker: {
+              config: {
+                sessionId: "session-a",
+                model: "claude-sonnet-4-5",
+                accountId: "acct-1",
+                modelEditable: true,
+              },
+              options: [
+                {
+                  id: "claude-sonnet-4-5",
+                  accountId: "acct-1",
+                  accountLabel: "Anthropic",
+                },
+              ],
+              open: false,
+              onOpen: vi.fn(),
+              onClose: vi.fn(),
+              onSelect: vi.fn(),
+            },
+          })
+        )
+      );
+    });
+
+    const textarea = host?.querySelector("textarea");
+    const toolbar = host?.querySelector(
+      "[data-composer-bar-layout=true] > div:last-child"
+    );
+    const pill = host?.querySelector("[data-testid=mobile-model-picker-pill]");
+    expect(textarea?.className).toContain(
+      `!${MOBILE_COMPOSER_CONTENT_INSET_X_CLASS}`
+    );
+    expect(toolbar?.className).toContain(MOBILE_COMPOSER_CONTENT_INSET_X_CLASS);
+    expect(toolbar?.className).not.toContain("px-1");
+    expect(textarea?.style.paddingLeft).toBe(
+      `${MOBILE_COMPOSER_CONTENT_INSET_PX}px`
+    );
+    expect(pill?.className).not.toContain("pl-0");
+    expect(pill?.className).toContain("px-3");
+  });
+
+  it("renders the attach button before the model pill", async () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    await act(async () => {
+      root?.render(
+        createElement(
+          TestMobileRemotePlatformProvider,
+          { platform: testPlatform },
+          createElement(MobileComposer, {
+            onSend: vi.fn(),
+            modelPicker: {
+              config: {
+                sessionId: "session-a",
+                model: "claude-sonnet-4-5",
+                accountId: "acct-1",
+                modelEditable: true,
+              },
+              options: [
+                {
+                  id: "claude-sonnet-4-5",
+                  accountId: "acct-1",
+                  accountLabel: "Anthropic",
+                },
+              ],
+              open: false,
+              onOpen: vi.fn(),
+              onClose: vi.fn(),
+              onSelect: vi.fn(),
+            },
+          })
+        )
+      );
+    });
+
+    const layout = host?.querySelector("[data-composer-bar-layout=true]");
+    const attachButton = layout?.querySelector(
+      "[data-testid=mobile-composer-attach-button]"
+    );
+    const pill = layout?.querySelector(
+      "[data-testid=mobile-model-picker-pill]"
+    );
+    expect(attachButton).not.toBeNull();
+    expect(pill).not.toBeNull();
+    expect(
+      attachButton!.compareDocumentPosition(pill!) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 
   it("keeps the draft and shows the error when the RPC rejects", async () => {
@@ -124,6 +319,6 @@ describe("MobileComposer submission lifecycle", () => {
     });
 
     expect(textarea.value).toBe("");
-    expect(onSend).toHaveBeenCalledWith("send once");
+    expect(onSend).toHaveBeenCalledWith("send once", []);
   });
 });

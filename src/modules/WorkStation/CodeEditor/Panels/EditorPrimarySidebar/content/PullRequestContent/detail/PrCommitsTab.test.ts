@@ -17,6 +17,8 @@ import { copyText } from "@src/util/data/clipboard";
 
 import { PrCommitsTab } from "./PrCommitsTab";
 
+const mocks = vi.hoisted(() => ({ language: "en" }));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (
@@ -28,11 +30,15 @@ vi.mock("react-i18next", () => ({
         typeof fallbackOrOptions?.defaultValue === "string"
           ? fallbackOrOptions.defaultValue
           : key;
-      return fallback.replace(/{{(\w+)}}/g, (_, token: string) =>
+      const translated =
+        mocks.language === "zh" && key === "git.pr.commits.onDate"
+          ? "{{date}} 的提交"
+          : fallback;
+      return translated.replace(/{{(\w+)}}/g, (_, token: string) =>
         String(fallbackOrOptions?.[token] ?? "")
       );
     },
-    i18n: { resolvedLanguage: "en" },
+    i18n: { resolvedLanguage: mocks.language },
   }),
 }));
 
@@ -118,6 +124,7 @@ describe("PrCommitsTab", () => {
   });
 
   beforeEach(() => {
+    mocks.language = "en";
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-06T13:00:00Z"));
     container = document.createElement("div");
@@ -170,6 +177,15 @@ describe("PrCommitsTab", () => {
     const card = container.querySelector("article");
     expect(card?.className).toContain("rounded-xl");
     expect(card?.className).toContain("bg-primary-container");
+  });
+
+  it("localizes the commit group label and date", () => {
+    mocks.language = "zh";
+    renderCommits();
+
+    expect(container.textContent).toContain("的提交");
+    expect(container.textContent).not.toContain("Commits on");
+    expect(container.textContent).not.toContain("Aug 6, 2026");
   });
 
   it("copies the full SHA and opens commit details inline", async () => {

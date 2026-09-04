@@ -3,11 +3,13 @@
  * (Zod actions, DOM event handlers, services, etc.).
  *
  * These go through the same jotai atoms as the React-side openers, so the
- * unified spotlight state stays single-source-of-truth. Callers wanting an
+ * unified spotlight state stays single-source-of-truth. Callers wanting a
  * second-layer sub-flow should use the typed open helpers below — they open
  * the main Spotlight and prime the matching URL-like route state.
  */
 import {
+  type SpotlightCollabOrgContext,
+  type SpotlightGitHubIssuesImportContext,
   type SpotlightInitialEditorMode,
   type SpotlightInitialQuery,
   spotlightInitialQueryAtom,
@@ -34,6 +36,24 @@ function createWorkspaceSpotlightRequest(
   return {
     query: "",
     layer: { kind: "workspace", mode },
+  };
+}
+
+export function createCollabOrgSpotlightRequest(
+  context: SpotlightCollabOrgContext = {}
+): SpotlightInitialQuery {
+  return {
+    query: "",
+    layer: { kind: "collabOrg", context },
+  };
+}
+
+export function createGitHubIssuesImportSpotlightRequest(
+  context: SpotlightGitHubIssuesImportContext = {}
+): SpotlightInitialQuery {
+  return {
+    query: "",
+    layer: { kind: "githubIssuesImport", context },
   };
 }
 
@@ -90,6 +110,30 @@ export function openWorkspaceSpotlight(
   if (!isStoreInitialized()) return;
   const store = getInstrumentedStore();
   store.set(spotlightInitialQueryAtom, createWorkspaceSpotlightRequest(mode));
+  store.set(spotlightOpenAtom, true);
+}
+
+export function openCollabOrgSpotlight(
+  context: SpotlightCollabOrgContext = {}
+): void {
+  if (!isStoreInitialized()) return;
+  const store = getInstrumentedStore();
+  store.set(
+    spotlightInitialQueryAtom,
+    createCollabOrgSpotlightRequest(context)
+  );
+  store.set(spotlightOpenAtom, true);
+}
+
+export function openGitHubIssuesImportSpotlight(
+  context: SpotlightGitHubIssuesImportContext = {}
+): void {
+  if (!isStoreInitialized()) return;
+  const store = getInstrumentedStore();
+  store.set(
+    spotlightInitialQueryAtom,
+    createGitHubIssuesImportSpotlightRequest(context)
+  );
   store.set(spotlightOpenAtom, true);
 }
 

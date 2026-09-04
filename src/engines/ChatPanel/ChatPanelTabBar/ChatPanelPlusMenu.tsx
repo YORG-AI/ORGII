@@ -1,6 +1,6 @@
 /**
  * ChatPanelPlusMenu — the "+" button and its dropdown, placed in the chat
- * panel header toolbar (left of the "..." menu).
+ * panel header toolbar (right of the "..." menu on Launchpad).
  */
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";

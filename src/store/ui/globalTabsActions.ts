@@ -140,7 +140,7 @@ export const removeTerminalSessionAtom = atom(
       invokeTauri("close_pty", { sessionId: ptySessionId })
         .then(() => {})
         .catch((err) => {
-          log.error(`[GlobalTabs] Failed to close PTY ${ptySessionId}:`, err);
+          log.error(`Failed to close PTY ${ptySessionId}:`, err);
         });
     }
     const state = get(navigationSidebarTabsAtom);

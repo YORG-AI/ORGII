@@ -34,6 +34,7 @@
 import React, { createContext, memo, useContext } from "react";
 
 import Button from "@src/components/Button";
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import { useRefreshSpin } from "@src/hooks/ui";
 import {
@@ -243,6 +244,9 @@ export interface PanelHeaderProps {
   /** Header variant - "list" uses px-3 padding; `borderBottom` is ignored (no border) */
   variant?: "default" | "list";
 
+  /** Height contract. Detail panes use the same 36px chrome as PR headers. */
+  height?: "standard" | "detail";
+
   /**
    * Content rendered below the main header row (e.g. InternalHeader with tabs).
    * When provided, no extra padding-top is needed on the scroll content below.
@@ -271,6 +275,7 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
     borderBottom = false,
     background,
     variant = "default",
+    height = "standard",
     afterHeader,
   }) => {
     // When searchQuery is active, override title/icon to show search state
@@ -279,7 +284,9 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
     const displayIconElement = searchQuery ? undefined : iconElement;
     const isListVariant = variant === "list";
     const paddingClass = isListVariant ? "px-3" : "px-4";
-    const baseClasses = `relative z-30 flex h-10 shrink-0 items-center gap-2 ${paddingClass}`;
+    const heightClass =
+      height === "detail" ? DETAIL_PANEL_TOKENS.headerHeight : "h-10";
+    const baseClasses = `relative z-30 flex ${heightClass} shrink-0 items-center gap-2 ${paddingClass}`;
     const borderClasses =
       borderBottom && !isListVariant ? "border-b border-border-2" : "";
     const contextSurface = useContext(PanelHeaderSurfaceContext);

@@ -24,6 +24,7 @@ function toMs(timestamp: number | string | null | undefined): number | null {
  *
  * @param timestamp - Unix ms number, ISO string, or null/undefined
  * @param style
+ * @param locale - Optional BCP 47 locale for localized long-form output
  *   - "short"   (default): "Now", "2 min ago", "Yesterday", "5 days ago", date fallback
  *   - "compact": "just now", "2 mins", "3 hrs", "1 day", "1 wk", "2 mos", "1 yr"
  *   - "long":    "just now", "2 minutes ago", "3 hours ago", "1 month ago", "2 years ago"
@@ -32,7 +33,8 @@ function toMs(timestamp: number | string | null | undefined): number | null {
  */
 export function formatRelativeTime(
   timestamp: number | string | null | undefined,
-  style: RelativeTimeStyle = "short"
+  style: RelativeTimeStyle = "short",
+  locale?: string
 ): string {
   const ms = toMs(timestamp);
   if (ms === null) return "";
@@ -47,6 +49,20 @@ export function formatRelativeTime(
   const diffWeek = Math.floor(diffMs / WEEK);
   const diffMonth = Math.floor(diffMs / MONTH);
   const diffYear = Math.floor(diffMs / YEAR);
+
+  if (locale && style === "long") {
+    const formatter = new Intl.RelativeTimeFormat(locale, {
+      numeric: "always",
+      style: "long",
+    });
+    if (diffSec < 60) return formatter.format(0, "second");
+    if (diffMin < 60) return formatter.format(-diffMin, "minute");
+    if (diffHr < 24) return formatter.format(-diffHr, "hour");
+    if (diffDay < 7) return formatter.format(-diffDay, "day");
+    if (diffWeek < 4) return formatter.format(-diffWeek, "week");
+    if (diffMonth < 12) return formatter.format(-diffMonth, "month");
+    return formatter.format(-diffYear, "year");
+  }
 
   if (style === "short") {
     if (diffSec < 60) return "Now";

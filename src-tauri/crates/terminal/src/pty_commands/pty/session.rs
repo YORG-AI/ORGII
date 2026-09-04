@@ -11,6 +11,7 @@ use std::{
     },
 };
 use tauri::async_runtime::Mutex as AsyncMutex;
+use tauri::ipc::{Channel, InvokeResponseBody};
 use tokio::sync::{broadcast, Notify};
 
 use crate::pty_commands::shells::ShellKind;
@@ -85,6 +86,18 @@ pub struct PtySession {
     /// Bytes read while detached since the last attach; tells the frontend
     /// whether its client-side buffer missed output.
     pub missed_while_detached: Arc<AtomicUsize>,
+    /// Binary sink for the attached webview's terminal output, installed by
+    /// `attach_pty_output_channel` and cleared by `detach_pty_stream`.
+    ///
+    /// When present the reader task sends `[8-byte big-endian stream
+    /// offset][raw PTY bytes]` frames here instead of emitting a
+    /// `pty-output-{id}` event. The event transport has to base64 the payload,
+    /// serialize it into JSON, and splice the result into a JavaScript source
+    /// string that the webview then parses before it can run — several passes
+    /// over every byte of terminal output. A channel frame above Tauri's raw
+    /// direct-execute threshold is handed to the webview as an ArrayBuffer
+    /// with no such encoding.
+    pub output_channel: Arc<Mutex<Option<Channel<InvokeResponseBody>>>>,
 }
 
 impl Drop for PtySession {

@@ -1,7 +1,7 @@
 /**
  * ContextMenuPortal
  *
- * Renders the @ mention context menu via a React portal
+ * Renders the shared + / @ context menu via a React portal
  * to avoid clipping by parent overflow containers.
  */
 import {
@@ -9,14 +9,16 @@ import {
   type RecentFile,
 } from "@/src/scaffold/ContextMenu/config";
 import { ContextMenu } from "@/src/scaffold/ContextMenu/exports";
-import type {
-  ContextMenuCustomMentionOption,
-  ContextMenuProps,
-} from "@/src/scaffold/ContextMenu/types";
+import type { ContextMenuCustomMentionOption } from "@/src/scaffold/ContextMenu/types";
 import { useAtomValue } from "jotai";
-import React, { useMemo, useRef } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { INPUT_AREA_MENU_FRAME } from "@src/config/inputAreaTokens";
+import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
+import WorkItemPickerModal, {
+  type WorkItemPickerOption,
+} from "@src/features/SessionCreator/components/WorkItemPickerModal";
 import {
   type WorkStationTab,
   mainPaneTabsAtom,
@@ -26,7 +28,7 @@ import {
   getOpenedTabMentionOptions,
   mergeCustomMentionOptions,
 } from "../openedTabMentionOptions";
-import type { FloatingPlacementStrategy } from "./floatingPlacement";
+import { usePathTreePosition } from "./pathTreePosition";
 import { useFloatingPortalPosition } from "./useFloatingPortalPosition";
 
 interface ContextMenuPortalProps {
@@ -34,23 +36,22 @@ interface ContextMenuPortalProps {
   containerRef: React.RefObject<HTMLElement | null>;
   onClose: () => void;
   onSelect: (type: MenuItemId, value?: string, displayName?: string) => void;
+  onImageUpload?: () => void;
+  currentMode: ComposerModeEntry["id"];
+  onModeSelect: (mode: ComposerModeEntry["id"]) => void;
+  includeProjectMode?: boolean;
   customMentionOptions?: ReadonlyArray<ContextMenuCustomMentionOption>;
   onCustomMentionSelect?: (option: ContextMenuCustomMentionOption) => void;
   searchQuery: string;
-  inlineSearchOnEmpty?: boolean;
-  keyboardOpened?: boolean;
   repoPath?: string;
   keyboardHandlerRef: React.MutableRefObject<
     ((e: React.KeyboardEvent) => boolean) | null
   >;
-  treePosition?: ContextMenuProps["treePosition"];
-  placement?: FloatingPlacementStrategy;
   /** Optional descendant of containerRef to anchor the menu against. */
   anchorSelector?: string;
 }
 
 const ESTIMATED_DROPDOWN_HEIGHT = 260;
-const MAX_CONTEXT_MENU_WIDTH = 600;
 
 function getOpenedTabRecentFiles(
   workstationTabs: ReadonlyArray<WorkStationTab>
@@ -72,15 +73,15 @@ const VisibleContextMenuPortal: React.FC<
   containerRef,
   onClose,
   onSelect,
+  onImageUpload,
+  currentMode,
+  onModeSelect,
+  includeProjectMode,
   customMentionOptions,
   onCustomMentionSelect,
   searchQuery,
-  inlineSearchOnEmpty,
-  keyboardOpened,
   repoPath,
   keyboardHandlerRef,
-  treePosition = "right",
-  placement = "prefer-up",
   anchorSelector,
 }) => {
   const portalRef = useRef<HTMLDivElement>(null);
@@ -97,16 +98,16 @@ const VisibleContextMenuPortal: React.FC<
       ),
     [workstationTabs, customMentionOptions]
   );
+  const treePosition = usePathTreePosition();
   const { portalPosition, portalWidth, isPositioned } =
     useFloatingPortalPosition({
       visible: true,
       containerRef,
       floatingRef: portalRef,
       fallbackHeight: ESTIMATED_DROPDOWN_HEIGHT,
-      placement,
+      ...INPUT_AREA_MENU_FRAME,
       anchorSelector,
       updateKey: searchQuery,
-      maxWidth: MAX_CONTEXT_MENU_WIDTH,
     });
 
   if (!isPositioned || !portalPosition) return null;
@@ -132,11 +133,13 @@ const VisibleContextMenuPortal: React.FC<
         visible
         onClose={onClose}
         onSelect={onSelect}
+        onImageUpload={onImageUpload}
+        currentMode={currentMode}
+        onModeSelect={onModeSelect}
+        includeProjectMode={includeProjectMode}
         customMentionOptions={mergedCustomMentionOptions}
         onCustomMentionSelect={onCustomMentionSelect}
         searchQuery={searchQuery}
-        inlineSearchOnEmpty={inlineSearchOnEmpty}
-        keyboardOpened={keyboardOpened}
         recentFiles={recentFiles}
         repoPath={repoPath}
         keyboardHandlerRef={keyboardHandlerRef}
@@ -149,10 +152,58 @@ const VisibleContextMenuPortal: React.FC<
 
 const ContextMenuPortal: React.FC<ContextMenuPortalProps> = ({
   visible,
+  onClose,
+  onSelect,
+  repoPath,
   ...props
 }) => {
-  if (!visible) return null;
-  return <VisibleContextMenuPortal {...props} />;
+  const [workItemPickerOpen, setWorkItemPickerOpen] = useState(false);
+  const handleContextSelect = useCallback(
+    (type: MenuItemId, value?: string, displayName?: string) => {
+      if (type === "projects") {
+        setWorkItemPickerOpen(true);
+        return;
+      }
+      onSelect(type, value, displayName);
+    },
+    [onSelect]
+  );
+  const handleWorkItemPickerClose = useCallback(
+    () => setWorkItemPickerOpen(false),
+    []
+  );
+  const handleWorkItemPickerSelect = useCallback(
+    (options: readonly WorkItemPickerOption[]) => {
+      for (const option of options) {
+        if (option.kind === "workitem") {
+          onSelect("workitem", option.pillPath, option.pillName);
+        }
+      }
+      setWorkItemPickerOpen(false);
+    },
+    [onSelect]
+  );
+
+  return (
+    <>
+      {visible ? (
+        <VisibleContextMenuPortal
+          {...props}
+          onClose={onClose}
+          onSelect={handleContextSelect}
+          repoPath={repoPath}
+        />
+      ) : null}
+      <WorkItemPickerModal
+        open={workItemPickerOpen}
+        onClose={handleWorkItemPickerClose}
+        onSelect={handleWorkItemPickerSelect}
+        multiple={false}
+        repoPath={repoPath}
+        sourceFilters={["workitem"]}
+      />
+    </>
+  );
 };
 
 ContextMenuPortal.displayName = "ContextMenuPortal";

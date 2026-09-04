@@ -85,6 +85,8 @@ export interface PillGroupSegment {
   activateOnMouseDown?: boolean;
   /** Hard cap on the label width — applies overflow ellipsis */
   maxLabelWidth?: number;
+  /** Drop left padding so the icon lines up with composer editor text. */
+  leadingFlush?: boolean;
   /** Forwarded ref for the underlying button — useful for dropdown positioning */
   buttonRef?: React.Ref<HTMLButtonElement>;
   /**
@@ -213,6 +215,7 @@ const PillGroupSegmentRow: React.FC<PillGroupSegmentRowProps> = ({
       onFocus={buttonProps.onFocus}
       onBlur={buttonProps.onBlur}
       size="sm"
+      leadingFlush={segment.leadingFlush}
     />
   );
   /* eslint-enable react-hooks/refs */

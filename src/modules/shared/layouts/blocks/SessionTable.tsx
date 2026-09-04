@@ -417,7 +417,7 @@ export const SessionTable: React.FC<SessionTableProps> = ({
       maxHeight={maxHeight}
       pageSize={pageSize}
       pageSizeOptions={pageSizeOptions}
-      className={["table-settings-session-list-hover", className]
+      className={["table-settings-page-list-hover", className]
         .filter(Boolean)
         .join(" ")}
       rootClassName={rootClassName}

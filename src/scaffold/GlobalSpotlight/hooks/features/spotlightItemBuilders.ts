@@ -6,13 +6,23 @@
  * all builders are deterministic functions of their arguments.
  */
 import {
+  APPEARANCE_MODE,
+  type GlobalThemePreference,
+  type SystemColorScheme,
+  getFollowSystemThemeLabel,
+} from "@src/config/appearance/globalThemes";
+import { getSkinsForVariant } from "@src/config/appearance/skins/registry";
+import type { SkinVariant } from "@src/config/appearance/skins/types";
+import {
   LANGUAGE_NAMES,
   LANGUAGE_PREFERENCE,
   type LanguagePreference,
   SUPPORTED_LANGUAGES,
   type SupportedLanguage,
+  formatLanguageDisplayLabel,
   getFollowSystemLanguageLabel,
 } from "@src/i18n";
+import { ComputerSettingsIcon, MoonIcon, Sun01Icon } from "@src/icons";
 
 import {
   ACTIONS,
@@ -138,10 +148,12 @@ export function buildLanguageItems(
     const nativeName = isSystemPreference
       ? translatedName
       : LANGUAGE_NAMES[language as SupportedLanguage];
-    const label =
-      translatedName === nativeName
-        ? nativeName
-        : `${translatedName} · ${nativeName}`;
+    const label = isSystemPreference
+      ? translatedName
+      : formatLanguageDisplayLabel(
+          language as SupportedLanguage,
+          translatedName
+        );
     const matches =
       !queryLower ||
       language.toLowerCase().includes(queryLower) ||
@@ -163,6 +175,105 @@ export function buildLanguageItems(
       },
     ];
   });
+}
+
+export function buildThemeItems(
+  currentTheme: GlobalThemePreference,
+  systemColorScheme: SystemColorScheme,
+  searchQuery: string,
+  onSelectTheme: (theme: GlobalThemePreference) => void,
+  translate: Translator
+): SpotlightItem[] {
+  const queryLower = searchQuery.trim().toLowerCase();
+  const options: Array<{
+    value: GlobalThemePreference;
+    label: string;
+    icon: SpotlightItem["icon"];
+  }> = [
+    {
+      value: APPEARANCE_MODE.SYSTEM,
+      label: getFollowSystemThemeLabel(
+        systemColorScheme,
+        translate("settings:general.followSystem")
+      ),
+      icon: ComputerSettingsIcon,
+    },
+    {
+      value: APPEARANCE_MODE.LIGHT,
+      label: translate("settings:general.light"),
+      icon: Sun01Icon,
+    },
+    {
+      value: APPEARANCE_MODE.DARK,
+      label: translate("settings:general.dark"),
+      icon: MoonIcon,
+    },
+  ];
+
+  return options.flatMap((option) => {
+    const matches =
+      !queryLower ||
+      option.value.includes(queryLower) ||
+      option.label.toLowerCase().includes(queryLower);
+    if (!matches) return [];
+
+    return [
+      {
+        id: `theme-${option.value}`,
+        label: option.label,
+        icon: option.icon,
+        type: "option" as const,
+        data: {
+          isCurrentSelection: option.value === currentTheme,
+        },
+        action: () => onSelectTheme(option.value),
+      },
+    ];
+  });
+}
+
+export function buildSkinItems(
+  currentSkinId: string,
+  skinVariant: SkinVariant,
+  searchQuery: string,
+  onSelectSkin: (skinId: string, variant: SkinVariant) => void,
+  translate: Translator
+): SpotlightItem[] {
+  const queryLower = searchQuery.trim().toLowerCase();
+  const matchingSkins = getSkinsForVariant(skinVariant).filter(
+    (skin) =>
+      !queryLower ||
+      skin.id.toLowerCase().includes(queryLower) ||
+      skin.label.toLowerCase().includes(queryLower) ||
+      skin.source.includes(queryLower)
+  );
+  const items: SpotlightItem[] = [];
+
+  for (const source of ["orgii", "codex"] as const) {
+    const sourceSkins = matchingSkins.filter((skin) => skin.source === source);
+    if (sourceSkins.length === 0) continue;
+
+    items.push({
+      id: `skin-group-${source}`,
+      label: translate(`settings:general.skinGroups.${source}`),
+      type: "option",
+      data: { isHeader: true },
+    });
+    items.push(
+      ...sourceSkins.map((skin) => ({
+        id: `skin-${skin.id}`,
+        label: skin.label,
+        icon: ICONS.skin,
+        type: "option" as const,
+        data: {
+          isCurrentSelection: skin.id === currentSkinId,
+        },
+        action: () => onSelectSkin(skin.id, skinVariant),
+      }))
+    );
+  }
+
+  return items;
 }
 
 export function buildEditorActionItems(

@@ -291,9 +291,6 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
               }
             >
               <AgentChatItemDefault
-                itemIndex={itemIndex}
-                expand={true}
-                finish={!isStreaming}
                 streamHtml={isStreaming}
                 messageTimestamp={event.createdAt}
               >
@@ -339,16 +336,7 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
 
       const observation = event.result?.observation;
       if (observation && typeof observation === "string") {
-        return (
-          <AgentChatItemDefault
-            itemIndex={itemIndex}
-            expand={true}
-            finish={true}
-            streamHtml={false}
-          >
-            {observation}
-          </AgentChatItemDefault>
-        );
+        return <AgentChatItemDefault>{observation}</AgentChatItemDefault>;
       }
 
       return null;

@@ -6,13 +6,19 @@ import Button from "@src/components/Button";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { Placeholder } from "@src/components/Placeholder";
 import { getToolIcon } from "@src/config/toolIcons";
+import { formatSearchQuerySubtitle } from "@src/engines/ChatPanel/blocks/ToolCallBlock/helpers/argsSummary";
 import { EventBlockHeader } from "@src/engines/ChatPanel/blocks/primitives/EventBlockHeader";
+import { EventBlockHeaderIcon } from "@src/engines/ChatPanel/blocks/primitives/EventBlockHeaderIcon";
 import {
   EventBlockHeaderInfo,
   EventBlockHeaderSubtitle,
   EventBlockHeaderTitle,
 } from "@src/engines/ChatPanel/blocks/primitives/EventBlockHeaderTextSlots";
-import { SESSION_UI_TOKENS } from "@src/engines/ChatPanel/blocks/primitives/config";
+import {
+  SESSION_UI_TOKENS,
+  getEventBlockContainerClasses,
+} from "@src/engines/ChatPanel/blocks/primitives/config";
+import { isSearchTool } from "@src/engines/SessionCore/rendering/registry/toolCategories";
 import {
   ArrowRight01Icon,
   HugeiconsIcon,
@@ -32,6 +38,23 @@ const MobileFilePreview = lazy(
 );
 
 type ToolLifecycle = "running" | "done" | "failed";
+
+const GENERIC_TOOL_NAMES = new Set(["", "tool", "tool_call"]);
+
+const TOOL_KIND_TO_CANONICAL: Record<string, string> = {
+  file: "read_file",
+  edit: "edit_file",
+  deleteFile: "delete_file",
+  shell: "run_shell",
+  search: "code_search",
+  glob: "glob_file_search",
+  listDir: "list_dir",
+  webSearch: "web_search",
+  todo: "manage_todo",
+  subagent: "subagent",
+  orgTask: "task_update",
+  await: "await_output",
+};
 
 const TOOL_LABEL_KEYS: Record<string, string> = {
   read_file: "readFile",
@@ -129,15 +152,32 @@ function summaryFromToolData(data?: MobileToolData): string {
   return keys.map((key) => stringValue(payload[key])).find(Boolean) ?? "";
 }
 
+function isMobileSearchTool(item: TranscriptItem): boolean {
+  if (toolKind(item.toolData) === "search") return true;
+  return isSearchTool(resolveMobileToolIconName(item));
+}
+
+function formatMobileToolSubtitleValue(
+  item: TranscriptItem,
+  summary: string
+): string {
+  if (!summary) return "";
+  return isMobileSearchTool(item)
+    ? formatSearchQuerySubtitle(summary)
+    : summary;
+}
+
 export function mobileToolSummary(item: TranscriptItem): string {
   const projected = item.toolSummary?.trim();
-  if (projected) return projected;
+  if (projected) return formatMobileToolSubtitleValue(item, projected);
   const structured = summaryFromToolData(item.toolData);
-  if (structured) return structured;
+  if (structured) return formatMobileToolSubtitleValue(item, structured);
   if (item.toolFilePath?.trim()) return item.toolFilePath.trim();
   if (item.toolCommand?.trim()) return item.toolCommand.trim();
   const fallback = item.text.trim();
-  return fallback !== item.toolName ? fallback : "";
+  return fallback !== item.toolName
+    ? formatMobileToolSubtitleValue(item, fallback)
+    : "";
 }
 
 function outputFromToolData(data?: MobileToolData): string {
@@ -254,6 +294,25 @@ function compactMetadata(data?: MobileToolData): Record<string, unknown> {
   );
 }
 
+function isResolvableToolName(name: string): boolean {
+  return !GENERIC_TOOL_NAMES.has(name.toLowerCase());
+}
+
+/** Resolve the tool name passed to `getToolIcon`, aligned with `toolLabelKey`. */
+export function resolveMobileToolIconName(item: TranscriptItem): string {
+  const canonical = stringValue(item.toolCanonical);
+  const name = stringValue(item.toolName);
+
+  if (canonical && isResolvableToolName(canonical)) return canonical;
+  if (name && isResolvableToolName(name)) return name;
+
+  const kind = toolKind(item.toolData);
+  const fromKind = TOOL_KIND_TO_CANONICAL[kind];
+  if (fromKind) return fromKind;
+
+  return canonical || name || "tool";
+}
+
 function toolLabelKey(item: TranscriptItem): string | undefined {
   const name = (item.toolCanonical || item.toolName || "").toLowerCase();
   const exact = TOOL_LABEL_KEYS[name];
@@ -286,7 +345,7 @@ function useMobileToolPresentation(item: TranscriptItem) {
   const { t } = useTranslation("mobileRemote");
   const lifecycle = normalizeMobileToolLifecycle(item.toolStatus);
   const labelKey = toolLabelKey(item);
-  const rawName = item.toolName || item.toolCanonical || "tool";
+  const rawName = resolveMobileToolIconName(item);
   const title = labelKey
     ? t(`transcript.tools.labels.${labelKey}`)
     : formatToolName(rawName);
@@ -300,12 +359,8 @@ function useMobileToolPresentation(item: TranscriptItem) {
     fileTargets.length > 0 || output || metadataText || item.toolDataTruncated
   );
   const statusLabel = t(`transcript.tools.status.${lifecycle}`);
-  const iconClassName =
-    lifecycle === "failed"
-      ? "text-danger-6"
-      : lifecycle === "running"
-        ? "text-info-6"
-        : "text-text-3";
+  const isLoading = lifecycle === "running";
+  const isFailed = lifecycle === "failed";
 
   return {
     t,
@@ -318,7 +373,8 @@ function useMobileToolPresentation(item: TranscriptItem) {
     metadataText,
     hasDetails,
     statusLabel,
-    iconClassName,
+    isLoading,
+    isFailed,
   };
 }
 
@@ -335,52 +391,80 @@ export function MobileToolCall({
     summary,
     hasDetails,
     statusLabel,
-    iconClassName,
+    isLoading,
+    isFailed,
   } = useMobileToolPresentation(item);
 
+  const toolIcon = getToolIcon(rawName, {
+    size: SESSION_UI_TOKENS.ICON.SIZE_SM,
+    className: SESSION_UI_TOKENS.ICON.DEFAULT,
+    action: stringValue(record(item.toolData)?.action) || undefined,
+  });
+
+  const statusClassName = isFailed
+    ? "text-danger-6"
+    : isLoading
+      ? "text-info-6"
+      : undefined;
+  const showDetailsChevron = hasDetails && Boolean(onOpenDetails);
+
   const header = (
-    <EventBlockHeader
-      isCollapsed={!hasDetails}
-      withHover={false}
-      className="chat-block-title !h-7 !px-0"
-      rightContent={
-        hasDetails && onOpenDetails ? (
-          <HugeiconsIcon
-            icon={ArrowRight01Icon}
-            size={SESSION_UI_TOKENS.ICON.SIZE_SM}
-            className="text-text-3"
-            aria-hidden="true"
-          />
-        ) : undefined
-      }
-    >
-      <span aria-hidden="true" className="chat-block-icon shrink-0">
-        {getToolIcon(rawName, {
-          size: SESSION_UI_TOKENS.ICON.SIZE_SM,
-          className: iconClassName,
-        })}
-      </span>
-      <EventBlockHeaderTitle>{title}</EventBlockHeaderTitle>
-      {summary ? (
-        <EventBlockHeaderSubtitle
-          className="chat-code-sm text-text-3"
-          title={summary}
-        >
-          {summary}
-        </EventBlockHeaderSubtitle>
-      ) : null}
-      <EventBlockHeaderInfo
-        className={
-          lifecycle === "failed"
-            ? "text-danger-6"
-            : lifecycle === "running"
-              ? "text-info-6"
-              : undefined
+    <div className={getEventBlockContainerClasses(false)}>
+      <EventBlockHeader
+        isCollapsed
+        withHover={false}
+        rightContent={
+          <div
+            className="flex shrink-0 items-center gap-0.5"
+            data-mobile-tool-status-trailing="true"
+          >
+            <EventBlockHeaderInfo
+              isLoading={isLoading}
+              className={`min-w-13 text-right whitespace-nowrap ${statusClassName ?? ""}`.trim()}
+            >
+              {statusLabel}
+            </EventBlockHeaderInfo>
+            <span
+              className="flex shrink-0 items-center justify-center"
+              style={{ width: SESSION_UI_TOKENS.ICON.SIZE_SM }}
+              aria-hidden={!showDetailsChevron}
+            >
+              {showDetailsChevron ? (
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  size={SESSION_UI_TOKENS.ICON.SIZE_SM}
+                  className="text-text-3"
+                  aria-hidden="true"
+                />
+              ) : null}
+            </span>
+          </div>
         }
       >
-        {statusLabel}
-      </EventBlockHeaderInfo>
-    </EventBlockHeader>
+        <EventBlockHeaderIcon
+          icon={toolIcon}
+          isCollapsed
+          hasContent={false}
+          isLoading={isLoading}
+          isFailed={isFailed}
+        />
+        <EventBlockHeaderTitle
+          isLoading={isLoading}
+          className={isFailed ? "text-text-3" : undefined}
+        >
+          {title}
+        </EventBlockHeaderTitle>
+        {summary ? (
+          <EventBlockHeaderSubtitle
+            isLoading={isLoading}
+            title={summary}
+            className={`min-w-0 flex-1 ${isFailed ? "text-text-3" : "text-text-1"}`}
+          >
+            <span className="min-w-0 truncate">{summary}</span>
+          </EventBlockHeaderSubtitle>
+        ) : null}
+      </EventBlockHeader>
+    </div>
   );
 
   if (!hasDetails || !onOpenDetails) {
@@ -437,7 +521,6 @@ export function MobileToolDetailSheet({
 }: MobileToolDetailSheetProps) {
   const {
     t,
-    lifecycle,
     rawName,
     title,
     summary,
@@ -445,7 +528,8 @@ export function MobileToolDetailSheet({
     fileTargets,
     metadataText,
     statusLabel,
-    iconClassName,
+    isLoading,
+    isFailed,
   } = useMobileToolPresentation(item);
   const [selectedTargetIndex, setSelectedTargetIndex] = useState(
     () => fileTargets[0]?.targetIndex ?? 0
@@ -509,24 +593,30 @@ export function MobileToolDetailSheet({
       closeLabel={t("transcript.tools.closeDetails")}
       title={
         <span className="flex min-w-0 items-center gap-2">
-          <span aria-hidden="true" className="chat-block-icon shrink-0">
-            {getToolIcon(rawName, {
+          <EventBlockHeaderIcon
+            icon={getToolIcon(rawName, {
               size: SESSION_UI_TOKENS.ICON.SIZE_MD,
-              className: iconClassName,
+              className: SESSION_UI_TOKENS.ICON.DEFAULT,
+              action: stringValue(record(item.toolData)?.action) || undefined,
             })}
-          </span>
+            isCollapsed
+            hasContent={false}
+            isLoading={isLoading}
+            isFailed={isFailed}
+          />
           <span className="min-w-0 truncate">{title}</span>
-          <span
-            className={`chat-block-xs shrink-0 font-normal ${
-              lifecycle === "failed"
+          <EventBlockHeaderInfo
+            isLoading={isLoading}
+            className={`shrink-0 font-normal ${
+              isFailed
                 ? "text-danger-6"
-                : lifecycle === "running"
+                : isLoading
                   ? "text-info-6"
                   : "text-text-3"
             }`}
           >
             {statusLabel}
-          </span>
+          </EventBlockHeaderInfo>
         </span>
       }
       bodyClassName="!px-4 !pb-5"

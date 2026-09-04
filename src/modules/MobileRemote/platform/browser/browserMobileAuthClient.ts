@@ -91,7 +91,10 @@ function createOfficialClient(storage: SupportedStorage): SupabaseClient {
       auth: {
         autoRefreshToken: false,
         detectSessionInUrl: false,
-        persistSession: false,
+        // Supabase only honors the supplied storage adapter when session
+        // persistence is enabled. PKCE needs that adapter across the OAuth
+        // redirect so the callback can recover its code verifier.
+        persistSession: true,
         flowType: "pkce",
         storage,
       },

@@ -1,9 +1,8 @@
 /**
- * Shared progress-bar styling for replay surfaces (Simulator dock,
- * Kanban canvas border). The rail (unfilled) is 1px and the track
- * (filled) is 2px, both anchored at top:0 so the bar's TOP edge is
- * pixel-stable when neighboring chrome (status pill, dock border)
- * sits flush against it.
+ * Shared progress-bar styling for Simulator replay surfaces. The rail
+ * (unfilled) is 1px and the track (filled) is 2px, both anchored at
+ * top:0 so the bar's TOP edge is pixel-stable when neighboring chrome
+ * (status pill, dock border) sits flush against it.
  */
 .replay-progress-bar {
   .slider-rail {

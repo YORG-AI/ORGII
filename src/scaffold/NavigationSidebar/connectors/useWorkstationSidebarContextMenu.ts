@@ -27,8 +27,10 @@ interface UseWorkstationSidebarContextMenuParams {
   rename: UseRenameSessionModalResult;
   handleDeleteSession: (sessionId: string) => Promise<void>;
   handleDeleteDraft: (draftId: string) => void;
+  handleOpenDraftInNewTab: (item: NavigationMenuItem) => void;
   handleExportMarkdown: (sessionId: string) => Promise<void>;
   handleOpenInNewTab: (sessionId: string) => void;
+  handleOpenInNewWindow: (sessionId: string) => void;
   handleOpenInMyStation: (sessionId: string) => void;
   handleTogglePin: (sessionId: string) => Promise<void>;
   /** Owner-side share dialog gate + opener (design §6.3, M4b). */
@@ -64,8 +66,10 @@ export function useWorkstationSidebarContextMenu({
   rename,
   handleDeleteSession,
   handleDeleteDraft,
+  handleOpenDraftInNewTab,
   handleExportMarkdown,
   handleOpenInNewTab,
+  handleOpenInNewWindow,
   handleOpenInMyStation,
   handleTogglePin,
   isMoveEligible,
@@ -94,6 +98,10 @@ export function useWorkstationSidebarContextMenu({
         if (!draftId) return [];
         return [
           {
+            text: tCommon("actions.openInNewTab", "Open in New Tab"),
+            action: () => handleOpenDraftInNewTab(item),
+          },
+          {
             text: tCommon("sessions:sidebar.removeDraft", "Remove draft"),
             action: () => handleDeleteDraft(draftId),
           },
@@ -114,6 +122,10 @@ export function useWorkstationSidebarContextMenu({
         text: tCommon("actions.openInNewTab", "Open in New Tab"),
         action: () => handleOpenInNewTab(item.id),
       };
+      const openInNewWindowItem: NativeMenuItemOptions = {
+        text: tCommon("actions.openInNewWindow", "Open in New Window"),
+        action: () => handleOpenInNewWindow(item.id),
+      };
       const openInMyStationItem: NativeMenuItemOptions = {
         text: tCommon(
           "sessions:controlTower.sidebar.openInMyStation",
@@ -129,7 +141,12 @@ export function useWorkstationSidebarContextMenu({
       };
 
       if (isCursorIde) {
-        return [openInNewTabItem, openInMyStationItem, pinItem];
+        return [
+          openInNewTabItem,
+          openInNewWindowItem,
+          openInMyStationItem,
+          pinItem,
+        ];
       }
 
       const deleteItem: NativeMenuItemOptions = {
@@ -137,11 +154,12 @@ export function useWorkstationSidebarContextMenu({
         action: () => handleDeleteSession(item.id),
       };
       if (isChatPanelTuiSessionId(item.id)) {
-        return [openInNewTabItem, pinItem, deleteItem];
+        return [openInNewTabItem, openInNewWindowItem, pinItem, deleteItem];
       }
 
       const primaryItems: NativeMenuItemOptions[] = [
         openInNewTabItem,
+        openInNewWindowItem,
         openInMyStationItem,
         {
           text: tCommon("actions.rename"),
@@ -195,8 +213,10 @@ export function useWorkstationSidebarContextMenu({
       rename,
       handleDeleteSession,
       handleDeleteDraft,
+      handleOpenDraftInNewTab,
       handleExportMarkdown,
       handleOpenInNewTab,
+      handleOpenInNewWindow,
       handleOpenInMyStation,
       handleTogglePin,
       handleOpenMoveToOrg,

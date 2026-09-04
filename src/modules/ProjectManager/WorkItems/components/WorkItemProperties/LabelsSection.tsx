@@ -4,6 +4,7 @@ import {
   type FieldRowVariant,
   Option,
   SearchableDropdown,
+  getPropertyDropdownAlign,
 } from "@src/components/PropertyField/PropertyFieldEditable";
 import { HugeiconsIcon, Tag01Icon } from "@src/icons";
 import type {
@@ -101,7 +102,7 @@ export function LabelsSection({
         <SearchableDropdown
           placeholder={t("common:actions.search")}
           widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-          align={fieldVariant === "pill" ? "auto" : "left"}
+          align={getPropertyDropdownAlign(fieldVariant)}
         >
           {(searchQuery) => {
             const filtered = searchQuery

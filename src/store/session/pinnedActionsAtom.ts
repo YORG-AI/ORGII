@@ -2,8 +2,8 @@
  * Pinned Actions atom
  *
  * Persists the user's pinned quick-action items to localStorage so they
- * survive app restarts. Each entry holds a `SlashItem` key (category +
- * source + name) and is shown as a pill above the chat input area.
+ * survive app restarts. Each entry holds the stable identity and dispatch
+ * fields needed by both the optional quick-action bar and the `/` menu.
  *
  * Storage key: `orgii:pinnedActions`
  */
@@ -13,7 +13,7 @@ import type { SlashItem } from "@src/types/extensions";
 
 /** A pinned action — a minimal snapshot of the slash item's identity. */
 export interface PinnedAction {
-  /** Display label shown on the pill. */
+  /** Last-known display label. */
   name: string;
   /** Skill name used as the slash-command token (skills only). */
   skillName?: string;
@@ -25,6 +25,36 @@ export interface PinnedAction {
   source: string;
   /** For tool items: the MCP server name. */
   serverName?: string;
+}
+
+/**
+ * Stable identity shared by every surface that projects or manages pins.
+ *
+ * A skill's backend token survives display-group changes, while MCP tools
+ * need both their server and tool names to remain unique. Keeping this next
+ * to the persisted model prevents the hidden bar and the `/` menu from
+ * drifting into separate pin systems.
+ */
+export function getPinnedActionKey(action: PinnedAction | SlashItem): string {
+  if (action.category === "skill") {
+    return `skill|${action.skillName ?? action.name}`;
+  }
+  if (action.category === "tool") {
+    return `tool|${action.serverName ?? action.source}|${action.name}`;
+  }
+  return `${action.category}|${action.name}`;
+}
+
+/** Snapshot the stable fields needed to persist a slash item as a pin. */
+export function slashItemToPinnedAction(item: SlashItem): PinnedAction {
+  return {
+    name: item.name,
+    skillName: item.skillName,
+    skillPath: item.skillPath,
+    category: item.category,
+    source: item.source,
+    serverName: item.serverName,
+  };
 }
 
 const DEFAULT_PINNED: PinnedAction[] = [];

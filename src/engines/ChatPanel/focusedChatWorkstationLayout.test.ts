@@ -145,7 +145,7 @@ describe("FOCUSED_CHAT_WORKSTATION_MINIMAP_HOST_CLASS", () => {
 });
 
 describe("resolveFocusedChatWorkstationSectionOrder", () => {
-  it("places the local environment above the session environment and open tabs", () => {
+  it("keeps local session context below the local environment", () => {
     expect(resolveFocusedChatWorkstationSectionOrder(true, true)).toEqual([
       "workspace",
       "session",
@@ -155,6 +155,15 @@ describe("resolveFocusedChatWorkstationSectionOrder", () => {
       "workspace",
       "session",
     ]);
+  });
+
+  it("places a cloud session environment above the local environment", () => {
+    expect(
+      resolveFocusedChatWorkstationSectionOrder(true, true, false, "cloud")
+    ).toEqual(["session", "workspace", "tabs"]);
+    expect(
+      resolveFocusedChatWorkstationSectionOrder(false, true, true, "cloud")
+    ).toEqual(["session", "workspace", "subagents"]);
   });
 
   it("omits an empty session environment without hiding local actions", () => {

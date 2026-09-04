@@ -30,8 +30,11 @@ const SCENARIO_FILTER = (process.env.E2E_CHAT_RENDERING_SCENARIOS ?? "")
   .map((value) => value.trim())
   .filter(Boolean);
 
-function shouldRunScenario(name) {
-  return SCENARIO_FILTER.length === 0 || SCENARIO_FILTER.includes(name);
+function shouldRunScenario(name, aliases = []) {
+  return (
+    SCENARIO_FILTER.length === 0 ||
+    [name, ...aliases].some((candidate) => SCENARIO_FILTER.includes(candidate))
+  );
 }
 
 const SKIP_CHAT_TOOLS = new Set([
@@ -2964,7 +2967,7 @@ async function assertTurnMetadataFooterRendered() {
   );
 }
 
-async function assertKanbanFileSearchRendered() {
+async function assertKanbanSessionSearchRendered() {
   const opened = await invokeE2E("openWorkManagementTab");
   if (!opened || opened.ok !== true) {
     throw new Error(
@@ -2974,11 +2977,11 @@ async function assertKanbanFileSearchRendered() {
   await browser.waitUntil(
     async () =>
       execJS(
-        `return !!document.querySelector('[data-testid="kanban-file-search-input"] input');`
+        `return !!document.querySelector('[data-testid="kanban-search-input"] input');`
       ),
     {
       timeout: RENDER_TIMEOUT_MS,
-      timeoutMsg: "Kanban file search input did not render",
+      timeoutMsg: "Kanban session search input did not render",
     }
   );
 
@@ -2986,12 +2989,12 @@ async function assertKanbanFileSearchRendered() {
   const betaTitle = `Metadata beta ${RUN_ID}`;
   for (const fixture of [
     {
-      sessionId: `sdeagent-e2e-file-search-alpha-${RUN_ID}`,
+      sessionId: `sdeagent-e2e-session-search-alpha-${RUN_ID}`,
       name: alphaTitle,
       touchedFiles: ["src/features/metadata/SessionRoundMetadata.tsx"],
     },
     {
-      sessionId: `sdeagent-e2e-file-search-beta-${RUN_ID}`,
+      sessionId: `sdeagent-e2e-session-search-beta-${RUN_ID}`,
       name: betaTitle,
       touchedFiles: ["src/engines/kanban/searchIndex.rs"],
     },
@@ -3007,24 +3010,35 @@ async function assertKanbanFileSearchRendered() {
       return Array.from(document.querySelectorAll('.kanban-task-card'))
         .map((card) => card.innerText || '');
     `);
-  const setFileSearch = async (value) => {
-    const nextValue = await execJS(`
-      const input = document.querySelector('[data-testid="kanban-file-search-input"] input');
-      if (!(input instanceof HTMLInputElement)) return null;
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-      if (!setter) return null;
-      setter.call(input, ${JSON.stringify(value)});
-      input.dispatchEvent(new InputEvent('input', {
-        bubbles: true,
-        data: ${JSON.stringify(value)},
-        inputType: 'insertText',
-      }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      return input.value;
+  const listTitles = () =>
+    execJS(`
+      return Array.from(document.querySelectorAll('[data-testid="kanban-list-session-row"]'))
+        .map((row) => row.innerText || '');
     `);
-    if (nextValue !== value) {
-      throw new Error(`failed to set Kanban file search to ${value}`);
+  const setSessionSearch = async (value) => {
+    const focused = await execJS(`
+      const input = document.querySelector('[data-testid="kanban-search-input"] input');
+      if (!(input instanceof HTMLInputElement)) return false;
+      input.focus();
+      input.select();
+      return document.activeElement === input;
+    `);
+    if (!focused) {
+      throw new Error("failed to focus the rendered Kanban session search");
     }
+
+    await browser.keys("Backspace");
+    if (value) await browser.keys(value);
+    await browser.waitUntil(
+      async () =>
+        execJS(
+          `return document.querySelector('[data-testid="kanban-search-input"] input')?.value === ${JSON.stringify(value)};`
+        ),
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        timeoutMsg: `Kanban session search did not accept ${value}`,
+      }
+    );
   };
   await browser.waitUntil(
     async () => {
@@ -3040,7 +3054,7 @@ async function assertKanbanFileSearchRendered() {
     }
   );
 
-  await setFileSearch("roundmetadata");
+  await setSessionSearch("METADATA ALPHA");
   try {
     await browser.waitUntil(
       async () => {
@@ -3052,14 +3066,14 @@ async function assertKanbanFileSearchRendered() {
       },
       {
         timeout: RENDER_TIMEOUT_MS,
-        timeoutMsg: "basename fragment did not filter Kanban sessions",
+        timeoutMsg: "session-name fragment did not filter Kanban cards",
       }
     );
   } catch (error) {
     throw new Error(
       `${error.message}: ${JSON.stringify({
         inputValue: await execJS(
-          `return document.querySelector('[data-testid="kanban-file-search-input"] input')?.value ?? null;`
+          `return document.querySelector('[data-testid="kanban-search-input"] input')?.value ?? null;`
         ),
         titles: await cardTitles(),
         body: await execJS(
@@ -3069,10 +3083,38 @@ async function assertKanbanFileSearchRendered() {
     );
   }
 
-  await setFileSearch("ENGINES\\KANBAN");
+  const listButton = await $('[data-testid="kanban-view-list"]');
+  await listButton.waitForDisplayed({
+    timeout: RENDER_TIMEOUT_MS,
+    timeoutMsg: "Kanban List view button did not render",
+  });
+  await listButton.click();
   await browser.waitUntil(
     async () => {
-      const titles = await cardTitles();
+      const titles = await listTitles();
+      return (
+        titles.some((title) => title.includes(alphaTitle)) &&
+        !titles.some((title) => title.includes(betaTitle))
+      );
+    },
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "header query did not carry from Kanban cards into List rows",
+    }
+  );
+  const duplicateListSearchCount = await execJS(
+    `return document.querySelectorAll('input[type="search"]').length;`
+  );
+  if (duplicateListSearchCount !== 0) {
+    throw new Error(
+      `Kanban List rendered ${duplicateListSearchCount} duplicate full-width search inputs`
+    );
+  }
+
+  await setSessionSearch("metadata beta");
+  await browser.waitUntil(
+    async () => {
+      const titles = await listTitles();
       return (
         !titles.some((title) => title.includes(alphaTitle)) &&
         titles.some((title) => title.includes(betaTitle))
@@ -3080,26 +3122,27 @@ async function assertKanbanFileSearchRendered() {
     },
     {
       timeout: RENDER_TIMEOUT_MS,
-      timeoutMsg: "normalized partial path did not filter Kanban sessions",
+      timeoutMsg: "shared session-name query did not filter Kanban List rows",
     }
   );
 
-  await setFileSearch("definitely-not-a-touched-file");
+  await setSessionSearch("searchIndex.rs");
   await browser.waitUntil(
     async () =>
       execJS(
-        `return !!document.querySelector('[data-testid="kanban-file-search-empty"]');`
+        `return !!document.querySelector('[data-testid="kanban-search-empty"]');`
       ),
     {
       timeout: RENDER_TIMEOUT_MS,
-      timeoutMsg: "Kanban file search empty state did not render",
+      timeoutMsg:
+        "touched-file metadata incorrectly matched session-name search",
     }
   );
 
-  await setFileSearch("");
+  await setSessionSearch("");
   await browser.waitUntil(
     async () => {
-      const titles = await cardTitles();
+      const titles = await listTitles();
       return (
         titles.some((title) => title.includes(alphaTitle)) &&
         titles.some((title) => title.includes(betaTitle))
@@ -3107,7 +3150,7 @@ async function assertKanbanFileSearchRendered() {
     },
     {
       timeout: RENDER_TIMEOUT_MS,
-      timeoutMsg: "clearing Kanban file search did not restore all sessions",
+      timeoutMsg: "clearing Kanban session search did not restore all sessions",
     }
   );
 }
@@ -3332,12 +3375,12 @@ describe("Core chat rendering UI", () => {
     await assertTurnMetadataFooterRendered();
   });
 
-  it("filters rendered Kanban sessions by basename and partial file path", async function () {
-    if (!shouldRunScenario("kanban-file-search")) {
+  it("filters rendered Kanban and List sessions by session name", async function () {
+    if (!shouldRunScenario("kanban-session-search", ["kanban-file-search"])) {
       this.skip();
       return;
     }
 
-    await assertKanbanFileSearchRendered();
+    await assertKanbanSessionSearchRendered();
   });
 });

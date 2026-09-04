@@ -240,6 +240,7 @@ export function useSessionSidebarMenuItems({
         key: `chat-terminal-${tab.id}`,
         label: tab.title || "Terminal",
         icon: SquareTerminalIcon,
+        opensChatPanelTab: true,
       });
     }
     return items;

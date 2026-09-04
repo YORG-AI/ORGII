@@ -13,13 +13,11 @@ import { usePrimarySidebarState } from "@src/hooks/tabHost/useWorkStationPanels"
 import { useWorkStationTabShortcutBridge } from "@src/hooks/tabHost/useWorkStationTabShortcutBridge";
 import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import { WorkStationShell } from "@src/modules/WorkStation/shared";
-import { openCreateTargetInChatPanelStartPageAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
-import { projectListRefreshAtom } from "@src/store/project/projectAtom";
 import {
-  CHAT_PANEL_CREATE_TARGET,
-  activeStationChatVisibleAtom,
-} from "@src/store/ui/chatPanelAtom";
-import { stationModeAtom } from "@src/store/ui/simulatorAtom";
+  openCollabOrgSpotlight,
+  openGitHubIssuesImportSpotlight,
+} from "@src/scaffold/GlobalSpotlight/openSpotlight";
+import { projectListRefreshAtom } from "@src/store/project/projectAtom";
 import { projectStatusBarCallbacksAtom } from "@src/store/ui/workStationAtom";
 import {
   STORY_ORG_SCOPE,
@@ -43,9 +41,6 @@ export const ProjectManagerLayout: React.FC<ProjectManagerLayoutProps> = memo(
   ({ repoPath, repoName }) => {
     const { t } = useTranslation();
     const navigate = useNavigate();
-    const openCreateTargetInStartPage = useSetAtom(
-      openCreateTargetInChatPanelStartPageAtom
-    );
 
     const {
       layoutMode,
@@ -136,8 +131,6 @@ export const ProjectManagerLayout: React.FC<ProjectManagerLayoutProps> = memo(
     ]);
 
     const bumpProjectListRefresh = useSetAtom(projectListRefreshAtom);
-    const setStationMode = useSetAtom(stationModeAtom);
-    const setStationChatVisible = useSetAtom(activeStationChatVisibleAtom);
     const handleProjectListRefreshRequested = useCallback(() => {
       bumpProjectListRefresh((prev) => prev + 1);
     }, [bumpProjectListRefresh]);
@@ -222,21 +215,15 @@ export const ProjectManagerLayout: React.FC<ProjectManagerLayoutProps> = memo(
     }, [navigate]);
 
     const handleCreateOrg = useCallback(() => {
-      openCreateTargetInStartPage({
-        target: CHAT_PANEL_CREATE_TARGET.COLLAB_ORG,
-        title: t("navigation:routes.launchpad"),
-      });
-      setStationMode("my-station");
-      setStationChatVisible("my-station", true);
-    }, [openCreateTargetInStartPage, setStationChatVisible, setStationMode, t]);
+      openCollabOrgSpotlight();
+    }, []);
 
     const handleImportGithubIssuesProject = useCallback(() => {
-      openCreateTargetInStartPage({
-        target: CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT,
+      openGitHubIssuesImportSpotlight({
+        repoName,
+        repoPath,
       });
-      setStationMode("my-station");
-      setStationChatVisible("my-station", true);
-    }, [openCreateTargetInStartPage, setStationChatVisible, setStationMode]);
+    }, [repoName, repoPath]);
 
     const { activePrimarySidebarConfig } = useProjectManagerSidebarConfig({
       repoPath,

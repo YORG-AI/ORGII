@@ -13,26 +13,14 @@
     },
     "sections": {
       "reviewRequested": "已請求審查",
-      "authoredByMe": "由我建立",
-      "otherTodos": "其他待辦事項"
+      "authoredByMe": "由我建立"
     },
     "status": {
       "read": "已讀",
       "unread": "未讀"
     },
     "row": {
-      "assignedSummary": "{{status}} · {{priority}}",
       "ariaLabel": "{{title}}，{{status}}"
-    },
-    "search": {
-      "placeholder": "搜尋收件匣",
-      "ariaLabel": "搜尋團隊收件匣"
-    },
-    "groups": {
-      "today": "今天",
-      "yesterday": "昨天",
-      "thisWeek": "本週",
-      "earlier": "更早"
     },
     "empty": {
       "title": "目前尚無項目",
@@ -56,20 +44,15 @@
     "drop": {
       "title": "拖曳到這裡以建立工作項目",
       "subtitle": "先確認工作階段快照，再建立或交接工作項目。",
-      "processing": "正在從「{{title}}」建立工作項目…",
       "processingHint": "正在讀取工作階段並解析專案成員。",
       "success": "工作項目已建立",
       "reused": "已更新現有工作項目",
       "failed": "無法建立工作項目",
-      "error": "無法根據此工作階段建立工作項目。",
-      "open": "開啟",
       "dismiss": "關閉"
     },
     "handoff": {
       "title": "從工作階段建立",
       "createFromSession": "建立團隊工作項目…",
-      "project": "目標專案",
-      "chooseProject": "選擇專案",
       "recipientSelf": "{{name}}（我）",
       "chooseRecipient": "選擇接收人",
       "todoCount_other": "{{count}} 項待辦",
@@ -120,6 +103,7 @@
       "pullRequestsPartialLoadHelp": "現有項目仍會繼續顯示；請重新整理以再次載入缺少的 pull request",
       "workItemContext": "部分專案內容暫時無法使用，工作項目仍可繼續操作。",
       "workItemLoad": "無法載入此工作項目，請再試一次。",
+      "githubIssueLoad": "無法載入該工作項的 GitHub issue，仍顯示本機工作項資訊。",
       "workItemUpdate": "無法儲存工作項目的最新變更，請再試一次。"
     },
     "detail": {
@@ -132,18 +116,7 @@
     "actions": {
       "markRead": "標記為已讀",
       "markUnread": "標記為未讀",
-      "openWorkItem": "開啟工作項目",
-      "openSession": "開啟工作階段"
-    },
-    "fields": {
-      "status": "狀態",
-      "priority": "優先順序",
-      "assignee": "負責人",
-      "workItemId": "工作項目 ID",
-      "session": "工作階段",
-      "comments": "留言",
-      "threadId": "討論串 ID",
-      "commentId": "留言 ID"
+      "openWorkItem": "開啟工作項目"
     },
     "workItemStatus": {
       "backlog": "待辦清單",
@@ -738,7 +711,7 @@
     "unknown": "未知錯誤",
     "agentRequestFailed": "Agent 請求失敗",
     "codexLoginExpired": "Codex 登入已過期",
-    "codexLoginExpiredDescription": "重新連接 Codex 以修復此帳戶。儲存新的登入資訊後，你將返回此工作階段。",
+    "codexLoginExpiredDescription": "重新連接 Codex 以修復此帳戶。儲存新的登入資訊後，你將返回此工作階段",
     "reconnectCodex": "重新連接 Codex",
     "technicalDetails": "技術詳細資訊",
     "failedToCopy": "複製失敗",
@@ -1112,6 +1085,7 @@
     "switchLocalBranchTooltip": "切換本地分支",
     "sessionEnvCloud": "雲",
     "sessionEnvLocal": "本地",
+    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Git 操作",
     "switchToSessionRepo": "切換到 {{name}}",
     "embeddingProgress": "嵌入：已處理 {{count}} 個 chunk",
@@ -1300,7 +1274,7 @@
       "loadingConversation": "正在載入…",
       "reviewNoBody": "留下了審查留言。",
       "submitReview": "提交審查",
-      "reviewHeadNotice": "只有顯示的 head commit 仍相符時，此審查才會生效。",
+      "reviewHeadNotice": "只有顯示的 head commit 仍相符時，此審查才會生效",
       "reviewDecision": "審查決定",
       "reviewComment": "審查評論",
       "reviewCommentPlaceholder": "新增評論…",
@@ -1346,7 +1320,14 @@
       },
       "commits": {
         "backToList": "全部提交",
-        "none": "無提交"
+        "none": "無提交",
+        "onDate": "{{date}} 的提交",
+        "unknownDate": "未知日期",
+        "viewCommit": "查看提交 {{sha}}：{{summary}}",
+        "committed": "已提交",
+        "verified": "已驗證",
+        "copySha": "複製提交 SHA",
+        "viewDetails": "查看提交詳細資料"
       },
       "changes": {
         "title": "檔案變更",
@@ -1574,6 +1555,20 @@
         "commentFailed": "新增評論失敗",
         "bodyUpdateFailed": "更新 issue 描述失敗",
         "statusFailed": "更新 issue 狀態失敗"
+      },
+      "timelineErrorTitle": "無法載入 GitHub 活動",
+      "tabs": {
+        "relatedItems": "相關項目"
+      },
+      "relatedItems": {
+        "emptyTitle": "尚無相關項目",
+        "emptyDescription": "此對話中提及的 GitHub issues 和 pull requests 會顯示在這裡。",
+        "loading": "正在載入相關項目",
+        "count_one": "{{count}} 個相關項目",
+        "count_other": "{{count}} 個相關項目",
+        "unavailable": "無法取得詳細資料",
+        "unavailableCount_one": "無法解析 {{count}} 個相關項目",
+        "unavailableCount_other": "無法解析 {{count}} 個相關項目"
       }
     }
   },
@@ -1920,6 +1915,12 @@
         },
         "createWorkItem": {
           "label": "創建 Work Item"
+        },
+        "createOrganization": {
+          "label": "建立組織"
+        },
+        "joinOrganization": {
+          "label": "加入組織"
         }
       },
       "toast": {
@@ -1987,6 +1988,10 @@
     "openAgentStation": "前往 Agent 工作站",
     "openKanban": "前往 Kanban",
     "changeLanguage": "變更語言",
+    "changeTheme": "變更主題",
+    "changeSkin": "變更外觀",
+    "searchThemes": "搜尋主題...",
+    "searchSkins": "搜尋外觀...",
     "switchToSystemTheme": "跟隨系統主題",
     "detectUpdate": "檢查更新",
     "recentlyUsed": "最近使用"
@@ -2407,7 +2412,7 @@
     "selectRow": "選擇 {{id}}"
   },
   "clientOrigin": {
-    "officialApp": "官方應用",
+    "officialApp": "應用",
     "cli": "命令列",
     "thirdParty": "第三方"
   }

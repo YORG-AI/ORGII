@@ -15,11 +15,10 @@
  * more pill. Renderers outside a turn context retain the host-provided clamp
  * eligibility for synthetic previews.
  *
- * **Locate arrow**: while clamped, a footer-variant `EventNavigateIcon`
- * sits below the preview at the right edge so the user can jump to the
- * matching simulator surface in one click. Unlike the header variant it
- * is always visible (no hover gate) because there is no parent header row
- * to disclose it — the arrow IS the chrome.
+ * **Locate arrow**: while clamped, a footer-hover `EventNavigateIcon` sits
+ * below the preview at the right edge so the user can jump to the matching
+ * simulator surface in one click. The message wrapper owns the named hover
+ * group that reveals it.
  */
 import React, {
   createContext,
@@ -48,14 +47,10 @@ const CHAT_PANE_FADE_FROM = "from-chat-pane";
 export const AGENT_MESSAGE_PREVIEW_MAX_HEIGHT = 480;
 
 export function resolveAgentMessageClampEligibility(
-  isLastGroup: boolean | null,
+  hasTurnContext: boolean,
   fallbackEligible: boolean
 ): boolean {
-  // Every round inside a turn context clamps long (>20-line) messages — the
-  // latest round included. The live streaming tail is exempted separately by
-  // the caller (via `isStreaming`) so active generation stays fully visible.
-  // Outside a turn context (synthetic previews) fall back to the host flag.
-  return isLastGroup === null ? fallbackEligible : true;
+  return hasTurnContext || fallbackEligible;
 }
 
 const AgentMessageClampContext = createContext(false);
@@ -70,7 +65,7 @@ interface AgentMessageBlockProps {
    */
   eventId?: string;
   rightContent?: React.ReactNode;
-  /** Hide footer chrome while tokens are still streaming. */
+  /** Leave live output unclamped and hide settled-only locate chrome. */
   isStreaming?: boolean;
 }
 
@@ -90,7 +85,7 @@ const AgentMessageBlock: React.FC<AgentMessageBlockProps> = ({
   const clampEligible =
     !isStreaming &&
     resolveAgentMessageClampEligibility(
-      turnContext?.isLastGroup ?? null,
+      turnContext !== null,
       fallbackClampEligible
     );
 
@@ -111,9 +106,7 @@ const AgentMessageBlock: React.FC<AgentMessageBlockProps> = ({
   }
 
   // Reuse the shared header hook purely for its replay-locate wiring. We
-  // don't render a header row here — `handleLocate` is the only piece we
-  // need. Without an `eventId` it degrades to a no-op, which matches what
-  // the EventNavigateIcon would do anyway.
+  // don't render a header row here — `handleLocate` is the only piece we need.
   const { handleLocate } = useBlockHeader({
     eventId,
     defaultCollapsed: false,
@@ -158,9 +151,6 @@ const AgentMessageBlock: React.FC<AgentMessageBlockProps> = ({
   }
 
   const showOverlay = overflows || isExpanded;
-  // Locate arrow shows for settled clamped messages with an event id. Hide it
-  // while streaming so the footer chrome does not trail the growing text.
-  const showLocateArrow = Boolean(eventId) && !isStreaming;
   return (
     <div
       className={`group/agent-message w-full min-w-0 px-2 py-0.5 ${isExpanded ? "overflow-visible" : "overflow-hidden"}`}
@@ -196,12 +186,9 @@ const AgentMessageBlock: React.FC<AgentMessageBlockProps> = ({
       {rightContent && (
         <div className="mt-1 flex justify-end">{rightContent}</div>
       )}
-      {showLocateArrow && (
+      {eventId && handleLocate && (
         <div className="mt-1 flex justify-end">
-          <EventNavigateIcon
-            onClick={handleLocate ?? (() => undefined)}
-            variant="footer-hover"
-          />
+          <EventNavigateIcon onClick={handleLocate} variant="footer-hover" />
         </div>
       )}
     </div>

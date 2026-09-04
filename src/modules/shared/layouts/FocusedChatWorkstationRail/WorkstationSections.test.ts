@@ -1,11 +1,18 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { FolderClosedIcon } from "@src/icons";
 
 import { WorkstationSections } from "./WorkstationSections";
 import type { FocusedChatRailSection } from "./types";
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string) =>
+      key === "common:workstation.sessionEnvLocal" ? "Local" : key,
+  }),
+}));
 
 const sections: FocusedChatRailSection[] = [
   {
@@ -40,6 +47,64 @@ const sections: FocusedChatRailSection[] = [
 ];
 
 describe("WorkstationSections", () => {
+  it("shows a cloud owner with the sidebar display name and avatar", () => {
+    const markup = renderToStaticMarkup(
+      createElement(WorkstationSections, {
+        sections: [
+          {
+            key: "session",
+            label: "Session Environment",
+            environment: {
+              owner: {
+                identityId: "user-alice",
+                displayName: "Alice",
+                avatarUrl: "https://example.com/alice.png",
+              },
+            },
+            items: [],
+          },
+        ],
+      })
+    );
+
+    expect(markup).toContain('data-testid="session-environment-owner"');
+    expect(markup).toContain('data-owner-id="user-alice"');
+    expect(markup).toContain('src="https://example.com/alice.png"');
+    expect(markup).toContain(">Alice</span>");
+    expect(markup).not.toContain("@Alice");
+  });
+
+  it("shows the agent harness directly below the environment kind", () => {
+    const markup = renderToStaticMarkup(
+      createElement(WorkstationSections, {
+        compact: true,
+        sections: [
+          {
+            key: "session",
+            label: "Session Environment",
+            environment: {
+              environmentKind: "local",
+              agentHarness: {
+                icon: FolderClosedIcon,
+                label: "Codex Harness",
+              },
+              repoName: "ORGII",
+            },
+            items: [],
+          },
+        ],
+      })
+    );
+
+    expect(markup).toContain('data-testid="session-environment-agent-harness"');
+    expect(markup.indexOf("Local")).toBeLessThan(
+      markup.indexOf("Codex Harness")
+    );
+    expect(markup.indexOf("Codex Harness")).toBeLessThan(
+      markup.indexOf("ORGII")
+    );
+  });
+
   it("collapses only the selected wide-rail group and preserves its heading", () => {
     const markup = renderToStaticMarkup(
       createElement(WorkstationSections, {

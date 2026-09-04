@@ -143,6 +143,7 @@ export function buildChannelMenuRow({
     searchText: topic ? `${name} ${topic}` : undefined,
     icon,
     dataTestId,
+    opensChatPanelTab: true,
   };
   if (rowActions && rowActions.length > 0) {
     item.showMoreActions = true;

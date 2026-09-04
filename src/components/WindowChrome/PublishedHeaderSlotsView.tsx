@@ -5,13 +5,15 @@ import { HEADER_CONTENT_LEFT_PADDING_CLASS } from "@src/config/workstation/token
 
 import { NoDragRegion } from "./NoDragRegion";
 
-/** Shared slot shape for the 40px published header bars. */
+/** Shared slot shape for the 36px published header bars. */
 export interface PublishedHeaderSlots {
   leading?: ReactNode;
   content?: ReactNode;
   trailing?: ReactNode;
-  /** Visually joins this 40px header to a following pane-owned row. */
+  /** Visually joins this 36px header to a following pane-owned row. */
   joinWithFollowingRow?: boolean;
+  /** The active split surface owns this chrome in its left column instead. */
+  hidden?: boolean;
 }
 
 interface PublishedHeaderSlotsViewProps {

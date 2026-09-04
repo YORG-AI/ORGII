@@ -10,6 +10,13 @@ import {
 import { ScopedResourceCache } from "@src/services/git/scopedResourceCache";
 
 const GITHUB_ENDPOINT = "github.com";
+const ANONYMOUS_AUTH_SCOPE = `${GITHUB_ENDPOINT}:anonymous`;
+/**
+ * Namespace for reads that could not be attributed to an account because the
+ * credential lookup itself failed. Distinct from the anonymous scope so a
+ * failed lookup can never read or write another identity's cached entries.
+ */
+export const UNRESOLVED_AUTH_SCOPE = `${GITHUB_ENDPOINT}:unresolved`;
 const ISSUE_DETAIL_TTL_MS = 30_000;
 const REPO_METADATA_TTL_MS = 2 * 60_000;
 const VIEWER_TTL_MS = 5 * 60_000;
@@ -30,6 +37,7 @@ export interface GitHubIssueDetailBundle {
 interface CoordinatorRuntime {
   authScopes: ScopedResourceCache<string>;
   issueDetails: ScopedResourceCache<GitHubIssueDetailBundle>;
+  issueMetadata: ScopedResourceCache<GitHubIssue>;
   timelines: ScopedResourceCache<GitHubIssueTimelineItem[]>;
   viewers: ScopedResourceCache<string>;
   permissions: ScopedResourceCache<GitHubRepoPermissions>;
@@ -43,6 +51,7 @@ export interface GitHubIssueDetailCoordinatorStats {
   issueDetails: ReturnType<
     ScopedResourceCache<GitHubIssueDetailBundle>["getStats"]
   >;
+  issueMetadata: ReturnType<ScopedResourceCache<GitHubIssue>["getStats"]>;
   timelines: ReturnType<
     ScopedResourceCache<GitHubIssueTimelineItem[]>["getStats"]
   >;
@@ -80,6 +89,14 @@ function createRuntime(): CoordinatorRuntime {
       maxAgeMs: 0,
     }),
     issueDetails: new ScopedResourceCache<GitHubIssueDetailBundle>({
+      maxEntries: MAX_ISSUE_DETAILS,
+      maxInFlight: MAX_ISSUE_DETAILS,
+      maxAgeMs: ISSUE_DETAIL_TTL_MS,
+      maxBytes: MAX_ISSUE_DETAIL_BYTES,
+      maxEntryBytes: MAX_ISSUE_ENTRY_BYTES,
+      estimateSize: estimateSerializedBytes,
+    }),
+    issueMetadata: new ScopedResourceCache<GitHubIssue>({
       maxEntries: MAX_ISSUE_DETAILS,
       maxInFlight: MAX_ISSUE_DETAILS,
       maxAgeMs: ISSUE_DETAIL_TTL_MS,
@@ -142,14 +159,25 @@ function runtimeFor(store: Store): CoordinatorRuntime {
  * Resolve a non-secret identity for the active GitHub credential. The token is
  * deliberately discarded immediately; only endpoint + connection metadata is
  * retained in request/cache keys.
+ *
+ * This scope namespaces cached reads by identity — it is not an authorization
+ * check, and the issue requests themselves resolve credentials Rust-side. So a
+ * failed lookup must never deny a read the way a missing credential does not:
+ * it only means this batch cannot be attributed to an account. Rejecting here
+ * used to leave every issue surface unable to build a request key at all,
+ * while pull requests — which never consult this scope — kept loading.
  */
 export async function resolveGitHubDetailAuthScope(): Promise<string> {
-  const credential = await getGitCredentialForRemote(
-    `https://${GITHUB_ENDPOINT}`
-  );
-  return credential
-    ? `${GITHUB_ENDPOINT}:${credential.connection_id}:${credential.source}:${credential.username}`
-    : `${GITHUB_ENDPOINT}:anonymous`;
+  try {
+    const credential = await getGitCredentialForRemote(
+      `https://${GITHUB_ENDPOINT}`
+    );
+    return credential
+      ? `${GITHUB_ENDPOINT}:${credential.connection_id}:${credential.source}:${credential.username}`
+      : ANONYMOUS_AUTH_SCOPE;
+  } catch {
+    return UNRESOLVED_AUTH_SCOPE;
+  }
 }
 
 export function loadGitHubDetailAuthScope(store: Store): Promise<string> {
@@ -181,6 +209,20 @@ export function loadGitHubIssueDetailBundle(
     ...options,
     shouldCache: (bundle) => Boolean(bundle.issue && !bundle.error),
   });
+}
+
+/** Shared, bounded metadata lookups used by linked-reference panels. */
+export function loadGitHubIssueMetadata(
+  store: Store,
+  authScope: string,
+  repoFullName: string,
+  issueNumber: number,
+  loader: () => Promise<GitHubIssue>
+): Promise<GitHubIssue> {
+  return runtimeFor(store).issueMetadata.load(
+    githubIssueResourceKey(authScope, repoFullName, issueNumber),
+    loader
+  );
 }
 
 export function primeGitHubIssueDetailBundle(
@@ -302,6 +344,7 @@ export function getGitHubIssueDetailCoordinatorStats(
   return {
     authScopes: runtime.authScopes.getStats(),
     issueDetails: runtime.issueDetails.getStats(),
+    issueMetadata: runtime.issueMetadata.getStats(),
     timelines: runtime.timelines.getStats(),
     viewers: runtime.viewers.getStats(),
     permissions: runtime.permissions.getStats(),

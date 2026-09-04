@@ -1,24 +1,14 @@
 import React from "react";
 
-import Button from "@src/components/Button";
-import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import {
   HugeiconsIcon,
   type IconSvgElement,
   Mail01Icon,
   Tick01Icon,
 } from "@src/icons";
-import {
-  DETAIL_PANEL_TOKENS,
-  DetailPanelContainer,
-  InfoCard,
-  PanelFooter,
-  PanelHeader,
-} from "@src/modules/shared/layouts/blocks";
-import type { InfoCardRow } from "@src/modules/shared/layouts/blocks";
-
-import TeamInboxHeaderIconAction from "./TeamInboxHeaderIconAction";
-import type { TeamInboxHeaderIconActionProps } from "./TeamInboxHeaderIconAction";
+import DetailHeaderIconAction from "@src/modules/shared/components/DetailHeaderIconAction";
+import type { DetailHeaderIconActionProps } from "@src/modules/shared/components/DetailHeaderIconAction";
+import DetailPaneLayout from "@src/modules/shared/layouts/DetailPaneLayout";
 
 export interface TeamInboxDetailLayoutProps {
   title: string;
@@ -26,22 +16,18 @@ export interface TeamInboxDetailLayoutProps {
   icon: IconSvgElement;
   /** Custom shared header content, such as the canonical GitHub issue strip. */
   headerContent?: React.ReactNode;
-  metadata?: InfoCardRow[];
-  /**
-   * `scroll` owns a padded detail column. `fill` lets a nested Work Item own
-   * its scrolling and responsive rail.
-   */
-  contentLayout?: "scroll" | "fill";
+  /** PR-format detail navigation that owns the header's leading content. */
+  headerTabs?: React.ReactNode;
   unread: boolean;
   markReadLabel: string;
   markUnreadLabel?: string;
   openLabel: string;
   openIcon: React.ReactNode;
-  headerAuxiliaryAction?: TeamInboxHeaderIconActionProps;
+  headerAuxiliaryAction?: DetailHeaderIconActionProps;
   onMarkRead?: () => void;
   onMarkUnread?: () => void;
   onOpen?: () => void;
-  openPlacement?: "header" | "footer";
+  onClose?: () => void;
   children?: React.ReactNode;
 }
 
@@ -50,8 +36,7 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
   subtitle,
   icon,
   headerContent,
-  metadata,
-  contentLayout = "scroll",
+  headerTabs,
   unread,
   markReadLabel,
   markUnreadLabel,
@@ -61,80 +46,63 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
   onMarkRead,
   onMarkUnread,
   onOpen,
-  openPlacement = "footer",
+  onClose,
   children,
 }) => {
   const readAction = unread ? (
     onMarkRead ? (
-      <ToolbarTooltip label={markReadLabel} position="bottom-end">
-        <Button
-          htmlType="button"
-          variant="tertiary"
-          size="small"
-          iconOnly
-          icon={
-            <HugeiconsIcon
-              icon={Tick01Icon}
-              data-icon="check"
-              size={14}
-              strokeWidth={2}
-              aria-hidden
-            />
-          }
-          aria-label={markReadLabel}
-          onClick={onMarkRead}
-        />
-      </ToolbarTooltip>
-    ) : null
-  ) : onMarkUnread && markUnreadLabel ? (
-    <ToolbarTooltip label={markUnreadLabel} position="bottom-end">
-      <Button
-        htmlType="button"
-        variant="tertiary"
-        size="small"
-        iconOnly
+      <DetailHeaderIconAction
+        label={markReadLabel}
         icon={
           <HugeiconsIcon
-            icon={Mail01Icon}
-            data-icon="mail"
+            icon={Tick01Icon}
+            data-icon="check"
             size={14}
             strokeWidth={2}
             aria-hidden
           />
         }
-        aria-label={markUnreadLabel}
-        onClick={onMarkUnread}
+        onClick={onMarkRead}
       />
-    </ToolbarTooltip>
-  ) : null;
-  const headerOpenAction =
-    onOpen && openPlacement === "header" ? (
-      <ToolbarTooltip label={openLabel} position="bottom-end">
-        <Button
-          htmlType="button"
-          variant="tertiary"
-          size="small"
-          iconOnly
-          icon={openIcon}
-          aria-label={openLabel}
-          onClick={onOpen}
-          data-testid="team-inbox-open-source"
+    ) : null
+  ) : onMarkUnread && markUnreadLabel ? (
+    <DetailHeaderIconAction
+      label={markUnreadLabel}
+      icon={
+        <HugeiconsIcon
+          icon={Mail01Icon}
+          data-icon="mail"
+          size={14}
+          strokeWidth={2}
+          aria-hidden
         />
-      </ToolbarTooltip>
-    ) : null;
-  const auxiliaryAction = headerAuxiliaryAction ? (
-    <TeamInboxHeaderIconAction {...headerAuxiliaryAction} />
+      }
+      onClick={onMarkUnread}
+    />
   ) : null;
+  const headerOpenAction = onOpen ? (
+    <DetailHeaderIconAction
+      label={openLabel}
+      icon={openIcon}
+      onClick={onOpen}
+      testId="team-inbox-open-source"
+    />
+  ) : null;
+  const auxiliaryAction = headerAuxiliaryAction ? (
+    <DetailHeaderIconAction {...headerAuxiliaryAction} />
+  ) : null;
+  const resolvedHeaderContent = headerTabs ?? headerContent;
 
   return (
-    <DetailPanelContainer>
-      <PanelHeader
-        title={title}
-        subtitle={subtitle}
-        icon={icon}
-        borderBottom
-        className={DETAIL_PANEL_TOKENS.headerPadding}
-        actions={
+    <DetailPaneLayout
+      onClose={onClose}
+      closeTestId="team-inbox-close-detail"
+      header={{
+        title,
+        subtitle,
+        icon,
+        children: resolvedHeaderContent,
+        actions:
           readAction || auxiliaryAction || headerOpenAction ? (
             <div
               className="flex items-center gap-px"
@@ -144,46 +112,17 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
               {auxiliaryAction}
               {headerOpenAction}
             </div>
-          ) : undefined
-        }
-      >
-        {headerContent}
-      </PanelHeader>
-
-      {contentLayout === "fill" ? (
-        <div className="@container flex min-h-0 flex-1 flex-col overflow-hidden">
-          {children}
-        </div>
-      ) : (
-        <div className={DETAIL_PANEL_TOKENS.scrollContent}>
-          <div className={DETAIL_PANEL_TOKENS.contentWidthWithPadding}>
-            {children ? (
-              <div className={DETAIL_PANEL_TOKENS.sectionGap}>{children}</div>
-            ) : null}
-            {metadata && metadata.length > 0 ? (
-              <InfoCard rows={metadata} />
-            ) : null}
-          </div>
-        </div>
-      )}
-
-      {onOpen && openPlacement === "footer" ? (
-        <PanelFooter
-          primaryAction={{
-            label: openLabel,
-            icon: openIcon,
-            onClick: onOpen,
-          }}
-        />
-      ) : null}
-    </DetailPanelContainer>
+          ) : undefined,
+      }}
+    >
+      {children}
+    </DetailPaneLayout>
   );
 };
 
 /*
- * Keep the detail shell shared across mention and assigned-item surfaces.
- * Assigned Work Items opt into header placement so the thread owns the full
- * vertical canvas; other sources retain the established footer action.
+ * This adapter maps Inbox read/open actions into the domain-neutral shared
+ * detail pane; it does not own a second layout implementation.
  */
 
 export default TeamInboxDetailLayout;

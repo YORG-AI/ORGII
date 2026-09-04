@@ -21,6 +21,8 @@ mod macos_material;
 #[cfg(windows)]
 mod windows_corner;
 
+pub mod startup_backdrop;
+
 // ============================================
 // macOS window background color
 // ============================================
@@ -55,8 +57,12 @@ pub fn apply_window_background_color(window: &tauri::WebviewWindow) {
             let _: () = msg_send![ns_win, setBackgroundColor: bg];
 
             let content_view: *mut AnyObject = msg_send![ns_win, contentView];
-            if !content_view.is_null() {
-                set_draws_background_recursive(content_view, true);
+            if !content_view.is_null() && !set_webview_background_recursive(content_view, true, bg)
+            {
+                tracing::warn!(
+                    "No WKWebView under the window's contentView; startup backdrop not applied \
+                     to the webview and it will paint its own base colour"
+                );
             }
         }
     };
@@ -91,8 +97,13 @@ pub fn remove_window_background_color(window: &tauri::WebviewWindow) {
             let _: () = msg_send![ns_win, setBackgroundColor: clear];
 
             let content_view: *mut AnyObject = msg_send![ns_win, contentView];
-            if !content_view.is_null() {
-                set_draws_background_recursive(content_view, false);
+            if !content_view.is_null()
+                && !set_webview_background_recursive(content_view, false, clear)
+            {
+                tracing::warn!(
+                    "No WKWebView under the window's contentView; the webview keeps whatever \
+                     background it had and the window will not be transparent"
+                );
             }
         }
     };
@@ -104,10 +115,37 @@ pub fn remove_window_background_color(window: &tauri::WebviewWindow) {
     }
 }
 
-/// Recursively search for WKWebView subviews and set _drawsBackground.
+/// Recursively search for WKWebView subviews and pin their background.
+///
+/// Two levers, because `_setDrawsBackground:` alone is not enough:
+///
+/// - `_setDrawsBackground:` decides WHETHER the webview paints a base layer
+///   under the document.
+/// - `underPageBackgroundColor` decides WHAT that base layer is. Left unset,
+///   WebKit derives it from the document — and before the first document has
+///   painted there is nothing to derive from, so it falls back to WHITE. That
+///   fallback is visible for the entire load of a freshly created window,
+///   underneath a page whose own background is transparent, and it is the
+///   white flash this function exists to prevent. Pinning it is also what
+///   makes the setting survive a navigation, which re-derives the default.
+///
+/// `underPageBackgroundColor` is public API from macOS 12; the bundle targets
+/// 10.15, so it is probed with `respondsToSelector:` rather than assumed.
+///
+/// Returns whether a WKWebView was actually found. Callers apply this right
+/// after `build()`, where a silent miss looks exactly like a working fix.
 #[cfg(target_os = "macos")]
-unsafe fn set_draws_background_recursive(view: *mut AnyObject, draws: bool) {
+unsafe fn set_webview_background_recursive(
+    view: *mut AnyObject,
+    draws: bool,
+    color: *mut AnyObject,
+) -> bool {
     use objc2::runtime::Bool;
+    use objc2::sel;
+
+    if view.is_null() {
+        return false;
+    }
 
     let class_name: *mut AnyObject = msg_send![view, className];
     let class_str: *const std::os::raw::c_char = msg_send![class_name, UTF8String];
@@ -116,16 +154,24 @@ unsafe fn set_draws_background_recursive(view: *mut AnyObject, draws: bool) {
         if name.contains("WKWebView") {
             let val: Bool = Bool::new(draws);
             let _: () = msg_send![view, _setDrawsBackground: val];
-            return;
+
+            let responds: Bool =
+                msg_send![view, respondsToSelector: sel!(setUnderPageBackgroundColor:)];
+            if responds.as_bool() {
+                let _: () = msg_send![view, setUnderPageBackgroundColor: color];
+            }
+            return true;
         }
     }
 
     let subviews: *mut AnyObject = msg_send![view, subviews];
     let count: usize = msg_send![subviews, count];
+    let mut found = false;
     for idx in 0..count {
         let subview: *mut AnyObject = msg_send![subviews, objectAtIndex: idx];
-        set_draws_background_recursive(subview, draws);
+        found |= set_webview_background_recursive(subview, draws, color);
     }
+    found
 }
 
 // ============================================

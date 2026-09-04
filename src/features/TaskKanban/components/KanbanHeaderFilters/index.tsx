@@ -1,20 +1,47 @@
 import { useAtom } from "jotai";
-import React, { memo, useCallback, useEffect, useMemo } from "react";
+import React, { memo, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { IMPORTED_HISTORY_SOURCES } from "@src/api/tauri/externalHistory";
 import { CLI_AGENT, type CliAgentType } from "@src/api/types/keys";
 import { formatAgentType } from "@src/assets/providers";
-import type { DropdownOption } from "@src/components/Dropdown/types";
-import Select from "@src/components/Select";
+import Button from "@src/components/Button";
+import {
+  ActionMenuSurface,
+  ActionSubmenu,
+} from "@src/components/Dropdown/ActionMenuSurface";
+import DropdownItem from "@src/components/Dropdown/DropdownItem";
+import {
+  DROPDOWN_CLASSES,
+  DROPDOWN_ITEM,
+  DROPDOWN_PANEL,
+  DROPDOWN_WIDTHS,
+} from "@src/components/Dropdown/tokens";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import type { KanbanTask } from "@src/features/KanbanBoard";
+import { getDropdownPanelStyle, useDropdownEngine } from "@src/hooks/dropdown";
+import {
+  ArchiveIcon,
+  Clock01Icon,
+  FilterIcon,
+  HugeiconsIcon,
+  UserMultipleIcon,
+} from "@src/icons";
 import { kanbanAgentTypeFilterAtom } from "@src/store/ui/kanbanViewStateAtom";
 
 import {
+  DEFAULT_KANBAN_TIME_FILTER,
   EXTERNAL_HISTORY_FILTER_BY_SOURCE,
   KANBAN_AGENT_TYPE_FILTER,
+  KANBAN_AUTO_ARCHIVE_TTLS,
+  KANBAN_TIME_FILTERS,
   type KanbanAgentTypeFilter,
+  type KanbanAutoArchiveTtl,
+  type KanbanTimeFilter,
 } from "../../config";
+
+const DEFAULT_AUTO_ARCHIVE_TTL: KanbanAutoArchiveTtl = "24h";
 
 const CLI_AGENT_FILTERS: readonly CliAgentType[] = [
   CLI_AGENT.CURSOR,
@@ -104,24 +131,22 @@ function getFilterLabel<TFilter extends string>(
   return item.label ?? (item.labelKey ? translate(item.labelKey) : item.key);
 }
 
-function buildSelectOption<TFilter extends string>(
-  item: KanbanFilterItem<TFilter>,
-  translate: (key: string) => string
-): DropdownOption {
-  const label = getFilterLabel(item, translate);
-  return {
-    value: item.key,
-    label: <span className="whitespace-nowrap">{label}</span>,
-    triggerLabel: label,
-  };
-}
-
 interface KanbanHeaderFiltersProps {
   tasks: readonly KanbanTask[];
+  autoArchiveTtl: KanbanAutoArchiveTtl;
+  onAutoArchiveTtlChange: (ttl: KanbanAutoArchiveTtl) => void;
+  timeFilter: KanbanTimeFilter;
+  onTimeFilterChange: (filter: KanbanTimeFilter) => void;
 }
 
 const KanbanHeaderFilters: React.FC<KanbanHeaderFiltersProps> = memo(
-  ({ tasks }) => {
+  ({
+    tasks,
+    autoArchiveTtl,
+    onAutoArchiveTtlChange,
+    timeFilter,
+    onTimeFilterChange,
+  }) => {
     const { t } = useTranslation(["sessions", "common"]);
     const [activeAgentTypeFilter, setActiveAgentTypeFilter] = useAtom(
       kanbanAgentTypeFilterAtom
@@ -191,30 +216,186 @@ const KanbanHeaderFilters: React.FC<KanbanHeaderFiltersProps> = memo(
       }
     }, [activeAgentTypeFilter, agentTypeFilterItems, setActiveAgentTypeFilter]);
 
-    const agentTypeOptions = useMemo(
-      () => agentTypeFilterItems.map((item) => buildSelectOption(item, t)),
-      [agentTypeFilterItems, t]
-    );
+    const {
+      isOpen,
+      isPositioned,
+      toggle,
+      close,
+      triggerRef,
+      panelRef,
+      panelPosition,
+    } = useDropdownEngine<HTMLButtonElement>({
+      align: "right",
+      placement: "bottom",
+      captureKeyboardFocus: true,
+      // ActionMenuSurface owns keyboard navigation across the submenus.
+      autoKeyboardNavigation: false,
+      closeOnEsc: false,
+    });
 
-    const handleAgentTypeSelect = useCallback(
-      (value: string | number | (string | number)[]) => {
-        if (Array.isArray(value)) return;
-        setActiveAgentTypeFilter(value as KanbanAgentTypeFilter);
-      },
-      [setActiveAgentTypeFilter]
+    const activeAgentLabel = getFilterLabel(
+      agentTypeFilterItems.find((item) => item.key === activeAgentTypeFilter) ??
+        ALL_AGENT_TYPE_FILTER_ITEM,
+      t
     );
+    const activeAutoArchiveLabel = t(
+      KANBAN_AUTO_ARCHIVE_TTLS.find((item) => item.key === autoArchiveTtl)
+        ?.labelKey ?? "kanban.autoArchive.24h"
+    );
+    const activeTimeFilterLabel = t(
+      KANBAN_TIME_FILTERS.find((item) => item.key === timeFilter)?.labelKey ??
+        "kanban.timeFilter.3d"
+    );
+    const hasNonDefaultFilters =
+      activeAgentTypeFilter !== KANBAN_AGENT_TYPE_FILTER.ALL ||
+      autoArchiveTtl !== DEFAULT_AUTO_ARCHIVE_TTL ||
+      timeFilter !== DEFAULT_KANBAN_TIME_FILTER;
 
     return (
-      <Select
-        value={activeAgentTypeFilter}
-        onChange={handleAgentTypeSelect}
-        options={agentTypeOptions}
-        size="small"
-        appearance="ghost"
-        radius="lg"
-        dropdownWidthMode="auto"
-        className="w-auto"
-      />
+      <>
+        <Button
+          ref={triggerRef}
+          htmlType="button"
+          variant="tertiary"
+          size="small"
+          iconOnly
+          className={
+            isOpen || hasNonDefaultFilters ? "bg-fill-1! text-primary-6!" : ""
+          }
+          onClick={(event) => {
+            event.stopPropagation();
+            toggle();
+          }}
+          aria-label={t("common:actions.filter")}
+          aria-haspopup="menu"
+          aria-expanded={isOpen}
+          aria-pressed={hasNonDefaultFilters}
+          data-testid="kanban-filter-menu-trigger"
+          icon={
+            <HugeiconsIcon
+              icon={FilterIcon}
+              data-icon="filter"
+              size={HEADER_ICON_SIZE.sm}
+              strokeWidth={2}
+            />
+          }
+        />
+        {isOpen &&
+          isPositioned &&
+          createPortal(
+            <ActionMenuSurface
+              panelRef={panelRef}
+              onClose={close}
+              fitSubmenus
+              className={`${DROPDOWN_CLASSES.menuPanelBase} ${DROPDOWN_WIDTHS.sidebarMenuClass}`}
+              style={{
+                ...getDropdownPanelStyle(panelPosition, {
+                  widthMode: "none",
+                }),
+                position: "fixed",
+                zIndex: DROPDOWN_PANEL.zIndex,
+              }}
+            >
+              <ActionSubmenu
+                label={t("common:terminology.agent")}
+                value={activeAgentLabel}
+                icon={
+                  <HugeiconsIcon
+                    icon={UserMultipleIcon}
+                    size={DROPDOWN_ITEM.iconSize}
+                    strokeWidth={1.75}
+                  />
+                }
+                dataTestId="kanban-filter-agent-submenu"
+              >
+                {agentTypeFilterItems.map((item) => {
+                  const label = getFilterLabel(item, t);
+                  const selected = item.key === activeAgentTypeFilter;
+                  return (
+                    <DropdownItem
+                      key={item.key}
+                      role="menuitemradio"
+                      ariaChecked={selected}
+                      ariaLabel={label}
+                      tabIndex={0}
+                      fullWidth
+                      selected={selected}
+                      onClick={() => setActiveAgentTypeFilter(item.key)}
+                      dataTestId={`kanban-filter-agent-${item.key}`}
+                    >
+                      {label}
+                    </DropdownItem>
+                  );
+                })}
+              </ActionSubmenu>
+              <ActionSubmenu
+                label={t("kanban.autoArchive.label")}
+                value={activeAutoArchiveLabel}
+                icon={
+                  <HugeiconsIcon
+                    icon={ArchiveIcon}
+                    size={DROPDOWN_ITEM.iconSize}
+                    strokeWidth={1.75}
+                  />
+                }
+                dataTestId="kanban-filter-auto-archive-submenu"
+              >
+                {KANBAN_AUTO_ARCHIVE_TTLS.map((item) => {
+                  const label = t(item.labelKey);
+                  const selected = item.key === autoArchiveTtl;
+                  return (
+                    <DropdownItem
+                      key={item.key}
+                      role="menuitemradio"
+                      ariaChecked={selected}
+                      ariaLabel={label}
+                      tabIndex={0}
+                      fullWidth
+                      selected={selected}
+                      onClick={() => onAutoArchiveTtlChange(item.key)}
+                      dataTestId={`kanban-filter-auto-archive-${item.key}`}
+                    >
+                      {label}
+                    </DropdownItem>
+                  );
+                })}
+              </ActionSubmenu>
+              <ActionSubmenu
+                label={t("kanban.timeFilter.label")}
+                value={activeTimeFilterLabel}
+                icon={
+                  <HugeiconsIcon
+                    icon={Clock01Icon}
+                    size={DROPDOWN_ITEM.iconSize}
+                    strokeWidth={1.75}
+                  />
+                }
+                dataTestId="kanban-filter-range-submenu"
+              >
+                {KANBAN_TIME_FILTERS.map((item) => {
+                  const label = t(item.labelKey);
+                  const selected = item.key === timeFilter;
+                  return (
+                    <DropdownItem
+                      key={item.key}
+                      role="menuitemradio"
+                      ariaChecked={selected}
+                      ariaLabel={label}
+                      tabIndex={0}
+                      fullWidth
+                      selected={selected}
+                      onClick={() => onTimeFilterChange(item.key)}
+                      dataTestId={`kanban-filter-range-${item.key}`}
+                    >
+                      {label}
+                    </DropdownItem>
+                  );
+                })}
+              </ActionSubmenu>
+            </ActionMenuSurface>,
+            document.body
+          )}
+      </>
     );
   }
 );

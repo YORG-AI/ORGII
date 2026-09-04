@@ -8,7 +8,7 @@
  *   setFontSize(16);
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 
 import type {
   SettingValue,
@@ -16,12 +16,9 @@ import type {
   SettingsObject,
 } from "@src/config/settingsSchema";
 import {
-  resetAllSettingsAtom,
   settingAtom,
   settingsAtom,
-  settingsLoadedAtom,
   updateSettingAtom,
-  updateSettingsBatchAtom,
 } from "@src/store/settings/settingsAtom";
 
 /**
@@ -74,47 +71,4 @@ export function useSettingValue<K extends SettingsKey>(
  */
 export function useAllSettings(): SettingsObject {
   return useAtomValue(settingsAtom);
-}
-
-/**
- * Check if settings have been loaded from disk.
- * Useful for showing a loading state during initial hydration.
- */
-export function useSettingsLoaded(): boolean {
-  return useAtomValue(settingsLoadedAtom);
-}
-
-/**
- * Update multiple settings at once.
- *
- * @example
- * ```tsx
- * const updateBatch = useUpdateSettingsBatch();
- * updateBatch({
- *   "editor.fontSize": 16,
- *   "editor.tabSize": 4,
- * });
- * ```
- */
-export function useUpdateSettingsBatch(): (
-  updates: Partial<SettingsObject>
-) => void {
-  const batchUpdate = useSetAtom(updateSettingsBatchAtom);
-  return batchUpdate;
-}
-
-/**
- * Reset all settings to defaults.
- */
-export function useResetAllSettings(): () => void {
-  const reset = useSetAtom(resetAllSettingsAtom);
-  return reset;
-}
-
-/**
- * Get the current settings as a JSON string (for the JSON editor view).
- */
-export function useSettingsJson(): string {
-  const settings = useAtomValue(settingsAtom);
-  return useMemo(() => JSON.stringify(settings, null, 2), [settings]);
 }

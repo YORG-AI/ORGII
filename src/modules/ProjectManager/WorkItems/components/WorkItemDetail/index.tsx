@@ -8,11 +8,19 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import type { WorkItemData as WorkItemDataPayload } from "@src/api/http/project";
-import { HEADER_CLASSES } from "@src/config/workstation/tokens";
 import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { useAgentDefinitions } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentDefinitions";
 import { useAgentOrgs } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentOrgs";
+import {
+  extractGitHubReferences,
+  getWorkItemReferenceText,
+} from "@src/modules/shared/components/GitHubLinkedReferences/references";
+import ThreadDetailTabs, {
+  type ThreadDetailTab,
+} from "@src/modules/shared/components/ThreadDetailTabs";
+import DetailPaneLayout from "@src/modules/shared/layouts/DetailPaneLayout";
+import { DetailHeaderTabs } from "@src/modules/shared/layouts/blocks";
 import { createWorkItemDetailTab } from "@src/store/workstation/tabs";
 import {
   WORK_ITEM_STATUS,
@@ -48,6 +56,7 @@ const WORK_ITEM_INFO_PANEL_DEFAULT_WIDTH = 240;
 const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
   workItem,
   onClose: _onClose,
+  onOpenInNewTab,
   onNavigate,
   hasPrev,
   hasNext,
@@ -86,6 +95,10 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
   const [infoPanelWidth, setInfoPanelWidth] = useState(
     WORK_ITEM_INFO_PANEL_DEFAULT_WIDTH
   );
+  const [tabSelection, setTabSelection] = useState<{
+    workItemId: string;
+    activeTab: ThreadDetailTab;
+  }>({ workItemId: workItem.session_id, activeTab: "conversation" });
   const lastAutoRefreshWorkItemIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -115,6 +128,31 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
   const canEditTitle =
     Boolean(onUpdateWorkItem) && titleEditable !== false && !isGitHubWorkItem;
   const displayShortId = formatWorkItemShortId(shortId, displayStatus);
+  const activeTab =
+    tabSelection.workItemId === workItem.session_id
+      ? tabSelection.activeTab
+      : "conversation";
+  const referenceText = useMemo(
+    () =>
+      getWorkItemReferenceText({
+        spec: displayWorkItem.spec,
+        comments: displayWorkItem.comments,
+      }),
+    [displayWorkItem.comments, displayWorkItem.spec]
+  );
+  const linkedReferences = useMemo(
+    () => extractGitHubReferences(referenceText),
+    [referenceText]
+  );
+  const handleTabChange = useCallback(
+    (nextTab: ThreadDetailTab) => {
+      setTabSelection({
+        workItemId: workItem.session_id,
+        activeTab: nextTab,
+      });
+    },
+    [workItem.session_id]
+  );
 
   const {
     activeAgentSessionId,
@@ -291,7 +329,7 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
     ]
   );
 
-  const headerContent = useMemo(
+  const headerTitle = useMemo(
     () => (
       <WorkItemDetailHeaderBreadcrumb
         workItem={displayWorkItem}
@@ -321,6 +359,35 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
     ]
   );
 
+  const headerContent = useMemo(
+    () => (
+      <DetailHeaderTabs
+        title={headerTitle}
+        tabs={
+          <ThreadDetailTabs
+            activeTab={activeTab}
+            conversationCount={displayWorkItem.comments?.length ?? 0}
+            linkedCount={linkedReferences.length}
+            onChange={handleTabChange}
+            variant="header"
+            idPrefix="work-item-detail"
+            ariaLabel={t("workItems.detailNavigation", {
+              defaultValue: "Work Item navigation",
+            })}
+          />
+        }
+      />
+    ),
+    [
+      activeTab,
+      displayWorkItem.comments?.length,
+      handleTabChange,
+      headerTitle,
+      linkedReferences.length,
+      t,
+    ]
+  );
+
   const headerTrailing = useMemo(
     () => (
       <WorkItemDetailHeaderActions
@@ -329,6 +396,8 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
         hasPrev={hasPrev}
         hasNext={hasNext}
         onNavigate={onNavigate}
+        onClose={_onClose}
+        onOpenInNewTab={onOpenInNewTab}
         onDeleteWorkItem={onDeleteWorkItem}
         onToggleProperties={onToggleProperties}
         t={t}
@@ -340,6 +409,8 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
       hasPrev,
       hasNext,
       onNavigate,
+      _onClose,
+      onOpenInNewTab,
       onDeleteWorkItem,
       onToggleProperties,
       t,
@@ -356,24 +427,31 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
   });
 
   return (
-    <div
-      className={`relative flex h-full flex-col overflow-hidden${
+    <DetailPaneLayout
+      className={`relative ${
         surface === WORK_ITEM_DETAIL_SURFACE.nested ? "bg-bg-2" : ""
-      }`}
-      data-testid="work-item-detail"
-      data-work-item-id={workItem.session_id}
-      data-work-item-short-id={shortId ?? ""}
-      onContextMenu={handleContextMenu}
+      }`.trim()}
+      testId="work-item-detail"
+      rootProps={{
+        onContextMenu: handleContextMenu,
+      }}
+      dataAttributes={{
+        "data-work-item-id": workItem.session_id,
+        "data-work-item-short-id": shortId ?? "",
+      }}
+      header={
+        publishHeaderToWorkstation
+          ? undefined
+          : {
+              children: headerContent,
+              actions: headerTrailing,
+            }
+      }
     >
-      {!publishHeaderToWorkstation && (
-        <div className={HEADER_CLASSES.pageHeader}>
-          {headerContent}
-          {headerTrailing}
-        </div>
-      )}
-
       <WorkItemDetailBody
         displayWorkItem={displayWorkItem}
+        activeTab={activeTab}
+        linkedReferences={linkedReferences}
         propertiesOpen={propertiesOpen}
         infoPanelWidth={infoPanelWidth}
         setInfoPanelWidth={setInfoPanelWidth}
@@ -407,7 +485,7 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
           onClose={handleCloseContextMenu}
         />
       )}
-    </div>
+    </DetailPaneLayout>
   );
 };
 

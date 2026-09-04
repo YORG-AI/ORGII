@@ -126,6 +126,7 @@
     },
     "settingsMenu": {
       "appearance": "外観",
+      "modifyAppearance": "外観を変更",
       "language": "言語",
       "viewRam": "RAM を表示",
       "tutorials": "チュートリアル",

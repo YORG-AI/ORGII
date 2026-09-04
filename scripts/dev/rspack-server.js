@@ -93,18 +93,33 @@ compiler.hooks.done.tap("ORGIIRspackDevServer", (stats) => {
 // does not install the lazy-compilation trigger endpoint itself, so wire the
 // middleware from @rspack/core manually. Without it the lazyCompilation
 // option is silently inert and every chunk still compiles eagerly.
-if (process.env.ORGII_RSPACK_LAZY === "true") {
-  const { lazyCompilationMiddleware } = require("@rspack/core");
-  const lazyMiddleware = lazyCompilationMiddleware(compiler);
-  const userSetup = config.devServer.setupMiddlewares;
-  config.devServer.setupMiddlewares = (middlewares, devServer) => {
+const userSetup = config.devServer.setupMiddlewares;
+config.devServer.setupMiddlewares = (middlewares, devServer) => {
+  middlewares.unshift({
+    name: "orgii-mobile-auth-session-stub",
+    middleware: (req, res, next) => {
+      if (req.url?.startsWith("/v1/mobile/auth/session")) {
+        if (req.method === "POST" || req.method === "DELETE") {
+          res.statusCode = 204;
+          res.end();
+          return;
+        }
+      }
+      next();
+    },
+  });
+
+  if (process.env.ORGII_RSPACK_LAZY === "true") {
+    const { lazyCompilationMiddleware } = require("@rspack/core");
+    const lazyMiddleware = lazyCompilationMiddleware(compiler);
     middlewares.unshift({
       name: "rspack-lazy-compilation",
       middleware: lazyMiddleware,
     });
-    return userSetup ? userSetup(middlewares, devServer) : middlewares;
-  };
-}
+  }
+
+  return userSetup ? userSetup(middlewares, devServer) : middlewares;
+};
 
 const server = new RspackDevServer(config.devServer, compiler);
 

@@ -2,7 +2,7 @@
  * TaskDetailViewPill
  *
  * Header toggle for the Kanban session detail panel. Switches the body between
- * the session trajectory (ChatView replay) and the flat "touched files" list.
+ * the session transcript and the flat "touched files" list.
  * Controlled — the panel owns the active view.
  */
 import React, { useMemo } from "react";

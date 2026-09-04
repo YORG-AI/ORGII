@@ -4,6 +4,51 @@
  * expands and collapses; keeping #root at the global 100vh would expose a
  * blank strip below the 100dvh app shell.
  */
+
+// Mirror Desktop ChatHistory typography for tool blocks and chat surfaces.
+// Mobile Remote renders EventBlockHeader outside `.wp__chat__history`, so the
+// scoped `.chat-block-header` reset from ChatHistory/index.scss never applies
+// and rows inherit the browser's 16px body size instead of 13px.
+$mobile-chat-font-size: 13px;
+$mobile-chat-code-font-size: 13px;
+$mobile-chat-line-height: 1.6;
+// Desktop CHAT_ITEM_GAP is py-1 (4px per side, 8px between items). Mobile
+// transcript uses py-0.5 by default and 2px between consecutive tool rows.
+$mobile-chat-item-gap-y: 2px;
+$mobile-chat-tool-run-gap-y: 2px;
+
+html {
+  --chat-font-size: #{$mobile-chat-font-size};
+  --chat-code-font-size: #{$mobile-chat-code-font-size};
+  --chat-line-height: #{$mobile-chat-line-height};
+  --mobile-chat-item-gap-y: #{$mobile-chat-item-gap-y};
+  --mobile-chat-tool-run-gap-y: #{$mobile-chat-tool-run-gap-y};
+  --chat-block-xs-size: calc(var(--chat-font-size) - 2px);
+  --chat-block-content-size: var(--chat-code-font-size);
+  --chat-block-title-size: var(--chat-font-size);
+  --chat-block-md-size: var(--chat-font-size);
+
+  .chat-block-header {
+    font-size: var(--chat-block-title-size, #{$mobile-chat-font-size});
+  }
+
+  .chat-block-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    align-self: center;
+    width: var(--chat-block-title-size, #{$mobile-chat-font-size});
+    height: var(--chat-block-title-size, #{$mobile-chat-font-size});
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  }
+}
+
 html,
 body,
 #root {

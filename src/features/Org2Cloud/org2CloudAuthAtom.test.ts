@@ -242,7 +242,7 @@ describe("clearRejectedAuth", () => {
 });
 
 // The four @agent-adjacent callers (MoveToOrgDialog, useWorkstationSidebarHandlers,
-// useForkImportedSession, CreateCollabOrgView) all rotate the single-use refresh
+// useForkImportedSession, CollabOrgForm) all rotate the single-use refresh
 // token via ensureFreshSession, then MUST write it back through commitRefreshedAuth.
 // This exercises that exact composition end-to-end so a caller that drops or
 // blind-sets the rotated token is caught.

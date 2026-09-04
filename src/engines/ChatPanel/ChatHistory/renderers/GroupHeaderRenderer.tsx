@@ -48,6 +48,7 @@ function sameMeta(
     left.turnId === right.turnId &&
     left.durationMs === right.durationMs &&
     left.itemCount === right.itemCount &&
+    left.bodyEventCount === right.bodyEventCount &&
     left.previewText === right.previewText &&
     left.startMs === right.startMs &&
     left.endMs === right.endMs &&

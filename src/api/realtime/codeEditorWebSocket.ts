@@ -150,7 +150,7 @@ export class CodeEditorWebSocketClient {
         try {
           handler(data as CodeEditorWebSocketMessage);
         } catch (err) {
-          log.error(`[CodeEditorWS] Handler error for ${eventType}:`, err);
+          log.error(`Handler error for ${eventType}:`, err);
         }
       }
     }

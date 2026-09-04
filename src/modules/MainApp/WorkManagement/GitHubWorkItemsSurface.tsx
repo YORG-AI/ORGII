@@ -12,6 +12,10 @@ import type { SelectOption } from "@src/components/Select";
 import { reposAtom, selectedRepoPathAtom } from "@src/store/repo";
 
 import { GitHubWorkItemsView } from "./GitHubWorkItemsView";
+import {
+  type ManagedGitHubItem,
+  getManagedGitHubItemKey,
+} from "./githubManagedItemModel";
 import { GITHUB_QUERY_SCOPE } from "./githubWorkItemsSearchQuery";
 import type { GitHubQueryScope } from "./githubWorkItemsSearchQuery";
 import {
@@ -19,7 +23,10 @@ import {
   DEFAULT_GITHUB_PULL_REQUESTS_SORT,
   type GitHubWorkItemsSort,
 } from "./githubWorkItemsSort";
-import type { RepoFilterOption } from "./githubWorkItemsTypes";
+import {
+  type RepoFilterOption,
+  resolveSingleGitHubRepoSource,
+} from "./githubWorkItemsTypes";
 import { useGitHubIssueAssigneeMutations } from "./useGitHubIssueAssigneeMutations";
 import { useGitHubIssueMutations } from "./useGitHubIssueMutations";
 import { useGitHubWorkItemActions } from "./useGitHubWorkItemActions";
@@ -28,7 +35,6 @@ import { useGitHubWorkItemsDerivedState } from "./useGitHubWorkItemsDerivedState
 import { useGitHubWorkItemsLoadLifecycle } from "./useGitHubWorkItemsLoadLifecycle";
 import {
   GITHUB_FILTER_PRESET,
-  ISSUE_REPO_FILTER,
   areRequestedPrStatesLoaded,
   useGitHubWorkItemsViewState,
 } from "./useGitHubWorkItemsViewState";
@@ -56,6 +62,7 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     addPr,
   } = useGitHubWorkItemActions({ detailHost });
   const [createFormOpen, setCreateFormOpen] = useState(false);
+  const [selectedItemKey, setSelectedItemKey] = useState<string | null>(null);
   const [workItemsSortByScope, setWorkItemsSortByScope] = useState<
     Record<Extract<GitHubQueryScope, "issue" | "pr">, GitHubWorkItemsSort>
   >({
@@ -96,8 +103,6 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     refreshNonce,
     selectedRepo,
     selectedRepoPath,
-    allReposValue: ISSUE_REPO_FILTER.ALL,
-    currentWorkstationValue: ISSUE_REPO_FILTER.CURRENT_WORKSTATION,
   });
   const deferredParsedSearchQuery = useDeferredValue(parsedSearchQuery);
   const {
@@ -120,10 +125,26 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     selectedRepo,
     selectedRepoPath,
     currentPage,
-    allReposValue: ISSUE_REPO_FILTER.ALL,
-    currentWorkstationValue: ISSUE_REPO_FILTER.CURRENT_WORKSTATION,
     sort: workItemsSort,
   });
+  const resolvedRepoSelection = useMemo(
+    () =>
+      resolveSingleGitHubRepoSource(
+        repoSources,
+        selectedRepo,
+        selectedRepoPath
+      ),
+    [repoSources, selectedRepo, selectedRepoPath]
+  );
+
+  useEffect(() => {
+    if (
+      resolvedRepoSelection &&
+      selectedRepo !== resolvedRepoSelection.repoFullName
+    ) {
+      handleRepoSelect(resolvedRepoSelection.repoFullName);
+    }
+  }, [handleRepoSelect, resolvedRepoSelection, selectedRepo]);
   const requestedPrDataLoaded = areRequestedPrStatesLoaded(
     selectedPrListStates,
     openPrLoaded,
@@ -135,6 +156,21 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
       loadError === null &&
       paginatedSources.length > 0 &&
       !requestedPrDataLoaded);
+  const selectedItem = useMemo(
+    () =>
+      selectedItemKey
+        ? (filteredItems.find(
+            (item) => getManagedGitHubItemKey(item) === selectedItemKey
+          ) ?? null)
+        : null,
+    [filteredItems, selectedItemKey]
+  );
+  const handleSelectItem = useCallback((item: ManagedGitHubItem) => {
+    setSelectedItemKey(getManagedGitHubItemKey(item));
+  }, []);
+  const handleCloseItem = useCallback(() => {
+    setSelectedItemKey(null);
+  }, []);
 
   const issuePersonalFilterOptions = useMemo<SelectOption[]>(
     () =>
@@ -153,17 +189,12 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     [scope, t]
   );
   const repoOptions = useMemo<RepoFilterOption[]>(
-    () => [
-      {
-        key: ISSUE_REPO_FILTER.ALL,
-        label: t("chat.manageIssues.allRepositories"),
-      },
-      ...repoSources.map((source) => ({
+    () =>
+      repoSources.map((source) => ({
         key: source.repoFullName,
         label: source.repoFullName,
       })),
-    ],
-    [repoSources, t]
+    [repoSources]
   );
 
   useEffect(() => {
@@ -275,6 +306,7 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
       allItemsCount={allItems.length}
       filteredItems={filteredItems}
       pagedItems={pagedItems}
+      selectedItem={selectedItem}
       repoSources={repoSources}
       repoOptions={repoOptions}
       effectiveSelectedRepo={effectiveSelectedRepo}
@@ -296,7 +328,10 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
       onRefresh={handleRefresh}
       onGoToPage={handleGoToPage}
       onNextPage={handleNextPage}
+      onLoadMore={() => void handleLoadMore()}
       onSortChange={handleSortChange}
+      onSelectItem={handleSelectItem}
+      onCloseItem={handleCloseItem}
       onOpenIssue={openIssueInTab}
       onOpenIssueInBrowser={openIssueInBrowser}
       onAddIssue={addIssue}

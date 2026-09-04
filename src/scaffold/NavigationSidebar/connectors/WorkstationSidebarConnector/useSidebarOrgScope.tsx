@@ -48,6 +48,46 @@ interface UseSidebarOrgScopeParams {
   sortedSessions: Session[];
 }
 
+interface ResolveSidebarOrgSelectionInput {
+  selectedOrgId: string;
+  options: readonly Pick<SelectOption, "value">[];
+  cloudAuthed: boolean;
+  cloudOrgsLoaded: boolean;
+  projectOrgsLoaded: boolean;
+}
+
+/** Keep unresolved saved scopes in a loading state, then fall back to local. */
+export function resolveSidebarOrgSelection({
+  selectedOrgId,
+  options,
+  cloudAuthed,
+  cloudOrgsLoaded,
+  projectOrgsLoaded,
+}: ResolveSidebarOrgSelectionInput): {
+  activeOrgId: string;
+  loading: boolean;
+} {
+  const normalizedOrgId = selectedOrgId || DEFAULT_SESSION_ORG_ID;
+  if (options.some((option) => option.value === normalizedOrgId)) {
+    return { activeOrgId: normalizedOrgId, loading: false };
+  }
+
+  const cloudOrgPending =
+    cloudAuthed &&
+    !cloudOrgsLoaded &&
+    Boolean(parseCloudOrgSelectorValue(normalizedOrgId));
+  const localOrgPending =
+    normalizedOrgId !== DEFAULT_SESSION_ORG_ID &&
+    !parseCloudOrgSelectorValue(normalizedOrgId) &&
+    !projectOrgsLoaded;
+
+  if (cloudOrgPending || localOrgPending) {
+    return { activeOrgId: normalizedOrgId, loading: true };
+  }
+
+  return { activeOrgId: DEFAULT_SESSION_ORG_ID, loading: false };
+}
+
 export function useSidebarOrgScope({
   sortedSessions,
 }: UseSidebarOrgScopeParams) {
@@ -57,6 +97,7 @@ export function useSidebarOrgScope({
   const cloudAuthed = useAtomValue(org2CloudAuthAtom) !== null;
   const [selectedOrgId, setSelectedOrgId] = useAtom(sidebarSelectedOrgIdAtom);
   const [projectOrgs, setProjectOrgs] = useState<ProjectOrg[]>([]);
+  const [projectOrgsLoaded, setProjectOrgsLoaded] = useState(false);
 
   const fetchProjectOrgs = useCallback(async (): Promise<ProjectOrg[]> => {
     try {
@@ -70,7 +111,10 @@ export function useSidebarOrgScope({
   useEffect(() => {
     let cancelled = false;
     void fetchProjectOrgs().then((orgs) => {
-      if (!cancelled) setProjectOrgs(orgs);
+      if (!cancelled) {
+        setProjectOrgs(orgs);
+        setProjectOrgsLoaded(true);
+      }
     });
     return () => {
       cancelled = true;
@@ -121,26 +165,23 @@ export function useSidebarOrgScope({
     [cloudOrgs, projectOrgs, tProjects]
   );
 
-  const activeOrgId = useMemo(() => {
-    if (orgSelectorOptions.some((option) => option.value === selectedOrgId)) {
-      return selectedOrgId;
-    }
-    // Boot window: a persisted cloud scope is absent from the options only
-    // because the roster has not hydrated yet. Treating that as authoritative
-    // absence flips the sidebar to personal, blanks the org sections, and a
-    // click during the flap can wedge them until the next cold start. Hold
-    // the selected scope until the roster can actually rule on it. Signed
-    // out, the roster never hydrates (`cloudOrgsLoaded` stays false), so the
-    // hold needs an identity that can still answer — otherwise fall through.
-    if (
-      cloudAuthed &&
-      !cloudOrgsLoaded &&
-      parseCloudOrgSelectorValue(selectedOrgId)
-    ) {
-      return selectedOrgId;
-    }
-    return DEFAULT_SESSION_ORG_ID;
-  }, [cloudAuthed, cloudOrgsLoaded, orgSelectorOptions, selectedOrgId]);
+  const { activeOrgId, loading: orgSelectorLoading } = useMemo(
+    () =>
+      resolveSidebarOrgSelection({
+        selectedOrgId,
+        options: orgSelectorOptions,
+        cloudAuthed,
+        cloudOrgsLoaded,
+        projectOrgsLoaded,
+      }),
+    [
+      cloudAuthed,
+      cloudOrgsLoaded,
+      orgSelectorOptions,
+      projectOrgsLoaded,
+      selectedOrgId,
+    ]
+  );
   const activeProjectOrgId = useMemo(
     () => resolveProjectOrgScopeId(activeOrgId, projectOrgs),
     [activeOrgId, projectOrgs]
@@ -265,6 +306,7 @@ export function useSidebarOrgScope({
     handleCloudSessionFilterChange,
     manageableCloudOrg,
     manageableLocalOrg,
+    orgSelectorLoading,
     orgSelectorOptions,
     personalHiddenCloudTaggedIds,
     sessionFilterOrgIds,

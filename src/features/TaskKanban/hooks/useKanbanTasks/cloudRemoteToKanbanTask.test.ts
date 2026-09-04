@@ -50,7 +50,7 @@ const options = {
 };
 
 describe("buildCloudRemoteKanbanProjection", () => {
-  it("projects teammate rows with creator identity and replay behavior", () => {
+  it("projects teammate rows with creator identity and open behavior", () => {
     const result = buildCloudRemoteKanbanProjection([remoteRow()], [], options);
 
     expect(result.tasks).toHaveLength(1);
@@ -161,7 +161,7 @@ describe("buildCloudRemoteKanbanProjection", () => {
     expect(result.tasks).toHaveLength(1);
   });
 
-  it("deduplicates a locally imported replay copy", () => {
+  it("deduplicates a locally imported session copy", () => {
     const result = buildCloudRemoteKanbanProjection(
       [remoteRow()],
       [

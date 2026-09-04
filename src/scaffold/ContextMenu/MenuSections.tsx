@@ -8,7 +8,6 @@ import React, { memo, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import FolderIcon from "@src/assets/fileTypeIcons/folder-base.svg";
-import DropdownHeader from "@src/components/Dropdown/DropdownHeader";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -16,19 +15,13 @@ import {
 } from "@src/components/Dropdown/tokens";
 import FileTreePreview from "@src/components/FileTreePreview";
 import FileTypeIcon from "@src/components/FileTypeIcon";
-import { HugeiconsIcon } from "@src/icons";
 
 import {
   ResultItemIcon,
   SearchLoadingOrEmpty,
   SecondLayerEmptyState,
 } from "./ResultItems";
-import {
-  ICON_CONFIG,
-  SECOND_LAYER_CONFIG,
-  STYLE_CONFIG,
-  getFileName,
-} from "./config";
+import { SECOND_LAYER_CONFIG, STYLE_CONFIG, getFileName } from "./config";
 import type { RecentFile, SecondLayerId } from "./config";
 import type { SearchResultItem } from "./types";
 
@@ -154,7 +147,7 @@ interface ResultItemRowProps {
   itemRef: (el: HTMLDivElement | null) => void;
 }
 
-const ResultItemRow: React.FC<ResultItemRowProps> = memo(
+export const ResultItemRow: React.FC<ResultItemRowProps> = memo(
   ({ item, index, activeIndex, onSelect, onHover, onHoverEnd, itemRef }) => {
     const displayName = item.name || getFileName(item.path);
     const displayPath = getWorkspaceRelativeDisplayPath(item);
@@ -334,11 +327,8 @@ interface SecondLayerPanelProps {
   onSelect: (path: string) => void;
   onHover: (index: number) => void;
   onHoverEnd: () => void;
-  onBack: () => void;
   repoPath?: string;
   treePosition?: "left" | "right";
-  /** Override the default layer title (used for drill-down breadcrumb) */
-  titleOverride?: string;
   /** Recent files to show at the top when layerId === "files" */
   recentFiles?: RecentFile[];
 }
@@ -352,10 +342,8 @@ export const SecondLayerPanel: React.FC<SecondLayerPanelProps> = memo(
     onSelect,
     onHover,
     onHoverEnd,
-    onBack,
     repoPath,
     treePosition = "right",
-    titleOverride,
     recentFiles = [],
   }) => {
     const { t } = useTranslation("sessions");
@@ -390,34 +378,17 @@ export const SecondLayerPanel: React.FC<SecondLayerPanelProps> = memo(
           className={`relative ${DROPDOWN_CLASSES.panel}`}
           style={{ width: "100%" }}
         >
-          {/* Header with back button */}
-          <DropdownHeader>
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onBack();
-              }}
-              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-text-2 transition-colors hover:text-text-1 ${DROPDOWN_CLASSES.itemHover}`}
-              aria-label={t("creator.contextMenu.back")}
-            >
-              <HugeiconsIcon
-                icon={ICON_CONFIG.arrowBack}
-                size={DROPDOWN_ITEM.iconSize}
-                strokeWidth={1.75}
-              />
-            </button>
-            <span className="flex min-h-5 min-w-0 flex-1 items-center truncate text-[13px] leading-5 font-medium text-text-1">
-              {titleOverride ||
-                t(config.translationKey, { defaultValue: config.title })}
-            </span>
-          </DropdownHeader>
-
           {/* Results */}
           <div
             className={DROPDOWN_CLASSES.optionsContainer}
             style={{ maxHeight: STYLE_CONFIG.maxHeight }}
           >
+            <div
+              className={DROPDOWN_CLASSES.sectionLabel}
+              data-testid="context-menu-section-title"
+            >
+              {t(config.translationKey, { defaultValue: config.title })}
+            </div>
             {/* Recent files section — only shown in the files second layer */}
             {layerId === "files" && recentFiles.length > 0 && (
               <div className={DROPDOWN_CLASSES.sectionContainer}>

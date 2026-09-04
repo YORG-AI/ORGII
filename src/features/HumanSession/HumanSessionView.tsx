@@ -286,7 +286,6 @@ const HumanSessionView: React.FC<HumanSessionViewProps> = ({ sessionId }) => {
           <InputArea
             key={sessionId}
             omitChatHeader
-            bottomAnchored
             sessionId={sessionId}
             sessionScope="none"
             placeholder={t("humanSession.appendPlaceholder")}

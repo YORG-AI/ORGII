@@ -350,8 +350,11 @@ const AUTO_ARCHIVE_TTL_MS: Record<
  * Returns the cutoff timestamp for time-based filters.
  * Sessions with `updated_at` before this cutoff are excluded.
  */
-export function getTimeFilterCutoff(filter: KanbanTimeFilter): number {
-  return Date.now() - TIME_FILTER_MS[filter];
+export function getTimeFilterCutoff(
+  filter: KanbanTimeFilter,
+  nowMs: number = Date.now()
+): number {
+  return nowMs - TIME_FILTER_MS[filter];
 }
 
 function getActivityTimestampMs(timestamp: string | undefined): number {

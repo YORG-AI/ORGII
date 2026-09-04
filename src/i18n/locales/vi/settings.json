@@ -66,7 +66,7 @@
       "connections": "Kết nối",
       "git": "Git",
       "databases": "Cơ sở dữ liệu",
-      "housekeeper": "MiniCPM Housekeeper",
+      "housekeeper": "Trí tuệ cục bộ",
       "externalSkillsets": "Skills, MCPs, Plugins"
     }
   },
@@ -113,7 +113,9 @@
     }
   },
   "general": {
+    "login": "Đăng nhập",
     "tabGeneral": "Chung",
+    "tabSelfHosted": "Tự lưu trữ",
     "loginStatus": "Trạng thái đăng nhập",
     "loggedIn": "Đã đăng nhập",
     "notLoggedIn": "Chưa đăng nhập",
@@ -169,7 +171,6 @@
     "sidebarEdgeDepth": "Độ sâu cạnh thanh bên",
     "selectedItemTransparency": "Độ trong suốt của mục đã chọn",
     "spotlightPlacement": "Vị trí Spotlight",
-    "spotlightPlacementDesc": "Chọn nơi bảng lệnh Spotlight mở ra",
     "spotlightPlacementOptions": {
       "top": "Trên cùng",
       "center": "Giữa trang"

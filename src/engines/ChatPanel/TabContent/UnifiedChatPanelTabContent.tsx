@@ -19,6 +19,8 @@ const ChatPanelTerminalContent = React.lazy(() =>
 
 interface UnifiedChatPanelTabContentProps {
   activeTab: ChatPanelTab | null;
+  /** Whether the host is currently rendering its tab row. */
+  hasTabBar: boolean;
   /** The shared "chat column" node (session transcript, Launchpad / creators).
    *  Built by the host so this dispatcher stays
    *  agnostic of its heavy prop surface. */
@@ -44,6 +46,7 @@ interface UnifiedChatPanelTabContentProps {
 export function UnifiedChatPanelTabContent({
   activeTab,
   chatColumn,
+  hasTabBar,
   isTerminalTabActive,
   terminalTabs,
 }: UnifiedChatPanelTabContentProps): React.ReactNode {
@@ -69,7 +72,7 @@ export function UnifiedChatPanelTabContent({
       {isManagementTabActive && (
         <div className="min-h-0 w-full flex-1 overflow-hidden">
           <React.Suspense fallback={null}>
-            <WorkManagement />
+            <WorkManagement hasTabBar={hasTabBar} />
           </React.Suspense>
         </div>
       )}

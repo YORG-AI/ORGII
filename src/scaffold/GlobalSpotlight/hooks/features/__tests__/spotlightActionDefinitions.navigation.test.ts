@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { FolderGitTwoIcon, MessageAdd02Icon, Search01Icon } from "@src/icons";
+import {
+  Add01Icon,
+  FolderGitTwoIcon,
+  Login01Icon,
+  MessageAdd02Icon,
+  Search01Icon,
+} from "@src/icons";
 
 import {
   AGENT_SESSION_ACTIONS,
   ALL_SESSIONS_SEARCH_ICON,
+  ORGANIZATION_ACTIONS,
   WORKSPACE_ACTIONS,
 } from "../spotlightActionDefinitions.navigation";
 
@@ -48,5 +55,26 @@ describe("Spotlight action icons", () => {
     ]);
     expect(fullTextSearch?.icon).toBe(ALL_SESSIONS_SEARCH_ICON);
     expect(fullTextSearch?.icon).not.toBe(metadataSearch?.icon);
+  });
+
+  it("exposes create and join organization as second-level Spotlight commands", () => {
+    expect(ORGANIZATION_ACTIONS).toEqual([
+      expect.objectContaining({
+        id: "create-organization",
+        icon: Add01Icon,
+        payload: { mode: "create" },
+        fallback: "organization-create",
+        opensSecondLevel: true,
+        closeOnSuccess: false,
+      }),
+      expect.objectContaining({
+        id: "join-organization",
+        icon: Login01Icon,
+        payload: { source: "cloud", mode: "join" },
+        fallback: "organization-join",
+        opensSecondLevel: true,
+        closeOnSuccess: false,
+      }),
+    ]);
   });
 });

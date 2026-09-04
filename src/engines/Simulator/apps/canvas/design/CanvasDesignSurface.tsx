@@ -312,7 +312,6 @@ const CanvasDesignPrompt: React.FC<CanvasDesignPromptProps> = ({
         allowFileAttachments={false}
         enableAgentInterceptors={false}
         disableStopWhenEmpty
-        bottomAnchored={promptLayout.placement === "docked"}
         presentation="contextual"
         slashItemCategories={CANVAS_DESIGN_SLASH_ITEM_CATEGORIES}
         topRowPills={

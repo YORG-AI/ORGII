@@ -69,6 +69,18 @@
   height: 1.15em;
 }
 
+// The GitHub mark fills its entire 24px viewBox, while file-type artwork has
+// built-in breathing room. Give the solid GitHub silhouette a smaller visual
+// box so it matches file links and cannot crowd the top of a Markdown line.
+.chat-markdown-body .markdown-link-icon-github {
+  vertical-align: -0.125em;
+}
+
+.chat-markdown-body .markdown-link-icon-github svg {
+  width: 1em;
+  height: 1em;
+}
+
 // Inline code used as a link label reads as a link, not as a code chip.
 // `.chat-markdown-body code` paints a fill-2 pill with text-1 text in the
 // monospace stack, so a commit/PR link written as

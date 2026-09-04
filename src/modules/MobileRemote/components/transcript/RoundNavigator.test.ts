@@ -14,17 +14,34 @@ import {
 
 import { RoundNavigator } from "./RoundNavigator";
 
+vi.mock("@src/components/BottomSheet", () => ({
+  default: ({
+    open,
+    children,
+  }: {
+    open: boolean;
+    children?: React.ReactNode;
+  }) =>
+    open
+      ? React.createElement("div", { "data-testid": "round-sheet" }, children)
+      : null,
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, values?: { current?: number; total?: number }) =>
+    t: (key: string, values?: { current?: number }) =>
       ({
-        "rounds.navigationLabel": "会话轮次",
-        "rounds.label": `第 ${values?.current} / ${values?.total} 轮`,
-        "rounds.previous": "上一轮",
-        "rounds.next": "下一轮",
-        "rounds.latest": "最新",
-        "rounds.incomplete": "仅显示最近轮次",
-        "rounds.truncated": "部分内容已截断",
+        "pagination.latestRound": "最新轮次",
+        "pagination.round": `第 ${values?.current} 轮`,
+        "common:pagination.latestRound": "最新轮次",
+        "common:pagination.round": `第 ${values?.current} 轮`,
+        "common:pagination.previousRound": "上一轮",
+        "common:pagination.nextRound": "下一轮",
+        "common:actions.close": "关闭",
+        "common:actions.sort": "排序",
+        "mobileRemote:rounds.navigationLabel": "会话轮次",
+        "mobileRemote:rounds.incomplete": "仅显示最近轮次",
+        "mobileRemote:rounds.truncated": "部分内容已截断",
       })[key] ?? key,
   }),
 }));
@@ -55,7 +72,23 @@ describe("RoundNavigator", () => {
     Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
   });
 
-  const rounds = [{ id: "r1" }, { id: "r2" }, { id: "r3" }];
+  const rounds = [
+    {
+      id: "r1",
+      startedAt: "2026-09-03T10:00:00.000Z",
+      endedAt: "2026-09-03T10:01:00.000Z",
+    },
+    {
+      id: "r2",
+      startedAt: "2026-09-03T11:00:00.000Z",
+      endedAt: "2026-09-03T11:02:00.000Z",
+    },
+    {
+      id: "r3",
+      startedAt: "2026-09-03T12:00:00.000Z",
+      endedAt: "2026-09-03T12:03:00.000Z",
+    },
+  ];
 
   async function renderNavigator(
     selectedRoundId: string | null,
@@ -76,39 +109,48 @@ describe("RoundNavigator", () => {
     });
   }
 
-  function button(label: string): HTMLButtonElement {
-    const match = [...container.querySelectorAll("button")].find(
-      (candidate) => candidate.textContent === label
-    );
-    if (!match) throw new Error(`missing ${label} button`);
+  function button(testId: string): HTMLButtonElement {
+    const match = container.querySelector(
+      `[data-testid="${testId}"]`
+    ) as HTMLButtonElement | null;
+    if (!match) throw new Error(`missing ${testId} button`);
     return match;
   }
 
   it("navigates previous, next, and latest with null follow-latest semantics", async () => {
     const onSelectRound = vi.fn();
     await renderNavigator(null, onSelectRound);
-    expect(container.textContent).toContain("第 3 / 3 轮");
-    expect(button("下一轮").disabled).toBe(true);
-    expect(button("最新").disabled).toBe(true);
+    expect(container.textContent).toContain("最新轮次");
+    expect(button("turn-pagination-next-round").disabled).toBe(true);
+    expect(button("turn-pagination-last-round").disabled).toBe(true);
 
-    act(() => button("上一轮").click());
+    act(() => button("turn-pagination-previous-round").click());
     expect(onSelectRound).toHaveBeenLastCalledWith("r2");
 
     await renderNavigator("r1", onSelectRound);
-    act(() => button("下一轮").click());
+    act(() => button("turn-pagination-next-round").click());
     expect(onSelectRound).toHaveBeenLastCalledWith("r2");
 
     await renderNavigator("r2", onSelectRound);
-    act(() => button("下一轮").click());
+    act(() => button("turn-pagination-next-round").click());
     expect(onSelectRound).toHaveBeenLastCalledWith(null);
-    act(() => button("最新").click());
+    act(() => button("turn-pagination-last-round").click());
     expect(onSelectRound).toHaveBeenLastCalledWith(null);
+  });
+
+  it("opens the round list from the selector trigger", async () => {
+    await renderNavigator("r1", vi.fn());
+    expect(container.querySelector('[data-testid="round-sheet"]')).toBeNull();
+    act(() => button("turn-pagination-current-round").click());
+    expect(
+      container.querySelector('[data-testid="round-sheet"]')
+    ).not.toBeNull();
   });
 
   it("labels a partial round directory without hiding navigation", async () => {
     await renderNavigator("r1", vi.fn(), false);
     expect(container.textContent).toContain("仅显示最近轮次");
-    expect(button("下一轮").disabled).toBe(false);
+    expect(button("turn-pagination-next-round").disabled).toBe(false);
   });
 
   it("labels a truncated round body", async () => {

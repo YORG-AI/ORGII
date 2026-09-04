@@ -11,28 +11,29 @@ import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import {
-  type CoreSettingsItemSegment,
-  type IntegrationsCategorySegment,
-  buildAgentOrgsPath,
-  buildCoreSettingsItemPath,
-  buildIntegrationsPath,
-  filterDevModeIntegrationItems,
-  getSegmentIcon,
-  parseCoreSettingsItem,
-  parseSettingsTopTab,
-} from "@src/config/mainAppPaths";
 import { ROUTES } from "@src/config/routes";
+import {
+  type SettingsNavigationGroup,
+  type SettingsNavigationItem,
+  type SettingsNavigationItemId,
+  buildSettingsNavigationGroups,
+  getActiveSettingsNavigationItemId,
+} from "@src/config/settingsNavigation";
+import { buildGlobalSettingsSearchGroups } from "@src/config/settingsSearch";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
 import { SIDEBAR_MEMORY_KIND, useSidebarMemoryEntry } from "@src/hooks/perf";
+import { ArrowLeft01Icon, Search01Icon, Settings01Icon } from "@src/icons";
+import SettingsSearchDropdown, {
+  type SettingsSearchDropdownGroup,
+  type SettingsSearchDropdownItem,
+} from "@src/modules/shared/layouts/blocks/SettingsSearchDropdown";
 import {
-  Infinity01Icon,
-  ArrowLeft01Icon,
-  Search01Icon,
-  Settings01Icon,
-} from "@src/icons";
-import { APP_SECTIONS } from "@src/modules/MainApp/Settings/config";
+  type RenderedSettingsControl,
+  collectRenderedSettingsControls,
+  revealRenderedSettingsControl,
+  revealSettingsControlWhenRendered,
+} from "@src/modules/shared/layouts/blocks/SettingsSearchDropdown/settingsControlSearch";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { settingsReturnPathAtom } from "@src/store/ui/settingsNavigationAtom";
 import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
@@ -51,25 +52,6 @@ import NavigationMenu from "../components/NavigationMenu";
 import type { NavigationMenuItem } from "../components/NavigationMenu/config";
 import SidebarAccountButton from "../connectors/SidebarAccountButton";
 import { SidebarSearchShortcutTooltip } from "../connectors/WorkstationSidebarConnector/sidebarTabs";
-
-interface SettingsRootSectionConfig {
-  id: string;
-  labelKey: string;
-  itemIds: readonly SettingsRootItemSegment[];
-}
-
-type SettingsRootItemSegment =
-  | IntegrationsCategorySegment
-  | typeof AGENT_ORG_ROW_KEY
-  | typeof SECURITY_ITEM_KEY;
-
-const AGENT_ORG_ROW_KEY = "agent-orgs";
-/**
- * Security is a core-settings section (renders like General/Appearance) but
- * lives in the Core sidebar group rather than the top app-sections list.
- */
-const SECURITY_ITEM_KEY = "security";
-const AGENT_ORG_PATH = buildAgentOrgsPath({ tab: "agents" });
 
 interface SettingsFooterBackButtonProps {
   label: string;
@@ -121,58 +103,26 @@ const SettingsFooterAccountMenu: React.FC = () => {
   );
 };
 
-function isAgentOrgsRoute(pathname: string): boolean {
-  const topTab = parseSettingsTopTab(pathname);
-  return topTab === "agent-orgs";
-}
-
-const SETTINGS_ROOT_INTEGRATION_KEYS: readonly IntegrationsCategorySegment[] = [
-  "models",
-  "myRoles",
-  "rulesMemoryEvolution",
-  "routines",
-  "tools",
-  "computerUse",
-  "externalSkillsets",
-  "devtools",
-  "connections",
-  "git",
-  "databases",
-  "housekeeper",
-];
-
-const SETTINGS_ROOT_LIST_SECTIONS: SettingsRootSectionConfig[] = [
-  {
-    id: "core",
-    labelKey: "coreSidebar.groups.core",
-    itemIds: [
-      AGENT_ORG_ROW_KEY,
-      "models",
-      "myRoles",
-      "rulesMemoryEvolution",
-      SECURITY_ITEM_KEY,
-      "routines",
-    ],
-  },
-  {
-    id: "tools",
-    labelKey: "coreSidebar.groups.tools",
-    itemIds: ["tools", "computerUse", "externalSkillsets", "devtools"],
-  },
-  {
-    id: "connections",
-    labelKey: "coreSidebar.groups.connections",
-    itemIds: ["connections", "git", "databases", "housekeeper"],
-  },
-];
-
 const SettingsSidebar: React.FC = () => {
-  const { t } = useTranslation("navigation");
+  const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const settingsReturnPath = useAtomValue(settingsReturnPathAtom);
   const devModeEnabled = useAtomValue(devModeEnabledAtom);
   const setSpotlightOpen = useSetAtom(spotlightOpenAtom);
+  const pendingSearchTargetRef = React.useRef<SettingsControlSearchItem | null>(
+    null
+  );
+  const stopWaitingForTargetRef = React.useRef<(() => void) | null>(null);
 
+  const navigationGroups = useMemo(
+    () => buildSettingsNavigationGroups(t, devModeEnabled),
+    [devModeEnabled, t]
+  );
+  const activeItemId = useMemo(
+    () => getActiveSettingsNavigationItemId(location.pathname),
+    [location.pathname]
+  );
   const handleBack = useCallback(() => {
     navigate(settingsReturnPath || ROUTES.workStation.base.path);
   }, [navigate, settingsReturnPath]);
@@ -181,11 +131,55 @@ const SettingsSidebar: React.FC = () => {
     setSpotlightOpen(true);
   }, [setSpotlightOpen]);
 
+  const handleSelectNavigationItem = useCallback(
+    (item: SettingsNavigationItem) => {
+      pendingSearchTargetRef.current = null;
+      stopWaitingForTargetRef.current?.();
+      navigate(item.path);
+    },
+    [navigate]
+  );
+
+  const revealSearchTarget = useCallback((item: SettingsControlSearchItem) => {
+    stopWaitingForTargetRef.current?.();
+    stopWaitingForTargetRef.current = revealSettingsControlWhenRendered({
+      targetId: item.targetId,
+      searchKey: item.searchKey,
+      label: item.label,
+    });
+  }, []);
+
+  const handleSelectSettingsControl = useCallback(
+    (item: SettingsControlSearchItem) => {
+      stopWaitingForTargetRef.current?.();
+      if (location.pathname === item.path) {
+        revealSearchTarget(item);
+        return;
+      }
+      pendingSearchTargetRef.current = item;
+      navigate(item.path);
+    },
+    [location.pathname, navigate, revealSearchTarget]
+  );
+
+  React.useEffect(() => {
+    const pendingTarget = pendingSearchTargetRef.current;
+    if (!pendingTarget || pendingTarget.path !== location.pathname) return;
+    pendingSearchTargetRef.current = null;
+    revealSearchTarget(pendingTarget);
+  }, [location.pathname, revealSearchTarget]);
+
+  React.useEffect(
+    () => () => {
+      stopWaitingForTargetRef.current?.();
+    },
+    []
+  );
   const settingsReturnItem = useMemo(
     () => (
       <SidebarHeaderNavButton
         icon={ArrowLeft01Icon}
-        label={t("labels.settings")}
+        label={t("navigation:labels.settings")}
         onClick={handleBack}
       />
     ),
@@ -207,12 +201,18 @@ const SettingsSidebar: React.FC = () => {
         <div className="shrink-0 px-3">{settingsReturnItem}</div>
       }
     >
-      <SettingsRootBody devModeEnabled={devModeEnabled} />
+      <SettingsRootBody
+        navigationGroups={navigationGroups}
+        activeItemId={activeItemId}
+        searchScopeKey={location.pathname}
+        onSelect={handleSelectNavigationItem}
+        onSelectControl={handleSelectSettingsControl}
+      />
       <SidebarBottomBar
         leftContent={<SettingsFooterAccountMenu />}
         rightActions={
           <SettingsFooterBackButton
-            label={t("sidebar.bottomBar.settings")}
+            label={t("navigation:sidebar.bottomBar.settings")}
             onClick={handleBack}
           />
         }
@@ -224,101 +224,186 @@ const SettingsSidebar: React.FC = () => {
 export default SettingsSidebar;
 
 interface SettingsRootBodyProps {
-  devModeEnabled: boolean;
+  navigationGroups: readonly SettingsNavigationGroup[];
+  activeItemId: SettingsNavigationItemId;
+  searchScopeKey: string;
+  onSelect: (item: SettingsNavigationItem) => void;
+  onSelectControl?: (item: SettingsControlSearchItem) => void;
 }
 
-const SettingsRootBody: React.FC<SettingsRootBodyProps> = ({
-  devModeEnabled,
+interface SettingsControlSearchItem extends SettingsSearchDropdownItem {
+  readonly kind: "control";
+  readonly targetId?: string;
+  readonly searchKey?: string;
+}
+
+interface SettingsNavigationSearchItem extends SettingsSearchDropdownItem {
+  readonly kind: "navigation";
+  readonly navigationItem: SettingsNavigationItem;
+}
+
+type SettingsSidebarSearchItem =
+  | SettingsControlSearchItem
+  | SettingsNavigationSearchItem;
+
+export const SettingsRootBody: React.FC<SettingsRootBodyProps> = ({
+  navigationGroups,
+  activeItemId,
+  searchScopeKey,
+  onSelect,
+  onSelectControl,
 }) => {
-  const { t } = useTranslation("settings");
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const activeItemId: string = useMemo(() => {
-    const topTab = parseSettingsTopTab(location.pathname);
-    const fallback = APP_SECTIONS[0].id;
-    if (isAgentOrgsRoute(location.pathname)) return AGENT_ORG_ROW_KEY;
-    if (topTab === "integrations") {
-      const { category } = parseCoreSettingsItem(location.pathname);
-      return category ?? fallback;
-    }
-    if (topTab !== "core-settings") return fallback;
-    const { section, category } = parseCoreSettingsItem(location.pathname);
-    return section ?? category ?? fallback;
-  }, [location.pathname]);
-
-  const appSectionItems = useMemo<NavigationMenuItem[]>(
+  const { t } = useTranslation();
+  const [renderedControls, setRenderedControls] = React.useState<
+    readonly RenderedSettingsControl[]
+  >([]);
+  const appGroup = navigationGroups[0];
+  const toMenuItems = useCallback(
+    (items: readonly SettingsNavigationItem[]): NavigationMenuItem[] =>
+      items.map((item) => ({
+        id: item.id,
+        key: item.id,
+        label: item.label,
+        icon: item.icon,
+        dataTestId: item.dataTestId,
+        routePath: item.path,
+      })),
+    []
+  );
+  const appSectionItems = useMemo(
+    () => toMenuItems(appGroup?.items ?? []),
+    [appGroup, toMenuItems]
+  );
+  const namedSections = useMemo(
     () =>
-      APP_SECTIONS
-        // Security renders in the Core group below, not the top app list.
-        .filter((section) => section.id !== SECURITY_ITEM_KEY)
-        .map((section) => ({
-          id: section.id,
-          key: section.id,
-          label: t(`settings:sections.${section.labelKey}`),
-          icon: section.icon,
-          dataTestId: `settings-core-item-${section.id}`,
-        })),
-    [t]
+      navigationGroups.slice(1).map((group) => ({
+        ...group,
+        items: toMenuItems(group.items),
+      })),
+    [navigationGroups, toMenuItems]
+  );
+  const itemById = useMemo(
+    () =>
+      new Map(
+        navigationGroups
+          .flatMap((group) => group.items)
+          .map((item) => [item.id, item])
+      ),
+    [navigationGroups]
+  );
+  const activeNavigationItem = itemById.get(activeItemId);
+
+  const globalControlSearchGroups = useMemo(
+    () =>
+      buildGlobalSettingsSearchGroups(t, navigationGroups).map(
+        (group): SettingsSearchDropdownGroup<SettingsControlSearchItem> => ({
+          id: group.id,
+          label: group.label,
+          items: group.items.map((item) => ({
+            id: item.id,
+            label: item.label,
+            path: item.path,
+            icon: item.navigationItem.icon,
+            groupId: group.id,
+            searchTerms: item.searchTerms,
+            kind: "control",
+            searchKey: item.key,
+          })),
+        })
+      ),
+    [navigationGroups, t]
   );
 
-  const integrationsSections = useMemo(
-    () =>
-      SETTINGS_ROOT_LIST_SECTIONS.map((section) => ({
-        id: section.id,
-        title: t(`settings:${section.labelKey}`),
-        items: filterDevModeIntegrationItems(
-          section.itemIds,
-          devModeEnabled
-        ).map<NavigationMenuItem>((id) => {
-          if (id === AGENT_ORG_ROW_KEY) {
-            return {
-              id,
-              key: id,
-              label: t("navigation:labels.agentOrgs"),
-              icon: Infinity01Icon,
-              dataTestId: "settings-core-item-agent-orgs",
-            };
-          }
-          const icon = getSegmentIcon(id);
-          if (!icon) {
-            throw new Error(
-              `SettingsSidebar: missing segment-registry entry for "${id}"`
-            );
-          }
-          return {
-            id,
-            key: id,
-            label: t(`settings:coreSidebar.items.${id}`),
-            icon,
-            dataTestId: `settings-core-item-${id}`,
-          };
-        }),
+  const searchGroups = useMemo<
+    readonly SettingsSearchDropdownGroup<SettingsSidebarSearchItem>[]
+  >(() => {
+    const navigationSearchGroups = navigationGroups.map((group) => ({
+      ...group,
+      items: group.items.map<SettingsNavigationSearchItem>((item) => ({
+        ...item,
+        kind: "navigation",
+        navigationItem: item,
       })),
-    [devModeEnabled, t]
+    }));
+    if (!activeNavigationItem) {
+      return [...navigationSearchGroups, ...globalControlSearchGroups];
+    }
+
+    const globalSearchKeys = new Set(
+      globalControlSearchGroups.flatMap((group) =>
+        group.items.flatMap((item) => item.searchKey ?? [])
+      )
+    );
+
+    const controlItems = renderedControls
+      .filter(
+        (control) =>
+          !control.searchKeys.some((key) => globalSearchKeys.has(key))
+      )
+      .map<SettingsControlSearchItem>((control) => ({
+        id: control.targetId,
+        label: control.label,
+        path: activeNavigationItem.path,
+        icon: activeNavigationItem.icon,
+        groupId: `controls-${activeNavigationItem.id}`,
+        searchTerms: control.description ? [control.description] : undefined,
+        kind: "control",
+        targetId: control.targetId,
+      }));
+
+    return controlItems.length > 0
+      ? [
+          ...navigationSearchGroups,
+          ...globalControlSearchGroups,
+          {
+            id: `controls-${activeNavigationItem.id}`,
+            label: activeNavigationItem.label,
+            items: controlItems,
+          },
+        ]
+      : [...navigationSearchGroups, ...globalControlSearchGroups];
+  }, [
+    activeNavigationItem,
+    globalControlSearchGroups,
+    navigationGroups,
+    renderedControls,
+  ]);
+
+  const handleSearchQueryChange = useCallback((query: string) => {
+    setRenderedControls(
+      query.trim().length > 0 ? collectRenderedSettingsControls() : []
+    );
+  }, []);
+
+  const handleSelectSearchItem = useCallback(
+    (item: SettingsSidebarSearchItem) => {
+      if (item.kind === "navigation") {
+        onSelect(item.navigationItem);
+        return;
+      }
+      if (onSelectControl) {
+        onSelectControl(item);
+        return;
+      }
+      if (item.targetId) {
+        requestAnimationFrame(() =>
+          revealRenderedSettingsControl(item.targetId ?? "")
+        );
+      }
+    },
+    [onSelect, onSelectControl]
   );
 
   const handleItemClick = useCallback(
     (key: string) => {
-      if (key === AGENT_ORG_ROW_KEY) {
-        navigate(AGENT_ORG_PATH);
-        return;
-      }
-      if ((SETTINGS_ROOT_INTEGRATION_KEYS as readonly string[]).includes(key)) {
-        navigate(
-          buildIntegrationsPath({
-            category: key as IntegrationsCategorySegment,
-          })
-        );
-        return;
-      }
-      navigate(buildCoreSettingsItemPath(key as CoreSettingsItemSegment));
+      const item = itemById.get(key as SettingsNavigationItem["id"]);
+      if (item) onSelect(item);
     },
-    [navigate]
+    [itemById, onSelect]
   );
 
   const selectedKeys = useMemo(() => [activeItemId], [activeItemId]);
-  const integrationItemCount = integrationsSections.reduce(
+  const integrationItemCount = namedSections.reduce(
     (sum, section) => sum + section.items.length,
     0
   );
@@ -327,29 +412,41 @@ const SettingsRootBody: React.FC<SettingsRootBodyProps> = ({
     kind: SIDEBAR_MEMORY_KIND.SETTINGS,
     label: "Settings root",
     items: appSectionItems.length + integrationItemCount,
-    sections: integrationsSections.length + 1,
-    source: { activeItemId, appSectionItems, integrationsSections },
+    sections: namedSections.length + 1,
+    source: { activeItemId, appSectionItems, namedSections },
   });
 
   return (
-    <SidebarList className="pt-1">
-      <NavigationMenu
-        items={appSectionItems}
-        selectedKeys={selectedKeys}
-        onMenuItemClick={handleItemClick}
-      />
-      {integrationsSections.map((section) => (
-        <div key={section.id} className="mt-4">
-          <div className="mb-2 px-2 text-[11px] font-medium tracking-wider text-text-1 uppercase">
-            {section.title}
+    <>
+      <div className="shrink-0 px-3 pt-1 pb-2">
+        <SettingsSearchDropdown<SettingsSidebarSearchItem>
+          key={searchScopeKey}
+          variant="search-input"
+          groups={searchGroups}
+          onSelect={handleSelectSearchItem}
+          onSearchQueryChange={handleSearchQueryChange}
+          align="left"
+        />
+      </div>
+      <SidebarList>
+        <NavigationMenu
+          items={appSectionItems}
+          selectedKeys={selectedKeys}
+          onMenuItemClick={handleItemClick}
+        />
+        {namedSections.map((section) => (
+          <div key={section.id} className="mt-4">
+            <div className="mb-2 px-2 text-[11px] font-medium tracking-wider text-text-1 uppercase">
+              {section.label}
+            </div>
+            <NavigationMenu
+              items={section.items}
+              selectedKeys={selectedKeys}
+              onMenuItemClick={handleItemClick}
+            />
           </div>
-          <NavigationMenu
-            items={section.items}
-            selectedKeys={selectedKeys}
-            onMenuItemClick={handleItemClick}
-          />
-        </div>
-      ))}
-    </SidebarList>
+        ))}
+      </SidebarList>
+    </>
   );
 };

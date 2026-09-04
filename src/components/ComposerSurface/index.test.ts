@@ -25,7 +25,7 @@ describe("ComposerSurface", () => {
     expect(markup).toContain("px-1.5 pt-2.5 pb-1.5 gap-2");
     expect(markup).toContain("h-9 min-h-9 w-full");
     expect(markup).toContain("justify-between px-1");
-    expect(markup).not.toContain("composer-skills-tools-button");
+    expect(markup).not.toContain("composer-add-context-button");
   });
 
   it("omits an empty action row for editor-only composers", () => {

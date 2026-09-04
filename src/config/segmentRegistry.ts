@@ -12,7 +12,6 @@ import {
   DeliveryBox01Icon as Box,
   FirstBracketIcon as Braces,
   InternetIcon as Chromium,
-  CloudIcon as Cloud,
   CodeXmlIcon as Code,
   CursorMagicSelection04Icon as ComputerUse,
   ContentWritingIcon as ContentWriting,
@@ -143,10 +142,6 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
 
   // settings sections
   general: { labelKey: "settings:sections.general", icon: Settings2 },
-  collaboration: {
-    labelKey: "settings:sections.collaboration",
-    icon: Cloud,
-  },
   appearance: { labelKey: "settings:sections.appearance", icon: Contrast },
   editor: { labelKey: "settings:sections.editorAndWorkspace", icon: Code },
   security: { labelKey: "settings:sections.security", icon: ShieldCheck },

@@ -7,12 +7,9 @@ import {
   sessionViewAtom,
 } from "@src/store/session/viewAtom";
 import {
-  CHAT_PANEL_COLLAB_ORG_MODE,
-  CHAT_PANEL_COLLAB_ORG_SOURCE,
   CHAT_PANEL_CREATE_TARGET,
   CHAT_PANEL_SURFACE_KIND,
   activeChatPanelSurfaceAtom,
-  chatPanelCollabOrgCreateIntentAtom,
   chatPanelCreateProjectContextAtom,
   chatPanelCreateTargetAtom,
   chatPanelMaximizedAtom,
@@ -20,15 +17,6 @@ import {
   chatPanelSelectedWorkItemAtom,
   chatPanelStartPageOpenAtom,
 } from "@src/store/ui/chatPanelAtom";
-import {
-  kanbanReplayBoundsAtom,
-  kanbanReplayCursorAtom,
-  kanbanReplayEventsAtom,
-  kanbanReplayModeAtom,
-  kanbanReplayPlayingAtom,
-  kanbanReplaySpeedAtom,
-} from "@src/store/ui/kanbanReplayAtom";
-import type { KanbanReplayEvent } from "@src/store/ui/kanbanReplayAtom";
 import {
   kanbanDetailPanelVisibleAtom,
   kanbanSelectedTaskIdAtom,
@@ -46,7 +34,6 @@ import {
 } from "@src/util/core/state/instrumentedStore";
 
 import {
-  CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX,
   activateChatPanelTabAtom,
   activeChatPanelTabAtom,
   activeWorkManagementSectionAtom,
@@ -55,6 +42,7 @@ import {
   chatPanelTabsAtom,
   closeChatPanelTabAtom,
   closeOtherChatPanelTabsAtom,
+  closeOtherThanActiveChatPanelTabsAtom,
   closeProjectOrgChatPanelTabsAtom,
   closeWorkItemChatPanelTabAtom,
   isChatPanelTabStationAvailable,
@@ -111,30 +99,21 @@ async function loadChatPanelTabAtoms() {
     activeSessionIdAtom,
     addChatPanelLaunchpadTabAtom,
     CHAT_PANEL_CREATE_TARGET,
-    CHAT_PANEL_COLLAB_ORG_MODE,
-    CHAT_PANEL_COLLAB_ORG_SOURCE,
-    CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX,
     CHAT_PANEL_SURFACE_KIND,
     chatPanelTabsAtom,
     isChatPanelTabStationAvailable,
     chatPanelMaximizedAtom,
     chatPanelNavigateAtom,
     chatPanelCreateProjectContextAtom,
-    chatPanelCollabOrgCreateIntentAtom,
     chatPanelCreateTargetAtom,
     chatPanelStartPageOpenAtom,
     closeChatPanelTabAtom,
     closeOtherChatPanelTabsAtom,
+    closeOtherThanActiveChatPanelTabsAtom,
     closeProjectOrgChatPanelTabsAtom,
     closeWorkItemChatPanelTabAtom,
     createChatPanelTerminalAtom,
     kanbanDetailPanelVisibleAtom,
-    kanbanReplayBoundsAtom,
-    kanbanReplayCursorAtom,
-    kanbanReplayEventsAtom,
-    kanbanReplayModeAtom,
-    kanbanReplayPlayingAtom,
-    kanbanReplaySpeedAtom,
     kanbanSelectedTaskIdAtom,
     normalizePersistedChatPanelTabsState,
     openOrganizationInChatPanelTabAtom,
@@ -263,12 +242,6 @@ describe("closeChatPanelTabAtom", () => {
       chatPanelTabsAtom,
       closeChatPanelTabAtom,
       kanbanDetailPanelVisibleAtom,
-      kanbanReplayBoundsAtom,
-      kanbanReplayCursorAtom,
-      kanbanReplayEventsAtom,
-      kanbanReplayModeAtom,
-      kanbanReplayPlayingAtom,
-      kanbanReplaySpeedAtom,
       kanbanSelectedTaskIdAtom,
       openWorkManagementChatPanelTabAtom,
       WORK_MANAGEMENT_PROJECTS_VIEW,
@@ -281,10 +254,6 @@ describe("closeChatPanelTabAtom", () => {
       openWorkManagementChatPanelTabAtom,
       {}
     );
-    const retainedEvents = [
-      { id: "session-1:created", ts: 1, kind: "created", task: {} },
-    ] as unknown as KanbanReplayEvent[];
-
     store.set(workManagementCreatorVisibleAtom, true);
     store.set(
       workManagementProjectsViewAtom,
@@ -292,12 +261,6 @@ describe("closeChatPanelTabAtom", () => {
     );
     store.set(kanbanSelectedTaskIdAtom, "session-1");
     store.set(kanbanDetailPanelVisibleAtom, true);
-    store.set(kanbanReplayCursorAtom, 100);
-    store.set(kanbanReplayModeAtom, "replay");
-    store.set(kanbanReplayBoundsAtom, { start: 1, end: 100 });
-    store.set(kanbanReplayEventsAtom, retainedEvents);
-    store.set(kanbanReplayPlayingAtom, true);
-    store.set(kanbanReplaySpeedAtom, 4);
     store.set(workstationTabHeaderAtomByHost.workManagement, {
       trailing: "retained header",
     });
@@ -315,12 +278,6 @@ describe("closeChatPanelTabAtom", () => {
     );
     expect(store.get(kanbanSelectedTaskIdAtom)).toBeNull();
     expect(store.get(kanbanDetailPanelVisibleAtom)).toBe(false);
-    expect(store.get(kanbanReplayCursorAtom)).toBeNull();
-    expect(store.get(kanbanReplayModeAtom)).toBe("follow");
-    expect(store.get(kanbanReplayBoundsAtom)).toEqual({ start: 0, end: 0 });
-    expect(store.get(kanbanReplayEventsAtom)).toEqual([]);
-    expect(store.get(kanbanReplayPlayingAtom)).toBe(false);
-    expect(store.get(kanbanReplaySpeedAtom)).toBe(1);
     expect(store.get(workstationTabHeaderAtomByHost.workManagement)).toBeNull();
   });
 
@@ -373,10 +330,14 @@ describe("closeOtherChatPanelTabsAtom", () => {
       chatPanelTabsAtom,
       closeOtherChatPanelTabsAtom,
       createChatPanelTerminalAtom,
+      openSessionInNewChatTabAtom,
       store,
       terminalSessionsAtom,
     } = await loadChatPanelTabAtoms();
-    const retainedTabId = store.get(chatPanelTabsAtom).activeTabId;
+    const retainedTabId = store.set(openSessionInNewChatTabAtom, {
+      sessionId: "session-retained",
+      sessionName: "Retained session",
+    });
     const terminalSessionId = store.set(
       createChatPanelTerminalAtom,
       "Terminal"
@@ -394,6 +355,36 @@ describe("closeOtherChatPanelTabsAtom", () => {
         .get(terminalSessionsAtom)
         .some((session) => session.id === terminalSessionId)
     ).toBe(false);
+  });
+
+  it("lets sidebar navigation retain only the newly active destination", async () => {
+    const {
+      chatPanelTabsAtom,
+      closeOtherThanActiveChatPanelTabsAtom,
+      openTeamInboxInChatPanelTabAtom,
+      openSessionInNewChatTabAtom,
+      store,
+    } = await loadChatPanelTabAtoms();
+
+    store.set(openSessionInNewChatTabAtom, {
+      sessionId: "session-existing",
+      sessionName: "Existing session",
+    });
+    const inboxTabId = store.set(openTeamInboxInChatPanelTabAtom, "Inbox");
+    expect(store.get(chatPanelTabsAtom).tabs).toHaveLength(2);
+
+    await store.set(closeOtherThanActiveChatPanelTabsAtom);
+
+    expect(store.get(chatPanelTabsAtom)).toMatchObject({
+      tabs: [
+        {
+          id: inboxTabId,
+          type: "work-management",
+          managementSection: WORK_MANAGEMENT_SECTION.INBOX,
+        },
+      ],
+      activeTabId: inboxTabId,
+    });
   });
 });
 
@@ -504,21 +495,20 @@ describe("closeWorkItemChatPanelTabAtom", () => {
     } as never);
 
     expect(
-      isChatPanelTabStationAvailable(store.get(activeChatPanelTabAtom), 1200)
+      isChatPanelTabStationAvailable(store.get(activeChatPanelTabAtom))
     ).toBe(false);
     expect(store.get(chatPanelMaximizedAtom)).toBe(false);
     expect(
       resolveChatPanelMaximizedForLayout(
         store.get(chatPanelMaximizedAtom),
-        store.get(activeChatPanelTabAtom),
-        1200
+        store.get(activeChatPanelTabAtom)
       )
     ).toBe(true);
 
     store.set(activateChatPanelTabAtom, sessionTabId);
 
     expect(
-      isChatPanelTabStationAvailable(store.get(activeChatPanelTabAtom), 1200)
+      isChatPanelTabStationAvailable(store.get(activeChatPanelTabAtom))
     ).toBe(true);
     expect(store.get(chatPanelMaximizedAtom)).toBe(false);
   });
@@ -607,7 +597,7 @@ describe("openWorkManagementChatPanelTabAtom", () => {
     vi.useRealTimers();
   });
 
-  it("opens Kanban as a singleton wide-only Station tab", async () => {
+  it("opens Kanban as a singleton Station-excluded tab", async () => {
     const {
       activeChatPanelTabAtom,
       chatPanelMaximizedAtom,
@@ -630,17 +620,16 @@ describe("openWorkManagementChatPanelTabAtom", () => {
     ).toHaveLength(1);
     expect(store.get(chatPanelMaximizedAtom)).toBe(false);
     expect(
-      isChatPanelTabStationAvailable(store.get(activeChatPanelTabAtom), 1200)
+      isChatPanelTabStationAvailable(store.get(activeChatPanelTabAtom))
     ).toBe(false);
     expect(store.get(activeWorkManagementSectionAtom)).toBe(
       WORK_MANAGEMENT_SECTION.KANBAN
     );
   });
 
-  it("guards the Station toggle until Kanban has a wide viewport", async () => {
+  it("keeps the Station toggle disabled for Kanban", async () => {
     const {
       activeChatPanelTabAtom,
-      CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX,
       chatPanelMaximizedAtom,
       isChatPanelTabStationAvailable,
       openWorkManagementChatPanelTabAtom,
@@ -654,38 +643,24 @@ describe("openWorkManagementChatPanelTabAtom", () => {
     expect(store.get(chatPanelMaximizedAtom)).toBe(false);
 
     expect(
-      isChatPanelTabStationAvailable(
-        store.get(activeChatPanelTabAtom),
-        CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX - 1
-      )
+      isChatPanelTabStationAvailable(store.get(activeChatPanelTabAtom))
     ).toBe(false);
-    expect(
-      store.set(
-        toggleActiveChatPanelMaximizedAtom,
-        CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX - 1
-      )
-    ).toBe(false);
+    expect(store.set(toggleActiveChatPanelMaximizedAtom)).toBe(false);
     expect(store.get(chatPanelMaximizedAtom)).toBe(false);
 
     // Reconciliation leaves the user's preference untouched; the effective
-    // layout remains full-screen while the viewport is below the threshold.
+    // layout remains full-screen while Kanban owns the workbench.
     store.set(syncActiveChatPanelTabStateAtom);
     expect(store.get(chatPanelMaximizedAtom)).toBe(false);
     expect(
       resolveChatPanelMaximizedForLayout(
         store.get(chatPanelMaximizedAtom),
-        store.get(activeChatPanelTabAtom),
-        CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX - 1
+        store.get(activeChatPanelTabAtom)
       )
     ).toBe(true);
 
-    expect(
-      store.set(
-        toggleActiveChatPanelMaximizedAtom,
-        CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX
-      )
-    ).toBe(true);
-    expect(store.get(chatPanelMaximizedAtom)).toBe(true);
+    expect(store.set(toggleActiveChatPanelMaximizedAtom)).toBe(false);
+    expect(store.get(chatPanelMaximizedAtom)).toBe(false);
   });
 
   it("restores the session's prior full-screen state after leaving Kanban", async () => {
@@ -840,6 +815,45 @@ describe("openWorkManagementChatPanelTabAtom", () => {
     });
   });
 
+  it("projects an already-open legacy Inbox tab through the shared Work surface", async () => {
+    const {
+      activeWorkManagementSectionAtom,
+      chatPanelTabsAtom,
+      setActiveWorkManagementSectionAtom,
+      store,
+      WORK_MANAGEMENT_SECTION,
+    } = await loadChatPanelTabAtoms();
+    const legacyInboxTabId = "chat-team-inbox";
+    store.set(chatPanelTabsAtom, {
+      tabs: [
+        {
+          id: legacyInboxTabId,
+          type: "team-inbox",
+          title: "Inbox",
+        },
+      ],
+      activeTabId: legacyInboxTabId,
+    });
+
+    expect(store.get(activeWorkManagementSectionAtom)).toBe(
+      WORK_MANAGEMENT_SECTION.INBOX
+    );
+
+    store.set(setActiveWorkManagementSectionAtom, {
+      section: WORK_MANAGEMENT_SECTION.GITHUB_PRS,
+      title: "Work Items",
+    });
+
+    expect(store.get(chatPanelTabsAtom).tabs).toEqual([
+      expect.objectContaining({
+        id: legacyInboxTabId,
+        type: "work-management",
+        title: "Work Items",
+        managementSection: WORK_MANAGEMENT_SECTION.GITHUB_PRS,
+      }),
+    ]);
+  });
+
   it("restores the prior docked state after leaving a management tab", async () => {
     const {
       activateChatPanelTabAtom,
@@ -984,7 +998,7 @@ describe("ChatPanel navigation tabs", () => {
     ).toHaveLength(1);
   });
 
-  it("opens Runtime as its own singleton wide-only Station tab", async () => {
+  it("opens Runtime as its own singleton Station-excluded tab", async () => {
     const {
       chatPanelMaximizedAtom,
       chatPanelTabsAtom,
@@ -992,9 +1006,6 @@ describe("ChatPanel navigation tabs", () => {
       store,
     } = await loadChatPanelTabAtoms();
 
-    const existingTabIds = store
-      .get(chatPanelTabsAtom)
-      .tabs.map((tab) => tab.id);
     const runtimeTabId = store.set(openRuntimeInChatPanelTabAtom, "Runtime");
     const focusedTabId = store.set(openRuntimeInChatPanelTabAtom, "Runtime");
 
@@ -1002,7 +1013,6 @@ describe("ChatPanel navigation tabs", () => {
     expect(store.get(chatPanelTabsAtom).activeTabId).toBe(runtimeTabId);
     expect(store.get(chatPanelMaximizedAtom)).toBe(false);
     expect(store.get(chatPanelTabsAtom).tabs.map((tab) => tab.id)).toEqual([
-      ...existingTabIds,
       runtimeTabId,
     ]);
     expect(
@@ -1010,33 +1020,73 @@ describe("ChatPanel navigation tabs", () => {
     ).toHaveLength(1);
   });
 
-  it("opens Team Inbox as its own singleton wide-only Station tab", async () => {
+  it("opens Team Inbox through the shared Work list tab", async () => {
     const {
       chatPanelMaximizedAtom,
       chatPanelTabsAtom,
       openTeamInboxInChatPanelTabAtom,
+      openWorkManagementChatPanelTabAtom,
       store,
+      WORK_MANAGEMENT_SECTION,
     } = await loadChatPanelTabAtoms();
 
+    const workTabId = store.set(openWorkManagementChatPanelTabAtom, {
+      section: WORK_MANAGEMENT_SECTION.PROJECTS,
+      title: "Projects",
+    });
     const teamInboxTabId = store.set(
       openTeamInboxInChatPanelTabAtom,
       "Team Inbox"
     );
     const focusedTabId = store.set(openTeamInboxInChatPanelTabAtom, "Inbox");
 
+    expect(teamInboxTabId).toBe(workTabId);
     expect(focusedTabId).toBe(teamInboxTabId);
     expect(store.get(chatPanelTabsAtom).activeTabId).toBe(teamInboxTabId);
     expect(store.get(chatPanelMaximizedAtom)).toBe(false);
+    expect(store.get(chatPanelTabsAtom).tabs).toHaveLength(1);
+    expect(
+      store.get(chatPanelTabsAtom).tabs.some((tab) => tab.type === "start-page")
+    ).toBe(false);
     expect(
       store
         .get(chatPanelTabsAtom)
-        .tabs.filter((tab) => tab.type === "team-inbox")
+        .tabs.filter((tab) => tab.type === "work-management")
     ).toEqual([
       expect.objectContaining({
         id: teamInboxTabId,
         title: "Inbox",
+        managementSection: WORK_MANAGEMENT_SECTION.INBOX,
       }),
     ]);
+    expect(
+      store.get(chatPanelTabsAtom).tabs.some((tab) => tab.type === "team-inbox")
+    ).toBe(false);
+  });
+
+  it("replaces the active new-session placeholder when Inbox opens", async () => {
+    const {
+      chatPanelTabsAtom,
+      openTeamInboxInChatPanelTabAtom,
+      store,
+      WORK_MANAGEMENT_SECTION,
+    } = await loadChatPanelTabAtoms();
+    const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
+
+    const inboxTabId = store.set(openTeamInboxInChatPanelTabAtom, "Inbox");
+
+    expect(store.get(chatPanelTabsAtom)).toMatchObject({
+      activeTabId: inboxTabId,
+      tabs: [
+        {
+          id: inboxTabId,
+          type: "work-management",
+          title: "Inbox",
+          managementSection: WORK_MANAGEMENT_SECTION.INBOX,
+        },
+      ],
+    });
+    expect(inboxTabId).not.toBe(launchpadTabId);
   });
 
   it("opens org management in its own singleton tab and restores the selected org", async () => {
@@ -1048,7 +1098,7 @@ describe("ChatPanel navigation tabs", () => {
       openOrganizationInChatPanelTabAtom,
       store,
     } = await loadChatPanelTabAtoms();
-    const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
+    const consumedLaunchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
 
     const managementTabId = store.set(openOrganizationInChatPanelTabAtom, {
       organization: {
@@ -1135,7 +1185,11 @@ describe("ChatPanel navigation tabs", () => {
       }),
     ]);
 
-    store.set(activateChatPanelTabAtom, launchpadTabId);
+    expect(
+      store
+        .get(chatPanelTabsAtom)
+        .tabs.some((tab) => tab.id === consumedLaunchpadTabId)
+    ).toBe(false);
     store.set(activateChatPanelTabAtom, managementTabId);
     expect(store.get(activeChatPanelSurfaceAtom)).toEqual({
       kind: CHAT_PANEL_SURFACE_KIND.PROJECT_ORG,
@@ -1150,10 +1204,10 @@ describe("ChatPanel navigation tabs", () => {
       openSessionInNewChatTabAtom,
       store,
     } = await loadChatPanelTabAtoms();
-    const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
+    const consumedLaunchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
 
-    // Move focus onto a session tab, then invoke the new-session entry point
-    // repeatedly. Each call must focus the original start page, never add one.
+    // Consuming the initial placeholder means the next new-session action
+    // creates a fresh singleton; repeated actions must keep focusing that one.
     store.set(openSessionInNewChatTabAtom, {
       sessionId: "session-a",
       sessionName: "Session A",
@@ -1166,9 +1220,9 @@ describe("ChatPanel navigation tabs", () => {
       title: "Launchpad",
     });
 
-    expect(firstId).toBe(launchpadTabId);
-    expect(secondId).toBe(launchpadTabId);
-    expect(store.get(chatPanelTabsAtom).activeTabId).toBe(launchpadTabId);
+    expect(firstId).not.toBe(consumedLaunchpadTabId);
+    expect(secondId).toBe(firstId);
+    expect(store.get(chatPanelTabsAtom).activeTabId).toBe(firstId);
     expect(
       store
         .get(chatPanelTabsAtom)
@@ -1178,10 +1232,7 @@ describe("ChatPanel navigation tabs", () => {
 
   it("opens creator targets inside the singleton start page", async () => {
     const {
-      CHAT_PANEL_COLLAB_ORG_MODE,
-      CHAT_PANEL_COLLAB_ORG_SOURCE,
       CHAT_PANEL_CREATE_TARGET,
-      chatPanelCollabOrgCreateIntentAtom,
       chatPanelCreateProjectContextAtom,
       chatPanelCreateTargetAtom,
       chatPanelStartPageOpenAtom,
@@ -1190,39 +1241,29 @@ describe("ChatPanel navigation tabs", () => {
       openSessionInNewChatTabAtom,
       store,
     } = await loadChatPanelTabAtoms();
-    const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
+    const consumedLaunchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
 
     store.set(openSessionInNewChatTabAtom, {
       sessionId: "session-a",
       sessionName: "Session A",
     });
     const openedTabId = store.set(openCreateTargetInChatPanelStartPageAtom, {
-      target: CHAT_PANEL_CREATE_TARGET.COLLAB_ORG,
+      target: CHAT_PANEL_CREATE_TARGET.PROJECT,
       title: "Launchpad",
       createProjectContext: {
         orgId: "org-a",
         scopeBreadcrumbLabel: "ORG A",
       },
-      collabOrgCreateIntent: {
-        requestId: 7,
-        source: CHAT_PANEL_COLLAB_ORG_SOURCE.CLOUD,
-        mode: CHAT_PANEL_COLLAB_ORG_MODE.CREATE,
-      },
     });
 
-    expect(openedTabId).toBe(launchpadTabId);
-    expect(store.get(chatPanelTabsAtom).activeTabId).toBe(launchpadTabId);
+    expect(openedTabId).not.toBe(consumedLaunchpadTabId);
+    expect(store.get(chatPanelTabsAtom).activeTabId).toBe(openedTabId);
     expect(store.get(chatPanelCreateTargetAtom)).toBe(
-      CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
+      CHAT_PANEL_CREATE_TARGET.PROJECT
     );
     expect(store.get(chatPanelCreateProjectContextAtom)).toEqual({
       orgId: "org-a",
       scopeBreadcrumbLabel: "ORG A",
-    });
-    expect(store.get(chatPanelCollabOrgCreateIntentAtom)).toEqual({
-      requestId: 7,
-      source: CHAT_PANEL_COLLAB_ORG_SOURCE.CLOUD,
-      mode: CHAT_PANEL_COLLAB_ORG_MODE.CREATE,
     });
     expect(store.get(chatPanelStartPageOpenAtom)).toBe(true);
     expect(
@@ -1230,12 +1271,6 @@ describe("ChatPanel navigation tabs", () => {
         .get(chatPanelTabsAtom)
         .tabs.filter((tab) => tab.type === "start-page")
     ).toHaveLength(1);
-
-    store.set(openCreateTargetInChatPanelStartPageAtom, {
-      target: CHAT_PANEL_CREATE_TARGET.COLLAB_ORG,
-      title: "Launchpad",
-    });
-    expect(store.get(chatPanelCollabOrgCreateIntentAtom)).toBeNull();
   });
 
   it("keeps the Work Item creator selected after switching back to Launchpad", async () => {
@@ -1249,7 +1284,7 @@ describe("ChatPanel navigation tabs", () => {
       store,
       syncActiveChatPanelTabStateAtom,
     } = await loadChatPanelTabAtoms();
-    const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
+    const consumedLaunchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
 
     store.set(openSessionInNewChatTabAtom, {
       sessionId: "session-a",
@@ -1263,7 +1298,9 @@ describe("ChatPanel navigation tabs", () => {
     // session back to Launchpad.
     store.set(syncActiveChatPanelTabStateAtom);
 
-    expect(store.get(chatPanelTabsAtom).activeTabId).toBe(launchpadTabId);
+    expect(store.get(chatPanelTabsAtom).activeTabId).not.toBe(
+      consumedLaunchpadTabId
+    );
     expect(store.get(chatPanelStartPageOpenAtom)).toBe(true);
     expect(store.get(chatPanelCreateTargetAtom)).toBe(
       CHAT_PANEL_CREATE_TARGET.WORK_ITEM
@@ -1624,7 +1661,7 @@ describe("openOrReplaceSessionInChatPanelTabAtom", () => {
     vi.useRealTimers();
   });
 
-  it("reuses the active session tab for normal sidebar navigation", async () => {
+  it("opens another tab instead of repointing the active session", async () => {
     const {
       activeSessionIdAtom,
       chatPanelTabsAtom,
@@ -1645,19 +1682,27 @@ describe("openOrReplaceSessionInChatPanelTabAtom", () => {
       repoPath: "/repos/b",
     });
 
-    expect(replacementTabId).toBe(originalTabId);
+    expect(replacementTabId).not.toBe(originalTabId);
     expect(store.get(chatPanelTabsAtom)).toMatchObject({
-      activeTabId: originalTabId,
+      activeTabId: replacementTabId,
       tabs: expect.arrayContaining([
         expect.objectContaining({
           id: originalTabId,
+          type: "session",
+          title: "Session A",
+          sessionId: "session-a",
+        }),
+        expect.objectContaining({
+          id: replacementTabId,
           type: "session",
           title: "Session B",
           sessionId: "session-b",
         }),
       ]),
     });
-    expect(store.get(chatPanelTabsAtom).tabs).toHaveLength(originalTabCount);
+    expect(store.get(chatPanelTabsAtom).tabs).toHaveLength(
+      originalTabCount + 1
+    );
     expect(store.get(activeSessionIdAtom)).toBe("session-b");
   });
 
@@ -1702,12 +1747,11 @@ describe("openOrReplaceSessionInChatPanelTabAtom", () => {
       store,
     } = await loadChatPanelTabAtoms();
 
-    const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
-    const trailingTabId = store.set(openSessionInNewChatTabAtom, {
+    const leadingTabId = store.set(openSessionInNewChatTabAtom, {
       sessionId: "session-a",
       sessionName: "Session A",
     });
-    store.set(openOrFocusChatPanelStartPageTabAtom, {});
+    const launchpadTabId = store.set(openOrFocusChatPanelStartPageTabAtom, {});
     expect(store.get(chatPanelTabsAtom).activeTabId).toBe(launchpadTabId);
 
     const sessionTabId = store.set(openOrReplaceSessionInChatPanelTabAtom, {
@@ -1716,8 +1760,8 @@ describe("openOrReplaceSessionInChatPanelTabAtom", () => {
     });
 
     expect(store.get(chatPanelTabsAtom).tabs).toMatchObject([
+      { id: leadingTabId, type: "session", sessionId: "session-a" },
       { id: sessionTabId, type: "session", sessionId: "session-b" },
-      { id: trailingTabId, type: "session", sessionId: "session-a" },
     ]);
   });
 

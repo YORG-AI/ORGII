@@ -47,6 +47,8 @@ teamInboxUnreadCountAtom.debugLabel = "teamInboxUnreadCountAtom";
 export interface TeamInboxViewState {
   filter: TeamInboxFilter;
   query: string;
+  /** Whether the shared right pane is shown, even before a row is selected. */
+  detailPaneOpen: boolean;
   selectedItemId: string | null;
   selectedPullRequestKey: string | null;
   supersededFocusRequestId: number | null;
@@ -55,6 +57,7 @@ export interface TeamInboxViewState {
 export const INITIAL_TEAM_INBOX_VIEW_STATE: TeamInboxViewState = {
   filter: "all",
   query: "",
+  detailPaneOpen: true,
   selectedItemId: null,
   selectedPullRequestKey: null,
   supersededFocusRequestId: null,

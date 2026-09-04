@@ -198,6 +198,8 @@ const TabPill: React.FC<TabPillProps> = ({
           data-active={isActive ? "true" : "false"}
           data-tab-key={tab.key}
           data-testid={tab.dataTestId}
+          aria-label={iconOnly ? tab.label : undefined}
+          title={iconOnly ? tab.label : undefined}
           onClick={() => handleImmediateTabClick(tab, isActive)}
           onMouseEnter={() => setHoveredTabKey(tab.key)}
           onMouseLeave={handleImmediateTabMouseLeave}
@@ -250,6 +252,8 @@ const TabPill: React.FC<TabPillProps> = ({
         data-active={isActive ? "true" : "false"}
         data-tab-key={tab.key}
         data-testid={tab.dataTestId}
+        aria-label={iconOnly ? tab.label : undefined}
+        title={iconOnly ? tab.label : undefined}
         onClick={() => handleImmediateTabClick(tab, isActive)}
         onMouseEnter={() => setHoveredTabKey(tab.key)}
         onMouseLeave={handleImmediateTabMouseLeave}

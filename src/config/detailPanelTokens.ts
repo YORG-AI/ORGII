@@ -95,13 +95,23 @@ export const ISSUE_PANEL_WIDTH_TOKENS = {
 export const DETAIL_PANEL_TOKENS = {
   /** Outer container */
   container: "flex h-full flex-col",
+  /** PR-style detail chrome shared by tabs, pane headers, and loading states. */
+  headerHeight: "h-9",
+  /** Numeric form for layout calculations and contract tests. */
+  headerHeightPx: 36,
   /**
    * Detail identity rows use a roomier left inset while actions stay compact.
    * The 7px trailing inset matches the shared workspace-header action grid.
    */
   headerPadding: "pl-4! pr-[7px]!",
+  /** Standalone tab rows align their leading edge with 16px detail content. */
+  tabRowPadding: "pr-[7px] pl-4",
   /** Horizontal content inset (px-4) — shared by detail panels and wizards; no vertical padding so sticky headers can pin flush to the scrollport top */
   contentPadding: "px-4",
+  /** PR-style title block inset shared by loaded and loading thread details. */
+  flowHeaderPadding: "px-4 pt-5",
+  /** Conversation/Linked body inset shared by loaded and loading details. */
+  threadContentPadding: "px-4 py-4",
   /** Content bottom padding (pb-2) — reduced when footer follows */
   contentPaddingBottom: "pb-2",
   /**

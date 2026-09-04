@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { TFunction } from "i18next";
+import { Provider, createStore } from "jotai";
 import { type ReactNode, createElement, createRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -15,7 +16,13 @@ vi.mock("@src/scaffold/NavigationSidebar/CollapsedSidebarButton", () => ({
 vi.mock("@src/components/KeyboardShortcut/ToolbarTooltip", () => ({
   // The real tooltip portals into document.body, which the static renderer
   // rejects; the controls under test are its children.
-  ToolbarTooltip: ({ children }: { children: ReactNode }) => children,
+  ToolbarTooltip: ({
+    children,
+    label,
+  }: {
+    children: ReactNode;
+    label: string;
+  }) => createElement("span", { "data-tooltip-label": label }, children),
 }));
 vi.mock("./header/ChatPanelCollapsedTabHeading", () => ({
   ChatPanelCollapsedTabHeading: () =>
@@ -25,6 +32,8 @@ vi.mock("./header/ChatPanelCollapsedTabHeading", () => ({
 const { getCollapsedSidebarChromeOffset } =
   await import("@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset");
 const { ChatPanelHeader } = await import("./ChatPanelHeader");
+const { chatPanelHeaderSlotsAtom } = await import("./header");
+type ChatPanelHeaderSlots = import("./header").ChatPanelHeaderSlots;
 
 const noop = () => undefined;
 
@@ -32,78 +41,116 @@ interface RenderOptions {
   tabRowCollapsed: boolean;
   sessionHeaderContent?: ReactNode;
   shouldOffsetHeaderForCollapsedSidebar?: boolean;
+  stationAvailable?: boolean;
+  publishedHeaderSlots?: ChatPanelHeaderSlots | null;
 }
 
 function render({
   tabRowCollapsed,
   sessionHeaderContent = createElement("span", { "data-session-name": "true" }),
   shouldOffsetHeaderForCollapsedSidebar = false,
+  stationAvailable = true,
+  publishedHeaderSlots = null,
 }: RenderOptions): string {
+  const store = createStore();
+  store.set(chatPanelHeaderSlotsAtom, publishedHeaderSlots);
+
   return renderToStaticMarkup(
-    createElement(ChatPanelHeader, {
-      activeSessionExists: true,
-      chatPanelPosition: "left",
-      copyEventJsonLabel: "idle" as const,
-      currentSessionId: "session-a",
-      displayMode: "full" as const,
-      eventsLength: 3,
-      handleChatFocusToggle: noop,
-      handleCompactDisplayModeToggle: noop,
-      handleCopyEventJson: noop,
-      handleMoveToWorkstation: noop,
-      handleOpenExportSessionJson: noop,
-      handleOpenLinkWorkItem: noop,
-      handleOpenCloudShareSettings: noop,
-      handleOpenSearch: noop,
-      handlePaginationToggle: noop,
-      handleReloadFromMenu: noop,
-      handleTokenUsageVisibleToggle: noop,
-      handleTurnMetadataVisibleToggle: noop,
-      headerActionsDropdownRef: createRef<HTMLDivElement>(),
-      headerActionsPosition: { left: 0, width: 240, maxHeight: 480 },
-      headerActionsTriggerRef: createRef<HTMLButtonElement>(),
-      isChatFocus: true,
-      isHeaderActionsOpen: false,
-      isHeaderActionsPositioned: false,
-      paginationEnabled: false,
-      tokenUsageVisible: false,
-      turnMetadataVisible: false,
-      shouldOffsetHeaderForCollapsedSidebar,
-      stationAvailable: true,
-      showHeader: true,
-      showSessionContent: true,
-      showCloudShareSettings: false,
-      t: ((key: string) => key) as unknown as TFunction<
-        ["sessions", "common", "projects", "navigation"]
-      >,
-      toggleHeaderActionsMenu: noop,
-      visibleRegionNotice: null,
-      showTuiModeToggle: false,
-      tuiMode: false,
-      handleTuiModeToggle: noop,
-      tabStrip: createElement("nav", { "data-tab-strip": "true" }),
-      tabStripPlus: createElement("button", { "data-plus-menu": "true" }),
-      tabRowCollapsed,
-      sessionHeaderContent,
-    })
+    createElement(
+      Provider,
+      { store },
+      createElement(ChatPanelHeader, {
+        activeSessionExists: true,
+        chatPanelPosition: "left",
+        copyEventJsonLabel: "idle" as const,
+        currentSessionId: "session-a",
+        displayMode: "full" as const,
+        eventsLength: 3,
+        handleChatFocusToggle: noop,
+        handleCompactDisplayModeToggle: noop,
+        handleCopyEventJson: noop,
+        handleMoveToWorkstation: noop,
+        handleOpenExportSessionJson: noop,
+        handleOpenLinkWorkItem: noop,
+        handleOpenCloudShareSettings: noop,
+        handleOpenSearch: noop,
+        handlePaginationToggle: noop,
+        handleReloadFromMenu: noop,
+        handleTokenUsageVisibleToggle: noop,
+        handleTurnMetadataVisibleToggle: noop,
+        headerActionsDropdownRef: createRef<HTMLDivElement>(),
+        headerActionsPosition: { left: 0, width: 240, maxHeight: 480 },
+        headerActionsTriggerRef: createRef<HTMLButtonElement>(),
+        isChatFocus: true,
+        isHeaderActionsOpen: false,
+        isHeaderActionsPositioned: false,
+        paginationEnabled: false,
+        tokenUsageVisible: false,
+        turnMetadataVisible: false,
+        shouldOffsetHeaderForCollapsedSidebar,
+        stationAvailable,
+        showHeader: true,
+        showSessionContent: true,
+        showCloudShareSettings: false,
+        t: ((key: string) => key) as unknown as TFunction<
+          ["sessions", "common", "projects", "navigation"]
+        >,
+        toggleHeaderActionsMenu: noop,
+        visibleRegionNotice: null,
+        showTuiModeToggle: false,
+        tuiMode: false,
+        handleTuiModeToggle: noop,
+        tabStrip: createElement("nav", { "data-tab-strip": "true" }),
+        tabStripPlus: createElement("button", { "data-plus-menu": "true" }),
+        tabRowCollapsed,
+        sessionHeaderContent,
+      })
+    )
   );
 }
 
 describe("ChatPanelHeader tab row collapse", () => {
+  it("explains why Workstation cannot be shown for an excluded page", () => {
+    const markup = render({
+      tabRowCollapsed: false,
+      stationAvailable: false,
+    });
+
+    expect(markup).toContain(
+      'data-tooltip-label="chat.workstationUnavailableForPage"'
+    );
+    expect(markup).toContain('aria-label="chat.workstationUnavailableForPage"');
+    expect(markup).toContain("disabled");
+  });
+
   it("keeps both rows while the tab strip is worth showing", () => {
     const markup = render({ tabRowCollapsed: false });
 
     expect(markup).toContain('data-testid="chat-panel-header"');
     expect(markup).toContain('data-tab-strip="true"');
     expect(markup).toContain('data-testid="chat-panel-published-header"');
-    expect(markup).toContain("border-b border-border-2");
+    // The tab strip supplies the only separator; the published row beneath it
+    // must not add a second one.
+    expect(markup).not.toContain("border-b border-border-2");
     expect(markup).not.toContain(
       'data-testid="chat-panel-collapsed-tab-controls"'
     );
     expect(markup).toContain('style="height:80px"');
   });
 
-  it("drops the tab row and rehomes its controls onto the 40px row", () => {
+  it("keeps only the tab row when a split surface owns its left header", () => {
+    const markup = render({
+      tabRowCollapsed: false,
+      publishedHeaderSlots: { hidden: true },
+    });
+
+    expect(markup).toContain('data-testid="chat-panel-header"');
+    expect(markup).toContain('data-tab-strip="true"');
+    expect(markup).not.toContain('data-testid="chat-panel-published-header"');
+    expect(markup).toContain('style="height:44px"');
+  });
+
+  it("drops the tab row and rehomes its controls onto the 36px row", () => {
     const markup = render({ tabRowCollapsed: true });
 
     expect(markup).not.toContain('data-testid="chat-panel-header"');
@@ -147,7 +194,7 @@ describe("ChatPanelHeader tab row collapse", () => {
       shouldOffsetHeaderForCollapsedSidebar: true,
     });
 
-    // The 40px row is now the pane's top edge, so it owns the reservation for
+    // The 36px row is now the pane's top edge, so it owns the reservation for
     // the host window controls (macOS traffic lights) the tab row used to hold.
     expect(collapsed).toContain('data-collapsed-sidebar="true"');
     // The published row is z-40 and spans the button's reserved left inset.

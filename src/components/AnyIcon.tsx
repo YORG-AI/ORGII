@@ -27,7 +27,10 @@
  */
 import React, { type ComponentType } from "react";
 
+import { createLogger } from "@src/hooks/logger";
 import { HugeiconsIcon, type IconSvgElement } from "@src/icons";
+
+const log = createLogger("AnyIcon");
 
 /**
  * An icon that is either hugeicons glyph data or a component (brand mark,
@@ -97,8 +100,8 @@ const AnyIcon: React.FC<AnyIconProps> = ({
       if (!warned.has(key)) {
         warned.add(key);
 
-        console.warn(
-          `[AnyIcon] no icon resolved (data-icon="${key}"). Rendering nothing ` +
+        log.warn(
+          `no icon resolved (data-icon="${key}"). Rendering nothing ` +
             `instead of throwing. Check the registry or prop feeding this site.`
         );
       }
@@ -112,8 +115,8 @@ const AnyIcon: React.FC<AnyIconProps> = ({
   // <i> tag that still takes layout space.
   if (typeof icon === "string") {
     if (process.env.NODE_ENV !== "production") {
-      console.warn(
-        `[AnyIcon] got the string "${icon}" instead of an icon. Icon-font ` +
+      log.warn(
+        `got the string "${icon}" instead of an icon. Icon-font ` +
           `classes are no longer rendered; resolve names to glyph data ` +
           `before the render boundary.`
       );
@@ -149,7 +152,7 @@ const AnyIcon: React.FC<AnyIconProps> = ({
   }
 
   if (process.env.NODE_ENV !== "production") {
-    console.warn("[AnyIcon] icon is neither glyph data nor a component", icon);
+    log.warn("icon is neither glyph data nor a component", icon);
   }
   return null;
 };

@@ -1,11 +1,8 @@
 /**
  * ReplayProgressBar
  *
- * Generic, props-driven music-player-style scrub bar. Originally lifted
- * from `MusicPlayerReplayBar` (Simulator dock) and `KanbanReplayBar`
- * (Kanban canvas) which were near-identical copies — index-based vs
- * timestamp-based mapping was the only real difference, and that
- * mapping belongs to the *caller*, not the bar itself.
+ * Generic, props-driven music-player-style scrub bar used by Simulator
+ * replay surfaces.
  *
  * The caller is responsible for:
  *   - Computing `value` in the shared [0, max] slider space.

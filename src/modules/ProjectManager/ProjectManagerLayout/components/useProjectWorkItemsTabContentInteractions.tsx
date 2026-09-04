@@ -36,6 +36,7 @@ import type {
   AggregatedWorkItem,
   ProjectWorkItemSelection,
 } from "./ProjectWorkItemsTabContentTypes";
+import { toProjectWorkItemSelection } from "./projectWorkItemSelection";
 
 interface UseProjectWorkItemsTabContentInteractionsParams {
   workItems: WorkspaceWorkItem[];
@@ -146,15 +147,7 @@ export function useProjectWorkItemsTabContentInteractions({
         });
         return;
       }
-      onOpenWorkItem({
-        workItem: workItem.item,
-        shortId: workItem.shortId,
-        orgId: workItem.orgId,
-        orgName: workItem.orgName,
-        projectId: workItem.project?.meta.id,
-        projectName: workItem.project?.meta.name,
-        projectSlug: workItem.project?.slug,
-      });
+      onOpenWorkItem(toProjectWorkItemSelection(workItem));
     },
     [workItemById, onOpenLinearProject, onOpenWorkItem]
   );

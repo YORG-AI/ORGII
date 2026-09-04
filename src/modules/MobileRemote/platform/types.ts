@@ -10,6 +10,11 @@ export interface MobileRemoteRuntimePort {
   clearTimeout(timeoutId: number): void;
   isHidden(): boolean;
   subscribeVisibility(listener: () => void): () => void;
+  /**
+   * Overlay host for floating surfaces. Returns null when the shell has no
+   * mounted container yet, in which case the caller renders nothing.
+   */
+  portalContainer(): Element | null;
 }
 
 export interface MobileRemoteAuthPort {

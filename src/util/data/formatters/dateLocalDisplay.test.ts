@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   addLocalDays,
+  formatDate,
   formatLocalClock,
   formatLocalMonthDay,
   formatRelativeElapsedShort,
@@ -40,6 +41,21 @@ describe("local date display helpers", () => {
     }).format(date);
 
     expect(formatLocalMonthDay(date, { locale: undefined })).toBe(expected);
+  });
+
+  it("uses an explicit locale for shared date labels", () => {
+    const options: Intl.DateTimeFormatOptions = {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: undefined,
+      minute: undefined,
+    };
+    const instant = "2026-08-06T12:00:00Z";
+
+    expect(formatDate(instant, options, "zh-CN")).toBe(
+      new Date(instant).toLocaleString("zh-CN", options)
+    );
   });
 
   it("formats relative elapsed labels used by Inbox", () => {

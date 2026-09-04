@@ -23,15 +23,6 @@ import {
 } from "@src/config/settingsSchema/sidebarGuideProgress";
 import type { SettingDefinition } from "@src/config/settingsSchema/types";
 
-const USER_PROFILE_PRESET_SCHEMA = z.object({
-  id: z.string(),
-  name: z.string(),
-  techSavvy: z.enum(["", ...TECH_SAVVY_LEVELS]),
-  jobRoles: z.array(z.string()),
-  familiarTechStacks: z.array(z.enum(FAMILIAR_LANGUAGE_TECH_STACKS)),
-  description: z.string(),
-});
-
 /**
  * Skins are declared per variant, so each picker only offers ids that actually
  * provide that variant — most Codex skins are dark-only.
@@ -299,18 +290,6 @@ export const GENERAL_SETTINGS_REGISTRY = {
     schema: z.string(),
     default: "",
     description: "Short user profile background for agent context",
-    category: "general",
-  },
-  "general.activeProfileId": {
-    schema: z.string(),
-    default: "default",
-    description: "ID of the user profile preset currently sent to agents",
-    category: "general",
-  },
-  "general.profilePresets": {
-    schema: z.array(USER_PROFILE_PRESET_SCHEMA),
-    default: [],
-    description: "Named user profile presets for manual profile switching",
     category: "general",
   },
   "general.timezone": {

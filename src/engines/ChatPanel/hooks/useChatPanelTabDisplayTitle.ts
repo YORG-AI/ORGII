@@ -31,6 +31,7 @@ export function useChatPanelTabDisplayTitle(tab: ChatPanelTab): string {
     channelFallback: t("navigation:cloud.channels.title"),
     workManagement: {
       kanban: t("sessions:simulator.tabs.kanban"),
+      inbox: t("navigation:labels.inbox"),
       work: t("navigation:labels.workItems"),
     },
     sessionFallback: t("sessions:chat.defaultTitle"),
@@ -43,10 +44,6 @@ export function useChatPanelTabDisplayTitle(tab: ChatPanelTab): string {
       return t("sessions:creator.createTarget.project");
     case CHAT_PANEL_CREATE_TARGET.WORK_ITEM:
       return t("sessions:creator.createTarget.workItem");
-    case CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT:
-      return t("projects:githubIssuesImport.createTarget");
-    case CHAT_PANEL_CREATE_TARGET.COLLAB_ORG:
-      return t("navigation:collaboration.addOrg");
     default:
       return defaultDisplayTitle;
   }

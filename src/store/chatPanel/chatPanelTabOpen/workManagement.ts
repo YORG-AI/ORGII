@@ -56,7 +56,9 @@ export const openWorkManagementChatPanelTabAtom = atom(
       activeTab.managementSection &&
       isWorkManagementListSection(activeTab.managementSection)
         ? activeTab
-        : undefined;
+        : activeTab?.type === "team-inbox"
+          ? activeTab
+          : undefined;
     const existingTab =
       (requestedListSection ? activeWorkListTab : undefined) ??
       state.tabs.find(
@@ -71,6 +73,7 @@ export const openWorkManagementChatPanelTabAtom = atom(
       );
     if (existingTab) {
       if (
+        existingTab.type !== "work-management" ||
         existingTab.title !== title ||
         existingTab.managementSection !== section
       ) {
@@ -78,7 +81,12 @@ export const openWorkManagementChatPanelTabAtom = atom(
           ...state,
           tabs: state.tabs.map((tab) =>
             tab.id === existingTab.id
-              ? { ...tab, title, managementSection: section }
+              ? {
+                  ...tab,
+                  type: "work-management" as const,
+                  title,
+                  managementSection: section,
+                }
               : tab
           ),
         });

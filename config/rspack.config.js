@@ -1,14 +1,19 @@
-// Rspack dev-server config — the default dev bundler on macOS; other
-// platforms default to config/webpack.config.js (see
+// Rspack dev-server config — the default dev bundler on macOS and Linux;
+// Windows still defaults to config/webpack.config.js (see
 // createFrontendScriptName in scripts/dev/tauri-dev-processes.cjs).
-// Dev-only: production builds stay on webpack. Launch via `pnpm tauri:dev`
-// (macOS), `pnpm tauri:dev:rspack`, or `pnpm dev:frontend:rspack`.
+// Dev-only: production builds stay on webpack. Launch via `pnpm tauri:dev`,
+// `pnpm tauri:dev:rspack`, or `pnpm dev:frontend:rspack`; `pnpm tauri:dev:webpack`
+// (ORGII_RSPACK=false) falls back.
 // Measured vs the webpack dev server (2026-09-01, macOS, footprint method):
 // idle 1.65 GB vs 2.4 GB, warm-start peak 2.1 GB vs 3.6 GB, HMR rebuild
 // ~0.6 s vs ~3 s, cold compile 10.7 s with no persistent cache.
-// Deliberately omits: the production branch, the Linux/WebKitGTK eager-App +
-// retry-loader mode (Linux dev should keep the webpack server for now), and
-// a persistent cache (rspack's is still experimental; default memory cache).
+// Measured on Linux/WebKitGTK 2.50.4 (2026-09-02, same commit, both bundlers
+// cold with no cache, sequential runs): cold compile 3.2 s vs 18.0 s, HMR
+// 0.40-0.45 s vs 1.9-3.1 s, idle RSS 1.41 GiB vs 3.55 GiB, `pnpm tauri:dev`
+// main.js ready 3.7 s (webpack's last recorded run: 27.9 s).
+// Deliberately omits: the production branch and a persistent cache (rspack's
+// is still experimental; default memory cache). The Linux/WebKitGTK
+// eager-App + retry-loader mode is ported from webpack.config.js below.
 const path = require("path");
 const rspack = require("@rspack/core");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
@@ -24,6 +29,18 @@ module.exports = () => {
     10
   );
 
+  // Same platform gates as config/webpack.config.js (lines 35-48). Linux dev
+  // runs under WebKitGTK, which cannot load App as a runtime dynamic-import
+  // chunk (see commit 291f95be6) and stalls on the injected <script> tag.
+  const retryMainScriptLoad =
+    process.env.ORGII_RETRY_MAIN_SCRIPT_LOAD === "true" ||
+    (process.env.ORGII_RETRY_MAIN_SCRIPT_LOAD !== "false" &&
+      process.platform === "linux");
+  const eagerDevApp =
+    process.env.ORGII_DEV_EAGER_APP === "true" ||
+    (process.env.ORGII_DEV_EAGER_APP !== "false" &&
+      process.platform === "linux");
+
   // Mirror dotenv-webpack(systemvars) for the env keys src actually reads.
   const envKeys = [
     "TZ",
@@ -38,6 +55,7 @@ module.exports = () => {
     "REACT_APP_CANVAS_SHARE_VIEWER_URL",
     "REACT_APP_CANVAS_SHARE_API_URL",
     "REACT_APP_AGENT_URL",
+    "REACT_APP_MOBILE_RELAY_PRODUCTION_URL",
   ];
   const envDefinitions = Object.fromEntries(
     envKeys.map((k) => [
@@ -75,6 +93,7 @@ module.exports = () => {
     context: repoRoot,
     entry: {
       main: "./src/index.tsx",
+      mobile: "./src/mobileRemoteEntry.tsx",
     },
     output: {
       path: path.resolve(repoRoot, "build-rspack"),
@@ -301,13 +320,21 @@ module.exports = () => {
         template: "./public/index.html",
         chunks: ["main"],
         filename: "index.html",
+        inject: retryMainScriptLoad ? false : "body",
+        retryMainScriptLoad,
+      }),
+      // Browser-only Mobile Remote entry. It must not load the Tauri desktop
+      // bootstrap from src/index.tsx.
+      new HtmlWebpackPlugin({
+        template: "./public/mobile.html",
+        chunks: ["mobile"],
+        filename: "mobile.html",
         inject: "body",
-        retryMainScriptLoad: false,
       }),
       new ReactRefreshPlugin({ overlay: false }),
       new rspack.DefinePlugin({
         "process.env.NODE_ENV": JSON.stringify("development"),
-        "process.env.ORGII_DEV_EAGER_APP": JSON.stringify("false"),
+        "process.env.ORGII_DEV_EAGER_APP": JSON.stringify(String(eagerDevApp)),
         "process.env.ORGII_IDE_SERVER_PORT": JSON.stringify(
           process.env.ORGII_IDE_SERVER_PORT ?? "13847"
         ),
@@ -325,7 +352,9 @@ module.exports = () => {
       port: devServerPort,
       hot: true,
       liveReload: true,
-      historyApiFallback: true,
+      historyApiFallback: {
+        rewrites: [{ from: /^\/orgii\/mobile(?:\/.*)?$/, to: "/mobile.html" }],
+      },
       static: {
         directory: path.resolve(repoRoot, "public"),
         watch: false,
@@ -363,6 +392,9 @@ module.exports = () => {
       timings: true,
       colors: true,
     },
-    devtool: "eval-cheap-module-source-map",
+    // eagerDevApp inlines App into main.js; eval-* would additionally inline
+    // every module's source there, pushing it past the ~80 MB WebKitGTK can
+    // load. Linux therefore writes separate .map files (webpack.config.js:694).
+    devtool: eagerDevApp ? "cheap-source-map" : "eval-cheap-module-source-map",
   };
 };

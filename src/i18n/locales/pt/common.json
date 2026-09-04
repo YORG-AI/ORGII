@@ -13,26 +13,14 @@
     },
     "sections": {
       "reviewRequested": "Revisão solicitada",
-      "authoredByMe": "Criados por mim",
-      "otherTodos": "Outras tarefas"
+      "authoredByMe": "Criados por mim"
     },
     "status": {
       "read": "Lido",
       "unread": "Não lido"
     },
     "row": {
-      "assignedSummary": "{{status}} · {{priority}}",
       "ariaLabel": "{{title}}, {{status}}"
-    },
-    "search": {
-      "placeholder": "Pesquisar na caixa de entrada",
-      "ariaLabel": "Pesquisar na caixa de entrada da equipe"
-    },
-    "groups": {
-      "today": "Hoje",
-      "yesterday": "Ontem",
-      "thisWeek": "Esta semana",
-      "earlier": "Anteriores"
     },
     "empty": {
       "title": "Ainda não há nada aqui",
@@ -56,20 +44,15 @@
     "drop": {
       "title": "Solte aqui para criar um item de trabalho",
       "subtitle": "Revise o snapshot da sessão e, em seguida, crie ou repasse o item de trabalho.",
-      "processing": "Criando um item de trabalho a partir de “{{title}}”…",
       "processingHint": "Lendo a sessão e resolvendo os membros do projeto.",
       "success": "Item de trabalho criado",
       "reused": "Item de trabalho existente atualizado",
       "failed": "Não foi possível criar o item de trabalho",
-      "error": "Não é possível criar um item de trabalho a partir desta sessão.",
-      "open": "Abrir",
       "dismiss": "Descartar"
     },
     "handoff": {
       "title": "Criar a partir da sessão",
       "createFromSession": "Criar item de trabalho da equipe…",
-      "project": "Projeto de destino",
-      "chooseProject": "Escolher um projeto",
       "recipientSelf": "{{name}} (eu)",
       "chooseRecipient": "Escolher um destinatário",
       "todoCount_one": "{{count}} tarefa",
@@ -121,6 +104,7 @@
       "pullRequestsPartialLoadHelp": "Os itens disponíveis continuam sendo exibidos; atualize para tentar carregar novamente as pull requests ausentes",
       "workItemContext": "Parte do contexto do projeto não está disponível. O item de trabalho continua utilizável.",
       "workItemLoad": "Não foi possível carregar este item de trabalho. Tente novamente.",
+      "githubIssueLoad": "Não foi possível carregar a issue do GitHub deste item de trabalho. Os detalhes locais continuam visíveis.",
       "workItemUpdate": "Não foi possível salvar a última alteração do item de trabalho. Tente novamente."
     },
     "detail": {
@@ -134,18 +118,7 @@
     "actions": {
       "markRead": "Marcar como lido",
       "markUnread": "Marcar como não lido",
-      "openWorkItem": "Abrir item de trabalho",
-      "openSession": "Abrir sessão"
-    },
-    "fields": {
-      "status": "Status",
-      "priority": "Prioridade",
-      "assignee": "Responsável",
-      "workItemId": "ID do item de trabalho",
-      "session": "Sessão",
-      "comments": "Comentários",
-      "threadId": "ID da conversa",
-      "commentId": "ID do comentário"
+      "openWorkItem": "Abrir item de trabalho"
     },
     "workItemStatus": {
       "backlog": "Backlog",
@@ -727,7 +700,7 @@
     "unknown": "Erro desconhecido",
     "agentRequestFailed": "A requisição ao Agent falhou",
     "codexLoginExpired": "A sessão do Codex expirou",
-    "codexLoginExpiredDescription": "Reconecte o Codex para reparar esta conta. Você retornará a esta sessão quando o novo login for salvo.",
+    "codexLoginExpiredDescription": "Reconecte o Codex para reparar esta conta. Você retornará a esta sessão quando o novo login for salvo",
     "reconnectCodex": "Reconectar o Codex",
     "technicalDetails": "Detalhes técnicos",
     "failedToCopy": "Falha ao copiar",
@@ -1100,6 +1073,7 @@
     "switchLocalBranchTooltip": "Mudar de branch local",
     "sessionEnvCloud": "Cloud",
     "sessionEnvLocal": "Local",
+    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Ações do Git",
     "switchToSessionRepo": "Mudar para {{name}}",
     "embeddingProgress": "Embedding: {{count}} chunks processados",
@@ -1288,7 +1262,7 @@
       "loadingConversation": "Carregando…",
       "reviewNoBody": "Deixou comentários de revisão.",
       "submitReview": "Enviar revisão",
-      "reviewHeadNotice": "A revisão só será aplicada se o commit de cabeçalho exibido ainda corresponder.",
+      "reviewHeadNotice": "A revisão só será aplicada se o commit de cabeçalho exibido ainda corresponder",
       "reviewDecision": "Decisão da revisão",
       "reviewComment": "Comentário da revisão",
       "reviewCommentPlaceholder": "Adicionar um comentário…",
@@ -1334,7 +1308,14 @@
       },
       "commits": {
         "backToList": "Todos os commits",
-        "none": "Sem commits"
+        "none": "Sem commits",
+        "onDate": "Commits em {{date}}",
+        "unknownDate": "Data desconhecida",
+        "viewCommit": "Ver commit {{sha}}: {{summary}}",
+        "committed": "fez commit",
+        "verified": "Verificado",
+        "copySha": "Copiar SHA do commit",
+        "viewDetails": "Ver detalhes do commit"
       },
       "changes": {
         "title": "Arquivos alterados",
@@ -1560,6 +1541,20 @@
         "commentFailed": "Não foi possível adicionar o comentário",
         "bodyUpdateFailed": "Não foi possível atualizar a descrição da issue",
         "statusFailed": "Não foi possível atualizar o status da issue"
+      },
+      "timelineErrorTitle": "Atividade do GitHub indisponível",
+      "tabs": {
+        "relatedItems": "Itens relacionados"
+      },
+      "relatedItems": {
+        "emptyTitle": "Não há itens relacionados",
+        "emptyDescription": "As issues e pull requests do GitHub mencionadas nesta conversa aparecerão aqui.",
+        "loading": "Carregando itens relacionados",
+        "count_one": "{{count}} item relacionado",
+        "count_other": "{{count}} itens relacionados",
+        "unavailable": "Detalhes indisponíveis",
+        "unavailableCount_one": "Não foi possível resolver {{count}} item relacionado",
+        "unavailableCount_other": "Não foi possível resolver {{count}} itens relacionados"
       }
     }
   },
@@ -1906,6 +1901,12 @@
         },
         "createWorkItem": {
           "label": "Criar item de trabalho"
+        },
+        "createOrganization": {
+          "label": "Criar organização"
+        },
+        "joinOrganization": {
+          "label": "Entrar em uma organização"
         }
       },
       "toast": {
@@ -1968,6 +1969,10 @@
     "openAgentStation": "Ir para Agent Station",
     "openKanban": "Ir para Kanban",
     "changeLanguage": "Alterar idioma",
+    "changeTheme": "Alterar tema",
+    "changeSkin": "Alterar aparência",
+    "searchThemes": "Pesquisar temas...",
+    "searchSkins": "Pesquisar aparências...",
     "switchToSystemTheme": "Seguir o tema do sistema",
     "detectUpdate": "Procurar atualizações",
     "recentlyUsed": "Usados recentemente"
@@ -2386,7 +2391,7 @@
     "selectRow": "Selecionar {{id}}"
   },
   "clientOrigin": {
-    "officialApp": "App oficial",
+    "officialApp": "App",
     "cli": "CLI",
     "thirdParty": "De terceiros"
   }

@@ -1,6 +1,6 @@
 use super::command::{
-    build_command_with_launch_profile, map_claude_model, map_claude_model_variant,
-    CliCommandBuildRequest,
+    build_command_with_launch_profile, codex_app_server_thread_model, map_claude_model,
+    map_claude_model_variant, CliCommandBuildRequest,
 };
 use super::launch_profiles::{
     bare_command_for_agent, default_args_for_mode, default_env_for_mode, defaults_for_agent,
@@ -220,6 +220,34 @@ fn build_codex_gpt_5_6_ultra_fast_variant() {
     assert!(cmd.contains(&"model_reasoning_effort=\"ultra\"".to_string()));
     assert!(cmd.contains(&"service_tier=\"priority\"".to_string()));
     assert!(!cmd.contains(&"gpt-5.6-sol-ultra-fast".to_string()));
+}
+
+#[test]
+fn build_codex_gpt_5_6_max_fast_variant() {
+    let cmd = build_command!(
+        ModelType::Codex,
+        task = "write tests",
+        model = Some("gpt-5.6-sol-max-fast"),
+    );
+    let model_idx = cmd.iter().position(|arg| arg == "-m").unwrap();
+    assert_eq!(cmd[model_idx + 1], "gpt-5.6-sol");
+    assert!(cmd.contains(&"model_reasoning_effort=\"max\"".to_string()));
+    assert!(cmd.contains(&"service_tier=\"priority\"".to_string()));
+    assert!(!cmd.contains(&"gpt-5.6-sol-max-fast".to_string()));
+}
+
+#[test]
+fn build_codex_does_not_invent_max_for_older_models() {
+    let cmd = build_command!(
+        ModelType::Codex,
+        task = "write tests",
+        model = Some("gpt-5.5-max"),
+    );
+    let model_idx = cmd.iter().position(|arg| arg == "-m").unwrap();
+    assert_eq!(cmd[model_idx + 1], "gpt-5.5-max");
+    assert!(!cmd
+        .iter()
+        .any(|arg| arg == "model_reasoning_effort=\"max\""));
 }
 
 #[test]
@@ -489,12 +517,12 @@ fn build_codex_app_server_argv_is_bare_subcommand() {
 }
 
 #[test]
-fn build_codex_app_server_argv_keeps_model_variant_overrides() {
+fn build_codex_app_server_argv_keeps_gpt_5_6_max_overrides() {
     let profile = app_server_profile(&ModelType::Codex, Some("app-server"));
     let cmd = build_command_with_launch_profile(CliCommandBuildRequest {
         agent: &ModelType::Codex,
         launch_profile: &profile,
-        model: Some("gpt-5.4-medium-fast"),
+        model: Some("gpt-5.6-sol-max-fast"),
         task: "write tests",
         resume_id: None,
         api_key: None,
@@ -504,9 +532,13 @@ fn build_codex_app_server_argv_keeps_model_variant_overrides() {
         additional_dirs: &[],
     });
     assert_eq!(cmd[1], "app-server");
-    assert!(cmd.contains(&"model_reasoning_effort=\"medium\"".to_string()));
+    assert!(cmd.contains(&"model_reasoning_effort=\"max\"".to_string()));
     assert!(cmd.contains(&"service_tier=\"priority\"".to_string()));
     // The base model itself goes via thread/start params, not argv.
     assert!(!cmd.iter().any(|arg| arg == "-m"));
-    assert!(!cmd.iter().any(|arg| arg == "gpt-5.4"));
+    assert!(!cmd.iter().any(|arg| arg == "gpt-5.6-sol"));
+    assert_eq!(
+        codex_app_server_thread_model(Some("gpt-5.6-sol-max-fast")),
+        Some("gpt-5.6-sol".to_string())
+    );
 }

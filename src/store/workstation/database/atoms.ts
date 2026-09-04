@@ -1,79 +1,14 @@
 /**
- * Database State Atoms
- *
- * Global state for database connections using Jotai.
- * Connections persist across component remounts.
+ * Database connection persistence helpers
  *
  * Persistence: Stores connection configs in localStorage so they can be
  * reopened on app restart. The actual database service instances are
  * recreated from configs.
- *
- * Architecture:
- * - DatabaseConnection: Runtime state for UI (tables, loading, etc.)
- * - DatabaseConnectionConfig: Persisted config (from types.ts)
- * - IDatabaseService: Service instances (managed by factory)
  */
-import { atom } from "jotai";
-import { atomWithStorage } from "jotai/utils";
-
-import type {
-  DatabaseConnectionConfig,
-  DatabaseType,
-  TableInfo,
-} from "@src/engines/DatabaseCore";
+import type { DatabaseConnectionConfig } from "@src/engines/DatabaseCore";
 import { createLogger } from "@src/hooks/logger";
 
 const log = createLogger("Database");
-
-// ============================================
-// Runtime Connection State (UI)
-// ============================================
-
-/**
- * Runtime state for a database connection
- * This is used by UI components for display and interaction
- */
-export interface DatabaseConnection {
-  /** Unique connection ID (matches config.id) */
-  id: string;
-  /** Display name */
-  name: string;
-  /** Database type */
-  type: DatabaseType;
-  /** File path (SQLite) or URL (remote) */
-  path: string;
-  /** Tables in the database */
-  tables: TableInfo[];
-  /** Whether tree is expanded in UI */
-  isExpanded: boolean;
-  /** Loading state */
-  isLoading: boolean;
-  /** Error message if any */
-  error?: string;
-}
-
-// ============================================
-// Pending Change Types (CRUD)
-// ============================================
-
-/** Types of pending changes */
-export type PendingChangeType = "insert" | "update" | "delete";
-
-/** A pending change to be applied on save */
-export interface PendingChange {
-  /** Unique ID for this change */
-  id: string;
-  /** Type of change */
-  type: PendingChangeType;
-  /** Row index in the current data (for display) */
-  rowIndex: number;
-  /** Original row data (for update/delete - used for WHERE clause) */
-  originalData?: Record<string, unknown>;
-  /** New row data (for insert/update) */
-  newData?: Record<string, unknown>;
-  /** Column that was changed (for single cell updates) */
-  changedColumn?: string;
-}
 
 // ============================================
 // Storage Keys
@@ -163,54 +98,6 @@ export function updateConnectionConfig(
 }
 
 // ============================================
-// Atoms
-// ============================================
-
-/** All open database connections (runtime state for UI) */
-export const databaseConnectionsAtom = atom<DatabaseConnection[]>([]);
-
-/** Currently loading state */
-export const databaseLoadingAtom = atom(false);
-
-/** Error state */
-export const databaseErrorAtom = atom<string | null>(null);
-
-/** Currently selected connection ID */
-export const activeConnectionIdAtom = atom<string | null>(null);
-
-/** Currently selected table name */
-export const selectedTableAtom = atom<string | null>(null);
-
-// ============================================
-// Derived Atoms
-// ============================================
-
-/** Get connection by ID */
-export const getConnectionByIdAtom = atom((get) => {
-  const connections = get(databaseConnectionsAtom);
-  return (id: string) => connections.find((conn) => conn.id === id);
-});
-
-/** Get all connection paths (for checking duplicates) */
-export const connectionPathsAtom = atom((get) => {
-  const connections = get(databaseConnectionsAtom);
-  return new Set(connections.map((conn) => conn.path));
-});
-
-/** Get the active connection */
-export const activeConnectionAtom = atom((get) => {
-  const connections = get(databaseConnectionsAtom);
-  const activeId = get(activeConnectionIdAtom);
-  return connections.find((conn) => conn.id === activeId) ?? null;
-});
-
-/** Get tables for the active connection */
-export const activeConnectionTablesAtom = atom((get) => {
-  const activeConnection = get(activeConnectionAtom);
-  return activeConnection?.tables ?? [];
-});
-
-// ============================================
 // Pending Changes Helper Functions
 // ============================================
 
@@ -218,73 +105,3 @@ export const activeConnectionTablesAtom = atom((get) => {
 export function generateChangeId(): string {
   return `change-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
-
-// ============================================
-// Query History Types
-// ============================================
-
-/** A query history item */
-export interface QueryHistoryItem {
-  /** The SQL query */
-  sql: string;
-  /** When the query was executed */
-  timestamp: number;
-  /** Query execution duration in ms */
-  duration: number;
-  /** Whether the query succeeded */
-  success: boolean;
-  /** Number of rows returned (for SELECT) */
-  rowCount?: number;
-  /** Error message if failed */
-  error?: string;
-}
-
-// ============================================
-// Query History Storage
-// ============================================
-
-const QUERY_HISTORY_KEY = "orgii:database-query-history";
-export const MAX_HISTORY_PER_CONNECTION = 50;
-
-// ============================================
-// Query History Atom (atomWithStorage)
-// ============================================
-
-type QueryHistoryMap = Record<string, QueryHistoryItem[]>;
-
-const queryHistoryStorage = {
-  getItem: (key: string, initialValue: QueryHistoryMap): QueryHistoryMap => {
-    try {
-      const stored = localStorage.getItem(key);
-      if (!stored) return initialValue;
-      const parsed = JSON.parse(stored) as unknown;
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        return initialValue;
-      }
-      return parsed as QueryHistoryMap;
-    } catch {
-      return initialValue;
-    }
-  },
-  setItem: (key: string, value: QueryHistoryMap): void => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (error) {
-      log.warn("Failed to persist query history:", error);
-    }
-  },
-  removeItem: (key: string): void => {
-    localStorage.removeItem(key);
-  },
-};
-
-/**
- * Persisted query history atom keyed by connectionId.
- * Each connection stores up to MAX_HISTORY_PER_CONNECTION entries (most recent first).
- */
-export const queryHistoryAtom = atomWithStorage<QueryHistoryMap>(
-  QUERY_HISTORY_KEY,
-  {},
-  queryHistoryStorage
-);
-queryHistoryAtom.debugLabel = "queryHistoryAtom";

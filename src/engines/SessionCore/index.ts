@@ -24,7 +24,7 @@
  *   // State
  *   eventsAtom, currentEventAtom,
  *   // Workspace state
- *   useWorkspaceSession, sessionShowAtom,
+ *   useRepositoryInfo, sessionShowAtom,
  *   // UI components
  *   ShellEvent, TerminalBlock,
  *   // Adapters
@@ -197,41 +197,23 @@ export {
 // ============================================
 
 // Store hooks (main entry point)
-export {
-  useCurrentEvent,
-  useEventNavigation,
-  useReplayBar,
-  useSessionStore,
-  useSimulatorEvents,
-} from "./hooks/useSessionStore";
+export { useEventNavigation } from "./hooks/useEventNavigation";
 
 // Per-session live streaming delta selector (avoids whole-Map subscriptions)
 export { useStreamingDeltaForSession } from "./hooks/useStreamingDeltaForSession";
 export { useCanvasRevisionDraftForSession } from "./hooks/useCanvasRevisionDraftForSession";
 
 // Session management (hooks/session/) — imported per-file to avoid barrel circularity
-export { useSessionManager } from "./hooks/session/useSessionManager";
 export { useSessionDiscovery } from "./hooks/session/useSessionDiscovery";
 export { useSessionCreator } from "./hooks/session/useSessionCreator";
 
 export type { UseSessionCreatorReturn } from "./hooks/session/useSessionCreator/types";
 
 // Replay & navigation (hooks/replay/)
-export {
-  useReplayBarState,
-  useReplayState,
-  useReplayTime,
-  useStepState,
-  useRecentFiles,
-  useRecentFilesForEvent,
-  usePlanningIndicator,
-} from "./hooks/replay";
+export { useStepState, usePlanningIndicator } from "./hooks/replay";
 
 export type {
-  UseReplayStateReturn,
-  WpTimeRange,
   UseStepStateReturn,
-  UseRecentFilesReturn,
   PlanningIndicatorState,
 } from "./hooks/replay";
 
@@ -283,23 +265,12 @@ export { sqliteCache } from "./storage/sqliteCache";
 // ============================================
 
 // Workspace atoms - Only externally-used atoms are exported
-// Use hooks for others: useWorkspaceSession(), useWorkspaceUI(), etc.
+// Use focused workspace hooks for other state.
 export { repoPathAtom, isExploringAtom } from "./workspace/atoms";
 
 // Workspace hooks (replace useSessionContext, useUIContext)
 // Note: For chat UI state, use useChatContext from contexts/workspace/ChatContext
-export {
-  // Session state (replaces useSessionContext)
-  useWorkspaceSession,
-  useSessionShow,
-  useTaskStatus,
-  useRepositoryInfo,
-  // UI state (replaces useUIContext)
-  useWorkspaceUI,
-  useCenterTab,
-  usePageLoading,
-  useActiveView,
-} from "./workspace/hooks";
+export { useRepositoryInfo } from "./workspace/hooks";
 
 // ============================================
 // Session Service (singleton operations API)

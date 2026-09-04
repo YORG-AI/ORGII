@@ -18,7 +18,6 @@ import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
-import { RecentFilesProvider } from "@src/contexts/session";
 import { replayModeAtom } from "@src/engines/SessionCore";
 import type { ReplayMode } from "@src/engines/SessionCore/core/types";
 import { chatVisibleAtom } from "@src/store/ui/chatPanelAtom";
@@ -262,74 +261,72 @@ const ActivitySimulator: React.FC = memo(() => {
   }
 
   return (
-    <RecentFilesProvider maxFiles={5}>
-      <div className="wp__sync__operation__container flex h-full w-full min-w-0 flex-col">
-        <div className="tab-content relative min-h-0 min-w-0 flex-1 overflow-hidden">
-          <div className="flex h-full w-full flex-col overflow-hidden">
-            <div className="relative flex min-h-0 flex-1 flex-row overflow-hidden">
-              <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                {hasActiveSubagents ? (
-                  /* Split view: main agent (top) + subagent banner (bottom) */
-                  <SubagentPipCard
-                    mainContent={<ActivitySimulatorGrid {...splitGridProps} />}
-                    activeSessions={activeSubagents}
-                    mainCursorMs={mainCursorMs}
-                    liveFollow={replayMode === "follow"}
+    <div className="wp__sync__operation__container flex h-full w-full min-w-0 flex-col">
+      <div className="tab-content relative min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div className="flex h-full w-full flex-col overflow-hidden">
+          <div className="relative flex min-h-0 flex-1 flex-row overflow-hidden">
+            <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+              {hasActiveSubagents ? (
+                /* Split view: main agent (top) + subagent banner (bottom) */
+                <SubagentPipCard
+                  mainContent={<ActivitySimulatorGrid {...splitGridProps} />}
+                  activeSessions={activeSubagents}
+                  mainCursorMs={mainCursorMs}
+                  liveFollow={replayMode === "follow"}
+                />
+              ) : (
+                <ActivitySimulatorGrid {...gridProps} />
+              )}
+
+              {showFloatingInputOverlay && (
+                <div
+                  className={`pointer-events-none absolute inset-0 z-25 flex flex-col justify-end p-3 sm:p-4 ${floatingDockComposerAlignClass}`}
+                >
+                  <SimulatorFloatingInput />
+                </div>
+              )}
+
+              {showReplayBar && showMiniCPMStepExplanation && (
+                <div className="pointer-events-none absolute right-3 bottom-16 left-3 z-26 flex justify-center sm:right-6 sm:left-6">
+                  <MiniCPMStepExplanationPanel
+                    onClose={() => setShowMiniCPMStepExplanation(false)}
                   />
-                ) : (
-                  <ActivitySimulatorGrid {...gridProps} />
-                )}
-
-                {showFloatingInputOverlay && (
-                  <div
-                    className={`pointer-events-none absolute inset-0 z-25 flex flex-col justify-end p-3 sm:p-4 ${floatingDockComposerAlignClass}`}
-                  >
-                    <SimulatorFloatingInput />
-                  </div>
-                )}
-
-                {showReplayBar && showMiniCPMStepExplanation && (
-                  <div className="pointer-events-none absolute right-3 bottom-16 left-3 z-26 flex justify-center sm:right-6 sm:left-6">
-                    <MiniCPMStepExplanationPanel
-                      onClose={() => setShowMiniCPMStepExplanation(false)}
-                    />
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-
-            {/* ── Dock (replay bar + app icons) ── */}
-            {showDock && (
-              <div className="flex shrink-0 flex-col overflow-visible">
-                {showReplayBar && (
-                  <div className="overflow-visible border-t border-border-2">
-                    <MusicPlayerReplayBar />
-                  </div>
-                )}
-                <StationDockChrome autoHide={false}>
-                  <DockReplayControl
-                    activeApp={dockActiveApp}
-                    currentWorkingApp={currentWorkingApp}
-                    showDock={showDock}
-                    onAppClick={handleDockAppClick}
-                    onAppContextMenu={handleDockAppContextMenu}
-                  />
-                </StationDockChrome>
-              </div>
-            )}
           </div>
-        </div>
 
-        <DockContextMenu
-          visible={contextMenu.visible}
-          position={contextMenu.position}
-          targetApp={contextMenu.targetApp}
-          activeAppType={dockActiveApp ?? undefined}
-          onSwitchTo={handleSwitchTo}
-          onClose={closeContextMenu}
-        />
+          {/* ── Dock (replay bar + app icons) ── */}
+          {showDock && (
+            <div className="flex shrink-0 flex-col overflow-visible">
+              {showReplayBar && (
+                <div className="overflow-visible border-t border-border-2">
+                  <MusicPlayerReplayBar />
+                </div>
+              )}
+              <StationDockChrome autoHide={false}>
+                <DockReplayControl
+                  activeApp={dockActiveApp}
+                  currentWorkingApp={currentWorkingApp}
+                  showDock={showDock}
+                  onAppClick={handleDockAppClick}
+                  onAppContextMenu={handleDockAppContextMenu}
+                />
+              </StationDockChrome>
+            </div>
+          )}
+        </div>
       </div>
-    </RecentFilesProvider>
+
+      <DockContextMenu
+        visible={contextMenu.visible}
+        position={contextMenu.position}
+        targetApp={contextMenu.targetApp}
+        activeAppType={dockActiveApp ?? undefined}
+        onSwitchTo={handleSwitchTo}
+        onClose={closeContextMenu}
+      />
+    </div>
   );
 });
 

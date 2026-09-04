@@ -271,8 +271,6 @@ const WorkItemsSettings: React.FC<WorkItemsSettingsProps> = ({
     <div className="flex h-full flex-col overflow-hidden">
       <SplitViewLayout
         className="min-h-0 flex-1 overflow-hidden"
-        resizable={true}
-        collapsible={true}
         hideBreadcrumbWhenSidebarCollapsed={true}
         mainContentClassName=""
         listPanelBackgroundClassName=""

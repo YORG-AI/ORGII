@@ -9,6 +9,7 @@
  *
  * - `AGENT_SESSION_ACTIONS`    — top-level agent/session entry points.
  * - `WORKSPACE_ACTIONS`        — workspace / repo switching and management.
+ * - `ORGANIZATION_ACTIONS`     — organization create / join entry points.
  * - `STATION_MODE_ACTIONS`     — my-station / agent-station / kanban switchers.
  * - `APP_ACTIONS`              — app-level actions (update detection, etc).
  * - `EDITOR_ACTIONS`           — editor palette modes (file / command / symbol).
@@ -17,6 +18,7 @@
 import { ACTION_ID } from "@src/ActionSystem";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import {
+  Add01Icon,
   AiGenerativeIcon,
   DeliveryBox01Icon,
   DockIcon,
@@ -26,6 +28,7 @@ import {
   GitPullRequestIcon,
   type IconSvgElement,
   KanbanIcon,
+  Login01Icon,
   MessageAdd02Icon,
   PencilEdit02Icon,
   Refresh04Icon,
@@ -237,6 +240,44 @@ export const WORKSPACE_ACTIONS = [
     actionId: ACTION_ID.SPOTLIGHT_OPEN_WORKSPACE_PICKER,
     payload: { mode: "create" },
     fallback: "workspace-create",
+    opensSecondLevel: true,
+    closeOnSuccess: false,
+  },
+] satisfies SpotlightStaticActionDefinition[];
+
+export const ORGANIZATION_ACTIONS = [
+  {
+    id: "create-organization",
+    labelKey: "selectors.spotlight.actions.createOrganization.label",
+    icon: Add01Icon,
+    keywords: [
+      "create organization",
+      "create org",
+      "new organization",
+      "new org",
+      "add organization",
+      "add org",
+    ],
+    actionId: ACTION_ID.SPOTLIGHT_OPEN_COLLAB_ORG,
+    payload: { mode: "create" },
+    fallback: "organization-create",
+    opensSecondLevel: true,
+    closeOnSuccess: false,
+  },
+  {
+    id: "join-organization",
+    labelKey: "selectors.spotlight.actions.joinOrganization.label",
+    icon: Login01Icon,
+    keywords: [
+      "join organization",
+      "join org",
+      "organization invite",
+      "org invite",
+      "invite code",
+    ],
+    actionId: ACTION_ID.SPOTLIGHT_OPEN_COLLAB_ORG,
+    payload: { source: "cloud", mode: "join" },
+    fallback: "organization-join",
     opensSecondLevel: true,
     closeOnSuccess: false,
   },

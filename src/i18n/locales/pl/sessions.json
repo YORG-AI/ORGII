@@ -88,12 +88,6 @@
       "openAsFloatingPane": "Otwórz jako pływający panel"
     },
     "sessions": "Sesje",
-    "fileSearch": {
-      "placeholder": "Szukaj sesji według ścieżki pliku",
-      "noResults": "Żadna sesja nie zmieniła pasującego pliku"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "Bieżący Kanban",
     "view": {
       "list": "Lista",
       "diary": "Dziennik",
@@ -364,9 +358,6 @@
       "discard": "Odrzuć",
       "discarding": "Odrzucanie…",
       "confirmMessage": "Odrzucić wszystkie zmiany w tym Worktree? Tej operacji nie można cofnąć."
-    },
-    "replay": {
-      "replaySession": "Powtórz"
     },
     "diary": {
       "title": "Dziennik",
@@ -888,6 +879,8 @@
       "positionUp": "Góra",
       "positionDown": "Dół",
       "uiControls": "Elementy interfejsu",
+      "showQuickActions": "Pokaż szybkie akcje",
+      "showSkills": "Pokaż Skills",
       "showCliUpdate": "Pokaż aktualizacje CLI",
       "title": "Co chcesz zrobić?",
       "back": "Wróć do strony startowej",
@@ -999,6 +992,7 @@
     "fullScreenChat": "Skup panel czatu (ukryj Workstation)",
     "maximizeChatPanel": "Maksymalizuj panel czatu",
     "showWorkstation": "Pokaż Workstation",
+    "workstationUnavailableForPage": "Workstation jest niedostępny na tej stronie",
     "hideWorkstation": "Ukryj Workstation",
     "restoreSplitView": "Pokaż Workstation",
     "shrinkToWorkstation": "Zmniejsz panel czatu (pokaż Workstation)",
@@ -1116,7 +1110,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~pozostało {{eta}}",
     "rateLimitHintTitle": "Limit API osiągnięty",
-    "rateLimitHintBody": "Bieżący model osiągnął limit szybkości. Możesz przełączyć się do innego okna i pracować dalej podczas oczekiwania.",
+    "rateLimitHintBody": "Bieżący model osiągnął limit szybkości. Możesz przełączyć się do innego okna i pracować dalej podczas oczekiwania",
     "feedbackPending": "Opinia oczekująca",
     "executionThreads": "Wątki wykonania",
     "allThreads": "Wszystkie",

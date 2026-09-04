@@ -11,4 +11,5 @@ sidecar/**/build/
 # Misc
 *.log
 *.tmp
+*.sqlite3
 .DS_Store

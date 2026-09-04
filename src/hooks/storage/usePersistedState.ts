@@ -216,7 +216,7 @@ export function usePersistedState<T>(
           })
         );
       } catch (error) {
-        log.warn(`[usePersistedState] Failed to write "${key}":`, error);
+        log.warn(`Failed to write "${key}":`, error);
       }
     },
     [key, componentId]

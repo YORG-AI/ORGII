@@ -39,7 +39,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@src/api/tauri/mobileRemote", () => ({
-  default: {
+  mobileRemoteApi: {
     getRelayStatus: vi.fn(),
     pairComplete: mocks.pairComplete,
     pairInit: mocks.pairInit,

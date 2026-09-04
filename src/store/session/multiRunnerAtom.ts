@@ -26,11 +26,14 @@ import {
   canAddRunner,
   createRunner,
 } from "@src/features/SessionCreator/multiRunner/contract";
+import { createLogger } from "@src/hooks/logger";
 import type { OrgMemberRuntimeConfig } from "@src/modules/MainApp/AgentOrgs/types";
 import type { AgentSelection } from "@src/scaffold/GlobalSpotlight/palettes/DispatchCategoryPalette";
 import { createZodJsonStorage } from "@src/util/core/storage/zodStorage";
 
 import { saveDraft, sessionCreatorDraftAtom } from "./creatorDraftAtom";
+
+const log = createLogger("multiRunner");
 
 export const MULTI_RUNNER_STORAGE_KEY = "orgii:multiRunner:v1";
 
@@ -68,7 +71,7 @@ const StoredRunnersSchema: z.ZodType<Runner[]> = z
     rows.flatMap((row) => {
       const parsed = RunnerSchema.safeParse(row);
       if (!parsed.success) {
-        console.warn("[multiRunner] dropped malformed stored runner", row);
+        log.warn("dropped malformed stored runner", row);
         return [];
       }
       return [parsed.data];
@@ -82,7 +85,7 @@ export const sessionCreatorRunnersAtom = atomWithStorage<Runner[]>(
   [],
   createZodJsonStorage(StoredRunnersSchema, {
     onInvalid: (key, _rawValue, error) => {
-      console.warn(`[multiRunner] invalid stored payload for ${key}`, error);
+      log.warn(`invalid stored payload for ${key}`, error);
     },
   }),
   { getOnInit: true }

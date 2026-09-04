@@ -1,5 +1,4 @@
 import type { ReactNode, RefObject } from "react";
-import { useCallback, useRef } from "react";
 
 import ComposerSurface from "@src/components/ComposerSurface";
 import Input from "@src/components/Input";
@@ -83,7 +82,6 @@ export function CreateComposerPinnedActions({
 export interface ManualCreateEditorRef {
   insertFilePill: (filePath: string, displayName?: string) => void;
   triggerAtMention: () => void;
-  triggerSlashContext: () => void;
 }
 
 export interface ManualCreateComposerProps {
@@ -107,17 +105,6 @@ export function ManualCreateComposer({
   pills,
   submitButton,
 }: ManualCreateComposerProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const handleFilesSelected = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      Array.from(event.target.files ?? []).forEach((file) => {
-        editorRef.current?.insertFilePill(file.name, file.name);
-      });
-      event.target.value = "";
-    },
-    [editorRef]
-  );
-
   return (
     <div
       className={`session-creator-chat-panel-wrapper ${CHAT_PANEL_WIDTH_TOKENS.headerWidth} w-full shrink-0 ${COMPOSER_HORIZONTAL_GUTTER_CLASS}`}
@@ -134,9 +121,6 @@ export function ManualCreateComposer({
           <ComposerSurface
             className="session-creator-chat-panel-fullscreen-input-shell relative z-2 pt-1.5!"
             onAddContent={() => editorRef.current?.triggerAtMention()}
-            onUpload={() => fileInputRef.current?.click()}
-            onOpenSkillsTools={() => editorRef.current?.triggerSlashContext()}
-            dropdownDirection="up"
             showContextInfo={false}
             pills={pills}
             trailingActions={submitButton}
@@ -144,15 +128,6 @@ export function ManualCreateComposer({
             {headerContent}
             <div className="min-h-0 px-1.5">{editorContent}</div>
           </ComposerSurface>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={handleFilesSelected}
-            tabIndex={-1}
-            aria-hidden
-          />
         </div>
       </div>
     </div>

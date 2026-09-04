@@ -26,12 +26,15 @@ import {
   normalizeChannelName,
   validateChannelName,
 } from "@src/features/DiscussionChannels/channelContract";
+import { createLogger } from "@src/hooks/logger";
 import { createZodJsonStorage } from "@src/util/core/storage/zodStorage";
 
 import {
   purgeLocalChannelMessagesAtom,
   purgeOrphanedLocalChannelMessagesAtom,
 } from "./localChannelMessagesAtom";
+
+const log = createLogger("localChannels");
 
 /** Colon-style key (codebase convention); the dot-style original is adopted below. */
 export const LOCAL_CHANNELS_STORAGE_KEY = "orgii:localChannels:v1";
@@ -80,7 +83,7 @@ const StoredLocalChannelsSchema: z.ZodType<LocalChannel[]> = z
         // A silent per-row drop becomes permanent on the next whole-list
         // write; leave a trace so a schema change that sheds user data is
         // diagnosable instead of invisible.
-        console.warn("[localChannels] dropped malformed stored row", row);
+        log.warn("dropped malformed stored row", row);
         return [];
       }
       return [parsed.data];
@@ -112,7 +115,7 @@ export const localChannelsAtom = atomWithStorage<LocalChannel[]>(
   createZodJsonStorage(StoredLocalChannelsSchema, {
     onInvalid: (key, _rawValue, error) => {
       localChannelRegistryHydrationDegraded = true;
-      console.warn(`[localChannels] invalid stored payload for ${key}`, error);
+      log.warn(`invalid stored payload for ${key}`, error);
     },
   }),
   { getOnInit: true }
@@ -419,9 +422,7 @@ deleteLocalChannelAtom.debugLabel = "deleteLocalChannelAtom";
  */
 export const reconcileLocalChannelMessagesAtom = atom(null, (get, set) => {
   if (localChannelRegistryHydrationDegraded) {
-    console.warn(
-      "[localChannels] skipping orphan sweep: registry hydration was degraded"
-    );
+    log.warn("skipping orphan sweep: registry hydration was degraded");
     return { removed: 0, orphanedChannelIds: [] as string[] };
   }
   return set(

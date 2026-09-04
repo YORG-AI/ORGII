@@ -84,6 +84,7 @@ import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/typ
 import { loadSidebarSessionById, removeSession } from "@src/store/session";
 import { copyText } from "@src/util/data/clipboard";
 
+import type { SidebarTabDisposition } from "../sidebarTabNavigation";
 import {
   CLOUD_SESSION_SECTION_PAGE_SIZE,
   CLOUD_TEAM_SESSIONS_LOAD_MORE_ID,
@@ -362,7 +363,7 @@ export function useCloudSessionsSection({
   const openTeamSessionAtDestination = useCallback(
     (
       row: RemoteTeammateSessionMetadata,
-      destination: "new-tab" | "my-station"
+      destination: SidebarTabDisposition | "my-station" | "new-window"
     ) => {
       const openLocalSession = (sessionId: string) => {
         openSessionAtDestination(destination, {
@@ -486,7 +487,7 @@ export function useCloudSessionsSection({
   });
 
   const handleCloudSessionItemClick = useCallback(
-    (item: NavigationMenuItem): boolean => {
+    (item: NavigationMenuItem, disposition: SidebarTabDisposition): boolean => {
       if (item.id === CLOUD_TEAM_SESSIONS_LOAD_MORE_ID) {
         setTeamPagination((current) => ({
           scopeKey: teamPaginationScopeKey,
@@ -512,10 +513,7 @@ export function useCloudSessionsSection({
         row.ownerUserId === selfUserId &&
         localOwnSessionIds.has(row.sourceSessionId)
       ) {
-        openOrReplaceSessionTab({
-          sessionId: row.sourceSessionId,
-          sessionName: row.title,
-        });
+        openTeamSessionAtDestination(row, disposition);
         return true;
       }
       // A row already downloading refocuses its tab instead of a dead click;
@@ -523,22 +521,18 @@ export function useCloudSessionsSection({
       const busy = busySessionRows.get(row.id);
       if (busy) {
         if (busy.kind === "replay" && busy.localSessionId) {
-          openOrReplaceSessionTab({
-            sessionId: busy.localSessionId,
-            sessionName: row.title,
-          });
+          openTeamSessionAtDestination(row, disposition);
         }
         return true;
       }
-      runReplay(row);
+      openTeamSessionAtDestination(row, disposition);
       return true;
     },
     [
       busySessionRows,
       findRow,
       localOwnSessionIds,
-      openOrReplaceSessionTab,
-      runReplay,
+      openTeamSessionAtDestination,
       selfUserId,
       teamPaginationScopeKey,
     ]
@@ -598,6 +592,10 @@ export function useCloudSessionsSection({
       return buildCloudSessionNativeMenuItems({
         labels: {
           openInNewTab: tCommon("actions.openInNewTab", "Open in New Tab"),
+          openInNewWindow: tCommon(
+            "actions.openInNewWindow",
+            "Open in New Window"
+          ),
           openInMyStation: tSessions(
             "controlTower.sidebar.openInMyStation",
             "Open in My Station"
@@ -609,6 +607,8 @@ export function useCloudSessionsSection({
           remove: tCommon("actions.remove", "Remove"),
         },
         onOpenInNewTab: () => openTeamSessionAtDestination(row, "new-tab"),
+        onOpenInNewWindow: () =>
+          openTeamSessionAtDestination(row, "new-window"),
         onOpenInMyStation: () =>
           openTeamSessionAtDestination(row, "my-station"),
         onCopyUrl: () => {
@@ -649,6 +649,9 @@ export function useCloudSessionsSection({
   const buildRowItem = useCloudSessionRowItemBuilder({
     presenceMap,
     selfUserId,
+    sessions,
+    localOwnSessionIds,
+    sourceEndpointUrl: auth?.supabaseUrl,
     t,
     tCommon,
     runFork,

@@ -4,7 +4,6 @@
  * Pure async search functions for each context-menu layer type.
  * Extracted from useContextMenu to keep the hook file under 600 lines.
  */
-import { projectApi } from "@src/api/http/project";
 import { createLogger } from "@src/hooks/logger";
 import { STYLE_CONFIG } from "@src/scaffold/ContextMenu/config";
 import type { SearchResultItem } from "@src/scaffold/ContextMenu/types";
@@ -93,99 +92,4 @@ export function searchSessions(
       userInput: session.user_input,
     };
   });
-}
-
-// ── Projects (with drill-down support) ───────────────────────────────────────
-
-export interface DrilledProject {
-  slug: string;
-  name: string;
-}
-
-export async function searchProjects(
-  query: string,
-  _effectiveRepoPath: string,
-  drilledProject: DrilledProject | null
-): Promise<SearchResultItem[]> {
-  const lowerQuery = query.trim().toLowerCase();
-
-  if (drilledProject) {
-    const allItems: SearchResultItem[] = [];
-    const projectDisplayName = drilledProject.name.replace(/^🧑 /, "");
-    const matchesProjectSelf =
-      !lowerQuery || projectDisplayName.toLowerCase().includes(lowerQuery);
-
-    if (matchesProjectSelf) {
-      allItems.push({
-        type: "folder" as const,
-        path: drilledProject.slug,
-        name: drilledProject.name,
-        iconType: "project" as const,
-      });
-    }
-
-    try {
-      const workItems = await projectApi.readWorkItems(drilledProject.slug);
-      for (const item of workItems) {
-        const itemLabel = `${item.frontmatter.short_id}: ${item.frontmatter.title}`;
-        const matchesItem =
-          !lowerQuery ||
-          itemLabel.toLowerCase().includes(lowerQuery) ||
-          item.frontmatter.status.toLowerCase().includes(lowerQuery);
-        if (matchesItem) {
-          allItems.push({
-            type: "file" as const,
-            path: `${drilledProject.slug}/${item.frontmatter.short_id}`,
-            name: itemLabel,
-            iconType: "workitem" as const,
-          });
-        }
-      }
-    } catch (_err) {
-      // Work items may not exist for this project
-    }
-
-    return allItems;
-  }
-
-  // Not drilled — show project list
-  const allItems: SearchResultItem[] = [];
-  const personalSlugs = new Set<string>();
-
-  try {
-    const personalPath = await projectApi.personalWorkspace();
-    const personalProjects = await projectApi.readProjects();
-    for (const project of personalProjects) {
-      if (project.meta.linked_repos.includes(personalPath)) {
-        personalSlugs.add(project.slug);
-      }
-    }
-  } catch (_err) {
-    // Personal workspace may not exist
-  }
-
-  let projects: Awaited<ReturnType<typeof projectApi.readProjects>> = [];
-  try {
-    projects = await projectApi.readProjects();
-  } catch (_err) {
-    // Repo may have no projects
-  }
-
-  for (const project of projects) {
-    const projectName = project.meta.name || project.slug;
-    const isPersonal = personalSlugs.has(project.slug);
-    const displayName = isPersonal ? `🧑 ${projectName}` : projectName;
-    const matchesProject =
-      !lowerQuery || projectName.toLowerCase().includes(lowerQuery);
-    if (matchesProject) {
-      allItems.push({
-        type: "folder" as const,
-        path: project.slug,
-        name: displayName,
-        iconType: "project" as const,
-      });
-    }
-  }
-
-  return allItems;
 }

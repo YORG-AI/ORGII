@@ -23,7 +23,7 @@ describe("mobile remote browser boundary", () => {
     // Mobile may reuse the explicitly listed pure header/config leaves. Keep
     // the barrel and every stateful/renderer block outside the browser graph.
     const browserSafePrimitive =
-      "primitives/(?:EventBlockHeader|EventBlockHeaderTextSlots|EventNavigateIcon|config|inSimulatorReplayContext|types)\\.(?:ts|tsx)$";
+      "primitives/(?:EventBlockHeader|EventBlockHeaderIcon|EventBlockHeaderTextSlots|EventNavigateIcon|config|inSimulatorReplayContext|types|useStrokeDraw)\\.(?:ts|tsx)$";
     const desktopOnlyModules = reachableFilesMatching(
       graph,
       new RegExp(

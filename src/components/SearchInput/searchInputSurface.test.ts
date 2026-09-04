@@ -21,4 +21,20 @@ describe("SearchInput surfaces", () => {
     expect(markup).toContain("bg-transparent!");
     expect(markup).toContain("border-border-2");
   });
+
+  it("supports a ghost surface that restores the normal field on focus", () => {
+    const markup = renderToStaticMarkup(
+      createElement(SearchInput, {
+        value: "is:pr is:open",
+        onChange: vi.fn(),
+        surface: "ghost",
+      })
+    );
+
+    expect(markup).toContain("border-0!");
+    expect(markup).toContain("bg-transparent!");
+    expect(markup).toContain("focus-within:border!");
+    expect(markup).toContain("focus-within:border-primary-6!");
+    expect(markup).toContain("focus-within:bg-pane-input!");
+  });
 });

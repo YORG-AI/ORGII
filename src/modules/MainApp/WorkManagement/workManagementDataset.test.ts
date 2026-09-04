@@ -26,6 +26,12 @@ describe("resolveWorkManagementDataset", () => {
     ).toBe(WORK_MANAGEMENT_DATASET.WORK_ITEMS);
     expect(
       resolveWorkManagementDataset({
+        section: WORK_MANAGEMENT_SECTION.INBOX,
+        projectsView: WORK_MANAGEMENT_PROJECTS_VIEW.PROJECTS,
+      })
+    ).toBe(WORK_MANAGEMENT_DATASET.INBOX);
+    expect(
+      resolveWorkManagementDataset({
         section: WORK_MANAGEMENT_SECTION.GITHUB_ISSUES,
         projectsView: WORK_MANAGEMENT_PROJECTS_VIEW.PROJECTS,
       })

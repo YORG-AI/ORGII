@@ -117,7 +117,6 @@ const InlineThinkingBlock: React.FC<{ content: string }> = ({ content }) => {
 interface ChatVariantProps {
   content?: string;
   thinkingContent?: string | null;
-  itemIndex?: number;
   isStreaming?: boolean;
   sessionId?: string | null;
   llmUsage?: UniversalEventProps["llmUsage"];
@@ -128,7 +127,6 @@ interface ChatVariantProps {
 const ChatVariant: React.FC<ChatVariantProps> = ({
   content,
   thinkingContent,
-  itemIndex = 0,
   isStreaming = false,
   sessionId,
   llmUsage,
@@ -172,12 +170,7 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
             llmUsage ? <LlmUsageBadge usage={llmUsage} /> : undefined
           }
         >
-          <AgentChatItemDefault
-            itemIndex={itemIndex}
-            expand={true}
-            finish={!isStreaming}
-            streamHtml={isStreaming}
-          >
+          <AgentChatItemDefault streamHtml={isStreaming}>
             {content || ""}
           </AgentChatItemDefault>
         </AgentMessageBlock>
@@ -311,7 +304,6 @@ export const AgentMessageEvent: React.FC<AgentMessageEventProps> = (props) => {
       <ChatVariant
         content={content}
         thinkingContent={thinkingContent}
-        itemIndex={props.itemIndex}
         isStreaming={props.isStreaming}
         sessionId={sessionId}
         llmUsage={normalizedProps?.llmUsage}

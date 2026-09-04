@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { shouldShowTurnPaginationSpinner } from "../TurnPaginationControls";
+import { shouldShowTurnPaginationSpinner } from "@src/components/TurnNavigationToolbar";
 
 describe("shouldShowTurnPaginationSpinner", () => {
   it("does not animate a stable empty session", () => {

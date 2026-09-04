@@ -70,7 +70,6 @@ export function ChatViewPostHistoryOverlays({
                 sessionScope="none"
                 onSubmitOverride={onSubmitOverride}
                 topRowTrailingContent={externalScrollToBottomButton}
-                bottomAnchored
               />
             </ChatSessionContext.Provider>
           </div>

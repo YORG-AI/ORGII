@@ -21,7 +21,7 @@ impl RelayConfig {
             .map_err(|err| format!("invalid ORGII_RELAY_LISTEN: {err}"))?;
         let database_path = std::env::var_os("ORGII_RELAY_DATABASE")
             .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("orgii-mobile-relay.sqlite3"));
+            .unwrap_or_else(default_database_path);
         let desktop_token = std::env::var("ORGII_RELAY_DESKTOP_TOKEN")
             .map_err(|_| "ORGII_RELAY_DESKTOP_TOKEN is required".to_string())?;
         if desktop_token.trim().len() < 24 {
@@ -47,6 +47,18 @@ impl RelayConfig {
             pairing_ttl_seconds: 120,
         })
     }
+}
+
+/// Keep relay runtime state out of the repo tree (and out of `src-tauri/` where
+/// Tauri dev watches for changes). Pairing completion writes to this file.
+fn default_database_path() -> PathBuf {
+    if let Some(home) = std::env::var_os("ORGII_HOME") {
+        return PathBuf::from(home).join("mobile-relay.sqlite3");
+    }
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(|home| PathBuf::from(home).join(".orgii").join("mobile-relay.sqlite3"))
+        .unwrap_or_else(|| PathBuf::from("orgii-mobile-relay.sqlite3"))
 }
 
 fn default_public_app_url(public_ws_url: &str) -> Result<String, String> {
@@ -102,6 +114,29 @@ mod tests {
         assert!(validate_public_ws_url("wss://[").is_err());
         assert!(validate_public_ws_url("wss://relay.example.com/path#secret").is_err());
         assert!(validate_public_ws_url("wss://relay.example.com/v1/mobile/ws").is_ok());
+    }
+
+    #[test]
+    fn default_database_path_uses_orgii_data_root_when_home_is_available() {
+        let path = default_database_path();
+        assert_eq!(
+            path.file_name().and_then(|name| name.to_str()),
+            Some("mobile-relay.sqlite3")
+        );
+        if std::env::var_os("ORGII_HOME").is_some() {
+            return;
+        }
+        if std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .is_some()
+        {
+            let parent = path.parent().expect("parent directory");
+            assert!(
+                parent.ends_with(".orgii"),
+                "expected ~/.orgii, got {}",
+                parent.display()
+            );
+        }
     }
 
     #[test]
