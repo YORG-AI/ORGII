@@ -14,10 +14,10 @@
  * {@link activeWorkstationTabHeaderAtom}. Apps can declaratively publish typed
  * slots; older pane-level publishers are normalized into the content slot.
  *
- * When the active app has nothing to publish (e.g. a tab with no header),
- * the strip still renders so the row height is stable across tab switches.
- * A split surface can explicitly move this chrome into its left column and
- * hide the shell-wide strip.
+ * When a regular app has nothing to publish, the strip still renders so the
+ * row height is stable across tab switches. The Launchpad omits the unused
+ * strip entirely. A split surface can explicitly move this chrome into its
+ * left column and hide the shell-wide strip.
  */
 import { useAtomValue } from "jotai";
 import React, { memo } from "react";
@@ -51,16 +51,9 @@ const WorkstationTabHeader: React.FC = memo(() => {
 
   if (headerSlots?.hidden) return null;
 
-  // Launchpad: keep the strip for stable row height but render it empty —
-  // no sidebar toggle, no search/lab actions, nothing to publish.
-  if (activeTab?.type === "start") {
-    return (
-      <div
-        className="flex h-9 shrink-0 items-center border-b border-border-2"
-        data-tauri-drag-region={windowsHost ? undefined : true}
-      />
-    );
-  }
+  // The Launchpad has no header controls, so it should not reserve an empty
+  // 36px row below the tab bar.
+  if (activeTab?.type === "start") return null;
 
   return (
     <div
