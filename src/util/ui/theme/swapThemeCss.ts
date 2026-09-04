@@ -7,6 +7,7 @@
  * loading, creating a mixed light/dark state. This utility avoids that
  * by keeping the old CSS active until the new one is fully loaded.
  */
+import { syncMacosRootTint } from "@src/util/platform/macosRootTint";
 import { isWindows } from "@src/util/platform/tauri";
 
 import { applySkinTokensForVariant } from "./applySkinTokens";
@@ -52,6 +53,9 @@ export function syncThemeAppearance(cssPath: string): void {
   root.dataset.themeId = colorScheme;
   root.style.colorScheme = colorScheme;
   applySkinTokensForVariant(colorScheme);
+  // The base stylesheet changed `--color-bg-2`; re-measure the root tint the
+  // native macOS layer mirrors (no-op off macOS).
+  void syncMacosRootTint();
 
   if (!isWindows()) return;
 

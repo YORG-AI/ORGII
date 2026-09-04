@@ -22,6 +22,7 @@ import { resolveAppliedSkinTokens } from "@src/config/appearance/skins/appliedTo
 import { SKIN_TOKEN_KEYS } from "@src/config/appearance/skins/deriveSkinTokens";
 import { resolveSkinId } from "@src/config/appearance/skins/registry";
 import type { SkinVariant } from "@src/config/appearance/skins/types";
+import { syncMacosRootTint } from "@src/util/platform/macosRootTint";
 
 /**
  * Mirror of the user's skin and accent selection, kept in `localStorage` so
@@ -74,6 +75,9 @@ export function writeSkinTokens(tokens: Record<string, string>): void {
     if (value === undefined) body.style.removeProperty(key);
     else body.style.setProperty(key, value);
   }
+  // `--color-bg-2` on <body> feeds the macOS root tint; keep the native
+  // mirror current (no-op off macOS).
+  void syncMacosRootTint();
 }
 
 export function clearSkinTokens(): void {
@@ -82,6 +86,7 @@ export function clearSkinTokens(): void {
   for (const key of OWNED_SKIN_TOKEN_KEYS) {
     body.style.removeProperty(key);
   }
+  void syncMacosRootTint();
 }
 
 /**
