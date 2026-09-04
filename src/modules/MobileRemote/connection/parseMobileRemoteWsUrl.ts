@@ -18,7 +18,12 @@ export type ParseMobileRemoteWsUrlResult =
       errorKey: ParseMobileRemoteWsUrlErrorKey;
     };
 
-const DEFAULT_LAN_PORT = 13847;
+/**
+ * Keep in sync with MOBILE_REMOTE_DEFAULT_LAN_PORT in
+ * config/settingsSchema/registry/mobileRemote.ts. Inlined so the browser
+ * bundle does not pull the desktop settings registry.
+ */
+const DEFAULT_LAN_PORT = 13947;
 
 interface Phase1QrPayload {
   v?: number;
@@ -113,12 +118,15 @@ function parseWsUrl(raw: string): ParseMobileRemoteWsUrlResult {
   }
 }
 
+const PAIRING_LINK_SCHEMES = [
+  "orgii://",
+  "org2remote://",
+  "https://",
+  "http://",
+];
+
 function parsePairingLink(raw: string): ParseMobileRemoteWsUrlResult | null {
-  if (
-    !raw.startsWith("orgii://") &&
-    !raw.startsWith("https://") &&
-    !raw.startsWith("http://")
-  ) {
+  if (!PAIRING_LINK_SCHEMES.some((scheme) => raw.startsWith(scheme))) {
     return null;
   }
   try {
@@ -127,13 +135,21 @@ function parsePairingLink(raw: string): ParseMobileRemoteWsUrlResult | null {
       url.protocol === "orgii:" &&
       url.hostname === "mobile" &&
       url.pathname === "/pair";
+    // The iOS shell registers org2remote://pair and hands the raw link to this
+    // parser, so the native deep link has to resolve here too. Its payload key
+    // is `pair`, in the query or the fragment.
+    const isNativeDeepLink =
+      url.protocol === "org2remote:" && url.hostname === "pair";
     const isWebLink =
       (url.protocol === "http:" || url.protocol === "https:") &&
       url.pathname.endsWith("/orgii/mobile");
-    if (!isDeepLink && !isWebLink) return null;
+    if (!isDeepLink && !isNativeDeepLink && !isWebLink) return null;
     const fragment = new URLSearchParams(url.hash.replace(/^#/, ""));
     const payload =
-      url.searchParams.get("payload") ?? fragment.get("pair") ?? undefined;
+      url.searchParams.get("payload") ??
+      url.searchParams.get("pair") ??
+      fragment.get("pair") ??
+      undefined;
     if (!payload?.trim()) {
       return { ok: false, errorKey: "pairing.errors.invalid" };
     }
