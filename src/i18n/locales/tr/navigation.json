@@ -347,7 +347,8 @@
       "newBrowserTab": "Yeni tarayıcı sekmesi",
       "newPrivateBrowserTab": "Yeni gizli tarayıcı sekmesi",
       "workItems": "İş öğeleri",
-      "projects": "Projeler"
+      "projects": "Projeler",
+      "recentlyClosed": "Son"
     }
   },
   "collaboration": {

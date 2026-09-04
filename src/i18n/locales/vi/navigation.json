@@ -347,7 +347,8 @@
       "newBrowserTab": "Thẻ trình duyệt mới",
       "newPrivateBrowserTab": "Thẻ trình duyệt ẩn danh mới",
       "workItems": "Mục công việc",
-      "projects": "Dự án"
+      "projects": "Dự án",
+      "recentlyClosed": "Gần đây"
     }
   },
   "collaboration": {

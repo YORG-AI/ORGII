@@ -349,7 +349,8 @@
       "newBrowserTab": "Nueva pestaña del navegador",
       "newPrivateBrowserTab": "Nueva pestaña privada del navegador",
       "workItems": "Elementos de trabajo",
-      "projects": "Proyectos"
+      "projects": "Proyectos",
+      "recentlyClosed": "Recientes"
     }
   },
   "collaboration": {

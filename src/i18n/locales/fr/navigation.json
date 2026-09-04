@@ -349,7 +349,8 @@
       "newBrowserTab": "Nouvel onglet de navigateur",
       "newPrivateBrowserTab": "Nouvel onglet de navigation privée",
       "workItems": "Éléments de travail",
-      "projects": "Projets"
+      "projects": "Projets",
+      "recentlyClosed": "Récents"
     }
   },
   "collaboration": {
