@@ -246,6 +246,38 @@ pub async fn remove_window_background(window: tauri::WebviewWindow) -> Result<()
     Ok(())
 }
 
+/// Paint the CALLING window's root tint as a native layer under the webview.
+///
+/// macOS only; a no-op elsewhere. The frontend passes the composite of its
+/// translucent root surfaces (`html`, `body`, `#root`) as sRGB `[r, g, b, a]`
+/// in `0.0..=1.0` after first paint and again on every theme or skin change,
+/// then flips `<html data-native-root-tint>` so its own CSS tint goes
+/// transparent. During a live resize the strip of window the page has not yet
+/// painted then shows this tint over the vibrancy material — the same surface
+/// the page itself settles on — instead of raw material. `None` removes the
+/// layer and the frontend restores its CSS tint.
+#[tauri::command]
+pub async fn set_window_root_tint(
+    window: tauri::WebviewWindow,
+    color: Option<[f64; 4]>,
+) -> Result<(), String> {
+    let color = match color {
+        Some(color) => Some(
+            super::root_tint::normalize_root_tint(color)
+                .ok_or_else(|| format!("Root tint has a non-finite component: {color:?}"))?,
+        ),
+        None => None,
+    };
+
+    #[cfg(target_os = "macos")]
+    super::set_macos_window_root_tint(&window, color);
+
+    #[cfg(not(target_os = "macos"))]
+    let _ = (window, color);
+
+    Ok(())
+}
+
 // ============================================
 // Detached session windows
 // ============================================
