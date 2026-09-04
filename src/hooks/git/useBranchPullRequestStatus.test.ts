@@ -215,6 +215,7 @@ describe("useBranchPullRequestStatus", () => {
   });
 
   it("does not repeat PR or CI requests on a visibility return within the TTL", async () => {
+    let latest!: UseBranchPullRequestStatusResult;
     await act(async () => {
       root.render(
         createElement(Probe, {
@@ -223,10 +224,14 @@ describe("useBranchPullRequestStatus", () => {
             repoPath: "/repo",
             branchName: "feature",
           },
-          onValue: () => undefined,
+          onValue: (value) => {
+            latest = value;
+          },
         })
       );
     });
+    const firstFetchedAt = latest.lastFetchedAt;
+    expect(firstFetchedAt).toEqual(expect.any(Number));
     expect(findPullRequestLocalMock).toHaveBeenCalledTimes(1);
     expect(getPRLocalMock).toHaveBeenCalledTimes(1);
     expect(getChecksLocalMock).toHaveBeenCalledTimes(1);
@@ -241,6 +246,39 @@ describe("useBranchPullRequestStatus", () => {
     expect(findPullRequestLocalMock).toHaveBeenCalledTimes(1);
     expect(getPRLocalMock).toHaveBeenCalledTimes(1);
     expect(getChecksLocalMock).toHaveBeenCalledTimes(1);
+    expect(latest.lastFetchedAt).toBe(firstFetchedAt);
+  });
+
+  it("updates the reported fetch time after a successful manual refresh", async () => {
+    vi.useFakeTimers();
+    const initialFetchTime = new Date("2026-09-04T07:54:00.000Z");
+    const refreshedAt = new Date("2026-09-04T08:03:00.000Z");
+    vi.setSystemTime(initialFetchTime);
+    let latest!: UseBranchPullRequestStatusResult;
+
+    await act(async () => {
+      root.render(
+        createElement(Probe, {
+          options: {
+            repoId: "repo-1",
+            repoPath: "/repo",
+            branchName: "feature",
+          },
+          onValue: (value) => {
+            latest = value;
+          },
+        })
+      );
+    });
+    expect(latest.lastFetchedAt).toBe(initialFetchTime.getTime());
+
+    vi.setSystemTime(refreshedAt);
+    await act(async () => {
+      latest.refresh();
+    });
+
+    expect(findPullRequestLocalMock).toHaveBeenCalledTimes(2);
+    expect(latest.lastFetchedAt).toBe(refreshedAt.getTime());
   });
 
   it("ignores a late PR response after the active branch changes", async () => {

@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import type { WorkspacePort } from "@src/api/tauri/workspacePorts";
+import DropdownCollapsibleSectionHeader from "@src/components/Dropdown/DropdownCollapsibleSectionHeader";
 import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import {
   DROPDOWN_CLASSES,
@@ -20,7 +21,6 @@ import { resolveTimeZoneForIntl } from "@src/config/timezone";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { createLogger } from "@src/hooks/logger";
 import {
-  ArrowRight01Icon,
   Copy01Icon,
   HugeiconsIcon,
   InternetIcon,
@@ -46,6 +46,7 @@ import { classNames } from "@src/util/ui/classNames";
 
 import { StatusBarButton, StatusBarLabel } from "./StatusBarBase";
 import { StatusBarTooltip } from "./StatusBarTooltip";
+import { STATUS_BAR_TOKENS } from "./statusBarTokens";
 import { useWorkspacePortScanSync } from "./useWorkspacePortScanSync";
 import {
   refreshWorkspacePortScan,
@@ -179,42 +180,6 @@ PortRow.displayName = "PortRow";
 function sectionLabelWithCount(label: string, count: number): string {
   return `${label} · ${count}`;
 }
-
-interface PortSectionHeaderProps {
-  label: string;
-  count: number;
-  expanded: boolean;
-  onToggle: () => void;
-}
-
-/** Collapsible section header: chevron points right when collapsed, down when open. */
-const PortSectionHeader: React.FC<PortSectionHeaderProps> = memo(
-  ({ label, count, expanded, onToggle }) => (
-    <button
-      type="button"
-      className={classNames(
-        DROPDOWN_CLASSES.sectionLabel,
-        "flex w-full cursor-pointer items-center gap-1 text-left hover:text-text-2"
-      )}
-      onClick={onToggle}
-      aria-expanded={expanded}
-      data-dropdown-keyboard-skip="true"
-    >
-      <HugeiconsIcon
-        icon={ArrowRight01Icon}
-        data-icon="chevron-right"
-        size={12}
-        className={classNames(
-          "shrink-0 transition-transform duration-150",
-          expanded ? "rotate-90" : ""
-        )}
-        aria-hidden
-      />
-      <span className="truncate">{sectionLabelWithCount(label, count)}</span>
-    </button>
-  )
-);
-PortSectionHeader.displayName = "PortSectionHeader";
 
 /** Clock time of the last scan, in the user's language and timezone preference. */
 function formatScanClockTime(timestamp: number, language: string): string {
@@ -426,12 +391,15 @@ export const PortsStatusMenu: React.FC = memo(() => {
                     </>
                   ) : (
                     <>
-                      <PortSectionHeader
-                        label={t("workstation.ports.workspaceSection")}
-                        count={workspacePortMatches}
+                      <DropdownCollapsibleSectionHeader
                         expanded={workspaceOpen}
                         onToggle={toggleWorkspaceSection}
-                      />
+                      >
+                        {sectionLabelWithCount(
+                          t("workstation.ports.workspaceSection"),
+                          workspacePortMatches
+                        )}
+                      </DropdownCollapsibleSectionHeader>
                       {workspaceOpen &&
                         workspaceGroups.map((group) => (
                           <React.Fragment key={group.folderId}>
@@ -453,12 +421,15 @@ export const PortsStatusMenu: React.FC = memo(() => {
                   {externalPorts.length > 0 && (
                     <>
                       <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
-                      <PortSectionHeader
-                        label={t("workstation.ports.externalSection")}
-                        count={externalPorts.length}
+                      <DropdownCollapsibleSectionHeader
                         expanded={externalOpen}
                         onToggle={toggleExternalSection}
-                      />
+                      >
+                        {sectionLabelWithCount(
+                          t("workstation.ports.externalSection"),
+                          externalPorts.length
+                        )}
+                      </DropdownCollapsibleSectionHeader>
                       {externalOpen &&
                         externalPorts.map((port) => (
                           <PortRow
@@ -477,7 +448,7 @@ export const PortsStatusMenu: React.FC = memo(() => {
               )}
             </div>
 
-            <div className={DROPDOWN_CLASSES.footerContainer}>
+            <div className={STATUS_BAR_TOKENS.menuFooterClass}>
               <button
                 type="button"
                 className={classNames(
@@ -504,7 +475,7 @@ export const PortsStatusMenu: React.FC = memo(() => {
               </button>
               {lastScanLabel && (
                 <span
-                  className="shrink-0 text-[11px] text-text-3 tabular-nums"
+                  className={STATUS_BAR_TOKENS.menuTimestampClass}
                   title={t("workstation.ports.lastScannedAt", {
                     time: lastScanLabel,
                   })}

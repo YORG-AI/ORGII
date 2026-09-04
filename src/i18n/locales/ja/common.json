@@ -1083,7 +1083,7 @@
     "indexingProgressWithFile": "インデックス中: {{processed}}/{{total}} ファイル ({{percent}}%)\n現在: {{file}}",
     "languageServices": "Language Services",
     "ports": {
-      "workspaceSection": "Workspace",
+      "workspaceSection": "現在のワークスペース",
       "externalSection": "外部",
       "tooltip": "ポート: Workspace {{workspace}}、外部 {{external}}",
       "viewPortsTooltip": "使用中のポートを表示",

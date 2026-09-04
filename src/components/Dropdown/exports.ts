@@ -70,6 +70,9 @@ export type { DropdownHeaderProps } from "./DropdownHeader";
 export { default as DropdownFooter } from "./DropdownFooter";
 export type { DropdownFooterProps } from "./DropdownFooter";
 
+export { default as DropdownCollapsibleSectionHeader } from "./DropdownCollapsibleSectionHeader";
+export type { DropdownCollapsibleSectionHeaderProps } from "./DropdownCollapsibleSectionHeader";
+
 // Multi-select footer (for Select dropdownRender or custom dropdowns)
 export { default as MultiSelectFooter } from "./MultiSelectFooter";
 export type { MultiSelectFooterProps } from "./MultiSelectFooter";

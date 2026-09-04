@@ -1088,7 +1088,7 @@
     "indexingProgressWithFile": "Индексация: {{processed}}/{{total}} файлов ({{percent}}%)\nТекущий: {{file}}",
     "languageServices": "Language Services",
     "ports": {
-      "workspaceSection": "Workspace",
+      "workspaceSection": "Текущее рабочее пространство",
       "externalSection": "Внешние",
       "tooltip": "Порты: {{workspace}} workspace, {{external}} внешних",
       "viewPortsTooltip": "Показать используемые порты",

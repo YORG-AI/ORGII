@@ -984,7 +984,7 @@
     "indexingProgressWithFile": "Indexing: {{processed}}/{{total}} files ({{percent}}%)\nCurrent: {{file}}",
     "languageServices": "Language Services",
     "ports": {
-      "workspaceSection": "Workspace",
+      "workspaceSection": "Current workspace",
       "externalSection": "External",
       "tooltip": "Ports: {{workspace}} workspace, {{external}} external",
       "viewPortsTooltip": "View used ports",
@@ -1007,6 +1007,8 @@
       "openPullRequest": "Open pull request on GitHub",
       "viewDetails": "View check details",
       "refresh": "Refresh checks",
+      "refreshing": "Refreshing…",
+      "lastFetchedAt": "Last fetched at {{time}}",
       "unavailable": "Checks could not be read",
       "sections": {
         "failed": "Failed",

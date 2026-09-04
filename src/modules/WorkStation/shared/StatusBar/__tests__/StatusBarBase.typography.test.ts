@@ -28,6 +28,16 @@ describe("status-bar typography", () => {
     }
   });
 
+  it("keeps status-menu timestamps away from the panel edge", () => {
+    expect(STATUS_BAR_TOKENS.menuFooterClass).toContain("pr-2");
+    expect(STATUS_BAR_TOKENS.menuTimestampClass).toContain(
+      STATUS_BAR_TYPOGRAPHY.root
+    );
+    expect(STATUS_BAR_TOKENS.menuTimestampClass).toContain(
+      STATUS_BAR_TYPOGRAPHY.numeric
+    );
+  });
+
   it("renders semantic label weight and numeric variants", () => {
     const markup = renderToStaticMarkup(
       createElement(BaseStatusBar, {

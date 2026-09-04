@@ -1083,7 +1083,7 @@
     "indexingProgressWithFile": "Đang index: {{processed}}/{{total}} tệp ({{percent}}%)\nHiện tại: {{file}}",
     "languageServices": "Language Services",
     "ports": {
-      "workspaceSection": "Workspace",
+      "workspaceSection": "Không gian làm việc hiện tại",
       "externalSection": "Bên ngoài",
       "tooltip": "Cổng: {{workspace}} workspace, {{external}} bên ngoài",
       "viewPortsTooltip": "Xem các cổng đang dùng",

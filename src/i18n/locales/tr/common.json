@@ -1085,7 +1085,7 @@
     "indexingProgressWithFile": "İndeksleme: {{processed}}/{{total}} dosya ({{percent}}%)\nGeçerli: {{file}}",
     "languageServices": "Language Services",
     "ports": {
-      "workspaceSection": "Workspace",
+      "workspaceSection": "Geçerli çalışma alanı",
       "externalSection": "Harici",
       "tooltip": "Portlar: {{workspace}} workspace, {{external}} harici",
       "viewPortsTooltip": "Kullanılan portları görüntüle",

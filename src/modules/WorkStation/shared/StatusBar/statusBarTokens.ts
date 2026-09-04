@@ -4,6 +4,7 @@
  * Used by `base.tsx` and extension status bar items so height, padding, and
  * cluster gaps stay aligned when the bar layout changes.
  */
+import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 
@@ -42,6 +43,11 @@ export const STATUS_BAR_TOKENS = {
   rightCluster: "flex h-full shrink-0 items-center",
   /** Optional centered slot */
   centerCluster: "absolute left-1/2 flex h-full -translate-x-1/2 items-center",
+
+  /** Status-menu footer with breathing room after a trailing timestamp. */
+  menuFooterClass: `${DROPDOWN_CLASSES.footerContainer} pr-2`,
+  /** Compact, stable-width clock shown at the end of status-menu footers. */
+  menuTimestampClass: `shrink-0 text-text-3 ${STATUS_BAR_TYPOGRAPHY.root} ${STATUS_BAR_TYPOGRAPHY.numeric}`,
 
   /**
    * Clickable segment — combine with hover/active classes.

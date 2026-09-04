@@ -1096,7 +1096,7 @@
     "indexingProgressWithFile": "索引：{{processed}}/{{total}} 個文件（{{percent}}%）\n當前：{{file}}",
     "languageServices": "Language Services",
     "ports": {
-      "workspaceSection": "Workspace",
+      "workspaceSection": "目前工作區",
       "externalSection": "外部",
       "tooltip": "連接埠：{{workspace}} 個 Workspace，{{external}} 個外部",
       "viewPortsTooltip": "查看使用中的連接埠",

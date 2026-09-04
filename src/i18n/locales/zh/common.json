@@ -972,7 +972,7 @@
     "indexingProgressWithFile": "索引：{{processed}}/{{total}} 个文件（{{percent}}%）\n当前：{{file}}",
     "languageServices": "Language Services",
     "ports": {
-      "workspaceSection": "Workspace",
+      "workspaceSection": "当前工作区",
       "externalSection": "外部",
       "tooltip": "端口：{{workspace}} 个 Workspace，{{external}} 个外部",
       "viewPortsTooltip": "查看使用中的端口",
@@ -995,6 +995,8 @@
       "openPullRequest": "在 GitHub 中打开 Pull Request",
       "viewDetails": "查看检查详情",
       "refresh": "刷新检查",
+      "refreshing": "刷新中…",
+      "lastFetchedAt": "上次获取于 {{time}}",
       "unavailable": "无法读取检查状态",
       "sections": {
         "failed": "失败",
