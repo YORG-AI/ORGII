@@ -38,6 +38,8 @@ import {
 } from "../demo/demoFixtures";
 import {
   type InteractionQueueState,
+  type PermissionBusEnvelope,
+  countPermissionRequests,
   dequeuePermissionRequest,
   peekPermissionRequest,
   reduceInteractionQueueFromBusEvent,
@@ -116,6 +118,8 @@ export interface MobileRemoteContextValue {
   sendStatus: MobileSendStatus | null;
   activePermission: PermissionSheetRequest | null;
   permissionQueueDepth: number;
+  /** True while an answer is on the wire; the sheet must stay disabled. */
+  permissionSubmitting: boolean;
   rpc: MobileRpcClient | null;
   connectLive: (config: MobileConnectionConfig) => Promise<void>;
   enterDemoMode: () => void;
@@ -382,6 +386,9 @@ export function MobileRemoteProviders({
   const [sendStatus, setSendStatus] = useState<MobileSendStatus | null>(null);
   const [interactionQueue, setInteractionQueue] =
     useState<InteractionQueueState>({ queue: [] });
+  const [permissionSubmitting, setPermissionSubmitting] = useState(false);
+  /** requestId of the answer currently on the wire, or null. */
+  const permissionInFlightRef = useRef<string | null>(null);
   const [sessionModel, setSessionModelState] =
     useState<MobileSessionModelState>(INITIAL_SESSION_MODEL_STATE);
   const sessionModelRequestRef = useRef(0);
@@ -463,9 +470,7 @@ export function MobileRemoteProviders({
         return;
       }
       if (method === "orgii/event") {
-        const envelope = params?.envelope as
-          | { type?: string; payload?: Record<string, unknown> }
-          | undefined;
+        const envelope = params?.envelope as PermissionBusEnvelope | undefined;
         if (envelope) {
           setInteractionQueue((prev) =>
             reduceInteractionQueueFromBusEvent(prev, envelope)
@@ -1222,23 +1227,56 @@ export function MobileRemoteProviders({
 
   const respondPermission = useCallback(
     async (response: "allow" | "deny" | "always_allow") => {
-      const head = peekPermissionRequest(interactionQueue);
+      const head = peekPermissionRequest(
+        interactionQueue,
+        transcript.sessionId
+      );
       if (!head) return;
-      if (!connection.demoMode) {
-        await requireWritableClient().call("interaction/respond_permission", {
-          sessionId: head.sessionId,
-          requestId: head.requestId,
-          response,
-        });
+      // Single-flight: a second tap before the RPC settles would answer the
+      // same requestId twice and dequeue twice, silently dropping the prompt
+      // queued behind it.
+      if (permissionInFlightRef.current) return;
+      permissionInFlightRef.current = head.requestId;
+      setPermissionSubmitting(true);
+      try {
+        if (!connection.demoMode) {
+          await requireWritableClient().call("interaction/respond_permission", {
+            sessionId: head.sessionId,
+            requestId: head.requestId,
+            response,
+            // The desktop routes the answer by origin. Dropping it defaults to
+            // `rust_agent`, which sends cli_hook / ACP answers to the native
+            // permission manager, where they resolve nothing.
+            origin: head.origin ?? "rust_agent",
+          });
+        }
+        // Dequeue by id, never blind: the queue may have grown while the
+        // answer was in flight.
+        setInteractionQueue((prev) =>
+          dequeuePermissionRequest(prev, head.requestId)
+        );
+      } finally {
+        permissionInFlightRef.current = null;
+        setPermissionSubmitting(false);
       }
-      setInteractionQueue((prev) => dequeuePermissionRequest(prev));
     },
-    [connection.demoMode, interactionQueue, requireWritableClient]
+    [
+      connection.demoMode,
+      interactionQueue,
+      requireWritableClient,
+      transcript.sessionId,
+    ]
   );
 
+  /** Escape hatch for a prompt the desktop resolved without telling us. */
   const dismissPermissionHead = useCallback(() => {
-    setInteractionQueue((prev) => dequeuePermissionRequest(prev));
-  }, []);
+    if (permissionInFlightRef.current) return;
+    const head = peekPermissionRequest(interactionQueue, transcript.sessionId);
+    if (!head) return;
+    setInteractionQueue((prev) =>
+      dequeuePermissionRequest(prev, head.requestId)
+    );
+  }, [interactionQueue, transcript.sessionId]);
 
   const stopSession = useCallback(
     async (sessionId: string) => {
@@ -1286,7 +1324,14 @@ export function MobileRemoteProviders({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const activePermission = peekPermissionRequest(interactionQueue);
+  const activePermission = peekPermissionRequest(
+    interactionQueue,
+    transcript.sessionId
+  );
+  const permissionQueueDepth = countPermissionRequests(
+    interactionQueue,
+    transcript.sessionId
+  );
   const transcriptView = getSelectedTranscriptView(transcript);
   const value = useMemo<MobileRemoteContextValue>(
     () => ({
@@ -1302,7 +1347,8 @@ export function MobileRemoteProviders({
       activeRoundId: transcriptView.roundId,
       sendStatus,
       activePermission,
-      permissionQueueDepth: interactionQueue.queue.length,
+      permissionQueueDepth,
+      permissionSubmitting,
       rpc: clientRef.current,
       connectLive,
       enterDemoMode,
@@ -1328,7 +1374,8 @@ export function MobileRemoteProviders({
       dismissPermissionHead,
       disconnect,
       enterDemoMode,
-      interactionQueue.queue.length,
+      permissionQueueDepth,
+      permissionSubmitting,
       refreshSessionModel,
       refreshSessions,
       openSessionFileInDesktop,
