@@ -15,6 +15,12 @@ import type { TerminalThemeName } from "@src/store/ui/uiAtom";
 import type { TerminalViewProps } from "./types";
 import { getXTermTheme } from "./utils/theme";
 
+// xterm and FitAddon interpret 0 as their 14px default and subtract the
+// configured width from the terminal's usable columns. A truthy near-zero
+// value keeps the internal scrollbar enabled without reserving layout space;
+// CSS supplies the shared visual width as an absolute overlay.
+const XTERM_OVERLAY_LAYOUT_WIDTH = Number.EPSILON;
+
 interface CreateTerminalInstanceParams {
   terminalTheme: TerminalThemeName;
   terminalFontSize: number;
@@ -53,6 +59,7 @@ export function createTerminalInstance({
     cursorStyle: "bar",
     cursorInactiveStyle: "outline",
     scrollback: 5000,
+    overviewRuler: { width: XTERM_OVERLAY_LAYOUT_WIDTH },
     drawBoldTextInBrightColors: false,
     minimumContrastRatio: 1,
     customGlyphs: true,

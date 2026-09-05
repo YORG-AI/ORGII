@@ -48,6 +48,10 @@ import {
   terminalThemeAtom,
   themesAtom,
 } from "@src/store/ui/uiAtom";
+import {
+  clearTransientScrollbar,
+  revealTransientScrollbar,
+} from "@src/util/ui/transientScrollbars";
 
 import "./index.scss";
 import { registerTerminalEventHandlers } from "./terminalHandlers";
@@ -284,6 +288,10 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
         });
 
       terminal.open(containerRef.current);
+      const scrollbarElement = containerRef.current;
+      const scrollbarDisposable = terminal.onScroll(() => {
+        revealTransientScrollbar(scrollbarElement);
+      });
 
       terminalRef.current = terminal;
       fitAddonRef.current = fitAddon;
@@ -335,6 +343,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
 
         webglController.dispose();
         webglControllerRef.current = null;
+        scrollbarDisposable.dispose();
+        clearTransientScrollbar(scrollbarElement);
         cancelRenderSettle(terminal);
         terminal.dispose();
         terminalRef.current = null;
@@ -389,7 +399,11 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
 
     return (
       <div className="xterm-terminal-view" style={terminalViewStyle}>
-        <div ref={containerRef} className="xterm-terminal-container" />
+        <div
+          ref={containerRef}
+          className="xterm-terminal-container"
+          data-transient-scrollbar-owner
+        />
       </div>
     );
   }

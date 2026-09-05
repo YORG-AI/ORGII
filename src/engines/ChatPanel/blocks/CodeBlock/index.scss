@@ -5,38 +5,6 @@
  * Container and layout classes have been moved to inline Tailwind.
  */
 
-/* Horizontal scrollbar: hidden by default, show on hover or while scrolling */
-.chat-code-block__scroll-hover {
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    height: 4px;
-    background: transparent;
-    display: none;
-  }
-
-  &:hover::-webkit-scrollbar,
-  &:active::-webkit-scrollbar,
-  &[data-scrolling]::-webkit-scrollbar {
-    display: block;
-  }
-
-  &:hover,
-  &[data-scrolling] {
-    scrollbar-width: thin;
-    scrollbar-color: var(--scrollbar-thumb-color) transparent;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb-color) !important;
-    border-radius: 2px;
-  }
-
-  &::-webkit-scrollbar-thumb:hover {
-    background: var(--scrollbar-thumb-hover-color) !important;
-  }
-}
-
 .chat-code-block__code-container {
   // Override ModernCodeViewer styles for better integration
   .modern-code-viewer,
@@ -66,43 +34,6 @@
         text-align: right;
       }
     }
-  }
-
-  // Embedded CodeMirror keeps the same hover-only reveal behavior as chat code blocks.
-  .cm-scroller {
-    scrollbar-width: none;
-
-    &::-webkit-scrollbar {
-      height: 4px;
-      display: none;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background: var(--scrollbar-thumb-color) !important;
-      border: none !important;
-      border-radius: 2px;
-    }
-
-    &::-webkit-scrollbar-thumb:hover {
-      background: var(--scrollbar-thumb-hover-color) !important;
-    }
-  }
-
-  &:hover .cm-scroller,
-  &[data-scrolling] .cm-scroller {
-    scrollbar-width: thin;
-    scrollbar-color: var(--scrollbar-thumb-color) transparent !important;
-  }
-
-  &:hover .cm-scroller::-webkit-scrollbar,
-  &[data-scrolling] .cm-scroller::-webkit-scrollbar {
-    display: block;
-    background: transparent !important;
-  }
-
-  &:hover .cm-scroller::-webkit-scrollbar-track,
-  &[data-scrolling] .cm-scroller::-webkit-scrollbar-track {
-    background: transparent !important;
   }
 
   // ModernDiff - allow horizontal scroll for long lines

@@ -17,6 +17,7 @@ import {
   Layout01Icon,
   SquareArrowUpRight02Icon,
 } from "@src/icons";
+import { observeTransientScrollbar } from "@src/util/ui/transientScrollbars";
 
 import type { A2UIActionHandler } from "./A2UIActionContext";
 import type { A2UIRendererHandle } from "./A2UIRenderer";
@@ -54,6 +55,9 @@ const StaticHtmlCanvas: React.FC<{ content: string }> = ({ content }) => {
     if (!host) return;
     const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
     root.innerHTML = buildStaticHtmlShadowMarkup(safeContent, styles);
+    const scroller = root.querySelector<HTMLElement>(".canvas-static-html");
+    if (!scroller) return;
+    return observeTransientScrollbar(scroller);
   }, [safeContent, styles]);
 
   return (

@@ -73,6 +73,15 @@ describe("static HTML canvas", () => {
     expect(markup).toContain('<div class="app">Styled</div>');
   });
 
+  it("uses the transient shared scrollbar style inside the Shadow DOM", () => {
+    const markup = buildStaticHtmlShadowMarkup("<div>Scrollable</div>", "");
+
+    expect(markup).toContain("scrollbar-color:transparent transparent");
+    expect(markup).toContain("[data-scrollbar-scrolling]");
+    expect(markup).toContain("var(--scrollbar-hit-area-size,12px)");
+    expect(markup).toContain("var(--scrollbar-edge-inset,3px)");
+  });
+
   it("neutralizes style terminators before building Shadow DOM markup", () => {
     const styles = extractStaticHtmlStyles(
       "<style>.safe{}<\\/style>.also-safe{}</style>"

@@ -247,7 +247,7 @@ export const DROPDOWN_CLASSES = {
     "scrollbar-hide",
   ].join(" "),
 
-  /** Scrollable options container (visible scrollbar, e.g. table selector, timezone) */
+  /** Scrollable options container (transient overlay, e.g. table selector, timezone). */
   optionsContainerScrollbar: [
     "flex flex-col",
     "min-h-0",
@@ -256,6 +256,7 @@ export const DROPDOWN_CLASSES = {
     DROPDOWN_PANEL.paddingClass,
     DROPDOWN_PANEL.maxHeightClass,
     "overflow-y-auto",
+    "scrollbar-overlay",
     "dropdown-options-scrollbar",
   ].join(" "),
 
@@ -270,7 +271,7 @@ export const DROPDOWN_CLASSES = {
     DROPDOWN_PANEL.itemsGapClass,
   ].join(" "),
 
-  /** Scrollable options container (visible scrollbar) when a header sits above. */
+  /** Scrollable options container (transient overlay) below a header. */
   optionsContainerScrollbarBelowHeader: [
     "flex flex-col",
     "min-h-0",
@@ -279,6 +280,7 @@ export const DROPDOWN_CLASSES = {
     DROPDOWN_PANEL.paddingBelowHeaderClass,
     DROPDOWN_PANEL.maxHeightClass,
     "overflow-y-auto",
+    "scrollbar-overlay",
     "dropdown-options-scrollbar",
   ].join(" "),
 

@@ -1,8 +1,8 @@
 /**
  * Unified Scrollbar Mixins
  *
- * Single source of truth for scrollbar styles across the app.
- * CodeMirror scrollbar is handled globally in src/index.scss (.cm-scroller)
+ * Single source of truth for scrollbar styles across the app, including
+ * CodeMirror through the base-layer global application in src/index.scss.
  *
  * Usage:
  *   @import "@src/styles/mixins/scrollbar";
@@ -11,26 +11,44 @@
  * Or use the .scrollbar-overlay class from _utilities.scss for simple cases.
  */
 
-// Standard overlay scrollbar: 4px, shared translucent thumb, transparent track
+// Standard transient overlay scrollbar: fixed shared size/color, transparent
+// track, no reserved gutter. The app-wide scroll observer adds
+// data-scrollbar-scrolling only while a surface is actively moving.
 @mixin scrollbar-unified {
+  scrollbar-gutter: auto;
   scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb-color) transparent;
+  scrollbar-color: transparent transparent;
 
   &::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
-  }
-
-  &::-webkit-scrollbar-track {
+    width: var(--scrollbar-hit-area-size);
+    height: var(--scrollbar-hit-area-size);
     background: transparent;
   }
 
-  &::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb-color);
-    border-radius: 2px;
+  &::-webkit-scrollbar-track,
+  &::-webkit-scrollbar-corner {
+    background: transparent;
   }
 
-  &::-webkit-scrollbar-thumb:hover {
-    background: var(--scrollbar-thumb-hover-color);
+  &::-webkit-scrollbar-thumb,
+  &::-webkit-scrollbar-thumb:hover,
+  &::-webkit-scrollbar-thumb:active {
+    background: transparent;
+    background-clip: padding-box;
+    border: var(--scrollbar-edge-inset) solid transparent;
+    border-radius: calc(var(--scrollbar-hit-area-size) / 2);
+  }
+
+  &[data-scrollbar-scrolling] {
+    scrollbar-color: var(--scrollbar-thumb-color) transparent;
+  }
+
+  &[data-scrollbar-scrolling]::-webkit-scrollbar-thumb,
+  &[data-scrollbar-scrolling]::-webkit-scrollbar-thumb:hover,
+  &[data-scrollbar-scrolling]::-webkit-scrollbar-thumb:active {
+    background: var(--scrollbar-thumb-color);
+    background-clip: padding-box;
+    border: var(--scrollbar-edge-inset) solid transparent;
+    border-radius: calc(var(--scrollbar-hit-area-size) / 2);
   }
 }
