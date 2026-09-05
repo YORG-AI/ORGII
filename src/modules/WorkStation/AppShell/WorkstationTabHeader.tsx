@@ -45,7 +45,13 @@ const WorkstationTabHeader: React.FC = memo(() => {
     headerSlots?.shellLeadingChromeHidden ?? false;
   const isSourceControlTab =
     activeApp === "code" && activeTab?.type === "source-control";
-  const publishedHeaderPaddingLeftClassName = isSourceControlTab
+  const isBrowserTab = activeApp === "browser";
+  // The Browser app draws its own divider after the back/forward/refresh
+  // buttons (see WebUrlBar), so the sidebar toggle should sit flush against
+  // them here — same gap-px rhythm as the icons within each group — instead
+  // of behind a second, earlier divider.
+  const joinsSidebarGroup = isSourceControlTab || isBrowserTab;
+  const publishedHeaderPaddingLeftClassName = joinsSidebarGroup
     ? "pl-0"
     : "pl-2";
 
@@ -57,9 +63,11 @@ const WorkstationTabHeader: React.FC = memo(() => {
 
   return (
     <div
-      className={`flex h-9 shrink-0 items-center gap-2 pr-2 ${
-        shellLeadingChromeHidden ? "pl-0" : "pl-1.5"
-      } ${headerSlots?.joinWithFollowingRow ? "" : "border-b border-border-2"}`}
+      className={`flex h-9 shrink-0 items-center ${
+        isBrowserTab ? "gap-px" : "gap-2"
+      } pr-2 ${shellLeadingChromeHidden ? "pl-0" : "pl-1.5"} ${
+        headerSlots?.joinWithFollowingRow ? "" : "border-b border-border-2"
+      }`}
       data-tauri-drag-region={windowsHost ? undefined : true}
     >
       {!shellLeadingChromeHidden && (
@@ -72,7 +80,7 @@ const WorkstationTabHeader: React.FC = memo(() => {
             <CodeSidebarHeaderActions />
             <SourceControlHeaderActions />
           </NoDragRegion>
-          {!isSourceControlTab && <HeaderSectionSeparator />}
+          {!joinsSidebarGroup && <HeaderSectionSeparator />}
         </>
       )}
       <PublishedHeaderSlotsView
