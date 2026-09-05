@@ -70,7 +70,6 @@ const GlobBlock: React.FC<GlobBlockProps> = React.memo(
             isCollapsed
             isHeaderHovered={isHeaderHovered}
             hasContent={false}
-            revealChevronOnIconHoverOnly={Boolean(eventId)}
             isLoading={isLoading}
           />
           <EventBlockHeaderTitle isLoading={isLoading}>

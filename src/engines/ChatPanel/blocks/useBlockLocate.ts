@@ -39,6 +39,6 @@ export function useBlockHeader(
 
   return {
     ...headerState,
-    handleLocate: eventId ? handleLocate : headerState.handleHeaderClick,
+    handleLocate: eventId ? handleLocate : undefined,
   };
 }

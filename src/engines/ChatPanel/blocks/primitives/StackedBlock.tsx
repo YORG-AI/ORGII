@@ -92,7 +92,7 @@ function StackedBlockInner<T>({
       <EventBlockHeader
         isCollapsed={isCollapsed}
         withHover={false}
-        onClick={handleHeaderClick}
+        onToggleCollapse={handleHeaderClick}
         onNavigate={eventId ? handleLocate : undefined}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
@@ -102,7 +102,6 @@ function StackedBlockInner<T>({
           icon={icon || <span />}
           isCollapsed={isCollapsed}
           isHeaderHovered={isHeaderHovered}
-          onToggle={handleHeaderClick}
           hasContent={true}
         />
         {label && <EventBlockHeaderTitle>{label}</EventBlockHeaderTitle>}

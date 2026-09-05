@@ -486,7 +486,7 @@ const CreatePlanCard: React.FC<CreatePlanCardProps> = memo(
         <EventBlockHeader
           isCollapsed={isCollapsed}
           withHover
-          onClick={handleLocate}
+          onToggleCollapse={handleHeaderClick}
           onNavigate={handlePreviewNavigate}
           onMouseEnter={handleHeaderMouseEnter}
           onMouseLeave={handleHeaderMouseLeave}
@@ -497,9 +497,7 @@ const CreatePlanCard: React.FC<CreatePlanCardProps> = memo(
             isCollapsed={isCollapsed}
             isHeaderHovered={isHeaderHovered}
             iconSize={PLAN_ICON_SIZE}
-            onToggle={handleHeaderClick}
             hasContent
-            revealChevronOnIconHoverOnly={Boolean(eventId)}
             isLoading={isStreaming}
           />
           <EventBlockHeaderTitle isLoading={isStreaming}>

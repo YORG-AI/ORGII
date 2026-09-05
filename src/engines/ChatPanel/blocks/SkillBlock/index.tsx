@@ -62,11 +62,9 @@ const SkillBlock: React.FC<SkillBlockProps> = React.memo(
         <EventBlockHeader
           isCollapsed
           withHover={false}
-          onClick={handleLocate}
           onNavigate={handleLocate}
           onMouseEnter={handleHeaderMouseEnter}
           onMouseLeave={handleHeaderMouseLeave}
-          className={eventId ? "cursor-pointer" : undefined}
           rightContent={
             toolUsage ? <ToolUsageBadge usage={toolUsage} /> : undefined
           }
@@ -76,7 +74,6 @@ const SkillBlock: React.FC<SkillBlockProps> = React.memo(
             isCollapsed
             isHeaderHovered={isHeaderHovered}
             hasContent={false}
-            revealChevronOnIconHoverOnly={Boolean(eventId)}
             isLoading={isLoading}
             isFailed={isFailed}
           />

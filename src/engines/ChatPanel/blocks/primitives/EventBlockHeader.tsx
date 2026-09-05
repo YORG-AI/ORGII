@@ -10,8 +10,10 @@ import type { EventBlockHeaderProps } from "./types";
 
 /**
  * Standard header for session event blocks.
- * When `onNavigate` is provided, shows an ArrowUpRight icon on hover.
- * When neither `onClick` nor `onNavigate` is set, cursor stays default.
+ * When `onNavigate` is provided, shows an ArrowUpRight icon on hover. The
+ * navigate action belongs exclusively to that icon; clicking the row invokes
+ * `onToggleCollapse`.
+ * When `onToggleCollapse` is not set, the row cursor stays default.
  *
  * Inside the Simulator (`InSimulatorReplayContext`), the navigate icon
  * is hidden because its action ("jump to this event in the Simulator")
@@ -23,24 +25,23 @@ export const EventBlockHeader: React.FC<EventBlockHeaderProps> = ({
   onNavigate,
   children,
   rightContent,
-  onClick,
+  onToggleCollapse,
   onMouseEnter,
   onMouseLeave,
   className = "",
 }) => {
-  const isClickable = !!(onClick || onNavigate);
+  const isClickable = !!onToggleCollapse;
   const inSimulatorReplay = useContext(InSimulatorReplayContext);
   const showNavigate = !!onNavigate && !inSimulatorReplay;
   const handleClick = () => {
     const selection = window.getSelection();
     if (selection && !selection.isCollapsed) return;
-    onClick?.();
+    onToggleCollapse?.();
   };
-
   return (
     <div
       className={`group/chat-block-header ${getEventBlockHeaderClasses(isCollapsed, withHover, isClickable)} ${className}`}
-      onClick={onClick ? handleClick : undefined}
+      onClick={onToggleCollapse ? handleClick : undefined}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >

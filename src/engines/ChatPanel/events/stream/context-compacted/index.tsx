@@ -81,7 +81,7 @@ export const ContextCompactedEvent: React.FC<ContextCompactedEventProps> = (
       <EventBlockHeader
         isCollapsed={isCollapsed}
         withHover={false}
-        onClick={hasContent ? handleHeaderClick : undefined}
+        onToggleCollapse={hasContent ? handleHeaderClick : undefined}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
       >
@@ -89,7 +89,6 @@ export const ContextCompactedEvent: React.FC<ContextCompactedEventProps> = (
           icon={icon}
           isCollapsed={isCollapsed}
           isHeaderHovered={isHeaderHovered}
-          onToggle={handleHeaderClick}
           hasContent={hasContent}
         />
         <EventBlockHeaderTitle>

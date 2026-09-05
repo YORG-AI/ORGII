@@ -218,7 +218,7 @@ const TaskUpdateCard: React.FC<TaskUpdateCardProps> = ({ card }) => {
       <EventBlockHeader
         isCollapsed={isCollapsed}
         withHover
-        onClick={handleHeaderClick}
+        onToggleCollapse={handleHeaderClick}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
         rightContent={<TaskStatusBadges card={card} />}
@@ -230,7 +230,6 @@ const TaskUpdateCard: React.FC<TaskUpdateCardProps> = ({ card }) => {
           )}
           isCollapsed={isCollapsed}
           isHeaderHovered={isHeaderHovered}
-          onToggle={handleHeaderClick}
           hasContent
         />
         <EventBlockHeaderTitle>{headerTitle}</EventBlockHeaderTitle>
@@ -456,7 +455,7 @@ export const TaskListCard: React.FC<TaskListCardProps> = ({
       <EventBlockHeader
         isCollapsed={isCollapsed}
         withHover={false}
-        onClick={handleHeaderClick}
+        onToggleCollapse={handleHeaderClick}
         onNavigate={onNavigate}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
@@ -465,7 +464,6 @@ export const TaskListCard: React.FC<TaskListCardProps> = ({
           icon={taskListIcon}
           isCollapsed={isCollapsed}
           isHeaderHovered={isHeaderHovered}
-          onToggle={handleHeaderClick}
           hasContent
         />
         <EventBlockHeaderTitle>{title}</EventBlockHeaderTitle>

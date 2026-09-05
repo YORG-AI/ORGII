@@ -288,7 +288,7 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
           <EventBlockHeader
             isCollapsed={isCollapsed}
             withHover={false}
-            onClick={handleLocate}
+            onToggleCollapse={hasContent ? handleHeaderClick : undefined}
             onNavigate={handleLocate}
             onMouseEnter={handleHeaderMouseEnter}
             onMouseLeave={handleHeaderMouseLeave}
@@ -304,9 +304,7 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
               }
               isCollapsed={isCollapsed}
               isHeaderHovered={isHeaderHovered}
-              onToggle={handleHeaderClick}
               hasContent={hasContent}
-              revealChevronOnIconHoverOnly={Boolean(eventId)}
               isLoading={isStillRunning}
               isFailed={isError}
             />

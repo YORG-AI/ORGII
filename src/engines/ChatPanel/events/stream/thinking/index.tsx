@@ -143,7 +143,7 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
       <EventBlockHeader
         isCollapsed={isCollapsed}
         withHover={false}
-        onClick={hasContent ? handleHeaderClick : undefined}
+        onToggleCollapse={hasContent ? handleHeaderClick : undefined}
         onNavigate={eventId ? handleLocate : undefined}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
@@ -153,7 +153,6 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
           icon={getEventIcon("thinking")}
           isCollapsed={isCollapsed}
           isHeaderHovered={isHeaderHovered}
-          onToggle={handleHeaderClick}
           hasContent={hasContent}
           isLoading={isLoading}
         />

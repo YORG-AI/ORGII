@@ -333,7 +333,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = React.memo(
         <EventBlockHeader
           isCollapsed={isCollapsed}
           withHover={false}
-          onClick={handleLocate}
+          onToggleCollapse={hasContent ? handleHeaderClick : undefined}
           onNavigate={handleLocate}
           onMouseEnter={handleHeaderMouseEnter}
           onMouseLeave={handleHeaderMouseLeave}
@@ -345,9 +345,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = React.memo(
             icon={icon}
             isCollapsed={isCollapsed}
             isHeaderHovered={isHeaderHovered}
-            onToggle={hasContent ? handleHeaderClick : undefined}
             hasContent={hasContent}
-            revealChevronOnIconHoverOnly={Boolean(eventId)}
             isLoading={isLoading}
           />
           <EventBlockHeaderTitle isLoading={isLoading}>

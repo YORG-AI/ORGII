@@ -62,7 +62,6 @@ const SearchBlock: React.FC<SearchBlockProps> = React.memo(
         <EventBlockHeader
           isCollapsed
           withHover={false}
-          onClick={handleLocate}
           onNavigate={handleLocate}
           onMouseEnter={handleHeaderMouseEnter}
           onMouseLeave={handleHeaderMouseLeave}
@@ -75,7 +74,6 @@ const SearchBlock: React.FC<SearchBlockProps> = React.memo(
             isCollapsed
             isHeaderHovered={isHeaderHovered}
             hasContent={false}
-            revealChevronOnIconHoverOnly={Boolean(eventId)}
             isLoading={isLoading}
           />
           <EventBlockHeaderTitle isLoading={isLoading}>

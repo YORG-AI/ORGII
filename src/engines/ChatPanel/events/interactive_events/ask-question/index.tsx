@@ -350,7 +350,9 @@ const QuestionHistoryBlock: React.FC<{
       <EventBlockHeader
         isCollapsed={collapsed}
         withHover={false}
-        onClick={locateEventId ? handleLocate : undefined}
+        onToggleCollapse={
+          !isSimulator && hasBody ? handleHeaderClick : undefined
+        }
         onNavigate={locateEventId ? handleLocate : undefined}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
@@ -359,9 +361,7 @@ const QuestionHistoryBlock: React.FC<{
           icon={STATUS_ICON[status]}
           isCollapsed={collapsed}
           isHeaderHovered={isHeaderHovered}
-          onToggle={isSimulator ? undefined : handleHeaderClick}
           hasContent={hasBody && !isSimulator}
-          revealChevronOnIconHoverOnly={Boolean(locateEventId)}
         />
         <EventBlockHeaderTitle
           isLoading={status === "pending" && showActiveEventPainting}

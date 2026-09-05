@@ -242,7 +242,7 @@ const InboxTranscriptCard: React.FC<{
       <EventBlockHeader
         isCollapsed={isCollapsed}
         withHover={false}
-        onClick={hasContent ? handleHeaderClick : undefined}
+        onToggleCollapse={hasContent ? handleHeaderClick : undefined}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
       >

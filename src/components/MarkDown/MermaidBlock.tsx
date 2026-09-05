@@ -250,7 +250,7 @@ const MermaidBlockHeader: React.FC<MermaidBlockHeaderProps> = ({
   <EventBlockHeader
     isCollapsed={isCollapsed}
     withHover={false}
-    onClick={onToggle}
+    onToggleCollapse={onToggle}
     onMouseEnter={onMouseEnter}
     onMouseLeave={onMouseLeave}
     rightContent={rightContent}
@@ -265,7 +265,6 @@ const MermaidBlockHeader: React.FC<MermaidBlockHeaderProps> = ({
       }
       isCollapsed={isCollapsed}
       isHeaderHovered={isHeaderHovered}
-      onToggle={onToggle}
       hasContent
     />
     <EventBlockHeaderTitle>Mermaid</EventBlockHeaderTitle>

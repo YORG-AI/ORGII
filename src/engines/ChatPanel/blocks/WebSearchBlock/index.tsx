@@ -118,11 +118,10 @@ const WebSearchBlock: React.FC<WebSearchBlockProps> = React.memo(
         <EventBlockHeader
           isCollapsed={!isExpanded}
           withHover={false}
-          onClick={handleLocate}
+          onToggleCollapse={hasResults ? handleHeaderClick : undefined}
           onNavigate={handleLocate}
           onMouseEnter={handleHeaderMouseEnter}
           onMouseLeave={handleHeaderMouseLeave}
-          className={eventId ? "cursor-pointer" : undefined}
           rightContent={
             toolUsage ? <ToolUsageBadge usage={toolUsage} /> : undefined
           }
@@ -131,9 +130,7 @@ const WebSearchBlock: React.FC<WebSearchBlockProps> = React.memo(
             icon={toolIcon}
             isCollapsed={!isExpanded}
             isHeaderHovered={isHeaderHovered}
-            onToggle={hasResults ? handleHeaderClick : undefined}
             hasContent={hasResults}
-            revealChevronOnIconHoverOnly={Boolean(eventId)}
             isLoading={isLoading}
           />
           <span

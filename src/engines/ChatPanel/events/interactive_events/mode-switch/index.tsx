@@ -79,6 +79,7 @@ const ResolvedCard: React.FC<{
       <EventBlockHeader
         isCollapsed={isCollapsed}
         withHover={false}
+        onToggleCollapse={hasBody ? handleHeaderClick : undefined}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
       >
@@ -89,7 +90,6 @@ const ResolvedCard: React.FC<{
           })}
           isCollapsed={isCollapsed}
           isHeaderHovered={isHeaderHovered}
-          onToggle={hasBody ? handleHeaderClick : undefined}
           hasContent={hasBody}
         />
         <EventBlockHeaderTitle>{titleText}</EventBlockHeaderTitle>

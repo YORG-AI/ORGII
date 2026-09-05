@@ -264,7 +264,6 @@ const CompactSegmentView: React.FC<CompactSegmentViewProps> = ({
       <EventBlockHeader
         isCollapsed
         withHover={false}
-        onClick={handleLocate}
         onNavigate={handleLocate}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
@@ -277,7 +276,6 @@ const CompactSegmentView: React.FC<CompactSegmentViewProps> = ({
           isCollapsed
           isHeaderHovered={isHeaderHovered}
           hasContent={false}
-          revealChevronOnIconHoverOnly={Boolean(eventId)}
           isLoading={isLoading}
         />
         <EventBlockHeaderTitle isLoading={isLoading}>
@@ -454,7 +452,6 @@ const EditView: React.FC<EditViewProps> = (props) => {
         <EventBlockHeader
           isCollapsed
           withHover={false}
-          onClick={handleLocate}
           onNavigate={handleLocate}
           onMouseEnter={handleHeaderMouseEnter}
           onMouseLeave={handleHeaderMouseLeave}
@@ -470,7 +467,6 @@ const EditView: React.FC<EditViewProps> = (props) => {
             isHeaderHovered={isHeaderHovered}
             isFailed
             hasContent={false}
-            revealChevronOnIconHoverOnly={Boolean(eventId)}
           />
           <EventBlockHeaderTitle className="text-text-3">
             {title}

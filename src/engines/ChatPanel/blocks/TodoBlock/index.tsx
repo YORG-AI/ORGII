@@ -224,7 +224,7 @@ const StandardTodoBlock: React.FC<StandardTodoBlockProps> = memo(
       >
         <EventBlockHeader
           isCollapsed={isCollapsed}
-          onClick={handleHeaderClick}
+          onToggleCollapse={handleHeaderClick}
           onMouseEnter={handleHeaderMouseEnter}
           onMouseLeave={handleHeaderMouseLeave}
           rightContent={
@@ -235,7 +235,6 @@ const StandardTodoBlock: React.FC<StandardTodoBlockProps> = memo(
             icon={todoIcon}
             isCollapsed={isCollapsed}
             isHeaderHovered={isHeaderHovered}
-            onToggle={handleHeaderClick}
             hasContent={true}
             isLoading={isLoading}
           />

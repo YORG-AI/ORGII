@@ -101,7 +101,6 @@ const CanvasRevisionActivity: React.FC<CanvasRevisionActivityProps> = ({
       <EventBlockHeader
         isCollapsed={false}
         withHover={false}
-        onClick={handleNavigate}
         onNavigate={handleNavigate}
       >
         <EventBlockHeaderIcon

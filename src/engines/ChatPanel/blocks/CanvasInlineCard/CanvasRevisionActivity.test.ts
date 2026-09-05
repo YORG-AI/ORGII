@@ -123,7 +123,7 @@ describe("CanvasRevisionActivity", () => {
     expect(markup).toContain('class="min-w-0 truncate"');
   });
 
-  it("reuses event replay navigation to open the corresponding Canvas", () => {
+  it("opens the corresponding Canvas only from the Agent Station arrow", () => {
     testState.locate.mockReset();
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -152,7 +152,8 @@ describe("CanvasRevisionActivity", () => {
 
     const header = container.querySelector<HTMLElement>(".chat-block-header");
     act(() => header?.click());
-    expect(testState.locate).toHaveBeenCalledTimes(2);
+    expect(testState.locate).toHaveBeenCalledTimes(1);
+    expect(header?.classList.contains("cursor-default")).toBe(true);
 
     act(() => root.unmount());
     container.remove();

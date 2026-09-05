@@ -506,7 +506,7 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
       <EventBlockHeader
         isCollapsed={isCollapsed}
         withHover={false}
-        onClick={handleLocate}
+        onToggleCollapse={hasContent ? handleHeaderClick : undefined}
         onNavigate={handleLocate}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
@@ -518,9 +518,7 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
           icon={icon}
           isCollapsed={isCollapsed}
           isHeaderHovered={isHeaderHovered}
-          onToggle={hasContent ? handleHeaderClick : undefined}
           hasContent={hasContent}
-          revealChevronOnIconHoverOnly={Boolean(eventId)}
           isLoading={isLoading}
         />
         <EventBlockHeaderTitle isLoading={isLoading}>

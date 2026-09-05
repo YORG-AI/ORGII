@@ -373,11 +373,10 @@ const ExploreBlock: React.FC<ExploreBlockProps> = React.memo(
         <EventBlockHeader
           isCollapsed={isCollapsed}
           withHover={false}
-          onClick={hasContent ? handleHeaderClick : undefined}
+          onToggleCollapse={hasContent ? handleHeaderClick : undefined}
           onNavigate={handleLocate}
           onMouseEnter={handleHeaderMouseEnter}
           onMouseLeave={handleHeaderMouseLeave}
-          className={eventId ? "cursor-pointer" : undefined}
           rightContent={
             toolUsage ? <ToolUsageBadge usage={toolUsage} /> : undefined
           }
@@ -386,9 +385,7 @@ const ExploreBlock: React.FC<ExploreBlockProps> = React.memo(
             icon={toolIcon}
             isCollapsed={isCollapsed}
             isHeaderHovered={isHeaderHovered}
-            onToggle={hasContent ? handleHeaderClick : undefined}
             hasContent={hasContent}
-            revealChevronOnIconHoverOnly={Boolean(eventId)}
             isLoading={isLoading}
           />
           <EventBlockHeaderTitle isLoading={isLoading}>

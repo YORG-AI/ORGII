@@ -66,7 +66,6 @@ const ListDirBlock: React.FC<ListDirBlockProps> = React.memo(
         <EventBlockHeader
           isCollapsed
           withHover={false}
-          onClick={handleLocate}
           onNavigate={handleLocate}
           onMouseEnter={handleHeaderMouseEnter}
           onMouseLeave={handleHeaderMouseLeave}
@@ -82,7 +81,6 @@ const ListDirBlock: React.FC<ListDirBlockProps> = React.memo(
             isCollapsed
             isHeaderHovered={isHeaderHovered}
             hasContent={false}
-            revealChevronOnIconHoverOnly={Boolean(eventId)}
             isLoading={isLoading}
           />
           <EventBlockHeaderTitle isLoading={isLoading}>

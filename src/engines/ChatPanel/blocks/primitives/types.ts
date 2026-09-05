@@ -19,8 +19,8 @@ export interface EventBlockHeaderProps {
   children: ReactNode;
   /** Additional right content (optional) */
   rightContent?: ReactNode;
-  /** Click handler */
-  onClick?: () => void;
+  /** Expand/collapse handler for clicks on the header row */
+  onToggleCollapse?: () => void;
   /** Mouse enter handler */
   onMouseEnter?: () => void;
   /** Mouse leave handler */

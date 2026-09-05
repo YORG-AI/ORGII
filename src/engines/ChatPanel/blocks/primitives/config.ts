@@ -270,7 +270,7 @@ export const EVENT_BLOCK_HEADER_HEIGHT = 36; // Fixed 36px height
  * Get standard header classes for event blocks
  * @param isCollapsed - Whether the block is collapsed
  * @param withHover - Whether to show hover effect and border (default: true). Set false for transparent blocks
- * @param clickable - Whether the header responds to clicks (default: true). Controls cursor style
+ * @param clickable - Whether the header responds to row clicks (default: false). Controls cursor style
  * @returns className string
  * Note: No background - inherits from container. No hover/border for transparent blocks.
  * Border-b uses border-transparent when collapsed to prevent 1px shift on collapse/expand
@@ -279,7 +279,7 @@ export const EVENT_BLOCK_HEADER_HEIGHT = 36; // Fixed 36px height
 export const getEventBlockHeaderClasses = (
   isCollapsed: boolean,
   _withHover = true,
-  clickable = true
+  clickable = false
 ) =>
   `chat-block-header flex ${clickable ? "cursor-pointer" : "cursor-default"} items-center justify-between px-2 h-[36px] transition-all duration-150`;
 
@@ -350,14 +350,6 @@ export const EVENT_BLOCK_ELEVATED_BG = "bg-fill-3";
  */
 export const EVENT_BLOCK_ICON_WRAPPER_CLASSES =
   "chat-block-icon inline-flex h-[14px] w-[14px] shrink-0 select-none items-center justify-center self-center text-text-2";
-
-/**
- * Larger hover target around the icon for chevron reveal.
- * Wraps the icon wrapper to provide a comfortable click/hover zone
- * while keeping the visual icon size at 14×14.
- */
-export const EVENT_BLOCK_ICON_HOVER_AREA_CLASSES =
-  "inline-flex select-none items-center justify-center p-1 -m-1 rounded-xs";
 
 /**
  * Standard icon classes

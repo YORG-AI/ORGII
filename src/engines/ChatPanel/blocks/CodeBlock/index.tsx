@@ -226,7 +226,7 @@ const ChatCodeBlock: React.FC<ChatCodeBlockProps> = memo(
                 ? "border-b border-solid border-transparent"
                 : "border-b border-solid border-border-1"
             }
-            onClick={hasContent ? handleLocate : undefined}
+            onToggleCollapse={hasContent ? handleHeaderClick : undefined}
             onNavigate={
               eventId && !shouldShowCopyButton ? handleLocate : undefined
             }
@@ -247,9 +247,7 @@ const ChatCodeBlock: React.FC<ChatCodeBlockProps> = memo(
               isCollapsed={isCollapsed}
               isHeaderHovered={isHeaderHovered}
               iconSize={16}
-              onToggle={handleHeaderClick}
               hasContent={hasContent}
-              revealChevronOnIconHoverOnly={Boolean(eventId)}
               isLoading={isLoading}
               isFailed={isFailed}
             />

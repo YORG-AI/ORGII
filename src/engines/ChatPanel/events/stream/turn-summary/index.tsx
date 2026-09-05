@@ -130,6 +130,7 @@ const ChatCard: React.FC<SummaryData & { eventId?: string }> = ({
       <EventBlockHeader
         isCollapsed={isCollapsed}
         withHover={false}
+        onToggleCollapse={hasBody ? handleHeaderClick : undefined}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
       >
@@ -137,7 +138,6 @@ const ChatCard: React.FC<SummaryData & { eventId?: string }> = ({
           icon={icon}
           isCollapsed={isCollapsed}
           isHeaderHovered={isHeaderHovered}
-          onToggle={hasBody ? handleHeaderClick : undefined}
           hasContent={hasBody}
         />
         <EventBlockHeaderTitle>
@@ -221,6 +221,7 @@ const SimulatorCard: React.FC<SummaryData & { eventId?: string }> = ({
           <EventBlockHeader
             isCollapsed={isCollapsed}
             withHover={false}
+            onToggleCollapse={handleHeaderClick}
             onMouseEnter={handleHeaderMouseEnter}
             onMouseLeave={handleHeaderMouseLeave}
           >
@@ -228,7 +229,6 @@ const SimulatorCard: React.FC<SummaryData & { eventId?: string }> = ({
               icon={icon}
               isCollapsed={isCollapsed}
               isHeaderHovered={isHeaderHovered}
-              onToggle={handleHeaderClick}
               hasContent
             />
             <span className={SESSION_UI_TOKENS.TEXT.LABEL_XS}>

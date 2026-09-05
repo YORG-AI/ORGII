@@ -190,11 +190,10 @@ export const WorktreeListBlock: React.FC<WorktreeListBlockProps> = ({
       <EventBlockHeader
         isCollapsed={!isExpanded}
         withHover={false}
-        onClick={handleLocate}
+        onToggleCollapse={hasContent ? handleHeaderClick : undefined}
         onNavigate={handleLocate}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
-        className={eventId ? "cursor-pointer" : undefined}
         rightContent={
           toolUsage ? <ToolUsageBadge usage={toolUsage} /> : undefined
         }
@@ -206,9 +205,7 @@ export const WorktreeListBlock: React.FC<WorktreeListBlockProps> = ({
           })}
           isCollapsed={!isExpanded}
           isHeaderHovered={isHeaderHovered}
-          onToggle={hasContent ? handleHeaderClick : undefined}
           hasContent={hasContent}
-          revealChevronOnIconHoverOnly={Boolean(eventId)}
           isLoading={isLoading}
           isFailed={isFailed}
         />

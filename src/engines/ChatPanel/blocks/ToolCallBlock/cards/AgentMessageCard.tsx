@@ -170,7 +170,7 @@ const AgentMessageCard: React.FC<AgentMessageCardProps> = ({
       <EventBlockHeader
         isCollapsed={isCollapsed}
         withHover={false}
-        onClick={handleLocate}
+        onToggleCollapse={hasContent ? handleHeaderClick : undefined}
         onNavigate={handleLocate}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
@@ -179,9 +179,7 @@ const AgentMessageCard: React.FC<AgentMessageCardProps> = ({
           icon={toolIcon}
           isCollapsed={isCollapsed}
           isHeaderHovered={isHeaderHovered}
-          onToggle={hasContent ? handleHeaderClick : undefined}
           hasContent={hasContent}
-          revealChevronOnIconHoverOnly={Boolean(eventId)}
           isLoading={isLoading}
           isFailed={isFailed}
         />

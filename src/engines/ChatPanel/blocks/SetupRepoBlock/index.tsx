@@ -162,7 +162,7 @@ const SetupRepoBlock: React.FC<SetupRepoBlockProps> = memo(
       <div className={getEventBlockContainerClasses(false)}>
         <EventBlockHeader
           isCollapsed={isCollapsed}
-          onClick={hasContent ? handleHeaderClick : undefined}
+          onToggleCollapse={hasContent ? handleHeaderClick : undefined}
           onMouseEnter={handleHeaderMouseEnter}
           onMouseLeave={handleHeaderMouseLeave}
           rightContent={
@@ -173,7 +173,6 @@ const SetupRepoBlock: React.FC<SetupRepoBlockProps> = memo(
             icon={toolIcon}
             isCollapsed={isCollapsed}
             isHeaderHovered={isHeaderHovered}
-            onToggle={hasContent ? handleHeaderClick : undefined}
             hasContent={hasContent}
             isLoading={isRunning}
             isFailed={isFailed}

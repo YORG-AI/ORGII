@@ -14,13 +14,15 @@ import {
 
 import TerminalBlock from ".";
 
+const replayEventById = vi.hoisted(() => vi.fn());
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
 vi.mock("@src/engines/ChatPanel/hooks/useChatEventReplay", () => ({
   useChatEventReplay: () => ({
-    replayEventById: vi.fn(),
+    replayEventById,
     canReplay: false,
   }),
 }));
@@ -58,6 +60,7 @@ describe("TerminalBlock collapse policy", () => {
 
   function renderTerminal(props: {
     exitCode?: number;
+    eventId?: string;
     isError?: boolean;
     isLoading?: boolean;
   }) {
@@ -97,5 +100,25 @@ describe("TerminalBlock collapse policy", () => {
 
     expect(container.textContent).toContain("exit 8");
     expect(commandBody()).toBeNull();
+  });
+
+  it("expands from the row and navigates only from the Agent Station arrow", () => {
+    replayEventById.mockReset();
+    renderTerminal({ eventId: "shell-a", exitCode: 8, isError: true });
+
+    const header = container.querySelector<HTMLElement>(".chat-block-header");
+    const navigate = container.querySelector<HTMLButtonElement>(
+      '[data-testid="event-navigate"]'
+    );
+    expect(commandBody()).toBeNull();
+
+    act(() => header?.click());
+    expect(commandBody()?.textContent).toBe("gh pr checks 964");
+    expect(replayEventById).not.toHaveBeenCalled();
+
+    act(() => navigate?.click());
+    expect(replayEventById).toHaveBeenCalledOnce();
+    expect(replayEventById).toHaveBeenCalledWith("shell-a");
+    expect(commandBody()?.textContent).toBe("gh pr checks 964");
   });
 });

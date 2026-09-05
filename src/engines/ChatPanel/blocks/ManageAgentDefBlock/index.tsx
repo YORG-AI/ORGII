@@ -177,7 +177,7 @@ const ManageAgentDefBlock: React.FC<ManageAgentDefBlockProps> = ({
       <EventBlockHeader
         isCollapsed={isCollapsed}
         withHover={false}
-        onClick={handleLocate}
+        onToggleCollapse={hasBody ? handleHeaderClick : undefined}
         onNavigate={handleLocate}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
@@ -189,9 +189,7 @@ const ManageAgentDefBlock: React.FC<ManageAgentDefBlockProps> = ({
           icon={icon}
           isCollapsed={isCollapsed}
           isHeaderHovered={isHeaderHovered}
-          onToggle={hasBody ? handleHeaderClick : undefined}
           hasContent={hasBody}
-          revealChevronOnIconHoverOnly={Boolean(eventId)}
           isLoading={isLoading}
         />
         <EventBlockHeaderTitle isLoading={isLoading}>

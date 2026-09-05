@@ -57,10 +57,9 @@ const EventNavigateIcon: React.FC<EventNavigateIconProps> = memo(
       <button
         type="button"
         data-testid="event-navigate"
-        aria-label={ariaLabel}
+        aria-label={ariaLabel ?? "View in Agent Station"}
         className={className}
         onClick={handleClick}
-        tabIndex={-1}
       >
         <AnyIcon icon={Icon} size={variant === "footer-hover" ? 16 : 14} />
       </button>

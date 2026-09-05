@@ -156,7 +156,7 @@ const CanvasInlineCard: React.FC<CanvasInlineCardProps> = ({
             ? "border-b border-solid border-transparent"
             : "border-b border-solid border-border-1"
         }
-        onClick={handleHeaderClick}
+        onToggleCollapse={handleHeaderClick}
         onNavigate={eventId ? handleLocate : undefined}
         onMouseEnter={handleHeaderMouseEnter}
         onMouseLeave={handleHeaderMouseLeave}
@@ -173,7 +173,6 @@ const CanvasInlineCard: React.FC<CanvasInlineCardProps> = ({
           }
           isCollapsed={isCollapsed}
           isHeaderHovered={isHeaderHovered}
-          onToggle={handleHeaderClick}
           hasContent
         />
         <EventBlockHeaderTitle>{cardTitle}</EventBlockHeaderTitle>
