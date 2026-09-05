@@ -49,6 +49,13 @@ export interface EditorContentProps {
   // Terminal tab
   terminalState: UseTerminalStateReturn;
 
+  /**
+   * Tabs the retention policy keeps mounted-but-hidden while inactive
+   * (`useRetainedTabPool`); the host renders them in hidden layers instead
+   * of rebuilding them on the next visit. Omit for active-only behaviour.
+   */
+  retainedTabIds?: ReadonlySet<string>;
+
   // Source Control header controls
   sourceControlHeaderLeadingSlot?: ReactNode;
   sourceControlHeaderTrailingSlot?: ReactNode;

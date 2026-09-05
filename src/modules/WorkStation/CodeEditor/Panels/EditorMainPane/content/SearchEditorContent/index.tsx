@@ -12,11 +12,12 @@
  *
  * This is the content rendered when a "search" tab is active in the editor.
  */
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { Placeholder } from "@src/components/Placeholder";
+import { useTabViewState } from "@src/hooks/tabHost/useTabViewState";
 import { FilterIcon, HugeiconsIcon } from "@src/icons";
 
 import { SearchFilters } from "../../../shared";
@@ -82,9 +83,18 @@ export const SearchEditorContent: React.FC<SearchEditorContentProps> = memo(
   }) => {
     const { t } = useTranslation();
 
-    // Search mode state
-    const [searchMode, setSearchMode] = useState<SearchMode>("regex");
-    const [showFilters, setShowFilters] = useState(false);
+    // Search mode + filter drawer live in the tab's view state: the content
+    // is unmounted on every tab switch and rebuilt from stores on return.
+    const [searchMode, setSearchMode] = useTabViewState<SearchMode>(
+      sessionScopeId,
+      "searchMode",
+      "regex"
+    );
+    const [showFilters, setShowFilters] = useTabViewState(
+      sessionScopeId,
+      "showFilters",
+      false
+    );
 
     // Search hook - unified with sidebar search execution pipeline
     const { query, setQuery, options, setOptions, results, loading, error } =
@@ -131,7 +141,7 @@ export const SearchEditorContent: React.FC<SearchEditorContentProps> = memo(
 
     const handleToggleFilters = useCallback(() => {
       setShowFilters((prev) => !prev);
-    }, []);
+    }, [setShowFilters]);
 
     useEffect(() => {
       if (!onQueryChangeForTitle) {

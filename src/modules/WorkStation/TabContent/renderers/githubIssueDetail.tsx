@@ -5,9 +5,10 @@
  * callbacks from `workstationIssueCallbackAtom`, then delegates to the
  * existing `IssueDetailPanel` component.
  */
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, { memo, useMemo } from "react";
 
 import { Placeholder } from "@src/components/Placeholder";
+import { useTabViewState } from "@src/hooks/tabHost/useTabViewState";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import {
   IssueDetailExternalLinkButton,
@@ -31,20 +32,13 @@ const GitHubIssueDetailTabRenderer: React.FC<UnifiedTabContentProps> = memo(
     const tabData = tab.data as unknown as GitHubIssueDetailTabData;
     const { selectedState, interaction, assigneeConfig } =
       useGitHubIssueDetailState(tabData);
-    const issueIdentity = `${tabData.repoPath}:${tabData.issueNumber}`;
-    const [tabSelection, setTabSelection] = useState<{
-      issueIdentity: string;
-      activeTab: ThreadDetailTab;
-    }>({ issueIdentity, activeTab: "conversation" });
-    const activeTab =
-      tabSelection.issueIdentity === issueIdentity
-        ? tabSelection.activeTab
-        : "conversation";
-    const handleTabChange = useCallback(
-      (nextTab: ThreadDetailTab) => {
-        setTabSelection({ issueIdentity, activeTab: nextTab });
-      },
-      [issueIdentity]
+    // The tab id is unique per repo + issue number, and the renderer is
+    // unmounted on every tab switch, so the sub-tab selection lives in the
+    // tab's view state rather than component state.
+    const [activeTab, handleTabChange] = useTabViewState<ThreadDetailTab>(
+      tab.id,
+      "activeTab",
+      "conversation"
     );
     const linkedCount = useMemo(() => {
       const issue = selectedState.issue;

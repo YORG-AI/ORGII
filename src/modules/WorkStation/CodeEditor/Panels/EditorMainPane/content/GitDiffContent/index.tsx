@@ -45,6 +45,11 @@ import {
   editorWordWrapAtom,
 } from "@src/store/ui";
 import { diffViewModeAtom } from "@src/store/workstation/codeEditor";
+import {
+  deleteGitDiffEditDraft,
+  restoreGitDiffEditDraft,
+  setGitDiffEditDraft,
+} from "@src/store/workstation/codeEditor/gitDiffEditDrafts";
 import type { GitFile } from "@src/types/git/types";
 import { isBinaryByExtension } from "@src/util/file/binaryDetection";
 import {
@@ -241,13 +246,25 @@ const GitDiffContentInner: React.FC<GitDiffContentProps> = ({
   // View mode state for diff display
   const [viewMode, setViewMode] = useAtom(diffViewModeAtom);
 
-  // Local state for edited content
+  // Local state for edited content. The buffer is mirrored into
+  // `gitDiffEditDrafts` (keyed by file path) because this component is
+  // unmounted on every tab switch; the draft is restored below once the
+  // working-tree content it was written against is known again.
   const [editedContent, setEditedContent] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Reset edited content when git file changes
+  // Reset edited content when the git file changes (not on mount — mount
+  // goes straight to the draft restore), and queue a draft restore for the
+  // new path.
+  const lastGitFilePathRef = useRef(gitFile?.path);
+  const pendingDraftRestorePathRef = useRef<string | null>(
+    gitFile?.path ?? null
+  );
   useEffect(() => {
+    if (lastGitFilePathRef.current === gitFile?.path) return;
+    lastGitFilePathRef.current = gitFile?.path;
+    pendingDraftRestorePathRef.current = gitFile?.path ?? null;
     setEditedContent(null);
     setHasUnsavedChanges(false);
   }, [gitFile?.path]);
@@ -265,6 +282,25 @@ const GitDiffContentInner: React.FC<GitDiffContentProps> = ({
     gitFile,
     repoPath,
   });
+
+  // Pick up a draft saved by a previous mount once the working-tree content
+  // for the pending path is known. `restoreGitDiffEditDraft` discards a
+  // draft whose base no longer matches, so newer on-disk content wins and
+  // the restored (or cleared) unsaved flag is published to the tab bar by
+  // the `onUnsavedChange` effect above.
+  const effectiveGitFilePath = effectiveGitFile?.path;
+  const effectiveNewContent = effectiveGitFile?.newContent;
+  useEffect(() => {
+    const pendingPath = pendingDraftRestorePathRef.current;
+    if (!pendingPath) return;
+    if (effectiveGitFilePath !== pendingPath) return;
+    if (effectiveNewContent === undefined) return;
+    pendingDraftRestorePathRef.current = null;
+    const draft = restoreGitDiffEditDraft(pendingPath, effectiveNewContent);
+    if (draft === null) return;
+    setEditedContent(draft);
+    setHasUnsavedChanges(true);
+  }, [effectiveGitFilePath, effectiveNewContent]);
 
   // Check if the file has merge conflict markers — reads from effective
   // content so the self-fetched diff feeds into conflict detection.
@@ -354,6 +390,13 @@ const GitDiffContentInner: React.FC<GitDiffContentProps> = ({
     const currentGitFile = gitFileRef.current;
     setEditedContent(newContent);
     setHasUnsavedChanges(newContent !== currentGitFile?.newContent);
+    if (currentGitFile?.path) {
+      setGitDiffEditDraft(
+        currentGitFile.path,
+        currentGitFile.newContent ?? "",
+        newContent
+      );
+    }
     // Notify parent of content change (for conflict resolution)
     if (currentGitFile?.path) {
       callbackRefs.current.onContentChange?.(currentGitFile.path, newContent);
@@ -396,6 +439,8 @@ const GitDiffContentInner: React.FC<GitDiffContentProps> = ({
   );
 
   const handleDiscard = useCallback(() => {
+    const currentPath = gitFileRef.current?.path;
+    if (currentPath) deleteGitDiffEditDraft(currentPath);
     setEditedContent(null);
     setHasUnsavedChanges(false);
   }, []);
@@ -411,6 +456,7 @@ const GitDiffContentInner: React.FC<GitDiffContentProps> = ({
     try {
       // Write file using Tauri fs
       await writeTextFile(gitFile.path, editedContent);
+      deleteGitDiffEditDraft(gitFile.path);
       setHasUnsavedChanges(false);
       // Refresh git status so source control panel updates immediately
       forceRefresh();

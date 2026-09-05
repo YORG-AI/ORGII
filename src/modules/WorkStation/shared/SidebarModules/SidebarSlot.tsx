@@ -2,21 +2,26 @@
  * SidebarSlot
  *
  * Resolves and renders tab-specific sidebars from `registry.ts`. The slot owns
- * default-sidebar fallback and descriptor-level keep-alive behavior so hosts do
- * not need one-off warm-mount branches for individual tab types.
+ * default-sidebar fallback and the retained-sidebar behaviour so hosts do not
+ * need one-off warm-mount branches for individual tab types.
+ *
+ * Which sidebars stay mounted after their tab is left is not a per-sidebar
+ * flag: the host passes the tabs the shared retention policy currently keeps
+ * warm (`@src/store/workstation/tabs/tabRetention`, via
+ * `useRetainedTabPool`), and this slot keeps exactly those sidebars mounted —
+ * hidden with `visibility:hidden` so their scroll offsets survive — in
+ * lockstep with the host's main pane.
  */
-import React, { memo, useEffect, useMemo, useState } from "react";
+import React, { memo, useMemo } from "react";
 
 import type {
   SourceControlHistorySelection,
   WorkStationTab,
-  WorkStationTabType,
 } from "@src/store/workstation/tabs";
 import type { GitFile } from "@src/types/git/types";
 
 import {
   type TabSidebarRuntimeContext,
-  getInitialKeepAliveTabsByType,
   getTabSidebarDescriptor,
   hasTabSidebar,
 } from "./registry";
@@ -27,6 +32,11 @@ type TabSidebarExtraContext = Partial<
 
 interface TabSidebarOptions {
   activeTab: WorkStationTab | null;
+  /**
+   * Tabs the retention policy keeps mounted-but-hidden (the active tab
+   * included when it is retained). Their sidebars are kept warm here.
+   */
+  retainedTabs?: readonly WorkStationTab[];
   repoPath: string | null;
   repoId: string | null;
   isMultiRoot?: boolean;
@@ -47,6 +57,8 @@ interface TabSidebarRendererProps {
   context: TabSidebarRuntimeContext;
 }
 
+const NO_RETAINED_TABS: readonly WorkStationTab[] = [];
+
 function shouldRenderSidebar(tab: WorkStationTab): boolean {
   if (!hasTabSidebar(tab.type)) return false;
 
@@ -66,7 +78,7 @@ function buildSidebarContext({
   onGitFilesChange,
   onGitHistorySelectionChange,
   extraContext,
-}: Omit<TabSidebarOptions, "activeTab"> & {
+}: Omit<TabSidebarOptions, "activeTab" | "retainedTabs"> & {
   repoPath: string;
 }): TabSidebarRuntimeContext {
   return {
@@ -94,6 +106,7 @@ TabSidebarRenderer.displayName = "TabSidebarRenderer";
 export const SidebarSlot: React.FC<SidebarSlotProps> = memo(
   ({
     activeTab,
+    retainedTabs = NO_RETAINED_TABS,
     repoPath,
     repoId,
     isMultiRoot,
@@ -103,54 +116,6 @@ export const SidebarSlot: React.FC<SidebarSlotProps> = memo(
     extraContext,
     defaultSidebar,
   }) => {
-    const initialWarmTabsByType = useMemo(() => {
-      const entries = Object.entries(getInitialKeepAliveTabsByType()) as Array<
-        [WorkStationTabType, WorkStationTab]
-      >;
-
-      return entries.reduce<
-        Partial<Record<WorkStationTabType, WorkStationTab>>
-      >((accumulator, [tabType, tab]) => {
-        if (shouldRenderSidebar(tab)) {
-          accumulator[tabType] = tab;
-        }
-        return accumulator;
-      }, {});
-    }, []);
-
-    const [warmTabsByType, setWarmTabsByType] = useState<
-      Partial<Record<WorkStationTabType, WorkStationTab>>
-    >(initialWarmTabsByType);
-
-    const activeDescriptor = activeTab
-      ? getTabSidebarDescriptor(activeTab.type)
-      : undefined;
-    const activeSidebarRenderable = Boolean(
-      activeTab && shouldRenderSidebar(activeTab)
-    );
-    const activeKeepAlive = Boolean(
-      activeTab && activeDescriptor?.keepAlive && activeSidebarRenderable
-    );
-
-    useEffect(() => {
-      if (
-        !activeTab ||
-        !activeDescriptor?.keepAlive ||
-        !activeSidebarRenderable
-      ) {
-        return;
-      }
-
-      const frameId = window.requestAnimationFrame(() => {
-        setWarmTabsByType((prev) => {
-          if (prev[activeTab.type] === activeTab) return prev;
-          return { ...prev, [activeTab.type]: activeTab };
-        });
-      });
-
-      return () => window.cancelAnimationFrame(frameId);
-    }, [activeDescriptor?.keepAlive, activeSidebarRenderable, activeTab]);
-
     const context = useMemo(() => {
       if (!repoPath) return null;
       return buildSidebarContext({
@@ -172,31 +137,37 @@ export const SidebarSlot: React.FC<SidebarSlotProps> = memo(
       repoPath,
     ]);
 
-    const activeWarmTab =
-      activeTab && activeKeepAlive ? warmTabsByType[activeTab.type] : undefined;
+    // Retained tabs that own a sidebar get a persistent keyed layer each.
+    const warmSidebarTabs = useMemo(
+      () => retainedTabs.filter((tab) => shouldRenderSidebar(tab)),
+      [retainedTabs]
+    );
+    const activeSidebarRenderable = Boolean(
+      activeTab && shouldRenderSidebar(activeTab)
+    );
+    const activeHasWarmLayer =
+      activeTab !== null &&
+      warmSidebarTabs.some((tab) => tab.id === activeTab.id);
     const shouldRenderDirectActiveSidebar =
-      activeTab && context && activeSidebarRenderable && !activeWarmTab;
+      activeTab && context && activeSidebarRenderable && !activeHasWarmLayer;
 
     const activeSidebar = shouldRenderDirectActiveSidebar ? (
       <TabSidebarRenderer tab={activeTab} context={context} />
     ) : null;
 
     const warmSidebars = context
-      ? Object.entries(warmTabsByType).flatMap(([tabType, warmTab]) => {
-          if (!warmTab) return [];
-          const descriptor = getTabSidebarDescriptor(warmTab.type);
-          if (!descriptor?.keepAlive) return [];
-          const isActiveWarmSidebar =
-            activeKeepAlive && activeTab?.type === tabType;
-          return [
+      ? warmSidebarTabs.map((tab) => {
+          const visible = tab.id === activeTab?.id;
+          return (
             <div
-              key={warmTab.type}
+              key={tab.id}
               className="absolute inset-0 flex min-h-0 flex-col"
-              style={{ display: isActiveWarmSidebar ? undefined : "none" }}
+              style={visible ? undefined : { visibility: "hidden" }}
+              aria-hidden={!visible}
             >
-              <TabSidebarRenderer tab={warmTab} context={context} />
-            </div>,
-          ];
+              <TabSidebarRenderer tab={tab} context={context} />
+            </div>
+          );
         })
       : [];
 
@@ -210,7 +181,7 @@ export const SidebarSlot: React.FC<SidebarSlotProps> = memo(
           <div className="absolute inset-0 flex min-h-0 flex-col">
             {activeSidebar}
           </div>
-        ) : activeWarmTab ? null : (
+        ) : activeHasWarmLayer ? null : (
           <div className="absolute inset-0 flex min-h-0 flex-col">
             {defaultSidebar}
           </div>

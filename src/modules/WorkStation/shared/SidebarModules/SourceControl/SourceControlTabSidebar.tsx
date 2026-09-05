@@ -21,9 +21,8 @@ const SourceControlTabSidebar: TabSidebarComponent = (props) => (
 
 SourceControlTabSidebar.displayName = "SourceControlTabSidebar";
 
-registerTabSidebar("source-control", {
-  component: SourceControlTabSidebar,
-  keepAlive: false,
-});
+// Kept warm alongside the Review main pane per `tabRetention.ts`; the
+// sidebar slot reads the policy, so nothing is declared here.
+registerTabSidebar("source-control", SourceControlTabSidebar);
 
 export { SourceControlTabSidebar };

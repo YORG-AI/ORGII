@@ -5,6 +5,12 @@
  * the old `GitAllChangesContent` component so it can be reused both inside
  * the unified Source Control tab (under the All Changes pill) and by
  * MessageViewer's chat-side preview.
+ *
+ * The view is unmounted whenever Source Control stops being the active tab
+ * and rebuilt on the next visit. Its list view state (expanded sections,
+ * scroll offset, handled focus request) is saved per tab through
+ * `viewStateKey` so the rebuild lands where the user left off instead of
+ * collapsing every file and scrolling back to the top.
  */
 import { useAtomValue } from "jotai";
 import React, {
@@ -17,14 +23,24 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import { DiffSectionList } from "@src/modules/WorkStation/shared";
+import {
+  DiffSectionList,
+  type DiffSectionListViewState,
+} from "@src/modules/WorkStation/shared";
 import {
   diffViewModeAtom,
   sourceControlFocusTargetAtom,
 } from "@src/store/workstation/codeEditor";
+import {
+  getTabViewState,
+  setTabViewState,
+} from "@src/store/workstation/tabs/tabViewState";
 import type { GitFile } from "@src/types/git/types";
 
 import { useAllChangesFiles } from "./allChanges/useAllChangesFiles";
+
+/** Slot under the owning tab's view state that holds the list snapshot. */
+export const ALL_CHANGES_VIEW_STATE_SLOT = "allChanges";
 
 export interface AllChangesViewProps {
   /** All git files to display */
@@ -41,6 +57,11 @@ export interface AllChangesViewProps {
   onFileSelect?: (path: string) => void;
   /** Monotonic signal from the global header collapse-all action. */
   collapseAllSignal?: number;
+  /**
+   * Tab id whose view state carries this list across remounts. Omit for
+   * embedded previews that should always start fresh.
+   */
+  viewStateKey?: string;
 }
 
 const AllChangesView: React.FC<AllChangesViewProps> = ({
@@ -51,6 +72,7 @@ const AllChangesView: React.FC<AllChangesViewProps> = ({
   repoPath,
   onFileSelect,
   collapseAllSignal,
+  viewStateKey,
 }) => {
   const { t } = useTranslation();
   const focusTarget = useAtomValue(sourceControlFocusTargetAtom);
@@ -63,8 +85,29 @@ const AllChangesView: React.FC<AllChangesViewProps> = ({
     getSectionRef,
   } = useAllChangesFiles({ files, repoId, repoPath });
 
+  // Read once per mount; the list rebuilds itself from this snapshot.
+  const [restoredViewState] = useState<DiffSectionListViewState | null>(() =>
+    viewStateKey
+      ? (getTabViewState<DiffSectionListViewState>(
+          viewStateKey,
+          ALL_CHANGES_VIEW_STATE_SLOT
+        ) ?? null)
+      : null
+  );
+  const handleViewStateChange = useCallback(
+    (viewState: DiffSectionListViewState) => {
+      if (!viewStateKey) return;
+      setTabViewState(viewStateKey, ALL_CHANGES_VIEW_STATE_SLOT, viewState);
+    },
+    [viewStateKey]
+  );
+
   const previousCollapseAllSignalRef = useRef(collapseAllSignal);
-  const lastScrolledFocusNonceRef = useRef<number | null>(null);
+  // Seeded from the snapshot so a remount for the same focus request does
+  // not scroll back to the focused file over the restored offset.
+  const lastScrolledFocusNonceRef = useRef<number | null>(
+    restoredViewState?.focusNonce ?? null
+  );
   const filesKey = files
     .map((file) =>
       JSON.stringify([
@@ -154,6 +197,8 @@ const AllChangesView: React.FC<AllChangesViewProps> = ({
       onFileSelect={onFileSelect}
       onRequestContent={handleRequestContent}
       onExpansionChange={handleExpansionChange}
+      viewState={restoredViewState}
+      onViewStateChange={handleViewStateChange}
       showRenamePath
       compactHeaderGutter
       hideBottomPadding

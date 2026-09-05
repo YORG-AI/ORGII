@@ -45,7 +45,11 @@ export function useAllChangesFiles({
   repoId,
   repoPath,
 }: UseAllChangesFilesOptions): UseAllChangesFilesResult {
-  const [filesWithDiffs, setFilesWithDiffs] = useState<GitFile[]>([]);
+  // Seeded from `files` so the first render already has sections: the view
+  // is rebuilt on every Source Control visit, and an empty first frame both
+  // flashed the "no changes" placeholder and mounted the list before its
+  // restored view state had rows to apply to.
+  const [filesWithDiffs, setFilesWithDiffs] = useState<GitFile[]>(files);
 
   const statsLoadedPathsRef = useRef<Set<string>>(new Set());
   const contentLoadedPathsRef = useRef<Set<string>>(new Set());

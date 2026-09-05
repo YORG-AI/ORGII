@@ -12,8 +12,10 @@
  *
  * Conventions:
  *   - Each component must own its internal state (selection, filter, refs).
- *   - The component is mounted lazily once the tab becomes active and stays
- *     mounted (host's keep-alive policy decides when to unmount).
+ *   - The component is mounted lazily once the tab becomes active. Whether
+ *     it stays mounted-but-hidden after the tab is left is decided by the
+ *     shared tab retention policy (`@src/store/workstation/tabs/tabRetention`),
+ *     read by `SidebarSlot` — not declared per sidebar.
  *   - Components receive only domain inputs — never tab data dictionaries.
  */
 import type { ComponentType } from "react";
@@ -56,8 +58,6 @@ export type TabSidebarComponent = ComponentType<TabSidebarProps>;
 
 export interface TabSidebarDescriptor {
   component: TabSidebarComponent;
-  keepAlive?: boolean;
-  keepAliveInitialTab?: WorkStationTab;
 }
 
 const REGISTRY = new Map<WorkStationTabType, TabSidebarDescriptor>();
@@ -86,20 +86,6 @@ export function getTabSidebarDescriptor(
   tabType: WorkStationTabType
 ): TabSidebarDescriptor | undefined {
   return REGISTRY.get(tabType);
-}
-
-export function getInitialKeepAliveTabsByType(): Partial<
-  Record<WorkStationTabType, WorkStationTab>
-> {
-  const result: Partial<Record<WorkStationTabType, WorkStationTab>> = {};
-
-  for (const [tabType, descriptor] of REGISTRY.entries()) {
-    if (descriptor.keepAlive && descriptor.keepAliveInitialTab) {
-      result[tabType] = descriptor.keepAliveInitialTab;
-    }
-  }
-
-  return result;
 }
 
 /**

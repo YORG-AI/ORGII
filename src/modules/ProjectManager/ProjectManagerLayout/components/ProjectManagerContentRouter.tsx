@@ -1,9 +1,13 @@
 import React, { Suspense, useMemo } from "react";
 
 import { Placeholder } from "@src/components/Placeholder";
-import { useKeepAliveWindow } from "@src/hooks/ui/useKeepAliveWindow";
+import { useRetainedTabPool } from "@src/hooks/tabHost/useRetainedTabPool";
 import { UnifiedTabContent } from "@src/modules/WorkStation/TabContent/UnifiedTabContent";
 import { NoTabsPlaceholder } from "@src/modules/WorkStation/shared";
+import {
+  RETENTION_POOLS,
+  isTabInRetentionPool,
+} from "@src/store/workstation/tabs/tabRetention";
 
 import type { ProjectManagerContentRouterProps } from "../types";
 
@@ -30,28 +34,20 @@ export const STORY_MANAGER_SUSPENSE_LOADING_FALLBACK = (
  * dispatcher:
  *   - The "keep-alive trio" (project-workitems / project-linear-projects /
  *     project-linear-work-items) is mounted for the active trio tab plus a
- *     bounded window of recently active ones (`PROJECT_TRIO_KEEP_ALIVE`),
- *     hidden with `display:none` when inactive, so flipping between two lists
- *     keeps their in-tab state and scroll position. Older trio tabs unmount:
- *     each one is a full non-virtualized table, and every open one used to stay
- *     resident for the life of the host. Each pane still renders through
- *     `UnifiedTabContent`; the list data itself lives in atoms and survives.
+ *     bounded window of recently active ones — the `project-trio` pool in
+ *     `tabRetention.ts` — hidden with `display:none` when inactive, so
+ *     flipping between two lists keeps their in-tab state and scroll
+ *     position. Older trio tabs unmount: each one is a full non-virtualized
+ *     table, and every open one used to stay resident for the life of the
+ *     host. Each pane still renders through `UnifiedTabContent`; the list
+ *     data itself lives in atoms and survives.
  *   - `chat-session` and `git-commit-detail` keep bespoke inline branches: the
  *     project host needs `<ChatView secondary />` (the unified chat renderer
  *     uses `readOnly`, which is wrong here), and git-commit-detail is mounted
  *     directly from tab data.
  */
-/**
- * Two warm trio tabs cover the "compare two lists" flip; a tab left for 60 s
- * is rebuilt from its atoms on the next visit.
- */
-export const PROJECT_TRIO_KEEP_ALIVE = { graceMs: 60_000, maxWarm: 2 } as const;
-
-const TRIO_TAB_TYPES = new Set([
-  "project-workitems",
-  "project-linear-projects",
-  "project-linear-work-items",
-]);
+/** The trio's window lives in the shared retention policy. */
+export const PROJECT_TRIO_KEEP_ALIVE = RETENTION_POOLS["project-trio"];
 
 export function ProjectManagerContentRouter({
   repoPath,
@@ -61,19 +57,13 @@ export function ProjectManagerContentRouter({
 }: ProjectManagerContentRouterProps) {
   const hasNoTabs = tabs.length === 0;
   const persistentWorkItemTabs = useMemo(
-    () => tabs.filter((tab) => TRIO_TAB_TYPES.has(tab.type)),
+    () => tabs.filter((tab) => isTabInRetentionPool(tab, "project-trio")),
     [tabs]
   );
-  const trioTabIds = useMemo(
-    () => persistentWorkItemTabs.map((tab) => tab.id),
-    [persistentWorkItemTabs]
-  );
-  const activeTrioTabId =
-    activeTab && TRIO_TAB_TYPES.has(activeTab.type) ? activeTab.id : null;
-  const mountedTrioTabIds = useKeepAliveWindow(
-    activeTrioTabId,
-    trioTabIds,
-    PROJECT_TRIO_KEEP_ALIVE
+  const mountedTrioTabIds = useRetainedTabPool(
+    "project-trio",
+    tabs,
+    activeTab?.id ?? null
   );
 
   const activeContent = renderActiveContent({
@@ -132,11 +122,7 @@ function renderActiveContent({
 
   // The keep-alive trio is rendered by the persistent multiplexer below, so the
   // active-content slot renders nothing for it.
-  if (
-    activeTab.type === "project-workitems" ||
-    activeTab.type === "project-linear-projects" ||
-    activeTab.type === "project-linear-work-items"
-  ) {
+  if (isTabInRetentionPool(activeTab, "project-trio")) {
     return null;
   }
 

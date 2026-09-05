@@ -43,6 +43,7 @@ import { workStationPrimarySidebarCollapsedAtom } from "@src/store/ui/workStatio
 import { diffViewModeAtom } from "@src/store/workstation/codeEditor";
 import { workstationSelectedIssueAtomFamily } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
+import { isRetainedTabType } from "@src/store/workstation/tabs/tabRetention";
 import type { GitFile } from "@src/types/git/types";
 
 import { CodeEditorDefaultHeader } from "./components/CodeEditorDefaultHeader";
@@ -83,6 +84,8 @@ const LazyFallback = () => (
   <Placeholder variant="loading" placement="detail-panel" fillParentHeight />
 );
 
+const NO_RETAINED_TABS: ReadonlySet<string> = new Set();
+
 // ============================================
 // Main Component
 // ============================================
@@ -98,6 +101,7 @@ const EditorContent: React.FC<EditorContentProps> = memo(
     onFileSelectWithLine,
     onCursorPositionChange,
     terminalState,
+    retainedTabIds = NO_RETAINED_TABS,
     sourceControlHeaderLeadingSlot,
     sourceControlHeaderTrailingSlot,
     sourceControlFilterMode = "uncommitted",
@@ -168,16 +172,48 @@ const EditorContent: React.FC<EditorContentProps> = memo(
     // its fast interval; otherwise it relaxes to halve idle git load.
     useSourceControlAttention(isSourceControlActive);
 
-    const sourceControlTab = isSourceControlActive ? activeTab : null;
+    // The Source Control tab is pinned, so it is normally always present. The
+    // main pane is driven from the persisted tab (not `activeTab`) because
+    // the retention policy keeps it mounted while another tab is on screen.
+    const sourceControlTab = useMemo(
+      () => tabs.find((tab) => tab.type === "source-control") ?? null,
+      [tabs]
+    );
+    // Mounted while active or retained (`tabRetention.ts`: hidden for a
+    // bounded grace window after leaving, then released and rebuilt from
+    // view state on the next visit).
+    const mountSourceControlPane =
+      sourceControlTab !== null &&
+      (isSourceControlActive || retainedTabIds.has(sourceControlTab.id));
+    const sourceControlPaneVisible =
+      isSourceControlActive && !isTerminalTabActive;
 
-    // Only build the All Changes input while Source Control is visible. Leaving
-    // the tab unmounts its editors, content cache, and subscriptions.
+    // Kept populated while the pane is mounted so a hidden Review does not
+    // flash empty when it comes back.
     const sourceControlBaseFiles = useMemo(() => {
-      if (!sourceControlTab) return [];
+      if (!sourceControlTab || !mountSourceControlPane) return [];
       const gitStatusFiles = Array.from(gitFilesByPath.values());
       if (gitStatusFiles.length > 0) return gitStatusFiles;
       return (sourceControlTab.data.files ?? []) as GitFile[];
-    }, [sourceControlTab, gitFilesByPath]);
+    }, [sourceControlTab, mountSourceControlPane, gitFilesByPath]);
+
+    // Registry-rendered tabs the policy retains (none today in the editor
+    // host — the table in `tabRetention.ts` is the switch). Each gets its
+    // own keyed layer so activating it reuses the mounted instance.
+    const retainedRegistryTabs = useMemo(
+      () =>
+        tabs.filter(
+          (tab) =>
+            retainedTabIds.has(tab.id) &&
+            isRetainedTabType(tab.type) &&
+            tab.type !== "source-control" &&
+            tab.type !== "terminal"
+        ),
+      [retainedTabIds, tabs]
+    );
+    const activeTabHasRetainedLayer =
+      activeTab !== null &&
+      retainedRegistryTabs.some((tab) => tab.id === activeTab.id);
 
     // ============================================
     // Tab Content Sync (extracted hook - side effects only)
@@ -427,7 +463,9 @@ const EditorContent: React.FC<EditorContentProps> = memo(
                     actions={editorQuickActions}
                   />
                 ) : activeTab ? (
-                  <UnifiedTabContent tab={activeTab} paneId="main" isActive />
+                  activeTabHasRetainedLayer ? null : (
+                    <UnifiedTabContent tab={activeTab} paneId="main" isActive />
+                  )
                 ) : (
                   // Preserve TabContentRenderer's `!activeTab` branch: an empty
                   // read-only editor. `showAppPlaceholder` already covers
@@ -455,8 +493,41 @@ const EditorContent: React.FC<EditorContentProps> = memo(
               </div>
             )}
 
-            {isSourceControlActive && sourceControlTab && (
-              <div className="absolute inset-0 z-20 flex min-h-0 flex-col">
+            {retainedRegistryTabs.map((tab) => {
+              const visible = tab.id === activeTabId && !isTerminalTabActive;
+              return (
+                <div
+                  key={tab.id}
+                  className={`absolute inset-0 flex min-h-0 flex-col ${
+                    visible
+                      ? "z-10 opacity-100"
+                      : "pointer-events-none z-0 opacity-0"
+                  }`}
+                  aria-hidden={!visible}
+                >
+                  <UnifiedTabContent
+                    tab={tab}
+                    paneId="main"
+                    isActive={visible}
+                  />
+                </div>
+              );
+            })}
+
+            {/*
+              Retained Source Control main pane: shown/hidden (opacity, not
+              display:none, so its scroll offsets survive) rather than
+              unmounted while the policy keeps it warm.
+            */}
+            {mountSourceControlPane && sourceControlTab && (
+              <div
+                className={`absolute inset-0 flex min-h-0 flex-col ${
+                  sourceControlPaneVisible
+                    ? "z-20 opacity-100"
+                    : "pointer-events-none z-0 opacity-0"
+                }`}
+                aria-hidden={!sourceControlPaneVisible}
+              >
                 <Suspense fallback={<LazyFallback />}>
                   <SourceControlMainPane
                     tabData={sourceControlTab.data as SourceControlMainTabData}
@@ -475,6 +546,7 @@ const EditorContent: React.FC<EditorContentProps> = memo(
                     onFileSelect={onFileSelect}
                     onCloseFocus={handleSourceControlCloseFocus}
                     onGitDiffUnsavedChange={handleGitDiffUnsavedChange}
+                    viewStateKey={sourceControlTab.id}
                   />
                 </Suspense>
               </div>

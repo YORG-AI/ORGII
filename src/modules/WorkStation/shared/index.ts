@@ -32,7 +32,10 @@ export type { NewTerminalSessionOptions } from "./TerminalNewSessionSplitButton"
 export { default as DiffFileSection } from "./DiffFileSection";
 export type { DiffFileSectionData } from "./DiffFileSection";
 export { default as DiffSectionList } from "./DiffSectionList";
-export type { DiffSectionListItem } from "./DiffSectionList";
+export type {
+  DiffSectionListItem,
+  DiffSectionListViewState,
+} from "./DiffSectionList";
 export { default as DiffFileNavigationList } from "./DiffFileNavigationList";
 export type { DiffFileNavigationItem } from "./DiffFileNavigationList";
 export {
