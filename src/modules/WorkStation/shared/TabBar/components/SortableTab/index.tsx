@@ -5,18 +5,9 @@
  * and close button with unsaved indicator.
  */
 import { useSortable } from "@dnd-kit/sortable";
-import { useAtomValue } from "jotai";
 import React, { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  type ProjectSyncAdapterType,
-  STORY_SYNC_ADAPTER,
-} from "@src/api/http/integrations/syncConnections";
-import AnyIcon from "@src/components/AnyIcon";
-import { FaviconIcon } from "@src/components/FaviconIcon";
-import FileTypeIcon from "@src/components/FileTypeIcon";
-import IntegrationIcon from "@src/components/IntegrationIcon";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { TabLabelRowScrim } from "@src/components/TabPill/TabLabelRowScrim";
 import { TabPillCloseButton } from "@src/components/TabPill/TabPillCloseButton";
@@ -28,48 +19,13 @@ import {
 } from "@src/config/gitStatus";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
-import SessionIdentityIcon from "@src/engines/ChatPanel/components/SessionIdentityIcon";
 import {
-  Infinity01Icon as Infinity,
-  DeliveryBox01Icon as Box,
-  Building02Icon as Building2,
-  ChartNoAxesGanttIcon as ChartNoAxesGantt,
-  CircleDotIcon as CircleDot,
-  CodeXmlIcon as Code,
-  CodeXmlIcon as Code2,
-  FileDiffIcon as FileDiff,
-  FolderClosedIcon as Folder,
-  WorkflowCircle05Icon as GitBranch,
-  GitCommitHorizontalIcon as GitCommitHorizontal,
-  GitMergeIcon as GitMerge,
-  GitPullRequestIcon as GitPullRequest,
-  InternetIcon as Globe,
   HugeiconsIcon,
-  type IconSvgElement,
-  KanbanIcon as Kanban,
-  Layout01Icon as Layout,
-  DashboardSquare01Icon as LayoutGrid,
-  LayoutListIcon as LayoutList,
-  ListChecksIcon as ListChecks,
   LockIcon as Lock,
-  BubbleChatIcon as MessageCircle,
-  Message01Icon as MessageSquare,
   MoveLeftIcon as MoveHorizontal,
-  PackageIcon as Package,
-  ColorPickerIcon as Palette,
-  Add01Icon as Plus,
-  Radar01Icon as Radar,
-  SearchAreaIcon as ScanSearch,
-  Search01Icon as Search,
-  Settings01Icon as Settings,
-  SparklesIcon as Sparkles,
-  SquareTerminalIcon as SquareTerminal,
-  ComputerTerminal01Icon as Terminal,
 } from "@src/icons";
-import { isGitHubIssueStatus } from "@src/modules/ProjectManager/WorkItems/workItemIdentity";
 import { CODE_EDITOR_TOUR_TARGETS } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import type { GitFileInfo } from "@src/store/git";
-import { sessionByIdAtom } from "@src/store/session";
 import {
   isPlaceholderBrowserSessionTitle,
   translatePlaceholderBrowserSessionTitle,
@@ -80,87 +36,17 @@ import {
 } from "@src/store/workstation/tabs";
 
 import type { WorkStationTab } from "../../types";
+import {
+  WORKSTATION_TAB_ICONS,
+  WorkstationTabIcon,
+  resolveWorkstationTabIntegrationIcon,
+} from "../WorkstationTabIcon";
 
 // ============================================
 // Types
 // ============================================
 
-export const WORKSTATION_TAB_ICONS = {
-  Box,
-  Building2,
-  ChartNoAxesGantt,
-  CircleDot,
-  Code,
-  Code2,
-  FileDiff,
-  GitBranch,
-  GitCommitHorizontal,
-  GitMerge,
-  GitPullRequest,
-  Globe,
-  Infinity,
-  Layout,
-  LayoutGrid,
-  LayoutList,
-  ListChecks,
-  MessageCircle,
-  MessageSquare,
-  Package,
-  Palette,
-  Plus,
-  Radar,
-  ScanSearch,
-  Search,
-  Settings,
-  Sparkles,
-  SquareTerminal,
-  Terminal,
-  Kanban,
-  // Keep the persisted legacy key resolving to the canonical Kanban glyph.
-  Trello: Kanban,
-} as const satisfies Record<string, IconSvgElement>;
-
-type WorkstationTabIconName = keyof typeof WORKSTATION_TAB_ICONS;
-
-function resolveWorkstationTabIcon(name: string): IconSvgElement | null {
-  return WORKSTATION_TAB_ICONS[name as WorkstationTabIconName] ?? null;
-}
-
-export function resolveWorkstationTabIntegrationIcon(
-  tab: WorkStationTab
-): ProjectSyncAdapterType | null {
-  if (tab.type === "project-linear-work-items") {
-    return STORY_SYNC_ADAPTER.LINEAR;
-  }
-  if (
-    tab.type === "github-issue-detail" ||
-    (tab.type === "workItem-detail" &&
-      isGitHubIssueStatus(tab.data.workItemStatus as string | undefined))
-  ) {
-    return STORY_SYNC_ADAPTER.GITHUB;
-  }
-  return null;
-}
-
-interface ChatSessionTabIconProps {
-  isActive: boolean;
-  sessionId: string;
-}
-
-const ChatSessionTabIcon: React.FC<ChatSessionTabIconProps> = memo(
-  ({ isActive, sessionId }) => {
-    const session = useAtomValue(sessionByIdAtom(sessionId));
-    return (
-      <SessionIdentityIcon
-        session={session}
-        sessionId={sessionId}
-        isSelected={isActive}
-      />
-    );
-  }
-);
-
-ChatSessionTabIcon.displayName = "ChatSessionTabIcon";
+export { resolveWorkstationTabIntegrationIcon, WORKSTATION_TAB_ICONS };
 
 interface SortableTabProps {
   tab: WorkStationTab;
@@ -218,89 +104,6 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
         : undefined,
       transition,
       zIndex: isDragging ? 100 : undefined,
-    };
-
-    // Get tab-specific display info - render icon based on type
-    const renderTabIcon = (): JSX.Element => {
-      const integrationIcon = resolveWorkstationTabIntegrationIcon(tab);
-      if (integrationIcon) {
-        return (
-          <IntegrationIcon
-            type={integrationIcon}
-            size={16}
-            className={
-              integrationIcon === STORY_SYNC_ADAPTER.GITHUB
-                ? isActive
-                  ? "text-text-1"
-                  : "text-text-2"
-                : undefined
-            }
-          />
-        );
-      }
-
-      if (tab.type === "chat-session") {
-        return (
-          <ChatSessionTabIcon
-            isActive={isActive}
-            sessionId={String(tab.data.sessionId ?? "")}
-          />
-        );
-      }
-
-      // Custom glyph override — tint active tab only (FileTypeIcon / favicons keep their own colors).
-      if (tab.icon) {
-        const icon = resolveWorkstationTabIcon(tab.icon);
-        if (icon) {
-          return (
-            <AnyIcon
-              icon={icon}
-              data-icon={tab.icon
-                .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
-                .toLowerCase()}
-              size={16}
-              strokeWidth={1.75}
-              className={isActive ? "text-text-1" : "text-text-2"}
-            />
-          );
-        }
-      }
-
-      switch (tab.type) {
-        case "file":
-        case "git-diff":
-          return (
-            <FileTypeIcon
-              fileName={(tab.data.filePath as string) || tab.title}
-              size="small"
-            />
-          );
-        case "directory":
-          return <FileTypeIcon fileName="folder" type="folder" size="small" />;
-        case "explorer":
-          return (
-            <HugeiconsIcon
-              icon={Folder}
-              data-icon="folder"
-              size={16}
-              strokeWidth={1.75}
-              className={isActive ? "text-text-1" : "text-text-2"}
-            />
-          );
-        case "terminal":
-          return <FileTypeIcon fileName="terminal.sh" size="small" />;
-        case "browser-session":
-          return (
-            <FaviconIcon
-              url={tab.data.url as string | undefined}
-              isIncognito={tab.data.incognito as boolean | undefined}
-              isLoading={tab.data.isLoading as boolean | undefined}
-              fallbackColor={isActive ? "text-text-1" : undefined}
-            />
-          );
-        default:
-          return <FileTypeIcon fileName="file.txt" size="small" />;
-      }
     };
 
     const getDisplayTitle = () => {
@@ -422,7 +225,7 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
       >
         {/* Keep icon in-flow so width only comes from the label column; close stays overlay-only. */}
         <div className="flex shrink-0 items-center justify-center">
-          {renderTabIcon()}
+          <WorkstationTabIcon tab={tab} isActive={isActive} />
         </div>
 
         {!hideLabel && tab.type === "git-diff" && tab.data.isTimeline ? (

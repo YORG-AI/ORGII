@@ -50,7 +50,9 @@ export function RecentTabsMenuSection({
                   strokeWidth={1.8}
                 />
               )}
-              <span className="truncate">{tab.title}</span>
+              <span className="max-w-[320px] min-w-0 flex-1 truncate">
+                {tab.title}
+              </span>
             </span>
           </button>
         ))}

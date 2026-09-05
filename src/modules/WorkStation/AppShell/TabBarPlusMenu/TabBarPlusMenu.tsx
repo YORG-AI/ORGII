@@ -18,10 +18,10 @@ import {
 import { RecentTabsMenuSection } from "@src/components/RecentTabsMenuSection";
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
-import { SessionIdentityIconById } from "@src/engines/ChatPanel/components/SessionIdentityIcon";
 import { useActiveRepoRef } from "@src/hooks/git/useActiveRepoRef";
 import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotals";
 import { Add01Icon, HugeiconsIcon } from "@src/icons";
+import { WorkstationTabIcon } from "@src/modules/WorkStation/shared/TabBar/components/WorkstationTabIcon";
 import { CODE_EDITOR_TOUR_TARGETS } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import {
   openRecentWorkstationTabAtom,
@@ -82,23 +82,11 @@ const TabBarPlusMenuComponent: React.FC<TabBarPlusMenuProps> = ({
           onActionComplete={() => setMenuVisible(false)}
         />
         <RecentTabsMenuSection
-          tabs={recentTabs.map((tab) => {
-            const sessionId =
-              tab.type === "chat-session" &&
-              typeof tab.data.sessionId === "string"
-                ? tab.data.sessionId
-                : null;
-            return {
-              id: tab.id,
-              title: tab.title,
-              leadingIcon: sessionId ? (
-                <SessionIdentityIconById
-                  sessionId={sessionId}
-                  isSelected={false}
-                />
-              ) : undefined,
-            };
-          })}
+          tabs={recentTabs.map((tab) => ({
+            id: tab.id,
+            title: tab.title,
+            leadingIcon: <WorkstationTabIcon tab={tab} isActive={false} />,
+          }))}
           label={t("workstation.plusMenu.recent")}
           onOpen={(tabId) => {
             setMenuVisible(false);
