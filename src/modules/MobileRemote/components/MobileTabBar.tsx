@@ -44,30 +44,34 @@ export function MobileTabBar({ active, onChange }: MobileTabBarProps) {
   );
 
   return (
-    <nav
-      className="flex shrink-0 border-t border-border-2 bg-bg-1 pb-[max(8px,env(safe-area-inset-bottom))]"
-      aria-label="Mobile remote tabs"
-    >
-      {tabs.map((tab) => {
-        const isActive = tab.id === active;
-        return (
-          <Button
-            key={tab.id}
-            htmlType="button"
-            variant="tertiary"
-            appearance="ghost"
-            className={`min-h-[49px] flex-1 flex-col gap-1.5 rounded-none px-1 py-1.5 ${
-              isActive ? "text-text-1" : "text-text-3"
-            }`}
-            style={{ height: "auto", minHeight: 49, padding: "6px 4px" }}
-            onClick={() => onChange?.(tab.id)}
-            aria-current={isActive ? "page" : undefined}
-          >
-            <HugeiconsIcon icon={tab.icon} size={22} />
-            <span className="text-xs leading-none">{tab.label}</span>
-          </Button>
-        );
-      })}
+    <nav className="mobile-tab-dock" aria-label="Mobile remote tabs">
+      <div className="mobile-tab-bar">
+        {tabs.map((tab) => {
+          const isActive = tab.id === active;
+          return (
+            <Button
+              key={tab.id}
+              htmlType="button"
+              variant="tertiary"
+              appearance="ghost"
+              shape="round"
+              className="mobile-tab-button"
+              style={{
+                height: "auto",
+                minHeight: "var(--mobile-tab-height)",
+                padding: "var(--mobile-tab-padding)",
+              }}
+              onClick={() => onChange?.(tab.id)}
+              aria-current={isActive ? "page" : undefined}
+            >
+              <span className="mobile-tab-button__content">
+                <HugeiconsIcon icon={tab.icon} size={24} aria-hidden="true" />
+                <span className="mobile-tab-button__label">{tab.label}</span>
+              </span>
+            </Button>
+          );
+        })}
+      </div>
     </nav>
   );
 }

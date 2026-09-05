@@ -1,8 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import Button from "@src/components/Button";
-
+import { MobileActionButton } from "../components/MobileActionButton";
 import { MobileTopBar } from "../components/MobileTopBar";
 
 export interface SASConfirmScreenProps {
@@ -28,9 +27,9 @@ export function SASConfirmScreen({
           <p className="font-mono text-xl text-text-1">{phrase}</p>
         </div>
         <div className="mt-6">
-          <Button variant="primary" className="w-full" onClick={onConfirm}>
+          <MobileActionButton onClick={onConfirm}>
             {t("pairing.confirm")}
-          </Button>
+          </MobileActionButton>
         </div>
       </div>
     </>

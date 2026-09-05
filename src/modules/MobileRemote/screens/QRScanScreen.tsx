@@ -1,10 +1,10 @@
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import Textarea from "@src/components/Textarea";
 
+import { MobileActionButton } from "../components/MobileActionButton";
 import { MobileTopBar } from "../components/MobileTopBar";
 import { parseMobileRemoteWsUrl } from "../connection/parseMobileRemoteWsUrl";
 import type { MobileConnectionConfig } from "../connection/types";
@@ -59,14 +59,14 @@ export function QRScanScreen({ onBack, onAcceptPairing }: QRScanScreenProps) {
           </InlineAlert>
         ) : null}
         <div className="mt-4">
-          <Button
+          <MobileActionButton
             variant="primary"
             className="w-full"
             disabled={payload.trim().length === 0}
             onClick={handleSubmit}
           >
             {t("pairing.connect")}
-          </Button>
+          </MobileActionButton>
         </div>
       </div>
     </>

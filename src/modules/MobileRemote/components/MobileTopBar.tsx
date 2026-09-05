@@ -19,28 +19,27 @@ export function MobileTopBar({
   backAriaLabel = "Back",
 }: MobileTopBarProps) {
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border-2 px-3">
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        {onBack ? (
-          <IconButton
-            type="button"
-            size="sm"
-            variant="default"
-            aria-label={backAriaLabel}
-            onClick={onBack}
-          >
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={18} />
-          </IconButton>
-        ) : (
-          leading
-        )}
-        {title ? (
-          <div className="min-w-0 truncate text-sm font-medium text-text-1">
-            {title}
-          </div>
-        ) : null}
-      </div>
-      {trailing ? <div className="shrink-0">{trailing}</div> : null}
+    <header
+      className={`mobile-top-bar ${onBack ? "mobile-top-bar--detail" : "mobile-top-bar--root"}`}
+    >
+      {onBack ? (
+        <IconButton
+          type="button"
+          size="sm"
+          variant="default"
+          className="mobile-chrome-icon-button"
+          aria-label={backAriaLabel}
+          onClick={onBack}
+        >
+          <HugeiconsIcon icon={ArrowLeft01Icon} size={22} />
+        </IconButton>
+      ) : leading ? (
+        <div className="mobile-top-bar__leading">{leading}</div>
+      ) : null}
+      {title ? <h1 className="mobile-top-bar__title">{title}</h1> : null}
+      {trailing ? (
+        <div className="mobile-top-bar__trailing">{trailing}</div>
+      ) : null}
     </header>
   );
 }
