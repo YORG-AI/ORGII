@@ -8,6 +8,7 @@ import { createBrowserSessionTab } from "@src/store/workstation/browser/tabs";
 import {
   type WorkStationTab,
   createStartTab,
+  recentWorkstationTabsAtom,
   workstationLayoutAtom,
   workstationTabsStateAtom,
 } from "@src/store/workstation/tabs";
@@ -17,14 +18,14 @@ import {
 } from "@src/store/workstation/tabs/storage";
 import { workstationNewBrowserSessionRequestAtom } from "@src/store/workstation/workstationTabBarAtoms";
 
-import { recentlyClosedWorkstationTabsAtom } from "../tabs/recentlyClosedTabs";
 import {
   closeActiveWorkStationTabAtom,
   closeOtherTabsAtom,
   closeProjectOrgWorkStationTabsAtom,
   closeSavedTabsAtom,
   closeTabAtom,
-  restoreRecentlyClosedWorkstationTabAtom,
+  focusTabAtom,
+  openRecentWorkstationTabAtom,
 } from "./atoms";
 
 function tab(id: string, orgId?: string): WorkStationTab {
@@ -83,7 +84,7 @@ describe("closeTabAtom", () => {
     expect(store.get(chatPanelMaximizedAtom)).toBe(false);
   });
 
-  it("records and restores a closed tab in the current workspace", () => {
+  it("keeps an explicitly closed tab available in recent history", () => {
     const store = createStore();
     const closedTab = tab("project-org:recent");
     const retainedTab = tab("project-org:retained");
@@ -96,15 +97,43 @@ describe("closeTabAtom", () => {
 
     store.set(closeTabAtom, { tabId: closedTab.id });
 
-    expect(store.get(recentlyClosedWorkstationTabsAtom)).toEqual([closedTab]);
-    expect(
-      store.set(restoreRecentlyClosedWorkstationTabAtom, closedTab.id)
-    ).toBe(closedTab.id);
+    expect(store.get(recentWorkstationTabsAtom)).toEqual([closedTab]);
+    expect(store.set(openRecentWorkstationTabAtom, closedTab.id)).toBe(
+      closedTab.id
+    );
     expect(store.get(workstationLayoutAtom).mainPane).toEqual({
       tabs: [retainedTab, closedTab],
       activeTabId: closedTab.id,
     });
-    expect(store.get(recentlyClosedWorkstationTabsAtom)).toEqual([]);
+    expect(store.get(recentWorkstationTabsAtom)).toEqual([retainedTab]);
+  });
+
+  it("records visited tabs and makes an older tab easy to reopen", () => {
+    const store = createStore();
+    const launchpad = createStartTab();
+    const tabA = tab("project-org:a");
+    const tabB = tab("project-org:b");
+    store.set(workstationActiveSessionIdAtom, "session-a");
+    store.set(workstationLayoutAtom, {
+      mainPane: {
+        tabs: [launchpad, tabA, tabB],
+        activeTabId: launchpad.id,
+      },
+    });
+
+    store.set(focusTabAtom, { tabId: tabA.id });
+    store.set(focusTabAtom, { tabId: tabB.id });
+    store.set(focusTabAtom, { tabId: launchpad.id });
+
+    expect(store.get(recentWorkstationTabsAtom)).toEqual([tabB, tabA]);
+    expect(store.set(openRecentWorkstationTabAtom, tabA.id)).toBe(tabA.id);
+    expect(store.get(workstationLayoutAtom).mainPane.activeTabId).toBe(tabA.id);
+    expect(store.get(recentWorkstationTabsAtom)).toEqual([tabB]);
+
+    store.set(workstationActiveSessionIdAtom, "session-b");
+    expect(store.get(recentWorkstationTabsAtom)).toEqual([]);
+    store.set(workstationActiveSessionIdAtom, "session-a");
+    expect(store.get(recentWorkstationTabsAtom)).toEqual([tabB]);
   });
 });
 
@@ -189,14 +218,14 @@ describe("live shared-resource close semantics", () => {
       JSON.parse(localStorage.getItem(WORKSTATION_V3_SHARED_KEY) ?? "null")
     ).toEqual({ tabs: [] });
 
-    expect(store.get(recentlyClosedWorkstationTabsAtom)).toEqual([browser]);
-    store.set(restoreRecentlyClosedWorkstationTabAtom, browser.id);
+    expect(store.get(recentWorkstationTabsAtom)).toEqual([browser]);
+    store.set(openRecentWorkstationTabAtom, browser.id);
     expect(store.get(workstationNewBrowserSessionRequestAtom)).toEqual({
       tick: 1,
       url: "https://example.com/docs",
       isPrivate: true,
     });
-    expect(store.get(recentlyClosedWorkstationTabsAtom)).toEqual([]);
+    expect(store.get(recentWorkstationTabsAtom)).toEqual([]);
 
     store.set(workstationActiveSessionIdAtom, "B");
     expect(store.get(workstationLayoutAtom).mainPane.tabs).toEqual([]);

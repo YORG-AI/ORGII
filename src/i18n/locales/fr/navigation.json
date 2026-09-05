@@ -350,7 +350,7 @@
       "newPrivateBrowserTab": "Nouvel onglet de navigation privée",
       "workItems": "Éléments de travail",
       "projects": "Projets",
-      "recentlyClosed": "Récents"
+      "recent": "Récents"
     }
   },
   "collaboration": {

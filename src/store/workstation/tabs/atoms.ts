@@ -1,8 +1,14 @@
-import { atom } from "jotai";
+import { type Setter, atom } from "jotai";
 
 import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
 import { clearTerminalTargetForWorkspaceAtom } from "@src/store/workstation/codeEditor/terminalTargetAtom";
 
+import {
+  isSameWorkstationWorkspace,
+  recentWorkstationTabEntriesAtom,
+  recordWorkstationTabTransitionAtom,
+  removeRecentWorkstationTabAtom,
+} from "./recentTabs";
 import {
   deletePersistedWorkstationWorkspace,
   loadWorkstationTabsState,
@@ -53,6 +59,15 @@ export const presentedWorkstationWorkspaceKeyAtom =
   });
 presentedWorkstationWorkspaceKeyAtom.debugLabel =
   "presentedWorkstationWorkspaceKeyAtom";
+
+/** Recent tabs belonging to the workspace currently visible in My Station. */
+export const recentWorkstationTabsAtom = atom((get) => {
+  const workspace = get(presentedWorkstationWorkspaceKeyAtom);
+  return get(recentWorkstationTabEntriesAtom)
+    .filter((entry) => isSameWorkstationWorkspace(entry.workspace, workspace))
+    .map((entry) => entry.tab);
+});
+recentWorkstationTabsAtom.debugLabel = "recentWorkstationTabsAtom";
 
 /** Canonical persisted state. Feature code writes through scoped actions below. */
 export const workstationTabsStateAtom = atom<WorkstationTabsStateV3>(
@@ -177,6 +192,36 @@ function setAndPersist(
   persistWorkstationTabsState(next);
 }
 
+function recordPanelTransition(
+  set: Setter,
+  workspace: WorkstationWorkspaceKey,
+  previousPanel: PanelState,
+  nextPanel: PanelState
+): void {
+  if (previousPanel.activeTabId === nextPanel.activeTabId) return;
+  set(recordWorkstationTabTransitionAtom, {
+    workspace,
+    previousTab: previousPanel.tabs.find(
+      (tab) => tab.id === previousPanel.activeTabId
+    ),
+    nextTabId: nextPanel.activeTabId,
+  });
+}
+
+function removeClosedTabsFromRecent(
+  set: Setter,
+  workspace: WorkstationWorkspaceKey,
+  previousPanel: PanelState,
+  nextPanel: PanelState
+): void {
+  const nextIds = new Set(nextPanel.tabs.map((tab) => tab.id));
+  for (const tab of previousPanel.tabs) {
+    if (!nextIds.has(tab.id)) {
+      set(removeRecentWorkstationTabAtom, { workspace, tabId: tab.id });
+    }
+  }
+}
+
 /**
  * Compatibility projection for existing pane consumers. Although callers see
  * `mainPane`, reads and writes are routed through the presented workspace and
@@ -204,10 +249,10 @@ export const workstationLayoutAtom = atom<
       typeof nextOrUpdater === "function"
         ? nextOrUpdater(previousLayout)
         : nextOrUpdater;
-    setAndPersist(
-      set,
-      splitPanel(state, key, nextLayout.mainPane ?? EMPTY_PANEL)
-    );
+    const nextPanel = nextLayout.mainPane ?? EMPTY_PANEL;
+    recordPanelTransition(set, key, previousLayout.mainPane, nextPanel);
+    removeClosedTabsFromRecent(set, key, previousLayout.mainPane, nextPanel);
+    setAndPersist(set, splitPanel(state, key, nextPanel));
   }
 );
 workstationLayoutAtom.debugLabel = "workstationLayoutAtom";
@@ -278,12 +323,10 @@ export const openWorkstationTabAtom = atom(
   null,
   (get, set, request: ScopedWorkstationTabRequest) => {
     const state = get(workstationTabsStateAtom);
-    setAndPersist(
-      set,
-      updateScopedPanel(state, request.workspace, (panel) =>
-        openTabMutation(panel, request.tab)
-      )
-    );
+    const previousPanel = composePanel(state, request.workspace);
+    const nextPanel = openTabMutation(previousPanel, request.tab);
+    recordPanelTransition(set, request.workspace, previousPanel, nextPanel);
+    setAndPersist(set, splitPanel(state, request.workspace, nextPanel));
   }
 );
 openWorkstationTabAtom.debugLabel = "openWorkstationTabAtom";
@@ -366,6 +409,13 @@ export const closeWorkstationTabsAtom = atom(
       splitPanel(state, request.workspace, nextPanel),
       resourceIds
     );
+    recordPanelTransition(set, request.workspace, panel, nextPanel);
+    for (const tab of tabsToClose) {
+      set(removeRecentWorkstationTabAtom, {
+        workspace: request.workspace,
+        tabId: tab.id,
+      });
+    }
     setAndPersist(set, nextState);
   }
 );
@@ -404,8 +454,15 @@ export const removeSharedWorkstationTabsAtom = atom(
   null,
   (get, set, tabIds: readonly string[]) => {
     const state = get(workstationTabsStateAtom);
+    const key = get(presentedWorkstationWorkspaceKeyAtom);
+    const previousPanel = composePanel(state, key);
     const next = removeSharedTabsFromState(state, new Set(tabIds));
     if (next === state) return;
+    const nextPanel = composePanel(next, key);
+    recordPanelTransition(set, key, previousPanel, nextPanel);
+    for (const tabId of tabIds) {
+      set(removeRecentWorkstationTabAtom, { tabId });
+    }
     setAndPersist(set, next);
   }
 );
@@ -419,12 +476,10 @@ export const focusWorkstationTabAtom = atom(
     request: { workspace: WorkstationWorkspaceKey; tabId: string }
   ) => {
     const state = get(workstationTabsStateAtom);
-    setAndPersist(
-      set,
-      updateScopedPanel(state, request.workspace, (panel) =>
-        switchTabMutation(panel, request.tabId)
-      )
-    );
+    const previousPanel = composePanel(state, request.workspace);
+    const nextPanel = switchTabMutation(previousPanel, request.tabId);
+    recordPanelTransition(set, request.workspace, previousPanel, nextPanel);
+    setAndPersist(set, splitPanel(state, request.workspace, nextPanel));
   }
 );
 focusWorkstationTabAtom.debugLabel = "focusWorkstationTabAtom";

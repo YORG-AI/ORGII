@@ -11,7 +11,7 @@ import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
-import { RecentlyClosedTabsMenuSection } from "@src/components/RecentlyClosedTabsMenuSection";
+import { RecentTabsMenuSection } from "@src/components/RecentTabsMenuSection";
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import {
@@ -26,8 +26,8 @@ import {
 } from "@src/icons";
 import {
   type ChatPanelTab,
-  recentlyClosedChatPanelTabsAtom,
-  restoreRecentlyClosedChatPanelTabAtom,
+  openRecentChatPanelTabAtom,
+  recentChatPanelTabsAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { isMacOS } from "@src/util/platform/tauri";
 
@@ -43,8 +43,8 @@ interface PlusMenuContentProps {
   onNewProject: () => void;
   onNewWorkItem: () => void;
   onOpenSideChat: () => void;
-  recentlyClosedTabs: readonly ChatPanelTab[];
-  onRestoreTab: (tabId: string) => void;
+  recentTabs: readonly ChatPanelTab[];
+  onOpenRecentTab: (tabId: string) => void;
   onClose: () => void;
 }
 
@@ -55,8 +55,8 @@ export function PlusMenuContent({
   onNewProject,
   onNewWorkItem,
   onOpenSideChat,
-  recentlyClosedTabs,
-  onRestoreTab,
+  recentTabs,
+  onOpenRecentTab,
   onClose,
 }: PlusMenuContentProps) {
   const { t } = useTranslation(["sessions", "navigation"]);
@@ -173,8 +173,8 @@ export function PlusMenuContent({
             ) : null}
           </button>
         ))}
-        <RecentlyClosedTabsMenuSection
-          tabs={recentlyClosedTabs.map((tab) => ({
+        <RecentTabsMenuSection
+          tabs={recentTabs.map((tab) => ({
             id: tab.id,
             title: tab.title,
             leadingIcon:
@@ -185,10 +185,10 @@ export function PlusMenuContent({
                 />
               ) : undefined,
           }))}
-          label={t("navigation:workstation.plusMenu.recentlyClosed")}
-          onRestore={(tabId) => {
+          label={t("navigation:workstation.plusMenu.recent")}
+          onOpen={(tabId) => {
             onClose();
-            onRestoreTab(tabId);
+            onOpenRecentTab(tabId);
           }}
         />
       </div>
@@ -217,8 +217,8 @@ export function ChatPanelPlusMenu({
 }: ChatPanelPlusMenuProps): React.ReactNode {
   const { t } = useTranslation("sessions");
   const [menuOpen, setMenuOpen] = useState(false);
-  const recentlyClosedTabs = useAtomValue(recentlyClosedChatPanelTabsAtom);
-  const restoreTab = useSetAtom(restoreRecentlyClosedChatPanelTabAtom);
+  const recentTabs = useAtomValue(recentChatPanelTabsAtom);
+  const openRecentTab = useSetAtom(openRecentChatPanelTabAtom);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const plusLabel = t("chat.tabs.newTab", "New tab");
 
@@ -232,8 +232,8 @@ export function ChatPanelPlusMenu({
           onNewProject={onNewProject}
           onNewWorkItem={onNewWorkItem}
           onOpenSideChat={onOpenSideChat}
-          recentlyClosedTabs={recentlyClosedTabs}
-          onRestoreTab={restoreTab}
+          recentTabs={recentTabs}
+          onOpenRecentTab={openRecentTab}
           onClose={closeMenu}
         />
       }
