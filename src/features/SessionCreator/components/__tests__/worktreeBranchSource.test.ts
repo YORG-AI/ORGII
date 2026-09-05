@@ -335,15 +335,26 @@ describe("formatBranchTimestamp", () => {
   });
 
   it("formats a recent commit with the shared 'short' relative style", () => {
+    // `formatRelativeTime("short")` is Intl-backed, so the exact strings
+    // ("1 hr. ago", "yesterday") belong to the runtime's ICU data. Derive the
+    // expectations the same way rather than pinning one ICU's spelling.
+    const short = (value: number, unit: Intl.RelativeTimeFormatUnit) =>
+      new Intl.RelativeTimeFormat("en", { style: "short" }).format(value, unit);
+    const shortAuto = (value: number, unit: Intl.RelativeTimeFormatUnit) =>
+      new Intl.RelativeTimeFormat("en", {
+        style: "short",
+        numeric: "auto",
+      }).format(value, unit);
+
     expect(
       formatBranchTimestamp(option({ lastCommitDate: "2026-07-11T11:00:00Z" }))
-    ).toBe("1 hr ago");
+    ).toBe(short(-1, "hour"));
     expect(
       formatBranchTimestamp(option({ lastCommitDate: "2026-07-10T12:00:00Z" }))
-    ).toBe("Yesterday");
+    ).toBe(shortAuto(-1, "day"));
     expect(
       formatBranchTimestamp(option({ lastCommitDate: "2026-07-09T12:00:00Z" }))
-    ).toBe("2 days ago");
+    ).toBe(short(-2, "day"));
   });
 });
 
