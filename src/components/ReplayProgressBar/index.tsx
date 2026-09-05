@@ -13,15 +13,16 @@
  *
  * Visual contract: the rail's TOP edge is pixel-stable. Both the 1px
  * rail and the 2px track are anchored at top:0, with the extra 1px of
- * the track only extending downward. The left/right edge caps preserve
- * the same top-aligned thin/thick contrast even when the slider hits
- * its endpoints.
+ * the track only extending downward. Round breakpoints sit directly on
+ * this rail instead of creating a second timeline lane. The left/right
+ * edge caps preserve the same top-aligned thin/thick contrast even when
+ * the slider hits its endpoints.
  */
 import React, { memo } from "react";
 
 import Slider from "@src/components/Slider";
 
-import ReplayTurnTimeline from "./ReplayTurnTimeline";
+import ReplayTurnBreakpoints from "./ReplayTurnBreakpoints";
 import "./index.scss";
 import type { ReplayProgressSegment } from "./types";
 
@@ -42,9 +43,9 @@ interface ReplayProgressBarProps {
   ariaLabel?: string;
   /** Optional extra class for the root (e.g. for caller-specific z-index). */
   className?: string;
-  /** Turn bands rendered beneath the scrubber rail. */
+  /** Turn metadata used to mark round boundaries on the scrubber rail. */
   segments?: readonly ReplayProgressSegment[];
-  /** Seek to the start of a turn band. */
+  /** Seek to the start of a turn from its breakpoint marker. */
   onSegmentClick?: (segment: ReplayProgressSegment) => void;
 }
 
@@ -61,11 +62,11 @@ const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
     segments,
     onSegmentClick,
   }) => {
-    const showSegments = segments && segments.length > 1;
+    const showBreakpoints = segments && segments.length > 1;
 
     return (
       <div
-        className={`replay-progress-bar relative z-40 w-full overflow-visible ${showSegments ? "replay-progress-bar--segmented" : ""} ${className ?? ""}`}
+        className={`replay-progress-bar relative z-40 w-full overflow-visible ${className ?? ""}`}
         role="group"
         aria-label={ariaLabel}
         data-follow-mode={isFollowMode ? "true" : undefined}
@@ -83,7 +84,7 @@ const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
         />
 
         {/* Slider with horizontal margin to prevent handle clipping at edges */}
-        <div className="mx-2">
+        <div className="replay-progress-bar__slider mx-2">
           <Slider
             value={value}
             max={max}
@@ -96,18 +97,17 @@ const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
             disabled={disabled}
             handleBordered={true}
           />
+          {showBreakpoints ? (
+            <ReplayTurnBreakpoints
+              segments={segments}
+              onSegmentClick={onSegmentClick}
+            />
+          ) : null}
         </div>
 
         {/* Right edge fill — 1px to match the rail (non-blue). Anchored at
             top:0 so its top edge aligns with the rail's top edge. */}
         <div className="absolute top-0 right-0 h-px w-2 bg-fill-3" />
-
-        {showSegments ? (
-          <ReplayTurnTimeline
-            segments={segments}
-            onSegmentClick={onSegmentClick}
-          />
-        ) : null}
       </div>
     );
   }

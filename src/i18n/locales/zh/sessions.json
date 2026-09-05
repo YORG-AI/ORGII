@@ -1361,7 +1361,7 @@
       "play": "播放回放",
       "duration": "{{value}}",
       "segmentAria": "回放第 {{number}} 轮",
-      "turnTrackAria": "Replay 轮次色带",
+      "turnBreakpointsAria": "Replay 轮次断点",
       "segmentTooltip": "第 {{number}} 轮 · {{duration}} · {{start}}–{{end}}",
       "segmentTooltipNoRange": "第 {{number}} 轮 · {{duration}}",
       "toolCalls": "{{count}} 次工具调用",

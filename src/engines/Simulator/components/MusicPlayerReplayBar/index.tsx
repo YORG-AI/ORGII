@@ -113,6 +113,9 @@ const MusicPlayerReplayBar: React.FC = memo(() => {
         eventIds,
         previewById,
         maxValue: REPLAY_CONFIG.MAX_VALUE,
+        // Dots do not need the minimum visual width that turn bands did, so
+        // preserve every real round boundary, including one-event turns.
+        minSegmentSpan: 0,
       }),
     [eventIds, previewById]
   );

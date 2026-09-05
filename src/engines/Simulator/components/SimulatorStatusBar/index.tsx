@@ -152,6 +152,9 @@ export const SimulatorStatusBar: React.FC<SimulatorStatusBarProps> = memo(
                 framedPanel
               >
                 <button
+                  type="button"
+                  data-testid="session-replay-free-browse"
+                  aria-label={t("simulator.replay.freeBrowse")}
                   onClick={handleToggleToReplay}
                   className="flex h-5 w-5 transform-gpu items-center justify-center rounded-full text-white hover:bg-white/15 hover:text-white"
                 >
