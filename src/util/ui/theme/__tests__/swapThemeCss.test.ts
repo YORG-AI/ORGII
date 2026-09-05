@@ -13,7 +13,23 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { swapThemeCss } from "../swapThemeCss";
+import { resolveNativeTheme, swapThemeCss } from "../swapThemeCss";
+
+const { platform, setTheme } = vi.hoisted(() => ({
+  platform: { macos: false, windows: false },
+  setTheme: vi.fn(async (_theme: "light" | "dark" | null) => {}),
+}));
+
+vi.mock("@src/util/platform/tauri", () => ({
+  isMacOS: () => platform.macos,
+  isWindows: () => platform.windows,
+}));
+vi.mock("@tauri-apps/api/window", () => ({
+  getCurrentWindow: () => ({ setTheme }),
+}));
+vi.mock("@src/util/platform/macosRootTint", () => ({
+  syncMacosRootTint: vi.fn(async () => {}),
+}));
 
 const THEME_LINK_SELECTOR = "link[data-orgii-theme]";
 
@@ -51,6 +67,10 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  platform.macos = false;
+  platform.windows = false;
+  setTheme.mockClear();
+  localStorage.removeItem("theme");
 });
 
 describe("swapThemeCss with animation frames never firing", () => {
@@ -122,5 +142,87 @@ describe("swapThemeCss with working animation frames", () => {
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(oldLink.isConnected).toBe(false);
     expect(themeLinks()).toHaveLength(1);
+  });
+});
+
+describe("resolveNativeTheme", () => {
+  it("pins an explicit preference to the painted scheme", () => {
+    expect(resolveNativeTheme("light", "light")).toBe("light");
+    expect(resolveNativeTheme("dark", "dark")).toBe("dark");
+  });
+
+  it("leaves a follow-system preference unpinned", () => {
+    expect(resolveNativeTheme("light", "system")).toBeNull();
+    expect(resolveNativeTheme("dark", "system")).toBeNull();
+  });
+});
+
+/**
+ * The native appearance sync. On macOS Tauri's `setTheme` sets the app-wide
+ * NSAppearance, which decides how AppKit draws the inactive traffic lights
+ * (lightened under DarkAqua, darkened under Aqua) and what WKWebView reports
+ * for `prefers-color-scheme`. These tests pin the contract: explicit
+ * preferences pin the scheme, "follow system" passes `null`, Windows keeps
+ * pinning the resolved scheme, and other hosts never call it.
+ */
+describe("syncThemeAppearance native theme", () => {
+  async function syncActiveTheme(cssPath: string): Promise<void> {
+    insertActiveThemeLink(cssPath);
+    // Same-path swap: syncs the appearance synchronously, then the dynamic
+    // window-API import and the setTheme call settle on the microtask queue.
+    await swapThemeCss(cssPath);
+    await vi.advanceTimersByTimeAsync(0);
+  }
+
+  it("pins an explicit light preference on macOS", async () => {
+    platform.macos = true;
+    localStorage.setItem("theme", "light");
+
+    await syncActiveTheme("/orgii_main.css");
+
+    expect(setTheme).toHaveBeenCalledWith("light");
+  });
+
+  it("pins an explicit dark preference on macOS", async () => {
+    platform.macos = true;
+    localStorage.setItem("theme", "dark");
+
+    await syncActiveTheme("/orgii_dark.css");
+
+    expect(setTheme).toHaveBeenCalledWith("dark");
+  });
+
+  it("follows the OS on macOS when the preference is system", async () => {
+    platform.macos = true;
+    localStorage.setItem("theme", "system");
+
+    await syncActiveTheme("/orgii_dark.css");
+
+    expect(setTheme).toHaveBeenCalledWith(null);
+  });
+
+  it("treats a missing stored preference as follow-system on macOS", async () => {
+    platform.macos = true;
+
+    await syncActiveTheme("/orgii_main.css");
+
+    expect(setTheme).toHaveBeenCalledWith(null);
+  });
+
+  it("keeps pinning the painted scheme on Windows", async () => {
+    platform.windows = true;
+    localStorage.setItem("theme", "system");
+
+    await syncActiveTheme("/orgii_main.css");
+
+    expect(setTheme).toHaveBeenCalledWith("light");
+  });
+
+  it("never touches the native theme on other hosts", async () => {
+    localStorage.setItem("theme", "dark");
+
+    await syncActiveTheme("/orgii_dark.css");
+
+    expect(setTheme).not.toHaveBeenCalled();
   });
 });

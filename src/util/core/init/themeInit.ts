@@ -1,6 +1,7 @@
 import {
   GLOBAL_THEMES,
   getGlobalTheme,
+  readStoredGlobalThemePreference,
   resolveGlobalThemePreference,
 } from "@src/config/appearance/globalThemes";
 import { createLogger } from "@src/hooks/logger";
@@ -50,8 +51,9 @@ const initTheme = (): Promise<void> => {
     const startTime = performance.now();
 
     // Get theme from localStorage (supports legacy CSS path and legacy light/dark)
-    const storedTheme = localStorage.getItem("theme");
-    const themeId = resolveGlobalThemePreference(storedTheme);
+    const themeId = resolveGlobalThemePreference(
+      readStoredGlobalThemePreference()
+    );
     const theme = getGlobalTheme(themeId).baseCssPath;
 
     // Check if the preloaded CSS matches the user's theme preference
