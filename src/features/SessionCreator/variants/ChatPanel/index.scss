@@ -1,3 +1,27 @@
+@mixin launchpad-action-grid-compact-state {
+  .launchpad-action-grid-compact {
+    &[data-compact-expanded="false"] .launchpad-action-grid-content {
+      display: none;
+    }
+
+    &[data-compact-expanded="false"] .launchpad-action-grid-header {
+      margin-bottom: 0;
+    }
+
+    [data-launchpad-action-grid-standard-control] {
+      display: none;
+    }
+
+    .session-creator-agent-hero-question {
+      width: auto;
+    }
+  }
+
+  .launchpad-action-grid-compact-toggle {
+    display: flex;
+  }
+}
+
 .session-creator-chat-panel-wrapper {
   display: flex;
   flex-direction: column;
@@ -6,6 +30,18 @@
   .wp_text_area {
     height: auto !important;
     min-height: auto;
+  }
+
+  .launchpad-action-grid-compact-toggle {
+    display: none;
+  }
+
+  .launchpad-action-grid-header .session-creator-agent-hero-question {
+    padding-inline: 0;
+  }
+
+  @container focusedchat (max-width: 639px) {
+    @include launchpad-action-grid-compact-state;
   }
 
   @media (max-height: 800px) {
@@ -20,15 +56,17 @@
     // focus pull the greeting off the top edge, so clip instead of scrolling.
     .session-creator-chat-panel-launchpad-content {
       overflow: hidden;
+      justify-content: flex-start;
     }
 
-    // The docked composer stays whole; the hero block above it gives up space
-    // first, because nothing below it can be scrolled back into view.
+    // Keep the launchpad title and its buttons together above the composer.
+    // The title contains required agent navigation, while the cards remain
+    // available immediately below it even in a short window.
     .session-creator-chat-panel-launchpad-middle {
       position: static;
-      flex-shrink: 1;
-      min-height: 0;
+      flex-shrink: 0;
       align-items: flex-start;
+      translate: none;
       transform: none;
     }
 
@@ -43,25 +81,17 @@
       }
     }
 
-    // Drop the centering margin but keep the hero question's 8px inset, so the
-    // cards start on the composer's left edge instead of the content gutter.
+    .launchpad-action-grid-header {
+      margin-inline: 0;
+    }
+
     .session-creator-chat-panel-launchpad-suggestions > * {
       margin-inline: 8px 0;
     }
   }
 
   @media (max-height: 600px) {
-    .session-creator-chat-panel-content {
-      padding-top: 12px;
-    }
-
-    .session-creator-chat-panel-launchpad-middle {
-      gap: 0;
-    }
-
-    .session-creator-chat-panel-launchpad-suggestions {
-      display: none;
-    }
+    @include launchpad-action-grid-compact-state;
   }
 
   &.session-creator-chat-panel-centered-composer {
@@ -83,6 +113,7 @@
     .session-creator-chat-panel-launchpad-middle {
       position: static;
       align-items: center;
+      translate: none;
       transform: none;
     }
 

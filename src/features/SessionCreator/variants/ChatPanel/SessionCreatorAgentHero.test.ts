@@ -1,8 +1,12 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import SessionCreatorAgentHero from "./SessionCreatorAgentHero";
+
+const chatPanelStyles = readFileSync(resolve(__dirname, "index.scss"), "utf8");
 
 describe("SessionCreatorAgentHero", () => {
   it("renders the Launchpad agent as icon, bold name, and trailing chevron", () => {
@@ -19,7 +23,9 @@ describe("SessionCreatorAgentHero", () => {
     );
 
     expect(markup).toContain("What do you want to build with");
-    expect(markup).toContain("hidden @[640px]/focusedchat:inline");
+    expect(markup.match(/hidden @\[640px\]\/focusedchat:inline/g)).toHaveLength(
+      2
+    );
     expect(markup).toContain("?</span>");
     expect(markup).toContain("A very long Ghost agent name");
     expect(markup).not.toContain(
@@ -52,5 +58,51 @@ describe("SessionCreatorAgentHero", () => {
 
     expect(markup).toContain("group-hover/pill:text-text-1!");
     expect(markup).not.toContain("group-hover/pill:underline");
+  });
+
+  it("moves the launchpad title and cards together to the top-left in short windows", () => {
+    const shortWindowStyles = chatPanelStyles.slice(
+      chatPanelStyles.indexOf("@media (max-height: 800px)"),
+      chatPanelStyles.indexOf("@media (max-height: 600px)")
+    );
+
+    expect(shortWindowStyles).toMatch(
+      /\.session-creator-chat-panel-launchpad-content\s*\{[\s\S]*?justify-content:\s*flex-start;/
+    );
+    expect(shortWindowStyles).toMatch(
+      /\.session-creator-chat-panel-launchpad-middle\s*\{[\s\S]*?align-items:\s*flex-start;[\s\S]*?translate:\s*none;/
+    );
+    expect(shortWindowStyles).toMatch(
+      /\.session-creator-chat-panel-launchpad-suggestions > \*\s*\{[\s\S]*?margin-inline:\s*8px 0;/
+    );
+  });
+
+  it("keeps the same top-left title position in the smallest compact state", () => {
+    const compactWindowStyles = chatPanelStyles.slice(
+      chatPanelStyles.indexOf("@media (max-height: 600px)"),
+      chatPanelStyles.indexOf("&.session-creator-chat-panel-centered-composer")
+    );
+
+    expect(compactWindowStyles).not.toContain("padding-top:");
+    expect(compactWindowStyles).toContain(
+      "@include launchpad-action-grid-compact-state"
+    );
+  });
+
+  it("keeps the card disclosure visible when the chat panel is narrow", () => {
+    const compactStateStyles = chatPanelStyles.slice(
+      chatPanelStyles.indexOf("@mixin launchpad-action-grid-compact-state"),
+      chatPanelStyles.indexOf(".session-creator-chat-panel-wrapper")
+    );
+
+    expect(chatPanelStyles).toMatch(
+      /@container focusedchat \(max-width: 639px\)\s*\{\s*@include launchpad-action-grid-compact-state;/
+    );
+    expect(compactStateStyles).toContain(
+      '&[data-compact-expanded="false"] .launchpad-action-grid-content'
+    );
+    expect(compactStateStyles).toMatch(
+      /\.launchpad-action-grid-compact-toggle\s*\{[\s\S]*?display:\s*flex;/
+    );
   });
 });
