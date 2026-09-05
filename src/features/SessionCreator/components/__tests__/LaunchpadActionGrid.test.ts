@@ -152,9 +152,9 @@ describe("LaunchpadActionGrid", () => {
     expect(grid?.className).not.toContain("hidden @[640px]/focusedchat:block");
     expect(header?.textContent).toContain("ADE Manager");
     expect(header?.className).toContain("flex-col");
+    expect(header?.className).toContain("items-center");
     expect(header?.className).toContain("w-fit");
     expect(header?.querySelector("button")).toBe(toggle);
-    expect(toggle?.parentElement?.className).toContain("ml-1.5");
     expect(toggle?.getAttribute("aria-label")).toBe("Show suggestions");
     expect(toggle?.getAttribute("aria-expanded")).toBe("false");
     expect(toggle?.querySelector('[data-icon="ellipsis"]')).not.toBeNull();

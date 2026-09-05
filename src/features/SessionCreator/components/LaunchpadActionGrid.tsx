@@ -217,13 +217,13 @@ export function LaunchpadActionGrid({
     >
       {header || isCollapsibleCardGrid ? (
         <div
-          className={`launchpad-action-grid-header mx-auto flex w-fit max-w-full flex-col items-start gap-0.5 ${
+          className={`launchpad-action-grid-header mx-auto flex w-fit max-w-full flex-col items-center gap-0.5 ${
             header ? "mb-2" : ""
           }`}
         >
           {header}
           {isCollapsibleCardGrid ? (
-            <div className="launchpad-action-grid-compact-toggle ml-1.5 shrink-0">
+            <div className="launchpad-action-grid-compact-toggle shrink-0">
               <LaunchpadActionGridToggle
                 collapsed={!isCompactExpanded}
                 collapseLabel={collapseLabel}
