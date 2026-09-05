@@ -1212,7 +1212,12 @@ fn validate_outcome_closure(
             }
             TaskStatus::Cancelled | TaskStatus::Failed => {
                 let reason = task.cancel_reason.as_ref().or(task.failure_reason.as_ref());
-                if reason.is_some_and(|reason| reason.code == "user_scope_removed") {
+                if reason.is_some_and(|reason| {
+                    matches!(
+                        reason.code.as_str(),
+                        "user_scope_removed" | "dependency_scope_removed"
+                    )
+                }) {
                     let source_event_id = reason
                         .and_then(|reason| reason.source_event_id.as_deref())
                         .ok_or_else(|| {
@@ -1380,6 +1385,16 @@ fn valid_user_scope_removal_source(
     task_id: &str,
     source_event_id: &str,
 ) -> Result<bool, String> {
+    if crate::coordination::agent_org_finality::valid_scope_removal_for_task(
+        conn,
+        org_run_id,
+        task_id,
+        source_event_id,
+    )? {
+        return Ok(true);
+    }
+    // Historical compatibility: Run View cancellations written before the
+    // additive receipt schema remain valid through their exact Task audit.
     if valid_team_user_event(conn, org_run_id, source_event_id)? {
         return Ok(true);
     }
@@ -1662,6 +1677,9 @@ mod tests {
                     ('assistant-event','root','raw','assistant_message','{\"source\":\"assistant\"}');",
         )
         .unwrap();
+        create_schema(&conn).expect("run completion companion schema");
+        crate::coordination::agent_org_finality::create_schema(&conn)
+            .expect("scope finality companion schema");
 
         let mut removed = task("removed", TaskStatus::Cancelled);
         removed.cancel_reason = Some(TaskTerminalReason {

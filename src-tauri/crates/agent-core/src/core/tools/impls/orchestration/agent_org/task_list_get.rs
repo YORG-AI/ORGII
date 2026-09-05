@@ -109,8 +109,8 @@ impl Tool for TaskListTool {
             let run_id = self.ctx.org_context.run_id.clone();
             let session_id = call_ctx.session_id.clone();
             let turn_intent_id = call_ctx.turn_intent_id.clone();
-            let no_new_facts = tokio::task::spawn_blocking(move || {
-                crate::coordination::agent_org_turn_contexts::mark_waiting_for_org_event_if_current(
+            let gate = tokio::task::spawn_blocking(move || {
+                crate::coordination::agent_org_turn_contexts::gate_coordinator_task_list(
                     &run_id,
                     &session_id,
                     &turn_intent_id,
@@ -123,22 +123,34 @@ impl Tool for TaskListTool {
                 ))
             })?
             .map_err(ToolError::ExecutionFailed)?;
-            if no_new_facts {
-                tracing::debug!(
-                    org_run_id = %self.ctx.org_context.run_id,
-                    session_id = %call_ctx.session_id,
-                    turn_intent_id = %call_ctx.turn_intent_id,
-                    observation = "task_list_repeat",
-                    "[agent_org_metric] coordinator_no_progress"
-                );
-                return Ok(ToolExecuteResult::end_turn(
-                    serde_json::json!({
-                        "code": "coordinator_no_new_work_facts",
-                        "terminal_reason": "waiting_for_org_event",
-                        "guidance": "The prompt already contains the authoritative Task snapshot for this durable trigger and revision. End this Turn now; a committed Team event will wake the Coordinator."
-                    })
-                    .to_string(),
-                ));
+            match gate {
+                crate::coordination::agent_org_turn_contexts::CoordinatorTaskListGate::ReadCurrentSnapshot => {}
+                crate::coordination::agent_org_turn_contexts::CoordinatorTaskListGate::InitialEmptyTaskListBypass => {
+                    tracing::debug!(
+                        org_run_id = %self.ctx.org_context.run_id,
+                        session_id = %call_ctx.session_id,
+                        turn_intent_id = %call_ctx.turn_intent_id,
+                        observation = "initial_empty_task_list_bypass",
+                        "[agent_org_metric] coordinator_task_list_bypass"
+                    );
+                }
+                crate::coordination::agent_org_turn_contexts::CoordinatorTaskListGate::WaitForEvent => {
+                    tracing::debug!(
+                        org_run_id = %self.ctx.org_context.run_id,
+                        session_id = %call_ctx.session_id,
+                        turn_intent_id = %call_ctx.turn_intent_id,
+                        observation = "task_list_repeat",
+                        "[agent_org_metric] coordinator_no_progress"
+                    );
+                    return Ok(ToolExecuteResult::end_turn(
+                        serde_json::json!({
+                            "code": "coordinator_no_new_work_facts",
+                            "terminal_reason": "waiting_for_org_event",
+                            "guidance": "The prompt already contains the authoritative Task snapshot for this durable trigger and revision. End this Turn now; a committed Team event will wake the Coordinator."
+                        })
+                        .to_string(),
+                    ));
+                }
             }
         }
         self.execute_text(params_value, call_ctx)

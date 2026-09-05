@@ -89,6 +89,19 @@ pub(crate) fn bump_work_revision_in_tx(tx: &Connection, org_run_id: &str) -> Res
     .map_err(|error| error.to_string())
 }
 
+pub(crate) fn current_work_revision_in_tx(
+    conn: &Connection,
+    org_run_id: &str,
+) -> Result<i64, String> {
+    ensure_progress_in_conn(conn, org_run_id)?;
+    conn.query_row(
+        "SELECT work_revision FROM agent_org_runtime_run_progress WHERE org_run_id=?1",
+        [org_run_id],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
+}
+
 pub(super) fn load_progress_with_conn(
     conn: &Connection,
     org_run_id: &str,

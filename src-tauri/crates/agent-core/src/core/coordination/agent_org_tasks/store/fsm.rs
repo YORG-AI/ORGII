@@ -119,7 +119,14 @@ impl AgentOrgTaskStore {
         org_run_id: &str,
         reason: &TaskTerminalReason,
     ) -> Result<Vec<Task>, String> {
-        validate_terminal_reason_source(conn, org_run_id, reason, true, Some(actor.request_id()))?;
+        validate_terminal_reason_source(
+            conn,
+            org_run_id,
+            None,
+            reason,
+            true,
+            Some(actor.request_id()),
+        )?;
         let audit = actor.validate(conn, org_run_id)?;
         let episode =
             crate::coordination::agent_org_work_episodes::active_with_connection(conn, org_run_id)?
@@ -156,10 +163,15 @@ impl AgentOrgTaskStore {
                 task,
                 &audit,
             )?;
+            crate::coordination::agent_org_finality::settle_task_bound_deliveries_in_tx(
+                conn, &previous, task, &audit, None,
+            )?;
             changed = true;
         }
         if changed {
-            crate::coordination::agent_org_runs::bump_work_revision_in_tx(conn, org_run_id)?;
+            crate::coordination::agent_org_finality::record_task_mutation_in_tx(
+                conn, org_run_id, &audit,
+            )?;
         }
         Ok(tasks)
     }
@@ -199,10 +211,15 @@ impl AgentOrgTaskStore {
                 task,
                 &audit,
             )?;
+            crate::coordination::agent_org_finality::settle_task_bound_deliveries_in_tx(
+                tx, &previous, task, &audit, None,
+            )?;
             cancelled += 1;
         }
         if cancelled > 0 {
-            crate::coordination::agent_org_runs::bump_work_revision_in_tx(tx, org_run_id)?;
+            crate::coordination::agent_org_finality::record_task_mutation_in_tx(
+                tx, org_run_id, &audit,
+            )?;
         }
         Ok(cancelled)
     }
@@ -271,7 +288,7 @@ impl AgentOrgTaskStore {
             &task,
             &audit,
         )?;
-        crate::coordination::agent_org_runs::bump_work_revision_in_tx(conn, &run_id)?;
+        crate::coordination::agent_org_finality::record_task_mutation_in_tx(conn, &run_id, &audit)?;
         let effect = effects(conn, &task, &tasks)?;
         Ok((task, effect))
     }
@@ -391,7 +408,7 @@ impl AgentOrgTaskStore {
                 &audit,
             )?;
         }
-        crate::coordination::agent_org_runs::bump_work_revision_in_tx(conn, &run_id)?;
+        crate::coordination::agent_org_finality::record_task_mutation_in_tx(conn, &run_id, &audit)?;
         let effect = effects(conn, &created, &tasks)?;
         Ok((created, effect))
     }
@@ -479,8 +496,17 @@ impl AgentOrgTaskStore {
             &current,
             &audit,
         )?;
-        crate::coordination::agent_org_runs::bump_work_revision_in_tx(conn, org_run_id)?;
-        let outcome = mutation_outcome(previous, current, &tasks);
+        crate::coordination::agent_org_finality::record_scope_detachments_in_tx(
+            conn, &previous, &current, &audit,
+        )?;
+        crate::coordination::agent_org_finality::settle_task_bound_deliveries_in_tx(
+            conn, &previous, &current, &audit, None,
+        )?;
+        let new_work_revision =
+            crate::coordination::agent_org_finality::record_task_mutation_in_tx(
+                conn, org_run_id, &audit,
+            )?;
+        let outcome = mutation_outcome(previous, current, &tasks, new_work_revision);
         let effect = effects(conn, &outcome, &tasks)?;
         Ok((outcome, effect))
     }
@@ -492,6 +518,7 @@ impl AgentOrgTaskStore {
         reason: TaskTerminalReason,
         effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
     ) -> Result<(TaskMutationOutcome, T), String> {
+        let reason_for_validation = reason.clone();
         if reason.code.starts_with("system.") {
             return Err(
                 "system.* cancel reason codes are reserved for system recovery".to_string(),
@@ -504,6 +531,14 @@ impl AgentOrgTaskStore {
                 if previous.status == TaskStatus::InProgress {
                     return Err("task_in_progress_requires_execution_handoff".to_string());
                 }
+                validate_terminal_reason_source(
+                    tx,
+                    org_run_id,
+                    Some(task_id),
+                    &reason_for_validation,
+                    true,
+                    None,
+                )?;
                 actor.validate(tx, org_run_id)
             },
             move |task, _audit| {
@@ -595,6 +630,7 @@ impl AgentOrgTaskStore {
                 validate_terminal_reason_source(
                     tx,
                     org_run_id,
+                    Some(task_id),
                     &reason_for_validation,
                     true,
                     user_request_id.as_deref(),
@@ -752,7 +788,14 @@ impl AgentOrgTaskStore {
             return Err("replacement must belong to the same org run".to_string());
         }
         replacement.replaces_task_id = Some(task_id.to_string());
-        validate_terminal_reason_source(conn, org_run_id, &reason, true, actor.user_request_id())?;
+        validate_terminal_reason_source(
+            conn,
+            org_run_id,
+            Some(task_id),
+            &reason,
+            true,
+            actor.user_request_id(),
+        )?;
         let audit = actor.validate(conn, org_run_id)?;
         let mut tasks = list_tasks_with_conn(conn, org_run_id)?;
         let old_index = tasks
@@ -814,8 +857,18 @@ impl AgentOrgTaskStore {
             &replacement_task,
             &audit,
         )?;
-        crate::coordination::agent_org_runs::bump_work_revision_in_tx(conn, org_run_id)?;
-        let outcome = mutation_outcome(previous, cancelled, &tasks);
+        crate::coordination::agent_org_finality::settle_task_bound_deliveries_in_tx(
+            conn,
+            &previous,
+            &cancelled,
+            &audit,
+            Some(&replacement_task.id),
+        )?;
+        let new_work_revision =
+            crate::coordination::agent_org_finality::record_task_mutation_in_tx(
+                conn, org_run_id, &audit,
+            )?;
+        let outcome = mutation_outcome(previous, cancelled, &tasks, new_work_revision);
         let effect = effects(conn, &outcome, &replacement_task, &tasks)?;
         Ok((outcome, replacement_task, effect))
     }
@@ -873,7 +926,9 @@ impl AgentOrgTaskStore {
             // Provider call. A model may still obey the prompt and call
             // task_update(start); acknowledge that call without manufacturing
             // another Task event or work revision.
-            let outcome = mutation_outcome(current.clone(), current, &tasks);
+            let new_work_revision =
+                crate::coordination::agent_org_runs::current_work_revision_in_tx(conn, org_run_id)?;
+            let outcome = mutation_outcome(current.clone(), current, &tasks, new_work_revision);
             let effect = effects(conn, &outcome, &tasks)?;
             return Ok((outcome, effect));
         }
@@ -1027,6 +1082,7 @@ impl AgentOrgTaskStore {
                 validate_terminal_reason_source(
                     tx,
                     org_run_id,
+                    Some(task_id),
                     &reason_for_validation,
                     false,
                     None,
@@ -1065,6 +1121,7 @@ impl AgentOrgTaskStore {
                 validate_terminal_reason_source(
                     tx,
                     org_run_id,
+                    Some(task_id),
                     &reason_for_validation,
                     false,
                     None,
@@ -1085,30 +1142,35 @@ impl AgentOrgTaskStore {
 fn validate_terminal_reason_source(
     conn: &rusqlite::Connection,
     org_run_id: &str,
+    task_id: Option<&str>,
     reason: &TaskTerminalReason,
     allow_user_scope_removed: bool,
     run_view_request_id: Option<&str>,
 ) -> Result<(), String> {
     let source = reason.source_event_id.as_deref();
-    if reason.code == "user_scope_removed" {
+    if matches!(
+        reason.code.as_str(),
+        "user_scope_removed" | "dependency_scope_removed"
+    ) {
         if !allow_user_scope_removed {
             return Err("user_scope_removed is valid only for Task cancellation".to_string());
         }
         let source = source
             .filter(|source| !source.trim().is_empty())
             .ok_or_else(|| "user_scope_removed requires source_event_id".to_string())?;
-        let is_exact_run_view_request = run_view_request_id == Some(source);
-        if !is_exact_run_view_request
-            && !crate::coordination::agent_org_run_completion::valid_team_user_event(
-                conn, org_run_id, source,
-            )?
-        {
-            return Err(
-                "user_scope_removed source_event_id is neither a current Team user event nor the exact Run View request".to_string(),
-            );
-        }
+        let task_id = task_id
+            .ok_or_else(|| "scope removal validation requires a Task identity".to_string())?;
+        crate::coordination::agent_org_finality::validate_scope_removal_reason_in_tx(
+            conn,
+            org_run_id,
+            task_id,
+            source,
+            (reason.code == "user_scope_removed")
+                .then_some(run_view_request_id)
+                .flatten(),
+        )?;
     } else if source.is_some() {
-        return Err("source_event_id is reserved for user_scope_removed".to_string());
+        return Err("source_event_id is reserved for durable scope-removal reasons".to_string());
     }
     Ok(())
 }
@@ -1569,8 +1631,13 @@ fn mutate_lifecycle_in_tx<T>(
         &current,
         &audit,
     )?;
-    crate::coordination::agent_org_runs::bump_work_revision_in_tx(conn, org_run_id)?;
-    let outcome = mutation_outcome(previous, current, &tasks);
+    crate::coordination::agent_org_finality::settle_task_bound_deliveries_in_tx(
+        conn, &previous, &current, &audit, None,
+    )?;
+    let new_work_revision = crate::coordination::agent_org_finality::record_task_mutation_in_tx(
+        conn, org_run_id, &audit,
+    )?;
+    let outcome = mutation_outcome(previous, current, &tasks, new_work_revision);
     let effect = effects(conn, &outcome, &tasks)?;
     Ok((outcome, effect))
 }
@@ -1589,7 +1656,12 @@ fn require_in_progress_owner(task: &Task, audit: &TaskActorAudit) -> Result<(), 
     Ok(())
 }
 
-fn mutation_outcome(previous: Task, current: Task, tasks: &[Task]) -> TaskMutationOutcome {
+fn mutation_outcome(
+    previous: Task,
+    current: Task,
+    tasks: &[Task],
+    new_work_revision: i64,
+) -> TaskMutationOutcome {
     let current_graph = super::super::TaskGraphIndex::new(tasks);
     let mut previous_tasks = tasks.to_vec();
     if let Some(task) = previous_tasks
@@ -1606,6 +1678,7 @@ fn mutation_outcome(previous: Task, current: Task, tasks: &[Task]) -> TaskMutati
         && current.status == TaskStatus::Pending
         && current_graph.is_ready(&current);
     TaskMutationOutcome {
+        new_work_revision,
         owner_changed: previous.owner != current.owner,
         status_changed: previous.status != current.status,
         became_completed: previous.status != TaskStatus::Completed

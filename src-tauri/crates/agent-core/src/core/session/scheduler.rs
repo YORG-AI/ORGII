@@ -637,11 +637,6 @@ impl WorkerTask {
                         &self.session_id,
                         &turn_intent_id,
                     );
-                    let assistant_persistence_failed = should_keep_agent_org_intent_in_flight(
-                        org_run_id.as_deref(),
-                        err,
-                        terminal_final_summary_failure,
-                    );
                     if user_directed_waiting {
                         info!(
                             session_id = %self.session_id,
@@ -653,12 +648,6 @@ impl WorkerTask {
                             session_id = %self.session_id,
                             turn_intent_id = %turn_intent_id,
                             "[scheduler] exact direct Turn was cancelled before Provider execution"
-                        );
-                    } else if assistant_persistence_failed {
-                        warn!(
-                            session_id = %self.session_id,
-                            turn_intent_id = %turn_intent_id,
-                            "[scheduler] keeping Agent Org turn in-flight because final assistant persistence failed"
                         );
                     } else {
                         // Lifecycle: running → failed. Cancelled turns walk
@@ -750,18 +739,6 @@ fn is_terminal_final_summary_failure_for_run(
     turn_intent_id: &str,
 ) -> bool {
     org_run_id.is_some() && is_terminal_final_summary_failure(session_id, turn_intent_id)
-}
-
-fn should_keep_agent_org_intent_in_flight(
-    org_run_id: Option<&str>,
-    error: &str,
-    terminal_final_summary_failure: bool,
-) -> bool {
-    org_run_id.is_some()
-        && !terminal_final_summary_failure
-        && error.starts_with(
-            crate::core::session::turn::event_handler::AGENT_ORG_ASSISTANT_PERSISTENCE_ERROR_PREFIX,
-        )
 }
 
 async fn reconcile_agent_org_run_after_terminal(run_id: &str) {

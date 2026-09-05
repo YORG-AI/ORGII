@@ -56,13 +56,22 @@ fn fixture() -> Fixture {
     crate::coordination::agent_org_runs::init_schema(&conn).expect("run schema");
     crate::coordination::agent_org_turn_contexts::create_schema(&conn)
         .expect("Turn context schema");
+    crate::coordination::agent_member_interventions::create_schema(&conn)
+        .expect("Member intervention schema");
+    crate::coordination::agent_org_pause::create_schema(&conn).expect("Pause receipt schema");
     crate::coordination::agent_inbox::create_schema(&conn).expect("Agent Inbox schema");
+    crate::coordination::agent_org_formal_triggers::create_schema(&conn)
+        .expect("formal trigger schema");
     crate::coordination::agent_org_user_directed_work::create_schema(&conn)
         .expect("UserDirectedWork authority schema");
     crate::coordination::agent_org_watchdog::init_schema(&conn).expect("recovery schema");
     init_schema(&conn).expect("Task schema");
     crate::coordination::agent_org_task_handoffs::create_schema(&conn)
         .expect("Task execution handoff schema");
+    crate::coordination::agent_org_plan_approvals::create_schema(&conn)
+        .expect("plan approval schema");
+    crate::coordination::agent_org_finality::create_schema(&conn)
+        .expect("Task finality companion schema");
     let now = chrono::Utc::now().to_rfc3339();
     let snapshot = serde_json::json!({
         "schemaVersion": 1,
@@ -406,6 +415,664 @@ fn assign_pending(task_id: &str, owner_member_id: &str) -> Task {
     .expect("assign pending Task")
     .0
     .current
+}
+
+struct MaterializedTaskDeliveries {
+    bound_inbox_id: i64,
+    formal_inbox_id: i64,
+    formal_receipt_id: String,
+}
+
+fn insert_materialized_task_deliveries(
+    conn: &rusqlite::Connection,
+    task_id: &str,
+) -> MaterializedTaskDeliveries {
+    let now = chrono::Utc::now().to_rfc3339();
+    let bound =
+        crate::coordination::agent_inbox::AgentInboxStore::insert_in_tx_without_formal_trigger(
+            conn,
+            crate::coordination::agent_inbox::InsertInboxParams {
+                recipient_agent_id: "agent-a".to_string(),
+                recipient_member_id: Some(MEMBER_A.to_string()),
+                sender_agent_id: "agent-coordinator".to_string(),
+                sender_member_id: Some("coordinator".to_string()),
+                org_run_id: Some(RUN_ID.to_string()),
+                message: crate::coordination::agent_inbox::AgentMessage::Plain {
+                    summary: format!("Continue {task_id}"),
+                    text: format!("Exact input for {task_id}"),
+                },
+            },
+        )
+        .expect("insert Task-bound Inbox row");
+    crate::coordination::agent_inbox::AgentInboxStore::bind_task_message_in_tx(
+        conn,
+        RUN_ID,
+        bound.id,
+        task_id,
+        MEMBER_A,
+        COORDINATOR_TURN,
+    )
+    .expect("bind exact Task Inbox row");
+
+    let formal =
+        crate::coordination::agent_inbox::AgentInboxStore::insert_in_tx_without_formal_trigger(
+            conn,
+            crate::coordination::agent_inbox::InsertInboxParams {
+                recipient_agent_id: "agent-coordinator".to_string(),
+                recipient_member_id: Some("coordinator".to_string()),
+                sender_agent_id: "agent-a".to_string(),
+                sender_member_id: Some(MEMBER_A.to_string()),
+                org_run_id: Some(RUN_ID.to_string()),
+                message: crate::coordination::agent_inbox::AgentMessage::Plain {
+                    summary: format!("Review {task_id}"),
+                    text: format!("Exact formal trigger for {task_id}"),
+                },
+            },
+        )
+        .expect("insert formal Inbox row");
+    let formal_receipt =
+        crate::coordination::agent_org_formal_triggers::record_trigger_in_tx(
+            conn,
+            RUN_ID,
+            crate::coordination::agent_org_formal_triggers::FormalTriggerSource {
+                trigger_kind: "task_store_contract",
+                trigger_id: task_id,
+                trigger_revision: 1,
+                source_kind: "task_store_contract",
+                inbox_id: Some(formal.id),
+                task_id: Some(task_id),
+                owner_member_id: Some(MEMBER_A),
+                source_turn_intent_id: Some(COORDINATOR_TURN),
+                task_output_digest: None,
+                plan_revision_id: None,
+                doorbell_status:
+                    crate::coordination::agent_org_formal_triggers::FormalTriggerDoorbellStatus::Delivered,
+                initially_resolved: false,
+            },
+        )
+        .expect("record exact formal trigger");
+
+    for (inbox_id, suffix) in [(bound.id, "bound"), (formal.id, "formal")] {
+        conn.execute(
+            "INSERT INTO agent_org_runtime_inbox_materializations(
+                inbox_id,session_id,transcript_message_id,transcript_intent_id,materialized_at
+             ) VALUES (?1,?2,?3,?4,?5)",
+            params![
+                inbox_id,
+                MEMBER_A_SESSION,
+                format!("message-{task_id}-{suffix}"),
+                format!("intent-{task_id}-{suffix}"),
+                &now,
+            ],
+        )
+        .expect("materialize exact Inbox row");
+    }
+    conn.execute(
+        "UPDATE agent_org_runtime_formal_trigger_receipts
+         SET status='materialized',current_attempt=1,
+             materialized_input_id=?2,materialized_event_id=?3,updated_at=?4
+         WHERE receipt_id=?1",
+        params![
+            &formal_receipt.receipt_id,
+            format!("formal-input-{task_id}"),
+            format!("formal-event-{task_id}"),
+            &now,
+        ],
+    )
+    .expect("materialize formal receipt");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_formal_trigger_attempts(
+            receipt_id,attempt,session_id,turn_intent_id,status,
+            materialized_input_id,materialized_event_id,queued_at,started_at,updated_at
+         ) VALUES (?1,1,?2,?3,'running',?4,?5,?6,?6,?6)",
+        params![
+            &formal_receipt.receipt_id,
+            ROOT_SESSION,
+            COORDINATOR_TURN,
+            format!("formal-input-{task_id}"),
+            format!("formal-event-{task_id}"),
+            &now,
+        ],
+    )
+    .expect("record running formal attempt");
+
+    MaterializedTaskDeliveries {
+        bound_inbox_id: bound.id,
+        formal_inbox_id: formal.id,
+        formal_receipt_id: formal_receipt.receipt_id,
+    }
+}
+
+#[test]
+fn terminal_task_settles_only_its_exact_deliveries_and_formal_attempts() {
+    let _fixture = fixture();
+    let mut task_a_input = pending("settle-a", Some(MEMBER_A), vec![]);
+    task_a_input.subject = "Compile the native engine".to_string();
+    task_a_input.description = "Build and verify the Rust execution engine.".to_string();
+    create(task_a_input);
+    let mut task_b_input = pending("settle-b", Some(MEMBER_A), vec![]);
+    task_b_input.subject = "Audit the settings interface".to_string();
+    task_b_input.description = "Review accessibility in the settings interface.".to_string();
+    create(task_b_input);
+    let conn = get_connection().unwrap();
+    let task_a = insert_materialized_task_deliveries(&conn, "settle-a");
+    let task_b = insert_materialized_task_deliveries(&conn, "settle-b");
+    insert_owner_context(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "turn-settle-a",
+        "settle-a",
+        1,
+    );
+    start("settle-a", MEMBER_A_SESSION, "turn-settle-a");
+    AgentOrgTaskStore::owner_complete_with_transactional_effects(
+        owner_actor(MEMBER_A_SESSION, "turn-settle-a"),
+        RUN_ID,
+        "settle-a",
+        TaskOutputInput {
+            summary: "settled".to_string(),
+            content: None,
+            artifact_ids: Vec::new(),
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect("complete exact Task");
+
+    for inbox_id in [task_a.bound_inbox_id, task_a.formal_inbox_id] {
+        let state: (bool, bool) = conn
+            .query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions
+                    WHERE inbox_id=?1
+                 ), EXISTS(
+                    SELECT 1 FROM agent_org_runtime_inbox_materializations
+                    WHERE inbox_id=?1
+                 )",
+                [inbox_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(state, (true, false));
+    }
+    let task_a_formal: (String, String) = conn
+        .query_row(
+            "SELECT receipt.status,attempt.status
+             FROM agent_org_runtime_formal_trigger_receipts receipt
+             JOIN agent_org_runtime_formal_trigger_attempts attempt
+               ON attempt.receipt_id=receipt.receipt_id
+             WHERE receipt.receipt_id=?1",
+            [&task_a.formal_receipt_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        task_a_formal,
+        ("resolved".to_string(), "resolved".to_string())
+    );
+
+    for inbox_id in [task_b.bound_inbox_id, task_b.formal_inbox_id] {
+        let state: (bool, bool) = conn
+            .query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions
+                    WHERE inbox_id=?1
+                 ), EXISTS(
+                    SELECT 1 FROM agent_org_runtime_inbox_materializations
+                    WHERE inbox_id=?1
+                 )",
+                [inbox_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(state, (false, true));
+    }
+    let task_b_formal: (String, String) = conn
+        .query_row(
+            "SELECT receipt.status,attempt.status
+             FROM agent_org_runtime_formal_trigger_receipts receipt
+             JOIN agent_org_runtime_formal_trigger_attempts attempt
+               ON attempt.receipt_id=receipt.receipt_id
+             WHERE receipt.receipt_id=?1",
+            [&task_b.formal_receipt_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        task_b_formal,
+        ("materialized".to_string(), "running".to_string())
+    );
+}
+
+#[test]
+fn fail_cancel_replace_and_reassign_each_settle_the_exact_task_delivery() {
+    let _fixture = fixture();
+    for task_id in [
+        "settle-fail",
+        "settle-cancel",
+        "settle-replace",
+        "settle-reassign",
+        "settle-unrelated",
+    ] {
+        create(pending(task_id, Some(MEMBER_A), vec![]));
+    }
+    let conn = get_connection().unwrap();
+    let deliveries = [
+        "settle-fail",
+        "settle-cancel",
+        "settle-replace",
+        "settle-reassign",
+        "settle-unrelated",
+    ]
+    .into_iter()
+    .map(|task_id| (task_id, insert_materialized_task_deliveries(&conn, task_id)))
+    .collect::<std::collections::HashMap<_, _>>();
+    insert_owner_context(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "turn-settle-fail",
+        "settle-fail",
+        1,
+    );
+    start("settle-fail", MEMBER_A_SESSION, "turn-settle-fail");
+
+    AgentOrgTaskStore::owner_fail_with_transactional_effects(
+        owner_actor(MEMBER_A_SESSION, "turn-settle-fail"),
+        RUN_ID,
+        "settle-fail",
+        TaskTerminalReason {
+            code: "execution.failed".to_string(),
+            message: "Provider failed deterministically".to_string(),
+            source_event_id: None,
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect("fail exact Task");
+    AgentOrgTaskStore::cancel_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "settle-cancel",
+        TaskTerminalReason {
+            code: "coordinator_cancelled".to_string(),
+            message: "Coordinator cancelled obsolete work".to_string(),
+            source_event_id: None,
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect("cancel exact Task");
+    let mut replacement = pending("settle-replacement-new", Some(MEMBER_A), vec![]);
+    replacement.subject = "Replacement after settlement".to_string();
+    replacement.description = "Continue only the retained work.".to_string();
+    AgentOrgTaskStore::cancel_and_replace_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "settle-replace",
+        TaskTerminalReason {
+            code: "coordinator_replaced".to_string(),
+            message: "Coordinator replaced obsolete work".to_string(),
+            source_event_id: None,
+        },
+        replacement,
+        |_tx, _outcome, _replacement, _tasks| Ok(()),
+    )
+    .expect("replace exact Task");
+    AgentOrgTaskStore::patch_pending_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "settle-reassign",
+        PendingTaskGraphPatch {
+            owner: Some(Some(MEMBER_B.to_string())),
+            eligible_member_ids: Some(vec![MEMBER_B.to_string()]),
+            ..Default::default()
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect("reassign exact Task");
+
+    for task_id in [
+        "settle-fail",
+        "settle-cancel",
+        "settle-replace",
+        "settle-reassign",
+    ] {
+        let delivery = &deliveries[task_id];
+        for inbox_id in [delivery.bound_inbox_id, delivery.formal_inbox_id] {
+            let state: (bool, bool) = conn
+                .query_row(
+                    "SELECT EXISTS(
+                        SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions
+                        WHERE inbox_id=?1
+                     ), EXISTS(
+                        SELECT 1 FROM agent_org_runtime_inbox_materializations
+                        WHERE inbox_id=?1
+                     )",
+                    [inbox_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap();
+            assert_eq!(state, (true, false), "{task_id}:{inbox_id}");
+        }
+        let formal_state: (String, String) = conn
+            .query_row(
+                "SELECT receipt.status,attempt.status
+                 FROM agent_org_runtime_formal_trigger_receipts receipt
+                 JOIN agent_org_runtime_formal_trigger_attempts attempt
+                   ON attempt.receipt_id=receipt.receipt_id
+                 WHERE receipt.receipt_id=?1",
+                [&delivery.formal_receipt_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            formal_state,
+            ("resolved".to_string(), "resolved".to_string()),
+            "{task_id}"
+        );
+    }
+    let unrelated = &deliveries["settle-unrelated"];
+    for inbox_id in [unrelated.bound_inbox_id, unrelated.formal_inbox_id] {
+        let state: (bool, bool) = conn
+            .query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions
+                    WHERE inbox_id=?1
+                 ), EXISTS(
+                    SELECT 1 FROM agent_org_runtime_inbox_materializations
+                    WHERE inbox_id=?1
+                 )",
+                [inbox_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(state, (false, true), "unrelated:{inbox_id}");
+    }
+}
+
+#[test]
+fn task_terminal_write_rolls_back_when_exact_delivery_settlement_fails() {
+    let _fixture = fixture();
+    create(pending("settlement-rollback", Some(MEMBER_A), vec![]));
+    let conn = get_connection().unwrap();
+    let delivery = insert_materialized_task_deliveries(&conn, "settlement-rollback");
+    conn.execute_batch(
+        "CREATE TRIGGER reject_exact_delivery_settlement
+         BEFORE INSERT ON agent_org_runtime_inbox_delivery_resolutions
+         BEGIN SELECT RAISE(ABORT, 'settlement fault'); END;",
+    )
+    .unwrap();
+
+    let error = AgentOrgTaskStore::cancel_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "settlement-rollback",
+        TaskTerminalReason {
+            code: "coordinator_cancelled".to_string(),
+            message: "This whole mutation must roll back".to_string(),
+            source_event_id: None,
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect_err("settlement failure must abort the Task mutation");
+    assert!(error.contains("settlement fault"), "{error}");
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, "settlement-rollback")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Pending
+    );
+    let state: (bool, bool) = conn
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions
+                WHERE inbox_id=?1
+             ), EXISTS(
+                SELECT 1 FROM agent_org_runtime_inbox_materializations
+                WHERE inbox_id=?1
+             )",
+            [delivery.bound_inbox_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(state, (false, true));
+}
+
+#[test]
+fn coordinator_task_mutations_advance_exact_context_and_materialize_one_terminal_recheck() {
+    let _fixture = fixture();
+    create(pending("coordinator-revision-a", Some(MEMBER_A), vec![]));
+    create(pending("coordinator-revision-b", Some(MEMBER_B), vec![]));
+    let exact_mutation = AgentOrgTaskStore::patch_pending_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "coordinator-revision-a",
+        PendingTaskGraphPatch {
+            description: Some("Coordinator committed the final graph description".to_string()),
+            ..Default::default()
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect("commit exact Coordinator mutation")
+    .0;
+    let conn = get_connection().unwrap();
+    let (run_revision, context_revision, recheck_revision, recheck_status, recheck_inbox): (
+        i64,
+        i64,
+        i64,
+        String,
+        Option<i64>,
+    ) = conn
+        .query_row(
+            "SELECT progress.work_revision,context.coordinator_work_revision,
+                    recheck.work_revision,recheck.status,recheck.inbox_id
+             FROM agent_org_runtime_runs run
+             JOIN agent_org_runtime_run_progress progress
+               ON progress.org_run_id=run.id
+             JOIN agent_org_runtime_turn_contexts context
+               ON context.org_run_id=run.id
+              AND context.session_id=?2
+              AND context.turn_intent_id=?3
+             JOIN agent_org_coordinator_completion_rechecks recheck
+               ON recheck.org_run_id=run.id
+              AND recheck.source_session_id=context.session_id
+              AND recheck.source_turn_intent_id=context.turn_intent_id
+             WHERE run.id=?1",
+            params![RUN_ID, ROOT_SESSION, COORDINATOR_TURN],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .expect("read committed Coordinator revision");
+    assert_eq!(context_revision, run_revision);
+    assert_eq!(recheck_revision, run_revision);
+    assert_eq!(exact_mutation.new_work_revision, run_revision);
+    assert_eq!(recheck_status, "pending");
+    assert_eq!(recheck_inbox, None);
+    assert_eq!(
+        crate::coordination::agent_org_finality::final_coordinator_revision_for_turn(
+            ROOT_SESSION,
+            COORDINATOR_TURN,
+        )
+        .unwrap(),
+        Some((RUN_ID.to_string(), run_revision))
+    );
+
+    let receipts = crate::coordination::agent_org_finality::finalize_turn(
+        ROOT_SESSION,
+        COORDINATOR_TURN,
+        true,
+        "test_completed",
+    )
+    .expect("terminalize Coordinator Turn and materialize recheck");
+    assert_eq!(receipts.len(), 1);
+    let replay = crate::coordination::agent_org_finality::finalize_turn(
+        ROOT_SESSION,
+        COORDINATOR_TURN,
+        true,
+        "test_completed",
+    )
+    .expect("idempotent Coordinator finalization");
+    assert!(replay.is_empty());
+
+    let terminal_state: (String, String, i64, i64) = conn
+        .query_row(
+            "SELECT intent.status,recheck.status,recheck.work_revision,
+                    (SELECT COUNT(*)
+                     FROM agent_org_runtime_formal_trigger_receipts trigger
+                     WHERE trigger.org_run_id=?1
+                       AND trigger.source_kind='coordinator_completion_recheck'
+                       AND trigger.source_turn_intent_id=?3)
+             FROM session_turn_intents intent
+             JOIN agent_org_coordinator_completion_rechecks recheck
+               ON recheck.source_session_id=intent.session_id
+              AND recheck.source_turn_intent_id=intent.turn_intent_id
+             WHERE intent.session_id=?2 AND intent.turn_intent_id=?3",
+            params![RUN_ID, ROOT_SESSION, COORDINATOR_TURN],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .expect("read terminal recheck");
+    assert_eq!(
+        terminal_state,
+        (
+            "completed".to_string(),
+            "materialized".to_string(),
+            run_revision,
+            1,
+        )
+    );
+}
+
+#[test]
+fn restart_reconciliation_keeps_provenance_owner_and_settles_only_duplicate_source() {
+    let _fixture = fixture();
+    let mut task_input = pending("historical-duplicate", Some(MEMBER_A), vec![]);
+    task_input.subject = "Repair historical duplicate execution".to_string();
+    task_input.description = "Keep the Turn proven by the latest Task start event.".to_string();
+    create(task_input);
+    let conn = get_connection().unwrap();
+    insert_owner_context(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "turn-provenance-owner",
+        "historical-duplicate",
+        1,
+    );
+    start(
+        "historical-duplicate",
+        MEMBER_A_SESSION,
+        "turn-provenance-owner",
+    );
+    insert_owner_context(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "turn-duplicate-loser",
+        "historical-duplicate",
+        1,
+    );
+    let source =
+        crate::coordination::agent_inbox::AgentInboxStore::insert_in_tx_without_formal_trigger(
+            &conn,
+            crate::coordination::agent_inbox::InsertInboxParams {
+                recipient_agent_id: "agent-a".to_string(),
+                recipient_member_id: Some(MEMBER_A.to_string()),
+                sender_agent_id: "agent-coordinator".to_string(),
+                sender_member_id: Some("coordinator".to_string()),
+                org_run_id: Some(RUN_ID.to_string()),
+                message: crate::coordination::agent_inbox::AgentMessage::Plain {
+                    summary: "stale duplicate input".to_string(),
+                    text: "This materialized the losing sibling Turn.".to_string(),
+                },
+            },
+        )
+        .unwrap();
+    crate::coordination::agent_inbox::AgentInboxStore::bind_task_message_in_tx(
+        &conn,
+        RUN_ID,
+        source.id,
+        "historical-duplicate",
+        MEMBER_A,
+        COORDINATOR_TURN,
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_inbox_materializations(
+            inbox_id,session_id,transcript_message_id,transcript_intent_id,materialized_at
+         ) VALUES (?1,?2,'duplicate-message','turn-duplicate-loser',?3)",
+        params![source.id, MEMBER_A_SESSION, chrono::Utc::now().to_rfc3339()],
+    )
+    .unwrap();
+
+    assert!(
+        crate::coordination::agent_org_turn_contexts::reconcile_in_flight_after_restart(&conn)
+            .unwrap()
+            > 0
+    );
+    assert_eq!(
+        conn.query_row(
+            "SELECT status FROM session_turn_intents
+             WHERE session_id=?1 AND turn_intent_id='turn-provenance-owner'",
+            [MEMBER_A_SESSION],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap(),
+        "running"
+    );
+    let loser: (String, String) = conn
+        .query_row(
+            "SELECT intent.status,reconciliation.reason_code
+             FROM session_turn_intents intent
+             JOIN agent_org_task_execution_reconciliations reconciliation
+               ON reconciliation.session_id=intent.session_id
+              AND reconciliation.turn_intent_id=intent.turn_intent_id
+             WHERE intent.session_id=?1
+               AND intent.turn_intent_id='turn-duplicate-loser'",
+            [MEMBER_A_SESSION],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        loser,
+        (
+            "failed".to_string(),
+            "duplicate_execution_rejected".to_string()
+        )
+    );
+    assert!(crate::coordination::agent_org_finality::reconcile_after_restart(&conn).unwrap() > 0);
+    let source_resolution: (String, bool) = conn
+        .query_row(
+            "SELECT resolution.reason,
+                    EXISTS(
+                        SELECT 1 FROM agent_org_runtime_inbox_materializations materialization
+                        WHERE materialization.inbox_id=resolution.inbox_id
+                    )
+             FROM agent_org_runtime_inbox_delivery_resolutions resolution
+             WHERE resolution.inbox_id=?1",
+            [source.id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        source_resolution,
+        ("duplicate_execution_rejected".to_string(), false)
+    );
+    assert_eq!(
+        crate::coordination::agent_org_turn_contexts::reconcile_in_flight_after_restart(&conn)
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        crate::coordination::agent_org_finality::reconcile_after_restart(&conn).unwrap(),
+        0
+    );
 }
 
 #[test]
@@ -1477,19 +2144,67 @@ async fn user_handoff_replacement_uses_stable_user_intent_provenance() {
 fn run_view_cancel_records_user_scope_removal_with_exact_request_audit() {
     let _fixture = fixture();
     create(pending("user-cancelled", Some(MEMBER_A), vec![]));
+    create(pending(
+        "scope-dependent",
+        Some(MEMBER_B),
+        vec!["user-cancelled"],
+    ));
+    create(pending(
+        "scope-transitive-dependent",
+        Some(MEMBER_A),
+        vec!["scope-dependent"],
+    ));
+    let mut replacement_source = pending(
+        "scope-replacement-source",
+        Some(MEMBER_B),
+        vec!["user-cancelled"],
+    );
+    replacement_source.subject = "Replace removed CSV generation".to_string();
+    replacement_source.description =
+        "Choose a replacement implementation for the removed CSV work.".to_string();
+    create(replacement_source);
+    let mut detached_source = pending(
+        "scope-detached-source",
+        Some(MEMBER_A),
+        vec!["user-cancelled"],
+    );
+    detached_source.subject = "Keep independent Markdown generation".to_string();
+    detached_source.description =
+        "Continue after explicitly removing the obsolete CSV dependency.".to_string();
+    create(detached_source);
+    create(pending("scope-unrelated", Some(MEMBER_B), vec![]));
 
     database::db::with_sessions_writer(|| {
         let conn = get_connection().map_err(|error| error.to_string())?;
         let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+        let actor = UserTaskHandoffAdmin::new(ROOT_SESSION, "ui-cancel-request-1")?;
+        let scope_receipt = crate::coordination::agent_org_finality::create_scope_removal_in_tx(
+            &tx,
+            RUN_ID,
+            "user-cancelled",
+            "ui-cancel-request-1",
+            "task-store-contract-scope-digest",
+            ROOT_SESSION,
+        )?;
+        let wire_receipt =
+            serde_json::to_value(&scope_receipt).map_err(|error| error.to_string())?;
+        assert_eq!(wire_receipt["orgRunId"], RUN_ID);
+        assert!(wire_receipt["workEpisodeId"]
+            .as_str()
+            .is_some_and(|episode_id| !episode_id.is_empty()));
+        assert_eq!(wire_receipt["targetTaskId"], "user-cancelled");
+        assert_eq!(wire_receipt["requestId"], "ui-cancel-request-1");
+        assert_eq!(wire_receipt["actorSessionId"], ROOT_SESSION);
+        assert_eq!(wire_receipt["status"], "recorded");
         AgentOrgTaskStore::cancel_with_user_handoff_in_tx(
             &tx,
-            UserTaskHandoffAdmin::new(ROOT_SESSION, "ui-cancel-request-1")?,
+            actor.clone(),
             RUN_ID,
             "user-cancelled",
             TaskTerminalReason {
                 code: "user_scope_removed".to_string(),
                 message: "User cancelled this Task from Run View".to_string(),
-                source_event_id: Some("ui-cancel-request-1".to_string()),
+                source_event_id: Some(scope_receipt.id.clone()),
             },
             None,
             |_tx, _outcome, _tasks| Ok(()),
@@ -1502,14 +2217,160 @@ fn run_view_cancel_records_user_scope_removal_with_exact_request_audit() {
         .unwrap()
         .unwrap();
     assert_eq!(cancelled.status, TaskStatus::Cancelled);
+    let cancel_reason = cancelled.cancel_reason.as_ref().expect("cancel reason");
+    assert_eq!(cancel_reason.code, "user_scope_removed");
+    let receipt_id = cancel_reason
+        .source_event_id
+        .as_deref()
+        .expect("durable scope-removal receipt");
+    for dependent_task_id in [
+        "scope-dependent",
+        "scope-transitive-dependent",
+        "scope-replacement-source",
+        "scope-detached-source",
+    ] {
+        assert_eq!(
+            AgentOrgTaskStore::get(RUN_ID, dependent_task_id)
+                .unwrap()
+                .expect("dependent Task remains for Coordinator resolution")
+                .status,
+            TaskStatus::Pending,
+            "root UI cancellation must not silently cascade to {dependent_task_id}"
+        );
+    }
+    let forged_unrelated = AgentOrgTaskStore::cancel_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "scope-unrelated",
+        TaskTerminalReason {
+            code: "dependency_scope_removed".to_string(),
+            message: "Forged unrelated scope evidence".to_string(),
+            source_event_id: Some(receipt_id.to_string()),
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect_err("an unrelated Task cannot consume another Task's scope receipt");
     assert_eq!(
-        cancelled
-            .cancel_reason
-            .as_ref()
-            .map(|reason| (reason.code.as_str(), reason.source_event_id.as_deref())),
-        Some(("user_scope_removed", Some("ui-cancel-request-1")))
+        forged_unrelated,
+        "scope_removal_receipt_not_authoritative_for_task"
     );
+    for dependent_task_id in ["scope-dependent", "scope-transitive-dependent"] {
+        AgentOrgTaskStore::cancel_with_transactional_effects(
+            graph_actor(),
+            RUN_ID,
+            dependent_task_id,
+            TaskTerminalReason {
+                code: "dependency_scope_removed".to_string(),
+                message: "Coordinator removed dependent work from scope".to_string(),
+                source_event_id: Some(receipt_id.to_string()),
+            },
+            |_tx, _outcome, _tasks| Ok(()),
+        )
+        .expect("Coordinator records explicit dependent cancellation");
+    }
+    let mut replacement_input = pending("scope-replacement", Some(MEMBER_B), vec![]);
+    replacement_input.subject = "Generate the retained table export".to_string();
+    replacement_input.description =
+        "Replacement work explicitly chosen after CSV scope removal.".to_string();
+    let (_replaced, replacement, ()) =
+        AgentOrgTaskStore::cancel_and_replace_with_transactional_effects(
+            graph_actor(),
+            RUN_ID,
+            "scope-replacement-source",
+            TaskTerminalReason {
+                code: "dependency_scope_removed".to_string(),
+                message: "Coordinator chose replacement work".to_string(),
+                source_event_id: Some(receipt_id.to_string()),
+            },
+            replacement_input,
+            |_tx, _outcome, _replacement, _tasks| Ok(()),
+        )
+        .expect("Coordinator records explicit dependent replacement");
+    AgentOrgTaskStore::patch_pending_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "scope-detached-source",
+        PendingTaskGraphPatch {
+            blocked_by: Some(Vec::new()),
+            ..Default::default()
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect("Coordinator explicitly detaches obsolete dependency");
+
     let conn = get_connection().unwrap();
+    let receipt_audit: (String, String, String, String) = conn
+        .query_row(
+            "SELECT target_task_id,root_user_event_id,request_id,status
+             FROM agent_org_scope_removal_receipts
+             WHERE receipt_id=?1",
+            [receipt_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        receipt_audit,
+        (
+            "user-cancelled".to_string(),
+            "run-view-scope-removal:ui-cancel-request-1".to_string(),
+            "ui-cancel-request-1".to_string(),
+            "recorded".to_string(),
+        )
+    );
+    for dependent_task_id in ["scope-dependent", "scope-transitive-dependent"] {
+        let dependent = AgentOrgTaskStore::get(RUN_ID, dependent_task_id)
+            .unwrap()
+            .expect("dependent Task");
+        assert_eq!(dependent.status, TaskStatus::Cancelled);
+        assert_eq!(
+            dependent
+                .cancel_reason
+                .as_ref()
+                .map(|reason| reason.code.as_str()),
+            Some("dependency_scope_removed")
+        );
+        assert!(
+            crate::coordination::agent_org_finality::valid_scope_removal_for_task(
+                &conn,
+                RUN_ID,
+                dependent_task_id,
+                receipt_id,
+            )
+            .unwrap()
+        );
+    }
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, "scope-unrelated")
+            .unwrap()
+            .expect("unrelated Task")
+            .status,
+        TaskStatus::Pending
+    );
+    assert_eq!(
+        replacement.replaces_task_id.as_deref(),
+        Some("scope-replacement-source")
+    );
+    assert_eq!(replacement.status, TaskStatus::Pending);
+    let detached = AgentOrgTaskStore::get(RUN_ID, "scope-detached-source")
+        .unwrap()
+        .expect("detached Task");
+    assert_eq!(detached.status, TaskStatus::Pending);
+    assert!(detached.blocked_by.is_empty());
+    for (kind, expected) in [
+        ("dependency_cancelled", 2_i64),
+        ("dependency_replaced", 1_i64),
+        ("dependency_detached", 1_i64),
+    ] {
+        let resolution_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM agent_org_scope_resolution_receipts
+                 WHERE root_receipt_id=?1 AND resolution_kind=?2",
+                params![receipt_id, kind],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(resolution_count, expected, "{kind}");
+    }
     let audit_exists: bool = conn
         .query_row(
             "SELECT EXISTS(
@@ -2292,6 +3153,22 @@ fn an_unprocessed_old_turn_cannot_recover_a_new_execution_of_the_same_task() {
         "turn-restarted-new",
         1,
     );
+    let new_context =
+        crate::coordination::agent_org_turn_contexts::require_context_with_connection(
+            &conn,
+            MEMBER_A_SESSION,
+            "turn-restarted-new",
+        )
+        .unwrap();
+    crate::coordination::agent_org_finality::claim_task_execution_in_tx(
+        &conn,
+        &new_context,
+        &crate::coordination::agent_org_finality::TaskExecutionAuthoritySource::receipt(
+            crate::coordination::agent_org_finality::TaskExecutionAuthoritySourceKind::Assignment,
+            "new-execution-authority",
+        ),
+    )
+    .expect("new execution owns the active lease");
 
     let stale =
         AgentOrgTaskStore::recover_task_execution_failure(MEMBER_A_SESSION, "turn-restarted-old")

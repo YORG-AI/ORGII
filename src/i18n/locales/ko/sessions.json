@@ -2444,7 +2444,7 @@
       "reassignTitle": "이 작업을 재할당할까요?",
       "cancelTitle": "이 작업을 취소할까요?",
       "reassignWarning": "대체 작업을 시작하기 전에 현재 실행을 중지해야 합니다.",
-      "cancelWarning": "현재 실행이 중지됩니다. 다른 작업은 계속됩니다.",
+      "cancelWarning": "이 작업을 이번 제공 범위에서 제거합니다. 현재 실행은 중지되며, 종속 작업은 별도의 명시적 결정이 필요합니다.",
       "replacementOwner": "새 담당자",
       "handoffFailed": "이 작업을 안전하게 업데이트하지 못했습니다",
       "handoffNeedsDecision": "작업 인계에 결정이 필요합니다",

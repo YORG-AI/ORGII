@@ -572,9 +572,9 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
                   )}
                 </div>
               </div>
-              {canManageTasks &&
-                task.status === AGENT_ORG_TASK_STATUS.IN_PROGRESS && (
-                  <div className="mt-2 flex items-center justify-end gap-1">
+              {canManageTasks && !terminal && (
+                <div className="mt-2 flex items-center justify-end gap-1">
+                  {task.status === AGENT_ORG_TASK_STATUS.IN_PROGRESS && (
                     <Button
                       size="mini"
                       variant="tertiary"
@@ -594,27 +594,28 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
                         defaultValue: "Reassign",
                       })}
                     </Button>
-                    <Button
-                      size="mini"
-                      variant="danger"
-                      appearance="ghost"
-                      icon={
-                        <HugeiconsIcon
-                          icon={Cancel01Icon}
-                          data-icon="cancel"
-                          size={10}
-                          strokeWidth={2}
-                        />
-                      }
-                      onClick={() => onTaskAction?.(task, "cancel")}
-                      data-testid="agent-org-task-cancel-button"
-                    >
-                      {t("planner.agentOrgTasks.cancelTask", {
-                        defaultValue: "Cancel",
-                      })}
-                    </Button>
-                  </div>
-                )}
+                  )}
+                  <Button
+                    size="mini"
+                    variant="danger"
+                    appearance="ghost"
+                    icon={
+                      <HugeiconsIcon
+                        icon={Cancel01Icon}
+                        data-icon="cancel"
+                        size={10}
+                        strokeWidth={2}
+                      />
+                    }
+                    onClick={() => onTaskAction?.(task, "cancel")}
+                    data-testid="agent-org-task-cancel-button"
+                  >
+                    {t("planner.agentOrgTasks.cancelTask", {
+                      defaultValue: "Cancel",
+                    })}
+                  </Button>
+                </div>
+              )}
               {terminal && currentSessionId && (
                 <button
                   type="button"

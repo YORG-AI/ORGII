@@ -7,8 +7,8 @@ use rusqlite::params;
 
 use super::super::helpers::{insert_task_history_event, list_tasks_with_conn, now_rfc3339};
 use super::super::{
-    TaskGraphIndex, TASK_DELETE_HAS_DEPENDENTS_ERROR, TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR,
-    TASK_EVENT_DELETED,
+    TaskActorAudit, TaskActorKind, TaskGraphIndex, TaskStatus, TASK_DELETE_HAS_DEPENDENTS_ERROR,
+    TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR, TASK_EVENT_DELETED,
 };
 use super::validation::ensure_run_allows_task_mutation;
 use super::AgentOrgTaskStore;
@@ -92,6 +92,21 @@ impl AgentOrgTaskStore {
                 "{TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR}: task {task_id} is durable replacement evidence for a resolved Inbox delivery and cannot be deleted"
             ));
         }
+        let audit = TaskActorAudit {
+            kind: TaskActorKind::System,
+            participant_id: "system:task_delete".to_string(),
+            turn_intent_id: None,
+            activation_generation: current_task.activation_generation,
+        };
+        let mut deletion_snapshot = current_task.clone();
+        deletion_snapshot.status = TaskStatus::Cancelled;
+        crate::coordination::agent_org_finality::settle_task_bound_deliveries_in_tx(
+            &tx,
+            &current_task,
+            &deletion_snapshot,
+            &audit,
+            None,
+        )?;
         let n = tx
             .execute(
                 "DELETE FROM agent_org_runtime_tasks WHERE org_run_id = ?1 AND id = ?2",
@@ -110,7 +125,9 @@ impl AgentOrgTaskStore {
                 &deleted_snapshot,
                 None,
             )?;
-            crate::coordination::agent_org_runs::bump_work_revision_in_tx(&tx, org_run_id)?;
+            crate::coordination::agent_org_finality::record_task_mutation_in_tx(
+                &tx, org_run_id, &audit,
+            )?;
         }
         tx.commit().map_err(|err| err.to_string())?;
         Ok(n > 0)

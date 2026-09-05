@@ -69,6 +69,16 @@ impl AgentOrgTaskStore {
                 "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks task
                  WHERE task.org_run_id=?1 AND task.id=?2 AND task.owner=?3
                    AND task.status='in_progress'
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_org_task_execution_leases live
+                       WHERE live.org_run_id=task.org_run_id
+                         AND live.task_id=task.id
+                         AND live.state='active'
+                         AND (
+                             live.session_id<>?5
+                             OR live.turn_intent_id<>?4
+                         )
+                   )
                    AND EXISTS (
                        SELECT 1 FROM agent_org_runtime_task_events event
                        WHERE event.org_run_id=task.org_run_id
@@ -94,7 +104,8 @@ impl AgentOrgTaskStore {
                         &context.org_run_id,
                         task_id,
                         owner_member_id,
-                        failed_turn_intent_id
+                        failed_turn_intent_id,
+                        session_id,
                     ],
                     row_to_task,
                 )
@@ -132,9 +143,23 @@ impl AgentOrgTaskStore {
                 &audit,
             )?;
             release_reservation_in_tx(&tx, &context.org_run_id, &actor, task_id)?;
-            crate::coordination::agent_org_runs::bump_work_revision_in_tx(
+            crate::coordination::agent_org_finality::record_task_mutation_in_tx(
                 &tx,
                 &context.org_run_id,
+                &audit,
+            )?;
+            crate::foundation::session_bridge::update_turn_intent_status_with_connection(
+                &tx,
+                session_id,
+                failed_turn_intent_id,
+                crate::foundation::session_bridge::TurnIntentBridgeStatus::Failed,
+            )?;
+            crate::coordination::agent_org_finality::release_turn_lease_in_tx(
+                &tx,
+                session_id,
+                failed_turn_intent_id,
+                "released",
+                "task_execution_recovered",
             )?;
             tx.commit().map_err(|error| error.to_string())?;
             Ok(vec![updated])
@@ -215,7 +240,9 @@ fn release_owned_tasks_for_shutdown(
         }
         release_reservation_in_tx(&tx, org_run_id, &actor, owner_member_id)?;
         if !updated.is_empty() {
-            crate::coordination::agent_org_runs::bump_work_revision_in_tx(&tx, org_run_id)?;
+            crate::coordination::agent_org_finality::record_task_mutation_in_tx(
+                &tx, org_run_id, &audit,
+            )?;
         }
         tx.commit().map_err(|error| error.to_string())?;
         Ok(updated)
@@ -311,6 +338,9 @@ fn recover_task_in_tx(
         ],
     )
     .map_err(|error| error.to_string())?;
+    crate::coordination::agent_org_finality::settle_task_bound_deliveries_in_tx(
+        tx, &previous, &task, audit, None,
+    )?;
     Ok(task)
 }
 

@@ -2444,7 +2444,7 @@
       "reassignTitle": "Réaffecter cette tâche ?",
       "cancelTitle": "Annuler cette tâche ?",
       "reassignWarning": "L’exécution actuelle doit s’arrêter avant le démarrage du remplacement.",
-      "cancelWarning": "L’exécution actuelle sera arrêtée. Les autres tâches continuent.",
+      "cancelWarning": "Cette action retire la tâche du périmètre de cette livraison. Toute exécution en cours sera arrêtée ; les tâches dépendantes nécessitent une décision explicite.",
       "replacementOwner": "Nouveau responsable",
       "handoffFailed": "Impossible de mettre à jour cette tâche en toute sécurité",
       "handoffNeedsDecision": "Le transfert nécessite votre décision",

@@ -195,6 +195,10 @@ fn create_fixture(conn: &Connection) {
         .expect("create completion certificate schema");
     crate::coordination::agent_org_final_summary::create_schema(conn)
         .expect("create FinalSummaryReceipt schema");
+    crate::coordination::agent_org_work_episodes::create_schema(conn)
+        .expect("create work episode schema");
+    crate::coordination::agent_org_finality::create_schema(conn)
+        .expect("create Task execution finality schema");
     conn.execute(
         "INSERT INTO agent_org_runtime_runs
             (id, root_session_id, org_snapshot_json, activation_generation, status)
@@ -222,6 +226,16 @@ fn create_fixture(conn: &Connection) {
             ('run-a', 'member-a', 'user_directed');",
     )
     .expect("seed canonical identities and sources");
+    conn.execute_batch(
+        "INSERT INTO agent_org_runtime_work_episodes (
+             id,org_run_id,episode_sequence,status,opening_activation_generation,
+             opening_work_revision,opened_by_turn_intent_id,created_at
+         ) VALUES ('episode-a','run-a',1,'active',1,0,'fixture-root','now');
+         INSERT INTO agent_org_runtime_work_episode_tasks (
+             org_run_id,work_episode_id,task_id,associated_at
+         ) VALUES ('run-a','episode-a','task-a','now');",
+    )
+    .expect("seed active work episode");
 }
 
 fn connection() -> Connection {
@@ -231,6 +245,13 @@ fn connection() -> Connection {
 }
 
 fn insert_task_assignment(conn: &Connection, task_id: &str) -> i64 {
+    conn.execute(
+        "INSERT OR IGNORE INTO agent_org_runtime_work_episode_tasks (
+             org_run_id,work_episode_id,task_id,associated_at
+         ) VALUES (?1,'episode-a',?2,'now')",
+        params![RUN_ID, task_id],
+    )
+    .expect("associate assigned Task with active episode");
     let message = crate::coordination::agent_inbox::AgentMessage::TaskAssigned {
         task_id: task_id.to_string(),
         subject: format!("Task {task_id}"),
@@ -306,6 +327,12 @@ fn task_request(turn_id: &str) -> AgentOrgTurnAdmission {
         "task-a",
         MEMBER_ID,
         1,
+    )
+    .with_task_execution_authority_source(
+        super::super::agent_org_finality::TaskExecutionAuthoritySource::receipt(
+            super::super::agent_org_finality::TaskExecutionAuthoritySourceKind::Assignment,
+            format!("test-assignment:{turn_id}"),
+        ),
     )
 }
 
@@ -1011,6 +1038,12 @@ fn durable_pause_continuation_excludes_parallel_ordinary_wake_until_terminal() {
         "task-a",
         MEMBER_ID,
         3,
+    )
+    .with_task_execution_authority_source(
+        super::super::agent_org_finality::TaskExecutionAuthoritySource::receipt(
+            super::super::agent_org_finality::TaskExecutionAuthoritySourceKind::PauseResume,
+            "pause:handoff-a",
+        ),
     );
     let continuation_context = accept_in_transaction(&mut conn, &continuation)
         .expect("persist Resume continuation before dispatcher starts");
@@ -1345,6 +1378,83 @@ fn transaction_failure_rolls_back_allocator_base_and_context() {
 }
 
 #[test]
+fn task_execution_without_exact_authority_source_rolls_back_admission() {
+    let mut conn = connection();
+    let request = AgentOrgTurnAdmission::task_execution(
+        RUN_ID,
+        MEMBER_SESSION_ID,
+        "turn-missing-authority",
+        None,
+        "task-a",
+        MEMBER_ID,
+        1,
+    );
+
+    let error = accept_in_transaction(&mut conn, &request)
+        .expect_err("TaskExecution without an exact receipt must fail closed");
+    assert!(
+        error.contains("task_execution_authority_source_missing"),
+        "{error}"
+    );
+    assert_eq!(row_count(&conn, "session_turn_intents"), 0);
+    assert_eq!(row_count(&conn, "agent_org_runtime_turn_contexts"), 0);
+    assert_eq!(row_count(&conn, "agent_org_task_execution_leases"), 0);
+}
+
+#[test]
+fn continuation_receipt_is_one_time_even_after_prior_turn_ends() {
+    let mut conn = connection();
+    let source = super::super::agent_org_finality::TaskExecutionAuthoritySource::receipt(
+        super::super::agent_org_finality::TaskExecutionAuthoritySourceKind::InterventionReturn,
+        "intervention:one-time-receipt",
+    );
+    let first = AgentOrgTurnAdmission::task_continuation(
+        RUN_ID,
+        MEMBER_SESSION_ID,
+        "turn-continuation-first",
+        None,
+        "task-a",
+        MEMBER_ID,
+        1,
+    )
+    .with_task_execution_authority_source(source.clone());
+    accept_in_transaction(&mut conn, &first).expect("accept exact continuation once");
+    conn.execute(
+        "UPDATE session_turn_intents SET status='completed'
+         WHERE session_id=?1 AND turn_intent_id='turn-continuation-first'",
+        [MEMBER_SESSION_ID],
+    )
+    .unwrap();
+    super::super::agent_org_finality::release_turn_lease_in_tx(
+        &conn,
+        MEMBER_SESSION_ID,
+        "turn-continuation-first",
+        "released",
+        "test_terminal",
+    )
+    .unwrap();
+
+    let replay = AgentOrgTurnAdmission::task_continuation(
+        RUN_ID,
+        MEMBER_SESSION_ID,
+        "turn-continuation-replay",
+        None,
+        "task-a",
+        MEMBER_ID,
+        1,
+    )
+    .with_task_execution_authority_source(source);
+    let error = accept_in_transaction(&mut conn, &replay)
+        .expect_err("a continuation receipt cannot allocate another epoch");
+    assert!(
+        error.contains(super::super::agent_org_finality::TASK_EXECUTION_ALREADY_ACTIVE),
+        "{error}"
+    );
+    assert_eq!(row_count(&conn, "agent_org_runtime_turn_contexts"), 1);
+    assert_eq!(row_count(&conn, "agent_org_task_execution_leases"), 1);
+}
+
+#[test]
 fn fifty_concurrent_mixed_sources_receive_one_strict_sequence() {
     const COUNT: usize = 50;
     let directory = tempfile::tempdir().expect("temporary database directory");
@@ -1364,11 +1474,17 @@ fn fifty_concurrent_mixed_sources_receive_one_strict_sequence() {
                 conn.busy_timeout(Duration::from_secs(20)).unwrap();
                 conn.execute_batch("PRAGMA foreign_keys=ON;").unwrap();
                 let turn_id = format!("turn-concurrent-{index}");
-                let request = match index % 4 {
-                    0 => task_request(&turn_id),
-                    1 => direct_request(&turn_id),
-                    2 => group_request(&turn_id),
-                    _ => inbox_request(&turn_id),
+                // Only one TaskExecution is legal for task-a/generation 1.
+                // The remaining formal sources still share its strict Member
+                // FIFO without manufacturing sibling executions.
+                let request = if index == 0 {
+                    task_request(&turn_id)
+                } else {
+                    match index % 3 {
+                        0 => direct_request(&turn_id),
+                        1 => group_request(&turn_id),
+                        _ => inbox_request(&turn_id),
+                    }
                 };
                 barrier.wait();
                 accept_in_transaction(&mut conn, &request)
@@ -1384,6 +1500,74 @@ fn fifty_concurrent_mixed_sources_receive_one_strict_sequence() {
         .collect::<Vec<_>>();
     sequences.sort_unstable();
     assert_eq!(sequences, (1..=COUNT as i64).collect::<Vec<_>>());
+}
+
+#[test]
+fn fifty_concurrent_task_wakes_admit_exactly_one_live_execution() {
+    const COUNT: usize = 50;
+    let directory = tempfile::tempdir().expect("temporary database directory");
+    let path = directory.path().join("sessions.db");
+    let conn = Connection::open(&path).expect("create shared database");
+    conn.execute_batch("PRAGMA journal_mode=WAL;").unwrap();
+    create_fixture(&conn);
+    insert_task_assignment(&conn, "task-a");
+    drop(conn);
+
+    let barrier = Arc::new(Barrier::new(COUNT));
+    let handles = (0..COUNT)
+        .map(|index| {
+            let path = path.clone();
+            let barrier = Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                let mut conn = Connection::open(path).expect("open shared database");
+                conn.busy_timeout(Duration::from_secs(20)).unwrap();
+                conn.execute_batch("PRAGMA foreign_keys=ON;").unwrap();
+                barrier.wait();
+                let tx = conn
+                    .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                    .expect("task-wake transaction");
+                let result = accept_wake_with_connection(
+                    &tx,
+                    RUN_ID,
+                    MEMBER_SESSION_ID,
+                    &format!("turn-task-race-{index}"),
+                    None,
+                    MEMBER_ID,
+                );
+                if result.is_ok() {
+                    tx.commit().expect("commit winning TaskExecution");
+                }
+                result
+            })
+        })
+        .collect::<Vec<_>>();
+    let results = handles
+        .into_iter()
+        .map(|handle| handle.join().expect("task-wake thread"))
+        .collect::<Vec<_>>();
+    assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+    assert_eq!(
+        results
+            .iter()
+            .filter(|result| result.as_ref().is_err_and(|error| {
+                error.contains(
+                    crate::coordination::agent_org_finality::TASK_EXECUTION_ALREADY_ACTIVE,
+                )
+            }))
+            .count(),
+        COUNT - 1
+    );
+    let conn = Connection::open(path).expect("inspect shared database");
+    let live: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_task_execution_leases
+             WHERE org_run_id=?1 AND work_episode_id='episode-a'
+               AND task_id='task-a' AND activation_generation=1 AND state='active'",
+            [RUN_ID],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(live, 1);
 }
 
 #[test]

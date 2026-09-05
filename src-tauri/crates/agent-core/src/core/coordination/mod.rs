@@ -25,6 +25,7 @@ pub mod agent_org_archive;
 #[cfg(test)]
 mod agent_org_archive_tests;
 pub mod agent_org_final_summary;
+pub(crate) mod agent_org_finality;
 pub mod agent_org_formal_triggers;
 pub(crate) mod agent_org_ownership;
 pub mod agent_org_pause;
@@ -65,7 +66,12 @@ pub fn reconcile_agent_org_turns_after_restart(
 ) -> Result<usize, String> {
     let runtime_absence = agent_org_pause::reconcile_runtime_absence_after_restart(conn)?;
     let turn_reconciliation = agent_org_turn_contexts::reconcile_in_flight_after_restart(conn)?;
+    let finality_reconciliation = agent_org_finality::reconcile_after_restart(conn)?;
     let handoff_reconciliation = agent_org_task_handoffs::reconcile_after_restart(conn)?;
     let summary_reconciliation = agent_org_final_summary::reconcile_after_restart(conn)?;
-    Ok(runtime_absence + turn_reconciliation + handoff_reconciliation + summary_reconciliation)
+    Ok(runtime_absence
+        + turn_reconciliation
+        + finality_reconciliation
+        + handoff_reconciliation
+        + summary_reconciliation)
 }

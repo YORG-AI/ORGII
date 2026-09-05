@@ -2360,6 +2360,14 @@ fn resume_continues_only_legal_work_and_preserves_member_fifo_without_mutating_t
             params![task_id, &context.run_id, status, output_json, &now],
         )
         .expect("seed Resume legality Task");
+        crate::coordination::agent_org_work_episodes::associate_task_in_tx(
+            &conn,
+            &context.run_id,
+            task_id,
+            1,
+            "seed-task",
+        )
+        .expect("associate seeded Task with the active work episode");
     }
     conn.execute(
         "UPDATE agent_org_runtime_tasks SET owner='member-builder'
@@ -2583,6 +2591,14 @@ fn exact_resume_continuation_consumes_old_assignment_only_after_task_success() {
         params![&context.run_id, &now],
     )
     .expect("seed in-progress Task");
+    crate::coordination::agent_org_work_episodes::associate_task_in_tx(
+        &conn,
+        &context.run_id,
+        "resume-owned-task",
+        1,
+        "seed-task",
+    )
+    .expect("associate resumed Task with the active work episode");
     let assignment = AgentInboxStore::insert(InsertInboxParams {
         recipient_agent_id: "builtin:sde".to_string(),
         recipient_member_id: Some("member-planner".to_string()),

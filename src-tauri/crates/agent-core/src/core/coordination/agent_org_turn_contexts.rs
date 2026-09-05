@@ -161,6 +161,7 @@ enum AdmissionKind {
         task_id: String,
         owner_member_id: String,
         activation_generation: i64,
+        authority_source: Option<super::agent_org_finality::TaskExecutionAuthoritySource>,
     },
     UserDirectedWork {
         dispatch_member_id: String,
@@ -278,8 +279,22 @@ impl AgentOrgTurnAdmission {
                 task_id: task_id.into(),
                 owner_member_id: owner_member_id.into(),
                 activation_generation,
+                authority_source: None,
             },
         }
+    }
+
+    pub(crate) fn with_task_execution_authority_source(
+        mut self,
+        source: super::agent_org_finality::TaskExecutionAuthoritySource,
+    ) -> Self {
+        if let AdmissionKind::TaskExecution {
+            authority_source, ..
+        } = &mut self.kind
+        {
+            *authority_source = Some(source);
+        }
+        self
     }
 
     pub(crate) fn task_continuation(
@@ -621,8 +636,7 @@ fn accept_wake_with_connection(
         );
     }
 
-    let (task_id, activation_generation) =
-        resolve_next_task_wake_binding(conn, org_run_id, session_id, member_id)?;
+    let binding = resolve_next_task_wake_binding(conn, org_run_id, session_id, member_id)?;
     accept_with_connection(
         conn,
         &AgentOrgTurnAdmission::task_execution(
@@ -630,10 +644,11 @@ fn accept_wake_with_connection(
             session_id,
             turn_intent_id,
             client_message_id,
-            task_id,
+            binding.task_id,
             member_id,
-            activation_generation,
-        ),
+            binding.activation_generation,
+        )
+        .with_task_execution_authority_source(binding.authority_source),
     )
 }
 
@@ -746,10 +761,12 @@ fn revalidate_live_context_with_connection(
     let status = AgentOrgRunStatus::parse(&status_raw)
         .ok_or_else(|| invariant_error(format!("unknown run status {status_raw:?}")))?;
     if status == AgentOrgRunStatus::Archived {
-        return Err(format!(
-            "team_archived: Agent Org run {} is read-only",
-            context.org_run_id
-        ));
+        return Err(super::agent_org_finality::AgentOrgTurnFailure::new(
+            super::agent_org_finality::AgentOrgTurnFailureKind::TargetTerminal,
+            "team_archived",
+            format!("Agent Org run {} is read-only", context.org_run_id),
+        )
+        .encode());
     }
     let lifecycle_allows_turn = match context.turn_kind {
         AgentOrgTurnKind::Coordinator => {
@@ -884,9 +901,12 @@ fn revalidate_live_context_with_connection(
                 || context.source_id != task_id
                 || context.activation_generation != Some(generation)
             {
-                return Err(invariant_error(
-                    "TaskExecution context no longer matches participant/generation".to_string(),
-                ));
+                return Err(super::agent_org_finality::AgentOrgTurnFailure::new(
+                    super::agent_org_finality::AgentOrgTurnFailureKind::StaleGeneration,
+                    "task_execution_context_stale",
+                    "TaskExecution context no longer matches participant/generation",
+                )
+                .encode());
             }
             let agent_id = snapshot_member_agent_id(&snapshot, owner_member_id)?;
             resolve_materialization_version_for_context(conn, &context, owner_member_id, agent_id)?;
@@ -1013,9 +1033,12 @@ fn validate_assistant_persistence_base_turn(
         )));
     }
     if base_status != TurnIntentBridgeStatus::Running.as_str() {
-        return Err(invariant_error(format!(
-            "assistant persistence requires the current running Turn, found {base_status}"
-        )));
+        return Err(super::agent_org_finality::AgentOrgTurnFailure::new(
+            super::agent_org_finality::AgentOrgTurnFailureKind::TargetTerminal,
+            "assistant_persistence_turn_terminal",
+            format!("assistant persistence requires the current running Turn, found {base_status}"),
+        )
+        .encode());
     }
     Ok(())
 }
@@ -1122,12 +1145,18 @@ pub(crate) fn unique_running_task_execution_turn_for_recovery(
     }
 }
 
+struct TaskWakeBinding {
+    task_id: String,
+    activation_generation: i64,
+    authority_source: super::agent_org_finality::TaskExecutionAuthoritySource,
+}
+
 fn resolve_next_task_wake_binding(
     conn: &Connection,
     org_run_id: &str,
     session_id: &str,
     member_id: &str,
-) -> Result<(String, i64), String> {
+) -> Result<TaskWakeBinding, String> {
     let generation: Option<i64> = conn
         .query_row(
             "SELECT activation_generation FROM agent_org_runtime_runs
@@ -1206,11 +1235,14 @@ fn resolve_next_task_wake_binding(
             continue;
         }
 
-        let task_id = match (payload_kind.as_str(), message) {
+        let (task_id, source_kind) = match (payload_kind.as_str(), message) {
             (
                 "task_assigned",
                 crate::coordination::agent_inbox::AgentMessage::TaskAssigned { task_id, .. },
-            ) if task_is_pending_and_ready(conn, org_run_id, &task_id, member_id)? => task_id,
+            ) if task_is_pending_and_ready(conn, org_run_id, &task_id, member_id)? => (
+                task_id,
+                super::agent_org_finality::TaskExecutionAuthoritySourceKind::Assignment,
+            ),
             (
                 "plan_approval_response",
                 crate::coordination::agent_inbox::AgentMessage::PlanApprovalResponse {
@@ -1229,19 +1261,36 @@ fn resolve_next_task_wake_binding(
                 let Some(task_id) = task_id else {
                     continue;
                 };
-                task_id
+                (
+                    task_id,
+                    super::agent_org_finality::TaskExecutionAuthoritySourceKind::PlanRevision,
+                )
             }
             _ => continue,
         };
-        return Ok((task_id, generation));
+        return Ok(TaskWakeBinding {
+            task_id,
+            activation_generation: generation,
+            authority_source: super::agent_org_finality::TaskExecutionAuthoritySource::inbox(
+                source_kind,
+                inbox_id,
+            ),
+        });
     }
 
-    if let Some((_inbox_id, task_id)) =
+    if let Some((inbox_id, task_id)) =
         crate::coordination::agent_inbox::oldest_unread_task_message_binding_with_connection(
             conn, org_run_id, member_id, None,
         )?
     {
-        return Ok((task_id, generation));
+        return Ok(TaskWakeBinding {
+            task_id,
+            activation_generation: generation,
+            authority_source: super::agent_org_finality::TaskExecutionAuthoritySource::inbox(
+                super::agent_org_finality::TaskExecutionAuthoritySourceKind::CoordinatorMessage,
+                inbox_id,
+            ),
+        });
     }
 
     Err(invariant_error(format!(
@@ -1378,22 +1427,39 @@ fn validate_task_assistant_persistence_target(
         }
         Some(("in_progress", _)) => Ok(()),
         Some(("completed" | "failed", true)) => Ok(()),
-        Some(("completed" | "failed", false)) => Err(invariant_error(format!(
-            "TaskExecution target {task_id} terminal provenance does not belong to Turn {}",
-            context.turn_intent_id
-        ))),
+        Some(("completed" | "failed", false)) => Err(
+            super::agent_org_finality::AgentOrgTurnFailure::new(
+                super::agent_org_finality::AgentOrgTurnFailureKind::AuthorityConflict,
+                "task_terminal_owned_by_sibling_turn",
+                format!(
+                    "TaskExecution target {task_id} terminal provenance does not belong to Turn {}",
+                    context.turn_intent_id
+                ),
+            )
+            .encode(),
+        ),
         // Writer cancellation/reassignment freezes the durable Task but does
         // not revoke or stop the already-running Provider Turn. The exact
         // bound Turn must therefore be allowed to append its ordinary
         // assistant transcript and become terminal; Task lifecycle/output and
         // other formal mutations remain rejected by their owning Store gates.
         Some(("cancelled", _)) => Ok(()),
-        Some((status, _)) => Err(invariant_error(format!(
-            "TaskExecution target {task_id} cannot authorize assistant persistence (status {status})"
-        ))),
-        None => Err(invariant_error(format!(
-            "TaskExecution target {task_id} is missing or no longer owned by {owner_member_id}"
-        ))),
+        Some((status, _)) => Err(super::agent_org_finality::AgentOrgTurnFailure::new(
+            super::agent_org_finality::AgentOrgTurnFailureKind::TargetTerminal,
+            "assistant_persistence_target_terminal",
+            format!(
+                "TaskExecution target {task_id} cannot authorize assistant persistence (status {status})"
+            ),
+        )
+        .encode()),
+        None => Err(super::agent_org_finality::AgentOrgTurnFailure::new(
+            super::agent_org_finality::AgentOrgTurnFailureKind::AuthorityConflict,
+            "assistant_persistence_target_changed",
+            format!(
+                "TaskExecution target {task_id} is missing or no longer owned by {owner_member_id}"
+            ),
+        )
+        .encode()),
     }
 }
 
@@ -1411,6 +1477,7 @@ pub(crate) fn accept_with_connection(
         (Some(base), Some(context)) => {
             ensure_base_matches(request, &base)?;
             ensure_context_matches(request, &context)?;
+            claim_requested_task_execution_authority(conn, request, &context)?;
             return Ok(context);
         }
         (Some(_), None) => {
@@ -1492,7 +1559,33 @@ pub(crate) fn accept_with_connection(
         )?;
     }
 
-    require_context_with_connection(conn, &request.session_id, &request.turn_intent_id)
+    let context =
+        require_context_with_connection(conn, &request.session_id, &request.turn_intent_id)?;
+    claim_requested_task_execution_authority(conn, request, &context)?;
+    Ok(context)
+}
+
+fn claim_requested_task_execution_authority(
+    conn: &Connection,
+    request: &AgentOrgTurnAdmission,
+    context: &AgentOrgTurnContext,
+) -> Result<(), String> {
+    let AdmissionKind::TaskExecution {
+        authority_source, ..
+    } = &request.kind
+    else {
+        return Ok(());
+    };
+    let source = authority_source.as_ref().ok_or_else(|| {
+        super::agent_org_finality::AgentOrgTurnFailure::new(
+            super::agent_org_finality::AgentOrgTurnFailureKind::CorruptState,
+            "task_execution_authority_source_missing",
+            "TaskExecution admission requires an exact assignment or continuation receipt",
+        )
+        .encode()
+    })?;
+    super::agent_org_finality::claim_task_execution_in_tx(conn, context, source)
+        .map_err(|failure| failure.encode())
 }
 
 #[derive(Debug)]
@@ -1656,6 +1749,7 @@ fn resolve_canonical_admission(
             task_id,
             owner_member_id,
             activation_generation,
+            authority_source: _,
         } => {
             if status == AgentOrgRunStatus::Archived {
                 return Err(format!(
@@ -2053,6 +2147,7 @@ fn ensure_context_matches(
             task_id,
             owner_member_id,
             activation_generation,
+            ..
         } => {
             context.turn_kind == AgentOrgTurnKind::TaskExecution
                 && context.participant_id == *owner_member_id
@@ -2198,6 +2293,24 @@ pub(crate) fn mark_waiting_for_org_event_if_current(
     session_id: &str,
     turn_intent_id: &str,
 ) -> Result<bool, String> {
+    coordinator_wait_gate(org_run_id, session_id, turn_intent_id, false)
+        .map(|gate| gate == CoordinatorTaskListGate::WaitForEvent)
+}
+
+pub(crate) fn gate_coordinator_task_list(
+    org_run_id: &str,
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<CoordinatorTaskListGate, String> {
+    coordinator_wait_gate(org_run_id, session_id, turn_intent_id, true)
+}
+
+fn coordinator_wait_gate(
+    org_run_id: &str,
+    session_id: &str,
+    turn_intent_id: &str,
+    allow_initial_empty_task_list: bool,
+) -> Result<CoordinatorTaskListGate, String> {
     database::db::with_sessions_writer(|| {
         let conn = database::db::get_connection().map_err(|error| error.to_string())?;
         let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
@@ -2224,7 +2337,7 @@ pub(crate) fn mark_waiting_for_org_event_if_current(
             .map_err(|error| error.to_string())?;
         if has_completion_certificate {
             tx.commit().map_err(|error| error.to_string())?;
-            return Ok(true);
+            return Ok(CoordinatorTaskListGate::WaitForEvent);
         }
         let work_revision: i64 = tx
             .query_row(
@@ -2248,7 +2361,38 @@ pub(crate) fn mark_waiting_for_org_event_if_current(
             context.coordinator_work_revision == Some(work_revision) && !newer_formal_fact;
         if !current {
             tx.commit().map_err(|error| error.to_string())?;
-            return Ok(false);
+            return Ok(CoordinatorTaskListGate::ReadCurrentSnapshot);
+        }
+        let initial_empty_task_list = allow_initial_empty_task_list
+            && work_revision == 0
+            && tx
+                .query_row(
+                    "SELECT EXISTS(
+                         SELECT 1
+                         FROM agent_org_runtime_runs run
+                         JOIN agent_org_runtime_initial_inputs initial
+                           ON initial.org_run_id=run.id
+                         WHERE run.id=?1
+                           AND run.root_session_id=?2
+                           AND run.has_initial_work=1
+                           AND initial.turn_intent_id=?3
+                           AND NOT EXISTS (
+                               SELECT 1 FROM agent_org_runtime_tasks task
+                               WHERE task.org_run_id=run.id
+                           )
+                           AND NOT EXISTS (
+                               SELECT 1
+                               FROM agent_org_runtime_run_completion_certificates certificate
+                               WHERE certificate.org_run_id=run.id
+                           )
+                     )",
+                    params![org_run_id, session_id, turn_intent_id],
+                    |row| row.get::<_, bool>(0),
+                )
+                .map_err(|error| error.to_string())?;
+        if initial_empty_task_list {
+            tx.commit().map_err(|error| error.to_string())?;
+            return Ok(CoordinatorTaskListGate::InitialEmptyTaskListBypass);
         }
         let updated = tx
             .execute(
@@ -2262,8 +2406,21 @@ pub(crate) fn mark_waiting_for_org_event_if_current(
             )
             .map_err(|error| error.to_string())?;
         tx.commit().map_err(|error| error.to_string())?;
-        Ok(updated == 1 || context.terminal_reason.as_deref() == Some("waiting_for_org_event"))
+        Ok(
+            if updated == 1 || context.terminal_reason.as_deref() == Some("waiting_for_org_event") {
+                CoordinatorTaskListGate::WaitForEvent
+            } else {
+                CoordinatorTaskListGate::ReadCurrentSnapshot
+            },
+        )
     })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CoordinatorTaskListGate {
+    ReadCurrentSnapshot,
+    InitialEmptyTaskListBypass,
+    WaitForEvent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2638,6 +2795,74 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Str
             [&now],
         )
         .map_err(|error| error.to_string())?;
+    // Historical builds could admit sibling TaskExecution Turns before an
+    // exact execution lease existed. Prefer the live Turn named by the Task's
+    // latest pending->in_progress provenance; only fall back to the newest
+    // context when the old data contains no such proof.
+    let marked_duplicate_task_contexts = conn
+        .execute(
+            "WITH live AS (
+                 SELECT context.context_id,context.org_run_id,context.task_id,
+                        context.activation_generation,context.session_id,
+                        context.turn_intent_id,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY context.org_run_id,context.task_id,
+                                         context.activation_generation
+                            ORDER BY
+                              CASE WHEN EXISTS (
+                                  SELECT 1
+                                  FROM agent_org_runtime_task_events event
+                                  WHERE event.org_run_id=context.org_run_id
+                                    AND event.task_id=context.task_id
+                                    AND event.previous_status='pending'
+                                    AND event.next_status='in_progress'
+                                    AND event.source_turn_intent_id=context.turn_intent_id
+                                    AND event.rowid=(
+                                        SELECT MAX(latest.rowid)
+                                        FROM agent_org_runtime_task_events latest
+                                        WHERE latest.org_run_id=context.org_run_id
+                                          AND latest.task_id=context.task_id
+                                          AND latest.previous_status='pending'
+                                          AND latest.next_status='in_progress'
+                                    )
+                              ) THEN 0 ELSE 1 END,
+                              context.context_id DESC
+                        ) AS authority_rank
+                 FROM agent_org_runtime_turn_contexts context
+                 JOIN session_turn_intents intent
+                   ON intent.session_id=context.session_id
+                  AND intent.turn_intent_id=context.turn_intent_id
+                 WHERE context.turn_kind='task_execution'
+                   AND context.task_id IS NOT NULL
+                   AND context.activation_generation IS NOT NULL
+                   AND intent.status IN ('optimistic','queued','running')
+             )
+             INSERT OR IGNORE INTO agent_org_task_execution_reconciliations (
+                 context_id,org_run_id,task_id,activation_generation,session_id,
+                 turn_intent_id,disposition,reason_code,reconciled_at
+             )
+             SELECT context_id,org_run_id,task_id,activation_generation,session_id,
+                    turn_intent_id,'conflict_rejected','duplicate_execution_rejected',?1
+             FROM live WHERE authority_rank>1",
+            [&now],
+        )
+        .map_err(|error| error.to_string())?;
+    let failed_duplicate_task_turns = conn
+        .execute(
+            "UPDATE session_turn_intents AS intent
+             SET status=CASE WHEN intent.status='running' THEN 'failed' ELSE 'stale' END,
+                 updated_at=?1
+             WHERE intent.org_run_id IS NOT NULL
+               AND intent.status IN ('optimistic','queued','running')
+               AND EXISTS (
+                   SELECT 1 FROM agent_org_task_execution_reconciliations reconciliation
+                   WHERE reconciliation.session_id=intent.session_id
+                     AND reconciliation.turn_intent_id=intent.turn_intent_id
+                     AND reconciliation.reason_code='duplicate_execution_rejected'
+               )",
+            [&now],
+        )
+        .map_err(|error| error.to_string())?;
     let runtime_absent_yields = conn
         .execute(
             "UPDATE agent_org_runtime_member_interventions
@@ -2766,7 +2991,12 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Str
             "retained contextless running Agent Org Turns as unknown/in-flight"
         );
     }
-    Ok(affected + abandoned + failed_coordinator_turns + runtime_absent_yields)
+    Ok(affected
+        + abandoned
+        + failed_coordinator_turns
+        + marked_duplicate_task_contexts
+        + failed_duplicate_task_turns
+        + runtime_absent_yields)
 }
 
 fn invariant_error(message: String) -> String {

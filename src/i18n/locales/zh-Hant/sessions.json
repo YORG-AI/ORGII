@@ -2459,7 +2459,7 @@
       "reassignTitle": "改派這個任務？",
       "cancelTitle": "取消這個任務？",
       "reassignWarning": "目前執行必須先停止，替代任務才能開始。",
-      "cancelWarning": "目前執行將停止，其他任務會繼續。",
+      "cancelWarning": "這會把該任務移出本輪交付範圍。正在執行的工作會停止；依賴它的任務需要另行明確處理。",
       "replacementOwner": "新的負責人",
       "handoffFailed": "無法安全更新任務",
       "handoffNeedsDecision": "任務交接需要你的決定",

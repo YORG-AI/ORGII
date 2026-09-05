@@ -363,18 +363,59 @@ pub fn finalize_agent_org_member_turn(
     turn_intent_id: Option<&str>,
     response: &Result<String, String>,
 ) {
-    let outcome =
+    let typed_failure = response.as_ref().err().and_then(|error| {
+        crate::coordination::agent_org_finality::AgentOrgTurnFailure::decode(error)
+    });
+    let requeue_work = response.is_err()
+        && typed_failure
+            .as_ref()
+            .is_none_or(|failure| failure.kind.permits_task_recovery());
+    let outcome: Result<(Option<AgentOrgMemberLifecycleSnapshot>, Vec<String>), String> =
         crate::tools::impls::orchestration::member_idle::run_agent_org_blocking_section(|| {
-            requeue_agent_org_member_in_progress_work(session_id, turn_intent_id, response.is_err())
+            // Recovery still validates the exact running TaskExecution. Let
+            // that transaction settle the Task before terminalizing the same
+            // Turn; deterministic authority failures skip recovery entirely.
+            let snapshot = requeue_agent_org_member_in_progress_work(
+                session_id,
+                turn_intent_id,
+                requeue_work,
+            )?;
+            let completion_receipts = if let Some(turn_intent_id) = turn_intent_id {
+                crate::coordination::agent_org_finality::finalize_turn(
+                    session_id,
+                    turn_intent_id,
+                    response.is_ok(),
+                    typed_failure
+                        .as_ref()
+                        .map(|failure| failure.reason_code.as_str())
+                        .unwrap_or(if response.is_ok() {
+                            "turn_completed"
+                        } else {
+                            "provider_failed"
+                        }),
+                )?
+            } else {
+                Vec::new()
+            };
+            Ok((snapshot, completion_receipts))
         });
     let reconcile_run_id = outcome
         .as_ref()
         .ok()
-        .and_then(|snapshot| snapshot.as_ref())
+        .and_then(|(snapshot, _)| snapshot.as_ref())
         .map(|snapshot| snapshot.context.run_id.clone());
 
     match outcome {
-        Ok(Some(snapshot)) => {
+        Ok((Some(snapshot), completion_receipts)) => {
+            if !completion_receipts.is_empty() {
+                if let Some(handle) = app_handle {
+                    AppHandleInboxWakeHook::new(handle.clone()).wake_member_for_formal_receipts(
+                        crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID,
+                        &snapshot.context.run_id,
+                        &completion_receipts,
+                    );
+                }
+            }
             if !snapshot.requeued_tasks.is_empty() {
                 tracing::info!(
                     session_id = %session_id,
@@ -390,27 +431,6 @@ pub fn finalize_agent_org_member_turn(
             }
 
             if response.is_ok() {
-                if snapshot.member_id != crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID
-                {
-                    match crate::coordination::agent_inbox::AgentInboxStore::resolve_obsolete_formal_rows_after_successful_member_turn(
-                        &snapshot.context.run_id,
-                        &snapshot.member_id,
-                    ) {
-                        Ok(resolved) if resolved > 0 => tracing::info!(
-                            run_id = %snapshot.context.run_id,
-                            member_id = %snapshot.member_id,
-                            resolved,
-                            "[lifecycle] resolved obsolete formal Inbox rows after Member Turn ended without owned work"
-                        ),
-                        Ok(_) => {}
-                        Err(err) => tracing::warn!(
-                            run_id = %snapshot.context.run_id,
-                            member_id = %snapshot.member_id,
-                            error = %err,
-                            "[lifecycle] failed to resolve obsolete formal Inbox rows; keeping them unread"
-                        ),
-                    }
-                }
                 if let Err(err) = crate::coordination::agent_org_watchdog::clear_rewake_budget(
                     &snapshot.context.run_id,
                     &snapshot.member_id,
@@ -485,7 +505,7 @@ pub fn finalize_agent_org_member_turn(
                 );
             }
         }
-        Ok(None) => {}
+        Ok((None, _)) => {}
         Err(err) => {
             tracing::warn!(
                 session_id = %session_id,

@@ -6,6 +6,7 @@ use std::sync::Arc;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 
+use crate::coordination::agent_org_finality::ScopeRemovalReceipt;
 use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
 use crate::coordination::agent_org_task_handoffs::{
     CreateTaskExecutionHandoff, TaskExecutionHandoffReceipt, TaskExecutionHandoffResolution,
@@ -53,6 +54,8 @@ pub struct AgentOrgTaskHandoffRequestResult {
     pub replacement: Option<Task>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub execution_handoff: Option<TaskExecutionHandoffReceipt>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope_removal: Option<ScopeRemovalReceipt>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,6 +102,20 @@ pub async fn agent_org_task_handoff_request(
                     |row| row.get(0),
                 )
                 .map_err(|error| error.to_string())?;
+            let existing_scope_removal = if tx_request.action == AgentOrgTaskHandoffAction::Cancel {
+                crate::coordination::agent_org_finality::scope_removal_by_request_in_tx(
+                    &tx,
+                    &run_id,
+                    &tx_request.request_id,
+                )?
+            } else {
+                None
+            };
+            if let Some((_, persisted_digest)) = existing_scope_removal.as_ref() {
+                if persisted_digest != &request_digest {
+                    return Err("scope_removal_request_digest_conflict".to_string());
+                }
+            }
             if let Some(existing) =
                 crate::coordination::agent_org_task_handoffs::load_by_request_with_connection(
                     &tx,
@@ -141,6 +158,29 @@ pub async fn agent_org_task_handoff_request(
                         task,
                         replacement,
                         execution_handoff: Some(existing),
+                        scope_removal: existing_scope_removal
+                            .as_ref()
+                            .map(|(receipt, _)| receipt.clone()),
+                    },
+                    Vec::new(),
+                    false,
+                ));
+            }
+            if let Some((scope_removal, _)) = existing_scope_removal {
+                let task = tasks
+                    .iter()
+                    .find(|task| task.id == scope_removal.target_task_id)
+                    .cloned()
+                    .ok_or_else(|| {
+                        format!("scope_removal_target_missing:{}", scope_removal.target_task_id)
+                    })?;
+                tx.commit().map_err(|error| error.to_string())?;
+                return Ok((
+                    AgentOrgTaskHandoffRequestResult {
+                        task,
+                        replacement: None,
+                        execution_handoff: None,
+                        scope_removal: Some(scope_removal),
                     },
                     Vec::new(),
                     false,
@@ -162,6 +202,18 @@ pub async fn agent_org_task_handoff_request(
                 &tx_request.session_id,
                 &tx_request.request_id,
             )?;
+            let scope_removal = if tx_request.action == AgentOrgTaskHandoffAction::Cancel {
+                Some(crate::coordination::agent_org_finality::create_scope_removal_in_tx(
+                    &tx,
+                    &run_id,
+                    &previous.id,
+                    &tx_request.request_id,
+                    &request_digest,
+                    &tx_request.session_id,
+                )?)
+            } else {
+                None
+            };
             let reason = TaskTerminalReason {
                 code: match tx_request.action {
                     AgentOrgTaskHandoffAction::Cancel => "user_scope_removed",
@@ -176,7 +228,9 @@ pub async fn agent_org_task_handoff_request(
                 }
                 .to_string(),
                 source_event_id: match tx_request.action {
-                    AgentOrgTaskHandoffAction::Cancel => Some(tx_request.request_id.clone()),
+                    AgentOrgTaskHandoffAction::Cancel => scope_removal
+                        .as_ref()
+                        .map(|receipt| receipt.id.clone()),
                     AgentOrgTaskHandoffAction::Reassign => None,
                 },
             };
@@ -194,9 +248,7 @@ pub async fn agent_org_task_handoff_request(
                             requires_handoff_authority.then_some(&authority),
                             |tx, outcome, tasks| {
                                 transaction_context
-                                    .persist_task_update_outbox_in_tx(
-                                        tx, outcome, tasks, None,
-                                    )
+                                    .persist_task_update_outbox_in_tx(tx, outcome, tasks, None)
                             },
                         )?;
                     let external_effect_unknown =
@@ -226,6 +278,7 @@ pub async fn agent_org_task_handoff_request(
                         task: outcome.current,
                         replacement: None,
                         execution_handoff: outbox.execution_handoff.clone(),
+                        scope_removal: scope_removal.clone(),
                     };
                     outboxes.push(outbox);
                     response
@@ -303,6 +356,7 @@ pub async fn agent_org_task_handoff_request(
                         task: outcome.current,
                         replacement: Some(replacement),
                         execution_handoff: base_outbox.execution_handoff.clone(),
+                        scope_removal: None,
                     };
                     outboxes.push(base_outbox);
                     response

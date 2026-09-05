@@ -2468,7 +2468,7 @@
       "reassignTitle": "Reatribuir esta tarefa?",
       "cancelTitle": "Cancelar esta tarefa?",
       "reassignWarning": "A execução atual deve parar antes de iniciar a substituição.",
-      "cancelWarning": "A execução atual será interrompida. As outras tarefas continuam.",
+      "cancelWarning": "Isso remove a tarefa do escopo desta entrega. Qualquer execução atual será interrompida; tarefas dependentes exigem uma decisão explícita.",
       "replacementOwner": "Novo responsável",
       "handoffFailed": "Não foi possível atualizar esta tarefa com segurança",
       "handoffNeedsDecision": "A transferência precisa da sua decisão",

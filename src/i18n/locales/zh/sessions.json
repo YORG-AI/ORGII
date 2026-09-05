@@ -2513,7 +2513,7 @@
       "reassignTitle": "改派这个任务？",
       "cancelTitle": "取消这个任务？",
       "reassignWarning": "必须先安全停止当前执行，replacement 才能开始。",
-      "cancelWarning": "当前执行将被停止，其他任务不受影响。",
+      "cancelWarning": "这会把该任务移出本轮交付范围。正在运行的执行会停止；依赖它的任务需要另行明确处理。",
       "replacementOwner": "新的负责人",
       "handoffFailed": "无法安全更新这个任务",
       "handoffNeedsDecision": "任务交接需要你决定",

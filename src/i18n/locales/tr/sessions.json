@@ -2445,7 +2445,7 @@
       "reassignTitle": "Bu görev yeniden atansın mı?",
       "cancelTitle": "Bu görev iptal edilsin mi?",
       "reassignWarning": "Yeni görev başlamadan önce mevcut yürütme durmalıdır.",
-      "cancelWarning": "Mevcut yürütme durdurulur. Diğer görevler devam eder.",
+      "cancelWarning": "Bu işlem görevi bu teslimatın kapsamından çıkarır. Devam eden yürütme durdurulur; bağımlı görevler için ayrıca açık bir karar gerekir.",
       "replacementOwner": "Yeni sorumlu",
       "handoffFailed": "Bu görev güvenli biçimde güncellenemedi",
       "handoffNeedsDecision": "Görev devri kararınızı bekliyor",

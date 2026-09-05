@@ -56,9 +56,6 @@ use core_types::session_event::SessionEvent;
 
 use super::super::persistence as unified_persistence;
 
-pub(crate) const AGENT_ORG_ASSISTANT_PERSISTENCE_ERROR_PREFIX: &str =
-    "agent_org_assistant_persistence_failed:";
-
 fn tool_result_is_error(result: &str) -> bool {
     if result.starts_with("Error") {
         return true;
@@ -1234,9 +1231,7 @@ impl TurnEventHandler for UnifiedEventHandler {
                 err
             );
             if self.config.require_durable_assistant_event {
-                self.record_assistant_persistence_error(format!(
-                    "assistant transcript persistence failed: {err}"
-                ));
+                self.record_assistant_persistence_error(err);
                 self.retract_streamed_segments(session_id);
             }
             if self.config.agent_org_turn_intent_id.is_some() {

@@ -2442,7 +2442,7 @@
       "reassignTitle": "Diese Aufgabe neu zuweisen?",
       "cancelTitle": "Diese Aufgabe abbrechen?",
       "reassignWarning": "Die aktuelle Ausführung muss beendet werden, bevor der Ersatz starten kann.",
-      "cancelWarning": "Die aktuelle Ausführung wird beendet. Andere Aufgaben laufen weiter.",
+      "cancelWarning": "Dadurch wird die Aufgabe aus diesem Lieferumfang entfernt. Eine laufende Ausführung wird beendet; abhängige Aufgaben müssen ausdrücklich neu entschieden werden.",
       "replacementOwner": "Neue zuständige Person",
       "handoffFailed": "Diese Aufgabe konnte nicht sicher aktualisiert werden",
       "handoffNeedsDecision": "Die Aufgabenübergabe benötigt eine Entscheidung",

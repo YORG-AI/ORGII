@@ -2443,7 +2443,7 @@
       "reassignTitle": "このタスクを再割り当てしますか？",
       "cancelTitle": "このタスクをキャンセルしますか？",
       "reassignWarning": "代替タスクを開始する前に現在の実行を停止する必要があります。",
-      "cancelWarning": "現在の実行を停止します。他のタスクは続行します。",
+      "cancelWarning": "このタスクを今回の納品範囲から除外します。実行中の処理は停止し、依存タスクには明示的な対応が必要です。",
       "replacementOwner": "新しい担当者",
       "handoffFailed": "このタスクを安全に更新できませんでした",
       "handoffNeedsDecision": "タスクの引き継ぎに判断が必要です",

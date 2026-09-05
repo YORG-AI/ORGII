@@ -17,6 +17,16 @@ use database::db::{get_connection, with_sessions_writer};
 /// historical accident, but conceptually distinct: this one names a *table
 /// family*, the other names a *category enum value*).
 const SESSION_TABLE_PREFIX: &str = "agent";
+const AGENT_ORG_ASSISTANT_PERSISTENCE_MAX_TRANSIENT_ATTEMPTS: usize = 3;
+
+fn should_retry_agent_org_assistant_persistence(
+    failure: &crate::coordination::agent_org_finality::AgentOrgTurnFailure,
+    attempt: usize,
+) -> bool {
+    failure.kind
+        == crate::coordination::agent_org_finality::AgentOrgTurnFailureKind::TransientStorage
+        && attempt < AGENT_ORG_ASSISTANT_PERSISTENCE_MAX_TRANSIENT_ATTEMPTS
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentOrgInboxTranscriptMaterialization {
@@ -343,27 +353,65 @@ pub fn save_agent_org_assistant_msg_for_turn(
     content: &str,
     model: &str,
 ) -> Result<String, String> {
-    with_sessions_writer(|| {
-        let mut conn = get_connection().map_err(|error| error.to_string())?;
-        let tx = conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .map_err(|error| error.to_string())?;
-        crate::coordination::agent_org_turn_contexts::revalidate_assistant_persistence_with_connection(
-            &tx,
-            session_id,
-            turn_intent_id,
-        )?;
-        let message_id = shared::save_assistant_msg_with_connection(
-            &tx,
-            SESSION_TABLE_PREFIX,
-            session_id,
-            content,
-            model,
-        )
-        .map_err(|error| error.to_string())?;
-        tx.commit().map_err(|error| error.to_string())?;
-        Ok(message_id)
-    })
+    for attempt in 1..=AGENT_ORG_ASSISTANT_PERSISTENCE_MAX_TRANSIENT_ATTEMPTS {
+        let result = with_sessions_writer(
+            || -> Result<String, crate::coordination::agent_org_finality::AgentOrgTurnFailure> {
+                let mut conn = get_connection().map_err(|error| {
+                    crate::coordination::agent_org_finality::AgentOrgTurnFailure::from_storage_error(
+                        "assistant_persistence_connection_failed",
+                        error,
+                    )
+                })?;
+                let tx = conn
+                    .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                    .map_err(|error| {
+                        crate::coordination::agent_org_finality::AgentOrgTurnFailure::from_storage_error(
+                            "assistant_persistence_transaction_failed",
+                            error,
+                        )
+                    })?;
+                crate::coordination::agent_org_turn_contexts::revalidate_assistant_persistence_with_connection(
+                    &tx,
+                    session_id,
+                    turn_intent_id,
+                )
+                .map_err(|error| {
+                    crate::coordination::agent_org_finality::AgentOrgTurnFailure::decode_or_corrupt(
+                        error,
+                        "assistant_persistence_authority_invalid",
+                    )
+                })?;
+                let message_id = shared::save_assistant_msg_with_connection(
+                    &tx,
+                    SESSION_TABLE_PREFIX,
+                    session_id,
+                    content,
+                    model,
+                )
+                .map_err(|error| {
+                    crate::coordination::agent_org_finality::AgentOrgTurnFailure::from_storage_error(
+                        "assistant_persistence_insert_failed",
+                        error,
+                    )
+                })?;
+                tx.commit().map_err(|error| {
+                    crate::coordination::agent_org_finality::AgentOrgTurnFailure::from_storage_error(
+                        "assistant_persistence_commit_failed",
+                        error,
+                    )
+                })?;
+                Ok(message_id)
+            },
+        );
+        match result {
+            Ok(message_id) => return Ok(message_id),
+            Err(error) if should_retry_agent_org_assistant_persistence(&error, attempt) => {
+                std::thread::yield_now();
+            }
+            Err(error) => return Err(error.encode()),
+        }
+    }
+    unreachable!("bounded assistant persistence attempts always return")
 }
 
 /// Save a persisted compact summary boundary.
@@ -1045,6 +1093,39 @@ mod tests {
     use database::db::get_connection;
     use test_helpers::test_env;
 
+    #[test]
+    fn assistant_persistence_retries_only_sqlite_lock_contention_and_stops_at_three() {
+        let busy = crate::coordination::agent_org_finality::AgentOrgTurnFailure::from_storage_error(
+            "test_busy",
+            rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_BUSY),
+                None,
+            ),
+        );
+        let constraint =
+            crate::coordination::agent_org_finality::AgentOrgTurnFailure::from_storage_error(
+                "test_constraint",
+                rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CONSTRAINT),
+                    None,
+                ),
+            );
+        let authority = crate::coordination::agent_org_finality::AgentOrgTurnFailure::new(
+            crate::coordination::agent_org_finality::AgentOrgTurnFailureKind::AuthorityConflict,
+            "test_authority",
+            "deterministic conflict",
+        );
+
+        assert!(should_retry_agent_org_assistant_persistence(&busy, 1));
+        assert!(should_retry_agent_org_assistant_persistence(&busy, 2));
+        assert!(!should_retry_agent_org_assistant_persistence(&busy, 3));
+        assert!(!should_retry_agent_org_assistant_persistence(
+            &constraint,
+            1
+        ));
+        assert!(!should_retry_agent_org_assistant_persistence(&authority, 1));
+    }
+
     fn seed_session_for_message_tests(session_id: &str) {
         let conn = get_connection().expect("get_connection in seed_session_for_message_tests");
         crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
@@ -1230,7 +1311,13 @@ mod tests {
             "test-model",
         )
         .expect_err("Archived Team must reject late assistant iteration");
-        assert!(late.starts_with("team_archived:"), "{late}");
+        let failure = crate::coordination::agent_org_finality::AgentOrgTurnFailure::decode(&late)
+            .expect("typed archived-Team failure");
+        assert_eq!(
+            failure.kind,
+            crate::coordination::agent_org_finality::AgentOrgTurnFailureKind::TargetTerminal
+        );
+        assert_eq!(failure.reason_code, "team_archived");
 
         let assistant_count: i64 = get_connection()
             .expect("sandbox DB")
@@ -1393,6 +1480,44 @@ mod tests {
             "test-model",
         )
         .expect("the exact completing Turn may persist its final assistant iteration");
+
+        let conn = get_connection().expect("sandbox DB for assertions");
+        conn.execute(
+            "INSERT INTO session_turn_intents (
+                session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
+             ) VALUES (?1,'completed-assistant-sibling',?2,'agent_org','running',?3,?3)",
+            params![member_session_id, run_id, now],
+        )
+        .expect("seed historical sibling base Turn");
+        conn.execute(
+            "INSERT INTO agent_org_runtime_turn_contexts (
+                session_id,turn_intent_id,org_run_id,participant_id,turn_kind,task_id,
+                owner_member_id,dispatch_member_id,member_dispatch_sequence,
+                source_kind,source_id,activation_generation,created_at
+             ) VALUES (?1,'completed-assistant-sibling',?2,'worker','task_execution',?3,
+                       'worker','worker',2,'task',?3,1,?4)",
+            params![member_session_id, run_id, task_id, now],
+        )
+        .expect("seed historical sibling TaskExecution context");
+        drop(conn);
+        let sibling_error = save_agent_org_assistant_msg_for_turn(
+            member_session_id,
+            "completed-assistant-sibling",
+            "Sibling must not persist",
+            "test-model",
+        )
+        .expect_err("a sibling Turn cannot claim terminal Task provenance");
+        let sibling_failure =
+            crate::coordination::agent_org_finality::AgentOrgTurnFailure::decode(&sibling_error)
+                .expect("typed sibling provenance failure");
+        assert_eq!(
+            sibling_failure.kind,
+            crate::coordination::agent_org_finality::AgentOrgTurnFailureKind::AuthorityConflict
+        );
+        assert_eq!(
+            sibling_failure.reason_code,
+            "task_terminal_owned_by_sibling_turn"
+        );
 
         let conn = get_connection().expect("sandbox DB for assertions");
         let assistant_count: i64 = conn

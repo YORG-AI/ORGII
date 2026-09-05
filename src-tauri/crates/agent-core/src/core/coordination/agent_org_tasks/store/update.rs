@@ -14,8 +14,9 @@ use super::super::helpers::{
 };
 #[cfg(test)]
 use super::super::{
-    Task, TaskExecutionMode, TaskGraphIndex, TaskMutationOutcome, TaskStatus, UpdateTaskPatch,
-    TASK_EVENT_UPDATED, TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT,
+    Task, TaskActorAudit, TaskActorKind, TaskExecutionMode, TaskGraphIndex, TaskMutationOutcome,
+    TaskStatus, UpdateTaskPatch, TASK_EVENT_UPDATED, TASK_METADATA_EXECUTION_MODE,
+    TASK_METADATA_OUTPUT,
 };
 #[cfg(test)]
 use super::dependencies::{
@@ -236,9 +237,12 @@ impl AgentOrgTaskStore {
             task.metadata.as_ref(),
         )?;
         if task_persisted_state_equal(&previous_task, &task) {
+            let new_work_revision =
+                crate::coordination::agent_org_runs::current_work_revision_in_tx(&tx, org_run_id)?;
             let outcome = TaskMutationOutcome {
                 previous: previous_task.clone(),
                 current: previous_task,
+                new_work_revision,
                 owner_changed: false,
                 status_changed: false,
                 became_completed: false,
@@ -313,11 +317,34 @@ impl AgentOrgTaskStore {
             task.owner.as_deref(),
         )?;
         persist_canonical_blocked_by_for_test_fixture(&tx, &candidate_tasks)?;
-        crate::coordination::agent_org_runs::bump_work_revision_in_tx(&tx, org_run_id)?;
+        crate::coordination::agent_org_finality::settle_task_bound_deliveries_in_tx(
+            &tx,
+            &previous_task,
+            &task,
+            &TaskActorAudit {
+                kind: TaskActorKind::System,
+                participant_id: "system:test_fixture_update".to_string(),
+                turn_intent_id: None,
+                activation_generation: task.activation_generation,
+            },
+            None,
+        )?;
+        let new_work_revision =
+            crate::coordination::agent_org_finality::record_task_mutation_in_tx(
+                &tx,
+                org_run_id,
+                &TaskActorAudit {
+                    kind: TaskActorKind::System,
+                    participant_id: "system:test_fixture_update".to_string(),
+                    turn_intent_id: None,
+                    activation_generation: task.activation_generation,
+                },
+            )?;
 
         let current_graph = TaskGraphIndex::new(&candidate_tasks);
         let current_ready = task.owner.is_some() && current_graph.is_ready(&task);
         let outcome = TaskMutationOutcome {
+            new_work_revision,
             owner_changed: task.owner != previous_task.owner,
             status_changed: task.status != previous_task.status,
             became_completed: task.status == TaskStatus::Completed

@@ -16,9 +16,9 @@ use super::super::helpers::{
     list_tasks_with_conn, now_rfc3339,
 };
 use super::super::{
-    task_dependency_closure, CreateTaskParams, Task, TaskCreateSchedulingPolicy, TaskExecutionMode,
-    TaskOutput, TaskStatus, TASK_EVENT_CREATED, TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR,
-    TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT,
+    task_dependency_closure, CreateTaskParams, Task, TaskActorAudit, TaskActorKind,
+    TaskCreateSchedulingPolicy, TaskExecutionMode, TaskOutput, TaskStatus, TASK_EVENT_CREATED,
+    TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR, TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT,
 };
 use super::dependencies::{
     canonicalize_dependencies, persist_canonical_blocked_by_for_test_fixture,
@@ -225,7 +225,16 @@ impl AgentOrgTaskStore {
                 task.owner.as_deref(),
             )?;
             persist_canonical_blocked_by_for_test_fixture(&tx, &candidate_tasks)?;
-            crate::coordination::agent_org_runs::bump_work_revision_in_tx(&tx, &task.org_run_id)?;
+            crate::coordination::agent_org_finality::record_task_mutation_in_tx(
+                &tx,
+                &task.org_run_id,
+                &TaskActorAudit {
+                    kind: TaskActorKind::GraphWriter,
+                    participant_id: task.created_by_participant_id.clone(),
+                    turn_intent_id: Some(task.source_turn_intent_id.clone()),
+                    activation_generation: task.activation_generation,
+                },
+            )?;
             let effect = effects(&tx, &task, &candidate_tasks)?;
             tx.commit().map_err(|err| err.to_string())?;
 
@@ -455,7 +464,19 @@ impl AgentOrgTaskStore {
                 )?;
             }
             persist_canonical_blocked_by_for_test_fixture(&tx, &candidate_graph)?;
-            crate::coordination::agent_org_runs::bump_work_revision_in_tx(&tx, &org_run_id)?;
+            let source = new_tasks
+                .first()
+                .expect("validated Task batch is non-empty");
+            crate::coordination::agent_org_finality::record_task_mutation_in_tx(
+                &tx,
+                &org_run_id,
+                &TaskActorAudit {
+                    kind: TaskActorKind::GraphWriter,
+                    participant_id: source.created_by_participant_id.clone(),
+                    turn_intent_id: Some(source.source_turn_intent_id.clone()),
+                    activation_generation: source.activation_generation,
+                },
+            )?;
             let effect = effects(&tx, &new_tasks, &candidate_graph)?;
             tx.commit().map_err(|err| err.to_string())?;
             Ok((new_tasks, effect))

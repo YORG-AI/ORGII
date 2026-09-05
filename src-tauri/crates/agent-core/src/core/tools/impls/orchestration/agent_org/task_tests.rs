@@ -7,8 +7,10 @@ use crate::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, COORDINATOR_MEMBER_ID,
 };
 use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, TaskStatus};
+use crate::tools::impls::coding::files::ListDirTool;
 use crate::tools::impls::orchestration::org_send_message::NoopInboxWakeHook;
 use crate::tools::registry::ToolRegistry;
+use crate::tools::result::ToolTurnDirective;
 use crate::tools::traits::{CallContext, Tool, ToolError};
 use test_helpers::test_env;
 
@@ -264,6 +266,54 @@ fn insert_coordinator_context_for_turn(conn: &rusqlite::Connection, turn_id: &st
     .expect("Coordinator context");
 }
 
+fn seed_initial_empty_task_board(conn: &rusqlite::Connection) {
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET has_initial_work=1 WHERE id=?1",
+        [RUN_ID],
+    )
+    .expect("mark initial work");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_initial_inputs (
+             org_run_id,turn_intent_id,message_id,content,payload_json,
+             status,created_at,updated_at
+         ) VALUES (?1,?2,'message-initial','Build the requested app','{}',
+                   'dispatched',?3,?3)",
+        rusqlite::params![RUN_ID, COORDINATOR_TURN, &now],
+    )
+    .expect("initial input");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_run_progress (org_run_id,work_revision,updated_at)
+         VALUES (?1,0,?2)
+         ON CONFLICT(org_run_id) DO UPDATE SET work_revision=0,updated_at=excluded.updated_at",
+        rusqlite::params![RUN_ID, &now],
+    )
+    .expect("initial revision");
+    conn.execute(
+        "UPDATE agent_org_runtime_turn_contexts
+         SET coordinator_work_revision=0,terminal_reason=NULL
+         WHERE session_id=?1 AND turn_intent_id=?2",
+        rusqlite::params![ROOT_SESSION, COORDINATOR_TURN],
+    )
+    .expect("present initial revision");
+}
+
+fn coordinator_terminal_reason(conn: &rusqlite::Connection, turn_id: &str) -> Option<String> {
+    conn.query_row(
+        "SELECT terminal_reason FROM agent_org_runtime_turn_contexts
+         WHERE session_id=?1 AND turn_intent_id=?2",
+        rusqlite::params![ROOT_SESSION, turn_id],
+        |row| row.get(0),
+    )
+    .expect("Coordinator terminal reason")
+}
+
+fn assert_task_list_ends_turn(result: &crate::tools::traits::ToolExecuteResult) {
+    assert_eq!(result.turn_directive, Some(ToolTurnDirective::EndTurn));
+    let body: Value = serde_json::from_str(&result.text).expect("task_list guard JSON");
+    assert_eq!(body["code"], "coordinator_no_new_work_facts");
+}
+
 fn insert_owner_context(conn: &rusqlite::Connection, turn_id: &str, task_id: &str) {
     insert_base_turn(conn, ALICE_SESSION, turn_id);
     let sequence: i64 = conn
@@ -399,6 +449,148 @@ fn task_tool_schemas_expose_pending_create_and_tagged_update() {
     let graph = TaskGraphCreateTool::new(tools_context(COORDINATOR_MEMBER_ID));
     crate::tools::traits::assert_llm_compatible_schema(&graph.parameters())
         .expect("task_graph_create schema");
+}
+
+#[tokio::test]
+async fn empty_board_bypass_excludes_later_task_revision_and_certificate_states() {
+    let _sandbox = sandbox();
+    let conn = database::db::get_connection().expect("test sqlite");
+    seed_initial_empty_task_board(&conn);
+    let now = chrono::Utc::now().to_rfc3339();
+
+    let later_turn = "turn-after-initial-input";
+    insert_coordinator_context_for_turn(&conn, later_turn);
+    conn.execute(
+        "UPDATE agent_org_runtime_turn_contexts SET coordinator_work_revision=0
+         WHERE session_id=?1 AND turn_intent_id=?2",
+        rusqlite::params![ROOT_SESSION, later_turn],
+    )
+    .expect("present revision to later Turn");
+    let later = TaskListTool::new(tools_context(COORDINATOR_MEMBER_ID))
+        .execute(
+            json!({}),
+            &coordinator_call_for_turn("later-list", later_turn),
+        )
+        .await
+        .expect("later task_list is guarded");
+    assert_task_list_ends_turn(&later);
+
+    conn.execute(
+        "INSERT INTO agent_org_runtime_tasks (
+             id,org_run_id,activation_generation,subject,status,execution_mode,
+             created_by_participant_id,source_turn_intent_id,created_at,updated_at
+         ) VALUES ('existing-task',?1,1,'Existing task','pending','build',
+                   'coordinator',?2,?3,?3)",
+        rusqlite::params![RUN_ID, COORDINATOR_TURN, &now],
+    )
+    .expect("existing Task");
+    let with_task = TaskListTool::new(tools_context(COORDINATOR_MEMBER_ID))
+        .execute(json!({}), &coordinator_call())
+        .await
+        .expect("non-empty task_list is guarded");
+    assert_task_list_ends_turn(&with_task);
+
+    conn.execute(
+        "DELETE FROM agent_org_runtime_tasks WHERE org_run_id=?1",
+        [RUN_ID],
+    )
+    .expect("restore empty board");
+    conn.execute(
+        "UPDATE agent_org_runtime_run_progress SET work_revision=1 WHERE org_run_id=?1",
+        [RUN_ID],
+    )
+    .expect("advance run revision");
+    conn.execute(
+        "UPDATE agent_org_runtime_turn_contexts
+         SET coordinator_work_revision=1,terminal_reason=NULL
+         WHERE session_id=?1 AND turn_intent_id=?2",
+        rusqlite::params![ROOT_SESSION, COORDINATOR_TURN],
+    )
+    .expect("present advanced revision");
+    let advanced = TaskListTool::new(tools_context(COORDINATOR_MEMBER_ID))
+        .execute(json!({}), &coordinator_call())
+        .await
+        .expect("advanced task_list is guarded");
+    assert_task_list_ends_turn(&advanced);
+
+    conn.execute(
+        "UPDATE agent_org_runtime_run_progress SET work_revision=0 WHERE org_run_id=?1",
+        [RUN_ID],
+    )
+    .expect("restore initial revision");
+    conn.execute(
+        "UPDATE agent_org_runtime_turn_contexts
+         SET coordinator_work_revision=0,terminal_reason=NULL
+         WHERE session_id=?1 AND turn_intent_id=?2",
+        rusqlite::params![ROOT_SESSION, COORDINATOR_TURN],
+    )
+    .expect("restore initial Turn state");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_run_completion_certificates (
+             id,org_run_id,activation_generation,work_revision,request_id,request_digest,
+             outcome,summary,coordinator_session_id,coordinator_turn_intent_id,
+             evidence_task_ids_json,closure_task_ids_json,task_output_refs_json,
+             resolution_links_json,validator_version,created_at
+         ) VALUES ('certificate-initial',?1,1,0,'request-initial',?2,
+                   'cancelled','No work required',?3,?4,'[]','[]','[]','[]',1,?5)",
+        rusqlite::params![RUN_ID, "0".repeat(64), ROOT_SESSION, COORDINATOR_TURN, &now],
+    )
+    .expect("completion certificate");
+    let certified = TaskListTool::new(tools_context(COORDINATOR_MEMBER_ID))
+        .execute(json!({}), &coordinator_call())
+        .await
+        .expect("certified task_list is guarded");
+    assert_task_list_ends_turn(&certified);
+}
+
+#[tokio::test]
+async fn list_dir_then_initial_task_list_can_create_graph_and_advance_revision() {
+    let _sandbox = sandbox();
+    let conn = database::db::get_connection().expect("test sqlite");
+    seed_initial_empty_task_board(&conn);
+    let workspace = tempfile::tempdir().expect("empty workspace");
+    let call = coordinator_call();
+
+    let directory = ListDirTool::new(Some(workspace.path().to_path_buf()))
+        .execute_text(json!({"path": workspace.path().to_string_lossy()}), &call)
+        .await
+        .expect("list empty workspace");
+    assert!(directory.is_empty());
+
+    let listed = TaskListTool::new(tools_context(COORDINATOR_MEMBER_ID))
+        .execute(json!({}), &call)
+        .await
+        .expect("read initial empty task board");
+    assert_eq!(listed.turn_directive, None);
+    let body: Value = serde_json::from_str(&listed.text).expect("task_list JSON");
+    assert_eq!(body["tasks"], json!([]));
+    assert_eq!(body["run_summary"]["total"], 0);
+    assert_eq!(coordinator_terminal_reason(&conn, COORDINATOR_TURN), None);
+
+    TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID))
+        .execute_text(
+            json!({
+                "subject":"Build the playable game",
+                "owner_member_id":ALICE,
+                "dispatch_policy":"immediate",
+                "execution_mode":"build"
+            }),
+            &call,
+        )
+        .await
+        .expect("create the first Task after inspection");
+
+    let (task_count, work_revision): (i64, i64) = conn
+        .query_row(
+            "SELECT
+                 (SELECT COUNT(*) FROM agent_org_runtime_tasks WHERE org_run_id=?1),
+                 (SELECT work_revision FROM agent_org_runtime_run_progress WHERE org_run_id=?1)",
+            [RUN_ID],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("read committed graph revision");
+    assert_eq!(task_count, 1);
+    assert_eq!(work_revision, 1);
 }
 
 #[tokio::test]
@@ -1276,9 +1468,9 @@ async fn owner_task_update_schema_and_parser_handle_real_strict_provider_payload
     drop(registry);
     let reconciled = crate::coordination::reconcile_agent_org_turns_after_restart(&conn)
         .expect("restart reconciliation");
-    assert_eq!(
-        reconciled, 1,
-        "the fixture's interrupted Coordinator Turn must be closed on restart"
+    assert!(
+        reconciled >= 1,
+        "startup reconciliation must report the interrupted fixture state it repaired"
     );
     let coordinator_status: String = conn
         .query_row(
@@ -1294,6 +1486,12 @@ async fn owner_task_update_schema_and_parser_handle_real_strict_provider_payload
         .expect("completed Task persists");
     assert_eq!(restarted.status, TaskStatus::Completed);
     assert_eq!(restarted.output.as_ref().unwrap().summary, "done");
+    assert_eq!(
+        crate::coordination::reconcile_agent_org_turns_after_restart(&conn)
+            .expect("idempotent restart reconciliation"),
+        0,
+        "a second startup pass must not repair the same state again"
+    );
     let restarted_history = AgentOrgTaskStore::list_history(RUN_ID).expect("restart history read");
     assert_eq!(
         restarted_history

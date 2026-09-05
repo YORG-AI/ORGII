@@ -4,8 +4,8 @@ use crate::coordination::agent_org_runs::{
     AgentOrgRunEntryMode, AgentOrgRunStatus, AgentOrgRunStore, CreateAgentOrgRunParams,
 };
 use crate::coordination::agent_org_tasks::{
-    AgentOrgTaskStore, CreateTaskParams, TaskStatus, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
-    TASK_METADATA_REQUIRED_ROLE,
+    AgentOrgTaskStore, CreateTaskParams, TaskOutputInput, TaskOwnerExecution, TaskStatus,
+    TASK_METADATA_ELIGIBLE_MEMBER_IDS, TASK_METADATA_REQUIRED_ROLE,
 };
 use crate::definitions::orgs::{FlatOrgMember, OrgDefinition};
 use crate::session::persistence::{session_type, UnifiedSessionRecord};
@@ -255,6 +255,15 @@ fn seed_in_progress_task_with_metadata(
 fn seed_task_execution_turn(run_id: &str, task_id: &str, turn_id: &str) {
     let conn = database::db::get_connection().expect("test sqlite connection");
     let now = chrono::Utc::now().to_rfc3339();
+    let sequence: i64 = conn
+        .query_row(
+            "SELECT COALESCE(MAX(member_dispatch_sequence),0)+1
+             FROM agent_org_runtime_turn_contexts
+             WHERE org_run_id=?1 AND dispatch_member_id='member-worker'",
+            [run_id],
+            |row| row.get(0),
+        )
+        .expect("next Member dispatch sequence");
     conn.execute(
         "INSERT INTO session_turn_intents(
             session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
@@ -268,9 +277,9 @@ fn seed_task_execution_turn(run_id: &str, task_id: &str, turn_id: &str) {
             task_id,owner_member_id,dispatch_member_id,member_dispatch_sequence,
             source_kind,source_id,activation_generation,created_at
          ) VALUES ('member-session',?1,?2,'member-worker','task_execution',
-                   ?3,'member-worker','member-worker',1,
-                   'task',?3,1,?4)",
-        rusqlite::params![turn_id, run_id, task_id, now],
+                   ?3,'member-worker','member-worker',?4,
+                   'task',?3,1,?5)",
+        rusqlite::params![turn_id, run_id, task_id, sequence, now],
     )
     .expect("seed exact TaskExecution context");
     conn.execute(
@@ -501,7 +510,7 @@ async fn user_directed_finalize_never_mutates_formal_task_lifecycle() {
 }
 
 #[test]
-fn successful_cancelled_turn_resolves_undrainable_formal_rows_once() {
+fn successful_cancelled_turn_does_not_blanket_resolve_member_inbox() {
     let _serial = test_serial_guard();
     let _sandbox = test_helpers::test_env::sandbox();
     let run_id = seed_run("builtin:sde");
@@ -571,16 +580,16 @@ fn successful_cancelled_turn_resolves_undrainable_formal_rows_once() {
         "original Inbox rows remain unread for audit"
     );
     assert_eq!(
-        resolutions, 3,
-        "repeat finalization must not duplicate resolutions"
+        resolutions, 0,
+        "Turn finalization has no task-specific authority"
     );
     assert!(
-        !crate::coordination::agent_inbox::AgentInboxStore::has_unread_for_member(
+        crate::coordination::agent_inbox::AgentInboxStore::has_unread_for_member(
             "member-worker",
             &run_id,
         )
         .expect("probe unresolved rows"),
-        "resolved stale formal input must not trigger an impossible wake"
+        "unrelated plain and shutdown input must remain actionable"
     );
 }
 
@@ -683,6 +692,65 @@ async fn failed_member_finalize_releases_task_for_coordinator_assignment() {
     assert_eq!(call.unfinished_task_ids, vec!["failed-task"]);
 }
 
+#[test]
+fn deterministic_sibling_terminal_failure_never_requeues_completed_task() {
+    let _serial = test_serial_guard();
+    let _sandbox = test_helpers::test_env::sandbox();
+    let run_id = seed_run("builtin:sde");
+    seed_in_progress_task(&run_id, "sibling-terminal-task");
+    seed_task_execution_turn(&run_id, "sibling-terminal-task", "turn-winner");
+    seed_task_execution_turn(&run_id, "sibling-terminal-task", "turn-loser");
+    AgentOrgTaskStore::owner_complete_with_transactional_effects(
+        TaskOwnerExecution::new("member-session", "turn-winner").unwrap(),
+        &run_id,
+        "sibling-terminal-task",
+        TaskOutputInput {
+            summary: "winner committed the exact output".to_string(),
+            content: None,
+            artifact_ids: Vec::new(),
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect("winning sibling completes Task");
+
+    let failure = crate::coordination::agent_org_finality::AgentOrgTurnFailure::new(
+        crate::coordination::agent_org_finality::AgentOrgTurnFailureKind::AuthorityConflict,
+        "task_terminal_owned_by_sibling_turn",
+        "the completed target belongs to turn-winner",
+    )
+    .encode();
+    finalize_agent_org_member_turn(None, "member-session", Some("turn-loser"), &Err(failure));
+
+    let task = AgentOrgTaskStore::get(&run_id, "sibling-terminal-task")
+        .unwrap()
+        .expect("completed Task remains");
+    assert_eq!(task.status, TaskStatus::Completed);
+    assert_eq!(
+        task.output.as_ref().map(|output| output.summary.as_str()),
+        Some("winner committed the exact output")
+    );
+    let conn = database::db::get_connection().unwrap();
+    let loser_status: String = conn
+        .query_row(
+            "SELECT status FROM session_turn_intents
+             WHERE session_id='member-session' AND turn_intent_id='turn-loser'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(loser_status, "failed");
+    let recovery_event_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_task_events
+             WHERE org_run_id=?1 AND task_id='sibling-terminal-task'
+               AND previous_status='completed'",
+            [&run_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(recovery_event_count, 0);
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn failed_member_finalize_releases_even_when_only_failed_member_is_eligible() {
     let _serial = test_serial_guard();
@@ -725,9 +793,9 @@ fn startup_recovery_requeues_only_the_uniquely_bound_task_and_is_idempotent() {
     seed_task_execution_turn(&run_id, "crashed-task", "turn-crashed-task");
     crate::session::persistence::update_status(
         "member-session",
-        crate::session::SessionStatus::Abandoned,
+        crate::session::SessionStatus::Failed,
     )
-    .expect("mark stale Member session abandoned");
+    .expect("reproduce historical Session-failed / Turn-running split");
 
     assert_eq!(
         AgentOrgRunStore::requeue_abandoned_member_tasks_on_startup()
