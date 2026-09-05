@@ -11,7 +11,7 @@ describe("RecentTabsMenuSection", () => {
     const markup = renderToStaticMarkup(
       createElement(RecentTabsMenuSection, {
         tabs: [],
-        label: "Recent",
+        label: "Recently closed tabs",
         onOpen: vi.fn(),
       })
     );
@@ -38,7 +38,7 @@ describe("RecentTabsMenuSection", () => {
             }),
           },
         ],
-        label: "Recent",
+        label: "Recently closed tabs",
         onOpen: vi.fn(),
       })
     );
@@ -49,6 +49,41 @@ describe("RecentTabsMenuSection", () => {
     expect(markup).toContain('data-icon="git-merge"');
     expect(markup).toContain("max-w-[320px]");
     expect(markup).toContain("truncate");
+  });
+
+  it("uses a supplied session identity icon instead of the history icon", () => {
+    const markup = renderToStaticMarkup(
+      createElement(RecentTabsMenuSection, {
+        tabs: [
+          {
+            id: "session-a",
+            title: "Codex session",
+            leadingIcon: createElement("span", {
+              "data-session-icon": "codex",
+            }),
+          },
+        ],
+        label: "Recently closed tabs",
+        onOpen: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain('data-session-icon="codex"');
+    expect(markup).not.toContain('data-icon="work-history"');
+  });
+
+  it("uses the history icon when no leading icon is supplied", () => {
+    const markup = renderToStaticMarkup(
+      createElement(RecentTabsMenuSection, {
+        tabs: [{ id: "tab-b", title: "Tab B" }],
+        label: "Recently closed tabs",
+        onOpen: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain('data-recent-tab-id="tab-b"');
+    expect(markup).toContain('data-icon="work-history"');
+    expect(markup).toContain("Tab B");
   });
 
   it("uses the file-type icon shown in the Workstation tab strip", () => {
