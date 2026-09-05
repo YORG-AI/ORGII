@@ -1056,7 +1056,9 @@
     "tabs": {
       "newTerminal": "New Terminal",
       "newTab": "New tab",
-      "terminals": "Terminals"
+      "terminals": "Terminals",
+      "goBack": "Back",
+      "goForward": "Forward"
     },
     "sideChat": {
       "title": "Side Chat",

@@ -50,6 +50,7 @@ import { ChatPanelShell } from "./ChatPanelShell";
 import {
   ChatPanelPlusMenu,
   ChatPanelTabBar,
+  ChatPanelTabNav,
   useChatPanelTabShortcuts,
 } from "./ChatPanelTabBar";
 import { NewChatHeaderActionsMenu } from "./components/NewChatHeaderActionsMenu";
@@ -339,6 +340,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       handleRegionNoticeChange,
     });
     const tabStrip = <ChatPanelTabBar />;
+    const tabStripNav = <ChatPanelTabNav />;
 
     const tabStripPlus = (
       <>
@@ -417,6 +419,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         tuiMode={tuiMode}
         handleTuiModeToggle={handleTuiModeToggle}
         tabStrip={tabStrip}
+        tabStripNav={tabStripNav}
         tabStripPlus={tabStripPlus}
         tabRowCollapsed={tabRowCollapsed}
         sessionHeaderExtras={

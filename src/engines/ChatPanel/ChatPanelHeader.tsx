@@ -89,6 +89,11 @@ interface ChatPanelHeaderProps {
   tuiMode: boolean;
   handleTuiModeToggle: () => void;
   tabStrip: React.ReactNode;
+  /**
+   * Back / Forward session navigation, leading the tab row. Folded, it moves
+   * to the published row's leading slot so the trail stays reachable.
+   */
+  tabStripNav?: React.ReactNode;
   /** When provided, rendered before the ... button (tab-strip + menu replacement) */
   tabStripPlus?: React.ReactNode;
   /**
@@ -146,6 +151,7 @@ export function ChatPanelHeader({
   tuiMode,
   handleTuiModeToggle,
   tabStrip,
+  tabStripNav,
   tabStripPlus,
   tabRowCollapsed,
   sessionHeaderExtras,
@@ -360,7 +366,15 @@ export function ChatPanelHeader({
         sessionHeaderContent ||
         sessionPublishedActions
       ? {
-          leading: publishedHeaderSlots?.leading,
+          leading:
+            tabRowCollapsed && tabStripNav ? (
+              <>
+                {tabStripNav}
+                {publishedHeaderSlots?.leading}
+              </>
+            ) : (
+              publishedHeaderSlots?.leading
+            ),
           content:
             publishedContent ??
             (tabRowCollapsed ? <ChatPanelCollapsedTabHeading /> : undefined),
@@ -487,6 +501,7 @@ export function ChatPanelHeader({
           }
         >
           {collapsedSidebarChrome}
+          {tabStripNav}
           {tabStrip}
           {tabBarToolbar}
         </div>

@@ -20,6 +20,7 @@ import {
   buildDefaultLaunchpadTab,
   getChatPanelWorkItemTabKey,
 } from "./chatPanelTabFactories";
+import { dropChatPanelTabHistoryAtom } from "./chatPanelTabNavigationAtoms";
 import { activateChatPanelTabAtom } from "./chatPanelTabPresentationAtoms";
 import {
   type ChatPanelSelectedChannel,
@@ -86,6 +87,7 @@ export const closeChatPanelTabAtom = atom(null, (get, set, tabId: string) => {
   if (idx === -1) return;
   const tab = state.tabs[idx];
   const nextTabs = state.tabs.filter((candidate) => candidate.id !== tabId);
+  set(dropChatPanelTabHistoryAtom, tabId);
   if (
     tab.type === "session" &&
     tab.sessionId &&
