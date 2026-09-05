@@ -103,10 +103,24 @@ describe("PinnedSidebarChrome", () => {
     expect(query("session-history-nav")).not.toBeNull();
     expect(query("pinned-sidebar-chrome-hide")).not.toBeNull();
 
+    // Sidebar open: sidebar tokens, toggle first, then Back / Forward, 1px apart.
+    expect(group?.getAttribute("data-variant")).toBe("sidebar");
+    expect(group?.className).toContain("gap-px");
+    const order = Array.from(
+      group?.querySelectorAll("button[data-testid]") ?? []
+    ).map((element) => element.getAttribute("data-testid"));
+    expect(order).toEqual([
+      "pinned-sidebar-chrome-hide",
+      "session-history-nav-back",
+      "session-history-nav-forward",
+    ]);
+
     click("pinned-sidebar-chrome-hide");
     expect(store.get(sidebarCollapsedAtom)).toBe(true);
     expect(query("pinned-sidebar-chrome-show")).not.toBeNull();
     expect(group?.style.left).toBe("88px");
+    // Collapsed: the chat pane is underneath, so its tokens take over.
+    expect(group?.getAttribute("data-variant")).toBe("chat");
   });
 
   it("offers expand and close while the hover sidebar is open", () => {
@@ -117,6 +131,9 @@ describe("PinnedSidebarChrome", () => {
     render();
 
     expect(query("pinned-sidebar-chrome-expand")).not.toBeNull();
+    expect(query("pinned-sidebar-chrome")?.getAttribute("data-variant")).toBe(
+      "sidebar"
+    );
     click("pinned-sidebar-chrome-close-hover");
     expect(store.get(hoverSidebarOpenAtom)).toBe(false);
     expect(store.get(sidebarCollapsedAtom)).toBe(true);

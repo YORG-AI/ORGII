@@ -12,10 +12,11 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
-import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
-import SessionHistoryNav from "@src/components/SessionHistoryNav";
-import Tooltip from "@src/components/Tooltip";
-import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import SessionHistoryNav, {
+  type SessionHistoryNavVariant,
+} from "@src/components/SessionHistoryNav";
+import SidebarChromeIconButton from "@src/components/SidebarChromeIconButton";
+import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import {
   COLLAPSED_SIDEBAR_CHROME_CENTER_TOP,
   getCollapsedSidebarButtonLeft,
@@ -31,12 +32,10 @@ import { hoverSidebarOpenAtom } from "@src/store/ui/hoverSidebarAtom";
 import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
 import { isMacOS } from "@src/util/platform/tauri";
 
-const BUTTON_CLASS =
-  "group/toggle flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 text-text-2 transition-colors duration-150 hover:bg-sidebar-selected";
-
 interface ChromeButtonProps {
+  variant: SessionHistoryNavVariant;
   label: string;
-  shortcut?: string;
+  shortcutId?: string;
   onClick: () => void;
   testId: string;
   icon: IconSvgElement;
@@ -47,64 +46,69 @@ interface ChromeButtonProps {
 }
 
 const ChromeButton: React.FC<ChromeButtonProps> = ({
+  variant,
   label,
-  shortcut,
+  shortcutId,
   onClick,
   testId,
   icon,
   dataIcon,
   hoverIcon,
   hoverDataIcon,
-}) => (
-  <Tooltip
-    content={
-      <KeyboardShortcutTooltipContent
-        label={label}
-        shortcut={shortcut}
-        noShortcut={!shortcut}
+}) => {
+  const glyphs = (
+    <span className="flex h-4 w-4 items-center justify-center">
+      <HugeiconsIcon
+        icon={icon}
+        data-icon={dataIcon}
+        size={16}
+        strokeWidth={2}
+        className={hoverIcon ? "group-hover/toggle:hidden" : undefined}
       />
-    }
-    position="bottom"
-    mouseEnterDelay={200}
-    framedPanel
-  >
-    <span className="inline-flex">
-      <button
-        type="button"
-        className={BUTTON_CLASS}
+      {hoverIcon ? (
+        <HugeiconsIcon
+          icon={hoverIcon}
+          data-icon={hoverDataIcon}
+          size={16}
+          strokeWidth={2}
+          className="hidden group-hover/toggle:block"
+        />
+      ) : null}
+    </span>
+  );
+  if (variant === "sidebar") {
+    return (
+      <SidebarChromeIconButton
+        title={label}
+        shortcutId={shortcutId}
         onClick={onClick}
-        aria-label={label}
+        className="group/toggle"
         data-testid={testId}
       >
-        <span className="flex h-4 w-4 items-center justify-center">
-          <HugeiconsIcon
-            icon={icon}
-            data-icon={dataIcon}
-            size={16}
-            strokeWidth={2}
-            className={hoverIcon ? "group-hover/toggle:hidden" : undefined}
-          />
-          {hoverIcon ? (
-            <HugeiconsIcon
-              icon={hoverIcon}
-              data-icon={hoverDataIcon}
-              size={16}
-              strokeWidth={2}
-              className="hidden group-hover/toggle:block"
-            />
-          ) : null}
-        </span>
-      </button>
-    </span>
-  </Tooltip>
-);
+        {glyphs}
+      </SidebarChromeIconButton>
+    );
+  }
+  return (
+    <TabBarTrailingIconButton
+      title={label}
+      shortcutId={shortcutId}
+      tooltipPosition="bottom"
+      nativeTitle={false}
+      onClick={onClick}
+      className="group/toggle"
+      data-testid={testId}
+    >
+      {glyphs}
+    </TabBarTrailingIconButton>
+  );
+};
 
 const PinnedSidebarChromeComponent: React.FC = () => {
   const { t } = useTranslation("sessions");
   const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom);
   const hoverOpen = useAtomValue(hoverSidebarOpenAtom);
   const setHoverOpen = useSetAtom(hoverSidebarOpenAtom);
-  const shortcut = getShortcutKeys("toggle_sidebar");
 
   const hide = useCallback(() => setCollapsed(true), [setCollapsed]);
   const show = useCallback(() => setCollapsed(false), [setCollapsed]);
@@ -116,19 +120,26 @@ const PinnedSidebarChromeComponent: React.FC = () => {
 
   if (!isMacOS()) return null;
 
+  // Whichever surface is under the group lends its tokens: the sidebar while
+  // it is open (or peeking in as the hover sidebar), the chat pane otherwise.
+  const variant: SessionHistoryNavVariant =
+    !collapsed || hoverOpen ? "sidebar" : "chat";
+
   let toggle: React.ReactNode;
   if (collapsed && hoverOpen) {
     toggle = (
       <>
         <ChromeButton
+          variant={variant}
           label={t("common:tooltips.showSidebar")}
-          shortcut={shortcut}
+          shortcutId="toggle_sidebar"
           onClick={expandFromHover}
           testId="pinned-sidebar-chrome-expand"
           icon={PanelLeftIcon}
           dataIcon="panel-left"
         />
         <ChromeButton
+          variant={variant}
           label={t("common:actions.close")}
           onClick={closeHover}
           testId="pinned-sidebar-chrome-close-hover"
@@ -140,8 +151,9 @@ const PinnedSidebarChromeComponent: React.FC = () => {
   } else if (collapsed) {
     toggle = (
       <ChromeButton
+        variant={variant}
         label={t("common:tooltips.showSidebar")}
-        shortcut={shortcut}
+        shortcutId="toggle_sidebar"
         onClick={show}
         testId="pinned-sidebar-chrome-show"
         icon={LayoutAlignLeftIcon}
@@ -153,8 +165,9 @@ const PinnedSidebarChromeComponent: React.FC = () => {
   } else {
     toggle = (
       <ChromeButton
+        variant={variant}
         label={t("common:tooltips.hideSidebar")}
-        shortcut={shortcut}
+        shortcutId="toggle_sidebar"
         onClick={hide}
         testId="pinned-sidebar-chrome-hide"
         icon={PanelLeftIcon}
@@ -167,8 +180,9 @@ const PinnedSidebarChromeComponent: React.FC = () => {
 
   return (
     <div
-      className="fixed z-[10000] flex -translate-y-1/2 items-center gap-1"
+      className="fixed z-[10000] flex -translate-y-1/2 items-center gap-px"
       data-testid="pinned-sidebar-chrome"
+      data-variant={variant}
       style={
         {
           left: getCollapsedSidebarButtonLeft(),
@@ -177,8 +191,8 @@ const PinnedSidebarChromeComponent: React.FC = () => {
         } as React.CSSProperties
       }
     >
-      <SessionHistoryNav />
       {toggle}
+      <SessionHistoryNav variant={variant} />
     </div>
   );
 };

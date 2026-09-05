@@ -2,20 +2,19 @@
  * SessionHistoryNav
  *
  * Browser-style Back / Forward over the active chat tab's session trail — the
- * same trail ⌘[ / ⌘] walk. Styled as the sidebar header's round 28px
- * controls. It lives in the sidebar header while the sidebar is open and
- * travels with the collapsed-sidebar toggle once it folds away, so it keeps
- * the same spot on screen in both states.
+ * same trail ⌘[ / ⌘] walk. Renders in the tokens of whichever surface hosts
+ * it: the sidebar's round hover control, or the chat pane's tab-bar button.
  */
 import { useAtomValue, useSetAtom } from "jotai";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
-import AnyIcon from "@src/components/AnyIcon";
-import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import SidebarChromeIconButton from "@src/components/SidebarChromeIconButton";
+import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
+  HugeiconsIcon,
   type IconSvgElement,
 } from "@src/icons";
 import {
@@ -25,14 +24,21 @@ import {
   goForwardChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabNavigationAtoms";
 
-/** Width the pair occupies, for hosts that reserve chrome space up front. */
-export const SESSION_HISTORY_NAV_WIDTH = 56;
+/** Two 28px icon buttons with the tab bar's 1px gap between them. */
+export const SESSION_HISTORY_NAV_WIDTH = 28 + 1 + 28;
+/** Gap the chrome rows keep between adjacent icon buttons. */
+export const SESSION_HISTORY_NAV_GAP = 1;
+
+/** Which surface's tokens to draw in. */
+export type SessionHistoryNavVariant = "sidebar" | "chat";
 
 export interface SessionHistoryNavProps {
+  variant: SessionHistoryNavVariant;
   className?: string;
 }
 
 interface NavButtonProps {
+  variant: SessionHistoryNavVariant;
   icon: IconSvgElement;
   label: string;
   shortcutId: string;
@@ -42,33 +48,45 @@ interface NavButtonProps {
 }
 
 const NavButton: React.FC<NavButtonProps> = ({
+  variant,
   icon,
   label,
   shortcutId,
   disabled,
   onClick,
   testId,
-}) => (
-  <ToolbarTooltip label={label} shortcutId={shortcutId} position="bottom">
-    <button
-      type="button"
-      className={`flex h-[28px] w-[28px] items-center justify-center rounded-[100px] border-none bg-transparent p-0 text-text-2 transition-colors duration-150 ${
-        disabled
-          ? "cursor-default opacity-40"
-          : "cursor-pointer hover:bg-sidebar-selected"
-      }`}
-      aria-label={label}
+}) => {
+  const glyph = <HugeiconsIcon icon={icon} size={16} strokeWidth={2} />;
+  if (variant === "sidebar") {
+    return (
+      <SidebarChromeIconButton
+        title={label}
+        shortcutId={shortcutId}
+        disabled={disabled}
+        onClick={onClick}
+        data-testid={testId}
+      >
+        {glyph}
+      </SidebarChromeIconButton>
+    );
+  }
+  return (
+    <TabBarTrailingIconButton
+      title={label}
+      shortcutId={shortcutId}
+      tooltipPosition="bottom"
+      nativeTitle={false}
       disabled={disabled}
       onClick={onClick}
       data-testid={testId}
     >
-      <AnyIcon icon={icon} size={16} strokeWidth={2} />
-    </button>
-  </ToolbarTooltip>
-);
+      {glyph}
+    </TabBarTrailingIconButton>
+  );
+};
 
 export const SessionHistoryNav: React.FC<SessionHistoryNavProps> = memo(
-  ({ className = "" }) => {
+  ({ variant, className = "" }) => {
     const { t } = useTranslation("sessions");
     const canGoBack = useAtomValue(activeChatPanelTabCanGoBackAtom);
     const canGoForward = useAtomValue(activeChatPanelTabCanGoForwardAtom);
@@ -77,11 +95,13 @@ export const SessionHistoryNav: React.FC<SessionHistoryNavProps> = memo(
 
     return (
       <div
-        className={`flex shrink-0 items-center ${className}`.trim()}
+        className={`flex shrink-0 items-center gap-px ${className}`.trim()}
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         data-testid="session-history-nav"
+        data-variant={variant}
       >
         <NavButton
+          variant={variant}
           icon={ArrowLeft01Icon}
           label={t("chat.tabs.goBack")}
           shortcutId="chat_go_back"
@@ -92,6 +112,7 @@ export const SessionHistoryNav: React.FC<SessionHistoryNavProps> = memo(
           testId="session-history-nav-back"
         />
         <NavButton
+          variant={variant}
           icon={ArrowRight01Icon}
           label={t("chat.tabs.goForward")}
           shortcutId="chat_go_forward"

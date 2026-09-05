@@ -37,7 +37,7 @@ const CollapsedSidebarButtonComponent: React.FC = () => {
   // header; `getCollapsedSidebarChromeOffset` reserves room for both.
   return (
     <div
-      className="absolute z-20 flex -translate-y-1/2 items-center gap-1"
+      className="absolute z-20 flex -translate-y-1/2 items-center gap-px"
       data-collapsed-sidebar-button
       style={
         {
@@ -47,7 +47,6 @@ const CollapsedSidebarButtonComponent: React.FC = () => {
         } as React.CSSProperties & { WebkitAppRegion: string }
       }
     >
-      <SessionHistoryNav />
       <Tooltip
         content={tooltipContent}
         position="bottom"
@@ -85,6 +84,7 @@ const CollapsedSidebarButtonComponent: React.FC = () => {
           />
         </span>
       </Tooltip>
+      <SessionHistoryNav variant="chat" />
     </div>
   );
 };

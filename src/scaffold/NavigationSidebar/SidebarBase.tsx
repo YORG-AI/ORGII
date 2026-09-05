@@ -19,6 +19,7 @@ import { useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import AnyIcon from "@src/components/AnyIcon";
+import { SIDEBAR_CHROME_ICON_BUTTON_CLASS } from "@src/components/SidebarChromeIconButton";
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import {
@@ -285,7 +286,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
             )
           ) : null}
           <div
-            className={`flex shrink-0 items-center gap-1 ${sidebarTopChromeClassName}`}
+            className={`flex shrink-0 items-center gap-px ${sidebarTopChromeClassName}`}
           >
             {beforeAddNewActions ? (
               <div
@@ -311,28 +312,22 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
                   showArrow={false}
                   framedPanel={!!addTooltipContent}
                 >
-                  <div
-                    className="h-[28px] w-[28px]"
+                  <button
+                    type="button"
+                    className={`${SIDEBAR_CHROME_ICON_BUTTON_CLASS} cursor-pointer hover:bg-sidebar-selected`}
                     onClick={onAddNew}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onAddNew();
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
+                    aria-label={
+                      addLabel ?? i18next.t("navigation:sidebar.actions.addNew")
+                    }
                   >
-                    <div className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] transition-colors duration-150 hover:bg-sidebar-selected">
-                      <AnyIcon
-                        icon={AddIcon}
-                        size={16}
-                        strokeWidth={2}
-                        className="text-text-2"
-                        style={iconThemeStyle}
-                      />
-                    </div>
-                  </div>
+                    <AnyIcon
+                      icon={AddIcon}
+                      size={16}
+                      strokeWidth={2}
+                      className="text-text-2"
+                      style={iconThemeStyle}
+                    />
+                  </button>
                 </Tooltip>
               </div>
             )}

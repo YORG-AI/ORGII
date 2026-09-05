@@ -1,6 +1,9 @@
 import { useAtomValue } from "jotai";
 
-import { SESSION_HISTORY_NAV_WIDTH } from "@src/components/SessionHistoryNav";
+import {
+  SESSION_HISTORY_NAV_GAP,
+  SESSION_HISTORY_NAV_WIDTH,
+} from "@src/components/SessionHistoryNav";
 import {
   chatPanelMaximizedAtom,
   chatWidthAtom,
@@ -14,9 +17,9 @@ import { isMacOS } from "@src/util/platform/tauri";
 
 const COLLAPSED_SIDEBAR_BUTTON_LEFT_INSET = 8;
 const COLLAPSED_SIDEBAR_BUTTON_RESERVED_WIDTH = 30;
-/** Back / Forward pair (`SESSION_HISTORY_NAV_WIDTH`) plus its 4px gap to the toggle. */
+/** Back / Forward pair plus the 1px gap to the toggle. */
 const COLLAPSED_SIDEBAR_HISTORY_NAV_RESERVED_WIDTH =
-  SESSION_HISTORY_NAV_WIDTH + 4;
+  SESSION_HISTORY_NAV_WIDTH + SESSION_HISTORY_NAV_GAP;
 const MACOS_TRAFFIC_LIGHTS_RESERVED_WIDTH = 80;
 /**
  * Vertical center of the 36px title-bar row every host places its chrome in

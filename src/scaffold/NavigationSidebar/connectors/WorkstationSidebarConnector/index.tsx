@@ -661,7 +661,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
             onChange={handleViewChange}
           />
         }
-        headerActions={isMacOS() ? undefined : <SessionHistoryNav />}
+        headerActions={
+          isMacOS() ? undefined : <SessionHistoryNav variant="sidebar" />
+        }
         listTopPadding
         bottomContent={
           <SidebarBottomBar
