@@ -1,11 +1,11 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import { Placeholder } from "@src/components/Placeholder";
 import { HugeiconsIcon, Login02Icon } from "@src/icons";
 
+import { MobileActionButton } from "../components/MobileActionButton";
 import { MobileShell } from "../components/MobileShell";
 import type { MobileAuthState } from "./mobileAuthState";
 
@@ -36,7 +36,7 @@ export function MobileAuthScreen({
     <MobileShell>
       <main className="flex min-h-0 flex-1 flex-col px-5 py-6">
         <div className="flex items-center gap-2 text-lg font-semibold text-text-1">
-          <span aria-hidden="true" className="text-primary-6">
+          <span aria-hidden="true" className="mobile-brand-mark">
             ●
           </span>
           ORG2
@@ -75,7 +75,7 @@ export function MobileAuthScreen({
                   {state.message}
                 </InlineAlert>
               ) : null}
-              <Button
+              <MobileActionButton
                 htmlType="button"
                 variant="primary"
                 long
@@ -84,7 +84,7 @@ export function MobileAuthScreen({
                 onClick={onSignIn}
               >
                 {t("auth.signIn")}
-              </Button>
+              </MobileActionButton>
             </>
           )}
         </div>

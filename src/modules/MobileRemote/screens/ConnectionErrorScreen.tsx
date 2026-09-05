@@ -1,8 +1,9 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import Button from "@src/components/Button";
 import { Placeholder } from "@src/components/Placeholder";
+
+import { MobileActionButton } from "../components/MobileActionButton";
 
 /** M-04 Connection Error */
 export interface ConnectionErrorScreenProps {
@@ -24,13 +25,13 @@ export function ConnectionErrorScreen({
         subtitle={message}
       />
       {onRetry ? (
-        <Button
+        <MobileActionButton
           variant="primary"
           className="mt-6 w-full max-w-xs"
           onClick={onRetry}
         >
           {t("actions.retry", { ns: "common", defaultValue: "Retry" })}
-        </Button>
+        </MobileActionButton>
       ) : null}
     </div>
   );

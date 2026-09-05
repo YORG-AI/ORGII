@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 import { LIST_PANEL_SECTION_HEADER } from "@src/components/ListPanel/tokens";
 
@@ -14,12 +15,14 @@ export interface SessionsScreenProps {
 
 /** M-05 Sessions / Online (M-06 offline banner when presence offline). */
 export function SessionsScreen({ onSelectSession }: SessionsScreenProps) {
+  const { t } = useTranslation("mobileRemote");
   const { connection, sessions } = useMobileRemote();
   const offline = connection.presence === "offline";
 
   return (
     <>
       <MobileTopBar
+        title={t("tabs.sessions")}
         leading={
           <DesktopPresenceLabel
             desktopName={connection.desktopName ?? "Desktop"}

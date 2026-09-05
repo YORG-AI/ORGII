@@ -1,0 +1,278 @@
+// Mobile-only chrome. Session rows, transcript typography, and the composer
+// continue to use their existing design tokens and surfaces.
+.mobile-shell {
+  --mobile-accent: #171717;
+  --mobile-accent-pressed: #333;
+  --mobile-on-accent: #fff;
+  --mobile-chrome-muted: #595959;
+  --mobile-glass: rgb(255 255 255 / 62%);
+  --mobile-glass-solid: #f5f5f5;
+  --mobile-glass-edge: rgb(0 0 0 / 10%);
+  --mobile-glass-highlight: rgb(255 255 255 / 92%);
+  --mobile-glass-shadow: 0 8px 28px rgb(0 0 0 / 10%), 0 2px 6px rgb(0 0 0 / 4%);
+  --mobile-glass-blur: blur(20px);
+  --mobile-selected: rgb(0 0 0 / 7%);
+  --mobile-canvas: #ededed;
+  --mobile-touch-size: 44px;
+  --mobile-action-height: 54px;
+  --mobile-action-padding: 14px 22px;
+  --mobile-action-font-size: 17px;
+  --mobile-tab-height: 56px;
+  --mobile-tab-padding: 7px 12px;
+
+  background: var(--mobile-canvas);
+
+  // This palette belongs to navigation only; it never replaces the app's
+  // semantic colors inherited by session content or status indicators.
+  @media (prefers-color-scheme: dark) {
+    --mobile-accent: #f5f5f5;
+    --mobile-accent-pressed: #d4d4d4;
+    --mobile-on-accent: #111;
+    --mobile-chrome-muted: #bdbdbd;
+    --mobile-glass: rgb(28 28 28 / 68%);
+    --mobile-glass-solid: #202020;
+    --mobile-glass-edge: rgb(255 255 255 / 12%);
+    --mobile-glass-highlight: rgb(255 255 255 / 24%);
+    --mobile-glass-shadow:
+      0 8px 28px rgb(0 0 0 / 28%), 0 2px 6px rgb(0 0 0 / 16%);
+    --mobile-selected: rgb(255 255 255 / 10%);
+    --mobile-canvas: #101010;
+  }
+}
+
+.mobile-shell__viewport {
+  max-width: 393px;
+  background: var(--mobile-canvas);
+}
+
+.mobile-top-bar {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  color: var(--mobile-accent);
+}
+
+.mobile-top-bar--root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 22px 16px;
+
+  .mobile-top-bar__title {
+    order: 2;
+    flex: 0 0 100%;
+    font-size: 34px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.035em;
+  }
+}
+
+.mobile-top-bar--detail {
+  display: grid;
+  grid-template-columns: var(--mobile-touch-size) minmax(0, 1fr) var(
+      --mobile-touch-size
+    );
+  align-items: center;
+  gap: 10px;
+  min-height: 68px;
+  padding: 10px 16px;
+
+  .mobile-top-bar__title {
+    grid-column: 2;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
+    text-align: center;
+  }
+}
+
+.mobile-top-bar__title {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-top-bar__leading {
+  min-width: 0;
+  flex: 1;
+}
+
+.mobile-top-bar__trailing {
+  grid-column: 3;
+  flex-shrink: 0;
+}
+
+// Blur is confined to navigation controls, never applied to scrolling content.
+.mobile-chrome-icon-button,
+.mobile-top-bar__trailing > button,
+.mobile-tab-bar,
+.mobile-action-button[data-mobile-variant="tertiary"] {
+  border: 1px solid var(--mobile-glass-edge);
+  background: var(--mobile-glass-solid);
+  box-shadow:
+    inset 0 1px 0 var(--mobile-glass-highlight),
+    var(--mobile-glass-shadow);
+
+  @supports (
+    (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+  ) {
+    background: var(--mobile-glass);
+    -webkit-backdrop-filter: var(--mobile-glass-blur);
+    backdrop-filter: var(--mobile-glass-blur);
+  }
+}
+
+.mobile-chrome-icon-button,
+.mobile-top-bar__trailing > button {
+  width: var(--mobile-touch-size);
+  height: var(--mobile-touch-size);
+  border-radius: 50%;
+  color: var(--mobile-accent);
+}
+
+.mobile-welcome-icon {
+  border: 1px solid var(--mobile-glass-edge);
+  background: var(--mobile-glass-solid);
+}
+
+.mobile-welcome-icon,
+.mobile-brand-mark {
+  color: var(--mobile-accent);
+}
+
+.mobile-tab-dock {
+  flex-shrink: 0;
+  padding: 10px 20px max(12px, env(safe-area-inset-bottom));
+}
+
+.mobile-tab-bar {
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 999px;
+}
+
+.mobile-tab-button {
+  min-width: 0;
+  flex: 1;
+  color: var(--mobile-chrome-muted);
+
+  &[aria-current="page"] {
+    color: var(--mobile-on-accent);
+    background: var(--mobile-accent);
+    box-shadow: inset 0 1px 0 var(--mobile-glass-highlight);
+  }
+}
+
+.mobile-tab-button__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.mobile-tab-button__label {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+}
+
+.mobile-action-button {
+  width: 100%;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+
+  // Shared Button uses a truncating label for dense desktop controls. Large
+  // mobile actions must wrap when translated or when text is enlarged.
+  > span,
+  .truncate {
+    overflow: visible;
+    white-space: normal;
+  }
+
+  &[data-mobile-variant="primary"] {
+    color: var(--mobile-on-accent);
+    background: var(--mobile-accent);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 24%),
+      0 6px 16px color-mix(in srgb, var(--mobile-accent) 20%, transparent);
+  }
+
+  &[data-mobile-variant="tertiary"] {
+    color: var(--mobile-accent);
+  }
+}
+
+.mobile-shell
+  :is(
+    .mobile-action-button,
+    .mobile-tab-button,
+    .mobile-chrome-icon-button,
+    .mobile-top-bar__trailing > button
+  ) {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+
+  &:focus-visible {
+    outline: 3px solid var(--mobile-accent);
+    outline-offset: 3px;
+  }
+
+  &:active:not(:disabled) {
+    background: var(--mobile-selected);
+  }
+}
+
+.mobile-shell
+  .mobile-action-button[data-mobile-variant="primary"]:active:not(:disabled),
+.mobile-shell .mobile-tab-button[aria-current="page"]:active:not(:disabled) {
+  background: var(--mobile-accent-pressed);
+}
+
+@media (hover: hover) {
+  .mobile-shell
+    :is(
+      .mobile-tab-button,
+      .mobile-chrome-icon-button,
+      .mobile-top-bar__trailing > button
+    ):hover:not(:disabled) {
+    background: var(--mobile-selected);
+  }
+
+  .mobile-shell
+    .mobile-action-button[data-mobile-variant="primary"]:hover:not(:disabled),
+  .mobile-shell .mobile-tab-button[aria-current="page"]:hover:not(:disabled) {
+    background: var(--mobile-accent-pressed);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .mobile-shell {
+    --mobile-glass: var(--mobile-glass-solid);
+    --mobile-glass-blur: none;
+    --mobile-glass-edge: var(--mobile-chrome-muted);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-shell
+    :is(
+      .mobile-action-button,
+      .mobile-tab-button,
+      .mobile-chrome-icon-button,
+      .mobile-top-bar__trailing > button
+    ) {
+    transition: none;
+  }
+}
