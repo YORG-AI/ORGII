@@ -63,8 +63,8 @@ export interface ResolvedSessionWorkstationContext {
 }
 
 function normalizeHarnessName(value: string): string {
-  const withoutClientSuffix = value.replace(/(?:\s+(?:App|CLI))+$/u, "").trim();
-  return withoutClientSuffix === "Claude Code" ? "Claude" : withoutClientSuffix;
+  const conciseName = value.replace(/(?:\s+(?:App|CLI|Harness))+$/u, "").trim();
+  return conciseName === "Claude Code" ? "Claude" : conciseName;
 }
 
 function resolveHarnessIconId(
@@ -238,7 +238,7 @@ const ConnectedSessionWorkstationRail: React.FC<
     agentHarness: context.agentHarness
       ? {
           icon: context.agentHarness.icon,
-          label: t("common:workstation.sessionHarness", {
+          label: t("common:workstation.sessionAgent", {
             name: context.agentHarness.name,
           }),
         }
@@ -312,7 +312,7 @@ const SessionWorkstationRail: React.FC<SessionWorkstationRailProps> = ({
     agentHarness: context.agentHarness
       ? {
           icon: context.agentHarness.icon,
-          label: t("common:workstation.sessionHarness", {
+          label: t("common:workstation.sessionAgent", {
             name: context.agentHarness.name,
           }),
         }

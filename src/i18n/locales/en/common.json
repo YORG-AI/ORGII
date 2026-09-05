@@ -973,7 +973,7 @@
     "switchLocalBranchTooltip": "Switch local branch",
     "sessionEnvCloud": "Cloud",
     "sessionEnvLocal": "Local",
-    "sessionHarness": "{{name}} Harness",
+    "sessionAgent": "{{name}}",
     "gitActionsTooltip": "Git actions",
     "switchToSessionRepo": "Switch to {{name}}",
     "embeddingProgress": "Embedding: {{count}} chunks processed",

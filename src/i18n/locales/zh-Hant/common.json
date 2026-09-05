@@ -1085,7 +1085,7 @@
     "switchLocalBranchTooltip": "切換本地分支",
     "sessionEnvCloud": "雲",
     "sessionEnvLocal": "本地",
-    "sessionHarness": "{{name}} Harness",
+    "sessionAgent": "{{name}}",
     "gitActionsTooltip": "Git 操作",
     "switchToSessionRepo": "切換到 {{name}}",
     "embeddingProgress": "嵌入：已處理 {{count}} 個 chunk",

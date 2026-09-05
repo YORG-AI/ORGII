@@ -1072,7 +1072,7 @@
     "switchLocalBranchTooltip": "로컬 브랜치 전환",
     "sessionEnvCloud": "클라우드",
     "sessionEnvLocal": "로컬",
-    "sessionHarness": "{{name}} Harness",
+    "sessionAgent": "{{name}}",
     "gitActionsTooltip": "Git 작업",
     "switchToSessionRepo": "{{name}}(으)로 전환",
     "embeddingProgress": "Embedding: {{count}}개 청크 처리됨",

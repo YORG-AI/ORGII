@@ -1073,7 +1073,7 @@
     "switchLocalBranchTooltip": "Cambiar de rama local",
     "sessionEnvCloud": "Nube",
     "sessionEnvLocal": "Local",
-    "sessionHarness": "{{name}} Harness",
+    "sessionAgent": "{{name}}",
     "gitActionsTooltip": "Acciones de Git",
     "switchToSessionRepo": "Cambiar a {{name}}",
     "embeddingProgress": "Embedding: {{count}} chunks procesados",

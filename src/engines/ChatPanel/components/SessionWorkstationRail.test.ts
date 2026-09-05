@@ -8,6 +8,7 @@ describe("resolveSessionWorkstationContext", () => {
   it.each([
     ["codex", "Codex"],
     ["claude_code", "Claude"],
+    ["deepseek_harness", "Deepseek"],
     ["opencode", "OpenCode"],
   ] as const)(
     "shows the persisted %s CLI as the session harness",

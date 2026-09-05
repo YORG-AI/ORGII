@@ -1072,7 +1072,7 @@
     "switchLocalBranchTooltip": "Chuyển nhánh cục bộ",
     "sessionEnvCloud": "Đám mây",
     "sessionEnvLocal": "Cục bộ",
-    "sessionHarness": "{{name}} Harness",
+    "sessionAgent": "{{name}}",
     "gitActionsTooltip": "Thao tác Git",
     "switchToSessionRepo": "Chuyển sang {{name}}",
     "embeddingProgress": "Embedding: đã xử lý {{count}} chunk",

@@ -1077,7 +1077,7 @@
     "switchLocalBranchTooltip": "Przełącz lokalną gałąź",
     "sessionEnvCloud": "Cloud",
     "sessionEnvLocal": "Lokalna",
-    "sessionHarness": "{{name}} Harness",
+    "sessionAgent": "{{name}}",
     "gitActionsTooltip": "Akcje Git",
     "switchToSessionRepo": "Przełącz na {{name}}",
     "embeddingProgress": "Embedding: przetworzono {{count}} fragmentów",

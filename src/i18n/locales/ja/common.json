@@ -1072,7 +1072,7 @@
     "switchLocalBranchTooltip": "ローカルブランチを切り替え",
     "sessionEnvCloud": "クラウド",
     "sessionEnvLocal": "ローカル",
-    "sessionHarness": "{{name}} Harness",
+    "sessionAgent": "{{name}}",
     "gitActionsTooltip": "Git アクション",
     "switchToSessionRepo": "{{name}} に切り替え",
     "embeddingProgress": "Embedding: {{count}} チャンク処理済み",

@@ -1077,7 +1077,7 @@
     "switchLocalBranchTooltip": "Сменить локальную ветку",
     "sessionEnvCloud": "Облако",
     "sessionEnvLocal": "Локально",
-    "sessionHarness": "{{name}} Harness",
+    "sessionAgent": "{{name}}",
     "gitActionsTooltip": "Действия Git",
     "switchToSessionRepo": "Переключиться на {{name}}",
     "embeddingProgress": "Embedding: обработано чанков — {{count}}",

@@ -1074,7 +1074,7 @@
     "switchLocalBranchTooltip": "Yerel dalı değiştir",
     "sessionEnvCloud": "Cloud",
     "sessionEnvLocal": "Yerel",
-    "sessionHarness": "{{name}} Harness",
+    "sessionAgent": "{{name}}",
     "gitActionsTooltip": "Git eylemleri",
     "switchToSessionRepo": "{{name}} konumuna geç",
     "embeddingProgress": "Embedding: {{count}} chunk işlendi",
