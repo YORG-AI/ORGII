@@ -1,21 +1,19 @@
 /**
  * SidebarChromeIconButton
  *
- * The sidebar header's icon control: a 28px button with the chat pane
- * header's 8px radius, on the sidebar's own hover token. Counterpart of `TabBarTrailingIconButton`, which is the
- * same control in the chat pane's tokens; chrome that can sit over either
- * surface picks one or the other by host.
+ * The sidebar header's icon control. It is the chat pane header's own
+ * `Button` (tertiary, small, icon-only: 28px, 8px radius) with a single
+ * difference — the hover fill is the sidebar's token — so chrome drawn over
+ * either surface shares one exact shape and size.
  */
 import React, { memo } from "react";
 
+import Button from "@src/components/Button";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 
-// Same 8px radius as `Button` (the chat pane header's control), so chrome on
-// either surface shares one shape; only the hover token differs.
-export const SIDEBAR_CHROME_ICON_BUTTON_CLASS =
-  "flex h-[28px] w-[28px] items-center justify-center rounded-lg border-none bg-transparent p-0 text-text-2 transition-colors duration-150";
-const ENABLED_CLASS = "cursor-pointer hover:bg-sidebar-selected";
-const DISABLED_CLASS = "cursor-default opacity-40";
+/** Swap the tertiary button's hover fill for the sidebar's selected-row token. */
+export const SIDEBAR_CHROME_BUTTON_HOVER_CLASS =
+  "enabled:hover:bg-sidebar-selected! enabled:active:bg-sidebar-selected!";
 
 export interface SidebarChromeIconButtonProps extends Omit<
   React.ButtonHTMLAttributes<HTMLButtonElement>,
@@ -38,7 +36,6 @@ export const SidebarChromeIconButton: React.FC<SidebarChromeIconButtonProps> =
       tooltipPosition = "bottom",
       className = "",
       children,
-      disabled = false,
       ...buttonProps
     }) => (
       <ToolbarTooltip
@@ -46,18 +43,17 @@ export const SidebarChromeIconButton: React.FC<SidebarChromeIconButtonProps> =
         shortcutId={shortcutId}
         position={tooltipPosition}
       >
-        <button
-          type="button"
-          className={`${SIDEBAR_CHROME_ICON_BUTTON_CLASS} ${
-            disabled ? DISABLED_CLASS : ENABLED_CLASS
-          } ${className}`.trim()}
+        <Button
+          htmlType="button"
+          variant="tertiary"
+          size="small"
+          iconOnly
+          className={`${SIDEBAR_CHROME_BUTTON_HOVER_CLASS} ${className}`.trim()}
           aria-label={buttonProps["aria-label"] ?? title}
-          disabled={disabled}
           onClick={onClick}
+          icon={children}
           {...buttonProps}
-        >
-          {children}
-        </button>
+        />
       </ToolbarTooltip>
     )
   );

@@ -19,7 +19,8 @@ import { useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import AnyIcon from "@src/components/AnyIcon";
-import { SIDEBAR_CHROME_ICON_BUTTON_CLASS } from "@src/components/SidebarChromeIconButton";
+import Button from "@src/components/Button";
+import { SIDEBAR_CHROME_BUTTON_HOVER_CLASS } from "@src/components/SidebarChromeIconButton";
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import {
@@ -312,22 +313,29 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
                   showArrow={false}
                   framedPanel={!!addTooltipContent}
                 >
-                  <button
-                    type="button"
-                    className={`${SIDEBAR_CHROME_ICON_BUTTON_CLASS} cursor-pointer hover:bg-sidebar-selected`}
-                    onClick={onAddNew}
-                    aria-label={
-                      addLabel ?? i18next.t("navigation:sidebar.actions.addNew")
-                    }
-                  >
-                    <AnyIcon
-                      icon={AddIcon}
-                      size={16}
-                      strokeWidth={2}
-                      className="text-text-2"
-                      style={iconThemeStyle}
+                  <span className="inline-flex">
+                    <Button
+                      htmlType="button"
+                      variant="tertiary"
+                      size="small"
+                      iconOnly
+                      className={SIDEBAR_CHROME_BUTTON_HOVER_CLASS}
+                      onClick={onAddNew}
+                      aria-label={
+                        addLabel ??
+                        i18next.t("navigation:sidebar.actions.addNew")
+                      }
+                      icon={
+                        <AnyIcon
+                          icon={AddIcon}
+                          size={16}
+                          strokeWidth={2}
+                          className="text-text-2"
+                          style={iconThemeStyle}
+                        />
+                      }
                     />
-                  </button>
+                  </span>
                 </Tooltip>
               </div>
             )}
