@@ -123,7 +123,7 @@ describe("CanvasRevisionActivity", () => {
     expect(markup).toContain('class="min-w-0 truncate"');
   });
 
-  it("opens the corresponding Canvas only from the Agent Station arrow", () => {
+  it("opens the corresponding Canvas from the arrow or non-expandable row", () => {
     testState.locate.mockReset();
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -152,8 +152,8 @@ describe("CanvasRevisionActivity", () => {
 
     const header = container.querySelector<HTMLElement>(".chat-block-header");
     act(() => header?.click());
-    expect(testState.locate).toHaveBeenCalledTimes(1);
-    expect(header?.classList.contains("cursor-default")).toBe(true);
+    expect(testState.locate).toHaveBeenCalledTimes(2);
+    expect(header?.classList.contains("cursor-pointer")).toBe(true);
 
     act(() => root.unmount());
     container.remove();

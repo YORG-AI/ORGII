@@ -326,7 +326,7 @@ describe("ChatPanelTabBar", () => {
         onNewProject: vi.fn(),
         onNewWorkItem: vi.fn(),
         onOpenSideChat: vi.fn(),
-        recentlyClosedTabs: [
+        recentTabs: [
           {
             id: "closed-chat",
             type: "session",
@@ -334,7 +334,7 @@ describe("ChatPanelTabBar", () => {
             sessionId: "codexapp-closed-chat",
           },
         ],
-        onRestoreTab: vi.fn(),
+        onOpenRecentTab: vi.fn(),
         onClose: vi.fn(),
       })
     );
@@ -344,8 +344,8 @@ describe("ChatPanelTabBar", () => {
     expect(markup).toContain("sessions:creator.createTarget.project");
     expect(markup).toContain("chat.startPage.newWorkItem.title");
     expect(markup).toContain("sessions:chat.sideChat.title");
-    expect(markup).toContain("navigation:workstation.plusMenu.recentlyClosed");
-    expect(markup).toContain('data-recently-closed-tab-id="closed-chat"');
+    expect(markup).toContain("navigation:workstation.plusMenu.recent");
+    expect(markup).toContain('data-recent-tab-id="closed-chat"');
     expect(markup).toContain(
       'data-session-identity-icon="codexapp-closed-chat"'
     );

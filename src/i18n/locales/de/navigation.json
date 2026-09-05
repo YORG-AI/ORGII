@@ -350,7 +350,7 @@
       "newPrivateBrowserTab": "Neuer privater Browser-Tab",
       "workItems": "Arbeitsaufgaben",
       "projects": "Projekte",
-      "recentlyClosed": "Kürzlich"
+      "recent": "Kürzlich"
     }
   },
   "collaboration": {

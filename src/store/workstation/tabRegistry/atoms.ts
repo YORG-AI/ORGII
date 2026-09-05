@@ -21,15 +21,15 @@ import {
   closeWorkstationTabsAtom,
   openTab as openTabMutation,
   presentedWorkstationWorkspaceKeyAtom,
+  recentWorkstationTabsAtom,
   reorderTabs as reorderTabsMutation,
   switchTab as switchTabMutation,
   workstationLayoutAtom,
 } from "../tabs";
 import {
-  recentlyClosedWorkstationTabsAtom,
-  recordRecentlyClosedWorkstationTabsAtom,
-  removeRecentlyClosedWorkstationTabAtom,
-} from "../tabs/recentlyClosedTabs";
+  recordRecentWorkstationTabAtom,
+  removeRecentWorkstationTabAtom,
+} from "../tabs/recentTabs";
 import { requestNewBrowserSessionAtom } from "../workstationTabBarAtoms";
 import type {
   TabCloseOtherRequest,
@@ -106,13 +106,14 @@ export const closeTabAtom = atom(null, (get, set, request: TabCloseRequest) => {
     layout.mainPane.tabs.length === 1 &&
     layout.mainPane.tabs[0]?.id === request.tabId &&
     layout.mainPane.tabs[0].type === "start";
-  set(recordRecentlyClosedWorkstationTabsAtom, [tab]);
+  const workspace = get(presentedWorkstationWorkspaceKeyAtom);
   closePresentedTabs(
     get,
     set,
     closeTabMutation(layout.mainPane, request.tabId),
     layout.mainPane
   );
+  set(recordRecentWorkstationTabAtom, { workspace, tab });
   if (closesSoleLaunchpad) {
     set(chatPanelMaximizedAtom, true);
   }
@@ -185,11 +186,14 @@ export const closeOtherTabsAtom = atom(
     if (!layout) return;
     const nextPane = closeOtherTabsMutation(layout.mainPane, request.keepTabId);
     const nextIds = new Set(nextPane.tabs.map((tab) => tab.id));
-    set(
-      recordRecentlyClosedWorkstationTabsAtom,
-      layout.mainPane.tabs.filter((tab) => !nextIds.has(tab.id))
+    const closedTabs = layout.mainPane.tabs.filter(
+      (tab) => !nextIds.has(tab.id)
     );
+    const workspace = get(presentedWorkstationWorkspaceKeyAtom);
     closePresentedTabs(get, set, nextPane, layout.mainPane);
+    for (const tab of closedTabs) {
+      set(recordRecentWorkstationTabAtom, { workspace, tab });
+    }
   }
 );
 closeOtherTabsAtom.debugLabel = "closeOtherTabsAtom";
@@ -199,24 +203,26 @@ export const closeSavedTabsAtom = atom(null, (get, set) => {
   if (!layout) return;
   const nextPane = closeSavedTabsMutation(layout.mainPane);
   const nextIds = new Set(nextPane.tabs.map((tab) => tab.id));
-  set(
-    recordRecentlyClosedWorkstationTabsAtom,
-    layout.mainPane.tabs.filter((tab) => !nextIds.has(tab.id))
-  );
+  const closedTabs = layout.mainPane.tabs.filter((tab) => !nextIds.has(tab.id));
+  const workspace = get(presentedWorkstationWorkspaceKeyAtom);
   closePresentedTabs(get, set, nextPane, layout.mainPane);
+  for (const tab of closedTabs) {
+    set(recordRecentWorkstationTabAtom, { workspace, tab });
+  }
 });
 closeSavedTabsAtom.debugLabel = "closeSavedTabsAtom";
 
-/** Restore a closed tab into the currently presented My Station workspace. */
-export const restoreRecentlyClosedWorkstationTabAtom = atom(
+/** Focus an open recent tab or restore it into the presented workspace. */
+export const openRecentWorkstationTabAtom = atom(
   null,
   (get, set, tabId: string): string | null => {
-    const tab = get(recentlyClosedWorkstationTabsAtom).find(
+    const tab = get(recentWorkstationTabsAtom).find(
       (candidate) => candidate.id === tabId
     );
     if (!tab) return null;
     const layout = get(workstationLayoutAtom);
     if (!layout) return null;
+    const workspace = get(presentedWorkstationWorkspaceKeyAtom);
     const isAlreadyOpen = layout.mainPane.tabs.some(
       (candidate) => candidate.id === tab.id
     );
@@ -232,9 +238,8 @@ export const restoreRecentlyClosedWorkstationTabAtom = atom(
       );
     }
 
-    set(removeRecentlyClosedWorkstationTabAtom, tabId);
+    set(removeRecentWorkstationTabAtom, { workspace, tabId });
     return tab.id;
   }
 );
-restoreRecentlyClosedWorkstationTabAtom.debugLabel =
-  "restoreRecentlyClosedWorkstationTabAtom";
+openRecentWorkstationTabAtom.debugLabel = "openRecentWorkstationTabAtom";

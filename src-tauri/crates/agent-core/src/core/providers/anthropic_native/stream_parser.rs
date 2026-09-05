@@ -425,9 +425,9 @@ fn handle_error_event(
 ///
 /// The block list preserves the source-order interleave Anthropic emitted;
 /// `tool_calls` is the order-insensitive flat copy used by message-history
-/// consumers. Empty text/thinking segments and malformed tool calls
-/// (missing id/name from stream interruption) are dropped — they carry
-/// no information and would only pollute the UI.
+/// consumers. Empty text/thinking segments are omitted from visible blocks,
+/// but signed thinking (including empty summaries) is retained on tool calls
+/// for replay. Malformed tool calls missing id/name are dropped.
 pub(super) fn finalize_blocks(
     state: &mut StreamState,
 ) -> (Vec<AssistantBlock>, Vec<ToolCallRequest>) {
@@ -447,15 +447,15 @@ pub(super) fn finalize_blocks(
                 }
             }
             BlockAcc::Thinking { text, signature } => {
+                if let Some(sig) = signature {
+                    pending_anthropic_thinking = Some(serde_json::json!({
+                        "anthropic": {
+                            "thinking": text,
+                            "signature": sig,
+                        }
+                    }));
+                }
                 if !text.is_empty() {
-                    if let Some(sig) = signature {
-                        pending_anthropic_thinking = Some(serde_json::json!({
-                            "anthropic": {
-                                "thinking": text,
-                                "signature": sig,
-                            }
-                        }));
-                    }
                     blocks.push(AssistantBlock::Reasoning { text });
                 }
             }

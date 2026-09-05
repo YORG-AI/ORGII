@@ -15,5 +15,5 @@ export {
   closeOtherTabsAtom,
   closeSavedTabsAtom,
   reorderTabAtom,
-  restoreRecentlyClosedWorkstationTabAtom,
+  openRecentWorkstationTabAtom,
 } from "./atoms";

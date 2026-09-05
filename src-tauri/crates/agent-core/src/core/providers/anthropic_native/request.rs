@@ -9,6 +9,8 @@
 
 use serde_json::{json, Value};
 
+use crate::providers::model_capabilities::is_claude_fable_5_1;
+
 use super::client::{AnthropicAuthMode, AnthropicClient};
 use super::messages::extract_system;
 use super::thinking::build_thinking_params;
@@ -51,7 +53,8 @@ pub(super) fn prepare_request(
     let parsed = crate::providers::thinking_mode::parse_model_variant(model);
     let resolved_model =
         crate::providers::model_hints::wire_model_name(client.provider_spec, &parsed.base_model);
-    let (system, anthropic_messages) = extract_system(messages, skip_cache_write);
+    let fable_51 = is_claude_fable_5_1(&resolved_model);
+    let (system, mut anthropic_messages) = extract_system(messages, skip_cache_write);
 
     // Extract tool_choice override (from side_query structured output)
     // before converting tools to Anthropic format.
@@ -97,8 +100,20 @@ pub(super) fn prepare_request(
     }
 
     let tool_choice = if let Some(ovr) = tool_choice_override {
-        // Forced tool_choice from structured output
-        Some(ovr)
+        if fable_51 && matches!(ovr["type"].as_str(), Some("tool" | "any")) {
+            // Forced choices return 400 on 5.1. Follow its migration guide:
+            // request auto plus an explicit instruction on the current turn.
+            // The side-query caller still validates the returned tool call.
+            let instruction = if let Some(name) = ovr["name"].as_str() {
+                format!("Call the {name} tool to answer this request. Your response must begin with that tool call; do not answer in plain text.")
+            } else {
+                "Call at least one of the available tools to answer this request. Your response must begin with a tool call; do not answer in plain text.".to_string()
+            };
+            anthropic_messages.push(json!({ "role": "system", "content": instruction }));
+            Some(json!({ "type": "auto" }))
+        } else {
+            Some(ovr)
+        }
     } else if clean_tools.is_some() {
         Some(json!({"type": "auto"}))
     } else {
@@ -137,6 +152,7 @@ const CLAUDE_OAUTH_BETA: &str = "oauth-2025-04-20";
 const INTERLEAVED_THINKING_BETA: &str = "interleaved-thinking-2025-05-14";
 const TOOL_STREAMING_BETA: &str = "fine-grained-tool-streaming-2025-05-14";
 const EFFORT_BETA: &str = "effort-2025-11-24";
+const THINKING_BINDING_BETA: &str = "thinking-binding-controls-2026-08-01";
 const CLAUDE_OAUTH_USER_AGENT: &str = "claude-cli/2.1.78 (orgii, cli)";
 
 fn claude_output_config(effort: Option<&str>) -> Option<Value> {
@@ -158,11 +174,14 @@ fn model_uses_effort_beta(model: &str, provider_name: &str) -> bool {
     )
 }
 
-/// Join a base beta list with the optional effort beta.
-fn beta_header_value(base: &[&str], effort: bool) -> String {
+/// Join base betas with the required effort and thinking-binding controls.
+fn beta_header_value(base: &[&str], effort: bool, thinking_binding: bool) -> String {
     let mut parts: Vec<&str> = base.to_vec();
     if effort {
         parts.push(EFFORT_BETA);
+    }
+    if thinking_binding && !parts.contains(&THINKING_BINDING_BETA) {
+        parts.push(THINKING_BINDING_BETA);
     }
     parts.join(",")
 }
@@ -226,7 +245,12 @@ pub(super) fn apply_headers(
     // `extra_headers` (applied below) may carry a caller-supplied
     // `anthropic-beta`; never emit our own alongside it — reqwest appends
     // rather than replaces, and a duplicated beta header breaks requests.
-    let beta_overridden = client.config.extra_headers.contains_key("anthropic-beta");
+    let thinking_binding = is_claude_fable_5_1(resolved_model);
+    let beta_overridden = client
+        .config
+        .extra_headers
+        .keys()
+        .any(|key| key.eq_ignore_ascii_case("anthropic-beta"));
     let effort = model_uses_effort_beta(resolved_model, client.provider_spec.name);
 
     req = match client.auth_mode {
@@ -235,7 +259,11 @@ pub(super) fn apply_headers(
             if !beta_overridden {
                 req = req.header(
                     "anthropic-beta",
-                    beta_header_value(&[PROMPT_CACHING_BETA, EXTENDED_CACHE_TTL_BETA], effort),
+                    beta_header_value(
+                        &[PROMPT_CACHING_BETA, EXTENDED_CACHE_TTL_BETA],
+                        effort,
+                        thinking_binding,
+                    ),
                 );
             }
             req
@@ -245,7 +273,11 @@ pub(super) fn apply_headers(
             if !beta_overridden {
                 req = req.header(
                     "anthropic-beta",
-                    beta_header_value(&[PROMPT_CACHING_BETA, EXTENDED_CACHE_TTL_BETA], effort),
+                    beta_header_value(
+                        &[PROMPT_CACHING_BETA, EXTENDED_CACHE_TTL_BETA],
+                        effort,
+                        thinking_binding,
+                    ),
                 );
             }
             req
@@ -271,6 +303,7 @@ pub(super) fn apply_headers(
                             EXTENDED_CACHE_TTL_BETA,
                         ],
                         effort,
+                        thinking_binding,
                     ),
                 );
             }
@@ -278,8 +311,28 @@ pub(super) fn apply_headers(
         }
     };
 
+    let mut custom_betas = Vec::new();
     for (key, value) in &client.config.extra_headers {
-        req = req.header(key, value);
+        if key.eq_ignore_ascii_case("anthropic-beta") {
+            custom_betas.extend(
+                value
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|part| !part.is_empty()),
+            );
+        } else {
+            req = req.header(key, value);
+        }
+    }
+    if beta_overridden {
+        // Even a custom beta list must enable the binding control serialized
+        // in the body. Emit one header, including for mixed-case config keys.
+        custom_betas.sort_unstable();
+        custom_betas.dedup();
+        req = req.header(
+            "anthropic-beta",
+            beta_header_value(&custom_betas, false, thinking_binding),
+        );
     }
     req
 }
@@ -372,11 +425,11 @@ mod tests {
     #[test]
     fn beta_header_value_appends_effort_only_when_enabled() {
         assert_eq!(
-            beta_header_value(&[PROMPT_CACHING_BETA], false),
+            beta_header_value(&[PROMPT_CACHING_BETA], false, false),
             PROMPT_CACHING_BETA
         );
         assert_eq!(
-            beta_header_value(&[PROMPT_CACHING_BETA], true),
+            beta_header_value(&[PROMPT_CACHING_BETA], true, false),
             format!("{PROMPT_CACHING_BETA},{EFFORT_BETA}")
         );
     }
@@ -388,6 +441,7 @@ mod tests {
     #[test]
     fn effort_capability_stays_in_lockstep_with_key_vault() {
         for model in [
+            "claude-fable-5-1",
             "claude-fable-5",
             "claude-opus-5",
             "claude-opus-4-8",
@@ -420,3 +474,7 @@ mod tests {
         assert!(parts.iter().all(|part| part.parse::<u64>().is_ok()));
     }
 }
+
+#[cfg(test)]
+#[path = "tests/fable51_request_tests.rs"]
+mod fable51_tests;

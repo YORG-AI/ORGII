@@ -2,8 +2,10 @@ import { createStore } from "jotai/vanilla";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
-import { workstationTabsStateAtom } from "@src/store/workstation/tabs/atoms";
-import { recentlyClosedWorkstationTabsAtom } from "@src/store/workstation/tabs/recentlyClosedTabs";
+import {
+  recentWorkstationTabsAtom,
+  workstationTabsStateAtom,
+} from "@src/store/workstation/tabs/atoms";
 import { emptyWorkstationTabsState } from "@src/store/workstation/tabs/storage";
 import type {
   WorkStationTab,
@@ -198,7 +200,7 @@ describe("browserTabsAtom shared-resource integration", () => {
 
     expect(store.get(workstationTabsStateAtom).shared.tabs).toEqual([]);
     expect(store.get(sharedBrowserTabsAtom)).toEqual([]);
-    expect(store.get(recentlyClosedWorkstationTabsAtom)).toEqual([browserTab]);
+    expect(store.get(recentWorkstationTabsAtom)).toEqual([browserTab]);
   });
 
   it("removes a browser resource globally only through the explicit owner action", () => {

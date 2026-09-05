@@ -348,7 +348,7 @@
       "newPrivateBrowserTab": "Новая приватная вкладка браузера",
       "workItems": "Рабочие задачи",
       "projects": "Проекты",
-      "recentlyClosed": "Недавние"
+      "recent": "Недавние"
     }
   },
   "collaboration": {

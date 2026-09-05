@@ -20,7 +20,9 @@
 
 use serde_json::{json, Value};
 
-use crate::providers::model_capabilities::{ModelCapabilities, ThinkingSupport};
+use crate::providers::model_capabilities::{
+    is_claude_fable_5_1, ModelCapabilities, ThinkingSupport,
+};
 use crate::providers::registry::provider_id;
 use crate::providers::thinking_mode::{
     anthropic_effort, anthropic_max_tokens_floor, anthropic_thinking_param,
@@ -83,6 +85,33 @@ pub(super) fn build_thinking_params(
             effort: None,
             temperature: Some(temperature),
             max_tokens,
+        };
+    }
+
+    if is_claude_fable_5_1(base_model) {
+        // Always-on thinking also applies to plain side queries. ORG2 rebuilds
+        // system/tools and compacts history; let the provider drop only the
+        // thinking invalidated by those changes, instead of rejecting with 400.
+        // https://platform.claude.com/docs/en/models/fable-5-1/migration-guide
+        let level = match level {
+            // Preserve saved selections from the old fallback catalog.
+            Some(ReasoningLevel::Ultracode) => Some(ReasoningLevel::Max),
+            level => level,
+        };
+        return ThinkingOutcome {
+            thinking: Some(json!({
+                "type": "adaptive",
+                "display": "summarized",
+                "block_binding": { "prefix_mismatch_behavior": "drop_block" }
+            })),
+            effort: anthropic_effort(mode, level).map(str::to_string),
+            temperature: None,
+            max_tokens: match directive {
+                ThinkingDirective::PlainText => {
+                    max_tokens.saturating_add(ALWAYS_ON_THINKING_PAD_TOKENS)
+                }
+                ThinkingDirective::Auto => max_tokens.max(ALWAYS_ON_THINKING_PAD_TOKENS + 1024),
+            },
         };
     }
 
