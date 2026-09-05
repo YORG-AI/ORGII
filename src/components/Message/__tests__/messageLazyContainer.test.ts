@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from "react";
+import { act, createElement } from "react";
 import {
   afterAll,
   afterEach,
@@ -94,5 +94,29 @@ describe("Message (lazy toast container)", () => {
     await waitForToastText("temporary");
     act(() => Message.destroy());
     expect(document.querySelector("[data-message-root]")).toBeNull();
+  });
+
+  it("omits icons from error and warning toasts", async () => {
+    await act(async () => {
+      Message.error({
+        content: "refresh failed",
+        duration: 0,
+        closable: false,
+        icon: createElement("span", { "data-testid": "error-icon" }),
+      });
+      Message.warning({
+        content: "quota is low",
+        duration: 0,
+        closable: false,
+        icon: createElement("span", { "data-testid": "warning-icon" }),
+      });
+    });
+
+    await waitForToastText("refresh failed");
+    await waitForToastText("quota is low");
+    const root = document.querySelector("[data-message-root]");
+    expect(root?.querySelector("svg")).toBeNull();
+    expect(root?.querySelector('[data-testid="error-icon"]')).toBeNull();
+    expect(root?.querySelector('[data-testid="warning-icon"]')).toBeNull();
   });
 });
