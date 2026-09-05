@@ -128,6 +128,20 @@ export function normalizeGlobalThemeId(
   );
 }
 
+/**
+ * The persisted global theme preference. `localStorage["theme"]` is the
+ * hand-off between the settings store (which writes it on every change) and
+ * the code paths that cannot read the store: startup CSS init and the native
+ * appearance sync. Falls back to the default when storage is unavailable.
+ */
+export function readStoredGlobalThemePreference(): GlobalThemePreference {
+  try {
+    return normalizeGlobalThemePreference(localStorage.getItem("theme"));
+  } catch {
+    return DEFAULT_GLOBAL_THEME_PREFERENCE;
+  }
+}
+
 export function normalizeGlobalThemePreference(
   value: string | null | undefined
 ): GlobalThemePreference {

@@ -7,8 +7,14 @@
  * loading, creating a mixed light/dark state. This utility avoids that
  * by keeping the old CSS active until the new one is fully loaded.
  */
+import {
+  type GlobalThemePreference,
+  type SystemColorScheme,
+  THEME_PREFERENCE,
+  readStoredGlobalThemePreference,
+} from "@src/config/appearance/globalThemes";
 import { syncMacosRootTint } from "@src/util/platform/macosRootTint";
-import { isWindows } from "@src/util/platform/tauri";
+import { isMacOS, isWindows } from "@src/util/platform/tauri";
 
 import { applySkinTokensForVariant } from "./applySkinTokens";
 
@@ -33,8 +39,34 @@ function isActiveThemeDark(cssPath: string): boolean {
 }
 
 /**
- * Keep CSS chrome, the active skin, and the Windows system backdrop on the same
- * color scheme.
+ * The native theme to pin for a painted variant.
+ *
+ * Tauri's `setTheme` is app-wide on macOS (it sets `NSApp.appearance`), and
+ * WKWebView derives `prefers-color-scheme` from that effective appearance. A
+ * "follow system" preference must therefore stay unpinned (`null`): pinning
+ * the resolved scheme would freeze the very media query the system mode
+ * watches, so an OS flip would never reach the app again. An explicit
+ * light/dark preference pins its own scheme so the window chrome AppKit draws
+ * — inactive traffic lights above all — matches what the page paints.
+ */
+export function resolveNativeTheme(
+  colorScheme: SystemColorScheme,
+  preference: GlobalThemePreference
+): SystemColorScheme | null {
+  return preference === THEME_PREFERENCE.SYSTEM ? null : colorScheme;
+}
+
+/**
+ * Keep CSS chrome, the active skin, and the native window appearance on the
+ * same color scheme.
+ *
+ * On macOS the window is transparent and the page paints the light theme in
+ * CSS, so without this AppKit still believes the window is whatever the OS
+ * is. macOS 26 draws the inactive traffic lights relative to that appearance
+ * — lightened in a DarkAqua window, darkened in an Aqua window — so a light
+ * page under a DarkAqua window shows white dots on white and the buttons
+ * vanish whenever another window has focus. Windows keeps pinning the
+ * resolved scheme, which is what its translucent backdrop expects.
  *
  * The skin tokens are applied here, in the same tick the new stylesheet is
  * promoted, rather than being left to React. `useAppSkin` reacts to the variant
@@ -57,10 +89,15 @@ export function syncThemeAppearance(cssPath: string): void {
   // native macOS layer mirrors (no-op off macOS).
   void syncMacosRootTint();
 
-  if (!isWindows()) return;
+  const nativeTheme = isMacOS()
+    ? resolveNativeTheme(colorScheme, readStoredGlobalThemePreference())
+    : isWindows()
+      ? colorScheme
+      : undefined;
+  if (nativeTheme === undefined) return;
 
   void import("@tauri-apps/api/window")
-    .then(({ getCurrentWindow }) => getCurrentWindow().setTheme(colorScheme))
+    .then(({ getCurrentWindow }) => getCurrentWindow().setTheme(nativeTheme))
     .catch(() => {
       // Browser previews and windows closing during a theme swap have no
       // native backdrop to synchronize.
