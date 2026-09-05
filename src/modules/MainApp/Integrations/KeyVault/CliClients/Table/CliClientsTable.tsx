@@ -142,12 +142,6 @@ const CliClientsTable: React.FC<CliClientsTableProps> = ({
     [tIntegrations]
   );
 
-  const setSingleExpandedAgent = useCallback((agent: AvailableAgent) => {
-    setExpandedAgentKeys((currentKeys) =>
-      currentKeys.includes(agent.name) ? [] : [agent.name]
-    );
-  }, []);
-
   const handleViewAgent = useCallback((agent: AvailableAgent) => {
     openAgentConfigInWorkStation({
       variant: "cli",
@@ -432,7 +426,6 @@ const CliClientsTable: React.FC<CliClientsTableProps> = ({
       rows={filtered}
       columns={columns}
       getRowKey={(agent) => agent.name}
-      onRowClick={setSingleExpandedAgent}
       expandable={expandable}
       headerHeight="tall"
       className="table-expanded-no-hover table-settings-expanded-compact"

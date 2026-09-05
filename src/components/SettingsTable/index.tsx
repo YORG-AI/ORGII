@@ -199,7 +199,7 @@ export interface SettingsTableProps<RowData> {
   /** When true, removes horizontal cell padding on outer edges (first-child left, last-child right).
    *  Use for tables nested inside SectionContainer which already provides px-4. */
   noPx?: boolean;
-  /** Row click handler. Clicks on interactive elements (buttons, links, inputs) are ignored. */
+  /** Row click handler. Non-interactive row clicks also toggle expandable rows; buttons, links, and inputs are ignored. */
   onRowClick?: (row: RowData) => void;
   /** Enable row hover highlight. Default: false */
   hover?: boolean;

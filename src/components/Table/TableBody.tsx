@@ -2,6 +2,8 @@ import { Cell, Row, flexRender } from "@tanstack/react-table";
 import React, { useState } from "react";
 
 import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
   ChevronsDownUpIcon,
   HugeiconsIcon,
   InboxIcon,
@@ -189,6 +191,20 @@ export function TableBody<T>({
         const canExpand =
           expandable?.rowExpandable?.(row.original) ?? !!expandable;
         const isExpanded = expandedRows.has(rowKey);
+        const expandIcon = settings
+          ? isExpanded
+            ? ArrowDown01Icon
+            : ArrowRight01Icon
+          : isExpanded
+            ? ChevronsDownUpIcon
+            : UnfoldMoreIcon;
+        const expandIconName = settings
+          ? isExpanded
+            ? "chevron-down"
+            : "chevron-right"
+          : isExpanded
+            ? "chevrons-down-up"
+            : "chevrons-up-down";
 
         return (
           <React.Fragment key={rowKey}>
@@ -213,7 +229,8 @@ export function TableBody<T>({
                 if (isInteractiveTableTarget(event.target)) return;
                 if (onRowClick) {
                   onRowClick(row.original, index);
-                } else if (canExpand) {
+                }
+                if (canExpand && (settings || !onRowClick)) {
                   setHoverSuppressedRowKey(rowKey);
                   toggleRowExpand(rowKey);
                 }
@@ -235,21 +252,12 @@ export function TableBody<T>({
                         aria-label={isExpanded ? "Collapse row" : "Expand row"}
                         aria-expanded={isExpanded}
                       >
-                        {isExpanded ? (
-                          <HugeiconsIcon
-                            icon={ChevronsDownUpIcon}
-                            data-icon="chevrons-down-up"
-                            size={14}
-                            className="shrink-0"
-                          />
-                        ) : (
-                          <HugeiconsIcon
-                            icon={UnfoldMoreIcon}
-                            data-icon="chevrons-up-down"
-                            size={14}
-                            className="shrink-0"
-                          />
-                        )}
+                        <HugeiconsIcon
+                          icon={expandIcon}
+                          data-icon={expandIconName}
+                          size={14}
+                          className="shrink-0"
+                        />
                       </button>
                     ) : (
                       <span

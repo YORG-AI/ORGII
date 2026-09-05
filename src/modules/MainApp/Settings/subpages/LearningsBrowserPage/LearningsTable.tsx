@@ -22,7 +22,6 @@ interface LearningsTableProps {
   expandedLearningKeys: string[];
   t: TFunction;
   onSearchChange: (value: string) => void;
-  onExpandedLearningClick: (row: LearningRecord) => void;
   onExpandedRowsChange: (keys: string[]) => void;
   onLoadMore: () => void;
   renderExpandedLearningCard: (row: LearningRecord) => React.ReactNode;
@@ -38,7 +37,6 @@ export const LearningsTable: React.FC<LearningsTableProps> = ({
   expandedLearningKeys,
   t,
   onSearchChange,
-  onExpandedLearningClick,
   onExpandedRowsChange,
   onLoadMore,
   renderExpandedLearningCard,
@@ -64,7 +62,6 @@ export const LearningsTable: React.FC<LearningsTableProps> = ({
       columns={columns}
       rows={visibleItems}
       getRowKey={(row) => row.id}
-      onRowClick={onExpandedLearningClick}
       headerHeight="tall"
       className="table-expanded-no-hover table-layout-fixed"
       expandable={{

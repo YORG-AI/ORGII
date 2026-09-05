@@ -76,7 +76,6 @@ const WorkspaceMemoryBrowser: React.FC = () => {
     handleShowIndex,
     handleDelete,
     handleClearAll,
-    setSingleExpandedFile,
     loadFileDetail,
     setExpandedFileKeys,
     setSelectedFile,
@@ -389,7 +388,6 @@ const WorkspaceMemoryBrowser: React.FC = () => {
         columns={memoryColumns}
         rows={isLoading ? [] : filteredFiles}
         getRowKey={(entry) => entry.filename}
-        onRowClick={setSingleExpandedFile}
         headerHeight="tall"
         className="table-expanded-no-hover"
         expandable={{

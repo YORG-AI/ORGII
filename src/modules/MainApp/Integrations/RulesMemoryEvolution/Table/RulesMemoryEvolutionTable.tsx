@@ -151,12 +151,6 @@ export const RulesMemoryEvolutionTable: React.FC<
     [t]
   );
 
-  const setSingleExpandedRule = (rule: PolicyInfo) => {
-    const ruleKey = getRuleKey(rule);
-    const shouldOpen = !expandedRuleKeys.includes(ruleKey);
-    setExpandedRuleKeys(shouldOpen ? [ruleKey] : []);
-  };
-
   const renderExpandedRuleCard = (rule: PolicyInfo) => (
     <InlineInfoCard>
       <div className="flex min-w-0 flex-col gap-3">
@@ -359,7 +353,6 @@ export const RulesMemoryEvolutionTable: React.FC<
                     onSelectMarkdownRule(
                       selectedRowId === ruleKey ? null : rule.name
                     );
-                    setSingleExpandedRule(rule);
                   }}
                   headerHeight="tall"
                   className="table-expanded-no-hover table-policy-fixed-layout"

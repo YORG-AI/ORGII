@@ -140,12 +140,6 @@ const CursorPluginsTab: React.FC = () => {
     };
   }, []);
 
-  const setSingleExpanded = useCallback((plugin: CursorPluginInfo) => {
-    setExpandedKeys((current) =>
-      current.includes(plugin.slug) ? [] : [plugin.slug]
-    );
-  }, []);
-
   const filtered = useMemo(() => {
     if (!searchQuery) return plugins;
     const query = searchQuery.toLowerCase();
@@ -247,7 +241,6 @@ const CursorPluginsTab: React.FC = () => {
             columns={columns}
             rows={filtered}
             getRowKey={(p) => p.slug}
-            onRowClick={setSingleExpanded}
             expandable={{
               rowExpandable: () => true,
               expandedRowKeys: expandedKeys,

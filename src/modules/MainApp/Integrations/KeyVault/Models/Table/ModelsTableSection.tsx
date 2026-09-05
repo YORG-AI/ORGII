@@ -182,16 +182,6 @@ export default function ModelsTableSection({
     [accounts, onUpdateAccountEnabledModels]
   );
 
-  const setSingleExpandedGroup = useCallback(
-    (group: IntegrationsModelGroupRow) => {
-      const rowKey = getIntegrationsGroupRowKey(group);
-      setExpandedGroupKeys((currentKeys) =>
-        currentKeys.includes(rowKey) ? [] : [rowKey]
-      );
-    },
-    []
-  );
-
   const isSearching = modelsSearchQuery.trim().length > 0;
   const expandControl =
     olderCount > 0 && !isSearching ? (
@@ -396,7 +386,6 @@ export default function ModelsTableSection({
       rows={groupRows}
       getRowKey={getIntegrationsGroupRowKey}
       expandable={expandable}
-      onRowClick={setSingleExpandedGroup}
       headerHeight="tall"
       className="table-expanded-no-hover table-settings-expanded-compact"
       searchBar={{

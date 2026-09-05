@@ -358,11 +358,6 @@ export const RoutinesTable: React.FC<RoutinesTableProps> = ({
               columns={routinesColumns}
               rows={filteredRoutines}
               getRowKey={(routine) => routine.id}
-              onRowClick={(routine) => {
-                const isExpanded = expandedKeys.includes(routine.id);
-                setExpandedKeys(isExpanded ? [] : [routine.id]);
-                onSelectRoutine(isExpanded ? null : routine.id);
-              }}
               rowClassName={selectedRowClassName(
                 (routine: RoutineDefinition) => routine.id,
                 selectedRowId
