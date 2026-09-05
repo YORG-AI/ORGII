@@ -24,6 +24,11 @@ pub use client::OpenAIResponsesClient;
 pub(crate) fn direct_openai_model_prefers_responses(model: &str) -> bool {
     let model_lower = model.to_lowercase();
 
+    // Astra tool calling requires Responses, including for effort variants.
+    if model_lower.contains("gpt-6-astra") {
+        return true;
+    }
+
     if !model_lower.contains("gpt-5") {
         return false;
     }

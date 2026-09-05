@@ -458,6 +458,31 @@ mod tests {
 
     #[test]
     #[serial]
+    fn astra_uses_responses_directly_and_preserves_custom_endpoint_policy() {
+        openai_capability_cache().clear();
+        let model = "gpt-6-astra-high";
+        assert_eq!(
+            resolve_openai_endpoint_policy(openai_spec(), Some("astra-direct"), None, model),
+            OpenAiEndpointPolicy::Responses
+        );
+        let custom = resolve_openai_endpoint_policy(
+            openai_spec(),
+            Some("astra-relay"),
+            Some("https://relay.example/v1"),
+            model,
+        );
+        assert!(matches!(
+            custom,
+            OpenAiEndpointPolicy::ChatCompletions(OpenAiChatWirePolicy {
+                token_limit_field: ChatTokenLimitField::MaxCompletionTokens,
+                send_temperature: false,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    #[serial]
     fn custom_base_url_defaults_to_chat_even_for_future_model_alias() {
         openai_capability_cache().clear();
         let policy = resolve_openai_endpoint_policy(

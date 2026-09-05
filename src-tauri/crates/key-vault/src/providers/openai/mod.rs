@@ -18,7 +18,7 @@ const DEFAULT_API_URL: &str = "https://api.openai.com";
 const DEFAULT_TIMEOUT_SECS: u64 = 15;
 
 // Per-provider model prefixes to filter out fine-tuned / irrelevant models.
-const OPENAI_MODEL_PREFIXES: &[&str] = &["gpt-4", "gpt-5", "codex", "o1", "o3", "o4"];
+const OPENAI_MODEL_PREFIXES: &[&str] = &["gpt-4", "gpt-5", "gpt-6", "codex", "o1", "o3", "o4"];
 const DEEPSEEK_MODEL_PREFIXES: &[&str] = &["deepseek"];
 const GROQ_MODEL_PREFIXES: &[&str] = &["llama", "mixtral", "gemma", "qwen", "deepseek", "mistral"];
 
@@ -277,6 +277,16 @@ impl OpenAIValidator {
             .await
             .map_err(|e| format!("Failed to parse response: {}", e))?;
 
+        Ok(Self::filter_models(data, base_url.is_some(), provider))
+    }
+
+    /// Project the discovery response into the model ids and context metadata
+    /// stored by validation. Custom endpoints retain their full catalog.
+    fn filter_models(
+        data: ModelsResponse,
+        has_custom_url: bool,
+        provider: Option<&str>,
+    ) -> (Vec<String>, HashMap<String, u64>) {
         let models = data.data;
         let mut all_ids: Vec<String> = Vec::with_capacity(models.len());
         let mut contexts: HashMap<String, u64> = HashMap::new();
@@ -287,7 +297,6 @@ impl OpenAIValidator {
             all_ids.push(m.id);
         }
 
-        let has_custom_url = base_url.is_some();
         let (useful_ids, useful_contexts) = if has_custom_url {
             (all_ids, contexts)
         } else {
@@ -312,7 +321,7 @@ impl OpenAIValidator {
             }
         };
 
-        Ok((useful_ids, useful_contexts))
+        (useful_ids, useful_contexts)
     }
 
     /// Verify the API key by sending a minimal chat completion request.

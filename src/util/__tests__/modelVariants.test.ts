@@ -7,6 +7,22 @@ import {
 } from "../modelVariants";
 
 describe("parseModelVariant", () => {
+  it("preserves Astra as the base across all reasoning and speed variants", () => {
+    for (const effort of ["low", "medium", "high", "xhigh", "max", "ultra"]) {
+      for (const fast of [false, true]) {
+        const model = `gpt-6-astra-${effort}${fast ? "-fast" : ""}`;
+        expect(parseModelVariant(model)).toMatchObject({
+          model,
+          baseModel: "gpt-6-astra",
+          reasoning: effort === "xhigh" ? "extra_high" : effort,
+          fast,
+          thinking: false,
+        });
+      }
+    }
+    expect(parseModelVariant("gpt-6-astra")).toBeUndefined();
+  });
+
   it("parses GPT reasoning and fast variants", () => {
     expect(parseModelVariant("gpt-5.5-high-fast")).toEqual({
       model: "gpt-5.5-high-fast",

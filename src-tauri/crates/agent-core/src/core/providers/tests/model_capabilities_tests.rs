@@ -101,6 +101,24 @@ fn sonnet_4_6_is_1m() {
 // ── OpenAI family ──
 
 #[test]
+fn astra_has_reasoning_and_a_1050k_context_including_variants_and_aliases() {
+    for model in [
+        "gpt-6-astra",
+        "gpt-6-astra-ultra-fast",
+        "openai/gpt-6-astra-high",
+    ] {
+        let caps = resolve(model, None);
+        assert_eq!(caps.thinking, ThinkingSupport::AlwaysOn, "{model}");
+        assert_eq!(caps.context_window, 1_050_000, "{model}");
+        assert_eq!(
+            classify_family(model, "openrouter"),
+            ModelFamily::OpenAi,
+            "{model}"
+        );
+    }
+}
+
+#[test]
 fn gpt5_is_always_on() {
     let caps = resolve("gpt-5-2025-06-01", None);
     assert_eq!(caps.thinking, ThinkingSupport::AlwaysOn);
