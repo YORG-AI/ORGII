@@ -17,6 +17,7 @@ import {
   chatWidthAtom,
   stationChatVisibilityAtom,
 } from "@src/store/ui/chatPanelAtom";
+import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { chatPanelPositionAtom } from "@src/store/ui/workStationAtom";
 import { isMacOS } from "@src/util/platform/tauri";
 
@@ -69,6 +70,22 @@ export function usePinnedWorkbenchChromeVisible(): boolean {
   return isMacOS() && isPinnedWorkbenchChromePath(location.pathname);
 }
 
+/**
+ * Whether the chat pane is showing for the station currently on screen —
+ * the layout's own rule. Visibility is stored per station (My Station /
+ * Agent Station), so reading a fixed key would go blind in the other one.
+ */
+export function useCurrentStationChatVisible(): boolean {
+  const stationMode = useAtomValue(stationModeAtom);
+  const stationChatVisibility = useAtomValue(stationChatVisibilityAtom);
+  const chatWidth = useAtomValue(chatWidthAtom);
+  const visible =
+    stationMode in stationChatVisibility
+      ? stationChatVisibility[stationMode as keyof typeof stationChatVisibility]
+      : false;
+  return visible && chatWidth > 0;
+}
+
 export type WorkbenchRightEdgeOwner = "chat" | "workstation";
 
 export interface WorkbenchRightEdgeReservation {
@@ -81,12 +98,10 @@ export interface WorkbenchRightEdgeReservation {
 /** Who reserves the right edge for the pinned group, and how much. */
 export function useWorkbenchRightEdgeReservation(): WorkbenchRightEdgeReservation {
   const pinned = usePinnedWorkbenchChromeVisible();
-  const stationChatVisibility = useAtomValue(stationChatVisibilityAtom);
-  const chatWidth = useAtomValue(chatWidthAtom);
+  const chatVisible = useCurrentStationChatVisible();
   const chatPanelPosition = useAtomValue(chatPanelPositionAtom);
   const chatPanelMaximized = useAtomValue(chatPanelMaximizedAtom);
   if (!pinned) return { owner: null, reservedRight: 0 };
-  const chatVisible = stationChatVisibility["my-station"] && chatWidth > 0;
   const owner: WorkbenchRightEdgeOwner =
     chatPanelMaximized || (chatVisible && chatPanelPosition === "right")
       ? "chat"

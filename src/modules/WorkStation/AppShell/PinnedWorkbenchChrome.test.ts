@@ -25,6 +25,7 @@ import {
   chatPanelMaximizedAtom,
   chatWidthAtom,
 } from "@src/store/ui/chatPanelAtom";
+import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import {
   createInstrumentedStore,
   resetInstrumentedStore,
@@ -155,6 +156,21 @@ describe("PinnedWorkbenchChrome", () => {
     expect(query("pinned-workbench-chrome-chat-visibility")).not.toBeNull();
     expect(query("pinned-workbench-chrome-maximize-chat")).toBeNull();
     expect(query("pinned-workbench-chrome")?.childElementCount).toBe(1);
+  });
+
+  it("follows the station on screen: Agent Station keeps its maximize toggle", () => {
+    render();
+    act(() => {
+      // My Station's chat is hidden; Agent Station's is showing.
+      store.set(activeStationChatVisibleAtom, "my-station", false);
+      store.set(stationModeAtom, "agent-station");
+      store.set(activeStationChatVisibleAtom, "agent-station", true);
+      store.set(chatPanelMaximizedAtom, false);
+    });
+
+    expect(query("pinned-workbench-chrome-chat-visibility")).not.toBeNull();
+    expect(query("pinned-workbench-chrome-maximize-chat")).not.toBeNull();
+    expect(query("pinned-workbench-chrome")?.childElementCount).toBe(2);
   });
 
   it("reserves inset, the visible slots, and gaps for hosts", () => {

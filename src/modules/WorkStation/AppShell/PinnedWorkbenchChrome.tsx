@@ -16,6 +16,7 @@ import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailing
 import {
   PINNED_WORKBENCH_CHROME_CENTER_TOP,
   PINNED_WORKBENCH_CHROME_RIGHT_INSET,
+  useCurrentStationChatVisible,
   usePinnedWorkbenchChromeVisible,
 } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
 import {
@@ -35,8 +36,6 @@ import {
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
   chatPanelMaximizedAtom,
-  chatWidthAtom,
-  stationChatVisibilityAtom,
   toggleChatPanelMaximizedAtom,
 } from "@src/store/ui/chatPanelAtom";
 import { chatPanelPositionAtom } from "@src/store/ui/workStationAtom";
@@ -46,8 +45,7 @@ import { WorkstationMaximizeChatIcon } from "./useWorkstationTrailingSlot";
 const PinnedWorkbenchChromeComponent: React.FC = () => {
   const { t } = useTranslation("sessions");
   const visible = usePinnedWorkbenchChromeVisible();
-  const stationChatVisibility = useAtomValue(stationChatVisibilityAtom);
-  const chatWidth = useAtomValue(chatWidthAtom);
+  const isChatPanelVisible = useCurrentStationChatVisible();
   const chatPanelPosition = useAtomValue(chatPanelPositionAtom);
   const chatPanelMaximized = useAtomValue(chatPanelMaximizedAtom);
   const activeTab = useAtomValue(activeChatPanelTabAtom);
@@ -70,8 +68,6 @@ const PinnedWorkbenchChromeComponent: React.FC = () => {
 
   if (!visible) return null;
 
-  const isChatPanelVisible =
-    stationChatVisibility["my-station"] && chatWidth > 0;
   const stationAvailable = isChatPanelTabStationAvailable(activeTab);
 
   // Slot A: hide / restore the chat pane. Meaningless while the chat is
