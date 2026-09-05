@@ -418,17 +418,21 @@ const SessionCreatorChatPanelView: React.FC<
       onClick={onCategoryPickerOpen}
     />
   );
+  const launchpadActionPresentation = isCenteredComposer ? "pill" : "card";
+  const groupAgentHeroWithLaunchpadActions =
+    launchpadActionPresentation === "card" && !hideWorkItemAttachmentControl;
   const launchpadSuggestionContent = hideWorkItemAttachmentControl ? (
     heroFooterSlot
   ) : (
     <LaunchpadActionGrid
       className="mx-auto w-full"
       layoutActionCount={Children.count(heroFooterSlot) + 1}
-      presentation={isCenteredComposer ? "pill" : "card"}
+      presentation={launchpadActionPresentation}
       collapsible
       controlAlignment="center"
       collapseLabel={t("common:actions.collapse")}
       expandLabel={t("common:actions.expand")}
+      header={groupAgentHeroWithLaunchpadActions ? agentHero : undefined}
     >
       <WorkItemAttachmentControl
         composerInputRef={composerInputRef}
@@ -437,7 +441,7 @@ const SessionCreatorChatPanelView: React.FC<
         repoId={sessionInfoProps.repoId}
         repoPath={sessionInfoProps.repoPath}
         mode="solve"
-        presentation={isCenteredComposer ? "pill" : "card"}
+        presentation={launchpadActionPresentation}
       />
       {heroFooterSlot}
     </LaunchpadActionGrid>
@@ -458,7 +462,7 @@ const SessionCreatorChatPanelView: React.FC<
         </div>
       ) : (
         <>
-          {agentHero}
+          {!groupAgentHeroWithLaunchpadActions && agentHero}
           {!isCenteredComposer && launchpadSuggestionContent && (
             <div className="session-creator-chat-panel-launchpad-suggestions w-full">
               {launchpadSuggestionContent}

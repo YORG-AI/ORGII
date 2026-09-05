@@ -101,6 +101,46 @@ export const LaunchpadActionCard = forwardRef<
   );
 });
 
+interface LaunchpadActionGridToggleProps {
+  collapsed: boolean;
+  collapseLabel: string;
+  controls: string;
+  expandLabel: string;
+  onClick: () => void;
+  testId: string;
+}
+
+function LaunchpadActionGridToggle({
+  collapsed,
+  collapseLabel,
+  controls,
+  expandLabel,
+  onClick,
+  testId,
+}: LaunchpadActionGridToggleProps): React.ReactNode {
+  return (
+    <Button
+      variant="tertiary"
+      size="mini"
+      shape="circle"
+      icon={
+        <HugeiconsIcon
+          icon={collapsed ? EllipsisIcon : ArrowUp01Icon}
+          data-icon={collapsed ? "ellipsis" : "chevron-up"}
+          size={14}
+          strokeWidth={1.8}
+        />
+      }
+      iconOnly
+      aria-label={collapsed ? expandLabel : collapseLabel}
+      aria-controls={controls}
+      aria-expanded={!collapsed}
+      onClick={onClick}
+      data-testid={testId}
+    />
+  );
+}
+
 interface LaunchpadActionGridProps {
   cardWidthClassName?: string;
   children?: React.ReactNode;
@@ -109,6 +149,7 @@ interface LaunchpadActionGridProps {
   collapsible?: boolean;
   controlAlignment?: "left" | "center";
   expandLabel?: string;
+  header?: React.ReactNode;
   layoutActionCount?: number;
   presentation?: LaunchpadActionPresentation;
 }
@@ -121,13 +162,16 @@ export function LaunchpadActionGrid({
   collapsible = false,
   controlAlignment = "left",
   expandLabel = "Expand",
+  header,
   layoutActionCount,
   presentation = "pill",
 }: LaunchpadActionGridProps): React.ReactNode {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isStandardCollapsed, setIsStandardCollapsed] = useState(false);
+  const [isCompactExpanded, setIsCompactExpanded] = useState(false);
   const contentId = useId();
-  const isCardGridCollapsed =
-    collapsible && presentation === "card" && isCollapsed;
+  const isCardGrid = presentation === "card";
+  const isCollapsibleCardGrid = collapsible && isCardGrid;
+  const isCardGridCollapsed = isCollapsibleCardGrid && isStandardCollapsed;
   const expandControlAlignmentClass =
     controlAlignment === "center" ? "justify-center" : "justify-start pl-2.5";
   const collapseControlAlignmentClass =
@@ -146,78 +190,94 @@ export function LaunchpadActionGrid({
       : actionCount === 3
         ? "@[440px]/startactions:grid-cols-3"
         : "";
+  const cardGridClass = isCardGrid
+    ? `${
+        isCollapsibleCardGrid ? "" : "hidden @[640px]/focusedchat:block"
+      } ${cardWidthClass}`
+    : "";
+
+  const handleCompactToggle = () => {
+    setIsStandardCollapsed(false);
+    setIsCompactExpanded((expanded) => !expanded);
+  };
+
+  const handleStandardCollapse = () => {
+    setIsCompactExpanded(false);
+    setIsStandardCollapsed(true);
+  };
 
   return (
     <div
       className={`group/launchpad-actions @container/startactions relative ${
-        presentation === "card"
-          ? `hidden @[640px]/focusedchat:block ${cardWidthClass}`
-          : ""
-      } ${className}`}
-      data-collapsed={isCardGridCollapsed ? "true" : "false"}
+        isCollapsibleCardGrid ? "launchpad-action-grid-compact" : ""
+      } ${cardGridClass} ${className}`}
+      data-compact-expanded={
+        isCollapsibleCardGrid ? String(isCompactExpanded) : undefined
+      }
     >
+      {header || isCollapsibleCardGrid ? (
+        <div
+          className={`launchpad-action-grid-header mx-auto flex w-fit max-w-full flex-col items-start gap-0.5 ${
+            header ? "mb-2" : ""
+          }`}
+        >
+          {header}
+          {isCollapsibleCardGrid ? (
+            <div className="launchpad-action-grid-compact-toggle ml-1.5 shrink-0">
+              <LaunchpadActionGridToggle
+                collapsed={!isCompactExpanded}
+                collapseLabel={collapseLabel}
+                controls={contentId}
+                expandLabel={expandLabel}
+                onClick={handleCompactToggle}
+                testId="launchpad-action-grid-compact-toggle"
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <div
         id={contentId}
         hidden={isCardGridCollapsed}
-        className={
+        className={`launchpad-action-grid-content ${
           isCardGridCollapsed
             ? "hidden"
-            : presentation === "card"
+            : isCardGrid
               ? `grid grid-cols-1 gap-2 @[300px]/startactions:grid-cols-2 ${cardColumnClass}`
               : "flex flex-wrap justify-center gap-2"
-        }
+        }`}
       >
         {children}
       </div>
-      {collapsible && presentation === "card" ? (
+      {isCollapsibleCardGrid ? (
         isCardGridCollapsed ? (
           <div
             className={`flex w-full ${expandControlAlignmentClass}`}
+            data-launchpad-action-grid-standard-control
             data-testid="launchpad-action-grid-expand-zone"
           >
-            <Button
-              variant="tertiary"
-              size="mini"
-              shape="circle"
-              icon={
-                <HugeiconsIcon
-                  icon={EllipsisIcon}
-                  data-icon="ellipsis"
-                  size={14}
-                  strokeWidth={1.8}
-                />
-              }
-              iconOnly
-              aria-label={expandLabel}
-              aria-controls={contentId}
-              aria-expanded={false}
-              onClick={() => setIsCollapsed(false)}
-              data-testid="launchpad-action-grid-expand"
+            <LaunchpadActionGridToggle
+              collapsed
+              collapseLabel={collapseLabel}
+              controls={contentId}
+              expandLabel={expandLabel}
+              onClick={() => setIsStandardCollapsed(false)}
+              testId="launchpad-action-grid-expand"
             />
           </div>
         ) : (
           <div
             className={`absolute top-full z-10 pt-1 opacity-0 transition-opacity group-focus-within/launchpad-actions:opacity-100 group-hover/launchpad-actions:opacity-100 ${collapseControlAlignmentClass}`}
+            data-launchpad-action-grid-standard-control
             data-testid="launchpad-action-grid-collapse-zone"
           >
-            <Button
-              variant="tertiary"
-              size="mini"
-              shape="circle"
-              icon={
-                <HugeiconsIcon
-                  icon={ArrowUp01Icon}
-                  data-icon="chevron-up"
-                  size={14}
-                  strokeWidth={1.8}
-                />
-              }
-              iconOnly
-              aria-label={collapseLabel}
-              aria-controls={contentId}
-              aria-expanded
-              onClick={() => setIsCollapsed(true)}
-              data-testid="launchpad-action-grid-collapse"
+            <LaunchpadActionGridToggle
+              collapsed={false}
+              collapseLabel={collapseLabel}
+              controls={contentId}
+              expandLabel={expandLabel}
+              onClick={handleStandardCollapse}
+              testId="launchpad-action-grid-collapse"
             />
           </div>
         )

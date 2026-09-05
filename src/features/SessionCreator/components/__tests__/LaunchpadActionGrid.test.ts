@@ -117,4 +117,54 @@ describe("LaunchpadActionGrid", () => {
       container.querySelector('[data-testid="launchpad-action-grid-collapse"]')
     ).not.toBeNull();
   });
+
+  it("reuses the icon disclosure control for the compact card state", () => {
+    act(() => {
+      root.render(
+        createElement(
+          LaunchpadActionGrid,
+          {
+            collapseLabel: "Hide suggestions",
+            collapsible: true,
+            expandLabel: "Show suggestions",
+            header: createElement("span", null, "ADE Manager"),
+            presentation: "card",
+          },
+          createElement(LaunchpadActionCard, {
+            action,
+            presentation: "card",
+          })
+        )
+      );
+    });
+
+    const grid = container.querySelector<HTMLElement>(
+      ".launchpad-action-grid-compact"
+    );
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="launchpad-action-grid-compact-toggle"]'
+    );
+    const header = container.querySelector<HTMLElement>(
+      ".launchpad-action-grid-header"
+    );
+
+    expect(grid?.dataset.compactExpanded).toBe("false");
+    expect(grid?.className).not.toContain("hidden @[640px]/focusedchat:block");
+    expect(header?.textContent).toContain("ADE Manager");
+    expect(header?.className).toContain("flex-col");
+    expect(header?.className).toContain("w-fit");
+    expect(header?.querySelector("button")).toBe(toggle);
+    expect(toggle?.parentElement?.className).toContain("ml-1.5");
+    expect(toggle?.getAttribute("aria-label")).toBe("Show suggestions");
+    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle?.querySelector('[data-icon="ellipsis"]')).not.toBeNull();
+    expect(container.textContent).toContain("Test action");
+
+    act(() => toggle?.click());
+
+    expect(grid?.dataset.compactExpanded).toBe("true");
+    expect(toggle?.getAttribute("aria-label")).toBe("Hide suggestions");
+    expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle?.querySelector('[data-icon="chevron-up"]')).not.toBeNull();
+  });
 });
