@@ -47,6 +47,10 @@ import {
   getCollapsedSidebarChromeOffset,
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
+import {
+  getPinnedWorkbenchChromeReservedRight,
+  useWorkbenchRightEdgeOwner,
+} from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
 import { requestTeamInboxSessionHandoffAtom } from "@src/modules/MainApp/TeamInbox/store";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 import {
@@ -221,6 +225,9 @@ export const TabBar: React.FC<TabBarProps> = memo(
     const actionSystem = useActionSystemOptional();
     const dispatch = actionSystem?.dispatch;
     const shouldOffsetLeftChrome = useShouldOffsetWorkStationTopBar();
+    // macOS pins the right-edge collapse toggles in window space; make room
+    // whenever the workstation is the pane touching that edge.
+    const rightEdgeOwner = useWorkbenchRightEdgeOwner();
 
     const scrollReveal = useAtomValue(tabScrollRevealAtom);
     const gitStatusMap = useAtomValue(gitFileStatusMapAtom);
@@ -386,6 +393,10 @@ export const TabBar: React.FC<TabBarProps> = memo(
             paddingLeft: shouldOffsetLeftChrome
               ? getCollapsedSidebarChromeOffset()
               : undefined,
+            paddingRight:
+              rightEdgeOwner === "workstation"
+                ? getPinnedWorkbenchChromeReservedRight()
+                : undefined,
             WebkitAppRegion: "drag",
           } as React.CSSProperties
         }

@@ -20,6 +20,11 @@ import {
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import {
+  getPinnedWorkbenchChromeReservedRight,
+  usePinnedWorkbenchChromeVisible,
+  useWorkbenchRightEdgeOwner,
+} from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
+import {
   ArrowExpand01Icon,
   ArrowShrink01Icon,
   BubbleChatIcon,
@@ -52,6 +57,8 @@ import { SimulatorAgentChip, StationModeChip } from "../shared";
 const AgentStationTopHeader: React.FC = memo(() => {
   const { t } = useTranslation("sessions");
   const shouldOffsetLeftChrome = useShouldOffsetWorkStationTopBar();
+  const pinnedChrome = usePinnedWorkbenchChromeVisible();
+  const rightEdgeOwner = useWorkbenchRightEdgeOwner();
   const getStationChatVisible = useAtomValue(activeStationChatVisibleAtom);
   const chatWidth = useAtomValue(chatWidthAtom);
   const chatPanelPosition = useAtomValue(chatPanelPositionAtom);
@@ -148,6 +155,10 @@ const AgentStationTopHeader: React.FC = memo(() => {
             paddingLeft: shouldOffsetLeftChrome
               ? getCollapsedSidebarChromeOffset()
               : undefined,
+            paddingRight:
+              rightEdgeOwner === "workstation"
+                ? getPinnedWorkbenchChromeReservedRight()
+                : undefined,
             WebkitAppRegion: "drag",
           } as React.CSSProperties
         }
@@ -214,7 +225,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
               )}
             </TabBarTrailingIconButton>
           )}
-          {!isSettingsRoute && isChatPanelVisible && (
+          {!isSettingsRoute && !pinnedChrome && isChatPanelVisible && (
             <TabBarTrailingIconButton
               title={hideWorkstationLabel}
               shortcutId="maximize_chat"

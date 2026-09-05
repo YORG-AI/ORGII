@@ -10,6 +10,11 @@ import Tooltip from "@src/components/Tooltip";
 import type { DropdownEnginePosition } from "@src/hooks/dropdown";
 import { getCollapsedSidebarChromeOffset } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import {
+  getPinnedWorkbenchChromeReservedRight,
+  usePinnedWorkbenchChromeVisible,
+  useWorkbenchRightEdgeOwner,
+} from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
+import {
   ArrowExpand01Icon,
   ComputerVideoIcon,
   HugeiconsIcon,
@@ -154,6 +159,15 @@ export function ChatPanelHeader({
 }: ChatPanelHeaderProps): React.ReactNode {
   const publishedHeaderSlots = useAtomValue(chatPanelHeaderSlotsAtom);
   const windowsHost = isWindows();
+  // macOS pins the maximize-chat / show-workstation toggle at the window's
+  // right edge (`PinnedWorkbenchChrome`); this header then only reserves the
+  // space while the chat pane is the one touching that edge.
+  const pinnedChrome = usePinnedWorkbenchChromeVisible();
+  const rightEdgeOwner = useWorkbenchRightEdgeOwner();
+  const trailingInsetPx =
+    rightEdgeOwner === "chat"
+      ? getPinnedWorkbenchChromeReservedRight()
+      : undefined;
   if (!showHeader) return null;
 
   const chatFocusLabel = isChatFocus
@@ -258,7 +272,7 @@ export function ChatPanelHeader({
         )}
       </div>
     ) : null;
-  const chatFocusToggleButton = (
+  const chatFocusToggleButton = pinnedChrome ? null : (
     <span className="inline-flex">
       <TabBarTrailingIconButton
         title={
@@ -434,6 +448,7 @@ export function ChatPanelHeader({
         slots={effectivePublishedHeaderSlots}
         windowsHost={windowsHost}
         hideBottomBorder={!tabRowCollapsed}
+        trailingInsetPx={trailingInsetPx}
         leadingInsetPx={
           shouldOffsetHeaderForCollapsedSidebar
             ? getCollapsedSidebarChromeOffset()
@@ -446,6 +461,7 @@ export function ChatPanelHeader({
       slots={effectivePublishedHeaderSlots}
       windowsHost={windowsHost}
       hideBottomBorder={!tabRowCollapsed}
+      trailingInsetPx={trailingInsetPx}
     />
   );
 
@@ -480,6 +496,7 @@ export function ChatPanelHeader({
               paddingLeft: shouldOffsetHeaderForCollapsedSidebar
                 ? getCollapsedSidebarChromeOffset()
                 : undefined,
+              paddingRight: trailingInsetPx,
               ...(windowsHost
                 ? CHAT_PANEL_HEADER_NO_DRAG_STYLE
                 : CHAT_PANEL_HEADER_DRAG_STYLE),

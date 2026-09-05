@@ -12,6 +12,7 @@
  * - Content: DYNAMIC (via children)
  * - ChatPanel: STABLE layer - stays mounted across view switches
  */
+import { PinnedWorkbenchChrome } from "@/src/modules/WorkStation/AppShell/PinnedWorkbenchChrome";
 import { HoverSidebar } from "@/src/scaffold/NavigationSidebar";
 import { PinnedSidebarChrome } from "@/src/scaffold/NavigationSidebar/PinnedSidebarChrome";
 import { useAtomValue } from "jotai";
@@ -364,6 +365,7 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
       <div className="flex min-h-0 min-w-0 flex-1">
         <HoverSidebar.Trigger />
         {sidebar ? <PinnedSidebarChrome /> : null}
+        <PinnedWorkbenchChrome />
         {sidebar}
 
         {floatingSidebar && (
