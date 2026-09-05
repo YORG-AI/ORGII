@@ -1,34 +1,22 @@
 /**
  * BlockOutput Styles
  *
- * Matches TerminalCommand text styling (font-size 12px, line-height 1.5).
+ * Matches the chat command/input row typography (app font, chat code size,
+ * line-height 1.5).
  * Shared by TerminalBlock, ToolCallBlock, and any block using BlockOutput.
  */
 .block-output {
-  // Pre block — match terminal-command
+  // Pre block — match the command/input row rather than terminal chrome.
   &__pre {
-    font-family: var(
-      --code-font-family,
-      "SF Mono",
-      "Menlo",
-      "Monaco",
-      "Consolas",
-      monospace
-    ) !important;
+    font-family: var(--app-font-family) !important;
     font-size: var(--chat-code-font-size, 13px) !important;
     line-height: 1.5 !important;
   }
 
-  // Line — match terminal-command / ChatCodeBlock
+  // Line — repeat the family because the global element reset assigns a
+  // font directly to nested div/span nodes.
   &__line {
-    font-family: var(
-      --code-font-family,
-      "SF Mono",
-      "Menlo",
-      "Monaco",
-      "Consolas",
-      monospace
-    );
+    font-family: var(--app-font-family);
     font-size: var(--chat-code-font-size, 13px);
     line-height: 1.5;
   }

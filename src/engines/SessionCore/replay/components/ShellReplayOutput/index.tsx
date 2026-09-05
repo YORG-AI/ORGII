@@ -362,6 +362,16 @@ const ShellReplayOutputComponent: React.FC<ShellReplayOutputProps> = ({
     variant === "chat"
       ? "simulator-shell-surface min-h-0 min-w-0 overflow-y-auto overflow-x-auto px-2 py-1"
       : "simulator-shell-surface min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-[100px] pt-2";
+  const chatTypographyVariables =
+    variant === "chat"
+      ? {
+          ["--simulator-shell-font-size" as string]:
+            "var(--chat-code-font-size, 13px)",
+          ["--simulator-shell-font-family" as string]: "var(--app-font-family)",
+          ["--simulator-shell-letter-spacing" as string]: "normal",
+          ["--simulator-shell-line-height" as string]: "1.5",
+        }
+      : undefined;
 
   return (
     <div
@@ -369,6 +379,7 @@ const ShellReplayOutputComponent: React.FC<ShellReplayOutputProps> = ({
       className={surfaceClassName}
       style={{
         ...typographyVariables,
+        ...chatTypographyVariables,
         ...(variant === "chat" ? { maxHeight: "min(320px, 30vh)" } : {}),
       }}
       onScroll={handleScroll}
