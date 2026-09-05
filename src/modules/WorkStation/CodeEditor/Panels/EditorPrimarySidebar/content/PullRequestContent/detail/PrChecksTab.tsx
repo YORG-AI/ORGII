@@ -10,65 +10,14 @@ import { useTranslation } from "react-i18next";
 import type { GitHubChecksSummary } from "@src/api/tauri/github";
 import { Placeholder } from "@src/components/Placeholder";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import {
-  CancelCircleIcon,
-  CheckmarkCircle01Icon,
-  CircleSlashIcon,
-  HugeiconsIcon,
-  Loading01Icon,
-  SquareArrowUpRight02Icon,
-} from "@src/icons";
+import { HugeiconsIcon, SquareArrowUpRight02Icon } from "@src/icons";
 import { formatTimeAgo } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
+import CiCheckStateIcon from "@src/modules/shared/components/CiCheckStateIcon";
 import {
   type CiCheckState,
   checkRunState,
   statusContextState,
 } from "@src/services/git/ciCheckState";
-
-function StateIcon({ state }: { state: CiCheckState }): React.ReactNode {
-  switch (state) {
-    case "success":
-      return (
-        <HugeiconsIcon
-          icon={CheckmarkCircle01Icon}
-          data-icon="check-circle-2"
-          size={15}
-          strokeWidth={1.9}
-          className="text-success-6"
-        />
-      );
-    case "failure":
-      return (
-        <HugeiconsIcon
-          icon={CancelCircleIcon}
-          data-icon="xcircle"
-          size={15}
-          strokeWidth={1.9}
-          className="text-danger-6"
-        />
-      );
-    case "pending":
-      return (
-        <HugeiconsIcon
-          icon={Loading01Icon}
-          data-icon="loader"
-          size={15}
-          strokeWidth={1.9}
-          className="animate-spin text-warning-6"
-        />
-      );
-    default:
-      return (
-        <HugeiconsIcon
-          icon={CircleSlashIcon}
-          data-icon="circle-slash"
-          size={15}
-          strokeWidth={1.9}
-          className="text-text-3"
-        />
-      );
-  }
-}
 
 interface CheckRowProps {
   state: CiCheckState;
@@ -89,7 +38,7 @@ function CheckRow({
   return (
     <div className="flex min-w-0 items-center gap-2.5 border-b border-border-1 px-3 py-2 last:border-b-0">
       <span className="shrink-0">
-        <StateIcon state={state} />
+        <CiCheckStateIcon state={state} />
       </span>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[12px] text-text-1" title={name}>
@@ -171,7 +120,7 @@ export const PrChecksTab: React.FC<PrChecksTabProps> = ({
     <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
       <div className={`${DETAIL_PANEL_TOKENS.headerWidth} px-4 py-4`}>
         <div className="mb-3 flex items-center gap-2">
-          <StateIcon state={overall} />
+          <CiCheckStateIcon state={overall} />
           <span className="text-[13px] font-medium text-text-1">
             {summaryLabel}
           </span>

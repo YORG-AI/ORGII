@@ -38,6 +38,7 @@ import {
 } from "@src/icons";
 import type { BranchCiStatus } from "@src/services/git/branchPullRequestStatus";
 import {
+  CI_CHECK_SECTION_ORDER,
   type CiCheckItem,
   type CiCheckState,
   countCheckStates,
@@ -53,14 +54,6 @@ import { StatusBarTooltip } from "./StatusBarTooltip";
 import { STATUS_BAR_TOKENS } from "./statusBarTokens";
 
 const MENU_ICON_SIZE = DROPDOWN_ITEM.iconSize;
-
-/** Order the panel sections worst-first, so failures never need scrolling to. */
-const SECTION_ORDER: CiCheckState[] = [
-  "failure",
-  "pending",
-  "neutral",
-  "success",
-];
 
 interface CiStatusMenuProps {
   branchName?: string;
@@ -251,7 +244,7 @@ export const CiStatusMenu: React.FC<CiStatusMenuProps> = memo(
 
     const sections = useMemo(
       () =>
-        SECTION_ORDER.map((state) => ({
+        CI_CHECK_SECTION_ORDER.map((state) => ({
           state,
           items: items.filter((item) => item.state === state),
         })).filter((section) => section.items.length > 0),

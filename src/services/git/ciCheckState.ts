@@ -15,6 +15,17 @@ import type {
 
 export type CiCheckState = "success" | "failure" | "pending" | "neutral";
 
+/**
+ * Display order for check groups: worst first, so a failure is always the top
+ * row of a panel and never needs scrolling to.
+ */
+export const CI_CHECK_SECTION_ORDER: readonly CiCheckState[] = [
+  "failure",
+  "pending",
+  "neutral",
+  "success",
+];
+
 export function checkRunState(run: GitHubCheckRun): CiCheckState {
   if (run.status !== "completed") return "pending";
   switch (run.conclusion) {

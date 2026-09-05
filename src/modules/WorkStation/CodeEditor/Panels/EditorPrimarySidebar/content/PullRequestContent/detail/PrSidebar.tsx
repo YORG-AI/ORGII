@@ -44,9 +44,11 @@ import {
   presentPullRequestActions,
   readRequestedReviewers,
 } from "@src/shared/pr/prLevelActions";
+import { latestReviewVerdicts } from "@src/shared/pr/prReviewRollup";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 
 import { PrLevelActions, reportPrAction } from "./PrLevelActions";
+import { PrMergeStatusList } from "./PrMergeStatusList";
 
 // ── Detail payload readers ───────────────────────────────────────────────────
 
@@ -108,47 +110,17 @@ interface ReviewerEntry extends PrSidebarUser {
   state: ReviewerState;
 }
 
-function isDecisive(state: string): boolean {
-  return state === "APPROVED" || state === "CHANGES_REQUESTED";
-}
-
 /**
- * Latest meaningful review state per user: an approval or change request wins
- * over comment-only reviews (matching GitHub's sidebar), and a pending
- * re-request overrides any previous review state.
+ * Latest meaningful review state per user (see `latestReviewVerdicts`), with a
+ * pending re-request overriding whatever that user last submitted.
  */
 function collectReviewerEntries(
   detail: Record<string, unknown> | null,
   reviews: GitHubPrReview[]
 ): ReviewerEntry[] {
-  const latest = new Map<string, GitHubPrReview>();
-  for (const review of reviews) {
-    const login = review.user.login;
-    if (!login || review.state === "PENDING") continue;
-    const previous = latest.get(login);
-    const newer =
-      !previous || (review.submitted_at ?? "") >= (previous.submitted_at ?? "");
-    if (!previous) {
-      latest.set(login, review);
-    } else if (isDecisive(review.state)) {
-      if (!isDecisive(previous.state) || newer) latest.set(login, review);
-    } else if (!isDecisive(previous.state) && newer) {
-      latest.set(login, review);
-    }
-  }
-
   const entries = new Map<string, ReviewerEntry>();
-  for (const [login, review] of latest) {
-    entries.set(login, {
-      login,
-      avatarUrl: review.user.avatar_url,
-      state:
-        review.state === "APPROVED"
-          ? "approved"
-          : review.state === "CHANGES_REQUESTED"
-            ? "changes_requested"
-            : "commented",
-    });
+  for (const verdict of latestReviewVerdicts(reviews)) {
+    entries.set(verdict.login, verdict);
   }
   for (const reviewer of readRequestedReviewers(detail)) {
     entries.set(reviewer.login, {
@@ -614,7 +586,13 @@ export const PrSidebar: React.FC<PrSidebarProps> = ({
           title={t("git.pr.sidebar.actions", "Actions")}
           dataTestId="pr-sidebar-actions"
         >
-          <div className="px-1 pb-0.5">
+          <div className="flex flex-col gap-2 px-1 pb-0.5">
+            <PrMergeStatusList
+              identity={identity}
+              detail={detail}
+              checks={checks}
+              reviews={reviews}
+            />
             <PrLevelActions
               identity={identity}
               detail={detail}

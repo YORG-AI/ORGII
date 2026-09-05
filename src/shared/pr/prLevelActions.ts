@@ -4,6 +4,13 @@ import type {
   PullRequestMergeMethod,
 } from "@src/api/tauri/github";
 
+import {
+  isDirectMergeAvailable,
+  readBoolean,
+  readPrMergeSignals,
+  readRecord,
+  readString,
+} from "./prMergeSignals";
 import { normalizePrStatus } from "./prStatus";
 
 export interface PullRequestMergeMethodOption {
@@ -36,32 +43,6 @@ const MERGE_METHODS: PullRequestMergeMethodOption[] = [
   { method: "squash", label: "Squash and merge" },
   { method: "rebase", label: "Rebase and merge" },
 ];
-
-function readRecord(
-  source: Record<string, unknown> | null,
-  key: string
-): Record<string, unknown> | null {
-  const value = source?.[key];
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function readBoolean(
-  source: Record<string, unknown> | null,
-  key: string
-): boolean | null {
-  const value = source?.[key];
-  return typeof value === "boolean" ? value : null;
-}
-
-function readString(
-  source: Record<string, unknown> | null,
-  key: string
-): string | null {
-  const value = source?.[key];
-  return typeof value === "string" ? value : null;
-}
 
 export function resolvePullRequestDetailStatus(
   detail: Record<string, unknown> | null,
@@ -126,43 +107,24 @@ export function presentPullRequestActions({
   const status = resolvePullRequestDetailStatus(detail, fallbackStatus);
   const methods = resolveMergeMethods(detail);
   const defaultMethod = methods[0]?.method ?? "merge";
-  const autoMergeEnabled = readRecord(detail, "auto_merge") !== null;
-  const baseRepo = readRecord(readRecord(detail, "base"), "repo");
-  const autoMergeAllowed = readBoolean(baseRepo, "allow_auto_merge") !== false;
-  const mergeQueueRequired =
-    readBoolean(detail, "merge_queue_required") === true;
-  const inMergeQueue = readBoolean(detail, "is_in_merge_queue") === true;
-  const reviewDecision = readString(detail, "review_decision")?.toUpperCase();
-  const mergeable = readBoolean(detail, "mergeable");
-  const restMergeableState = readString(
-    detail,
-    "mergeable_state"
-  )?.toLowerCase();
-  const graphqlMergeState = readString(
-    detail,
-    "merge_state_status"
-  )?.toLowerCase();
-  // GraphQL mergeStateStatus reports DIRTY reliably while REST mergeability
-  // can remain unknown during GitHub's asynchronous mergeability calculation.
-  const mergeableState =
-    graphqlMergeState && graphqlMergeState !== "unknown"
-      ? graphqlMergeState
-      : restMergeableState;
-  const hasMergeMetadata = mergeable !== null || mergeableState !== undefined;
-  const hasConflicts = mergeable === false || mergeableState === "dirty";
-  const policyBlocked =
-    mergeableState === "blocked" || mergeableState === "behind";
-  const unstable = mergeableState === "unstable";
+  const signals = readPrMergeSignals(detail);
+  const {
+    autoMergeEnabled,
+    autoMergeAllowed,
+    hasConflicts,
+    inMergeQueue,
+    mergeQueueRequired,
+    policyBlocked,
+    reviewDecision,
+    unstable,
+  } = signals;
   const openAndReady = status === "open";
   const showConflictAction = openAndReady && !inMergeQueue && hasConflicts;
-  const directMergeAvailable =
-    openAndReady &&
-    !mergeQueueRequired &&
-    !hasConflicts &&
-    !policyBlocked &&
-    (mergeable === true ||
-      mergeableState === "clean" ||
-      (!hasMergeMetadata && checks?.state === "success"));
+  const directMergeAvailable = isDirectMergeAvailable({
+    checks,
+    signals,
+    status,
+  });
 
   let label =
     methods.find((method) => method.method === defaultMethod)?.label ?? "Merge";
