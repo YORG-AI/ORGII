@@ -612,7 +612,7 @@ const UserChatItem = ({
           >
             {isParentAgentMessage ? (
               <span
-                className="flex h-7 w-7 items-center justify-center rounded-full"
+                className="flex h-6 w-6 items-center justify-center rounded-full"
                 style={{ backgroundColor: "var(--color-fill-2)" }}
               >
                 <SessionIdentityIcon
@@ -622,7 +622,7 @@ const UserChatItem = ({
               </span>
             ) : (
               <PersonAvatar
-                size={28}
+                size={24}
                 name={senderName}
                 src={sharedConversationSender?.avatarUrl}
               />

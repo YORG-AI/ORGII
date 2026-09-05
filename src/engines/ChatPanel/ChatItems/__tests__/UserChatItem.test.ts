@@ -50,9 +50,9 @@ describe("UserChatItem shared sender presentation", () => {
     expect(markup).toContain('data-testid="shared-message-sender-avatar"');
     expect(markup).toContain('title="Ada Lovelace"');
     expect(markup).toContain('src="https://example.com/ada.png"');
-    // Same 28px circle the shared PersonAvatar draws everywhere else, rather
+    // Same 24px circle the shared PersonAvatar draws everywhere else, rather
     // than a locally styled one-off.
-    expect(markup).toContain("width:28px;height:28px");
+    expect(markup).toContain("width:24px;height:24px");
     expect(markup).toContain(
       "inline-flex shrink-0 overflow-hidden rounded-full"
     );
@@ -171,6 +171,7 @@ describe("UserChatItem parent-agent attribution", () => {
     expect(markup).toContain('data-message-side="left"');
     expect(markup).toContain('data-testid="parent-agent-sender-avatar"');
     expect(markup).toContain('title="Key trading VM launch"');
+    expect(markup).toContain("flex h-6 w-6 items-center justify-center");
     // The viewer's own avatar must not stand in for the parent agent.
     expect(markup).not.toContain("shared-message-sender-avatar");
   });
