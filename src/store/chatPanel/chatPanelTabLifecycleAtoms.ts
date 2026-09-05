@@ -11,7 +11,11 @@ import {
 } from "@src/store/ui/chatPanelAtom";
 import type { WorkManagementSection } from "@src/store/workstation";
 
-import { recordRecentlyClosedChatPanelTabsAtom } from "./chatPanelRecentlyClosedTabs";
+import {
+  recordChatPanelTabTransitionAtom,
+  recordRecentChatPanelTabAtom,
+  removeRecentChatPanelTabAtom,
+} from "./chatPanelRecentTabsState";
 import {
   buildDefaultLaunchpadTab,
   getChatPanelWorkItemTabKey,
@@ -109,6 +113,13 @@ export const closeChatPanelTabAtom = atom(null, (get, set, tabId: string) => {
 
   if (nextTabs.length === 0) {
     const launchpad = buildDefaultLaunchpadTab();
+    if (state.activeTabId === tabId) {
+      set(recordChatPanelTabTransitionAtom, {
+        previousTab: tab,
+        nextTab: launchpad,
+      });
+    }
+    set(removeRecentChatPanelTabAtom, tabId);
     set(chatPanelTabsAtom, {
       tabs: [launchpad],
       activeTabId: launchpad.id,
@@ -119,9 +130,15 @@ export const closeChatPanelTabAtom = atom(null, (get, set, tabId: string) => {
 
   if (state.activeTabId === tabId) {
     const nextIdx = Math.max(0, idx - 1);
-    nextActiveId = nextTabs[Math.min(nextIdx, nextTabs.length - 1)].id;
+    const nextActiveTab = nextTabs[Math.min(nextIdx, nextTabs.length - 1)];
+    nextActiveId = nextActiveTab.id;
+    set(recordChatPanelTabTransitionAtom, {
+      previousTab: tab,
+      nextTab: nextActiveTab,
+    });
   }
 
+  set(removeRecentChatPanelTabAtom, tabId);
   set(chatPanelTabsAtom, { tabs: nextTabs, activeTabId: nextActiveId });
   if (state.activeTabId === tabId) {
     set(activateChatPanelTabAtom, nextActiveId);
@@ -442,10 +459,10 @@ export const closeAndDestroyChatPanelTabAtom = atom(
     const tabStillOpen = get(chatPanelTabsAtom).tabs.some(
       (candidate) => candidate.id === tab?.id
     );
-    if (tab && tabStillOpen && !closesSoleStartPage) {
-      set(recordRecentlyClosedChatPanelTabsAtom, [tab]);
-    }
     set(closeChatPanelTabAtom, tabId);
+    if (tab && tabStillOpen && !closesSoleStartPage) {
+      set(recordRecentChatPanelTabAtom, tab);
+    }
   }
 );
 closeAndDestroyChatPanelTabAtom.debugLabel = "closeAndDestroyChatPanelTab";
@@ -471,9 +488,11 @@ export const closeOtherChatPanelTabsAtom = atom(
 
     const openIds = new Set(get(chatPanelTabsAtom).tabs.map((tab) => tab.id));
     const tabsStillOpen = tabsToClose.filter((tab) => openIds.has(tab.id));
-    set(recordRecentlyClosedChatPanelTabsAtom, tabsStillOpen);
     for (const tab of tabsStillOpen) {
       set(closeChatPanelTabAtom, tab.id);
+    }
+    for (const tab of tabsStillOpen) {
+      set(recordRecentChatPanelTabAtom, tab);
     }
 
     if (

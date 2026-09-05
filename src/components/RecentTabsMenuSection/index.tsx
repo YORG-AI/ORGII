@@ -4,28 +4,26 @@ import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { HugeiconsIcon, WorkHistoryIcon } from "@src/icons";
 
-export interface RecentlyClosedTabMenuItem {
+export interface RecentTabMenuItem {
   id: string;
   title: string;
   leadingIcon?: React.ReactNode;
 }
 
-interface RecentlyClosedTabsMenuSectionProps {
-  tabs: readonly RecentlyClosedTabMenuItem[];
+interface RecentTabsMenuSectionProps {
+  tabs: readonly RecentTabMenuItem[];
   label: string;
-  onRestore: (tabId: string) => void;
+  onOpen: (tabId: string) => void;
 }
 
-export function RecentlyClosedTabsMenuSection({
+export function RecentTabsMenuSection({
   tabs,
   label,
-  onRestore,
-}: RecentlyClosedTabsMenuSectionProps): React.ReactNode {
+  onOpen,
+}: RecentTabsMenuSectionProps): React.ReactNode {
   const labelId = useId();
 
-  if (tabs.length === 0) {
-    return null;
-  }
+  if (tabs.length === 0) return null;
 
   return (
     <>
@@ -40,8 +38,8 @@ export function RecentlyClosedTabsMenuSection({
             type="button"
             role="menuitem"
             className={DROPDOWN_CLASSES.menuActionItem}
-            data-recently-closed-tab-id={tab.id}
-            onClick={() => onRestore(tab.id)}
+            data-recent-tab-id={tab.id}
+            onClick={() => onOpen(tab.id)}
           >
             <span className="flex min-w-0 flex-1 items-center gap-2">
               {tab.leadingIcon ?? (

@@ -2,15 +2,15 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { RecentlyClosedTabsMenuSection } from ".";
+import { RecentTabsMenuSection } from ".";
 
-describe("RecentlyClosedTabsMenuSection", () => {
+describe("RecentTabsMenuSection", () => {
   it("hides the section when the history is empty", () => {
     const markup = renderToStaticMarkup(
-      createElement(RecentlyClosedTabsMenuSection, {
+      createElement(RecentTabsMenuSection, {
         tabs: [],
         label: "Recent",
-        onRestore: vi.fn(),
+        onOpen: vi.fn(),
       })
     );
 
@@ -19,14 +19,14 @@ describe("RecentlyClosedTabsMenuSection", () => {
 
   it("renders bounded history entries as menu actions", () => {
     const markup = renderToStaticMarkup(
-      createElement(RecentlyClosedTabsMenuSection, {
+      createElement(RecentTabsMenuSection, {
         tabs: [{ id: "tab-a", title: "Tab A" }],
         label: "Recent",
-        onRestore: vi.fn(),
+        onOpen: vi.fn(),
       })
     );
 
-    expect(markup).toContain('data-recently-closed-tab-id="tab-a"');
+    expect(markup).toContain('data-recent-tab-id="tab-a"');
     expect(markup).toContain('role="menuitem"');
     expect(markup).toContain("Tab A");
     expect(markup).toContain('data-icon="work-history"');
@@ -34,7 +34,7 @@ describe("RecentlyClosedTabsMenuSection", () => {
 
   it("uses a supplied session identity icon instead of the history icon", () => {
     const markup = renderToStaticMarkup(
-      createElement(RecentlyClosedTabsMenuSection, {
+      createElement(RecentTabsMenuSection, {
         tabs: [
           {
             id: "session-a",
@@ -45,7 +45,7 @@ describe("RecentlyClosedTabsMenuSection", () => {
           },
         ],
         label: "Recent",
-        onRestore: vi.fn(),
+        onOpen: vi.fn(),
       })
     );
 

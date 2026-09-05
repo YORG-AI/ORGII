@@ -5,6 +5,7 @@ import { atom } from "jotai";
 
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 
+import { recordChatPanelTabTransitionAtom } from "../chatPanelRecentTabsState";
 import {
   createRunGroupTab,
   createRuntimeTab,
@@ -121,6 +122,10 @@ export const openOrReplaceSessionInChatPanelTabAtom = atom(
     const replacementTab = createSessionTab({
       sessionId: options.sessionId,
       title,
+    });
+    set(recordChatPanelTabTransitionAtom, {
+      previousTab: activeTab,
+      nextTab: replacementTab,
     });
     set(chatPanelTabsAtom, {
       tabs: state.tabs.map((tab) =>

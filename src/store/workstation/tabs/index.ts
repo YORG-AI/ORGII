@@ -49,6 +49,7 @@ export {
   workstationLayoutAtom,
   workstationTabsStateAtom,
   workstationWorkspaceStateAtom,
+  recentWorkstationTabsAtom,
   presentedWorkstationWorkspaceKeyAtom,
   GLOBAL_WORKSTATION_WORKSPACE_KEY,
   sessionWorkstationWorkspaceKey,
@@ -74,11 +75,6 @@ export {
 } from "./atoms";
 
 export { workstationWorkspaceId } from "./storage";
-
-export {
-  recentlyClosedWorkstationTabsAtom,
-  recordRecentlyClosedWorkstationTabsAtom,
-} from "./recentlyClosedTabs";
 
 export {
   queueFileOpens,
