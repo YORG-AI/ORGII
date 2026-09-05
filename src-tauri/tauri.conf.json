@@ -22,6 +22,7 @@
         "resizable": true,
         "maximized": true,
         "fullscreen": false,
+        "visible": false,
         "decorations": true,
         "hiddenTitle": true,
         "backgroundColor": "#0d0d0d",

@@ -394,7 +394,9 @@ html[data-window-focused="false"] *::after {
   // Use overflow: clip as a defensive measure against scrollIntoView calls
   // on hidden components that could scroll the root element
   overflow: clip;
-  background: var(--color-bg-2);
+  // Fallback: see the html/body rules below — the theme stylesheet that
+  // defines --color-bg-2 attaches at runtime.
+  background: var(--color-bg-2, var(--splash-bg));
 }
 
 // Remove border radius in fullscreen mode
@@ -574,15 +576,22 @@ textarea,
   background: color-mix(in srgb, var(--color-primary-6) 82%, black) !important;
   color: white !important;
 }
+// `--color-bg-2` comes from the theme stylesheet (public/orgii_{main,dark}.css),
+// which initTheme() attaches at runtime — so it is undefined for the frames
+// between this stylesheet landing and that <link> loading. `var()` with an
+// undefined name is invalid at computed-value time and paints transparent,
+// not the previous cascade, so every root surface falls back to `--splash-bg`
+// (the same colour, mirrored by public/index.html before the bundle runs).
+// Without it the root flips tint → transparent → tint across that gap.
 html {
   overscroll-behavior-x: none;
-  background: var(--color-bg-2);
+  background: var(--color-bg-2, var(--splash-bg));
 }
 body {
   overscroll-behavior-x: none;
   border-radius: var(--border-radius-window);
   overflow: hidden;
-  background: var(--color-bg-2);
+  background: var(--color-bg-2, var(--splash-bg));
 }
 
 // macOS paints native Menu vibrancy underneath the transparent webview.
@@ -592,7 +601,11 @@ body {
 html[data-host-desktop="macos"],
 html[data-host-desktop="macos"] body,
 html[data-host-desktop="macos"] #root {
-  background: color-mix(in srgb, var(--color-bg-2) 15%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--color-bg-2, var(--splash-bg)) 15%,
+    transparent
+  );
 }
 
 // Once the frontend has mirrored the composite of the three tints above into
@@ -620,7 +633,7 @@ html[data-host-desktop="macos"] .sidebar-base {
 // windowChromeRadius.ts.
 html[data-host-desktop="windows"] body,
 html[data-host-desktop="windows"] #root {
-  background: var(--color-bg-2);
+  background: var(--color-bg-2, var(--splash-bg));
 }
 
 html[data-host-desktop="windows"] .sidebar-base {
