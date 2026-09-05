@@ -453,38 +453,42 @@
       #root {
         height: 100%;
         /*
-         * The window is opaque until the bundle calls remove_window_background,
-         * so the pre-bundle surface must paint the app's own background rather
+         * On Windows and Linux the window is opaque before first paint, so
+         * the pre-bundle surface must paint the app's own background rather
          * than a fixed dark plate — otherwise a light-theme launch flashes
          * black. Mirrors `html { background: var(--color-bg-2) }` in
          * src/index.scss, which takes over as soon as the theme CSS loads.
+         * macOS overrides this below: its windows are never opaque.
          */
         background: var(--splash-bg);
         border-radius: var(--border-radius-window);
         overflow: hidden;
       }
       /*
-       * macOS detached windows settle on native vibrancy, not on a solid
-       * plate (see the `html[data-host-desktop="macos"]` rule in
-       * src/index.scss). Painting --splash-bg here would cover the material
-       * the window already has behind the webview for the whole bundle boot
-       * — an opaque white rectangle on a light theme, with the splash mark
-       * suppressed, on a window that ends up transparent. Compositing onto
-       * the material from the first frame is the honest pre-paint surface.
+       * macOS windows — main and detached alike — settle on native vibrancy,
+       * not on a solid plate: the NSWindow is transparent, Rust mounts an
+       * NSVisualEffectView behind the webview and clears the native backdrop
+       * before the window is shown, and `html[data-host-desktop="macos"]` in
+       * src/index.scss paints only a 15% tint of the app surface over that
+       * material. Painting the opaque --splash-bg plate here would cover the
+       * material for the whole bundle boot — a full-window white rectangle
+       * on a light theme — and then drop away in a single frame when the
+       * bundle's stylesheet takes over: the white flash. The same 15% tint,
+       * composited onto the material from the first frame, is the honest
+       * pre-paint surface; the splash mark sits on it exactly as the app's
+       * own chrome will.
        *
-       * Scoped to macOS on purpose: Windows and Linux secondary windows are
-       * opaque (`transparent(true)` in open_session_window is macOS-only),
-       * so there is nothing behind their webview but the builder's
-       * background colour, and they still need the splash plate.
+       * Scoped to macOS on purpose: Windows and Linux windows are opaque
+       * before first paint (there is nothing behind their webview but the
+       * native backdrop colour), so they keep the plate above.
        */
-      html[data-host-desktop="macos"][data-orgii-secondary-window],
-      html[data-host-desktop="macos"][data-orgii-secondary-window] body,
-      html[data-host-desktop="macos"][data-orgii-secondary-window] #root {
-        background: transparent;
+      html[data-host-desktop="macos"],
+      html[data-host-desktop="macos"] body,
+      html[data-host-desktop="macos"] #root {
+        background: color-mix(in srgb, var(--splash-bg) 15%, transparent);
       }
       /*
-       * The bundle mirrors the macOS root tint (the translucent html/body/#root
-       * surfaces in src/index.scss) into a native layer under the webview
+       * The bundle mirrors that tint into a native layer under the webview
        * (src/util/platform/macosRootTint.ts) and then sets this attribute so
        * the CSS tint stops stacking on top of it. Kept here as well as in
        * src/index.scss because this stylesheet stays attached after boot.

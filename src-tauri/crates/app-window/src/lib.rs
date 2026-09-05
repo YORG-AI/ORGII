@@ -25,59 +25,22 @@ pub mod root_tint;
 pub mod startup_backdrop;
 
 // ============================================
-// macOS window background color
+// macOS window backdrop
 // ============================================
 
-/// Set the NSWindow `backgroundColor` and enable WKWebView background
-/// drawing so the window shows a solid colour before the webview CSS
-/// paints its first frame. Without this, `transparent: true` windows
-/// flash fully transparent at startup.
-#[cfg(target_os = "macos")]
-pub fn apply_window_background_color(window: &tauri::WebviewWindow) {
-    let ns_window_ptr = match window.ns_window() {
-        Ok(ptr) => ptr,
-        Err(_) => return,
-    };
-    let ns_window_addr = ns_window_ptr as usize;
-
-    let run = move || {
-        use objc2::msg_send;
-        use objc2::runtime::{AnyClass, AnyObject};
-
-        let ns_win = ns_window_addr as *mut AnyObject;
-
-        unsafe {
-            let ns_color_class = AnyClass::get(c"NSColor").expect("NSColor");
-            let bg: *mut AnyObject = msg_send![
-                ns_color_class,
-                colorWithSRGBRed: (0x0d as f64 / 255.0),
-                green: (0x0d as f64 / 255.0),
-                blue: (0x0d as f64 / 255.0),
-                alpha: 1.0_f64,
-            ];
-            let _: () = msg_send![ns_win, setBackgroundColor: bg];
-
-            let content_view: *mut AnyObject = msg_send![ns_win, contentView];
-            if !content_view.is_null() && !set_webview_background_recursive(content_view, true, bg)
-            {
-                tracing::warn!(
-                    "No WKWebView under the window's contentView; startup backdrop not applied \
-                     to the webview and it will paint its own base colour"
-                );
-            }
-        }
-    };
-
-    if is_main_thread() {
-        run();
-    } else {
-        dispatch2::DispatchQueue::main().exec_sync(run);
-    }
-}
-
-/// Remove the startup background: clear the NSWindow backgroundColor,
-/// disable WKWebView background drawing. Called from the frontend once
-/// the React app finishes loading and CSS backgrounds are painted.
+/// Clear the native backdrop of a macOS window: the NSWindow
+/// `backgroundColor` goes to clear, WKWebView background drawing is turned
+/// off, and the webview's under-page colour is pinned to clear so the page
+/// composites straight onto whatever sits behind the webview (the vibrancy
+/// material mounted by [`apply_macos_window_material`]).
+///
+/// Every macOS window gets this right after its chrome is mounted and before
+/// it is shown — the main window at setup and on recreate, detached session
+/// windows in `open_session_window` — so the very first frame is already the
+/// surface the window settles on. The frontend invokes it again through the
+/// `remove_window_background` command once React has painted; that re-pin is
+/// what keeps the setting across a navigation, which re-derives WebKit's
+/// default, and it re-asserts the traffic-light inset.
 #[cfg(target_os = "macos")]
 pub fn remove_window_background_color(window: &tauri::WebviewWindow) {
     let ns_window_ptr = match window.ns_window() {
@@ -257,6 +220,26 @@ pub fn set_traffic_light_position(window: &tauri::WebviewWindow, x: f64, y: f64)
     }
 }
 
+/// Show a window once the native work already queued on the main thread has
+/// run, so its first frame is at its final size.
+///
+/// tao applies the config's `maximized: true` through an *asynchronous*
+/// main-queue dispatch at creation (`set_maximized_async` → `zoom:`). A
+/// synchronous `show()` from the setup hook therefore orders the window in
+/// at its configured 1200×800 and the zoom lands a frame later, animated — a
+/// visible jump now that the first frame is the frosted material rather than
+/// a clear window that hid it. The main dispatch queue is FIFO, so a show
+/// enqueued here runs after that zoom. Only for windows built `maximized`;
+/// `open_session_window` shows synchronously on purpose.
+#[cfg(target_os = "macos")]
+pub fn show_after_queued_native_layout(window: &tauri::WebviewWindow) {
+    let window = window.clone();
+    dispatch2::DispatchQueue::main().exec_async(move || {
+        let _ = window.show();
+        let _ = window.set_focus();
+    });
+}
+
 #[cfg(target_os = "macos")]
 fn is_main_thread() -> bool {
     unsafe {
@@ -359,19 +342,27 @@ pub fn recreate_main_window(app: &AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
+        // Same order as the setup hook and `open_session_window`: material
+        // behind the webview, then the config's opaque backdrop cleared so
+        // the webview composites onto the material from its first frame.
         set_traffic_light_position(&window, TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y);
-        apply_window_background_color(&window);
         apply_macos_window_material(&window);
+        remove_window_background_color(&window);
     }
 
     apply_host_desktop_window_chrome(&window);
 
-    // The main window starts hidden (visible:false in the platform config)
-    // so chrome can be applied before first paint; show it now that the
-    // opaque background + shadow policy are in place.
-    let _ = window.show();
-
-    let _ = window.set_focus();
+    // The main window starts hidden (visible:false in tauri.conf.json) so
+    // chrome can be applied before first paint; show it now that the
+    // backdrop + shadow policy are in place — on macOS behind the queued
+    // `maximized` zoom, so it never appears at its pre-zoom size.
+    #[cfg(target_os = "macos")]
+    show_after_queued_native_layout(&window);
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
 
     println!("✅ [Window] Main window recreated");
     Ok(())

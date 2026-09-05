@@ -395,22 +395,18 @@ pub async fn open_session_window(
     // Reposition the traffic lights (the builder option alone is unreliable
     // for dynamically created windows), mount the same vibrancy material the
     // main window uses, and then clear the builder's opaque backdrop so the
-    // webview composites onto that material from its very first frame.
-    //
-    // Deliberately NOT `apply_window_background_color` (what
-    // `recreate_main_window` does). That helper enables WKWebView background
-    // drawing, and the webview then paints its own base colour — plus the
-    // opaque `--splash-bg` plate from index.html — over the material for the
-    // whole bundle boot. On a light theme that is a full-window white
-    // rectangle, with the splash mark suppressed in secondary windows, on a
-    // window whose settled appearance is transparent: the white flash. A
-    // detached window ends on vibrancy, so vibrancy is also its honest
-    // pre-paint surface. index.html keeps the splash plate off this window to
-    // match (`html[data-host-desktop="macos"][data-orgii-secondary-window]`).
+    // webview composites onto that material from its very first frame. Same
+    // contract as the main window's setup hook: a macOS window ends on
+    // vibrancy, so vibrancy is also its honest pre-paint surface. Enabling
+    // WKWebView background drawing here instead made the webview paint its
+    // own opaque base under the page for the whole bundle boot — on a light
+    // theme a full-window white rectangle on a window whose settled
+    // appearance is transparent: the white flash. index.html keeps the splash
+    // plate off every macOS window to match (`html[data-host-desktop="macos"]`).
     //
     // The frontend still invokes `remove_window_background` once React paints;
-    // on this window the background clear is a no-op and the call's remaining
-    // job is the post-paint traffic-light re-apply that main also gets.
+    // the background clear is then a no-op and the call's remaining job is the
+    // post-paint traffic-light re-apply.
     #[cfg(target_os = "macos")]
     {
         super::set_traffic_light_position(&window, super::TRAFFIC_LIGHT_X, super::TRAFFIC_LIGHT_Y);
