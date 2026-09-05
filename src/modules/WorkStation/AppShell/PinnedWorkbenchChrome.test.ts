@@ -18,6 +18,7 @@ import { ROUTES } from "@src/config/routes";
 import {
   getPinnedWorkbenchChromeReservedRight,
   isPinnedWorkbenchChromePath,
+  resolvePinnedWorkbenchChromeSlots,
 } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
 import {
   activeStationChatVisibleAtom,
@@ -139,9 +140,12 @@ describe("PinnedWorkbenchChrome", () => {
     expect(store.get(chatPanelMaximizedAtom)).toBe(true);
     expect(query("pinned-workbench-chrome-show-workstation")).not.toBeNull();
     expect(group?.style.right).toBe("8px");
+    // Maximized: the hide-chat slot is gone outright, no spacer left behind.
+    expect(query("pinned-workbench-chrome-chat-visibility")).toBeNull();
+    expect(group?.childElementCount).toBe(1);
   });
 
-  it("keeps a placeholder so the remaining toggle never shifts while the chat is hidden", () => {
+  it("draws only the restore toggle, flush right, while the chat is hidden", () => {
     render();
     act(() => {
       store.set(activeStationChatVisibleAtom, "my-station", false);
@@ -150,14 +154,29 @@ describe("PinnedWorkbenchChrome", () => {
 
     expect(query("pinned-workbench-chrome-chat-visibility")).not.toBeNull();
     expect(query("pinned-workbench-chrome-maximize-chat")).toBeNull();
-    expect(
-      query("pinned-workbench-chrome")?.querySelectorAll(
-        "button, span[aria-hidden]"
-      ).length
-    ).toBe(2);
+    expect(query("pinned-workbench-chrome")?.childElementCount).toBe(1);
   });
 
-  it("reserves the pair plus inset and gap for hosts", () => {
-    expect(getPinnedWorkbenchChromeReservedRight()).toBe(8 + 28 + 1 + 28 + 1);
+  it("reserves inset, the visible slots, and gaps for hosts", () => {
+    expect(getPinnedWorkbenchChromeReservedRight(2)).toBe(8 + 28 + 1 + 28 + 1);
+    expect(getPinnedWorkbenchChromeReservedRight(1)).toBe(8 + 28 + 1);
+    expect(
+      resolvePinnedWorkbenchChromeSlots({
+        chatVisible: true,
+        chatPanelMaximized: false,
+      })
+    ).toBe(2);
+    expect(
+      resolvePinnedWorkbenchChromeSlots({
+        chatVisible: true,
+        chatPanelMaximized: true,
+      })
+    ).toBe(1);
+    expect(
+      resolvePinnedWorkbenchChromeSlots({
+        chatVisible: false,
+        chatPanelMaximized: false,
+      })
+    ).toBe(1);
   });
 });

@@ -42,15 +42,13 @@ import FileTypeIcon from "@src/components/FileTypeIcon";
 import { TAB_PILL_DRAG_OVERLAY_CLASS } from "@src/components/TabPill/TabPillSurface";
 import { TAB_PAIR_SEPARATOR_SLOT_CLASS } from "@src/components/TabPill/config";
 import { NoDragRegion } from "@src/components/WindowChrome";
+import { TAB_BAR_CONTROLS_ROW_TRAILING_PADDING_PX } from "@src/config/workstation/tokens";
 import SessionRawTranscriptDialog from "@src/engines/ChatPanel/components/SessionRawTranscriptDialog";
 import {
   getCollapsedSidebarChromeOffset,
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
-import {
-  getPinnedWorkbenchChromeReservedRight,
-  useWorkbenchRightEdgeOwner,
-} from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
+import { useWorkbenchRightEdgeReservation } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
 import { requestTeamInboxSessionHandoffAtom } from "@src/modules/MainApp/TeamInbox/store";
 import { CHROME_INSET_TRANSITION_CLASSES } from "@src/modules/shared/layouts/viewContainerTokens";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
@@ -228,7 +226,7 @@ export const TabBar: React.FC<TabBarProps> = memo(
     const shouldOffsetLeftChrome = useShouldOffsetWorkStationTopBar();
     // macOS pins the right-edge collapse toggles in window space; make room
     // whenever the workstation is the pane touching that edge.
-    const rightEdgeOwner = useWorkbenchRightEdgeOwner();
+    const rightEdge = useWorkbenchRightEdgeReservation();
 
     const scrollReveal = useAtomValue(tabScrollRevealAtom);
     const gitStatusMap = useAtomValue(gitFileStatusMapAtom);
@@ -394,9 +392,12 @@ export const TabBar: React.FC<TabBarProps> = memo(
             paddingLeft: shouldOffsetLeftChrome
               ? getCollapsedSidebarChromeOffset()
               : undefined,
+            // The controls row keeps its own `pr-2`; only the remainder of
+            // the pinned-chrome reservation goes here.
             paddingRight:
-              rightEdgeOwner === "workstation"
-                ? getPinnedWorkbenchChromeReservedRight()
+              rightEdge.owner === "workstation"
+                ? rightEdge.reservedRight -
+                  TAB_BAR_CONTROLS_ROW_TRAILING_PADDING_PX
                 : undefined,
             WebkitAppRegion: "drag",
           } as React.CSSProperties

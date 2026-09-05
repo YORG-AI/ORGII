@@ -20,17 +20,39 @@ import {
 import { chatPanelPositionAtom } from "@src/store/ui/workStationAtom";
 import { isMacOS } from "@src/util/platform/tauri";
 
-/** Two 28px icon buttons with the tab bar's 1px gap. */
-export const PINNED_WORKBENCH_CHROME_WIDTH = 28 + 1 + 28;
+/** One 28px icon button. */
+export const PINNED_WORKBENCH_CHROME_BUTTON_WIDTH = 28;
+/** The tab bar's 1px gap between adjacent buttons. */
+export const PINNED_WORKBENCH_CHROME_GAP = 1;
 /** Distance from the window's right edge, matching the tab bars' `pr-2`. */
 export const PINNED_WORKBENCH_CHROME_RIGHT_INSET = 8;
 /** Same vertical anchor as the left group. */
 export const PINNED_WORKBENCH_CHROME_CENTER_TOP = 26;
 
+export type PinnedWorkbenchChromeSlots = 1 | 2;
+
+/**
+ * How many slots the group draws: both toggles while the chat pane shows
+ * beside the workstation, one otherwise. A missing slot is dropped outright
+ * rather than held as a spacer — a spacer only punches a hole between the
+ * surviving toggle and the host's own controls.
+ */
+export function resolvePinnedWorkbenchChromeSlots(options: {
+  chatVisible: boolean;
+  chatPanelMaximized: boolean;
+}): PinnedWorkbenchChromeSlots {
+  return options.chatVisible && !options.chatPanelMaximized ? 2 : 1;
+}
+
 /** Right padding a host needs so its own controls clear the pinned group. */
-export function getPinnedWorkbenchChromeReservedRight(): number {
+export function getPinnedWorkbenchChromeReservedRight(
+  slots: PinnedWorkbenchChromeSlots = 2
+): number {
   return (
-    PINNED_WORKBENCH_CHROME_RIGHT_INSET + PINNED_WORKBENCH_CHROME_WIDTH + 1
+    PINNED_WORKBENCH_CHROME_RIGHT_INSET +
+    slots * PINNED_WORKBENCH_CHROME_BUTTON_WIDTH +
+    (slots - 1) * PINNED_WORKBENCH_CHROME_GAP +
+    PINNED_WORKBENCH_CHROME_GAP
   );
 }
 
@@ -49,16 +71,30 @@ export function usePinnedWorkbenchChromeVisible(): boolean {
 
 export type WorkbenchRightEdgeOwner = "chat" | "workstation";
 
-/** Which pane currently touches the window's right edge, or null when nothing is pinned there. */
-export function useWorkbenchRightEdgeOwner(): WorkbenchRightEdgeOwner | null {
+export interface WorkbenchRightEdgeReservation {
+  /** Which pane touches the window's right edge; null when nothing is pinned there. */
+  owner: WorkbenchRightEdgeOwner | null;
+  /** Right padding that pane must keep clear; 0 when nothing is pinned. */
+  reservedRight: number;
+}
+
+/** Who reserves the right edge for the pinned group, and how much. */
+export function useWorkbenchRightEdgeReservation(): WorkbenchRightEdgeReservation {
   const pinned = usePinnedWorkbenchChromeVisible();
   const stationChatVisibility = useAtomValue(stationChatVisibilityAtom);
   const chatWidth = useAtomValue(chatWidthAtom);
   const chatPanelPosition = useAtomValue(chatPanelPositionAtom);
   const chatPanelMaximized = useAtomValue(chatPanelMaximizedAtom);
-  if (!pinned) return null;
+  if (!pinned) return { owner: null, reservedRight: 0 };
   const chatVisible = stationChatVisibility["my-station"] && chatWidth > 0;
-  return chatPanelMaximized || (chatVisible && chatPanelPosition === "right")
-    ? "chat"
-    : "workstation";
+  const owner: WorkbenchRightEdgeOwner =
+    chatPanelMaximized || (chatVisible && chatPanelPosition === "right")
+      ? "chat"
+      : "workstation";
+  return {
+    owner,
+    reservedRight: getPinnedWorkbenchChromeReservedRight(
+      resolvePinnedWorkbenchChromeSlots({ chatVisible, chatPanelMaximized })
+    ),
+  };
 }

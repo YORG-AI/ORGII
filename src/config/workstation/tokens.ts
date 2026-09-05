@@ -155,6 +155,11 @@ export const TAB_BAR_CONTROLS_ROW_PADDING_FULL = "pl-1 pr-2";
  * Matches the standard tab-bar trailing edge inset.
  */
 export const TAB_BAR_CONTROLS_ROW_PADDING_TRAILING_ONLY = "pl-1 pr-2";
+/**
+ * The `pr-2` above, in pixels. Hosts that reserve window-edge space for
+ * pinned chrome subtract it so the reservation's 1px gap is not doubled.
+ */
+export const TAB_BAR_CONTROLS_ROW_TRAILING_PADDING_PX = 8;
 
 /** Default: full horizontal padding (most toolbars). */
 export const TAB_BAR_CONTROLS_ROW_CLASS = `${TAB_BAR_CONTROLS_ROW_BASE_CLASS} ${TAB_BAR_CONTROLS_ROW_PADDING_FULL}`;

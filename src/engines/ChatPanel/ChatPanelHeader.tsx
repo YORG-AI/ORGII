@@ -10,9 +10,8 @@ import Tooltip from "@src/components/Tooltip";
 import type { DropdownEnginePosition } from "@src/hooks/dropdown";
 import { getCollapsedSidebarChromeOffset } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import {
-  getPinnedWorkbenchChromeReservedRight,
   usePinnedWorkbenchChromeVisible,
-  useWorkbenchRightEdgeOwner,
+  useWorkbenchRightEdgeReservation,
 } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
 import {
   ArrowExpand01Icon,
@@ -164,11 +163,9 @@ export function ChatPanelHeader({
   // right edge (`PinnedWorkbenchChrome`); this header then only reserves the
   // space while the chat pane is the one touching that edge.
   const pinnedChrome = usePinnedWorkbenchChromeVisible();
-  const rightEdgeOwner = useWorkbenchRightEdgeOwner();
+  const rightEdge = useWorkbenchRightEdgeReservation();
   const trailingInsetPx =
-    rightEdgeOwner === "chat"
-      ? getPinnedWorkbenchChromeReservedRight()
-      : undefined;
+    rightEdge.owner === "chat" ? rightEdge.reservedRight : undefined;
   if (!showHeader) return null;
 
   const chatFocusLabel = isChatFocus

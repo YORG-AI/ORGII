@@ -43,11 +43,6 @@ import { chatPanelPositionAtom } from "@src/store/ui/workStationAtom";
 
 import { WorkstationMaximizeChatIcon } from "./useWorkstationTrailingSlot";
 
-/** Keeps the other button in place when its sibling has nothing to offer. */
-const Placeholder: React.FC = () => (
-  <span className="inline-block h-7 w-7" aria-hidden />
-);
-
 const PinnedWorkbenchChromeComponent: React.FC = () => {
   const { t } = useTranslation("sessions");
   const visible = usePinnedWorkbenchChromeVisible();
@@ -80,10 +75,8 @@ const PinnedWorkbenchChromeComponent: React.FC = () => {
   const stationAvailable = isChatPanelTabStationAvailable(activeTab);
 
   // Slot A: hide / restore the chat pane. Meaningless while the chat is
-  // maximized (there is no workstation to grow), so it yields its space.
-  const chatVisibilityControl = chatPanelMaximized ? (
-    <Placeholder />
-  ) : (
+  // maximized (there is no workstation to grow), so it is dropped outright.
+  const chatVisibilityControl = chatPanelMaximized ? null : (
     <TabBarTrailingIconButton
       title={
         isChatPanelVisible
@@ -113,10 +106,12 @@ const PinnedWorkbenchChromeComponent: React.FC = () => {
   );
 
   // Slot B: maximize chat while the workstation shows; show the workstation
-  // again while the chat is maximized. Nothing to do while the chat is hidden.
+  // again while the chat is maximized. Nothing to draw while the chat is
+  // hidden — no spacer either, so the restore toggle sits flush right and
+  // the host reserves for one slot (`useWorkbenchRightEdgeReservation`).
   let maximizeControl: React.ReactNode;
   if (!isChatPanelVisible) {
-    maximizeControl = <Placeholder />;
+    maximizeControl = null;
   } else if (chatPanelMaximized) {
     maximizeControl = (
       <TabBarTrailingIconButton
