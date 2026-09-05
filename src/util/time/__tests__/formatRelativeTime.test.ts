@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import i18n, { i18nReady } from "@src/i18n";
 
-import { formatRelativeTime } from "../formatRelativeTime";
+import { formatCompactAge, formatRelativeTime } from "../formatRelativeTime";
 
 /**
  * `formatRelativeTime`'s >7-day date fallback must honor the explicit
@@ -142,5 +142,41 @@ describe("formatRelativeTime date fallback", () => {
     } finally {
       await i18n.changeLanguage(previousLanguage);
     }
+  });
+});
+
+describe("formatCompactAge", () => {
+  it("renders bare compact units with no 'ago' suffix", () => {
+    expect(formatCompactAge(NOW - 11 * 60 * 1000, NOW)).toBe("11m");
+    expect(formatCompactAge(NOW - 11 * 60 * 60 * 1000, NOW)).toBe("11h");
+    expect(formatCompactAge(NOW - 2 * 24 * 60 * 60 * 1000, NOW)).toBe("2d");
+    expect(formatCompactAge(NOW - 2 * 7 * 24 * 60 * 60 * 1000, NOW)).toBe("2w");
+    expect(formatCompactAge(NOW - 2 * 30 * 24 * 60 * 60 * 1000, NOW)).toBe(
+      "2mo"
+    );
+    expect(formatCompactAge(NOW - 2 * 365 * 24 * 60 * 60 * 1000, NOW)).toBe(
+      "2y"
+    );
+  });
+
+  it("collapses anything under a minute to 'now'", () => {
+    expect(formatCompactAge(NOW, NOW)).toBe("now");
+    expect(formatCompactAge(NOW - 30 * 1000, NOW)).toBe("now");
+  });
+
+  it("ignores the app language — always renders English abbreviations", async () => {
+    await i18nReady;
+    const previousLanguage = i18n.language;
+    try {
+      await i18n.changeLanguage("zh");
+      expect(formatCompactAge(NOW - 11 * 60 * 1000, NOW)).toBe("11m");
+    } finally {
+      await i18n.changeLanguage(previousLanguage);
+    }
+  });
+
+  it("returns an empty string for a missing timestamp", () => {
+    expect(formatCompactAge(null, NOW)).toBe("");
+    expect(formatCompactAge(undefined, NOW)).toBe("");
   });
 });

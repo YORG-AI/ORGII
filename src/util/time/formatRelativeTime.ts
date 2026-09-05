@@ -192,3 +192,40 @@ export function formatRelativeTime(
   const unhandledStyle: never = style;
   return unhandledStyle;
 }
+
+const COMPACT_AGE_UNITS: ReadonlyArray<readonly [ms: number, suffix: string]> =
+  [
+    [YEAR, "y"],
+    [MONTH, "mo"],
+    [WEEK, "w"],
+    [DAY, "d"],
+    [HR, "h"],
+    [MIN, "m"],
+  ];
+
+/**
+ * Bare compact age like "11m", "11h", "2d" — always English abbreviations,
+ * never localized, and never suffixed with "ago"/"in". Intl.RelativeTimeFormat
+ * (which every style above uses) can't drop that suffix on its own, and
+ * always following the app's display language is wrong for UI slots — like a
+ * sidebar row's fixed-width shortcut — that read as a compact age badge
+ * rather than a sentence.
+ *
+ * @param timestamp - Unix ms number, ISO string, or null/undefined
+ * @param now - Injectable clock for deterministic callers and tests
+ */
+export function formatCompactAge(
+  timestamp: number | string | null | undefined,
+  now: number = Date.now()
+): string {
+  const ms = toMs(timestamp);
+  if (ms === null) return "";
+
+  const diffMs = now - ms;
+  if (diffMs < MIN) return "now";
+
+  for (const [unitMs, suffix] of COMPACT_AGE_UNITS) {
+    if (diffMs >= unitMs) return `${Math.floor(diffMs / unitMs)}${suffix}`;
+  }
+  return "now";
+}

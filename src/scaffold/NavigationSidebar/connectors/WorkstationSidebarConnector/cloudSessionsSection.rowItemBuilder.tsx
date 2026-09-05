@@ -51,7 +51,7 @@ import {
   popupNativeMenu,
 } from "@src/util/platform/tauri/nativeMenuPopup";
 import { resolveSessionDisplayMetadata } from "@src/util/session/sessionDisplayMetadata";
-import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
+import { formatCompactAge } from "@src/util/time/formatRelativeTime";
 
 const RowBusyIndicator: React.FC<{
   t: TFunction;
@@ -172,8 +172,11 @@ export function useCloudSessionRowItemBuilder({
       const isFork = Boolean(row.forkedFrom);
       const disabled = isCloudThreadRowDisabled(threadRow);
       const itemId = buildCloudRemoteItemId(row.orgId, row.id);
+      // Keep sidebar rows in bare compact form ("2m"/"2h"/"2d", no "ago")
+      // regardless of the app's display language (see menuItemBuilders.tsx
+      // for the same choice on local sessions).
       const relativeTime = row.lastActivityAt
-        ? formatRelativeTime(row.lastActivityAt, "nano")
+        ? formatCompactAge(row.lastActivityAt)
         : "";
       const display = resolveSessionDisplayMetadata({
         kind: "remote",

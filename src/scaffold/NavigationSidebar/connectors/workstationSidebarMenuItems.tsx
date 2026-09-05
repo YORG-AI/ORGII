@@ -13,7 +13,7 @@ import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/compone
 import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 import type { SessionCreatorDraft } from "@src/store/session";
 import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
-import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
+import { formatCompactAge } from "@src/util/time/formatRelativeTime";
 
 import {
   KANBAN_MENU_ITEM_ID,
@@ -217,7 +217,9 @@ export function buildDraftMenuItems({
           agentIconId: draft.agentIconId ?? undefined,
           cliAgentType: draft.cliAgentType ?? undefined,
         }),
-        shortcut: formatRelativeTime(draft.createdAt, "nano"),
+        // Keep sidebar rows in bare compact form ("2m"/"2h"/"2d", no "ago")
+        // regardless of the app's display language (see menuItemBuilders.tsx).
+        shortcut: formatCompactAge(draft.createdAt),
         openContextMenuOnSelectedClick: true,
         opensChatPanelTab: true,
         iconBadge: (
