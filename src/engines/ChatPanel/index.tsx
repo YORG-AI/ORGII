@@ -2,6 +2,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import React, { memo, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import SessionHistoryNav from "@src/components/SessionHistoryNav";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import {
   CHAT_WIDTH_CSS_VAR,
@@ -41,6 +42,7 @@ import {
   chatWidthAtom,
 } from "@src/store/ui/chatPanelAtom";
 import { openSideChatAtom } from "@src/store/ui/sideChatAtom";
+import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
 import { isHumanSession } from "@src/util/session/sessionDispatch";
 
 import { useReloadSession } from "./ChatHistory/hooks/useReloadSession";
@@ -50,7 +52,6 @@ import { ChatPanelShell } from "./ChatPanelShell";
 import {
   ChatPanelPlusMenu,
   ChatPanelTabBar,
-  ChatPanelTabNav,
   useChatPanelTabShortcuts,
 } from "./ChatPanelTabBar";
 import { NewChatHeaderActionsMenu } from "./components/NewChatHeaderActionsMenu";
@@ -104,6 +105,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const isLeftPosition = position === "left";
     const shouldOffsetHeaderForCollapsedSidebar =
       useShouldOffsetChatPanelHeader({ position, useExternalWidth });
+    const sidebarCollapsed = useAtomValue(sidebarCollapsedAtom);
     const { currentSessionId, currentSession, panelTitle } = usePanelTitle();
     const activeSession = currentSession ?? undefined;
     const humanSessionActive =
@@ -340,7 +342,12 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       handleRegionNoticeChange,
     });
     const tabStrip = <ChatPanelTabBar />;
-    const tabStripNav = <ChatPanelTabNav />;
+    // Back / Forward normally live in the sidebar header. The pane hosts its
+    // own copy only while the sidebar is collapsed, so the trail is always
+    // reachable from exactly one place.
+    const tabStripNav = sidebarCollapsed ? (
+      <SessionHistoryNav variant="tabBar" />
+    ) : undefined;
 
     const tabStripPlus = (
       <>

@@ -90,8 +90,9 @@ interface ChatPanelHeaderProps {
   handleTuiModeToggle: () => void;
   tabStrip: React.ReactNode;
   /**
-   * Back / Forward session navigation, leading the tab row. Folded, it moves
-   * to the published row's leading slot so the trail stays reachable.
+   * Back / Forward session navigation, leading the tab row. Only passed while
+   * the sidebar (the control's usual home) is collapsed. Folded, it moves to
+   * the published row's leading slot so the trail stays reachable.
    */
   tabStripNav?: React.ReactNode;
   /** When provided, rendered before the ... button (tab-strip + menu replacement) */
