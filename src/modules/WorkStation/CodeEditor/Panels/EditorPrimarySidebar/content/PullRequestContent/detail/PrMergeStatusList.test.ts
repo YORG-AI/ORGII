@@ -126,7 +126,10 @@ describe("PrMergeStatusList", () => {
       "[data-testid='pr-merge-status-headline']"
     );
     expect(headline?.textContent).toBe("Able to merge");
-    expect(headline?.className).toContain("text-success-6");
+    // Tone lives on the headline's icon, not the row text — the row itself
+    // shares the same neutral text style as every other row in the list.
+    const headlineIcon = headline?.querySelector("[data-icon='git-merge']");
+    expect(headlineIcon?.getAttribute("class")).toContain("text-success-6");
 
     const status = container.querySelector<HTMLElement>(
       "[data-testid='pr-merge-status']"

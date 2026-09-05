@@ -33,7 +33,7 @@ import {
   GitPullRequestClosedIcon,
   GitPullRequestDraftIcon,
   HugeiconsIcon,
-  Loading01Icon,
+  Loading03Icon,
 } from "@src/icons";
 import CiCheckStateIcon from "@src/modules/shared/components/CiCheckStateIcon";
 import {
@@ -47,14 +47,20 @@ import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
 import { PrChecksPanel } from "./PrChecksPanel";
 
+// Same row shape and 12px/text-text-1 label color as every other status row
+// in this sidebar (PrChecksTab's CheckRow, PrSidebar's reviewer/assignee
+// rows) — tone lives on the icon alone, and no row is bolder than its
+// siblings, so the headline reads as one item in the same list rather than
+// a differently-styled banner above it.
 const ROW_CLASS =
-  "flex h-6 w-full min-w-0 items-center gap-1.5 rounded-md px-1 text-[11px] text-text-2";
+  "flex h-6 w-full min-w-0 items-center gap-1.5 rounded-md px-1 text-[12px] text-text-1";
 
+/** Tone color for the headline's icon only — row text never carries tone. */
 const TONE_TEXT_CLASS: Record<PrMergeStatusTone, string> = {
   success: "text-success-6",
   failure: "text-danger-6",
   pending: "text-warning-6",
-  neutral: "text-text-2",
+  neutral: "text-text-3",
 };
 
 const HEADLINE_ICONS: Record<
@@ -71,7 +77,7 @@ const HEADLINE_ICONS: Record<
     icon: GitPullRequestClosedIcon,
     dataIcon: "git-pull-request-closed",
   },
-  checking: { icon: Loading01Icon, dataIcon: "loader", spin: true },
+  checking: { icon: Loading03Icon, dataIcon: "loader", spin: true },
 };
 
 const HEADLINE_LABELS: Record<PrMergeHeadlineKind, string> = {
@@ -174,16 +180,13 @@ export const PrMergeStatusList: React.FC<PrMergeStatusListProps> = ({
       aria-label={t("git.pr.mergeStatus.label", "Merge status")}
       data-testid="pr-merge-status"
     >
-      <div
-        className={`${ROW_CLASS} font-medium ${TONE_TEXT_CLASS[summary.headlineTone]}`}
-        data-testid="pr-merge-status-headline"
-      >
+      <div className={ROW_CLASS} data-testid="pr-merge-status-headline">
         <HugeiconsIcon
           icon={headlineIcon.icon}
           data-icon={headlineIcon.dataIcon}
           size={14}
           strokeWidth={1.9}
-          className={`shrink-0 ${headlineIcon.spin ? "animate-spin" : ""}`.trim()}
+          className={`shrink-0 ${TONE_TEXT_CLASS[summary.headlineTone]} ${headlineIcon.spin ? "animate-spin" : ""}`.trim()}
           aria-hidden
         />
         <span className="min-w-0 flex-1 truncate">

@@ -13,7 +13,7 @@ import {
   CheckmarkCircle01Icon,
   CircleSlashIcon,
   HugeiconsIcon,
-  Loading01Icon,
+  Loading03Icon,
 } from "@src/icons";
 import type { CiCheckState } from "@src/services/git/ciCheckState";
 
@@ -29,7 +29,7 @@ const STATE_ICONS = {
     className: "text-danger-6",
   },
   pending: {
-    icon: Loading01Icon,
+    icon: Loading03Icon,
     dataIcon: "loader",
     className: "animate-spin text-warning-6",
   },

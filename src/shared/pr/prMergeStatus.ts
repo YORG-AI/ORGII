@@ -142,44 +142,6 @@ export function summarizePullRequestMergeStatus({
   const mergeAvailable = isDirectMergeAvailable({ checks, signals, status });
   const openLike = status === "open" || status === "draft";
 
-  const rows: PrMergeStatusRow[] = [];
-
-  const checksRow = summarizeChecks(checkCounts);
-  if (checksRow) {
-    rows.push(checksRow);
-  } else if (checks) {
-    // The head commit was read and nothing reported — a real answer, not a
-    // gap, so it earns a row rather than silently leaving the list short.
-    rows.push({ kind: "checksNone", tone: "neutral" });
-  }
-
-  if (openLike) {
-    const reviewRow = summarizeReview(decision);
-    if (reviewRow) rows.push(reviewRow);
-
-    if (signals.hasConflicts) {
-      rows.push({ kind: "hasConflicts", tone: "failure" });
-    } else if (signals.behind) {
-      rows.push({ kind: "outOfDate", tone: "pending" });
-    } else if (
-      signals.mergeable === true ||
-      (signals.mergeableState !== null &&
-        CONFLICT_FREE_MERGE_STATES.has(signals.mergeableState))
-    ) {
-      rows.push({ kind: "noConflicts", tone: "success" });
-    } else {
-      // GitHub computes mergeability asynchronously; until it answers, the
-      // honest report is that the answer is still being computed.
-      rows.push({ kind: "checkingConflicts", tone: "pending" });
-    }
-
-    if (signals.inMergeQueue) {
-      rows.push({ kind: "inMergeQueue", tone: "pending" });
-    } else if (signals.autoMergeEnabled) {
-      rows.push({ kind: "autoMergeEnabled", tone: "pending" });
-    }
-  }
-
   const blockedTone: PrMergeStatusTone =
     checkCounts.failure > 0 || decision === "CHANGES_REQUESTED"
       ? "failure"
@@ -214,6 +176,50 @@ export function summarizePullRequestMergeStatus({
             : headline === "queued" || headline === "checking"
               ? "pending"
               : "neutral";
+
+  const rows: PrMergeStatusRow[] = [];
+
+  const checksRow = summarizeChecks(checkCounts);
+  if (checksRow) {
+    rows.push(checksRow);
+  } else if (checks) {
+    // The head commit was read and nothing reported — a real answer, not a
+    // gap, so it earns a row rather than silently leaving the list short.
+    rows.push({ kind: "checksNone", tone: "neutral" });
+  }
+
+  if (openLike) {
+    const reviewRow = summarizeReview(decision);
+    if (reviewRow) rows.push(reviewRow);
+
+    // When the headline is already "conflicts" it says exactly what this row
+    // would say, so skip it here rather than repeat the verdict twice in the
+    // same list. Every other branch (no conflicts, out of date, still
+    // computing) adds information the headline doesn't already carry.
+    if (signals.hasConflicts) {
+      if (headline !== "conflicts") {
+        rows.push({ kind: "hasConflicts", tone: "failure" });
+      }
+    } else if (signals.behind) {
+      rows.push({ kind: "outOfDate", tone: "pending" });
+    } else if (
+      signals.mergeable === true ||
+      (signals.mergeableState !== null &&
+        CONFLICT_FREE_MERGE_STATES.has(signals.mergeableState))
+    ) {
+      rows.push({ kind: "noConflicts", tone: "success" });
+    } else {
+      // GitHub computes mergeability asynchronously; until it answers, the
+      // honest report is that the answer is still being computed.
+      rows.push({ kind: "checkingConflicts", tone: "pending" });
+    }
+
+    if (signals.inMergeQueue) {
+      rows.push({ kind: "inMergeQueue", tone: "pending" });
+    } else if (signals.autoMergeEnabled) {
+      rows.push({ kind: "autoMergeEnabled", tone: "pending" });
+    }
+  }
 
   return { headline, headlineTone, rows, checkCounts };
 }

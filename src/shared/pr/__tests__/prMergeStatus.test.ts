@@ -165,10 +165,29 @@ describe("pull request merge status summary", () => {
       reviews: [],
     });
 
+    // The headline already says "conflicts" here, so the row list should not
+    // repeat it with a `hasConflicts` row — see the draft case below, where
+    // the headline says "draft" instead and the row is the only place the
+    // conflict is reported.
     expect(rest.headline).toBe("conflicts");
-    expect(kinds(rest.rows)).toEqual(["hasConflicts"]);
+    expect(kinds(rest.rows)).toEqual([]);
     expect(graphql.headline).toBe("conflicts");
-    expect(kinds(graphql.rows)).toEqual(["hasConflicts"]);
+    expect(kinds(graphql.rows)).toEqual([]);
+  });
+
+  it('still reports a hasConflicts row when the headline is not itself "conflicts"', () => {
+    const draftWithConflicts = summarizePullRequestMergeStatus({
+      checks: null,
+      detail: { state: "open", draft: true, mergeable: false },
+      fallbackStatus: "open",
+      reviews: [],
+    });
+
+    // Draft PRs never get a "conflicts" headline (draft wins), so the
+    // headline alone would not tell the reader conflicts exist — the row
+    // must still carry that information.
+    expect(draftWithConflicts.headline).toBe("draft");
+    expect(kinds(draftWithConflicts.rows)).toEqual(["hasConflicts"]);
   });
 
   it("falls back to submitted reviews when GitHub reported no review decision", () => {
