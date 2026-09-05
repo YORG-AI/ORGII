@@ -1,5 +1,6 @@
 import type { CliAgentType } from "@src/api/tauri/rpc/schemas/validation";
 import type { DispatchCategory } from "@src/api/tauri/session";
+import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import type { IconSvgElement } from "@src/icons";
 import type { CliLaunchMode } from "@src/store/session";
 import type { SessionTargetKind } from "@src/store/session/creatorStateAtom";
@@ -30,6 +31,8 @@ export interface AgentOption {
   isBuiltIn: boolean;
   isCli: boolean;
   isOrg: boolean;
+  /** Credential accounts represented by the selector's availability count. */
+  availableKeys?: KeyVaultAccount[];
   rightContent?: React.ReactNode;
 }
 

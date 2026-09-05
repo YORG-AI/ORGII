@@ -237,6 +237,7 @@ export function useDispatchCategoryOptions(
         isBuiltIn: true,
         isCli: false,
         isOrg: false,
+        availableKeys: rustCompatibleAccounts,
         rightContent: rustBadge,
       }));
   }, [allAgents, rustCompatibleAccounts]);
@@ -271,6 +272,7 @@ export function useDispatchCategoryOptions(
           isBuiltIn: true,
           isCli: true,
           isOrg: false,
+          availableKeys: compatibleAccounts,
           rightContent: buildCredentialBadge(compatibleAccounts),
         },
       ];
@@ -292,6 +294,7 @@ export function useDispatchCategoryOptions(
         isBuiltIn: false,
         isCli: false,
         isOrg: false,
+        availableKeys: rustCompatibleAccounts,
         rightContent: rustBadge,
       }));
   }, [allAgents, rustCompatibleAccounts]);
@@ -309,6 +312,7 @@ export function useDispatchCategoryOptions(
       isBuiltIn: false,
       isCli: false,
       isOrg: true,
+      availableKeys: rustCompatibleAccounts,
       rightContent: rustBadge,
     }));
   }, [allOrgs, rustCompatibleAccounts]);
@@ -467,6 +471,7 @@ export function useDispatchCategoryOptions(
             option.isCli && option.cliAgentType
               ? getCliTransportLabel(option.cliAgentType)
               : undefined,
+          availableKeys: option.availableKeys,
           rightContent: option.rightContent,
           testId: option.isOrg
             ? `session-creator-agent-option-org-${option.agentOrgId}`
