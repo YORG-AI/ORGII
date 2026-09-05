@@ -19,6 +19,7 @@ import React, {
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import { formatModelAgentType } from "@src/assets/providers";
 import AnyIcon from "@src/components/AnyIcon";
 import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import {
@@ -26,10 +27,13 @@ import {
   DROPDOWN_ITEM,
   DROPDOWN_PANEL,
 } from "@src/components/Dropdown/tokens";
+import ModelIcon from "@src/components/ModelIcon";
+import Tooltip from "@src/components/Tooltip";
 import {
   type UseDropdownListNavigationReturn,
   useDropdownEngine,
 } from "@src/hooks/dropdown";
+import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import { useFilteredItems } from "@src/hooks/search";
 import { HugeiconsIcon, Tick01Icon } from "@src/icons";
 import { getViewportSize } from "@src/util/ui/window/viewport";
@@ -41,11 +45,56 @@ import { useDispatchCategoryOptions } from "./useDispatchCategoryOptions";
 const LIST_MAX_HEIGHT = 360;
 const VIEWPORT_MARGIN = 12;
 /** Lower bound when the trigger is very narrow (e.g. collapsed sidebar). */
-const MIN_DROPDOWN_WIDTH = 240;
+const MIN_DROPDOWN_WIDTH = 320;
 
 function getItemData(item: SpotlightItem): Record<string, unknown> {
   return (item.data as Record<string, unknown> | undefined) ?? {};
 }
+
+const AvailableKeyCount: React.FC<{ keys: KeyVaultAccount[] }> = ({ keys }) => {
+  const { t } = useTranslation("common");
+  const hasKeys = keys.length > 0;
+
+  const keyList = hasKeys ? (
+    <div className="flex min-w-[180px] flex-col gap-1 py-0.5">
+      {keys.map((key) => (
+        <div key={key.id} className="flex min-w-0 items-center gap-2">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+            <ModelIcon agentType={key.modelType} size={14} />
+          </span>
+          <span className="min-w-0 flex-1 truncate">{key.name}</span>
+          <span className="shrink-0 text-[11px] text-text-3">
+            {formatModelAgentType(key.modelType)}
+          </span>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <span>{t("selectors.modelSelector.noCompatibleAccounts")}</span>
+  );
+
+  return (
+    <Tooltip
+      content={keyList}
+      position="right"
+      mouseEnterDelay={150}
+      framedPanel
+      smartPlacement
+    >
+      <span
+        className="flex shrink-0 items-center gap-1.5 text-[11px] text-text-2 tabular-nums"
+        aria-label={`${keys.length} ${t("labels.keys")}`}
+      >
+        {keys.length}
+        <span
+          className={`inline-block h-1.5 w-1.5 rounded-full ${
+            hasKeys ? "bg-success-6" : "bg-danger-6"
+          }`}
+        />
+      </span>
+    </Tooltip>
+  );
+};
 
 interface DropdownRowProps {
   item: SpotlightItem;
@@ -55,6 +104,7 @@ interface DropdownRowProps {
 const DropdownRow: React.FC<DropdownRowProps> = ({ item, keyboardProps }) => {
   const data = getItemData(item);
   const rightContent = data.rightContent as React.ReactNode | undefined;
+  const availableKeys = data.availableKeys as KeyVaultAccount[] | undefined;
   const isCurrent = data.isCurrentSelection === true;
   const testId = typeof data.testId === "string" ? data.testId : undefined;
 
@@ -97,7 +147,11 @@ const DropdownRow: React.FC<DropdownRowProps> = ({ item, keyboardProps }) => {
           <span className="truncate text-[11px] text-text-3">{item.desc}</span>
         )}
       </div>
-      {rightContent && <div className="shrink-0">{rightContent}</div>}
+      {availableKeys ? (
+        <AvailableKeyCount keys={availableKeys} />
+      ) : (
+        rightContent && <div className="shrink-0">{rightContent}</div>
+      )}
     </button>
   );
 };
@@ -210,16 +264,21 @@ export const DispatchCategoryDropdown: React.FC<
 
   if (!isOpen || !isPositioned) return null;
 
-  const width = Math.max(MIN_DROPDOWN_WIDTH, panelPosition.width);
   const { width: vw } = getViewportSize();
+  const width = Math.min(
+    Math.max(MIN_DROPDOWN_WIDTH, panelPosition.width),
+    vw - VIEWPORT_MARGIN * 2
+  );
+  const centeredLeft = panelPosition.left + (panelPosition.width - width) / 2;
   const left = Math.max(
     VIEWPORT_MARGIN,
-    Math.min(panelPosition.left, vw - VIEWPORT_MARGIN - width)
+    Math.min(centeredLeft, vw - VIEWPORT_MARGIN - width)
   );
 
   return createPortal(
     <div
       ref={panelRef}
+      role="menu"
       className={`${DROPDOWN_CLASSES.panel} fixed flex flex-col`}
       style={{
         top: panelPosition.top,
