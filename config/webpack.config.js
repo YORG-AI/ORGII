@@ -760,18 +760,44 @@ module.exports = (env, argv) => {
     performance: {
       hints: false,
     },
-    stats: {
-      all: false,
-      errors: true,
-      warnings: true,
-      timings: true,
-      version: false, // Skip version check for faster startup
-      builtAt: false, // Skip timestamp for faster startup
-      modules: false, // Skip module list for faster startup
-      colors: true,
-      // Only show minimal info in dev mode
-      preset: isProduction ? "normal" : "minimal",
-    },
+    // webpack-cli hands `compiler.options.stats` straight to `stats.toJson()`
+    // when `--json` is passed, and `all: false` overrides `preset` — so the
+    // console block below would reduce a JSON dump to `{time, errors,
+    // warnings}`. `pnpm build:stats` feeds
+    // scripts/quality/check-bundle-budget.mjs, which needs entrypoints,
+    // assets, and per-chunk modules and origins. Widen those fields for JSON
+    // dumps only; module `source` stays excluded, so stats.json stays small.
+    stats: argv.json
+      ? {
+          all: false,
+          errors: true,
+          warnings: true,
+          assets: true,
+          entrypoints: true,
+          chunks: true,
+          chunkModules: true,
+          chunkOrigins: true,
+          nestedModules: true,
+          // `all: false` would otherwise collapse dependent modules into
+          // "N dependent modules" placeholders and drop every module the
+          // filesystem cache served, making the module count depend on
+          // whether the cache was warm.
+          dependentModules: true,
+          cachedModules: true,
+          ids: true,
+        }
+      : {
+          all: false,
+          errors: true,
+          warnings: true,
+          timings: true,
+          version: false, // Skip version check for faster startup
+          builtAt: false, // Skip timestamp for faster startup
+          modules: false, // Skip module list for faster startup
+          colors: true,
+          // Only show minimal info in dev mode
+          preset: isProduction ? "normal" : "minimal",
+        },
     // Linux (eagerDevApp): App is bundled into main.js via `webpackMode:
     // "eager"` (see src/index.tsx). With eval-cheap-module-source-map that
     // inlines every module's source into main.js, swelling it past 80MB — too
