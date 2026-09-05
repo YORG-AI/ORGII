@@ -12,6 +12,7 @@ import { useLocation } from "react-router-dom";
 
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { NoDragRegion } from "@src/components/WindowChrome";
+import { TAB_BAR_CONTROLS_ROW_TRAILING_PADDING_PX } from "@src/config/workstation/tokens";
 import CaptionBar from "@src/engines/Simulator/components/CaptionBar";
 import { useCurrentTurnLastAgentMessage } from "@src/engines/Simulator/hooks/useCurrentTurnLastAgentMessage";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
@@ -20,9 +21,8 @@ import {
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import {
-  getPinnedWorkbenchChromeReservedRight,
   usePinnedWorkbenchChromeVisible,
-  useWorkbenchRightEdgeOwner,
+  useWorkbenchRightEdgeReservation,
 } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
 import {
   ArrowExpand01Icon,
@@ -59,7 +59,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
   const { t } = useTranslation("sessions");
   const shouldOffsetLeftChrome = useShouldOffsetWorkStationTopBar();
   const pinnedChrome = usePinnedWorkbenchChromeVisible();
-  const rightEdgeOwner = useWorkbenchRightEdgeOwner();
+  const rightEdge = useWorkbenchRightEdgeReservation();
   const getStationChatVisible = useAtomValue(activeStationChatVisibleAtom);
   const chatWidth = useAtomValue(chatWidthAtom);
   const chatPanelPosition = useAtomValue(chatPanelPositionAtom);
@@ -156,9 +156,12 @@ const AgentStationTopHeader: React.FC = memo(() => {
             paddingLeft: shouldOffsetLeftChrome
               ? getCollapsedSidebarChromeOffset()
               : undefined,
+            // The trailing group keeps its own `pr-2`; only the remainder of
+            // the pinned-chrome reservation goes here.
             paddingRight:
-              rightEdgeOwner === "workstation"
-                ? getPinnedWorkbenchChromeReservedRight()
+              rightEdge.owner === "workstation"
+                ? rightEdge.reservedRight -
+                  TAB_BAR_CONTROLS_ROW_TRAILING_PADDING_PX
                 : undefined,
             WebkitAppRegion: "drag",
           } as React.CSSProperties

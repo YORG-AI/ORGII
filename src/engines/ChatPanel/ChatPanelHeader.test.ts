@@ -27,9 +27,8 @@ vi.mock("@src/components/KeyboardShortcut/ToolbarTooltip", () => ({
 // The header reads the pinned right-edge chrome hooks, which need a router;
 // these tests render outside one and cover the non-pinned (non-macOS) layout.
 vi.mock("@src/hooks/ui/workbench/usePinnedWorkbenchChrome", () => ({
-  getPinnedWorkbenchChromeReservedRight: () => 66,
   usePinnedWorkbenchChromeVisible: () => false,
-  useWorkbenchRightEdgeOwner: () => null,
+  useWorkbenchRightEdgeReservation: () => ({ owner: null, reservedRight: 0 }),
 }));
 vi.mock("./header/ChatPanelCollapsedTabHeading", () => ({
   ChatPanelCollapsedTabHeading: () =>
