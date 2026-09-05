@@ -2139,6 +2139,7 @@
     "manualCompactInstructionsPlaceholder": "선택: 요약 시 집중할 내용"
   },
   "relativeDate": {
+    "justNow": "방금",
     "today": "오늘",
     "yesterday": "어제",
     "tomorrow": "내일",

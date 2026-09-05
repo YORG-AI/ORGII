@@ -2120,6 +2120,7 @@
     "miniCpmCompactToggleAria": "Enable MiniCPM silent auto-compaction"
   },
   "relativeDate": {
+    "justNow": "just now",
     "today": "Today",
     "yesterday": "Yesterday",
     "tomorrow": "Tomorrow",

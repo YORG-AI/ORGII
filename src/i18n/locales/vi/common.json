@@ -2136,6 +2136,7 @@
     "manualCompactInstructionsPlaceholder": "Tùy chọn: trọng tâm khi tóm tắt"
   },
   "relativeDate": {
+    "justNow": "vừa xong",
     "today": "Hôm nay",
     "yesterday": "Hôm qua",
     "tomorrow": "Ngày mai",

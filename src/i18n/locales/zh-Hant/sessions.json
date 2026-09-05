@@ -2564,7 +2564,7 @@
       "runningTask_one": "{{count}} 個執行中的任務",
       "runningTask_other": "{{count}} 個執行中的任務",
       "idle": "Agent 閒置中",
-      "lastRefreshed": "上次重新整理於 {{value}}",
+      "lastRefreshed": "上次重新整理 {{value}}",
       "asking": "等待你的回覆"
     }
   },

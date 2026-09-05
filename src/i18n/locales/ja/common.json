@@ -2141,6 +2141,7 @@
     "manualCompactInstructionsPlaceholder": "任意: 要約で重視するポイント"
   },
   "relativeDate": {
+    "justNow": "たった今",
     "today": "今日",
     "yesterday": "昨日",
     "tomorrow": "明日",

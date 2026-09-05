@@ -2159,6 +2159,7 @@
     "miniCpmCompactToggleAria": "開啟 MiniCPM 靜默自動壓縮"
   },
   "relativeDate": {
+    "justNow": "剛剛",
     "today": "今天",
     "yesterday": "昨天",
     "tomorrow": "明天",

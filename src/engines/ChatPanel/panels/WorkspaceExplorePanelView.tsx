@@ -45,6 +45,7 @@ import {
   workspaceCustomDefaultRepoPathAtom,
 } from "@src/store/config/configAtom";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
+import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 import { resolveDefaultRepoParentPath } from "@src/util/workspace/defaultRepoPath";
 
 const logger = createLogger("WorkspaceExplorePanelView");
@@ -60,24 +61,6 @@ function formatStarCount(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
   return value.toString();
-}
-
-function formatRelativeTime(iso: string): string {
-  if (!iso) return "";
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "";
-  const elapsed = Date.now() - then;
-  const minute = 60_000;
-  const hour = 60 * minute;
-  const day = 24 * hour;
-  const month = 30 * day;
-  const year = 365 * day;
-  if (elapsed < hour)
-    return `${Math.max(1, Math.round(elapsed / minute))}m ago`;
-  if (elapsed < day) return `${Math.round(elapsed / hour)}h ago`;
-  if (elapsed < month) return `${Math.round(elapsed / day)}d ago`;
-  if (elapsed < year) return `${Math.round(elapsed / month)}mo ago`;
-  return `${Math.round(elapsed / year)}y ago`;
 }
 
 interface SearchRepoCardProps {
@@ -145,7 +128,7 @@ const SearchRepoCard: React.FC<SearchRepoCardProps> = ({
             </span>
             {repo.license ? <span>{repo.license}</span> : null}
             {repo.updated_at ? (
-              <span>{formatRelativeTime(repo.updated_at)}</span>
+              <span>{formatRelativeTime(repo.updated_at, "nano")}</span>
             ) : null}
           </div>
           {repo.topics.length > 0 ? (

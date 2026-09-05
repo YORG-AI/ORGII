@@ -2647,7 +2647,7 @@
       "runningTask_one": "{{count}} 个运行中的任务",
       "runningTask_other": "{{count}} 个运行中的任务",
       "idle": "Agent 空闲中",
-      "lastRefreshed": "上次刷新于 {{value}}",
+      "lastRefreshed": "上次刷新 {{value}}",
       "asking": "等待你的回复"
     }
   },

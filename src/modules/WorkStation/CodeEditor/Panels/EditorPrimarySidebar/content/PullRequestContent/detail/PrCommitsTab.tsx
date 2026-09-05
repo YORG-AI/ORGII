@@ -192,7 +192,7 @@ function PrCommitCard({
   const copySha = useCallback(() => copyText(commit.sha), [commit.sha]);
   const { copied, handleCopy } = useCopyCheck(copySha);
   const commitChecks = readCommitChecks(checks, commit.sha);
-  const relativeTime = formatRelativeTime(commit.author.date, "long", locale);
+  const relativeTime = formatRelativeTime(commit.author.date, "long");
 
   return (
     <article className="group flex min-w-0 items-center overflow-hidden rounded-xl border border-border-1 bg-primary-container transition-colors hover:border-border-2">

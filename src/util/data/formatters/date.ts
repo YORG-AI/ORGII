@@ -17,6 +17,7 @@ import {
   getCurrentTimezone,
   resolveTimeZoneForIntl,
 } from "@src/config/timezone";
+import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import { parseApiDate } from "./dateCore";
 
@@ -196,14 +197,10 @@ export function formatLocalMonthDay(
 
 export function formatRelativeElapsedShort(
   date: Date,
-  now: Date = new Date()
+  now: Date = new Date(),
+  locale?: string
 ): string {
-  const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffSec < 60) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  return `${diffHr}h ago`;
+  return formatRelativeTime(date.getTime(), "elapsed", locale, now.getTime());
 }
 
 export interface FormatSmartDateTimeOptions {

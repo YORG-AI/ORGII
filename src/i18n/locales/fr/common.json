@@ -2141,6 +2141,7 @@
     "manualCompactInstructionsPlaceholder": "Facultatif : sur quoi concentrer le résumé"
   },
   "relativeDate": {
+    "justNow": "à l'instant",
     "today": "Aujourd'hui",
     "yesterday": "Hier",
     "tomorrow": "Demain",
