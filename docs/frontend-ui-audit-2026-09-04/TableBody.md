@@ -1,0 +1,11 @@
+# TableBody UI audit
+
+| Line                                         | Element                                   | Verdict          | Reason                                                                                                                                                                                      | Suggested change |
+| -------------------------------------------- | ----------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `src/components/Table/TableBody.tsx:34`      | Interactive row target guard              | keep with reason | Centralizes the controls that must not trigger row behavior, covering native controls and the design-system wrappers used inside settings-table cells.                                      | None.            |
+| `src/components/Table/TableBody.tsx:194`     | Settings row expand/collapse icon mapping | keep with reason | Uses the shared icon barrel and the established right-chevron collapsed / down-chevron expanded convention while preserving the existing non-settings table treatment.                      | None.            |
+| `src/components/Table/TableBody.tsx:228`     | Settings row click behavior               | keep with reason | The shared table primitive now owns expansion for every eligible non-interactive row click, while optional consumer callbacks remain limited to selection or other domain behavior.         | None.            |
+| `src/components/Table/TableBody.tsx:243`     | Compact row expansion button              | keep with reason | This is shared table primitive code with a table-cell-specific 14px control; the native button supplies keyboard and button semantics, while `aria-label` and `aria-expanded` expose state. | None.            |
+| `src/components/SettingsTable/index.tsx:202` | Row-click contract                        | keep with reason | Documents the shared expansion invariant at the public settings-table boundary so consumers do not reimplement it.                                                                          | None.            |
+
+Verdict totals: **0 fix**, **5 keep with reason**, **0 abstract**.

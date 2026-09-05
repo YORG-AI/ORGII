@@ -133,17 +133,6 @@ export default function MyAccountsTableSection({
     string | null
   >(null);
 
-  const setSingleExpandedAccount = useCallback((account: KeyVaultAccount) => {
-    setExpandedAccountKeys((currentKeys) => {
-      const collapsing = currentKeys.includes(account.id);
-      if (collapsing) {
-        setEditRequestedAccountId(null);
-        return [];
-      }
-      return [account.id];
-    });
-  }, []);
-
   const handleEditAccountInline = useCallback(
     (accountId: string) => {
       setExpandedAccountKeys([accountId]);
@@ -406,7 +395,6 @@ export default function MyAccountsTableSection({
       rows={accounts}
       getRowKey={(account) => account.id}
       rowDataTestId={(account) => `key-vault-account-row-${account.id}`}
-      onRowClick={setSingleExpandedAccount}
       expandable={expandable}
       headerHeight="tall"
       className="table-expanded-no-hover table-settings-expanded-compact"

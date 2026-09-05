@@ -341,13 +341,9 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
     </div>
   );
 
-  const handleRowClick = useCallback(
+  const handleRowSelect = useCallback(
     (skill: InstalledSkill) => {
-      const skillIdentity = getInstalledSkillIdentity(skill);
       onSelect(skill.name);
-      setExpandedKeys((current) =>
-        current.includes(skillIdentity) ? [] : [skillIdentity]
-      );
     },
     [onSelect]
   );
@@ -362,7 +358,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
             columns={columns}
             rows={filtered}
             getRowKey={getInstalledSkillIdentity}
-            onRowClick={handleRowClick}
+            onRowClick={handleRowSelect}
             rowClassName={selectedRowClassName(
               (sk: InstalledSkill) => sk.name,
               selectedRowId

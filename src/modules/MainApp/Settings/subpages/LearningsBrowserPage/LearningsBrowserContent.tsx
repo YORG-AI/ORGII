@@ -171,12 +171,6 @@ export const LearningsBrowserContent: React.FC<
     [t]
   );
 
-  const setSingleExpandedLearning = useCallback((row: LearningRecord) => {
-    setExpandedLearningKeys((current) =>
-      current.includes(row.id) ? [] : [row.id]
-    );
-  }, []);
-
   const { columns, selectFilters } = useLearningsTableConfig({
     variant,
     filters,
@@ -218,7 +212,6 @@ export const LearningsBrowserContent: React.FC<
       expandedLearningKeys={expandedLearningKeys}
       t={t}
       onSearchChange={handleSearchChange}
-      onExpandedLearningClick={setSingleExpandedLearning}
       onExpandedRowsChange={(keys) => setExpandedLearningKeys(keys.slice(-1))}
       onLoadMore={() => setVisibleLimit(getNextLearningsLimit)}
       renderExpandedLearningCard={(row) => (
