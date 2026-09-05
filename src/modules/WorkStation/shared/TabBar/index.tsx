@@ -47,7 +47,12 @@ import {
   getCollapsedSidebarChromeOffset,
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
+import {
+  getPinnedWorkbenchChromeReservedRight,
+  useWorkbenchRightEdgeOwner,
+} from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
 import { requestTeamInboxSessionHandoffAtom } from "@src/modules/MainApp/TeamInbox/store";
+import { CHROME_INSET_TRANSITION_CLASSES } from "@src/modules/shared/layouts/viewContainerTokens";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 import {
   SESSION_TAB_DROP_TARGET_HIGHLIGHT_CLASS,
@@ -221,6 +226,9 @@ export const TabBar: React.FC<TabBarProps> = memo(
     const actionSystem = useActionSystemOptional();
     const dispatch = actionSystem?.dispatch;
     const shouldOffsetLeftChrome = useShouldOffsetWorkStationTopBar();
+    // macOS pins the right-edge collapse toggles in window space; make room
+    // whenever the workstation is the pane touching that edge.
+    const rightEdgeOwner = useWorkbenchRightEdgeOwner();
 
     const scrollReveal = useAtomValue(tabScrollRevealAtom);
     const gitStatusMap = useAtomValue(gitFileStatusMapAtom);
@@ -378,7 +386,7 @@ export const TabBar: React.FC<TabBarProps> = memo(
         data-session-tab-drop-target="workstation"
         data-tour-target={dataTourTarget}
         data-is-dragging={draggingTabId ? "true" : undefined}
-        className={`work-station-tab-bar relative flex shrink-0 overflow-hidden ${surfaceClassName}`}
+        className={`work-station-tab-bar relative flex shrink-0 overflow-hidden ${CHROME_INSET_TRANSITION_CLASSES} ${surfaceClassName}`}
         data-tauri-drag-region
         style={
           {
@@ -386,6 +394,10 @@ export const TabBar: React.FC<TabBarProps> = memo(
             paddingLeft: shouldOffsetLeftChrome
               ? getCollapsedSidebarChromeOffset()
               : undefined,
+            paddingRight:
+              rightEdgeOwner === "workstation"
+                ? getPinnedWorkbenchChromeReservedRight()
+                : undefined,
             WebkitAppRegion: "drag",
           } as React.CSSProperties
         }

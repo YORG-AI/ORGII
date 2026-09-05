@@ -1,6 +1,7 @@
 import React, { memo } from "react";
 
 import { PublishedHeaderSlotsView } from "@src/components/WindowChrome";
+import { CHROME_INSET_TRANSITION_CLASSES } from "@src/modules/shared/layouts/viewContainerTokens";
 
 import {
   CHAT_PANEL_HEADER_DRAG_STYLE,
@@ -20,35 +21,46 @@ interface ChatPanelPublishedHeaderProps {
    * set, and is only passed once this row inherited the pane's top edge.
    */
   leadingInsetPx?: number;
+  /** Space kept clear at the right edge for the window's pinned collapse toggles. */
+  trailingInsetPx?: number;
 }
 
 /** Chat-pane counterpart of My Station's shared 36px published header. */
 export const ChatPanelPublishedHeader: React.FC<ChatPanelPublishedHeaderProps> =
-  memo(({ slots, windowsHost, leadingInsetPx, hideBottomBorder = false }) => {
-    if (!slots || slots.hidden) return null;
+  memo(
+    ({
+      slots,
+      windowsHost,
+      leadingInsetPx,
+      trailingInsetPx,
+      hideBottomBorder = false,
+    }) => {
+      if (!slots || slots.hidden) return null;
 
-    return (
-      <div
-        className={`relative z-40 flex h-9 shrink-0 items-center gap-2 ${CHAT_PANEL_HEADER_RIGHT_PADDING_CLASS} ${
-          slots.joinWithFollowingRow || hideBottomBorder
-            ? ""
-            : "border-b border-border-2"
-        }`}
-        data-testid="chat-panel-published-header"
-        data-tauri-drag-region={windowsHost ? undefined : true}
-        style={{
-          ...(windowsHost
-            ? CHAT_PANEL_HEADER_NO_DRAG_STYLE
-            : CHAT_PANEL_HEADER_DRAG_STYLE),
-          paddingLeft: leadingInsetPx,
-        }}
-      >
-        <PublishedHeaderSlotsView
-          slots={slots}
-          paddingLeftClassName={leadingInsetPx === undefined ? undefined : ""}
-        />
-      </div>
-    );
-  });
+      return (
+        <div
+          className={`relative z-40 flex h-9 shrink-0 items-center gap-2 ${CHAT_PANEL_HEADER_RIGHT_PADDING_CLASS} ${CHROME_INSET_TRANSITION_CLASSES} ${
+            slots.joinWithFollowingRow || hideBottomBorder
+              ? ""
+              : "border-b border-border-2"
+          }`}
+          data-testid="chat-panel-published-header"
+          data-tauri-drag-region={windowsHost ? undefined : true}
+          style={{
+            ...(windowsHost
+              ? CHAT_PANEL_HEADER_NO_DRAG_STYLE
+              : CHAT_PANEL_HEADER_DRAG_STYLE),
+            paddingLeft: leadingInsetPx,
+            paddingRight: trailingInsetPx,
+          }}
+        >
+          <PublishedHeaderSlotsView
+            slots={slots}
+            paddingLeftClassName={leadingInsetPx === undefined ? undefined : ""}
+          />
+        </div>
+      );
+    }
+  );
 
 ChatPanelPublishedHeader.displayName = "ChatPanelPublishedHeader";

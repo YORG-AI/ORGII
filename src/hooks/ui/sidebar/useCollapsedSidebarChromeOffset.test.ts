@@ -18,17 +18,17 @@ describe("getCollapsedSidebarChromeOffset", () => {
     isMacOSMock.mockReset();
   });
 
-  it("reserves native traffic-light space on macOS", () => {
+  it("reserves native traffic-light space, Back / Forward, and the toggle on macOS", () => {
     isMacOSMock.mockReturnValue(true);
 
     expect(getCollapsedSidebarButtonLeft()).toBe(88);
-    expect(getCollapsedSidebarChromeOffset()).toBe(118);
+    expect(getCollapsedSidebarChromeOffset()).toBe(176);
   });
 
-  it("reserves only the standalone sidebar toggle on Windows or Linux", () => {
+  it("reserves Back / Forward and the standalone sidebar toggle on Windows or Linux", () => {
     isMacOSMock.mockReturnValue(false);
 
     expect(getCollapsedSidebarButtonLeft()).toBe(8);
-    expect(getCollapsedSidebarChromeOffset()).toBe(38);
+    expect(getCollapsedSidebarChromeOffset()).toBe(96);
   });
 });

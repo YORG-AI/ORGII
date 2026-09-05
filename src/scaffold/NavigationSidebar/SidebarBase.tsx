@@ -15,11 +15,12 @@
  * ```
  */
 import i18next from "i18next";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import AnyIcon from "@src/components/AnyIcon";
-import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
+import Button from "@src/components/Button";
+import { SIDEBAR_CHROME_BUTTON_HOVER_CLASS } from "@src/components/SidebarChromeIconButton";
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import {
@@ -28,27 +29,20 @@ import {
 } from "@src/config/windowChromeRadius";
 import { createLogger } from "@src/hooks/logger";
 import { useSettingValue } from "@src/hooks/settings/useSettings";
+import { getCollapsedSidebarChromeOffset } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import { useSidebarState } from "@src/hooks/ui/sidebar/useSidebarState";
-import {
-  Add01Icon,
-  Cancel01Icon,
-  HugeiconsIcon,
-  LayoutAlignLeftIcon,
-  PanelLeftIcon,
-} from "@src/icons";
+import { Add01Icon } from "@src/icons";
 import {
   PANE_WIDTH_TRANSITION_CLASSES,
   getSidebarSurfaceBackgroundStyle,
 } from "@src/modules/shared/layouts/viewContainerTokens";
 import { VerticalResizeHandle } from "@src/scaffold/Resize";
 import { resolvedBackgroundConfigAtom } from "@src/store/ui/backgroundConfigAtom";
-import { hoverSidebarOpenAtom } from "@src/store/ui/hoverSidebarAtom";
 import {
   DEFAULT_SIDEBAR_WIDTH,
   MIN_SIDEBAR_WIDTH,
 } from "@src/store/ui/sidebarAtom";
 import { windowFullscreenAtom } from "@src/store/ui/uiAtom";
-import { isTauriDesktop } from "@src/util/platform/tauri";
 import { popupNativeMenu } from "@src/util/platform/tauri/nativeMenuPopup";
 
 import { SIDEBAR_STYLE } from "./config";
@@ -59,6 +53,9 @@ const log = createLogger("SidebarBase");
 
 const HOST_DESKTOP_KIND = resolveHostDesktop();
 const IS_MACOS_HOST = HOST_DESKTOP_KIND === HOST_DESKTOP.MACOS;
+/** Footprint of `PinnedSidebarChrome` past the traffic lights (inset + arrows + toggle). */
+const PINNED_CHROME_RESERVED_WIDTH =
+  getCollapsedSidebarChromeOffset() - SIDEBAR_STYLE.trafficLightsPadding;
 const IS_WINDOWS_HOST = HOST_DESKTOP_KIND === HOST_DESKTOP.WINDOWS;
 const IS_WINDOWS_OR_LINUX_HOST =
   HOST_DESKTOP_KIND === HOST_DESKTOP.WINDOWS ||
@@ -81,12 +78,10 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     className = "",
     innerClassName = "",
     includeTrafficLightSpace = true,
-    showCollapseButton = true,
     wrapInSurface = true,
     solidSurface = false,
     forceVisible: forceVisibleProp = false,
     theme,
-    onCollapse,
     onAddNew,
     addIcon: AddIcon = Add01Icon,
     addLabel,
@@ -104,7 +99,6 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
       handleMouseDown,
       isCollapsed,
       collapse,
-      expand,
       setWidth,
     } = useSidebarState();
     const sidebarSelectedRowOpacity = useSettingValue(
@@ -120,7 +114,6 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
         `${sidebarSelectedRowOpacity}%`
       );
     }, [sidebarSelectedRowOpacity]);
-    const isMacOS = isTauriDesktop();
     const hideSidebarShortcut = getShortcutKeys("toggle_sidebar");
     const isFullscreen = useAtomValue(windowFullscreenAtom);
     const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
@@ -142,27 +135,6 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
         activeElement.blur();
       }
     }, [isCollapsed, shouldForceVisible]);
-
-    // Check if hover sidebar is open — split read/write to avoid re-renders from setter reference
-    const isHoverSidebarOpen = useAtomValue(hoverSidebarOpenAtom);
-    const setIsHoverSidebarOpen = useSetAtom(hoverSidebarOpenAtom);
-
-    // Handle collapse with optional callback
-    const handleCollapse = useCallback(() => {
-      // If hover sidebar is open, close it instead of collapsing
-      if (isHoverSidebarOpen) {
-        setIsHoverSidebarOpen(false);
-        return;
-      }
-      collapse();
-      onCollapse?.();
-    }, [isHoverSidebarOpen, setIsHoverSidebarOpen, collapse, onCollapse]);
-
-    // Handle expand - turn sidebar on permanently and close floating
-    const handleExpand = useCallback(() => {
-      setIsHoverSidebarOpen(false);
-      expand();
-    }, [setIsHoverSidebarOpen, expand]);
 
     const handleResizeContextMenu = useCallback(
       (event: React.MouseEvent) => {
@@ -295,7 +267,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
               // edge, out of line with the list rows below it.
               paddingLeft: IS_WINDOWS_OR_LINUX_HOST
                 ? undefined
-                : `${trafficLightPadding}px`,
+                : `${trafficLightPadding + PINNED_CHROME_RESERVED_WIDTH}px`,
               WebkitAppRegion: IS_WINDOWS_HOST ? "no-drag" : "drag",
             } as React.CSSProperties
           }
@@ -315,7 +287,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
             )
           ) : null}
           <div
-            className={`flex shrink-0 items-center gap-1 ${sidebarTopChromeClassName}`}
+            className={`flex shrink-0 items-center gap-px ${sidebarTopChromeClassName}`}
           >
             {beforeAddNewActions ? (
               <div
@@ -341,28 +313,29 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
                   showArrow={false}
                   framedPanel={!!addTooltipContent}
                 >
-                  <div
-                    className="h-[28px] w-[28px]"
-                    onClick={onAddNew}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onAddNew();
+                  <span className="inline-flex">
+                    <Button
+                      htmlType="button"
+                      variant="tertiary"
+                      size="small"
+                      iconOnly
+                      className={SIDEBAR_CHROME_BUTTON_HOVER_CLASS}
+                      onClick={onAddNew}
+                      aria-label={
+                        addLabel ??
+                        i18next.t("navigation:sidebar.actions.addNew")
                       }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <div className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] transition-colors duration-150 hover:bg-sidebar-selected">
-                      <AnyIcon
-                        icon={AddIcon}
-                        size={16}
-                        strokeWidth={2}
-                        className="text-text-2"
-                        style={iconThemeStyle}
-                      />
-                    </div>
-                  </div>
+                      icon={
+                        <AnyIcon
+                          icon={AddIcon}
+                          size={16}
+                          strokeWidth={2}
+                          className="text-text-2"
+                          style={iconThemeStyle}
+                        />
+                      }
+                    />
+                  </span>
                 </Tooltip>
               </div>
             )}
@@ -375,89 +348,10 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
               </div>
             ) : null}
 
-            {/* Collapse/Expand buttons */}
-            <div
-              className="flex shrink-0 items-center gap-1"
-              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-            >
-              {isMacOS && showCollapseButton ? (
-                isHoverSidebarOpen ? (
-                  <>
-                    {/* Expand sidebar permanently button */}
-                    <button
-                      type="button"
-                      className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
-                      onClick={handleExpand}
-                    >
-                      <HugeiconsIcon
-                        icon={PanelLeftIcon}
-                        data-icon="panel-left"
-                        size={16}
-                        strokeWidth={2}
-                        className="text-text-2"
-                        style={iconThemeStyle}
-                      />
-                    </button>
-                    {/* Close floating sidebar button */}
-                    <button
-                      type="button"
-                      className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
-                      onClick={handleCollapse}
-                    >
-                      <HugeiconsIcon
-                        icon={Cancel01Icon}
-                        data-icon="x"
-                        size={16}
-                        strokeWidth={2}
-                        className="text-text-2"
-                        style={iconThemeStyle}
-                      />
-                    </button>
-                  </>
-                ) : (
-                  <Tooltip
-                    content={
-                      <KeyboardShortcutTooltipContent
-                        label={i18next.t("common:tooltips.hideSidebar")}
-                        shortcut={hideSidebarShortcut}
-                      />
-                    }
-                    position="bottom"
-                    mouseEnterDelay={200}
-                    framedPanel
-                  >
-                    <div className="inline-flex">
-                      <button
-                        type="button"
-                        className="group flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
-                        onClick={handleCollapse}
-                      >
-                        <span className="flex h-4 w-4 items-center justify-center">
-                          <HugeiconsIcon
-                            icon={PanelLeftIcon}
-                            data-icon="panel-left"
-                            size={16}
-                            strokeWidth={2}
-                            className="text-text-2 group-hover:hidden"
-                            style={iconThemeStyle}
-                          />
-                          <HugeiconsIcon
-                            icon={LayoutAlignLeftIcon}
-                            data-icon="layout-align-left"
-                            size={16}
-                            strokeWidth={2}
-                            className="hidden text-text-2 group-hover:block"
-                            style={iconThemeStyle}
-                          />
-                        </span>
-                      </button>
-                    </div>
-                  </Tooltip>
-                )
-              ) : (
-                <div className="h-[28px] w-[28px]" />
-              )}
-            </div>
+            {/* macOS: the toggle lives in `PinnedSidebarChrome`, pinned in
+                window space after the traffic lights; this row only keeps
+                the space under it clear. */}
+            {IS_MACOS_HOST ? null : <div className="h-[28px] w-[28px]" />}
           </div>
         </div>
       );

@@ -1047,7 +1047,9 @@
     "tabs": {
       "newTerminal": "新终端",
       "newTab": "新标签页",
-      "terminals": "终端"
+      "terminals": "终端",
+      "goBack": "后退",
+      "goForward": "前进"
     },
     "sideChat": {
       "title": "侧边聊天",

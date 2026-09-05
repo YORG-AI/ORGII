@@ -53,6 +53,7 @@ import {
   useChatPanelTabShortcuts,
 } from "./ChatPanelTabBar";
 import { NewChatHeaderActionsMenu } from "./components/NewChatHeaderActionsMenu";
+import { SessionSwipeIndicator } from "./components/SessionSwipeIndicator";
 // Parked with its header button below.
 // import SessionContinueCliHeaderExtras from "./SessionContinueCliHeaderExtras";
 import {
@@ -81,6 +82,7 @@ import { useChatPanelResize } from "./hooks/useChatPanelResize";
 import { useChatPanelSessionModals } from "./hooks/useChatPanelSessionModals";
 import { useChatPanelTabsController } from "./hooks/useChatPanelTabsController";
 import { usePanelTitle } from "./hooks/usePanelTitle";
+import { useSessionSwipeNavigation } from "./hooks/useSessionSwipeNavigation";
 import { useSessionViewMode } from "./hooks/useSessionViewMode";
 import type { ChatPanelProps, ChatPanelRegionNotice } from "./types";
 
@@ -236,6 +238,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       onNewTerminal: handleNewTerminalTab,
       containerRef: panelRef,
     });
+    const swipeIndicator = useSessionSwipeNavigation(panelRef);
 
     React.useLayoutEffect(() => {
       syncActiveTabState();
@@ -523,6 +526,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           isTerminalTabActive={isTerminalTabActive}
           onResizeMouseDown={handleMouseDown}
           panelRef={panelRef}
+          panelOverlay={<SessionSwipeIndicator {...swipeIndicator} />}
           resizeIndicatorHost={resizeIndicatorHost}
           resizeTooltipLabel={t("chat.hideWorkstation")}
           resizeTooltipShortcut={getShortcutKeys("maximize_chat")}

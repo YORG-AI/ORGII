@@ -10,6 +10,11 @@ import Tooltip from "@src/components/Tooltip";
 import type { DropdownEnginePosition } from "@src/hooks/dropdown";
 import { getCollapsedSidebarChromeOffset } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import {
+  getPinnedWorkbenchChromeReservedRight,
+  usePinnedWorkbenchChromeVisible,
+  useWorkbenchRightEdgeOwner,
+} from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
+import {
   ArrowExpand01Icon,
   ComputerVideoIcon,
   HugeiconsIcon,
@@ -19,6 +24,7 @@ import {
   SquareTerminalIcon,
 } from "@src/icons";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
+import { CHROME_INSET_TRANSITION_CLASSES } from "@src/modules/shared/layouts/viewContainerTokens";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 import type { ChatPanelPosition } from "@src/store/ui/workStationLayout/chatPositionAtoms";
@@ -154,6 +160,15 @@ export function ChatPanelHeader({
 }: ChatPanelHeaderProps): React.ReactNode {
   const publishedHeaderSlots = useAtomValue(chatPanelHeaderSlotsAtom);
   const windowsHost = isWindows();
+  // macOS pins the maximize-chat / show-workstation toggle at the window's
+  // right edge (`PinnedWorkbenchChrome`); this header then only reserves the
+  // space while the chat pane is the one touching that edge.
+  const pinnedChrome = usePinnedWorkbenchChromeVisible();
+  const rightEdgeOwner = useWorkbenchRightEdgeOwner();
+  const trailingInsetPx =
+    rightEdgeOwner === "chat"
+      ? getPinnedWorkbenchChromeReservedRight()
+      : undefined;
   if (!showHeader) return null;
 
   const chatFocusLabel = isChatFocus
@@ -258,7 +273,7 @@ export function ChatPanelHeader({
         )}
       </div>
     ) : null;
-  const chatFocusToggleButton = (
+  const chatFocusToggleButton = pinnedChrome ? null : (
     <span className="inline-flex">
       <TabBarTrailingIconButton
         title={
@@ -434,6 +449,7 @@ export function ChatPanelHeader({
         slots={effectivePublishedHeaderSlots}
         windowsHost={windowsHost}
         hideBottomBorder={!tabRowCollapsed}
+        trailingInsetPx={trailingInsetPx}
         leadingInsetPx={
           shouldOffsetHeaderForCollapsedSidebar
             ? getCollapsedSidebarChromeOffset()
@@ -446,6 +462,7 @@ export function ChatPanelHeader({
       slots={effectivePublishedHeaderSlots}
       windowsHost={windowsHost}
       hideBottomBorder={!tabRowCollapsed}
+      trailingInsetPx={trailingInsetPx}
     />
   );
 
@@ -468,7 +485,7 @@ export function ChatPanelHeader({
           (HEADER_CONTENT_LEFT_PADDING_CLASS 15px + breadcrumb px-1 4px). */}
       {tabRowCollapsed ? null : (
         <div
-          className={`workspace-header header-tab-group z-40 flex h-11 min-h-11 items-center gap-1.5 pt-2 pl-1 ${CHAT_PANEL_HEADER_RIGHT_PADDING_CLASS} ${
+          className={`workspace-header header-tab-group z-40 flex h-11 min-h-11 items-center gap-1.5 pt-2 pl-1 ${CHAT_PANEL_HEADER_RIGHT_PADDING_CLASS} ${CHROME_INSET_TRANSITION_CLASSES} ${
             overlayPublishedHeader
               ? "absolute top-0 right-0 left-0"
               : "relative shrink-0"
@@ -480,6 +497,7 @@ export function ChatPanelHeader({
               paddingLeft: shouldOffsetHeaderForCollapsedSidebar
                 ? getCollapsedSidebarChromeOffset()
                 : undefined,
+              paddingRight: trailingInsetPx,
               ...(windowsHost
                 ? CHAT_PANEL_HEADER_NO_DRAG_STYLE
                 : CHAT_PANEL_HEADER_DRAG_STYLE),

@@ -5,6 +5,7 @@ import {
   useShouldOffsetMainAppHeader,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import { PageBreadcrumb } from "@src/modules/shared/layouts/blocks";
+import { CHROME_INSET_TRANSITION_CLASSES } from "@src/modules/shared/layouts/viewContainerTokens";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 
 interface MainAppPageHeaderProps {
@@ -31,7 +32,7 @@ const MainAppPageHeader: React.FC<MainAppPageHeaderProps> = ({
 
   return (
     <div
-      className={`workspace-header header-tab-group relative z-30 flex h-11 min-h-11 shrink-0 items-center gap-1.5 px-2 pt-2 ${className}`}
+      className={`workspace-header header-tab-group relative z-30 flex h-11 min-h-11 shrink-0 items-center gap-1.5 px-2 pt-2 ${CHROME_INSET_TRANSITION_CLASSES} ${className}`}
       data-tauri-drag-region
       style={
         {

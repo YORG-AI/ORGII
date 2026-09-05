@@ -4,10 +4,10 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import Message from "@src/components/Message";
+import SessionHistoryNav from "@src/components/SessionHistoryNav";
 import { ROUTES } from "@src/config/routes";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
-import { Search01Icon } from "@src/icons";
 import { teamInboxUnreadCountAtom } from "@src/modules/MainApp/TeamInbox/store";
 import { useTeamInboxDataSource } from "@src/modules/MainApp/TeamInbox/useTeamInboxDataSource";
 import {
@@ -27,6 +27,7 @@ import {
   sessionSidebarRevealRequestAtom,
   sidebarCollapsedAtom,
 } from "@src/store/ui/sidebarAtom";
+import { isMacOS } from "@src/util/platform/tauri";
 
 import { SidebarBottomBar } from "../../blocks";
 import SidebarSettingsMenuButton from "../../blocks/SidebarSettingsMenuButton";
@@ -54,7 +55,6 @@ import { useWorkstationSidebarScopeAndPagination } from "./sidebarConnector.scop
 import { useWorkstationSidebarSelectionAndCollapse } from "./sidebarConnector.selectionAndCollapse";
 import { useWorkstationSidebarSessionInteractionHandlers } from "./sidebarConnector.sessionInteractionHandlers";
 import { useSidebarSessionRefreshAction } from "./sidebarSessionRefresh";
-import { SidebarSearchShortcutTooltip } from "./sidebarTabs";
 import type { WorkstationSidebarKey } from "./types";
 import { useSessionSidebarRowActions } from "./useSessionSidebarRowActions";
 import { useSidebarGuide } from "./useSidebarGuide";
@@ -546,7 +546,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
   });
 
   const {
-    handleOpenSpotlight,
     sidebarOrgSelector,
     resolvedMenuItemClick,
     resolvedMenuItemContextMenu,
@@ -662,19 +661,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
             onChange={handleViewChange}
           />
         }
-        onAddNew={
-          activeViewKey === "sessions"
-            ? handleOpenSessionSearch
-            : handleOpenSpotlight
-        }
-        addIcon={Search01Icon}
-        addLabel={tCommon("actions.search")}
-        addTooltipContent={
-          activeViewKey === "sessions" ? undefined : (
-            <SidebarSearchShortcutTooltip
-              searchLabel={tCommon("actions.search")}
-            />
-          )
+        headerActions={
+          isMacOS() ? undefined : <SessionHistoryNav variant="sidebar" />
         }
         listTopPadding
         bottomContent={

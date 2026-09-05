@@ -13,10 +13,11 @@
  *
  * Keyboard shortcuts live in useChatPanelTabShortcuts (mounted by ChatPanel
  * itself, not this strip, so they keep working while the strip is hidden):
- *   Cmd+W  — close active tab
- *   Cmd+]  — next tab    Cmd+[  — prev tab
- *   Cmd+N  — new session tab
- *   Cmd+T  — new terminal tab (via global "create-chat-tab" event)
+ *   Cmd+W        — close active tab
+ *   Cmd+[ / ]    — back / forward through the active tab's session history
+ *   Shift+Cmd+[ / ] — prev / next tab
+ *   Cmd+N        — new session tab
+ *   Cmd+T        — new terminal tab (via global "create-chat-tab" event)
  */
 import {
   DndContext,

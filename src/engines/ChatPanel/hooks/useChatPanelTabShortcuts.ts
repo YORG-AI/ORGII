@@ -6,6 +6,10 @@ import {
   nextChatPanelTabAtom,
   prevChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabLifecycleAtoms";
+import {
+  goBackChatPanelTabAtom,
+  goForwardChatPanelTabAtom,
+} from "@src/store/chatPanel/chatPanelTabNavigationAtoms";
 import { chatPanelTabsAtom } from "@src/store/chatPanel/chatPanelTabsState";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import { isMacOS } from "@src/util/platform/tauri";
@@ -29,9 +33,26 @@ export function isChatPanelPrimaryModifierPressed(
 }
 
 /**
- * Chat-panel-scoped tab shortcuts (⌘W / ⌘] / ⌘[ / ⌘N) plus the global
- * "create-chat-tab" event. Mounted by ChatPanel unconditionally so the
- * shortcuts work even when the visual tab strip is not rendered.
+ * The bracket a shortcut targets, independent of the shifted glyph the
+ * keyboard layout reports (`{` / `}` on US layouts) — `code` names the physical
+ * key, `key` is the fallback for synthetic events.
+ */
+export function resolveChatPanelBracketKey(
+  event: Pick<KeyboardEvent, "code" | "key">
+): "[" | "]" | null {
+  if (event.code === "BracketLeft") return "[";
+  if (event.code === "BracketRight") return "]";
+  if (event.key === "[" || event.key === "{") return "[";
+  if (event.key === "]" || event.key === "}") return "]";
+  return null;
+}
+
+/**
+ * Chat-panel-scoped tab shortcuts plus the global "create-chat-tab" event.
+ * Mounted by ChatPanel unconditionally so the shortcuts work even when the
+ * visual tab strip is not rendered. Bracket bindings follow the browser
+ * convention the editor already uses: ⌘[ / ⌘] walk the active tab's session
+ * history, ⇧⌘[ / ⇧⌘] switch tabs.
  */
 export function useChatPanelTabShortcuts({
   onNewSession,
@@ -43,6 +64,8 @@ export function useChatPanelTabShortcuts({
   const closeTab = useSetAtom(closeAndDestroyChatPanelTabAtom);
   const nextTab = useSetAtom(nextChatPanelTabAtom);
   const prevTab = useSetAtom(prevChatPanelTabAtom);
+  const goBack = useSetAtom(goBackChatPanelTabAtom);
+  const goForward = useSetAtom(goForwardChatPanelTabAtom);
 
   const tabsRef = useRef(state);
   const paneOwnsShortcutsRef = useRef(containerRef === undefined);
@@ -95,16 +118,18 @@ export function useChatPanelTabShortcuts({
         }
         return;
       }
-      if (event.key === "]") {
+      const bracket = resolveChatPanelBracketKey(event);
+      if (bracket !== null) {
         event.preventDefault();
         event.stopPropagation();
-        nextTab();
-        return;
-      }
-      if (event.key === "[") {
-        event.preventDefault();
-        event.stopPropagation();
-        prevTab();
+        if (bracket === "]") {
+          if (event.shiftKey) nextTab();
+          else goForward();
+        } else if (event.shiftKey) {
+          prevTab();
+        } else {
+          goBack();
+        }
         return;
       }
       if (event.key.toLowerCase() === "n" && !event.shiftKey) {
@@ -113,7 +138,15 @@ export function useChatPanelTabShortcuts({
         onNewSession();
       }
     },
-    [closeTab, isChatPanelMaximized, nextTab, onNewSession, prevTab]
+    [
+      closeTab,
+      goBack,
+      goForward,
+      isChatPanelMaximized,
+      nextTab,
+      onNewSession,
+      prevTab,
+    ]
   );
 
   useEffect(() => {

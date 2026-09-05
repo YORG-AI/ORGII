@@ -12,10 +12,12 @@ import {
   createSessionTab,
   createTerminalTab,
 } from "../chatPanelTabFactories";
+import { navigateChatPanelTabToSessionAtom } from "../chatPanelTabNavigationAtoms";
 import {
   activateChatPanelTabAtom,
   appendAndActivateChatPanelTabAtom,
 } from "../chatPanelTabPresentationAtoms";
+import type { ChatPanelTab } from "../chatPanelTabsModel";
 import { chatPanelTabsAtom } from "../chatPanelTabsState";
 
 /** Open or focus the singleton Runtime tab. */
@@ -89,10 +91,29 @@ openOrFocusSessionInChatPanelTabAtom.debugLabel =
   "openOrFocusSessionInChatPanelTab";
 
 /**
- * Open a session from normal navigation. An already-open target is focused;
- * otherwise only the active Launchpad placeholder is consumed. Session and
- * every other substantive tab own user state, so they are never repointed or
- * replaced by a later session click.
+ * The tab normal navigation reuses when the active tab cannot host a session
+ * itself: the session tab most recently navigated, so one shared tab keeps
+ * absorbing sidebar clicks instead of a new sibling appearing per click.
+ */
+function findSharedSessionTab(tabs: ChatPanelTab[]): ChatPanelTab | undefined {
+  let shared: ChatPanelTab | undefined;
+  for (const tab of tabs) {
+    if (tab.type !== "session") continue;
+    if (!shared || (tab.updatedAt ?? "") > (shared.updatedAt ?? "")) {
+      shared = tab;
+    }
+  }
+  return shared;
+}
+
+/**
+ * Open a session from normal navigation, browser-style: the pane keeps one
+ * shared session tab and repoints it. An already-open target is focused; the
+ * active session tab (or the shared one, when a non-session surface is
+ * active) navigates in place and records the hop on its Back / Forward
+ * trail; an active Launchpad placeholder is consumed. A new sibling tab only
+ * appears when no session tab exists at all — explicit "open in new tab"
+ * paths use `openSessionInNewChatTabAtom` directly.
  */
 export const openOrReplaceSessionInChatPanelTabAtom = atom(
   null,
@@ -111,6 +132,22 @@ export const openOrReplaceSessionInChatPanelTabAtom = atom(
     }
 
     const activeTab = state.tabs.find((tab) => tab.id === state.activeTabId);
+    const navigableTab =
+      activeTab?.type === "session"
+        ? activeTab
+        : activeTab?.type === "start-page"
+          ? undefined
+          : findSharedSessionTab(state.tabs);
+    if (navigableTab) {
+      set(navigateChatPanelTabToSessionAtom, {
+        tabId: navigableTab.id,
+        sessionId: options.sessionId,
+        sessionName: options.sessionName,
+        repoPath: options.repoPath,
+      });
+      return navigableTab.id;
+    }
+
     if (activeTab?.type !== "start-page") {
       return set(openSessionInNewChatTabAtom, options);
     }

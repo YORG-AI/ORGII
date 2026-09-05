@@ -24,6 +24,13 @@ vi.mock("@src/components/KeyboardShortcut/ToolbarTooltip", () => ({
     label: string;
   }) => createElement("span", { "data-tooltip-label": label }, children),
 }));
+// The header reads the pinned right-edge chrome hooks, which need a router;
+// these tests render outside one and cover the non-pinned (non-macOS) layout.
+vi.mock("@src/hooks/ui/workbench/usePinnedWorkbenchChrome", () => ({
+  getPinnedWorkbenchChromeReservedRight: () => 66,
+  usePinnedWorkbenchChromeVisible: () => false,
+  useWorkbenchRightEdgeOwner: () => null,
+}));
 vi.mock("./header/ChatPanelCollapsedTabHeading", () => ({
   ChatPanelCollapsedTabHeading: () =>
     createElement("span", { "data-collapsed-heading": "true" }),

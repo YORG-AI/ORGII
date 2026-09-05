@@ -20,6 +20,11 @@ import {
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import {
+  getPinnedWorkbenchChromeReservedRight,
+  usePinnedWorkbenchChromeVisible,
+  useWorkbenchRightEdgeOwner,
+} from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
+import {
   ArrowExpand01Icon,
   ArrowShrink01Icon,
   BubbleChatIcon,
@@ -29,6 +34,7 @@ import {
   PanelRightIcon,
 } from "@src/icons";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
+import { CHROME_INSET_TRANSITION_CLASSES } from "@src/modules/shared/layouts/viewContainerTokens";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import {
@@ -52,6 +58,8 @@ import { SimulatorAgentChip, StationModeChip } from "../shared";
 const AgentStationTopHeader: React.FC = memo(() => {
   const { t } = useTranslation("sessions");
   const shouldOffsetLeftChrome = useShouldOffsetWorkStationTopBar();
+  const pinnedChrome = usePinnedWorkbenchChromeVisible();
+  const rightEdgeOwner = useWorkbenchRightEdgeOwner();
   const getStationChatVisible = useAtomValue(activeStationChatVisibleAtom);
   const chatWidth = useAtomValue(chatWidthAtom);
   const chatPanelPosition = useAtomValue(chatPanelPositionAtom);
@@ -141,13 +149,17 @@ const AgentStationTopHeader: React.FC = memo(() => {
   return (
     <div className="flex shrink-0 flex-col">
       <div
-        className="relative flex h-11 min-h-11 shrink-0 items-center pt-2"
+        className={`relative flex h-11 min-h-11 shrink-0 items-center pt-2 ${CHROME_INSET_TRANSITION_CLASSES}`}
         data-tauri-drag-region
         style={
           {
             paddingLeft: shouldOffsetLeftChrome
               ? getCollapsedSidebarChromeOffset()
               : undefined,
+            paddingRight:
+              rightEdgeOwner === "workstation"
+                ? getPinnedWorkbenchChromeReservedRight()
+                : undefined,
             WebkitAppRegion: "drag",
           } as React.CSSProperties
         }
@@ -214,7 +226,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
               )}
             </TabBarTrailingIconButton>
           )}
-          {!isSettingsRoute && isChatPanelVisible && (
+          {!isSettingsRoute && !pinnedChrome && isChatPanelVisible && (
             <TabBarTrailingIconButton
               title={hideWorkstationLabel}
               shortcutId="maximize_chat"

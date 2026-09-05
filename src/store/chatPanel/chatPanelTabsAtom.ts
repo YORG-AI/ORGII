@@ -75,6 +75,16 @@ export {
   toggleActiveChatPanelMaximizedAtom,
 } from "./chatPanelTabPresentationAtoms";
 export {
+  activeChatPanelTabCanGoBackAtom,
+  activeChatPanelTabCanGoForwardAtom,
+  activeChatPanelTabHistoryAtom,
+  chatPanelTabHistoriesAtom,
+  goBackChatPanelTabAtom,
+  goForwardChatPanelTabAtom,
+  navigateChatPanelTabToSessionAtom,
+  type ChatPanelTabHistory,
+} from "./chatPanelTabNavigationAtoms";
+export {
   isChatPanelTabStationAvailable,
   normalizePersistedChatPanelTabsState,
   resolveChatPanelMaximizedForLayout,
