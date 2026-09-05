@@ -277,7 +277,7 @@ function SettingsTableToolbar({
 
   return (
     <div className="flex min-w-0 flex-col gap-2 pt-2 pb-2 @[640px]:flex-row @[640px]:items-center">
-      <div className="order-2 w-full min-w-0 overflow-x-auto overflow-y-hidden @[640px]:order-1 @[640px]:w-auto @[640px]:flex-none">
+      <div className="order-2 scrollbar-hide w-full min-w-0 overflow-x-auto overflow-y-hidden @[640px]:order-1 @[640px]:w-auto @[640px]:flex-none">
         <div className="flex w-max min-w-full items-center gap-2">
           {searchBar?.leftContent}
           {selectFilters?.map((filter) => {
@@ -369,7 +369,7 @@ function SelectFilterRow({
 }) {
   return (
     <div
-      className={`min-w-0 overflow-x-auto overflow-y-hidden px-1 pb-1 ${hasSearchBarAbove ? "" : "pt-1"}`}
+      className={`scrollbar-hide min-w-0 overflow-x-auto overflow-y-hidden px-1 pb-1 ${hasSearchBarAbove ? "" : "pt-1"}`}
     >
       <div className="flex w-max min-w-full items-center gap-2">
         {filters.map((filter) => {
