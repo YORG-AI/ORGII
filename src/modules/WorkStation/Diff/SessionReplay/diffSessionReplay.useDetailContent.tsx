@@ -17,6 +17,7 @@ import {
 } from "@src/modules/WorkStation/shared";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 import type { DiffViewMode } from "@src/types/git/types";
+import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
 
 import type { DiffReplayTab } from "./types";
 import type { SubmissionRepoContext } from "./useSubmissionsData";
@@ -135,6 +136,10 @@ export function useDiffDetailContent({
         focusedNonce={focusedDiffNonce}
         collapseSignal={collapseAllSignal}
         collapseThreshold={3}
+        repoPath={fallbackRepoContext.repoPath}
+        onFileSelect={
+          fallbackRepoContext.repoPath ? openFileInWorkStation : undefined
+        }
         hideBottomPadding
       />
     );

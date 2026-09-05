@@ -133,6 +133,7 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
   expansionSignal = 0,
   repoPath,
   sectionRef,
+  onFileSelect,
   onRequestContent,
   onExpansionChange,
   hideDirectory = false,
@@ -227,6 +228,10 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
     file.path.startsWith("/") || !repoPath
       ? file.path
       : `${repoPath}/${file.path}`;
+  const canOpenFile = !isDeleted && !!onFileSelect;
+  const handleOpenFile = useCallback(() => {
+    onFileSelect?.(absoluteFilePath);
+  }, [absoluteFilePath, onFileSelect]);
 
   function renderPreviewContent(): React.ReactNode {
     if (!isPreviewable || file.status === "deleted") return null;
@@ -376,65 +381,86 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
       className={showBottomBorder ? "border-b border-border-2" : undefined}
       data-diff-section-path={dataPath}
     >
-      <button
-        className={`sticky top-0 z-10 flex w-full min-w-0 items-center gap-2 py-2 text-left hover:bg-fill-2 disabled:cursor-default disabled:hover:bg-transparent ${compactHeaderGutter ? "px-2" : "px-3"} ${EDITOR_TAB_CANVAS_BG_CLASS}`}
-        onClick={toggleExpanded}
-        disabled={isDeleted}
+      <div
+        className={`group/diff-header sticky top-0 z-10 h-9 w-full min-w-0 ${isDeleted ? "" : "hover:bg-fill-2"} ${compactHeaderGutter ? "px-2" : "px-3"} ${EDITOR_TAB_CANVAS_BG_CLASS}`}
       >
-        {isDeleted ? (
-          <span className="inline-block w-[14px] shrink-0" aria-hidden />
-        ) : expanded ? (
-          <HugeiconsIcon
-            icon={ArrowDown01Icon}
-            data-icon="chevron-down"
-            size={14}
-            className="shrink-0 text-text-3"
-          />
-        ) : (
-          <HugeiconsIcon
-            icon={ArrowRight01Icon}
-            data-icon="chevron-right"
-            size={14}
-            className="shrink-0 text-text-3"
-          />
-        )}
-        <FileTypeIcon
-          fileName={file.path}
-          size="small"
-          className="shrink-0 text-text-2"
+        <button
+          type="button"
+          className="absolute inset-0 w-full cursor-pointer focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none focus-visible:ring-inset disabled:cursor-default"
+          onClick={toggleExpanded}
+          disabled={isDeleted}
+          title={t(expanded ? "actions.collapse" : "actions.expand")}
+          aria-label={`${t(expanded ? "actions.collapse" : "actions.expand")} ${displayPath}`}
+          aria-expanded={isDeleted ? undefined : expanded}
         />
-        <div className="flex min-w-0 flex-1 items-baseline gap-1.5 overflow-hidden">
-          <span className="shrink-0 text-[13px] font-medium text-text-1">
-            {fileName}
-          </span>
-          {!hideDirectory && dirPath ? (
-            <span className="min-w-0 truncate text-[11px] text-text-2">
-              {dirPath}
-            </span>
-          ) : null}
-          {renamePath ? (
-            <>
-              <span className="shrink-0 text-[11px] text-text-3" aria-hidden>
-                ←
-              </span>
-              <span
-                className="min-w-0 truncate text-[11px] text-text-2"
-                title={`${displayPath} ← ${renamePath}`}
+        <div className="pointer-events-none relative z-10 flex h-full min-w-0 items-center gap-2">
+          {isDeleted ? (
+            <span className="inline-block w-[14px] shrink-0" aria-hidden />
+          ) : expanded ? (
+            <HugeiconsIcon
+              icon={ArrowDown01Icon}
+              data-icon="chevron-down"
+              size={14}
+              className="shrink-0 text-text-3"
+            />
+          ) : (
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
+              size={14}
+              className="shrink-0 text-text-3"
+            />
+          )}
+          <FileTypeIcon
+            fileName={file.path}
+            size="small"
+            className="shrink-0 text-text-2"
+          />
+          <div className="flex min-w-0 flex-1 items-baseline gap-1.5 overflow-hidden">
+            {canOpenFile ? (
+              <button
+                type="button"
+                className="pointer-events-auto shrink-0 text-left text-[13px] leading-normal font-medium text-text-1 underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+                onClick={handleOpenFile}
+                title={t("tooltips.openInEditorTab")}
+                aria-label={`${t("tooltips.openInEditorTab")}: ${displayPath}`}
               >
-                {renamePath}
+                {fileName}
+              </button>
+            ) : (
+              <span className="shrink-0 text-[13px] font-medium text-text-1">
+                {fileName}
               </span>
-            </>
-          ) : null}
+            )}
+            {!hideDirectory && dirPath ? (
+              <span className="min-w-0 truncate text-[11px] text-text-2">
+                {dirPath}
+              </span>
+            ) : null}
+            {renamePath ? (
+              <>
+                <span className="shrink-0 text-[11px] text-text-3" aria-hidden>
+                  ←
+                </span>
+                <span
+                  className="min-w-0 truncate text-[11px] text-text-2"
+                  title={`${displayPath} ← ${renamePath}`}
+                >
+                  {renamePath}
+                </span>
+              </>
+            ) : null}
+          </div>
+          <DiffStatsBadge
+            additions={additions}
+            deletions={deletions}
+            variant="compact"
+          />
+          <span className={`shrink-0 text-[11px] font-medium ${statusColor}`}>
+            {statusLetter}
+          </span>
         </div>
-        <DiffStatsBadge
-          additions={additions}
-          deletions={deletions}
-          variant="compact"
-        />
-        <span className={`shrink-0 text-[11px] font-medium ${statusColor}`}>
-          {statusLetter}
-        </span>
-      </button>
+      </div>
 
       {!isDeleted && expanded && diffContent}
     </div>
