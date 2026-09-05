@@ -4,13 +4,33 @@
  * Pure functions for mutating tab state within a pane.
  * All functions return new state objects (immutable).
  */
+import { deleteGitDiffEditDraft } from "@src/store/workstation/codeEditor/gitDiffEditDrafts";
 import {
   clearSearchTabSessionStates,
   deleteSearchTabSessionState,
 } from "@src/store/workstation/codeEditor/search";
 
+import { clearTabViewStates, deleteTabViewState } from "./tabViewState";
 import { TAB_RETURN_TARGET_DATA_KEY } from "./types";
 import type { PanelState, WorkStationTab } from "./types";
+
+/**
+ * Drop the session-only state a tab owned once it leaves the pool: its
+ * search session cache, its saved view state, and — for a working-tree
+ * `git-diff` tab — the in-progress diff edit for its file (closing the tab
+ * is the discard gesture; the Source Control tab is pinned and never reaches
+ * here, so its Focus-view drafts survive until saved or discarded).
+ */
+function releaseClosedTabResources(tab: WorkStationTab): void {
+  if (tab.id.startsWith("search:")) {
+    deleteSearchTabSessionState(tab.id);
+  }
+  deleteTabViewState(tab.id);
+  if (tab.type === "git-diff" && !tab.data.isTimeline) {
+    const filePath = tab.data.filePath;
+    if (typeof filePath === "string") deleteGitDiffEditDraft(filePath);
+  }
+}
 
 // ============================================
 // Tab Mutations
@@ -130,9 +150,7 @@ export function closeTab(state: PanelState, tabId: string): PanelState {
   if (closedIndex === -1) return state ?? { tabs: [], activeTabId: null };
   const target = tabs[closedIndex];
   const newTabs = tabs.filter((tab) => tab.id !== tabId);
-  if (tabId.startsWith("search:")) {
-    deleteSearchTabSessionState(tabId);
-  }
+  releaseClosedTabResources(target);
 
   // If closing the active tab, select another
   let newActiveTabId = state?.activeTabId ?? null;
@@ -241,11 +259,14 @@ export function updateTabData(
  * `useLaunchpadTab`).
  */
 export function closeAllTabs(state: PanelState): PanelState {
-  const hadSearchTabs = (state?.tabs ?? []).some((tab) =>
-    tab.id.startsWith("search:")
-  );
+  const tabs = state?.tabs ?? [];
+  const hadSearchTabs = tabs.some((tab) => tab.id.startsWith("search:"));
   if (hadSearchTabs) {
     clearSearchTabSessionStates();
+  }
+  clearTabViewStates();
+  for (const tab of tabs) {
+    releaseClosedTabResources(tab);
   }
   return {
     tabs: [],
@@ -263,9 +284,7 @@ export function closeOtherTabs(state: PanelState, tabId: string): PanelState {
   if (!targetTab) return state ?? { tabs: [], activeTabId: null };
 
   for (const tab of tabs) {
-    if (tab.id !== tabId && tab.id.startsWith("search:")) {
-      deleteSearchTabSessionState(tab.id);
-    }
+    if (tab.id !== tabId) releaseClosedTabResources(tab);
   }
 
   return {
@@ -292,9 +311,7 @@ export function closeSavedTabs(state: PanelState): PanelState {
 
   for (const tab of tabs) {
     const keptTab = keptTabs.find((kept) => kept.id === tab.id);
-    if (!keptTab && tab.id.startsWith("search:")) {
-      deleteSearchTabSessionState(tab.id);
-    }
+    if (!keptTab) releaseClosedTabResources(tab);
   }
 
   return {

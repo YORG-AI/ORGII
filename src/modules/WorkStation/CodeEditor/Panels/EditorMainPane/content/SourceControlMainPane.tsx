@@ -21,6 +21,7 @@ import {
   type SourceControlMainTabData,
   deriveSourceControlMainProps,
 } from "./sourceControlMainProps";
+import { useSourceControlIssueDetailTab } from "./useSourceControlIssueDetailTab";
 
 const SourceControlMainContent = React.lazy(
   () => import("./SourceControlMainContent")
@@ -50,6 +51,11 @@ export interface SourceControlMainPaneProps {
   onFileSelect?: (path: string) => void;
   onCloseFocus?: () => void;
   onGitDiffUnsavedChange?: (hasUnsaved: boolean) => void;
+  /**
+   * Owning tab id; per-tab view state is saved under it so this active-only
+   * pane restores expansion, scroll, and sub-tab selection on remount.
+   */
+  viewStateKey?: string;
 }
 
 const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
@@ -67,6 +73,7 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
   onFileSelect,
   onCloseFocus,
   onGitDiffUnsavedChange,
+  viewStateKey,
 }) => {
   const scopeKey = workstationRepoScopeKey(repoId, repoPath);
   const {
@@ -78,6 +85,10 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
     repoId: repoId ?? undefined,
     stateScopeKey: scopeKey,
   });
+  const [issueDetailTab, setIssueDetailTab] = useSourceControlIssueDetailTab(
+    viewStateKey,
+    selectedIssueState.issue?.html_url
+  );
 
   const { mode, staged, historySelection, allFiles, focusGitFile, hasFocus } =
     deriveSourceControlMainProps({
@@ -116,6 +127,8 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
           timelineLoading={selectedIssueState.timelineLoading}
           interaction={interaction}
           assigneeConfig={assigneeConfig}
+          activeTab={issueDetailTab}
+          onTabChange={setIssueDetailTab}
         />
       </Suspense>
     );
@@ -152,6 +165,7 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
           repoPath={repoPath}
           collapseAllSignal={sourceControlCollapseAllSignal}
           emptyFocusActions={sourceControlQuickActions}
+          viewStateKey={viewStateKey}
         />
       </Suspense>
     </div>

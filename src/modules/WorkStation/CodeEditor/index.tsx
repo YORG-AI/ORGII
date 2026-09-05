@@ -12,6 +12,7 @@ import React, { memo, useCallback, useEffect, useMemo } from "react";
 import { ActionSystemProvider } from "@src/ActionSystem";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { usePinnedTabs } from "@src/hooks/tabHost/usePinnedTabs";
+import { useRetainedTabPool } from "@src/hooks/tabHost/useRetainedTabPool";
 import { useWorkStationPanels } from "@src/hooks/tabHost/useWorkStationPanels";
 import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import { useEditorRepoCacheSync } from "@src/hooks/ui/tabs";
@@ -103,6 +104,21 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
     // file-row clicks can be wired to `handleGitFileSelect`.
     const { activeTab, tabs } = useWorkStationTabs();
     const setLayout = useSetAtom(workstationLayoutAtom);
+    // Tabs the retention policy keeps mounted-but-hidden after you leave
+    // them (`tabRetention.ts`). Computed once here so the main pane and the
+    // sidebar slot hide/show the same instances in lockstep.
+    const retainedTabIds = useRetainedTabPool(
+      "source-control",
+      tabs,
+      activeTab?.id ?? null
+    );
+    const retainedTabs = useMemo(
+      () => tabs.filter((tab) => retainedTabIds.has(tab.id)),
+      [retainedTabIds, tabs]
+    );
+    const sourceControlSurfaceMounted =
+      activeTab?.type === "source-control" ||
+      retainedTabs.some((tab) => tab.type === "source-control");
 
     // === Local state, status-bar sync, and misc handlers ===
     const {
@@ -199,6 +215,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
       currentBranch,
       gitDiffState,
       activeTab,
+      sourceControlSurfaceMounted,
       setPrimaryPanel,
       handleGitFileSelect,
     });
@@ -317,6 +334,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
       () => (
         <SidebarSlot
           activeTab={activeTab}
+          retainedTabs={retainedTabs}
           repoPath={repoPath}
           repoId={selectedRepoId}
           isMultiRoot={workspaceFolders.length > 1}
@@ -336,6 +354,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
         handleGitFilesChange,
         handleSourceControlHistorySelectionChange,
         repoPath,
+        retainedTabs,
         selectedRepoId,
         tabSidebarExtraContext,
         workspaceFolders.length,
@@ -416,6 +435,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
             isBinary={codeEditorState.isBinary}
             onCursorPositionChange={handleCursorPositionChange}
             terminalState={terminalState}
+            retainedTabIds={retainedTabIds}
             sourceControlHeaderLeadingSlot={editorSourceControlScopePicker}
             sourceControlHeaderTrailingSlot={editorSourceControlHeaderSlot}
             sourceControlFilterMode={editorSourceControlFilterMode}
@@ -446,6 +466,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
         handleAllChangesClick,
         handleCursorPositionChange,
         terminalState,
+        retainedTabIds,
         editorSourceControlScopePicker,
         editorSourceControlHeaderSlot,
         editorSourceControlFilterMode,

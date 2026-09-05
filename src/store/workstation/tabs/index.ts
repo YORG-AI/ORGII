@@ -89,6 +89,13 @@ export {
   clearPendingCodeEditorTabForSession,
 } from "./pendingCodeEditorTab";
 
+export {
+  getTabViewState,
+  setTabViewState,
+  deleteTabViewState,
+  clearTabViewStates,
+} from "./tabViewState";
+
 // ============================================
 // Tab Factory System
 // ============================================

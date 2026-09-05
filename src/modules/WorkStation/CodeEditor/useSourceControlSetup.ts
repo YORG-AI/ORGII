@@ -47,6 +47,14 @@ interface UseSourceControlSetupParams {
   currentBranch: string | undefined;
   gitDiffState: UseGitDiffStateReturn;
   activeTab: WorkStationTab | undefined | null;
+  /**
+   * True while the Source Control surface is mounted — active, or kept warm
+   * by the tab retention policy. Worktree loading follows this rather than
+   * "active" so leaving and returning to a retained Review does not clear
+   * and refetch the worktree list (which flips the scope identity and paints
+   * a loading overlay over the sidebar). Defaults to "active".
+   */
+  sourceControlSurfaceMounted?: boolean;
   setPrimaryPanel: (updater: (prev: PanelState) => PanelState) => void;
   handleGitFileSelect: (file: GitFile) => void;
 }
@@ -80,6 +88,7 @@ export function useSourceControlSetup({
   currentBranch,
   gitDiffState,
   activeTab,
+  sourceControlSurfaceMounted,
   setPrimaryPanel,
   handleGitFileSelect,
 }: UseSourceControlSetupParams): UseSourceControlSetupReturn {
@@ -92,6 +101,8 @@ export function useSourceControlSetup({
   const { isGitInitialized } = useRepoGitInitialization(repoPath);
   const resolvedRepoId = repoId ?? repoPath;
   const isSourceControlActive = activeTab?.type === "source-control";
+  const isSourceControlMounted =
+    sourceControlSurfaceMounted ?? isSourceControlActive;
   const {
     worktrees,
     mainDiffSummary,
@@ -101,7 +112,7 @@ export function useSourceControlSetup({
   } = useGitWorktrees({
     repoId: resolvedRepoId,
     repoPath,
-    enabled: isGitInitialized === true && isSourceControlActive,
+    enabled: isGitInitialized === true && isSourceControlMounted,
   });
   const { scope, setScope } = useSourceControlScope({
     repoPath,

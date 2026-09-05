@@ -22,6 +22,7 @@ import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSe
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 import type { GitFile } from "@src/types/git/types";
 
+import { useSourceControlIssueDetailTab } from "../useSourceControlIssueDetailTab";
 import AllChangesView from "./AllChangesView";
 import FocusView from "./FocusView";
 
@@ -69,6 +70,12 @@ interface SourceControlMainContentProps {
   collapseAllSignal?: number;
   /** Source Control navigation shown when no detail is selected. */
   emptyFocusActions: QuickAction[];
+  /**
+   * Owning tab id. The pane is unmounted when the tab is not active; view
+   * state (All Changes expansion + scroll, issue sub-tab) is saved under this
+   * key so the next mount restores it.
+   */
+  viewStateKey?: string;
 }
 
 const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
@@ -87,6 +94,7 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
   repoPath,
   collapseAllSignal,
   emptyFocusActions,
+  viewStateKey,
 }) => {
   const scopeKey = workstationRepoScopeKey(repoId, repoPath);
   const {
@@ -98,6 +106,10 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
     repoId,
     stateScopeKey: scopeKey,
   });
+  const [issueDetailTab, setIssueDetailTab] = useSourceControlIssueDetailTab(
+    viewStateKey,
+    selectedIssueState.issue?.html_url
+  );
 
   // `historySelection` keeps a stable reference across renders (it comes from
   // the persisted tab payload), so memoizing on it directly gives a stable
@@ -163,6 +175,8 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
           timelineLoading={selectedIssueState.timelineLoading}
           interaction={interaction}
           assigneeConfig={assigneeConfig}
+          activeTab={issueDetailTab}
+          onTabChange={setIssueDetailTab}
         />
       </Suspense>
     );
@@ -231,6 +245,7 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
           repoPath={repoPath}
           onFileSelect={onFileSelect}
           collapseAllSignal={collapseAllSignal}
+          viewStateKey={viewStateKey}
         />
       )}
     </div>

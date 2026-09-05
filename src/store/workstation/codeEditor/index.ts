@@ -46,3 +46,6 @@ export * from "./outputIntegration";
 
 // GitHub Issues list, detail, and callback atoms
 export * from "./workstationIssueAtom";
+
+// Git diff editor drafts (survive tab switches, keyed by file path)
+export * from "./gitDiffEditDrafts";
