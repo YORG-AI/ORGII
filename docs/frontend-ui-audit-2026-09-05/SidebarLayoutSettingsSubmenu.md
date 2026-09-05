@@ -1,0 +1,10 @@
+# SidebarLayoutSettingsSubmenu UI audit
+
+| Line                                                                         | Element                           | Verdict          | Reason                                                                                                                                                                               | Suggested change |
+| ---------------------------------------------------------------------------- | --------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| `src/scaffold/NavigationSidebar/blocks/SidebarLayoutSettingsSubmenu.tsx:121` | Floating submenu surface          | keep with reason | Reuses the shared dropdown panel and width tokens used by the sibling sidebar submenus; the inline position is required for the existing flyout placement contract.                  | None.            |
+| `src/scaffold/NavigationSidebar/blocks/SidebarLayoutSettingsSubmenu.tsx:126` | Settings control stack            | keep with reason | Reuses the shared padded dropdown column and keeps all controls aligned to the established compact menu row geometry.                                                                | None.            |
+| `src/scaffold/NavigationSidebar/blocks/SidebarLayoutSettingsSubmenu.tsx:145` | Chat pagination section separator | keep with reason | Uses `DROPDOWN_CLASSES.menuGroupSeparator`, the existing dropdown token, to separate the pagination toggle without introducing a one-off border or extra section component.          | None.            |
+| `src/scaffold/NavigationSidebar/blocks/SidebarLayoutSettingsSubmenu.tsx:149` | Pagination toggle row             | keep with reason | Continues to use the shared `SwitchControlRow` and `Switch`, preserving the existing accessible label and boolean-control behavior while placing it in the requested separate group. | None.            |
+
+Verdict totals: **0 fix**, **4 keep with reason**, **0 abstract**.

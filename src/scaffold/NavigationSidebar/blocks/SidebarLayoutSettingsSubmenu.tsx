@@ -142,6 +142,10 @@ export const SidebarLayoutSettingsSubmenu: React.FC<SidebarLayoutSettingsSubmenu
             options={modelPickerStyleOptions}
             onChange={setModelPickerStyle}
           />
+          <div
+            className={DROPDOWN_CLASSES.menuGroupSeparator}
+            data-testid="sidebar-layout-pagination-separator"
+          />
           <SwitchControlRow
             label={t("layoutSettings.paginateChatHistory")}
             checked={chatTurnPaginationEnabled}
