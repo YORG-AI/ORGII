@@ -11,6 +11,7 @@ export interface MessageConfig {
   duration?: number;
   closable?: boolean;
   onClose?: () => void;
+  /** Optional custom icon for success and info toasts. */
   icon?: ReactNode;
   className?: string;
   id?: string;

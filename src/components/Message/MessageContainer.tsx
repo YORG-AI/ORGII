@@ -10,8 +10,6 @@ import { useTranslation } from "react-i18next";
 
 import AnyIcon from "@src/components/AnyIcon";
 import {
-  Alert01Icon,
-  AlertCircleIcon,
   Cancel01Icon,
   CheckmarkCircle01Icon,
   HugeiconsIcon,
@@ -29,25 +27,23 @@ import {
 // Config
 // ============================================
 
-const ICONS: Record<MessageType, typeof CheckmarkCircle01Icon> = {
+type IconMessageType = Extract<MessageType, "success" | "info">;
+
+const ICONS: Record<IconMessageType, typeof CheckmarkCircle01Icon> = {
   success: CheckmarkCircle01Icon,
-  error: AlertCircleIcon,
-  warning: Alert01Icon,
   info: InformationCircleIcon,
 };
 
-const TYPE_STYLES: Record<MessageType, { border: string; icon: string }> = {
+const TYPE_STYLES: Record<MessageType, { border: string; icon?: string }> = {
   success: {
     border: "border-success-6/30",
     icon: "bg-success-6/15 text-success-6",
   },
   error: {
     border: "border-danger-6/30",
-    icon: "bg-danger-6/15 text-danger-6",
   },
   warning: {
     border: "border-warning-6/30",
-    icon: "bg-warning-6/15 text-warning-6",
   },
   info: {
     border: "border-primary-6/30",
@@ -98,9 +94,9 @@ const MessageItem = ({
     };
   }, [duration, handleClose]);
 
-  const IconComponent = ICONS[type];
   const typeStyle = TYPE_STYLES[type];
-  const iconNode = icon || <AnyIcon icon={IconComponent} size={18} />;
+  const iconType: IconMessageType | null =
+    type === "success" || type === "info" ? type : null;
   const hasDescription = Boolean(title || download || cancel || action);
   const handleDownload = useCallback(() => {
     const blob =
@@ -149,12 +145,13 @@ const MessageItem = ({
       }}
       className={`pointer-events-auto relative flex w-full cursor-default gap-3 overflow-hidden rounded-xl border bg-bg-2 p-[14px_16px] shadow-[0_2px_4px_rgba(0,0,0,0.04),0_12px_24px_rgba(0,0,0,0.08)] transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-px hover:shadow-[0_4px_8px_rgba(0,0,0,0.06),0_16px_32px_rgba(0,0,0,0.12)] max-[480px]:gap-2.5 max-[480px]:rounded-[10px] max-[480px]:p-[12px_14px] ${hasDescription ? "items-start" : "items-center"} ${typeStyle.border} ${className}`}
     >
-      {/* Icon */}
-      <div
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg max-[480px]:h-6 max-[480px]:w-6 max-[480px]:rounded-md ${typeStyle.icon}`}
-      >
-        {iconNode}
-      </div>
+      {iconType && (
+        <div
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg max-[480px]:h-6 max-[480px]:w-6 max-[480px]:rounded-md ${typeStyle.icon}`}
+        >
+          {icon || <AnyIcon icon={ICONS[iconType]} size={18} />}
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
