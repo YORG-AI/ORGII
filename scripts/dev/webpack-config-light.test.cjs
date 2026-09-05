@@ -76,3 +76,35 @@ test("production keeps default HTML script injection", () => {
   assert.equal(htmlPlugin?.userOptions?.inject, "body");
   assert.equal(htmlPlugin?.userOptions?.retryMainScriptLoad, false);
 });
+
+// `pnpm build:stats` dumps stats with `--json`, and webpack-cli serializes
+// that dump with `compiler.options.stats`. The console block sets
+// `all: false`, which overrides `preset` and once reduced the dump to
+// `{time, errors, warnings}` — leaving scripts/quality/check-bundle-budget.mjs
+// with no entrypoint to measure.
+test("--json builds emit the stats fields the bundle budget reads", () => {
+  const config = createWebpackConfig(
+    {},
+    { mode: "production", json: "build/stats.json" }
+  );
+
+  for (const field of [
+    "assets",
+    "entrypoints",
+    "chunks",
+    "chunkModules",
+    "chunkOrigins",
+    "nestedModules",
+    "dependentModules",
+    "cachedModules",
+  ]) {
+    assert.equal(config.stats[field], true, `stats.${field} must be enabled`);
+  }
+});
+
+test("builds without --json keep the terse console stats", () => {
+  const config = createWebpackConfig({}, { mode: "production" });
+
+  assert.equal(config.stats.preset, "normal");
+  assert.equal(config.stats.entrypoints, undefined);
+});
