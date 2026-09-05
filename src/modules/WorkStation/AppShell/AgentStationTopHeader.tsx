@@ -192,7 +192,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
               strokeWidth={2}
             />
           </TabBarTrailingIconButton>
-          {!isSettingsRoute && !isChatPanelVisible && (
+          {!isSettingsRoute && !pinnedChrome && !isChatPanelVisible && (
             <TabBarTrailingIconButton
               title={chatPanelLabel}
               shortcutId="maximize_work_station"
@@ -206,7 +206,10 @@ const AgentStationTopHeader: React.FC = memo(() => {
               />
             </TabBarTrailingIconButton>
           )}
-          {!isSettingsRoute && (
+          {/* On macOS `PinnedWorkbenchChrome` draws hide/restore-chat and
+              maximize-chat fixed at the window's right edge, so this header
+              leaves them out — same as the My Station bar. */}
+          {!isSettingsRoute && !pinnedChrome && (
             <TabBarTrailingIconButton
               title={chatPanelLabel}
               shortcutId="maximize_work_station"

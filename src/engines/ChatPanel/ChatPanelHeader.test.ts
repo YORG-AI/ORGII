@@ -26,9 +26,16 @@ vi.mock("@src/components/KeyboardShortcut/ToolbarTooltip", () => ({
 }));
 // The header reads the pinned right-edge chrome hooks, which need a router;
 // these tests render outside one and cover the non-pinned (non-macOS) layout.
+const { rightEdgeMock } = vi.hoisted(() => ({
+  rightEdgeMock: vi.fn(
+    (): {
+      owner: "chat" | "workstation" | null;
+      reservedRight: number;
+    } => ({ owner: null, reservedRight: 0 })
+  ),
+}));
 vi.mock("@src/hooks/ui/workbench/usePinnedWorkbenchChrome", () => ({
-  usePinnedWorkbenchChromeVisible: () => false,
-  useWorkbenchRightEdgeReservation: () => ({ owner: null, reservedRight: 0 }),
+  useWorkbenchRightEdgeReservation: rightEdgeMock,
 }));
 vi.mock("./header/ChatPanelCollapsedTabHeading", () => ({
   ChatPanelCollapsedTabHeading: () =>
@@ -127,6 +134,27 @@ describe("ChatPanelHeader tab row collapse", () => {
     );
     expect(markup).toContain('aria-label="chat.workstationUnavailableForPage"');
     expect(markup).toContain("disabled");
+  });
+
+  it("keeps its own maximize toggle unless the pinned group sits in its corner", () => {
+    // Chat on the left: the window's right edge belongs to the workstation,
+    // so the header still shows its toggle right of "+".
+    rightEdgeMock.mockReturnValueOnce({
+      owner: "workstation",
+      reservedRight: 66,
+    });
+    // The helper renders the pane already maximized, so the toggle reads
+    // "show workstation"; either way it must still be in this header.
+    expect(render({ tabRowCollapsed: false })).toContain(
+      'aria-label="chat.showWorkstation"'
+    );
+
+    // Chat on the right (or maximized): the pinned copy occupies this
+    // corner, so the header reserves the space and drops its own toggle.
+    rightEdgeMock.mockReturnValueOnce({ owner: "chat", reservedRight: 66 });
+    const pinned = render({ tabRowCollapsed: false });
+    expect(pinned).not.toContain('aria-label="chat.showWorkstation"');
+    expect(pinned).toContain("padding-right:66px");
   });
 
   it("keeps both rows while the tab strip is worth showing", () => {
