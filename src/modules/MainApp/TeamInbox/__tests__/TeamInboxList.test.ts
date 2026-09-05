@@ -222,6 +222,9 @@ describe("TeamInboxList pagination", () => {
   });
 
   it("places actionable pull requests and assigned work under matching sections", () => {
+    // Pin the clock so the inbox row's relative timestamp is deterministic.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-28T05:00:00.000Z"));
     const markup = renderToStaticMarkup(
       createElement(TeamInboxList, {
         filter: "all",
@@ -280,7 +283,9 @@ describe("TeamInboxList pagination", () => {
     expect(markup).not.toContain("orgii-issu");
     expect(markup).not.toContain("author · #42");
     expect(markup).toContain(">5h<");
-    expect(markup).not.toContain("ago");
+    // The inbox row's own timestamp is the localized narrow relative form
+    // of `occurredAt` (five hours before the pinned clock above).
+    expect(markup).toContain(">5h ago<");
     expect(markup).not.toContain("teamInbox.groups.");
     expect(markup).toMatch(/class="[^"]*text-text-3[^"]*"[^>]*>5h<\/span>/);
     expect(markup).toContain("text-text-2");
@@ -293,5 +298,6 @@ describe("TeamInboxList pagination", () => {
     expect(markup).toContain("rounded-lg");
     expect(markup).toContain("hover:bg-surface-hover");
     expect(markup).not.toContain("min-h-[72px]");
+    vi.useRealTimers();
   });
 });
