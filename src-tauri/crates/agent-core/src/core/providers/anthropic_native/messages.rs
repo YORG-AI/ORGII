@@ -435,7 +435,9 @@ fn anthropic_thinking_block(tool_call: &Value) -> Option<Value> {
     let anthropic = tool_call.get("extra_content")?.get("anthropic")?;
     let thinking = anthropic.get("thinking")?.as_str()?;
     let signature = anthropic.get("signature")?.as_str()?;
-    if thinking.is_empty() || signature.is_empty() {
+    // Fable 5.1 can sign an empty visible summary. The opaque signature,
+    // not the amount of display text, determines whether to replay it.
+    if signature.is_empty() {
         return None;
     }
     Some(serde_json::json!({

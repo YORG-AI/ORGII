@@ -564,6 +564,14 @@ const FAMILY_RULES: &[FamilyRule] = &[
     },
 ];
 
+/// Fable 5.1 request compatibility, including qualified ids and snapshots.
+pub(crate) fn is_claude_fable_5_1(model: &str) -> bool {
+    model
+        .to_ascii_lowercase()
+        .split_once("claude-fable-5-1")
+        .is_some_and(|(_, rest)| rest.is_empty() || rest.starts_with('-') || rest.starts_with(':'))
+}
+
 /// Resolve capabilities for `model`, optionally consulting the KeyVault
 /// entry for `account_id`.
 ///

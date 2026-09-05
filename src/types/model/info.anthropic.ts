@@ -191,6 +191,20 @@ export const ANTHROPIC_MODEL_INFO_ENTRIES: ModelInfoEntry[] = [
       pricingTier: "budget",
     },
   },
+  // Fable 5.1: https://platform.claude.com/docs/en/models/fable-5-1/overview
+  {
+    pattern: "claude-fable-5-1",
+    info: {
+      provider: "Anthropic",
+      providerKey: "anthropic",
+      contextWindow: 1000,
+      maxOutput: 128,
+      vision: true,
+      reasoning: true,
+      strengthKeys: ["coding", "agentic", "reasoning", "planning"],
+      pricingTier: "expensive",
+    },
+  },
   // claude-fable-5 / claude-mythos: 1M context window (Anthropic).
   {
     pattern: "claude-fable",

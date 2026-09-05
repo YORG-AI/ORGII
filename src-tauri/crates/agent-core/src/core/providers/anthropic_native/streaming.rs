@@ -564,9 +564,6 @@ fn build_non_streaming_response(parsed: MessagesResponse) -> LLMResponse {
                 signature,
             } => {
                 if let Some(ref thought) = thinking {
-                    if thought.is_empty() {
-                        continue;
-                    }
                     if let Some(sig) = signature {
                         pending_anthropic_thinking = Some(serde_json::json!({
                             "anthropic": {
@@ -574,6 +571,10 @@ fn build_non_streaming_response(parsed: MessagesResponse) -> LLMResponse {
                                 "signature": sig,
                             }
                         }));
+                    }
+                    // Empty summaries still carry signed history (Fable 5.1).
+                    if thought.is_empty() {
+                        continue;
                     }
                     reasoning.push_str(thought);
                     blocks.push(AssistantBlock::Reasoning {
@@ -622,3 +623,7 @@ fn build_non_streaming_response(parsed: MessagesResponse) -> LLMResponse {
         retry_after_ms: None,
     }
 }
+
+#[cfg(test)]
+#[path = "tests/thinking_history_tests.rs"]
+mod thinking_history_tests;
