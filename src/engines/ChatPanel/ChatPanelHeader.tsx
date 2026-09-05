@@ -9,10 +9,7 @@ import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailing
 import Tooltip from "@src/components/Tooltip";
 import type { DropdownEnginePosition } from "@src/hooks/dropdown";
 import { getCollapsedSidebarChromeOffset } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
-import {
-  usePinnedWorkbenchChromeVisible,
-  useWorkbenchRightEdgeReservation,
-} from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
+import { useWorkbenchRightEdgeReservation } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
 import {
   ArrowExpand01Icon,
   ComputerVideoIcon,
@@ -160,12 +157,16 @@ export function ChatPanelHeader({
   const publishedHeaderSlots = useAtomValue(chatPanelHeaderSlotsAtom);
   const windowsHost = isWindows();
   // macOS pins the maximize-chat / show-workstation toggle at the window's
-  // right edge (`PinnedWorkbenchChrome`); this header then only reserves the
-  // space while the chat pane is the one touching that edge.
-  const pinnedChrome = usePinnedWorkbenchChromeVisible();
+  // right edge (`PinnedWorkbenchChrome`). Only while the chat pane is the
+  // one touching that edge does the pinned copy sit in this header's corner:
+  // then this header reserves the space and drops its own toggle. With the
+  // chat on the left the pinned group is over the workstation, so the
+  // header keeps its own toggle right of "+" exactly as before.
   const rightEdge = useWorkbenchRightEdgeReservation();
-  const trailingInsetPx =
-    rightEdge.owner === "chat" ? rightEdge.reservedRight : undefined;
+  const pinnedChromeInThisHeader = rightEdge.owner === "chat";
+  const trailingInsetPx = pinnedChromeInThisHeader
+    ? rightEdge.reservedRight
+    : undefined;
   if (!showHeader) return null;
 
   const chatFocusLabel = isChatFocus
@@ -270,7 +271,7 @@ export function ChatPanelHeader({
         )}
       </div>
     ) : null;
-  const chatFocusToggleButton = pinnedChrome ? null : (
+  const chatFocusToggleButton = pinnedChromeInThisHeader ? null : (
     <span className="inline-flex">
       <TabBarTrailingIconButton
         title={
