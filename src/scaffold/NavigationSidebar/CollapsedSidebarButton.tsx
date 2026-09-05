@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
+import SessionHistoryNav from "@src/components/SessionHistoryNav";
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { getCollapsedSidebarButtonLeft } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
@@ -26,9 +27,11 @@ const CollapsedSidebarButtonComponent: React.FC = () => {
 
   if (!collapsed) return null;
 
+  // Back / Forward ride along so they hold the spot they had in the sidebar
+  // header; `getCollapsedSidebarChromeOffset` reserves room for both.
   return (
     <div
-      className="absolute z-20 flex -translate-y-1/2 items-center"
+      className="absolute z-20 flex -translate-y-1/2 items-center gap-1"
       data-collapsed-sidebar-button
       style={
         {
@@ -38,6 +41,7 @@ const CollapsedSidebarButtonComponent: React.FC = () => {
         } as React.CSSProperties & { WebkitAppRegion: string }
       }
     >
+      <SessionHistoryNav />
       <Tooltip
         content={tooltipContent}
         position="bottom"

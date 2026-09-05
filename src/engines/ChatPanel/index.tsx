@@ -2,7 +2,6 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import React, { memo, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import SessionHistoryNav from "@src/components/SessionHistoryNav";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import {
   CHAT_WIDTH_CSS_VAR,
@@ -42,7 +41,6 @@ import {
   chatWidthAtom,
 } from "@src/store/ui/chatPanelAtom";
 import { openSideChatAtom } from "@src/store/ui/sideChatAtom";
-import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
 import { isHumanSession } from "@src/util/session/sessionDispatch";
 
 import { useReloadSession } from "./ChatHistory/hooks/useReloadSession";
@@ -55,6 +53,7 @@ import {
   useChatPanelTabShortcuts,
 } from "./ChatPanelTabBar";
 import { NewChatHeaderActionsMenu } from "./components/NewChatHeaderActionsMenu";
+import { SessionSwipeIndicator } from "./components/SessionSwipeIndicator";
 // Parked with its header button below.
 // import SessionContinueCliHeaderExtras from "./SessionContinueCliHeaderExtras";
 import {
@@ -83,6 +82,7 @@ import { useChatPanelResize } from "./hooks/useChatPanelResize";
 import { useChatPanelSessionModals } from "./hooks/useChatPanelSessionModals";
 import { useChatPanelTabsController } from "./hooks/useChatPanelTabsController";
 import { usePanelTitle } from "./hooks/usePanelTitle";
+import { useSessionSwipeNavigation } from "./hooks/useSessionSwipeNavigation";
 import { useSessionViewMode } from "./hooks/useSessionViewMode";
 import type { ChatPanelProps, ChatPanelRegionNotice } from "./types";
 
@@ -105,7 +105,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const isLeftPosition = position === "left";
     const shouldOffsetHeaderForCollapsedSidebar =
       useShouldOffsetChatPanelHeader({ position, useExternalWidth });
-    const sidebarCollapsed = useAtomValue(sidebarCollapsedAtom);
     const { currentSessionId, currentSession, panelTitle } = usePanelTitle();
     const activeSession = currentSession ?? undefined;
     const humanSessionActive =
@@ -239,6 +238,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       onNewTerminal: handleNewTerminalTab,
       containerRef: panelRef,
     });
+    const swipeIndicator = useSessionSwipeNavigation(panelRef);
 
     React.useLayoutEffect(() => {
       syncActiveTabState();
@@ -342,12 +342,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       handleRegionNoticeChange,
     });
     const tabStrip = <ChatPanelTabBar />;
-    // Back / Forward normally live in the sidebar header. The pane hosts its
-    // own copy only while the sidebar is collapsed, so the trail is always
-    // reachable from exactly one place.
-    const tabStripNav = sidebarCollapsed ? (
-      <SessionHistoryNav variant="tabBar" />
-    ) : undefined;
 
     const tabStripPlus = (
       <>
@@ -426,7 +420,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         tuiMode={tuiMode}
         handleTuiModeToggle={handleTuiModeToggle}
         tabStrip={tabStrip}
-        tabStripNav={tabStripNav}
         tabStripPlus={tabStripPlus}
         tabRowCollapsed={tabRowCollapsed}
         sessionHeaderExtras={
@@ -533,6 +526,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           isTerminalTabActive={isTerminalTabActive}
           onResizeMouseDown={handleMouseDown}
           panelRef={panelRef}
+          panelOverlay={<SessionSwipeIndicator {...swipeIndicator} />}
           resizeIndicatorHost={resizeIndicatorHost}
           resizeTooltipLabel={t("chat.hideWorkstation")}
           resizeTooltipShortcut={getShortcutKeys("maximize_chat")}

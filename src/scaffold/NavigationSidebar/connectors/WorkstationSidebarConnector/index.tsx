@@ -27,6 +27,7 @@ import {
   sessionSidebarRevealRequestAtom,
   sidebarCollapsedAtom,
 } from "@src/store/ui/sidebarAtom";
+import { isMacOS } from "@src/util/platform/tauri";
 
 import { SidebarBottomBar } from "../../blocks";
 import SidebarSettingsMenuButton from "../../blocks/SidebarSettingsMenuButton";
@@ -127,6 +128,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
   } = useWorkstationSidebarChatPanelAtoms();
 
   const { openSession } = useSessionView();
+  // On macOS the arrows follow the traffic lights so they keep the exact spot
+  // the collapsed-sidebar toggle's chrome gives them once the sidebar folds.
+  const sessionHistoryNav = <SessionHistoryNav />;
   const activeSessionId = useAtomValue(workstationActiveSessionIdAtom) ?? "";
   const { goToNewSession, navigateTo } = useAppNavigation();
   const [activeSidebarKey, setActiveSidebarKey] =
@@ -660,7 +664,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
             onChange={handleViewChange}
           />
         }
-        headerActions={<SessionHistoryNav variant="sidebar" />}
+        {...(isMacOS()
+          ? { leadingHeaderActions: sessionHistoryNav }
+          : { headerActions: sessionHistoryNav })}
         listTopPadding
         bottomContent={
           <SidebarBottomBar

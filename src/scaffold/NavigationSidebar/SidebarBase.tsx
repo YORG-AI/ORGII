@@ -93,6 +93,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     addTooltipContent,
     beforeAddNewActions,
     headerActions,
+    leadingHeaderActions,
     hostTopBarLeadingContent,
     macTopBarFollowingContent,
   }) => {
@@ -281,6 +282,98 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
           : "justify-between pl-5 pr-2"
         : "justify-end pr-2";
 
+      // The toggle (or the hover sidebar's expand/close pair) as one block, so
+      // it can lead the row grouped with `leadingHeaderActions` on macOS.
+      const collapseControls = (
+        <div
+          className="flex shrink-0 items-center gap-1"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        >
+          {isMacOS && showCollapseButton ? (
+            isHoverSidebarOpen ? (
+              <>
+                {/* Expand sidebar permanently button */}
+                <button
+                  type="button"
+                  className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
+                  onClick={handleExpand}
+                >
+                  <HugeiconsIcon
+                    icon={PanelLeftIcon}
+                    data-icon="panel-left"
+                    size={16}
+                    strokeWidth={2}
+                    className="text-text-2"
+                    style={iconThemeStyle}
+                  />
+                </button>
+                {/* Close floating sidebar button */}
+                <button
+                  type="button"
+                  className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
+                  onClick={handleCollapse}
+                >
+                  <HugeiconsIcon
+                    icon={Cancel01Icon}
+                    data-icon="x"
+                    size={16}
+                    strokeWidth={2}
+                    className="text-text-2"
+                    style={iconThemeStyle}
+                  />
+                </button>
+              </>
+            ) : (
+              <Tooltip
+                content={
+                  <KeyboardShortcutTooltipContent
+                    label={i18next.t("common:tooltips.hideSidebar")}
+                    shortcut={hideSidebarShortcut}
+                  />
+                }
+                position="bottom"
+                mouseEnterDelay={200}
+                framedPanel
+              >
+                <div className="inline-flex">
+                  <button
+                    type="button"
+                    className="group flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
+                    onClick={handleCollapse}
+                  >
+                    <span className="flex h-4 w-4 items-center justify-center">
+                      <HugeiconsIcon
+                        icon={PanelLeftIcon}
+                        data-icon="panel-left"
+                        size={16}
+                        strokeWidth={2}
+                        className="text-text-2 group-hover:hidden"
+                        style={iconThemeStyle}
+                      />
+                      <HugeiconsIcon
+                        icon={LayoutAlignLeftIcon}
+                        data-icon="layout-align-left"
+                        size={16}
+                        strokeWidth={2}
+                        className="hidden text-text-2 group-hover:block"
+                        style={iconThemeStyle}
+                      />
+                    </span>
+                  </button>
+                </div>
+              </Tooltip>
+            )
+          ) : (
+            <div className="h-[28px] w-[28px]" />
+          )}
+        </div>
+      );
+      // macOS: arrows + toggle sit 8px past the traffic-light reserve — the
+      // exact offset `getCollapsedSidebarButtonLeft` gives the same group once
+      // the sidebar folds — so the group never moves between the two states.
+      const groupLeadsRow =
+        !IS_WINDOWS_OR_LINUX_HOST && Boolean(leadingHeaderActions);
+
       return (
         <div
           className={`flex flex-nowrap items-center gap-1 ${alignmentClassName}`}
@@ -300,6 +393,23 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
             } as React.CSSProperties
           }
         >
+          {leadingHeaderActions ? (
+            <>
+              <div
+                className={`flex shrink-0 items-center gap-1 ${
+                  groupLeadsRow ? "pl-2" : ""
+                }`}
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                data-testid="sidebar-leading-header-actions"
+              >
+                {leadingHeaderActions}
+                {groupLeadsRow ? collapseControls : null}
+              </div>
+              {IS_WINDOWS_OR_LINUX_HOST ? null : (
+                <div className="min-w-0 flex-1" data-tauri-drag-region />
+              )}
+            </>
+          ) : null}
           {IS_WINDOWS_OR_LINUX_HOST ? (
             hostTopBarLeadingContent ? (
               <div
@@ -375,89 +485,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
               </div>
             ) : null}
 
-            {/* Collapse/Expand buttons */}
-            <div
-              className="flex shrink-0 items-center gap-1"
-              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-            >
-              {isMacOS && showCollapseButton ? (
-                isHoverSidebarOpen ? (
-                  <>
-                    {/* Expand sidebar permanently button */}
-                    <button
-                      type="button"
-                      className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
-                      onClick={handleExpand}
-                    >
-                      <HugeiconsIcon
-                        icon={PanelLeftIcon}
-                        data-icon="panel-left"
-                        size={16}
-                        strokeWidth={2}
-                        className="text-text-2"
-                        style={iconThemeStyle}
-                      />
-                    </button>
-                    {/* Close floating sidebar button */}
-                    <button
-                      type="button"
-                      className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
-                      onClick={handleCollapse}
-                    >
-                      <HugeiconsIcon
-                        icon={Cancel01Icon}
-                        data-icon="x"
-                        size={16}
-                        strokeWidth={2}
-                        className="text-text-2"
-                        style={iconThemeStyle}
-                      />
-                    </button>
-                  </>
-                ) : (
-                  <Tooltip
-                    content={
-                      <KeyboardShortcutTooltipContent
-                        label={i18next.t("common:tooltips.hideSidebar")}
-                        shortcut={hideSidebarShortcut}
-                      />
-                    }
-                    position="bottom"
-                    mouseEnterDelay={200}
-                    framedPanel
-                  >
-                    <div className="inline-flex">
-                      <button
-                        type="button"
-                        className="group flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
-                        onClick={handleCollapse}
-                      >
-                        <span className="flex h-4 w-4 items-center justify-center">
-                          <HugeiconsIcon
-                            icon={PanelLeftIcon}
-                            data-icon="panel-left"
-                            size={16}
-                            strokeWidth={2}
-                            className="text-text-2 group-hover:hidden"
-                            style={iconThemeStyle}
-                          />
-                          <HugeiconsIcon
-                            icon={LayoutAlignLeftIcon}
-                            data-icon="layout-align-left"
-                            size={16}
-                            strokeWidth={2}
-                            className="hidden text-text-2 group-hover:block"
-                            style={iconThemeStyle}
-                          />
-                        </span>
-                      </button>
-                    </div>
-                  </Tooltip>
-                )
-              ) : (
-                <div className="h-[28px] w-[28px]" />
-              )}
-            </div>
+            {groupLeadsRow ? null : collapseControls}
           </div>
         </div>
       );

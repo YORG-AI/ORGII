@@ -23,7 +23,7 @@ import {
   resetInstrumentedStore,
 } from "@src/util/core/state/instrumentedStore";
 
-import { SessionHistoryNav, type SessionHistoryNavVariant } from "./index";
+import { SessionHistoryNav } from "./index";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -61,14 +61,10 @@ describe("SessionHistoryNav", () => {
     Reflect.deleteProperty(reactActEnvironment, "IS_REACT_ACT_ENVIRONMENT");
   });
 
-  function render(variant: SessionHistoryNavVariant): void {
+  function render(): void {
     act(() => {
       root.render(
-        createElement(
-          Provider,
-          { store },
-          createElement(SessionHistoryNav, { variant })
-        )
+        createElement(Provider, { store }, createElement(SessionHistoryNav))
       );
     });
   }
@@ -94,24 +90,19 @@ describe("SessionHistoryNav", () => {
     });
   }
 
-  it.each<SessionHistoryNavVariant>(["sidebar", "tabBar"])(
-    "renders both arrows disabled on a fresh tab (%s)",
-    (variant) => {
-      render(variant);
-      openSession("session-a", true);
+  it("renders both arrows disabled on a fresh tab", () => {
+    render();
+    openSession("session-a", true);
 
-      expect(
-        container.querySelector(
-          `[data-testid="session-history-nav-${variant}"]`
-        )
-      ).not.toBeNull();
-      expect(button("session-history-nav-back").disabled).toBe(true);
-      expect(button("session-history-nav-forward").disabled).toBe(true);
-    }
-  );
+    expect(
+      container.querySelector('[data-testid="session-history-nav"]')
+    ).not.toBeNull();
+    expect(button("session-history-nav-back").disabled).toBe(true);
+    expect(button("session-history-nav-forward").disabled).toBe(true);
+  });
 
   it("enables Back after an in-place hop and walks the trail on click", () => {
-    render("sidebar");
+    render();
     openSession("session-a", true);
     openSession("session-b");
 
