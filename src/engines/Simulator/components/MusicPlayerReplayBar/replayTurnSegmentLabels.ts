@@ -40,8 +40,6 @@ export function toReplayProgressSegments(
     id: segment.turnId,
     turnNumber: segment.turnNumber,
     leftPercent: segment.leftPercent,
-    widthPercent: segment.widthPercent,
-    colorIndex: segment.colorIndex,
     isActive: activeTurnId === segment.turnId,
     ...formatReplayTurnSegmentLabels(segment, t),
   }));
