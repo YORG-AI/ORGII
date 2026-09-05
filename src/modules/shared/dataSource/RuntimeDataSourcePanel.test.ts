@@ -26,7 +26,6 @@ import RuntimeDataSourcePanel from ".";
 
 const lifecycle = vi.hoisted(() => ({
   usageUnmounted: vi.fn(),
-  quotaUnmounted: vi.fn(),
   scanningUnmounted: vi.fn(),
   hooksUnmounted: vi.fn(),
 }));
@@ -114,19 +113,6 @@ vi.mock("./SessionUsagePanel", async () => {
   }
   return {
     default: UsageSectionMock,
-  };
-});
-
-vi.mock("@src/engines/ChatPanel/StartPageQuotaGrid", async () => {
-  const React = await vi.importActual<typeof import("react")>("react");
-  function QuotaSectionMock() {
-    React.useEffect(() => lifecycle.quotaUnmounted, []);
-    return React.createElement("div", {
-      "data-testid": "runtime-section-quota",
-    });
-  }
-  return {
-    StartPageQuotaGrid: QuotaSectionMock,
   };
 });
 
@@ -238,17 +224,11 @@ describe("RuntimeDataSourcePanel", () => {
       container.querySelector('[data-testid="runtime-section-usage"]')
     ).not.toBeNull();
 
-    await selectSection("data-source-view-quota");
+    await selectSection("data-source-view-scanning");
     expect(lifecycle.usageUnmounted).toHaveBeenCalledTimes(1);
     expect(
       container.querySelector('[data-testid="runtime-section-usage"]')
     ).toBeNull();
-    expect(
-      container.querySelector('[data-testid="runtime-section-quota"]')
-    ).not.toBeNull();
-
-    await selectSection("data-source-view-scanning");
-    expect(lifecycle.quotaUnmounted).toHaveBeenCalledTimes(1);
     expect(
       container.querySelector('[data-testid="runtime-section-scanning"]')
     ).not.toBeNull();
@@ -273,7 +253,6 @@ describe("RuntimeDataSourcePanel", () => {
     const picker = container.innerHTML.indexOf("runtime-scope-picker");
     const usage = container.innerHTML.indexOf("data-source-view-usage");
     const profile = container.innerHTML.indexOf("data-source-view-profile");
-    const quota = container.innerHTML.indexOf("data-source-view-quota");
     const scanning = container.innerHTML.indexOf("data-source-view-scanning");
     const hooks = container.innerHTML.indexOf("data-source-view-hooks");
     const assets = container.innerHTML.indexOf("data-source-view-assets");
@@ -281,8 +260,7 @@ describe("RuntimeDataSourcePanel", () => {
     expect(picker).toBeGreaterThanOrEqual(0);
     expect(usage).toBeGreaterThan(picker);
     expect(profile).toBeGreaterThan(usage);
-    expect(quota).toBeGreaterThan(profile);
-    expect(scanning).toBeGreaterThan(quota);
+    expect(scanning).toBeGreaterThan(profile);
     expect(hooks).toBeGreaterThan(scanning);
     expect(assets).toBeGreaterThan(hooks);
     expect(
@@ -294,6 +272,12 @@ describe("RuntimeDataSourcePanel", () => {
   it("keeps type categories out of the Runtime tab bar", () => {
     expect(
       container.querySelector('[data-testid="data-source-view-types"]')
+    ).toBeNull();
+  });
+
+  it("consolidates Quota into Usage instead of rendering a separate tab", () => {
+    expect(
+      container.querySelector('[data-testid="data-source-view-quota"]')
     ).toBeNull();
   });
 

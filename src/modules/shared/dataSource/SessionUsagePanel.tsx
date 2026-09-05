@@ -19,19 +19,22 @@ import {
   type UsageTrendPoint,
   usageDashboardOverview,
 } from "@src/api/tauri/usageDashboard";
-import Button from "@src/components/Button";
 import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
+import { StartPageQuotaGrid } from "@src/engines/ChatPanel/StartPageQuotaGrid";
 import { DEBOUNCE_DELAYS, useDebouncedCallback } from "@src/hooks/perf";
-import { useRefreshSpin } from "@src/hooks/ui";
-import { Cancel01Icon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
+import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
 } from "@src/modules/shared/layouts/SectionLayout";
 import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
 
+import {
+  RuntimeRefreshButton,
+  RuntimeSectionHeader,
+} from "./RuntimeSectionHeader";
 import UsageRoundsTable, {
   USAGE_ROUNDS_DEFAULT_PAGE_SIZE,
 } from "./UsageRoundsTable";
@@ -355,11 +358,6 @@ export default function SessionUsagePanel() {
     headlineLoading ||
     (trendsOpen && trendLoading) ||
     (roundsOpen && roundLoading);
-  const { spinClass, handleClick: handleUsageRefreshClick } = useRefreshSpin(
-    handleUsageRefresh,
-    usageRefreshing
-  );
-
   const sourceTabs = useMemo<TabPillItem[]>(
     () => [
       { key: SOURCE_ALL, label: t("usage.allSources") },
@@ -385,11 +383,17 @@ export default function SessionUsagePanel() {
 
   return (
     <div className={SECTION_GAP_CLASSES}>
+      <StartPageQuotaGrid />
+      <RuntimeSectionHeader
+        title={t("views.usage")}
+        dataTestId="usage-title-controls"
+      />
+
       <div
         className="sticky top-0 z-20 -mx-4 bg-chat-pane px-4 pb-1"
         data-testid="usage-source-controls"
       >
-        <div className="flex min-h-9 flex-wrap items-center gap-2">
+        <div className="flex min-h-9 flex-wrap items-center justify-between gap-2">
           <div
             className="flex min-w-0 items-center gap-2"
             data-testid="usage-source-range-controls"
@@ -423,35 +427,13 @@ export default function SessionUsagePanel() {
               size="small"
             />
           </div>
+          <RuntimeRefreshButton
+            label={t("usage.refresh")}
+            onRefresh={handleUsageRefresh}
+            refreshing={usageRefreshing}
+            dataTestId="usage-refresh"
+          />
         </div>
-      </div>
-
-      <div
-        className="flex min-h-9 items-center justify-between gap-3"
-        data-testid="usage-title-controls"
-      >
-        <h3 className={SECTION_SUBHEADING_CLASSES}>{t("usage.title")}</h3>
-        <Button
-          htmlType="button"
-          variant="tertiary"
-          appearance="ghost"
-          size="small"
-          disabled={usageRefreshing}
-          aria-label={t("usage.refresh")}
-          title={t("usage.refresh")}
-          onClick={handleUsageRefreshClick}
-          icon={
-            <HugeiconsIcon
-              icon={Refresh04Icon}
-              data-icon="refresh-cw"
-              size={14}
-              className={spinClass}
-            />
-          }
-          data-testid="usage-refresh"
-        >
-          {t("usage.refresh")}
-        </Button>
       </div>
 
       {session && (

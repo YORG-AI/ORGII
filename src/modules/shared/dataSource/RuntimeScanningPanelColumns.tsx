@@ -33,6 +33,7 @@ import { formatRelativeElapsedShort } from "@src/util/data/formatters/date";
 import { statusTagFor } from "./RuntimeScanningPanelHelpers";
 import RuntimeScanningPanelSourceIcon from "./RuntimeScanningPanelSourceIcon";
 import type { SourceRow } from "./RuntimeScanningPanelTypes";
+import { RUNTIME_REFRESH_BUTTON_PROPS } from "./RuntimeSectionHeader";
 
 export interface RuntimeScanningPanelColumnsParams {
   t: TFunction<"sessions">;
@@ -182,8 +183,11 @@ export function buildRuntimeScanningPanelColumns({
                 // Importable sources have a cache, so offer two rescan modes via
                 // a split button: the main click runs Update (incremental
                 // re-sync); the caret opens Update / Clear + rescan (full rebuild).
+                // It remains icon-only because this dense row also owns a
+                // frequency selector and a second menu action; its treatment
+                // still shares Runtime's refresh-button props.
                 <SplitButton
-                  variant="secondary"
+                  {...RUNTIME_REFRESH_BUTTON_PROPS}
                   size="small"
                   iconOnly
                   menuSegmentWidth={22}
@@ -246,7 +250,7 @@ export function buildRuntimeScanningPanelColumns({
                 />
               ) : (
                 <Button
-                  variant="secondary"
+                  {...RUNTIME_REFRESH_BUTTON_PROPS}
                   size="small"
                   iconOnly
                   loading={row.rescanning}

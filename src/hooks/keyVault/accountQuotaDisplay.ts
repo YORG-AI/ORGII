@@ -163,6 +163,10 @@ const GENERIC_QUOTA_PLAN_TYPES = new Set<string>([
   CLI_AGENT.CODEX,
 ]);
 
+const QUOTA_PLAN_TRANSLATION_KEYS: Record<string, string> = {
+  "pay as you go": "keyVault.quota.payAsYouGo",
+};
+
 function isGenericQuotaPlanType(
   modelType: KeyVaultAccount["modelType"],
   planType: string | null | undefined
@@ -177,12 +181,15 @@ function getQuotaAccountIdentityLabel(account: KeyVaultAccount): string {
   return normalizeDisplayText(account.name) ?? account.modelType;
 }
 
-export function resolveQuotaPlanLabel(account: KeyVaultAccount): string | null {
+export function resolveQuotaPlanLabel(
+  account: KeyVaultAccount,
+  tIntegrations?: TFunction<"integrations">
+): string | null {
   if (!account.quotaInfo) return null;
 
   if (account.modelType === CLI_AGENT.CLAUDE_CODE) {
     const tier = formatPlanLabel(account.accountMetadata?.rate_limit_tier);
-    if (tier) return tier;
+    if (tier) return localizeQuotaPlanLabel(tier, tIntegrations);
   }
 
   const planFromQuota = formatPlanLabel(account.quotaInfo.plan_type);
@@ -193,19 +200,36 @@ export function resolveQuotaPlanLabel(account: KeyVaultAccount): string | null {
     return null;
   }
 
-  return planFromQuota;
+  return localizeQuotaPlanLabel(planFromQuota, tIntegrations);
 }
 
-function getQuotaAccountPlanLabel(account: KeyVaultAccount): string | null {
-  return resolveQuotaPlanLabel(account);
+function localizeQuotaPlanLabel(
+  planLabel: string,
+  tIntegrations?: TFunction<"integrations">
+): string {
+  const translationKey = QUOTA_PLAN_TRANSLATION_KEYS[planLabel.toLowerCase()];
+  return translationKey
+    ? (tIntegrations?.(translationKey, { defaultValue: planLabel }) ??
+        planLabel)
+    : planLabel;
 }
 
-function getQuotaCardLabels(account: KeyVaultAccount): {
+function getQuotaAccountPlanLabel(
+  account: KeyVaultAccount,
+  tIntegrations: TFunction<"integrations">
+): string | null {
+  return resolveQuotaPlanLabel(account, tIntegrations);
+}
+
+function getQuotaCardLabels(
+  account: KeyVaultAccount,
+  tIntegrations: TFunction<"integrations">
+): {
   accountName: string;
   accountPlan: string | null;
 } {
   const identityLabel = getQuotaAccountIdentityLabel(account);
-  const planLabel = getQuotaAccountPlanLabel(account);
+  const planLabel = getQuotaAccountPlanLabel(account, tIntegrations);
   if (!planLabel) {
     return { accountName: identityLabel, accountPlan: null };
   }
@@ -474,7 +498,7 @@ export function collectAccountQuotaCards(
   for (const account of accounts) {
     if (!account.quotaInfo || account.healthStatus === "invalid") continue;
 
-    const accountLabels = getQuotaCardLabels(account);
+    const accountLabels = getQuotaCardLabels(account, tIntegrations);
     const usageItems = resolveAccountUsageItems(account);
     const metrics =
       usageItems.length > 0

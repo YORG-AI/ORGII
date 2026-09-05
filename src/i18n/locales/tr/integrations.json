@@ -102,6 +102,8 @@
     "quota": {
       "title": "Kota Bilgileri",
       "plan": "Plan",
+      "balance": "Bakiye",
+      "payAsYouGo": "Kullandıkça öde",
       "includedRequests": "Dahil İstekler",
       "cursorIncludedRequests": "Auto/Composer kotası",
       "quotaUsage": "Kota Kullanımı",

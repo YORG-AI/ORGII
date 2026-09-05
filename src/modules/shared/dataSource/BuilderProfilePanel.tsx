@@ -18,8 +18,7 @@ import SettingsTable, {
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import { useRefreshSpin } from "@src/hooks/ui";
-import { ArrowRight02Icon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
+import { ArrowRight02Icon, HugeiconsIcon } from "@src/icons";
 import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
@@ -32,6 +31,10 @@ import AxisMeter from "./AxisMeter";
 import { BuilderTypeDetailContent } from "./BuilderTypeDetailPanel";
 import BuilderTypesPanel from "./BuilderTypesPanel";
 import HighlightCards from "./HighlightCards";
+import {
+  RuntimeRefreshButton,
+  RuntimeSectionHeader,
+} from "./RuntimeSectionHeader";
 import { getBuilderType } from "./builderTypes";
 
 /** Delay between background extraction batches while the panel is open. */
@@ -274,10 +277,6 @@ export default function BuilderProfilePanel() {
     setLoading(true);
     void load();
   }, [load]);
-  const { spinClass, handleClick: onRefreshClick } = useRefreshSpin(
-    onRefresh,
-    loading
-  );
 
   const profile = data?.profile;
   const builderType = getBuilderType(profile?.code);
@@ -360,46 +359,37 @@ export default function BuilderProfilePanel() {
   }, [t]);
 
   const profileHeader = (
-    <div
-      className={`${DETAIL_PANEL_TOKENS.headerWidth} flex shrink-0 items-center justify-between gap-2 px-4 pt-2`}
+    <RuntimeSectionHeader
+      title={t("title")}
+      className={`${DETAIL_PANEL_TOKENS.headerWidth} shrink-0 px-4 pt-2`}
+      dataTestId="builder-profile-title-controls"
+      headingLevel="h2"
     >
-      <h2 className={SECTION_SUBHEADING_CLASSES}>{t("title")}</h2>
-      <div className="flex items-center gap-1">
+      <RuntimeRefreshButton
+        label={t("refresh")}
+        onRefresh={onRefresh}
+        refreshing={loading}
+        dataTestId="builder-profile-refresh"
+      />
+      {builderType && (
         <Button
           variant="tertiary"
           size="small"
-          onClick={onRefreshClick}
-          data-testid="builder-profile-refresh"
+          onClick={() => setShowTypesGallery(true)}
+          data-testid="builder-profile-know-more"
           icon={
             <HugeiconsIcon
-              icon={Refresh04Icon}
-              data-icon="refresh-cw"
-              className={`h-3.5 w-3.5 ${spinClass ?? ""}`}
+              icon={ArrowRight02Icon}
+              data-icon="arrow-right"
+              className="h-3.5 w-3.5"
             />
           }
+          iconPosition="right"
         >
-          {t("refresh")}
+          {t("types.knowMore")}
         </Button>
-        {builderType && (
-          <Button
-            variant="tertiary"
-            size="small"
-            onClick={() => setShowTypesGallery(true)}
-            data-testid="builder-profile-know-more"
-            icon={
-              <HugeiconsIcon
-                icon={ArrowRight02Icon}
-                data-icon="arrow-right"
-                className="h-3.5 w-3.5"
-              />
-            }
-            iconPosition="right"
-          >
-            {t("types.knowMore")}
-          </Button>
-        )}
-      </div>
-    </div>
+      )}
+    </RuntimeSectionHeader>
   );
 
   const shell = (children: React.ReactNode, showHeader = true) => (

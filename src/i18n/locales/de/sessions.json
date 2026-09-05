@@ -893,8 +893,8 @@
       "addApiKey": {
         "title": "API key hinzufügen"
       },
-      "showRuntime": {
-        "title": "Laufzeit anzeigen"
+      "showQuota": {
+        "title": "Kontingent anzeigen"
       },
       "installLatestUpdate": {
         "title": "Neueste Aktualisierung installieren"

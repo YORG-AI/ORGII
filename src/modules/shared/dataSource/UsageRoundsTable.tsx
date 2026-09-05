@@ -5,7 +5,6 @@ import type {
   UsageRoundRow,
   UsageSessionSort,
 } from "@src/api/tauri/usageDashboard";
-import Button from "@src/components/Button";
 import { Placeholder } from "@src/components/Placeholder";
 import SettingsTable, {
   type SettingsTableColumn,
@@ -13,11 +12,11 @@ import SettingsTable, {
   type SettingsTableSelectFilter,
 } from "@src/components/SettingsTable";
 import Tooltip from "@src/components/Tooltip";
-import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import { SECTION_SUBHEADING_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
 import { formatRelativeElapsedShort } from "@src/util/data/formatters/date";
 
+import { RuntimeRefreshButton } from "./RuntimeSectionHeader";
 import UsagePricingHint from "./UsagePricingHint";
 import { BucketIcon } from "./usageBuckets";
 import { formatCacheRW, formatTokensShort, formatUsd } from "./usageFormat";
@@ -309,24 +308,11 @@ export default function UsageRoundsTable({
           onSearchClear: () => onSearchQueryChange(""),
           searchInputSize: "default",
           rightContent: (
-            <Button
-              variant="secondary"
-              size="default"
-              iconOnly
-              loading={loading}
-              loadingSpinIcon
-              disabled={loading}
-              icon={
-                <HugeiconsIcon
-                  icon={Refresh04Icon}
-                  data-icon="refresh-cw"
-                  size={14}
-                />
-              }
-              aria-label={t("usage.refresh")}
-              title={t("usage.refresh")}
-              data-testid="usage-rounds-refresh"
-              onClick={onRefresh}
+            <RuntimeRefreshButton
+              label={t("usage.refresh")}
+              onRefresh={onRefresh}
+              refreshing={loading}
+              dataTestId="usage-rounds-refresh"
             />
           ),
         }}

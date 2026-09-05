@@ -105,6 +105,8 @@
     "quota": {
       "title": "クォータ情報",
       "plan": "プラン",
+      "balance": "残高",
+      "payAsYouGo": "従量課金",
       "includedRequests": "含まれるリクエスト",
       "cursorIncludedRequests": "Auto/Composer クォータ",
       "quotaUsage": "クォータ使用量",

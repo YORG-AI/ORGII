@@ -8,6 +8,7 @@ import {
   containerApi,
 } from "@src/api/tauri/container";
 import Button from "@src/components/Button";
+import { TEXT_HOVER_REFRESH_BUTTON_PROPS } from "@src/components/Button/refreshActionProps";
 import Message from "@src/components/Message";
 import { Placeholder } from "@src/components/Placeholder";
 import SettingsTable, {
@@ -284,7 +285,7 @@ const ContainersSection: React.FC<ContainersSectionProps> = ({
       compact={compact}
       actions={
         <Button
-          variant="tertiary"
+          {...TEXT_HOVER_REFRESH_BUTTON_PROPS}
           size="mini"
           icon={
             <HugeiconsIcon

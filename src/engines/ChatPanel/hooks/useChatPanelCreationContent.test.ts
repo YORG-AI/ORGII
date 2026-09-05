@@ -109,7 +109,6 @@ function Harness({ visible }: { visible: boolean }) {
     startPageOpen: false,
     sessionCreatorSlot: slot,
     creatorVariant: "fullScreen",
-    handleShowRuntime: vi.fn(),
     handleOpenLaunchpadTab: mocks.launchpad,
     handleOpenCliTerminal: vi.fn(),
     handleRegionNoticeChange: vi.fn(),

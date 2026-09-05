@@ -25,7 +25,6 @@ const createTargetProps = {
   ],
   onCreateTarget: vi.fn(),
   onProjectAgentModeChange: vi.fn(),
-  onShowRuntime: vi.fn(),
   onWorkItemAgentModeChange: vi.fn(),
   projectAgentMode: true,
   workItemAgentMode: true,
@@ -77,7 +76,7 @@ describe("ChatPanelStartPage", () => {
       'data-testid="chat-panel-start-page-add-api-key"'
     );
     expect(markup).not.toContain(
-      'data-testid="chat-panel-start-page-show-runtime"'
+      'data-testid="chat-panel-start-page-show-quota"'
     );
     expect(markup).toContain(
       'data-testid="chat-panel-start-page-create-target-select"'
@@ -173,14 +172,14 @@ describe("ChatPanelStartPage", () => {
       'data-testid="chat-panel-start-page-add-api-key"'
     );
     expect(markup).not.toContain(
-      'data-testid="chat-panel-start-page-show-runtime"'
+      'data-testid="chat-panel-start-page-show-quota"'
     );
     expect(markup).not.toContain(
       'data-testid="chat-panel-start-page-install-latest-update"'
     );
   });
 
-  it("renders install, import session, add API key then runtime on Session", () => {
+  it("renders install, import session, add API key then quota on Session", () => {
     mocks.useAvailableAppUpdate.mockReturnValue({
       available: true,
       version: "1.1.20",
@@ -205,8 +204,8 @@ describe("ChatPanelStartPage", () => {
     const addApiKeyIndex = markup.indexOf(
       'data-testid="chat-panel-start-page-add-api-key"'
     );
-    const showRuntimeIndex = markup.indexOf(
-      'data-testid="chat-panel-start-page-show-runtime"'
+    const showQuotaIndex = markup.indexOf(
+      'data-testid="chat-panel-start-page-show-quota"'
     );
 
     const updateIndex = markup.indexOf(
@@ -216,7 +215,7 @@ describe("ChatPanelStartPage", () => {
     expect(updateIndex).toBeGreaterThanOrEqual(0);
     expect(importSessionIndex).toBeGreaterThan(updateIndex);
     expect(addApiKeyIndex).toBeGreaterThan(importSessionIndex);
-    expect(showRuntimeIndex).toBeGreaterThan(addApiKeyIndex);
+    expect(showQuotaIndex).toBeGreaterThan(addApiKeyIndex);
     expect(markup).toContain("navigation:cloud.share.importEntry");
     expect(markup).toContain("border-border-2");
     expect(markup).toContain("hover:border-border-3");
@@ -273,7 +272,7 @@ describe("ChatPanelStartPage", () => {
       'data-testid="chat-panel-start-page-add-api-key"'
     );
     expect(markup).not.toContain(
-      'data-testid="chat-panel-start-page-show-runtime"'
+      'data-testid="chat-panel-start-page-show-quota"'
     );
   });
 
@@ -332,7 +331,7 @@ describe("ChatPanelStartPage", () => {
       'data-testid="chat-panel-start-page-add-api-key"'
     );
     expect(markup).not.toContain(
-      'data-testid="chat-panel-start-page-show-runtime"'
+      'data-testid="chat-panel-start-page-show-quota"'
     );
     expect(markup).not.toContain(
       'data-testid="chat-panel-start-page-import-session"'
@@ -407,9 +406,7 @@ describe("ChatPanelStartPage", () => {
       'data-testid="chat-panel-start-page-utility-actions"'
     );
     expect(markup).toContain('data-testid="chat-panel-start-page-add-api-key"');
-    expect(markup).toContain(
-      'data-testid="chat-panel-start-page-show-runtime"'
-    );
+    expect(markup).toContain('data-testid="chat-panel-start-page-show-quota"');
     expect(markup).toContain(
       'data-testid="chat-panel-start-page-import-session"'
     );

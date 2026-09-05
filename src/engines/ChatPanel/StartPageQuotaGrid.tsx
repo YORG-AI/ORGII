@@ -7,7 +7,6 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import Button from "@src/components/Button";
 import Message from "@src/components/Message";
 import ModelIcon from "@src/components/ModelIcon";
 import {
@@ -21,12 +20,11 @@ import {
   formatQuotaResetHint,
 } from "@src/hooks/keyVault/accountQuotaDisplay";
 import { createLogger } from "@src/hooks/logger";
-import { useRefreshSpin } from "@src/hooks/ui";
-import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import {
-  SECTION_GAP_CLASSES,
-  SECTION_SUBHEADING_CLASSES,
-} from "@src/modules/shared/layouts/SectionLayout";
+  RuntimeRefreshButton,
+  RuntimeSectionHeader,
+} from "@src/modules/shared/dataSource/RuntimeSectionHeader";
+import { SECTION_GAP_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 
 const logger = createLogger("StartPageQuotaGrid");
 
@@ -125,10 +123,20 @@ function StartPageQuotaCard({
 
 interface StartPageQuotaGridProps {
   className?: string;
+  showHeader?: boolean;
+  onRefreshControlChange?: (control: QuotaRefreshControl | null) => void;
+}
+
+export interface QuotaRefreshControl {
+  disabled: boolean;
+  onRefresh: () => void;
+  refreshing: boolean;
 }
 
 export function StartPageQuotaGrid({
   className,
+  showHeader = true,
+  onRefreshControlChange,
 }: StartPageQuotaGridProps): React.ReactNode {
   const { t } = useTranslation("sessions");
   const { t: tIntegrations } = useTranslation("integrations");
@@ -297,45 +305,39 @@ export function StartPageQuotaGrid({
     };
   }, [entries, refreshAllAccounts, refreshCandidates.length]);
 
-  const { spinClass, handleClick: handleRefreshClick } = useRefreshSpin(
+  useEffect(() => {
+    onRefreshControlChange?.({
+      disabled: refreshCandidates.length === 0,
+      onRefresh: handleRefreshAll,
+      refreshing,
+    });
+    return () => onRefreshControlChange?.(null);
+  }, [
     handleRefreshAll,
-    refreshing
-  );
+    onRefreshControlChange,
+    refreshCandidates.length,
+    refreshing,
+  ]);
 
   return (
     <div
       className={`${SECTION_GAP_CLASSES} @container/quota ${className ?? ""}`}
     >
-      <div
-        className="sticky top-0 z-20 -mx-4 bg-chat-pane px-4 pb-1"
-        data-testid="quota-refresh-controls"
-      >
-        <div className="flex min-h-9 items-center justify-between gap-3">
-          <h3 className={SECTION_SUBHEADING_CLASSES}>
-            {t("kanban.dataSource.views.quota")}
-          </h3>
-          <Button
-            htmlType="button"
-            variant="tertiary"
-            appearance="ghost"
-            size="small"
-            disabled={refreshing || refreshCandidates.length === 0}
-            aria-label={t("chat.startPage.quota.refresh")}
-            title={t("chat.startPage.quota.refresh")}
-            onClick={handleRefreshClick}
-            icon={
-              <HugeiconsIcon
-                icon={Refresh04Icon}
-                data-icon="refresh-cw"
-                size={14}
-                className={spinClass}
-              />
-            }
-          >
-            {t("chat.startPage.quota.refresh")}
-          </Button>
-        </div>
-      </div>
+      {showHeader ? (
+        <RuntimeSectionHeader
+          title={t("kanban.dataSource.views.quota")}
+          className="-mx-4 bg-chat-pane px-4 pt-2 pb-1"
+          dataTestId="quota-refresh-controls"
+          headingLevel="h3"
+        >
+          <RuntimeRefreshButton
+            label={t("chat.startPage.quota.refresh")}
+            onRefresh={handleRefreshAll}
+            refreshing={refreshing}
+            disabled={refreshCandidates.length === 0}
+          />
+        </RuntimeSectionHeader>
+      ) : null}
       {entries.length === 0 ? (
         <p className="px-1 text-center text-[13px] text-text-3">
           {t("chat.startPage.quota.empty")}

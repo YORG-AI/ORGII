@@ -336,7 +336,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       startPageOpen,
       sessionCreatorSlot: SessionCreatorSlot,
       creatorVariant,
-      handleShowRuntime,
       handleOpenLaunchpadTab,
       handleOpenCliTerminal,
       handleRegionNoticeChange,

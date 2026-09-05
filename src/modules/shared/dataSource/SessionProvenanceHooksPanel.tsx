@@ -5,21 +5,13 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  SECTION_GAP_CLASSES,
-  SECTION_SUBHEADING_CLASSES,
-} from "@src/modules/shared/layouts/SectionLayout";
+import { SECTION_GAP_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 
+import { RuntimeSectionHeader } from "./RuntimeSectionHeader";
 import HookPlatformsTable from "./SessionProvenanceHookPlatformsTable";
 import RecentSignalsTable from "./SessionProvenanceRecentSignalsTable";
 
-interface SessionProvenanceHooksPanelProps {
-  showTitle?: boolean;
-}
-
-const SessionProvenanceHooksPanel: React.FC<
-  SessionProvenanceHooksPanelProps
-> = ({ showTitle = true }) => {
+const SessionProvenanceHooksPanel: React.FC = () => {
   const { t } = useTranslation("integrations");
 
   return (
@@ -27,14 +19,11 @@ const SessionProvenanceHooksPanel: React.FC<
       className={SECTION_GAP_CLASSES}
       data-testid="session-provenance-hooks-panel"
     >
-      {showTitle ? (
-        <h3
-          className={SECTION_SUBHEADING_CLASSES}
-          data-testid="session-provenance-hooks-title"
-        >
-          {t("agentOrgs.sessionProvenance.title")}
-        </h3>
-      ) : null}
+      <RuntimeSectionHeader
+        title={t("agentOrgs.sessionProvenance.title")}
+        className="-mx-4 bg-chat-pane px-4 pt-2 pb-1"
+        dataTestId="session-provenance-hooks-title"
+      />
       <HookPlatformsTable />
       <RecentSignalsTable />
     </div>

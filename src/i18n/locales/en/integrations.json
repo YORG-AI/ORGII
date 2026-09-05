@@ -108,6 +108,8 @@
     "quota": {
       "title": "Quota Info",
       "plan": "Plan",
+      "balance": "Balance",
+      "payAsYouGo": "Pay as you go",
       "includedRequests": "Included Requests",
       "cursorIncludedRequests": "Auto/Composer quota",
       "quotaUsage": "Quota Usage",

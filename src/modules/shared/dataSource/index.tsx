@@ -58,11 +58,6 @@ const RuntimeScanningPanel = lazy(() => import("./RuntimeScanningPanel"));
 const SessionProvenanceHooksPanel = lazy(
   () => import("./SessionProvenanceHooksPanel")
 );
-const StartPageQuotaGrid = lazy(() =>
-  import("@src/engines/ChatPanel/StartPageQuotaGrid").then((module) => ({
-    default: module.StartPageQuotaGrid,
-  }))
-);
 const WorkspaceDashboardPanelView = lazy(
   () => import("@src/engines/ChatPanel/panels/WorkspaceDashboardPanelView")
 );
@@ -98,11 +93,6 @@ const RuntimeSectionTabs: React.FC<RuntimeSectionTabsProps> = memo(
           key: "profile",
           label: t("views.profile"),
           dataTestId: "data-source-view-profile",
-        },
-        {
-          key: "quota",
-          label: t("views.quota"),
-          dataTestId: "data-source-view-quota",
         },
         {
           key: "scanning",
@@ -173,12 +163,10 @@ function RuntimeSectionContent({
       return <SessionUsagePanel />;
     case "profile":
       return <BuilderProfilePanel />;
-    case "quota":
-      return <StartPageQuotaGrid />;
     case "scanning":
       return <RuntimeScanningPanel />;
     case "hooks":
-      return <SessionProvenanceHooksPanel showTitle={false} />;
+      return <SessionProvenanceHooksPanel />;
     case "assets":
       return <WorkspaceDashboardPanelView />;
     case "today":

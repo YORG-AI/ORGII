@@ -26,6 +26,22 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@src/scaffold/AppUpdater", () => ({
   useAvailableAppUpdate: mocks.useAvailableAppUpdate,
 }));
+vi.mock("./StartPageQuotaModal", () => ({
+  StartPageQuotaModal: ({
+    onClose,
+    visible,
+  }: {
+    onClose: () => void;
+    visible: boolean;
+  }) =>
+    visible
+      ? createElement(
+          "button",
+          { "data-testid": "quota-modal", onClick: onClose },
+          "Quota modal"
+        )
+      : null,
+}));
 
 const t = ((key: string) => key) as ComponentProps<
   typeof ChatPanelStartPage
@@ -54,10 +70,15 @@ function Harness() {
   );
 
   return createElement(ChatPanelStartPage, {
-    agentLauncher: ({ createTarget: agentCreateTarget }) =>
-      createElement(TrackedAgentComposer, {
-        createTarget: agentCreateTarget,
-      }),
+    agentLauncher: ({ createTarget: agentCreateTarget, heroFooterSlot }) =>
+      createElement(
+        "div",
+        null,
+        createElement(TrackedAgentComposer, {
+          createTarget: agentCreateTarget,
+        }),
+        heroFooterSlot
+      ),
     createTarget,
     createTargetOptions: [
       { value: CHAT_PANEL_CREATE_TARGET.PROJECT, label: "Create project" },
@@ -67,7 +88,6 @@ function Harness() {
       setCreateTarget(target as ChatPanelCreateTarget),
     onInstallLatestUpdate: vi.fn(),
     onProjectAgentModeChange: vi.fn(),
-    onShowRuntime: vi.fn(),
     onWorkItemAgentModeChange: vi.fn(),
     projectAgentMode: true,
     t,
@@ -125,5 +145,30 @@ describe("ChatPanelStartPage agent composer lifecycle", () => {
     );
     expect(mocks.mounts).toHaveBeenCalledTimes(1);
     expect(mocks.unmounts).not.toHaveBeenCalled();
+  });
+
+  it("opens and closes the quota modal from the quick action", () => {
+    act(() => {
+      root.render(createElement(Provider, null, createElement(Harness)));
+    });
+
+    const viewQuota = container.querySelector<HTMLButtonElement>(
+      '[data-testid="chat-panel-start-page-show-quota"]'
+    );
+    expect(viewQuota).not.toBeNull();
+    expect(container.querySelector('[data-testid="quota-modal"]')).toBeNull();
+
+    act(() => {
+      viewQuota?.click();
+    });
+    const quotaModal = container.querySelector<HTMLButtonElement>(
+      '[data-testid="quota-modal"]'
+    );
+    expect(quotaModal).not.toBeNull();
+
+    act(() => {
+      quotaModal?.click();
+    });
+    expect(container.querySelector('[data-testid="quota-modal"]')).toBeNull();
   });
 });

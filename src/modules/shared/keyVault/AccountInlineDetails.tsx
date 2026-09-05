@@ -52,10 +52,6 @@ function hasTotalPercentUsed(
   );
 }
 
-function resolvePlanLabel(account: KeyVaultAccount): string | null {
-  return resolveQuotaPlanLabel(account);
-}
-
 export const AccountInlineDetails: React.FC<AccountInlineDetailsProps> = ({
   account,
 }) => {
@@ -113,7 +109,7 @@ export const AccountInlineDetails: React.FC<AccountInlineDetailsProps> = ({
     if (!showQuota || !account.quotaInfo) return null;
 
     const quotaInfo = account.quotaInfo;
-    const planLabel = resolvePlanLabel(account);
+    const planLabel = resolveQuotaPlanLabel(account, t);
     const remainingPercent = hasTotalPercentUsed(quotaInfo)
       ? 100 - quotaInfo.total_percent_used
       : (quotaInfo.remaining_percentage ?? 0);
@@ -125,7 +121,7 @@ export const AccountInlineDetails: React.FC<AccountInlineDetailsProps> = ({
       textColorClass: getQuotaTextColorClass(remainingPercent),
       isUnlimited: quotaInfo.is_unlimited === true,
     };
-  }, [account, showQuota]);
+  }, [account, showQuota, t]);
 
   const quotaUsageItems = useMemo(() => {
     if (!showQuota || !account.quotaInfo) {

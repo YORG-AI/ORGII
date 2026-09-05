@@ -102,6 +102,8 @@
     "quota": {
       "title": "配額信息",
       "plan": "套餐",
+      "balance": "餘額",
+      "payAsYouGo": "隨用隨付",
       "includedRequests": "已含請求",
       "cursorIncludedRequests": "Auto/Composer 配額",
       "quotaUsage": "配額使用",

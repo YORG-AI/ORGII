@@ -892,8 +892,8 @@
       "addApiKey": {
         "title": "Thêm API key"
       },
-      "showRuntime": {
-        "title": "Hiển thị môi trường chạy"
+      "showQuota": {
+        "title": "Xem hạn mức"
       },
       "installLatestUpdate": {
         "title": "Cài đặt bản cập nhật mới nhất"

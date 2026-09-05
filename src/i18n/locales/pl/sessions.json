@@ -896,8 +896,8 @@
       "addApiKey": {
         "title": "Dodaj API key"
       },
-      "showRuntime": {
-        "title": "Pokaż środowisko wykonawcze"
+      "showQuota": {
+        "title": "Pokaż limit"
       },
       "installLatestUpdate": {
         "title": "Zainstaluj najnowszą aktualizację"

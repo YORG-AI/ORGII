@@ -1,11 +1,22 @@
 import type { TFunction } from "i18next";
 import { describe, expect, it } from "vitest";
 
-import { collectAccountQuotaCards } from "./accountQuotaDisplay";
+import {
+  collectAccountQuotaCards,
+  resolveQuotaPlanLabel,
+} from "./accountQuotaDisplay";
 import type { KeyVaultAccount } from "./types";
 
 const translate = ((key: string, options?: { defaultValue?: string }) =>
   options?.defaultValue ?? key) as TFunction;
+
+const chineseTranslations: Record<string, string> = {
+  "keyVault.quota.balance": "余额",
+  "keyVault.quota.payAsYouGo": "按量付费",
+};
+
+const chineseTranslate = ((key: string, options?: { defaultValue?: string }) =>
+  chineseTranslations[key] ?? options?.defaultValue ?? key) as TFunction;
 
 function deepSeekAccount(): KeyVaultAccount {
   return {
@@ -55,6 +66,24 @@ describe("collectAccountQuotaCards", () => {
     });
     expect(card.metrics.some((metric) => metric.kind === "percentage")).toBe(
       false
+    );
+  });
+
+  it("localizes balance and Pay As You Go while preserving provider plan names", () => {
+    const [card] = collectAccountQuotaCards(
+      [deepSeekAccount()],
+      chineseTranslate,
+      chineseTranslate
+    );
+
+    expect(card.accountPlan).toBe("按量付费");
+    expect(card.metrics[0]).toMatchObject({ label: "余额" });
+
+    const glmCodingPlanAccount = deepSeekAccount();
+    glmCodingPlanAccount.quotaInfo!.plan_type = "GLM Coding Plan";
+
+    expect(resolveQuotaPlanLabel(glmCodingPlanAccount, chineseTranslate)).toBe(
+      "GLM Coding Plan"
     );
   });
 });

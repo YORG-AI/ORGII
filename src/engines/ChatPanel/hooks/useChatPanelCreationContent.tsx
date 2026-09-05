@@ -35,7 +35,6 @@ interface UseChatPanelCreationContentOptions {
   startPageOpen: boolean;
   sessionCreatorSlot: ChatPanelProps["sessionCreatorSlot"];
   creatorVariant: "default" | "fullScreen";
-  handleShowRuntime: () => void;
   handleOpenLaunchpadTab: () => void;
   handleOpenCliTerminal: ReturnType<
     typeof useChatPanelTabsController
@@ -53,7 +52,6 @@ export function useChatPanelCreationContent({
   startPageOpen,
   sessionCreatorSlot: SessionCreatorSlot,
   creatorVariant,
-  handleShowRuntime,
   handleOpenLaunchpadTab,
   handleOpenCliTerminal,
   handleRegionNoticeChange,
@@ -164,7 +162,6 @@ export function useChatPanelCreationContent({
       handleRegionNoticeChange={handleRegionNoticeChange}
       handleStartPageAddApiKey={handleStartPageAddApiKey}
       handleStartPageInstallLatestUpdate={handleStartPageInstallLatestUpdate}
-      handleStartPageShowRuntime={handleShowRuntime}
       handleStartPageSessionStart={handleStartPageSessionStart}
       handleProjectAgentCreatorToggle={handleProjectAgentCreatorToggle}
       handleWorkItemAgentCreatorToggle={handleWorkItemAgentCreatorToggle}

@@ -105,6 +105,8 @@
     "quota": {
       "title": "Kontingent-Informationen",
       "plan": "Plan",
+      "balance": "Kontostand",
+      "payAsYouGo": "Nutzungsbasiert",
       "includedRequests": "Enthaltene Anfragen",
       "cursorIncludedRequests": "Auto/Composer-Kontingent",
       "quotaUsage": "Kontingentnutzung",

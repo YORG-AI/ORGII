@@ -4,7 +4,6 @@ export type RuntimeOrganizationView = "today" | "members" | "sync";
 export type RuntimePersonalView =
   | "usage"
   | "profile"
-  | "quota"
   | "scanning"
   | "hooks"
   | "assets";

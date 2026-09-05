@@ -67,6 +67,10 @@ vi.mock("./UsageRoundsTable", () => ({
 }));
 
 vi.mock("./UsageStatCards", () => ({ default: () => null }));
+vi.mock("@src/engines/ChatPanel/StartPageQuotaGrid", () => ({
+  StartPageQuotaGrid: () =>
+    createElement("div", { "data-testid": "quota-summary" }),
+}));
 vi.mock("./UsageTrendChart", () => ({
   default: ({ points }: { points: unknown[] }) =>
     createElement("div", {
@@ -129,15 +133,26 @@ describe("SessionUsagePanel", () => {
     Reflect.deleteProperty(reactActEnvironment, "IS_REACT_ACT_ENVIRONMENT");
   });
 
-  it("pins the source and range controls above the scrolling usage content", () => {
+  it("places the Usage title above a sticky filter and refresh toolbar", () => {
     const markup = renderToStaticMarkup(createElement(SessionUsagePanel));
+    const quotaSummary = markup.indexOf('data-testid="quota-summary"');
+    const titleControls = markup.indexOf('data-testid="usage-title-controls"');
+    const sourceControls = markup.indexOf(
+      'data-testid="usage-source-controls"'
+    );
 
+    expect(quotaSummary).toBeGreaterThanOrEqual(0);
+    expect(quotaSummary).toBeLessThan(sourceControls);
+    expect(titleControls).toBeGreaterThan(quotaSummary);
+    expect(titleControls).toBeLessThan(sourceControls);
     expect(markup).toContain('data-testid="usage-source-controls"');
     expect(markup).toContain(
       'class="sticky top-0 z-20 -mx-4 bg-chat-pane px-4 pb-1"'
     );
     expect(markup).toContain("flex flex-col gap-3");
-    expect(markup).toContain("flex min-h-9 flex-wrap items-center");
+    expect(markup).toContain(
+      "flex min-h-9 flex-wrap items-center justify-between"
+    );
     expect(markup).toContain('data-testid="usage-source-range-controls"');
     expect(markup).toContain("h-4 w-px shrink-0 bg-border-2");
     expect(markup).toContain("select-size-small");
@@ -145,7 +160,7 @@ describe("SessionUsagePanel", () => {
     expect(markup).toContain('data-testid="usage-title-controls"');
     expect(markup).toContain('data-testid="usage-refresh"');
     expect(markup).toContain('aria-label="usage.refresh"');
-    expect(markup).toContain("usage.title");
+    expect(markup).toContain("views.usage");
   });
 
   it("refreshes headline data and an open request page together", async () => {

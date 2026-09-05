@@ -951,8 +951,8 @@
       "addApiKey": {
         "title": "Add API key"
       },
-      "showRuntime": {
-        "title": "Show runtime"
+      "showQuota": {
+        "title": "View quota"
       },
       "installLatestUpdate": {
         "title": "Install latest update"
