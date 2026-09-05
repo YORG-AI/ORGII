@@ -134,7 +134,12 @@ fn effort_variants_for_base_model(
     let mut variants = Vec::new();
     let has_thinking_toggle = claude_model_has_thinking_toggle(base_model);
     let lower = base_model.to_lowercase();
-    let rungs = if lower.contains("fable-5") {
+    // Fable 5.1 documents only low/medium/high/xhigh/max. Do not inherit
+    // Fable 5's legacy ultracode fallback; live discovery still wins.
+    let is_fable_51 = lower
+        .split_once("claude-fable-5-1")
+        .is_some_and(|(_, rest)| rest.is_empty() || rest.starts_with('-') || rest.starts_with(':'));
+    let rungs = if lower.contains("fable-5") && !is_fable_51 {
         FABLE_EFFORT_RUNGS
     } else {
         ANTHROPIC_EFFORT_RUNGS
