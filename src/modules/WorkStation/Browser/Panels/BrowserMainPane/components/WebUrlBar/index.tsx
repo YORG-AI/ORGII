@@ -12,6 +12,7 @@ import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import {
@@ -391,6 +392,8 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
             />
           </ToolbarTooltip>
         </div>
+
+        <HeaderSectionSeparator />
 
         {/* URL Input Container */}
         <div
