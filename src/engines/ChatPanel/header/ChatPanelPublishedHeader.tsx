@@ -1,6 +1,7 @@
 import React, { memo } from "react";
 
 import { PublishedHeaderSlotsView } from "@src/components/WindowChrome";
+import { CHROME_INSET_TRANSITION_CLASSES } from "@src/modules/shared/layouts/viewContainerTokens";
 
 import {
   CHAT_PANEL_HEADER_DRAG_STYLE,
@@ -38,7 +39,7 @@ export const ChatPanelPublishedHeader: React.FC<ChatPanelPublishedHeaderProps> =
 
       return (
         <div
-          className={`relative z-40 flex h-9 shrink-0 items-center gap-2 ${CHAT_PANEL_HEADER_RIGHT_PADDING_CLASS} ${
+          className={`relative z-40 flex h-9 shrink-0 items-center gap-2 ${CHAT_PANEL_HEADER_RIGHT_PADDING_CLASS} ${CHROME_INSET_TRANSITION_CLASSES} ${
             slots.joinWithFollowingRow || hideBottomBorder
               ? ""
               : "border-b border-border-2"

@@ -25,6 +25,16 @@ const IS_MACOS_HOST = resolveHostDesktop() === HOST_DESKTOP.MACOS;
 export const PANE_WIDTH_TRANSITION_CLASSES =
   "transition-[width,flex-grow,flex-basis] duration-200 ease-out motion-reduce:transition-none";
 
+/**
+ * For headers that reserve space under the window's pinned chrome (the
+ * sidebar group on the left, the collapse toggles on the right). The
+ * reservation flips the instant a pane collapses, but the pane itself takes
+ * `PANE_WIDTH_TRANSITION_CLASSES` to move, so the inset must travel on the
+ * same curve or the header's titles jump by the reservation and then glide.
+ */
+export const CHROME_INSET_TRANSITION_CLASSES =
+  "transition-[padding] duration-200 ease-out motion-reduce:transition-none";
+
 interface ChatSlotLayoutStyleOptions {
   maximized: boolean;
   visible: boolean;

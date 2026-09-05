@@ -34,6 +34,7 @@ import {
   PanelRightIcon,
 } from "@src/icons";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
+import { CHROME_INSET_TRANSITION_CLASSES } from "@src/modules/shared/layouts/viewContainerTokens";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import {
@@ -148,7 +149,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
   return (
     <div className="flex shrink-0 flex-col">
       <div
-        className="relative flex h-11 min-h-11 shrink-0 items-center pt-2"
+        className={`relative flex h-11 min-h-11 shrink-0 items-center pt-2 ${CHROME_INSET_TRANSITION_CLASSES}`}
         data-tauri-drag-region
         style={
           {

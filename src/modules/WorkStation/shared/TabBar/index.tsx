@@ -52,6 +52,7 @@ import {
   useWorkbenchRightEdgeOwner,
 } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
 import { requestTeamInboxSessionHandoffAtom } from "@src/modules/MainApp/TeamInbox/store";
+import { CHROME_INSET_TRANSITION_CLASSES } from "@src/modules/shared/layouts/viewContainerTokens";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 import {
   SESSION_TAB_DROP_TARGET_HIGHLIGHT_CLASS,
@@ -385,7 +386,7 @@ export const TabBar: React.FC<TabBarProps> = memo(
         data-session-tab-drop-target="workstation"
         data-tour-target={dataTourTarget}
         data-is-dragging={draggingTabId ? "true" : undefined}
-        className={`work-station-tab-bar relative flex shrink-0 overflow-hidden ${surfaceClassName}`}
+        className={`work-station-tab-bar relative flex shrink-0 overflow-hidden ${CHROME_INSET_TRANSITION_CLASSES} ${surfaceClassName}`}
         data-tauri-drag-region
         style={
           {
