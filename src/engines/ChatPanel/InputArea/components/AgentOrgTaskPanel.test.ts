@@ -621,7 +621,7 @@ describe("Agent Org Task panel", () => {
     await act(async () => {
       container
         .querySelector<HTMLButtonElement>(
-          '[data-testid="agent-org-task-cancel-button"]'
+          '[data-task-id="active"] [data-testid="agent-org-task-cancel-button"]'
         )
         ?.click();
     });
@@ -642,6 +642,38 @@ describe("Agent Org Task panel", () => {
       replacementOwnerMemberId: null,
     });
     expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers scope removal without invalid reassignment for every pending shape", async () => {
+    const unassigned = { ...task("pending", "pending"), owner: null };
+    const assigned = task("assigned", "pending");
+    const blocked = {
+      ...task("blocked", "pending"),
+      blockedBy: ["upstream"],
+      dependenciesSatisfied: false,
+    };
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: { ...runView(), tasks: [unassigned, assigned, blocked] },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+    for (const taskId of ["pending", "assigned", "blocked"]) {
+      expect(
+        container.querySelector(
+          `[data-task-id="${taskId}"] [data-testid="agent-org-task-cancel-button"]`
+        )
+      ).not.toBeNull();
+      expect(
+        container.querySelector(
+          `[data-task-id="${taskId}"] [data-testid="agent-org-task-reassign-button"]`
+        )
+      ).toBeNull();
+    }
   });
 
   it("closes Cancel after durable acceptance while execution shutdown remains slow", async () => {
@@ -665,7 +697,7 @@ describe("Agent Org Task panel", () => {
     await act(async () => {
       container
         .querySelector<HTMLButtonElement>(
-          '[data-testid="agent-org-task-cancel-button"]'
+          '[data-task-id="active"] [data-testid="agent-org-task-cancel-button"]'
         )
         ?.click();
     });
@@ -744,7 +776,7 @@ describe("Agent Org Task panel", () => {
     await act(async () => {
       container
         .querySelector<HTMLButtonElement>(
-          '[data-testid="agent-org-task-reassign-button"]'
+          '[data-task-id="active"] [data-testid="agent-org-task-reassign-button"]'
         )
         ?.click();
     });

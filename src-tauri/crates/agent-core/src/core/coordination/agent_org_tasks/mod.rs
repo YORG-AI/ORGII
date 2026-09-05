@@ -13,6 +13,9 @@ use rusqlite::{Connection, Result as SqliteResult};
 use sha2::{Digest, Sha256};
 
 mod actor;
+pub(crate) use actor::TaskActorAudit;
+#[cfg(test)]
+pub(crate) use actor::TaskActorKind;
 pub(super) mod graph;
 pub(super) mod helpers;
 mod store;
@@ -466,6 +469,9 @@ pub enum TaskPageDirection {
 pub struct TaskMutationOutcome {
     pub previous: Task,
     pub current: Task,
+    /// The exact Task-board revision committed by this mutation. Idempotent
+    /// no-op calls return the revision observed inside their transaction.
+    pub new_work_revision: i64,
     pub owner_changed: bool,
     pub status_changed: bool,
     pub became_completed: bool,
@@ -629,12 +635,15 @@ pub fn new_task_id() -> String {
 ///   recovery diagnostics.
 /// - `(org_run_id, owner)` -- per-member listings and failure requeue.
 pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
-    // Isolated Task test/sandbox entry points must include the completion
-    // owner because every Task mutation now checks the certificate fence.
-    // Production still uses the canonical runtime initializer, which calls
-    // `create_schema` directly in manifest order.
+    // Isolated Task test/sandbox entry points must include every companion
+    // owner now consulted by a Task mutation. Production still uses the
+    // canonical runtime initializer, which calls `create_schema` directly in
+    // manifest order and adds the finality schema after manifest verification.
     super::agent_org_run_completion::create_schema(conn)?;
-    create_schema(conn)
+    super::agent_org_turn_contexts::create_schema(conn)?;
+    create_schema(conn)?;
+    super::agent_org_plan_approvals::create_schema(conn)?;
+    super::agent_org_finality::create_schema(conn)
 }
 
 pub(crate) fn create_history_page_index(conn: &Connection) -> SqliteResult<()> {

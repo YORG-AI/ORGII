@@ -2506,7 +2506,7 @@
       "reassignTitle": "Przypisać to zadanie ponownie?",
       "cancelTitle": "Anulować to zadanie?",
       "reassignWarning": "Bieżące wykonanie musi się zatrzymać przed uruchomieniem zastępstwa.",
-      "cancelWarning": "Bieżące wykonanie zostanie zatrzymane. Pozostałe zadania będą kontynuowane.",
+      "cancelWarning": "Spowoduje to usunięcie zadania z zakresu tej dostawy. Bieżące wykonanie zostanie zatrzymane, a zadania zależne wymagają osobnej decyzji.",
       "replacementOwner": "Nowy wykonawca",
       "handoffFailed": "Nie udało się bezpiecznie zaktualizować zadania",
       "handoffNeedsDecision": "Przekazanie zadania wymaga decyzji",

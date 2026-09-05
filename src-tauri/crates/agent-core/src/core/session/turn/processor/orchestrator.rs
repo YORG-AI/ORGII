@@ -526,7 +526,7 @@ impl UnifiedMessageProcessor {
             .as_ref()
             .map(|guard| guard.pending_ids().to_vec())
             .unwrap_or_default();
-        let (dynamic_sections, coordinator_presented_work_revision) = if is_final_summary_turn {
+        let (dynamic_sections, _coordinator_presented_work_revision) = if is_final_summary_turn {
             match crate::coordination::agent_org_final_summary::summary_context_for_turn(
                 session_id,
                 &context.turn_intent_id,
@@ -695,10 +695,7 @@ impl UnifiedMessageProcessor {
                     "assistant_persistence_failed",
                 );
             }
-            return Err(format!(
-                "{} {error}",
-                super::super::event_handler::AGENT_ORG_ASSISTANT_PERSISTENCE_ERROR_PREFIX
-            ));
+            return Err(error);
         }
 
         // Update nag-reminder counter based on whether manage_todo was called
@@ -769,18 +766,24 @@ impl UnifiedMessageProcessor {
         }
 
         if matches!(final_turn_state, DialogTurnState::Completed) {
-            if let (Some(org_context), Some(presented_work_revision)) = (
-                self.runtime.agent_org_context.as_ref(),
-                coordinator_presented_work_revision,
-            ) {
+            if let Some(org_context) = self.runtime.agent_org_context.as_ref() {
                 if self.runtime.agent_org_current_member_id.as_deref()
                     == Some(crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID)
                 {
-                    let run_id = org_context.run_id.clone();
+                    let observation_session_id = session_id.to_string();
+                    let observation_turn_intent_id = context.turn_intent_id.clone();
                     match tokio::task::spawn_blocking(move || {
+                        let Some((run_id, committed_revision)) =
+                            crate::coordination::agent_org_finality::final_coordinator_revision_for_turn(
+                                &observation_session_id,
+                                &observation_turn_intent_id,
+                            )?
+                        else {
+                            return Ok::<_, String>(None);
+                        };
                         crate::coordination::agent_org_runs::AgentOrgRunStore::mark_coordinator_observed_work_revision(
                             &run_id,
-                            presented_work_revision,
+                            committed_revision,
                         )
                     })
                     .await
@@ -788,13 +791,11 @@ impl UnifiedMessageProcessor {
                         Ok(Ok(_)) => {}
                         Ok(Err(error)) => warn!(
                             run_id = %org_context.run_id,
-                            presented_work_revision,
                             error = %error,
-                            "[unified_processor] failed to record Agent Org work revision observed by coordinator provider turn"
+                            "[unified_processor] failed to record the final committed Agent Org work revision observed by coordinator provider turn"
                         ),
                         Err(error) => warn!(
                             run_id = %org_context.run_id,
-                            presented_work_revision,
                             error = %error,
                             "[unified_processor] coordinator work-revision observation task failed"
                         ),

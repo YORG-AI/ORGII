@@ -364,6 +364,12 @@ pub(crate) fn pause_run_commit(run_id: &str, request_id: &str) -> Result<PauseCo
             params![run_id, &now, &episode_id],
         )
         .map_err(|error| error.to_string())?;
+        crate::coordination::agent_org_finality::freeze_run_generation_leases_in_tx(
+            &tx,
+            run_id,
+            generation,
+            "team_paused",
+        )?;
 
         tx.commit().map_err(|error| error.to_string())?;
         let draining = captures.iter().filter(|item| item.7 == "running").count();
@@ -500,6 +506,12 @@ pub fn resume_run(run_id: &str, request_id: &str) -> Result<ResumeRunOutcome, St
                         .as_deref()
                         .ok_or_else(|| "Task handoff has no owner".to_string())?,
                     resume_generation,
+                )
+                .with_task_execution_authority_source(
+                    crate::coordination::agent_org_finality::TaskExecutionAuthoritySource::receipt(
+                        crate::coordination::agent_org_finality::TaskExecutionAuthoritySourceKind::PauseResume,
+                        format!("pause:{}", handoff.handoff_id),
+                    ),
                 ),
                 other => return Err(format!("unknown formal handoff kind {other:?}")),
             };

@@ -270,8 +270,8 @@ fn append_annotation_in_tx(
         kind,
         body,
         actor_kind: audit.kind.as_wire().to_string(),
-        actor_participant_id: audit.participant_id,
-        source_turn_intent_id: audit.turn_intent_id,
+        actor_participant_id: audit.participant_id.clone(),
+        source_turn_intent_id: audit.turn_intent_id.clone(),
         created_at: now_rfc3339(),
     };
     conn.execute(
@@ -292,6 +292,6 @@ fn append_annotation_in_tx(
         ],
     )
     .map_err(|error| error.to_string())?;
-    crate::coordination::agent_org_runs::bump_work_revision_in_tx(conn, org_run_id)?;
+    crate::coordination::agent_org_finality::record_task_mutation_in_tx(conn, org_run_id, &audit)?;
     Ok(annotation)
 }

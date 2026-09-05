@@ -60,15 +60,15 @@ impl AgentOrgRunStore {
         Ok(run)
     }
 
-    /// Apply failed-Turn recovery after crash cleanup has converted a stranded
-    /// Member session to Abandoned. Recovery proceeds only when one persisted
+    /// Apply failed-Turn recovery after crash cleanup has made a stranded
+    /// Member session terminal. Recovery proceeds only when one persisted
     /// running TaskExecution identifies the exact Task; a missing or ambiguous
     /// binding fails closed instead of mutating every Task owned by the Member.
     pub fn requeue_abandoned_member_tasks_on_startup() -> Result<usize, String> {
         let mut changed = 0usize;
         for run in Self::list_running_runs(100)? {
             for worker in Self::list_descendant_worker_sessions(&run.id)? {
-                if worker.status != SessionStatus::Abandoned {
+                if !worker.status.is_terminal() || worker.status == SessionStatus::Archived {
                     continue;
                 }
                 let Some(member_id) = worker.member_id.as_deref() else {

@@ -512,6 +512,13 @@ pub type UpsertTurnIntentWithConnectionFn = fn(
 pub type UpdateTurnIntentStatusFn =
     fn(session_id: &str, turn_intent_id: &str, new_status: TurnIntentBridgeStatus);
 
+pub type UpdateTurnIntentStatusWithConnectionFn = fn(
+    connection: &rusqlite::Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+    new_status: TurnIntentBridgeStatus,
+) -> Result<(), String>;
+
 pub type GetTurnIntentStatusFn =
     fn(session_id: &str, turn_intent_id: &str) -> Option<TurnIntentBridgeStatus>;
 
@@ -521,6 +528,8 @@ static UPSERT_TURN_INTENT: OnceLock<UpsertTurnIntentFn> = OnceLock::new();
 static UPSERT_TURN_INTENT_WITH_CONNECTION: OnceLock<UpsertTurnIntentWithConnectionFn> =
     OnceLock::new();
 static UPDATE_TURN_INTENT_STATUS: OnceLock<UpdateTurnIntentStatusFn> = OnceLock::new();
+static UPDATE_TURN_INTENT_STATUS_WITH_CONNECTION: OnceLock<UpdateTurnIntentStatusWithConnectionFn> =
+    OnceLock::new();
 static GET_TURN_INTENT_STATUS: OnceLock<GetTurnIntentStatusFn> = OnceLock::new();
 static MARK_PENDING_TURN_INTENTS_STALE: OnceLock<MarkPendingTurnIntentsStaleFn> = OnceLock::new();
 
@@ -536,6 +545,12 @@ pub fn register_upsert_turn_intent_with_connection(
 
 pub fn register_update_turn_intent_status(implementation: UpdateTurnIntentStatusFn) {
     let _ = UPDATE_TURN_INTENT_STATUS.set(implementation);
+}
+
+pub fn register_update_turn_intent_status_with_connection(
+    implementation: UpdateTurnIntentStatusWithConnectionFn,
+) {
+    let _ = UPDATE_TURN_INTENT_STATUS_WITH_CONNECTION.set(implementation);
 }
 
 pub fn register_get_turn_intent_status(implementation: GetTurnIntentStatusFn) {
@@ -613,6 +628,81 @@ pub fn update_turn_intent_status(
     if let Some(implementation) = UPDATE_TURN_INTENT_STATUS.get() {
         implementation(session_id, turn_intent_id, new_status);
     }
+}
+
+/// Connection-scoped lifecycle transition for domain owners that must settle
+/// companion authority in the same SQLite transaction.
+pub fn update_turn_intent_status_with_connection(
+    connection: &rusqlite::Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+    new_status: TurnIntentBridgeStatus,
+) -> Result<(), String> {
+    if turn_intent_id.is_empty() {
+        return Err("turn_intent_id must not be empty".to_string());
+    }
+    if let Some(implementation) = UPDATE_TURN_INTENT_STATUS_WITH_CONNECTION.get() {
+        return implementation(connection, session_id, turn_intent_id, new_status);
+    }
+    #[cfg(test)]
+    {
+        update_turn_intent_status_test_adapter(connection, session_id, turn_intent_id, new_status)
+    }
+    #[cfg(not(test))]
+    Err("turn-intent status persistence bridge is not registered".to_string())
+}
+
+#[cfg(test)]
+fn update_turn_intent_status_test_adapter(
+    connection: &rusqlite::Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+    new_status: TurnIntentBridgeStatus,
+) -> Result<(), String> {
+    let current: String = connection
+        .query_row(
+            "SELECT status FROM session_turn_intents
+             WHERE session_id=?1 AND turn_intent_id=?2",
+            rusqlite::params![session_id, turn_intent_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let next = new_status.as_str();
+    let allowed = current == next
+        || matches!(
+            (current.as_str(), next),
+            ("optimistic", "queued")
+                | ("optimistic", "running")
+                | ("queued", "running")
+                | ("queued", "cancelled")
+                | ("running", "completed")
+                | ("running", "failed")
+                | ("running", "cancelled")
+                | ("optimistic", "stale")
+                | ("queued", "stale")
+                | ("optimistic", "coalesced")
+                | ("queued", "coalesced")
+                | ("optimistic", "rejected")
+                | ("queued", "rejected")
+        );
+    if !allowed {
+        return Err(format!(
+            "illegal test Turn-intent transition: {current}->{next}"
+        ));
+    }
+    connection
+        .execute(
+            "UPDATE session_turn_intents SET status=?3,updated_at=?4
+             WHERE session_id=?1 AND turn_intent_id=?2",
+            rusqlite::params![
+                session_id,
+                turn_intent_id,
+                next,
+                chrono::Utc::now().to_rfc3339()
+            ],
+        )
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 /// Read a durable intent status for crash-safe dispatch reconciliation.

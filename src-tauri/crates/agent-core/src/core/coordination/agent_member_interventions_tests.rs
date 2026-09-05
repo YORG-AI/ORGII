@@ -290,6 +290,12 @@ fn create_recoverable_formal_intervention(
         &task_id,
         MEMBER_ID,
         1,
+    )
+    .with_task_execution_authority_source(
+        crate::coordination::agent_org_finality::TaskExecutionAuthoritySource::receipt(
+            crate::coordination::agent_org_finality::TaskExecutionAuthoritySourceKind::Assignment,
+            format!("test-assignment:{formal_turn_id}"),
+        ),
     ))
     .expect("admit recoverable formal Turn");
     let conn = get_connection().expect("test sqlite connection");
@@ -849,6 +855,12 @@ fn one_receipt_chains_followups_without_repeating_the_formal_handoff() {
         "task-handoff",
         MEMBER_ID,
         1,
+    )
+    .with_task_execution_authority_source(
+        crate::coordination::agent_org_finality::TaskExecutionAuthoritySource::receipt(
+            crate::coordination::agent_org_finality::TaskExecutionAuthoritySourceKind::Assignment,
+            "test-assignment:turn-formal",
+        ),
     );
     agent_org_turn_contexts::accept(&formal).expect("admit formal TaskExecution");
     let conn = get_connection().expect("test sqlite connection");
@@ -984,6 +996,12 @@ fn return_restores_one_exact_continuation_and_never_duplicates_it() {
         "task-restore",
         MEMBER_ID,
         1,
+    )
+    .with_task_execution_authority_source(
+        crate::coordination::agent_org_finality::TaskExecutionAuthoritySource::receipt(
+            crate::coordination::agent_org_finality::TaskExecutionAuthoritySourceKind::Assignment,
+            "test-assignment:turn-original",
+        ),
     ))
     .expect("admit original formal Turn");
     let conn = get_connection().expect("test sqlite connection");
@@ -1007,6 +1025,13 @@ fn return_restores_one_exact_continuation_and_never_duplicates_it() {
         )
         .expect("bind exact formal runtime")
     );
+    crate::coordination::agent_org_finality::finalize_turn(
+        &fixture.member_session_id,
+        "turn-original",
+        false,
+        "user_directed_yield",
+    )
+    .expect("terminalize the prior formal Turn before continuation");
     assert!(AgentMemberInterventionStore::mark_yield_released(
         &accepted.intervention.intervention_receipt_id,
         "lease-original",
@@ -1216,6 +1241,12 @@ fn stop_persists_one_exact_terminal_turn_and_return_waits_for_formal_yield() {
         "task-stop-yield",
         MEMBER_ID,
         1,
+    )
+    .with_task_execution_authority_source(
+        crate::coordination::agent_org_finality::TaskExecutionAuthoritySource::receipt(
+            crate::coordination::agent_org_finality::TaskExecutionAuthoritySourceKind::Assignment,
+            "test-assignment:turn-stop-original",
+        ),
     ))
     .expect("admit formal Turn");
     let conn = get_connection().expect("test sqlite connection");

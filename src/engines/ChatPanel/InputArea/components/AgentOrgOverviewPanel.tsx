@@ -1491,7 +1491,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                 })
               : t("planner.agentOrgTasks.cancelWarning", {
                   defaultValue:
-                    "The current execution will be stopped. Other Tasks continue.",
+                    "This removes the Task from this delivery scope. Any current execution will stop; dependent Tasks require an explicit follow-up decision.",
                 })}
           </div>
           {taskActionDialog?.action === "reassign" && (

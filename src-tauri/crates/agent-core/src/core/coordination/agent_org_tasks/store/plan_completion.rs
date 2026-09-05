@@ -127,10 +127,17 @@ impl AgentOrgTaskStore {
             &current,
             &audit,
         )?;
-        crate::coordination::agent_org_runs::bump_work_revision_in_tx(tx, org_run_id)?;
+        crate::coordination::agent_org_finality::settle_task_bound_deliveries_in_tx(
+            tx, &previous, &current, &audit, None,
+        )?;
+        let new_work_revision =
+            crate::coordination::agent_org_finality::record_task_mutation_in_tx(
+                tx, org_run_id, &audit,
+            )?;
         Ok(TaskMutationOutcome {
             previous,
             current,
+            new_work_revision,
             owner_changed: false,
             status_changed: true,
             became_completed: true,

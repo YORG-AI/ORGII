@@ -1070,6 +1070,12 @@ impl AgentMemberInterventionStore {
                                     task_id,
                                     &receipt.member_id,
                                     activation_generation,
+                                )
+                                .with_task_execution_authority_source(
+                                    crate::coordination::agent_org_finality::TaskExecutionAuthoritySource::receipt(
+                                        crate::coordination::agent_org_finality::TaskExecutionAuthoritySourceKind::InterventionReturn,
+                                        format!("intervention:{receipt_id}"),
+                                    ),
                                 );
                                 agent_org_turn_contexts::accept_with_connection(&tx, &admission)?;
                                 continuation_turn_intent_id = Some(continuation_id);

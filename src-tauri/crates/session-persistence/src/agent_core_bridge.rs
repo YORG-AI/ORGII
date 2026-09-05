@@ -197,6 +197,22 @@ fn update_turn_intent_status_adapter(
     }
 }
 
+fn update_turn_intent_status_with_connection_adapter(
+    connection: &rusqlite::Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+    new_status: session_bridge::TurnIntentBridgeStatus,
+) -> Result<(), String> {
+    turn_intents::update_status_on(
+        connection,
+        session_id,
+        turn_intent_id,
+        map_bridge_status(new_status),
+    )
+    .map(|_| ())
+    .map_err(|error| error.to_string())
+}
+
 fn get_turn_intent_status_adapter(
     session_id: &str,
     turn_intent_id: &str,
@@ -235,6 +251,9 @@ pub fn register() {
         upsert_turn_intent_with_connection_adapter,
     );
     session_bridge::register_update_turn_intent_status(update_turn_intent_status_adapter);
+    session_bridge::register_update_turn_intent_status_with_connection(
+        update_turn_intent_status_with_connection_adapter,
+    );
     session_bridge::register_get_turn_intent_status(get_turn_intent_status_adapter);
     session_bridge::register_mark_pending_turn_intents_stale(
         mark_pending_turn_intents_stale_adapter,

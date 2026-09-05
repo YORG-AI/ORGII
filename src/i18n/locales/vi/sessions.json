@@ -2441,7 +2441,7 @@
       "reassignTitle": "Phân công lại nhiệm vụ này?",
       "cancelTitle": "Hủy nhiệm vụ này?",
       "reassignWarning": "Lần thực thi hiện tại phải dừng trước khi nhiệm vụ thay thế bắt đầu.",
-      "cancelWarning": "Lần thực thi hiện tại sẽ dừng. Các nhiệm vụ khác vẫn tiếp tục.",
+      "cancelWarning": "Thao tác này loại nhiệm vụ khỏi phạm vi bàn giao hiện tại. Mọi lần thực thi đang chạy sẽ dừng; các nhiệm vụ phụ thuộc cần một quyết định riêng, rõ ràng.",
       "replacementOwner": "Người phụ trách mới",
       "handoffFailed": "Không thể cập nhật nhiệm vụ này một cách an toàn",
       "handoffNeedsDecision": "Việc bàn giao cần quyết định của bạn",

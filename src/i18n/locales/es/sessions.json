@@ -2444,7 +2444,7 @@
       "reassignTitle": "¿Reasignar esta tarea?",
       "cancelTitle": "¿Cancelar esta tarea?",
       "reassignWarning": "La ejecución actual debe detenerse antes de iniciar el reemplazo.",
-      "cancelWarning": "La ejecución actual se detendrá. Las demás tareas continuarán.",
+      "cancelWarning": "Esto elimina la tarea del alcance de esta entrega. Cualquier ejecución actual se detendrá; las tareas dependientes requieren una decisión explícita.",
       "replacementOwner": "Nuevo responsable",
       "handoffFailed": "No se pudo actualizar esta tarea de forma segura",
       "handoffNeedsDecision": "La transferencia necesita tu decisión",

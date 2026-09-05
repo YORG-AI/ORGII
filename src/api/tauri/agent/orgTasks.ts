@@ -525,6 +525,19 @@ export interface AgentOrgTaskHandoffRequestResult {
   task: AgentOrgTask;
   replacement?: AgentOrgTask | null;
   executionHandoff?: AgentOrgTaskExecutionHandoffReceipt | null;
+  scopeRemoval?: AgentOrgScopeRemovalReceipt | null;
+}
+
+export interface AgentOrgScopeRemovalReceipt {
+  id: string;
+  orgRunId: string;
+  workEpisodeId: string;
+  targetTaskId: string;
+  rootUserEventId: string;
+  requestId: string;
+  actorSessionId: string;
+  status: "recorded" | "revoked";
+  createdAt: string;
 }
 
 export type AgentOrgTaskPageBucket = "current" | "history";

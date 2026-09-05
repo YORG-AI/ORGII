@@ -194,6 +194,12 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
         create_runtime_schema(&tx)?;
     }
     verify_manifest(&tx, &expected)?;
+    // The v1 runtime namespace above is intentionally frozen. New finality
+    // invariants therefore live in additive companion tables outside the
+    // frozen `agent_org_runtime_*` manifest. Creating them on every startup
+    // upgrades both fresh and existing databases without rewriting or
+    // invalidating the established runtime schema.
+    super::agent_org_finality::create_schema(&tx)?;
     agent_inbox::repair_dangling_materializations(&tx)?;
     let unknown_objects = unknown_agent_org_objects(&tx)?;
     tx.commit()?;

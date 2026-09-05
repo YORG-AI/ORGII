@@ -2548,7 +2548,7 @@
       "reassignTitle": "Reassign this Task?",
       "cancelTitle": "Cancel this Task?",
       "reassignWarning": "The current execution must stop before the replacement can start.",
-      "cancelWarning": "The current execution will be stopped. Other Tasks continue.",
+      "cancelWarning": "This removes the Task from this delivery scope. Any current execution will stop; dependent Tasks require an explicit follow-up decision.",
       "replacementOwner": "Replacement owner",
       "handoffFailed": "Could not safely update this Task",
       "handoffNeedsDecision": "Task handoff needs your decision",
