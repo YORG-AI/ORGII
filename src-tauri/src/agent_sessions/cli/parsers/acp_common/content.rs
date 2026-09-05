@@ -40,6 +40,8 @@ pub(crate) fn extract_edit_content(raw_input: &Value) -> Option<String> {
         "new_string",
         "newString",
         "newStr",
+        // DSH `str_replace_editor`
+        "new_str",
         "new_text",
         "newText",
         "content",
@@ -126,6 +128,8 @@ pub(crate) fn normalize_tool_result(
                         .get("old_string")
                         .or(pt.raw_input.get("oldString"))
                         .or(pt.raw_input.get("oldStr"))
+                        // DSH `str_replace_editor`
+                        .or(pt.raw_input.get("old_str"))
                         .or(pt.raw_input.get("old_text"))
                         .or(pt.raw_input.get("oldText"))
                         .and_then(|v| v.as_str())

@@ -14,7 +14,7 @@ use crate::agent_sessions::cli::parsers::opencode::OpenCodeAdapter;
 fn map_tool_kind_name_write_lowercase() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "write"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "write"})),
         "Edit"
     );
 }
@@ -23,7 +23,7 @@ fn map_tool_kind_name_write_lowercase() {
 fn map_tool_kind_name_write_pascal_case() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "Write"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "Write"})),
         "Edit"
     );
 }
@@ -32,7 +32,7 @@ fn map_tool_kind_name_write_pascal_case() {
 fn map_tool_kind_name_read_lowercase() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "read"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "read"})),
         "Read"
     );
 }
@@ -41,7 +41,7 @@ fn map_tool_kind_name_read_lowercase() {
 fn map_tool_kind_name_read_pascal_case() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "Read"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "Read"})),
         "Read"
     );
 }
@@ -50,7 +50,7 @@ fn map_tool_kind_name_read_pascal_case() {
 fn map_tool_kind_name_bash_lowercase() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "bash"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "bash"})),
         "Shell"
     );
 }
@@ -59,7 +59,7 @@ fn map_tool_kind_name_bash_lowercase() {
 fn map_tool_kind_name_bash_pascal_case() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "Bash"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "Bash"})),
         "Shell"
     );
 }
@@ -68,7 +68,7 @@ fn map_tool_kind_name_bash_pascal_case() {
 fn map_tool_kind_name_execute() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "execute"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "execute"})),
         "Shell"
     );
 }
@@ -77,7 +77,7 @@ fn map_tool_kind_name_execute() {
 fn map_tool_kind_name_grep_lowercase() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "grep"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "grep"})),
         "Grep"
     );
 }
@@ -86,7 +86,7 @@ fn map_tool_kind_name_grep_lowercase() {
 fn map_tool_kind_name_grep_pascal_case() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "Grep"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "Grep"})),
         "Grep"
     );
 }
@@ -95,7 +95,7 @@ fn map_tool_kind_name_grep_pascal_case() {
 fn map_tool_kind_name_glob_lowercase() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "glob"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "glob"})),
         "Glob"
     );
 }
@@ -104,7 +104,7 @@ fn map_tool_kind_name_glob_lowercase() {
 fn map_tool_kind_name_glob_pascal_case() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "Glob"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "Glob"})),
         "Glob"
     );
 }
@@ -113,7 +113,7 @@ fn map_tool_kind_name_glob_pascal_case() {
 fn map_tool_kind_name_fetch_lowercase() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "fetch"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "fetch"})),
         "WebFetch"
     );
 }
@@ -122,7 +122,7 @@ fn map_tool_kind_name_fetch_lowercase() {
 fn map_tool_kind_name_fetch_pascal_case() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "Fetch"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "Fetch"})),
         "WebFetch"
     );
 }
@@ -131,7 +131,7 @@ fn map_tool_kind_name_fetch_pascal_case() {
 fn map_tool_kind_name_webfetch_exact() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "WebFetch"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "WebFetch"})),
         "WebFetch"
     );
 }
@@ -140,7 +140,7 @@ fn map_tool_kind_name_webfetch_exact() {
 fn map_tool_kind_name_todo_write() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"name": "TodoWrite"})),
+        adapter.map_tool_kind("other", "", &json!({"name": "TodoWrite"})),
         "UpdateTodos"
     );
 }
@@ -150,7 +150,7 @@ fn map_tool_kind_name_todo_write() {
 fn map_tool_kind_tool_field_write() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("other", &json!({"tool": "write"})),
+        adapter.map_tool_kind("other", "", &json!({"tool": "write"})),
         "Edit"
     );
 }
@@ -159,7 +159,7 @@ fn map_tool_kind_tool_field_write() {
 fn map_tool_kind_tool_field_bash() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("read", &json!({"tool": "bash"})),
+        adapter.map_tool_kind("read", "", &json!({"tool": "bash"})),
         "Shell"
     );
 }
@@ -172,56 +172,56 @@ fn map_tool_kind_tool_field_bash() {
 #[test]
 fn map_tool_kind_kind_execute_no_name() {
     let adapter = OpenCodeAdapter;
-    assert_eq!(adapter.map_tool_kind("execute", &json!({})), "Shell");
+    assert_eq!(adapter.map_tool_kind("execute", "", &json!({})), "Shell");
 }
 
 #[test]
 fn map_tool_kind_kind_read_no_name() {
     let adapter = OpenCodeAdapter;
-    assert_eq!(adapter.map_tool_kind("read", &json!({})), "Read");
+    assert_eq!(adapter.map_tool_kind("read", "", &json!({})), "Read");
 }
 
 #[test]
 fn map_tool_kind_kind_write_no_name() {
     let adapter = OpenCodeAdapter;
-    assert_eq!(adapter.map_tool_kind("write", &json!({})), "Edit");
+    assert_eq!(adapter.map_tool_kind("write", "", &json!({})), "Edit");
 }
 
 #[test]
 fn map_tool_kind_kind_edit_no_name() {
     let adapter = OpenCodeAdapter;
-    assert_eq!(adapter.map_tool_kind("edit", &json!({})), "Edit");
+    assert_eq!(adapter.map_tool_kind("edit", "", &json!({})), "Edit");
 }
 
 #[test]
 fn map_tool_kind_kind_search_no_name() {
     let adapter = OpenCodeAdapter;
-    assert_eq!(adapter.map_tool_kind("search", &json!({})), "Grep");
+    assert_eq!(adapter.map_tool_kind("search", "", &json!({})), "Grep");
 }
 
 #[test]
 fn map_tool_kind_kind_delete_no_name() {
     let adapter = OpenCodeAdapter;
-    assert_eq!(adapter.map_tool_kind("delete", &json!({})), "Delete");
+    assert_eq!(adapter.map_tool_kind("delete", "", &json!({})), "Delete");
 }
 
 #[test]
 fn map_tool_kind_kind_fetch_no_name() {
     let adapter = OpenCodeAdapter;
-    assert_eq!(adapter.map_tool_kind("fetch", &json!({})), "WebFetch");
+    assert_eq!(adapter.map_tool_kind("fetch", "", &json!({})), "WebFetch");
 }
 
 #[test]
 fn map_tool_kind_kind_other_maps_to_task() {
     let adapter = OpenCodeAdapter;
-    assert_eq!(adapter.map_tool_kind("other", &json!({})), "Task");
+    assert_eq!(adapter.map_tool_kind("other", "", &json!({})), "Task");
 }
 
 #[test]
 fn map_tool_kind_unrecognised_kind_passthrough() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("something_custom", &json!({})),
+        adapter.map_tool_kind("something_custom", "", &json!({})),
         "something_custom"
     );
 }
@@ -232,7 +232,7 @@ fn map_tool_kind_name_wins_over_kind() {
     let adapter = OpenCodeAdapter;
     // kind says "read", but name says "write" → Edit should win
     assert_eq!(
-        adapter.map_tool_kind("read", &json!({"name": "write"})),
+        adapter.map_tool_kind("read", "", &json!({"name": "write"})),
         "Edit"
     );
 }
@@ -242,7 +242,7 @@ fn map_tool_kind_name_wins_over_kind() {
 fn map_tool_kind_unrecognised_name_falls_through_to_kind() {
     let adapter = OpenCodeAdapter;
     assert_eq!(
-        adapter.map_tool_kind("execute", &json!({"name": "some_unknown_tool"})),
+        adapter.map_tool_kind("execute", "", &json!({"name": "some_unknown_tool"})),
         "Shell"
     );
 }

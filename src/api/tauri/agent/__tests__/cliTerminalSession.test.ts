@@ -71,14 +71,14 @@ describe("formatCliTuiCommand", () => {
     ).toBe("codex --dangerously-bypass-approvals-and-sandbox");
   });
 
-  it("replaces DeepSeek Harness's headless profile with its TUI profile", () => {
+  it("replaces DeepSeek Harness's ACP profile with its TUI profile", () => {
     expect(
       formatCliTuiCommand(
         profile({
           agentName: "deepseek_harness",
           defaultCommand: "dsh",
           command: "dsh",
-          requiredArgs: ["--profile", "headless"],
+          requiredArgs: ["--profile", "acp"],
           args: [],
         }),
         "/opt/deepseek/bin/dsh",

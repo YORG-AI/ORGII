@@ -590,7 +590,7 @@ pub async fn run_session(
     // ── Spawn subprocess ──
     let is_acp_agent = matches!(
         agent,
-        ModelType::Copilot | ModelType::Kiro | ModelType::OpenCode
+        ModelType::Copilot | ModelType::Kiro | ModelType::OpenCode | ModelType::DeepseekHarness
     );
 
     let mut stderr_lines: Arc<Mutex<VecDeque<String>>>;

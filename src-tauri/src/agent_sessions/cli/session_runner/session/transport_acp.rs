@@ -1,11 +1,12 @@
-//! ACP transport: bidirectional JSON-RPC over stdio for Copilot, Kiro, and
-//! OpenCode.
+//! ACP transport: bidirectional JSON-RPC over stdio for Copilot, Kiro,
+//! OpenCode, and DeepSeek Harness.
 
 use std::collections::HashMap;
 
 use tokio::process::Child;
 
 use crate::agent_sessions::cli::parsers::copilot;
+use crate::agent_sessions::cli::parsers::deepseek;
 use crate::agent_sessions::cli::parsers::kiro;
 use key_vault::key_store::ModelType;
 
@@ -33,7 +34,8 @@ pub(super) async fn run_acp_branch(
     sequence: &mut i64,
     env_vars: &HashMap<String, String>,
 ) -> Result<AcpOutcome, String> {
-    // ── ACP agents (Copilot, Kiro): bidirectional JSON-RPC ──
+    // ── ACP agents (Copilot, Kiro, OpenCode, DeepSeek Harness):
+    //    bidirectional JSON-RPC ──
     let stdout = child.stdout.take().expect("stdout was piped");
     let stdin = child.stdin.take().expect("stdin was piped for ACP");
     let (chunk_tx, mut chunk_rx) =
@@ -63,6 +65,19 @@ pub(super) async fn run_acp_branch(
             }
             ModelType::OpenCode => {
                 crate::agent_sessions::cli::parsers::opencode::run_acp_protocol(
+                    stdin,
+                    stdout,
+                    &acp_sid,
+                    &acp_task,
+                    &acp_dir,
+                    acp_resume.as_deref(),
+                    chunk_tx,
+                    acp_image_paths,
+                )
+                .await
+            }
+            ModelType::DeepseekHarness => {
+                deepseek::run_acp_protocol(
                     stdin,
                     stdout,
                     &acp_sid,

@@ -90,9 +90,10 @@ export function formatCliTuiCommand(
   const executable = profile.commandOverridden
     ? profile.command
     : detectedCommand;
-  // Headless-only arguments must not leak into an interactive terminal.
-  // Codex's top-level command is interactive. DeepSeek Harness delegates its
-  // terminal UI to the separately configured `tui` profile.
+  // Automation-only arguments must not leak into an interactive terminal.
+  // Codex's top-level command is interactive. DeepSeek Harness runs managed
+  // sessions on its ACP profile and delegates its terminal UI to the
+  // separately configured `tui` profile.
   const requiredArgs =
     profile.agentName === CLI_AGENT.CODEX
       ? []

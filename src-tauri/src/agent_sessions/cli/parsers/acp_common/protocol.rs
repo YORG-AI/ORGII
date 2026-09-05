@@ -54,6 +54,10 @@ pub async fn run_acp_protocol<A: AcpAgentAdapter>(
     .await?;
 
     let mut supports_load_session = false;
+    let mut supports_resume_session = false;
+    // `None` = the agent said nothing, so keep the historical behavior of
+    // sending images. Only an explicit `false` suppresses them.
+    let mut supports_image_prompts: Option<bool> = None;
     loop {
         let msg = match acp_read(&mut reader, &mut line_buf).await {
             Ok(msg) => msg,
@@ -78,15 +82,28 @@ pub async fn run_acp_protocol<A: AcpAgentAdapter>(
                     serde_json::to_string(result)
                         .expect("acp_common: serde_json::Value must serialize")
                 );
-                supports_load_session = result
-                    .get("agentCapabilities")
+                let capabilities = result.get("agentCapabilities");
+                supports_load_session = capabilities
                     .and_then(|c| c.get("loadSession"))
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
+                // DeepSeek Harness resumes through `session/resume` and
+                // answers `session/load` with "Method not found", so the
+                // resume path is selected by the capability it advertises.
+                supports_resume_session = capabilities
+                    .and_then(|c| c.get("sessionCapabilities"))
+                    .and_then(|c| c.get("resume"))
+                    .is_some_and(|v| !v.is_null());
+                supports_image_prompts = capabilities
+                    .and_then(|c| c.get("promptCapabilities"))
+                    .and_then(|c| c.get("image"))
+                    .and_then(|v| v.as_bool());
             }
             tracing::info!(
-                "[ACP] Agent capabilities — loadSession: {}",
-                supports_load_session
+                "[ACP] Agent capabilities — loadSession: {}, resumeSession: {}, imagePrompts: {:?}",
+                supports_load_session,
+                supports_resume_session,
+                supports_image_prompts
             );
             break;
         }
@@ -95,22 +112,32 @@ pub async fn run_acp_protocol<A: AcpAgentAdapter>(
     // ── Step 2: Create or resume session ──
     request_id += 1;
     let session_req_id = request_id;
-    let use_load = resume_session_id.is_some() && supports_load_session;
+    let resume_method = if supports_load_session {
+        Some("session/load")
+    } else if supports_resume_session {
+        Some("session/resume")
+    } else {
+        None
+    };
+    let use_load = resume_session_id.is_some() && resume_method.is_some();
 
-    if let (true, Some(resume_id)) = (use_load, resume_session_id) {
-        tracing::info!("[ACP] Resuming session via session/load (id={})", resume_id);
+    if let (Some(method), Some(resume_id)) = (
+        resume_method.filter(|_| resume_session_id.is_some()),
+        resume_session_id,
+    ) {
+        tracing::info!("[ACP] Resuming session via {} (id={})", method, resume_id);
         acp_send(
             &mut stdin,
             session_req_id,
-            "session/load",
+            method,
             serde_json::json!({
                 "sessionId": resume_id, "cwd": working_dir, "mcpServers": [],
             }),
         )
         .await?;
     } else {
-        if resume_session_id.is_some() && !supports_load_session {
-            tracing::info!("[ACP] Agent does not support session/load — calling session/new");
+        if resume_session_id.is_some() {
+            tracing::info!("[ACP] Agent supports no session resume — calling session/new");
         }
         acp_send(
             &mut stdin,
@@ -124,6 +151,10 @@ pub async fn run_acp_protocol<A: AcpAgentAdapter>(
     }
 
     let mut acp_session_id = resume_session_id.unwrap_or("").to_string();
+    // Tracks the request currently being awaited: a failed resume retries as
+    // `session/new` under a fresh id.
+    let mut session_req_id = session_req_id;
+    let mut awaiting_resume = use_load;
     loop {
         let msg = match acp_read(&mut reader, &mut line_buf).await {
             Ok(msg) => msg,
@@ -140,6 +171,30 @@ pub async fn run_acp_protocol<A: AcpAgentAdapter>(
         );
         if msg_id == Some(session_req_id) {
             if let Some(err) = msg.get("error") {
+                // A resume can legitimately fail — the agent pruned the
+                // session, another process still holds it, or the workspace
+                // moved. Starting fresh loses history but still answers the
+                // user's turn, which beats failing the whole run.
+                if awaiting_resume {
+                    tracing::warn!(
+                        "[ACP] Session resume failed ({}) — falling back to session/new",
+                        err
+                    );
+                    awaiting_resume = false;
+                    acp_session_id = String::new();
+                    request_id += 1;
+                    session_req_id = request_id;
+                    acp_send(
+                        &mut stdin,
+                        session_req_id,
+                        "session/new",
+                        serde_json::json!({
+                            "cwd": working_dir, "mcpServers": [],
+                        }),
+                    )
+                    .await?;
+                    continue;
+                }
                 return Err(format!("ACP session error: {}", err));
             }
             if let Some(sid) = msg
@@ -188,9 +243,9 @@ pub async fn run_acp_protocol<A: AcpAgentAdapter>(
             }
             break;
         }
-        // Skip notifications during session/load — kiro replays conversation
+        // Skip notifications during a resume — kiro replays conversation
         // history as notifications which we don't want to emit as new chunks.
-        if !use_load {
+        if !awaiting_resume {
             process_notification(&msg, &mut parser, &mut stdin, &chunk_tx, session_id).await;
         }
     }
@@ -205,7 +260,19 @@ pub async fn run_acp_protocol<A: AcpAgentAdapter>(
     let prompt_id = request_id;
     let mut prompt_blocks: Vec<serde_json::Value> =
         vec![serde_json::json!({"type": "text", "text": task})];
-    for path in &image_paths {
+    // An agent that declares `promptCapabilities.image: false` rejects the
+    // whole prompt when an image block is present, so the text must go
+    // through on its own rather than failing the turn.
+    if supports_image_prompts == Some(false) && !image_paths.is_empty() {
+        tracing::warn!(
+            "[ACP] Agent does not accept image prompts — dropping {} image(s)",
+            image_paths.len()
+        );
+    }
+    for path in image_paths
+        .iter()
+        .filter(|_| supports_image_prompts != Some(false))
+    {
         if let Ok(bytes) = std::fs::read(path) {
             let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes);
             let mime = if path.ends_with(".png") {

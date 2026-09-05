@@ -22,7 +22,7 @@ use core_types::activity::ActivityChunk;
 struct KiroAcpAdapter;
 
 impl AcpAgentAdapter for KiroAcpAdapter {
-    fn map_tool_kind(&self, kind: &str, raw_input: &Value) -> String {
+    fn map_tool_kind(&self, kind: &str, _title: &str, raw_input: &Value) -> String {
         // Kiro sometimes sends tool name in `name` field instead of using standard ACP kinds.
         // Check raw_input for a `name` or `tool` field that overrides the kind.
         let name = raw_input

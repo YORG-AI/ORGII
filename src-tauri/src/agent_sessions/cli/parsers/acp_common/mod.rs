@@ -41,7 +41,11 @@ pub(crate) use content::{
 pub trait AcpAgentAdapter: Send {
     /// Map ACP tool_call `kind` to Cursor-normalized tool name.
     /// Default handles standard ACP kinds (execute, read, write, etc.).
-    fn map_tool_kind(&self, kind: &str, _raw_input: &Value) -> String {
+    ///
+    /// Agents that emit only the generic `other` kind carry the real tool
+    /// name elsewhere — Kiro and OpenCode put it in `raw_input`, DeepSeek
+    /// Harness puts it in `title` — so both are passed to the adapter.
+    fn map_tool_kind(&self, kind: &str, _title: &str, _raw_input: &Value) -> String {
         match kind {
             "execute" => "Shell",
             "read" => "Read",

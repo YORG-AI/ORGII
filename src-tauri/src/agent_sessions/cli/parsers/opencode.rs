@@ -177,7 +177,7 @@ fn is_completed_task_result(content: &str) -> bool {
 pub(crate) struct OpenCodeAdapter;
 
 impl AcpAgentAdapter for OpenCodeAdapter {
-    fn map_tool_kind(&self, kind: &str, raw_input: &Value) -> String {
+    fn map_tool_kind(&self, kind: &str, _title: &str, raw_input: &Value) -> String {
         let name = raw_input
             .get("name")
             .or(raw_input.get("tool"))
