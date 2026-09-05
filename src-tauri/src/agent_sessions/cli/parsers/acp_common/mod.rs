@@ -59,6 +59,18 @@ pub trait AcpAgentAdapter: Send {
         .to_string()
     }
 
+    /// Session configuration to apply between session creation and the first
+    /// prompt, as `(configId, value)` pairs sent via
+    /// `session/set_config_option`.
+    ///
+    /// `advertised` is the `configOptions` array the agent returned from
+    /// `session/new` or `session/resume`. An agent rejects an option id or
+    /// value it does not offer, so an adapter must select from `advertised`
+    /// rather than assume a value is valid.
+    fn session_config_updates(&self, _advertised: &Value) -> Vec<(String, Value)> {
+        vec![]
+    }
+
     /// Handle agent-specific notifications (non-standard methods like `_kiro.dev/*`).
     /// Return chunks to emit, or empty vec to ignore.
     fn handle_custom_notification(&mut self, _method: &str, _params: &Value) -> Vec<ActivityChunk> {

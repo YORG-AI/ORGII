@@ -769,6 +769,7 @@ pub async fn run_session(
                 cli_resume_id.clone(),
                 agent.clone(),
                 image_paths.clone(),
+                model.clone(),
                 session_timeout,
                 pre_message_snapshot_id.clone(),
                 snapshot_working_dir.clone(),
