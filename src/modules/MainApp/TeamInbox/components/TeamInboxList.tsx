@@ -14,8 +14,8 @@ import InlineAlert from "@src/components/InlineAlert";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import {
   LIST_PANEL_SECTIONS,
-  ListPanelGhostList,
   ListPanelItem,
+  ListPanelSkeletonRows,
 } from "@src/components/ListPanel";
 import { Placeholder } from "@src/components/Placeholder";
 import { WORKSTATION_TRAIL_SECTION_LABEL } from "@src/config/workstation/tokens";
@@ -333,10 +333,10 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
   const showPullRequestsErrorDetails =
     Boolean(pullRequestsError) && pullRequestsErrorUi.detailed;
   const showLoadingBar = loading || pullRequestsLoading || loadingMore;
-  // A load with nothing to show yet gets ghost rows instead of a blank pane, so
+  // A load with nothing to show yet gets skeleton rows instead of a blank pane, so
   // the list keeps its shape until the real rows arrive. Once any row exists,
   // that content stays and the progress line alone carries the refresh.
-  const showGhostRows =
+  const showSkeletonRows =
     showLoadingBar && items.length === 0 && actionablePullRequestCount === 0;
   const loadMoreAction =
     hasMore && onLoadMore ? (
@@ -484,7 +484,7 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
       ) : null}
       {showLoadingBar ? <LoadingBar /> : null}
 
-      {items.length === 0 && !hasPullRequestSurface && !showGhostRows ? (
+      {items.length === 0 && !hasPullRequestSurface && !showSkeletonRows ? (
         <div className="flex min-h-0 flex-1 flex-col">
           {hasQuery ? (
             <Placeholder
@@ -616,7 +616,7 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
             ) : items.length > 0 ? (
               renderInboxRows(items, t("teamInbox.itemsLabel"))
             ) : null}
-            {showGhostRows ? <ListPanelGhostList /> : null}
+            {showSkeletonRows ? <ListPanelSkeletonRows /> : null}
           </div>
           {loadMoreAction}
         </ListPanelScrollArea>

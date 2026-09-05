@@ -1,5 +1,6 @@
 import React, { Suspense, useMemo } from "react";
 
+import SkeletonBar from "@src/components/Skeleton";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import {
   COMPONENT_LOADERS,
@@ -8,9 +9,7 @@ import {
 import type { EventVariant } from "@src/engines/SessionCore/rendering/types/universalProps";
 import { getRegistryEventType } from "@src/lib/activityData/activityNormalizers";
 
-const EventLoadingFallback: React.FC = () => (
-  <div className="h-8 animate-pulse rounded bg-fill-2" />
-);
+const EventLoadingFallback: React.FC = () => <SkeletonBar className="h-8" />;
 
 const _lazyComponentCache = new Map<
   string,

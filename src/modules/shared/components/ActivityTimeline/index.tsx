@@ -3,7 +3,7 @@ import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button, { type ButtonProps } from "@src/components/Button";
-import GhostBar from "@src/components/Ghost";
+import SkeletonBar from "@src/components/Skeleton";
 import { useCopyCheck } from "@src/hooks/ui";
 import { Copy01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
 import { normalizeScrollTrailLabel } from "@src/modules/shared/layouts/blocks/ScrollTrail";
@@ -180,14 +180,14 @@ export function TimelineLoadingSkeleton({
       data-testid="timeline-loading-skeleton"
     >
       <div className="flex h-10 items-center gap-2 border-b border-border-1 bg-primary-container px-3">
-        <GhostBar className="size-5 rounded-full" />
-        <GhostBar className="h-3 w-28" />
-        <GhostBar className="h-3 w-16" />
+        <SkeletonBar className="size-5 rounded-full" />
+        <SkeletonBar className="h-3 w-28" />
+        <SkeletonBar className="h-3 w-16" />
       </div>
       <div className="space-y-2.5 px-3 py-3">
-        <GhostBar className="h-3 w-full" />
-        <GhostBar className="h-3 w-11/12" />
-        <GhostBar className="h-3 w-2/3" />
+        <SkeletonBar className="h-3 w-full" />
+        <SkeletonBar className="h-3 w-11/12" />
+        <SkeletonBar className="h-3 w-2/3" />
       </div>
     </div>
   );

@@ -2,20 +2,20 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { ListPanelGhostList } from "./ListPanelGhostItem";
 import ListPanelItem from "./ListPanelItem";
+import { ListPanelSkeletonRows } from "./ListPanelSkeletonRows";
 
-describe("ListPanelGhostList", () => {
+describe("ListPanelSkeletonRows", () => {
   it("never animates, so a short load does not read as a flash", () => {
-    const markup = renderToStaticMarkup(createElement(ListPanelGhostList));
+    const markup = renderToStaticMarkup(createElement(ListPanelSkeletonRows));
 
     expect(markup).not.toContain("animate-pulse");
     expect(markup).not.toContain("animate-");
   });
 
   it("holds the same row geometry as a loaded list row", () => {
-    const ghost = renderToStaticMarkup(
-      createElement(ListPanelGhostList, { count: 1 })
+    const skeleton = renderToStaticMarkup(
+      createElement(ListPanelSkeletonRows, { count: 1 })
     );
     const loaded = renderToStaticMarkup(
       createElement(ListPanelItem, {
@@ -32,7 +32,7 @@ describe("ListPanelGhostList", () => {
 
     // Row padding, the 16px title line, the 20px metadata line, and the
     // metadata indent all come from ListPanelItem; a mismatch would make the
-    // list jump when real rows replace ghosts.
+    // list jump when real rows replace skeletons.
     for (const geometry of [
       "px-3",
       "rounded-lg",
@@ -41,20 +41,20 @@ describe("ListPanelGhostList", () => {
       "h-5 min-w-0 items-center",
       "pl-7",
     ]) {
-      expect(ghost).toContain(geometry);
+      expect(skeleton).toContain(geometry);
       expect(loaded).toContain(geometry);
     }
   });
 
   it("stays out of the accessibility tree and varies row widths", () => {
     const markup = renderToStaticMarkup(
-      createElement(ListPanelGhostList, { count: 4 })
+      createElement(ListPanelSkeletonRows, { count: 4 })
     );
 
-    expect(markup.match(/data-testid="list-panel-ghost-item"/g)).toHaveLength(
+    expect(markup.match(/data-testid="list-panel-skeleton-row"/g)).toHaveLength(
       4
     );
-    expect(markup).toContain('data-testid="list-panel-ghost-list"');
+    expect(markup).toContain('data-testid="list-panel-skeleton-rows"');
     expect(markup).toContain('aria-hidden="true"');
     expect(markup).not.toContain('role="status"');
     expect(markup).not.toContain('role="option"');
