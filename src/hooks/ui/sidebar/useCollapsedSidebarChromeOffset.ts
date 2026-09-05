@@ -18,6 +18,12 @@ const COLLAPSED_SIDEBAR_BUTTON_RESERVED_WIDTH = 30;
 const COLLAPSED_SIDEBAR_HISTORY_NAV_RESERVED_WIDTH =
   SESSION_HISTORY_NAV_WIDTH + 4;
 const MACOS_TRAFFIC_LIGHTS_RESERVED_WIDTH = 80;
+/**
+ * Vertical center of the 36px title-bar row every host places its chrome in
+ * (8px top breathing room + half the row). The pinned macOS group and each
+ * host's own collapsed toggle share it so nothing shifts between states.
+ */
+export const COLLAPSED_SIDEBAR_CHROME_CENTER_TOP = 26;
 
 export function getCollapsedSidebarChromeOffset(): number {
   return (

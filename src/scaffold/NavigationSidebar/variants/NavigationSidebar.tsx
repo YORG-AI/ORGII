@@ -85,8 +85,6 @@ export interface NavigationSidebarProps {
   beforeAddNewActions?: React.ReactNode;
   /** Extra controls next to add-new (passed to SidebarBase) */
   headerActions?: React.ReactNode;
-  /** Controls at the start of the top chrome row (passed to SidebarBase) */
-  leadingHeaderActions?: React.ReactNode;
   /** Leading content in the Windows/Linux sidebar chrome row. */
   hostTopBarLeadingContent?: React.ReactNode;
   /** Equivalent content rendered below the traffic-light row on macOS. */
@@ -273,7 +271,6 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
     addTooltipContent,
     beforeAddNewActions,
     headerActions,
-    leadingHeaderActions,
     hostTopBarLeadingContent,
     macTopBarFollowingContent,
     listTopPadding = false,
@@ -433,7 +430,6 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
         addTooltipContent={addTooltipContent}
         beforeAddNewActions={beforeAddNewActions}
         headerActions={headerActions}
-        leadingHeaderActions={leadingHeaderActions}
         hostTopBarLeadingContent={hostTopBarLeadingContent}
         macTopBarFollowingContent={macTopBarFollowingContent}
         solidSurface={solidSurface}

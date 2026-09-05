@@ -128,9 +128,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
   } = useWorkstationSidebarChatPanelAtoms();
 
   const { openSession } = useSessionView();
-  // On macOS the arrows follow the traffic lights so they keep the exact spot
-  // the collapsed-sidebar toggle's chrome gives them once the sidebar folds.
-  const sessionHistoryNav = <SessionHistoryNav />;
   const activeSessionId = useAtomValue(workstationActiveSessionIdAtom) ?? "";
   const { goToNewSession, navigateTo } = useAppNavigation();
   const [activeSidebarKey, setActiveSidebarKey] =
@@ -664,9 +661,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
             onChange={handleViewChange}
           />
         }
-        {...(isMacOS()
-          ? { leadingHeaderActions: sessionHistoryNav }
-          : { headerActions: sessionHistoryNav })}
+        headerActions={isMacOS() ? undefined : <SessionHistoryNav />}
         listTopPadding
         bottomContent={
           <SidebarBottomBar
