@@ -2152,6 +2152,7 @@
     "manualCompactInstructionsPlaceholder": "Opcjonalnie: na czym skupić podsumowanie"
   },
   "relativeDate": {
+    "justNow": "przed chwilą",
     "today": "Dzisiaj",
     "yesterday": "Wczoraj",
     "tomorrow": "Jutro",

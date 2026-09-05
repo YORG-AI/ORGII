@@ -2152,6 +2152,7 @@
     "manualCompactInstructionsPlaceholder": "Необязательно: на чём сфокусировать резюме"
   },
   "relativeDate": {
+    "justNow": "только что",
     "today": "Сегодня",
     "yesterday": "Вчера",
     "tomorrow": "Завтра",

@@ -2146,6 +2146,7 @@
     "manualCompactInstructionsPlaceholder": "Optional: worauf die Zusammenfassung fokussieren soll"
   },
   "relativeDate": {
+    "justNow": "gerade eben",
     "today": "Heute",
     "yesterday": "Gestern",
     "tomorrow": "Morgen",

@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import i18n, { i18nReady } from "@src/i18n";
+
 import { formatRelativeTime } from "../formatRelativeTime";
 
 /**
@@ -85,5 +87,60 @@ describe("formatRelativeTime date fallback", () => {
         style: "long",
       }).format(-2, "hour")
     );
+  });
+
+  it("localizes every relative-time density", () => {
+    const formatter = (style: Intl.RelativeTimeFormatStyle) =>
+      new Intl.RelativeTimeFormat("zh", {
+        numeric: "always",
+        style,
+      });
+
+    expect(formatRelativeTime(NOW - 3 * 60 * 1000, "short", "zh", NOW)).toBe(
+      formatter("short").format(-3, "minute")
+    );
+    expect(formatRelativeTime(NOW - 3 * 60 * 1000, "compact", "zh", NOW)).toBe(
+      formatter("short").format(-3, "minute")
+    );
+    expect(
+      formatRelativeTime(NOW - 3 * 60 * 60 * 1000, "long", "zh", NOW)
+    ).toBe(formatter("long").format(-3, "hour"));
+    expect(
+      formatRelativeTime(NOW - 3 * 24 * 60 * 60 * 1000, "nano", "zh", NOW)
+    ).toBe(formatter("narrow").format(-3, "day"));
+    expect(
+      formatRelativeTime(NOW - 3 * 24 * 60 * 60 * 1000, "issue", "zh", NOW)
+    ).toBe(formatter("narrow").format(-3, "day"));
+    expect(
+      formatRelativeTime(NOW - 3 * 60 * 60 * 1000, "elapsed", "zh", NOW)
+    ).toBe(formatter("narrow").format(-3, "hour"));
+  });
+
+  it("uses the selected app language when the caller omits a locale", async () => {
+    await i18nReady;
+    const previousLanguage = i18n.language;
+    const instant = NOW - 3 * 60 * 1000;
+
+    try {
+      await i18n.changeLanguage("zh");
+      i18n.addResourceBundle(
+        "zh",
+        "common",
+        { relativeDate: { justNow: "刚刚" } },
+        true,
+        true
+      );
+
+      expect(i18n.t("common:relativeDate.justNow")).toBe("刚刚");
+      expect(formatRelativeTime(NOW, "long", undefined, NOW)).toBe("刚刚");
+      expect(formatRelativeTime(instant, "long", undefined, NOW)).toBe(
+        new Intl.RelativeTimeFormat("zh", {
+          numeric: "always",
+          style: "long",
+        }).format(-3, "minute")
+      );
+    } finally {
+      await i18n.changeLanguage(previousLanguage);
+    }
   });
 });

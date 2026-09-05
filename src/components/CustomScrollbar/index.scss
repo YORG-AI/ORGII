@@ -8,7 +8,7 @@
   position: absolute;
   top: 0;
   right: 0;
-  width: 4px;
+  width: var(--scrollbar-hit-area-size);
   height: 100%;
   background: transparent;
   z-index: 10;
@@ -16,35 +16,28 @@
   opacity: 0;
   transition: opacity 0.2s ease;
 
-  &.visible {
+  &[data-scrollbar-scrolling] {
     opacity: 1;
+
+    .custom-scrollbar-thumb {
+      opacity: 1;
+    }
   }
 }
 
 .custom-scrollbar-thumb {
   position: absolute;
   top: 0;
-  right: 0;
-  width: 4px;
+  right: var(--scrollbar-edge-inset);
+  width: var(--scrollbar-size);
   min-height: 30px;
   background: var(--scrollbar-thumb-color);
-  border-radius: 2px;
+  border-radius: calc(var(--scrollbar-size) / 2);
   cursor: grab;
   pointer-events: auto;
   opacity: 0;
   will-change: transform, opacity;
-  transition:
-    opacity 0.2s ease,
-    background-color 0.15s ease;
-
-  &.visible {
-    opacity: 1;
-  }
-
-  &:hover,
-  &:active {
-    background: var(--scrollbar-thumb-hover-color);
-  }
+  transition: opacity 0.2s ease;
 
   &:active {
     cursor: grabbing;
@@ -53,19 +46,16 @@
 
 .custom-scrollbar-marker {
   position: absolute;
-  right: 0;
-  width: 4px;
-  min-height: 4px;
-  border-radius: 2px;
+  right: var(--scrollbar-edge-inset);
+  width: var(--scrollbar-size);
+  min-height: var(--scrollbar-size);
+  border-radius: calc(var(--scrollbar-size) / 2);
   cursor: var(--interactive-cursor, default);
   pointer-events: auto;
   z-index: 11;
-  transition:
-    background-color 0.15s ease,
-    transform 0.1s ease;
+  transition: background-color 0.15s ease;
 
   &:hover {
-    transform: scaleX(1.2);
     filter: brightness(1.1);
   }
 }

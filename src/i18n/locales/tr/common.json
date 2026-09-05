@@ -2143,6 +2143,7 @@
     "manualCompactInstructionsPlaceholder": "İsteğe bağlı: özet neye odaklansın"
   },
   "relativeDate": {
+    "justNow": "az önce",
     "today": "Bugün",
     "yesterday": "Dün",
     "tomorrow": "Yarın",

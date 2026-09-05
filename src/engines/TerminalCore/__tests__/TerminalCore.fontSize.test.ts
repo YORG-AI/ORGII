@@ -98,6 +98,7 @@ describe("terminal host font sizes", () => {
           options: { fontSize: terminalFontSize },
           rows: 24,
           open: vi.fn(),
+          onScroll: vi.fn(() => ({ dispose: vi.fn() })),
           dispose: vi.fn(),
           clearTextureAtlas: vi.fn(),
           refresh: vi.fn(),

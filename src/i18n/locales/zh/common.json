@@ -2077,6 +2077,7 @@
     "miniCpmCompactToggleAria": "开启 MiniCPM 静默自动压缩"
   },
   "relativeDate": {
+    "justNow": "刚刚",
     "today": "今天",
     "yesterday": "昨天",
     "tomorrow": "明天",

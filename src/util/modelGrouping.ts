@@ -8,6 +8,7 @@
  * - "current" = latest generation
  * - "older"   = previous generation
  */
+import { isModelVariantSuffixToken } from "./modelVariants";
 
 export interface ModelGroup {
   label: string;
@@ -245,7 +246,17 @@ function parseModelGroup(modelName: string): ParsedGroup {
           };
         }
         const tier = extractGptTier(rest);
-        const subLabel = tier ? ` ${formatGptTierLabel(tier)}` : "";
+        const distinctTokens = tier
+          ? rest
+              .slice(tier.length)
+              .split("-")
+              .filter(
+                (token) => token.length > 0 && !isModelVariantSuffixToken(token)
+              )
+          : [];
+        const subLabel = tier
+          ? ` ${formatGptTierLabel([tier, ...distinctTokens].join("-"))}`
+          : "";
         return {
           label: `${label} ${versionMatch[1]}${subLabel}`,
           sortVersion: versionStringToSortVersion(versionMatch[1]),

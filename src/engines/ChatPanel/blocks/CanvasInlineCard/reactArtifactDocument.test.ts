@@ -97,6 +97,15 @@ describe("buildReactArtifactDocument", () => {
     expect(documentHtml).toContain("unhandledrejection");
   });
 
+  it("keeps scrollbars hidden until document scroll activity", () => {
+    const documentHtml = buildReactArtifactDocument(validSource);
+
+    expect(documentHtml).toContain("scrollbar-color:transparent transparent");
+    expect(documentHtml).toContain("[data-scrollbar-scrolling]");
+    expect(documentHtml).toContain("const hideDelayMs=900");
+    expect(documentHtml).toContain("{capture:true,passive:true}");
+  });
+
   it("escapes </script> sequences so artifact strings cannot break out", () => {
     const documentHtml = buildReactArtifactDocument(
       'export default function App() { return <div>{"</script><script>alert(1)</script>"}</div>; }'

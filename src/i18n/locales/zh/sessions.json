@@ -1363,7 +1363,7 @@
       "play": "播放回放",
       "duration": "{{value}}",
       "segmentAria": "回放第 {{number}} 轮",
-      "turnTrackAria": "Replay 轮次色带",
+      "turnBreakpointsAria": "Replay 轮次断点",
       "segmentTooltip": "第 {{number}} 轮 · {{duration}} · {{start}}–{{end}}",
       "segmentTooltipNoRange": "第 {{number}} 轮 · {{duration}}",
       "toolCalls": "{{count}} 次工具调用",
@@ -2649,7 +2649,7 @@
       "runningTask_one": "{{count}} 个运行中的任务",
       "runningTask_other": "{{count}} 个运行中的任务",
       "idle": "Agent 空闲中",
-      "lastRefreshed": "上次刷新于 {{value}}",
+      "lastRefreshed": "上次刷新 {{value}}",
       "asking": "等待你的回复"
     }
   },

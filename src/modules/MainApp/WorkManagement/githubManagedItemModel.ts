@@ -1,4 +1,5 @@
 import type { GitHubIssue, OpenPRItem } from "@src/api/tauri/github";
+import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import {
   GITHUB_QUERY_SCOPE,
@@ -79,16 +80,7 @@ export function formatGitHubItemTimeAgo(
 ): string {
   const timestamp = Date.parse(value);
   if (Number.isNaN(timestamp)) return "";
-  const elapsedMinutes = Math.max(0, Math.floor((now - timestamp) / 60_000));
-  if (elapsedMinutes < 1) return "Now";
-  if (elapsedMinutes < 60) return `${elapsedMinutes}m`;
-  const elapsedHours = Math.floor(elapsedMinutes / 60);
-  if (elapsedHours < 24) return `${elapsedHours}h`;
-  const elapsedDays = Math.floor(elapsedHours / 24);
-  if (elapsedDays < 30) return `${elapsedDays}d`;
-  const elapsedMonths = Math.floor(elapsedDays / 30);
-  if (elapsedMonths < 12) return `${elapsedMonths}mo`;
-  return `${Math.floor(elapsedMonths / 12)}y`;
+  return formatRelativeTime(timestamp, "nano", undefined, now);
 }
 
 export function mapIssueToManagedItem(

@@ -50,6 +50,26 @@ describe("groupModels", () => {
     });
   });
 
+  it("keeps distinct Codex models out of the effort-variant family (gpt-5.3-codex-spark)", () => {
+    const groups = groupModels([
+      "gpt-5.3-codex",
+      "gpt-5.3-codex-medium",
+      "gpt-5.3-codex-spark",
+      "gpt-5.6-sol-xhigh-fast",
+    ]);
+    expect(groups.map((group) => group.label)).toEqual([
+      "GPT 5.6 Sol",
+      "GPT 5.3 Codex",
+      "GPT 5.3 Codex Spark",
+    ]);
+    expect(
+      groups.find((group) => group.label === "GPT 5.3 Codex")?.models
+    ).toEqual(["gpt-5.3-codex", "gpt-5.3-codex-medium"]);
+    expect(
+      groups.find((group) => group.label === "GPT 5.3 Codex Spark")?.models
+    ).toEqual(["gpt-5.3-codex-spark"]);
+  });
+
   it("groups GPT models (gpt-4-turbo → GPT 4)", () => {
     const groups = groupModels(["gpt-4-turbo"]);
     expect(groups).toHaveLength(1);

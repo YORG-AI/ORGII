@@ -1,3 +1,5 @@
+@use "./styles/mixins/scrollbar";
+
 // Tailwind v4 entry (plain CSS, passed through Sass verbatim and resolved by
 // @tailwindcss/postcss). Theme tokens, keyframes, and v3-preflight
 // compatibility shims live in tailwind.css; do not add a second import.
@@ -27,15 +29,18 @@
 @import "./styles/prism-tokens";
 @import "./styles/chat-search-highlight";
 
+:root {
+  // The 12px overlay hit area contains a 6px thumb with 3px breathing room
+  // from the window/content edge. These stay fixed across interaction states.
+  --scrollbar-size: 6px;
+  --scrollbar-hit-area-size: 12px;
+  --scrollbar-edge-inset: 3px;
+}
+
 body {
   --scrollbar-thumb-color: color-mix(
     in srgb,
-    var(--color-fill-2) 58%,
-    transparent
-  );
-  --scrollbar-thumb-hover-color: color-mix(
-    in srgb,
-    var(--color-fill-3) 72%,
+    var(--color-text-3) 72%,
     transparent
   );
 }
@@ -329,32 +334,19 @@ html[data-window-focused="false"] *::after {
   }
 }
 
-// Global scrollbar styles
-*::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb-color);
-  border-radius: 2px;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover-color);
-}
-
-*::-webkit-scrollbar-corner {
-  background: transparent;
+// Global scrollbar styles are a base default. Keep them in the base layer so
+// explicit surface policies such as `scrollbar-hide` (chat panes, tab strips,
+// breadcrumbs, and compact title/tool bars) and `scrollbar-overlay`
+// (dropdowns, editors, and other opted-in content scrollers) win the cascade.
+@layer base {
+  * {
+    @include scrollbar.scrollbar-unified;
+  }
 }
 
 // Settings surfaces (SettingsSlot body + SettingsSidebar) hide all
 // scrollbars by design — the panel is dense with section cards and the
-// global 4px scrollbar adds visual noise on every nested overflow area.
+// shared transient scrollbar adds visual noise on every nested overflow area.
 // Scoped via [data-settings-surface] so the rule only applies inside
 // settings; CodeMirror exclusion preserved in case a settings tab
 // embeds an editor surface (currently none do, but harmless).
@@ -369,30 +361,30 @@ html[data-window-focused="false"] *::after {
   display: none;
 }
 
-// Keep CodeMirror on the same visible scrollbar treatment as the rest of the app.
-.cm-scroller {
-  scrollbar-width: thin !important;
-  scrollbar-color: var(--scrollbar-thumb-color) transparent !important;
+// xterm 6 renders its own absolute slider instead of a native scrollbar.
+// Gate its visibility with the same activity attribute as native surfaces so
+// xterm's built-in mouseover reveal cannot create a second behavior.
+.xterm .xterm-scrollable-element > .scrollbar {
+  width: var(--scrollbar-hit-area-size) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 
-  &::-webkit-scrollbar {
-    width: 4px !important;
-    height: 4px !important;
-    background: transparent !important;
-  }
+.xterm-terminal-container[data-scrollbar-scrolling]
+  .xterm
+  .xterm-scrollable-element
+  > .scrollbar {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
 
-  &::-webkit-scrollbar-track,
-  &::-webkit-scrollbar-corner {
-    background: transparent !important;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb-color) !important;
-    border-radius: 2px !important;
-  }
-
-  &::-webkit-scrollbar-thumb:hover {
-    background: var(--scrollbar-thumb-hover-color) !important;
-  }
+.xterm .xterm-scrollable-element > .scrollbar > .slider,
+.xterm .xterm-scrollable-element > .scrollbar > .slider:hover,
+.xterm .xterm-scrollable-element > .scrollbar > .slider.active {
+  width: var(--scrollbar-size) !important;
+  left: var(--scrollbar-edge-inset) !important;
+  background: var(--scrollbar-thumb-color) !important;
+  border-radius: calc(var(--scrollbar-size) / 2);
 }
 
 #root {
@@ -692,25 +684,7 @@ html[data-host-desktop="windows"] [data-windows-top-bar="true"] {
 }
 
 .custom-scrollbar {
-  scrollbar-width: 2px !important; // for Firefox, always thin but invisible
-  scrollbar-color: transparent transparent !important; // for Firefox, transparent scrollbar
-
-  &::-webkit-scrollbar {
-    width: 1px !important; // for Chrome, Safari, and Opera, always 8px but invisible
-    background: transparent !important; // initially transparent
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background-color: transparent !important; // initially transparent
-  }
-
-  &:hover {
-    scrollbar-color: var(--scrollbar-thumb-color) transparent !important; // for Firefox, visible on hover
-
-    &::-webkit-scrollbar-thumb {
-      background-color: transparent !important; // for Chrome, Safari, and Opera, visible on hover
-    }
-  }
+  @include scrollbar.scrollbar-unified;
 }
 .allow-select {
   -moz-user-select: text !important; /* Firefox */
@@ -769,29 +743,6 @@ body.drag-over::after {
   pointer-events: none;
 }
 
-/* Show horizontal scrollbar only on hover */
-.scrollbar-x-hover {
-  overflow-x: auto;
-  scrollbar-width: none; /* Firefox: hidden by default */
-  padding-bottom: 4px; /* Ensure content is not covered by scrollbar */
-}
-.scrollbar-x-hover::-webkit-scrollbar {
-  height: 2px;
-  background: transparent;
-  display: none;
-}
-.scrollbar-x-hover:hover {
-  scrollbar-width: thin; /* Firefox: show thin scrollbar on hover */
-}
-.scrollbar-x-hover:hover::-webkit-scrollbar {
-  display: block;
-  background: transparent;
-}
-.scrollbar-x-hover::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb-color);
-  border-radius: 2px;
-}
-
 /* Auto-discover dropdown keyboard highlight.
  * Applied by dropdown keyboard utilities to the row that's currently
  * keyboard-focused inside any open dropdown panel. Mirrors the :hover fill
@@ -836,32 +787,6 @@ body.drag-over::after {
     0 4px 16px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
   --shadow-dropdown-soft:
     0 4px 16px rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.15);
-}
-
-/* Native overlay scrollbar for dropdown option lists (Settings > Timezone,
- * table selectors, etc.). In WebKit/Tauri, `scrollbar-width` opts back into
- * the platform scrollbar: it overlays the list without reserving a gutter and
- * auto-hides when scrolling stops. The pseudo rules remain as a fallback for
- * engines that do not support `scrollbar-width`. */
-.dropdown-options-scrollbar {
-  scrollbar-width: thin;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb-color);
-    border-radius: 3px;
-  }
-
-  &::-webkit-scrollbar-thumb:hover {
-    background: var(--scrollbar-thumb-hover-color);
-  }
 }
 
 /* Generic hover shadow effect */
