@@ -41,7 +41,8 @@
     "projectUsage": "Project y uso",
     "agentMemory": "Memoria del Agent",
     "agentOrg": "Equipo Agent",
-    "collaboration": "Colaboración"
+    "collaboration": "Colaboración",
+    "harnessConnections": "Conexiones de herramientas"
   },
   "coreSidebar": {
     "groups": {
@@ -1370,5 +1371,39 @@
       "cloud": "Nube",
       "selfHosted": "Autoalojado"
     }
+  },
+  "harnessConnections": {
+    "description": "Elige la conexión de cada herramienta de programación",
+    "current": "Conexión configurada",
+    "scope": "Se aplica al valor predeterminado de la CLI de este equipo; los ajustes del proyecto y las sesiones activas pueden prevalecer",
+    "original": "Configuración original",
+    "missingKey": "Falta la clave seleccionada",
+    "connection": "Conexión",
+    "choose": "Elegir una conexión guardada",
+    "add": "Añadir conexión",
+    "empty": "Añade una clave API o importa una conexión de cc-switch",
+    "model": "Modelo",
+    "routing": "Ruta de conexión",
+    "direct": "Directa",
+    "proxy": "Mediante ORGII",
+    "directHelp": "Funciona con ORGII cerrado",
+    "proxyHelp": "Requiere mantener ORGII abierto",
+    "advanced": "Avanzado",
+    "test": "Probar conexión",
+    "testHelp": "Envía dos solicitudes pequeñas al proveedor para comprobar herramientas y streaming; pueden aplicarse cargos",
+    "testPassed": "Llamada de herramienta con respuesta y streaming verificados; el resultado caduca en 15 minutos",
+    "testRequired": "Prueba este endpoint y modelo de terceros antes de aplicarlos",
+    "untested": "Guardar la configuración no verifica una sesión activa",
+    "cancel": "Cancelar prueba",
+    "apply": "Usar esta conexión",
+    "applied": "Configuración guardada: inicia una nueva sesión de la herramienta",
+    "restore": "Restaurar configuración original",
+    "restored": "Configuración original restaurada: inicia una nueva sesión de la herramienta",
+    "refresh": "Actualizar",
+    "loading": "Leyendo configuración de la herramienta…",
+    "conflict": "La configuración cambió fuera de ORGII. Revisa los cambios antes de aplicar o restaurar; no se sobrescribirán",
+    "credentialsNote": "El modo directo escribe credenciales en la configuración de la CLI con acceso restringido; eliminar una clave del almacén no revoca la credencial exportada",
+    "import": "Importar de cc-switch",
+    "notInstalled": "Instala esta herramienta antes de probar o aplicar una conexión"
   }
 }

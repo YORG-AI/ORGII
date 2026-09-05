@@ -41,7 +41,8 @@
     "projectUsage": "專案與用量",
     "agentMemory": "Agent 記憶",
     "agentOrg": "Agent 團隊",
-    "collaboration": "協作"
+    "collaboration": "協作",
+    "harnessConnections": "工具連線"
   },
   "coreSidebar": {
     "groups": {
@@ -1382,5 +1383,39 @@
       "cloud": "雲端",
       "selfHosted": "自託管"
     }
+  },
+  "harnessConnections": {
+    "description": "選擇各程式開發工具使用的連線",
+    "current": "目前設定的連線",
+    "scope": "適用於本機 CLI 預設設定；專案設定和執行中的工作階段可能覆蓋此設定",
+    "original": "原始設定",
+    "missingKey": "所選金鑰已不存在",
+    "connection": "連線",
+    "choose": "選擇已儲存的連線",
+    "add": "新增連線",
+    "empty": "新增 API 金鑰或從 cc-switch 匯入連線",
+    "model": "模型",
+    "routing": "連線方式",
+    "direct": "直接連線",
+    "proxy": "透過 ORGII",
+    "directHelp": "關閉 ORGII 後仍可使用",
+    "proxyHelp": "需要保持 ORGII 執行",
+    "advanced": "進階",
+    "test": "測試連線",
+    "testHelp": "向所選服務商傳送兩個小型請求，檢查工具呼叫和串流回應；可能產生使用費用",
+    "testPassed": "工具呼叫往返和串流回應測試通過；測試憑證在 15 分鐘後到期",
+    "testRequired": "套用前請測試此第三方端點和模型",
+    "untested": "儲存設定不代表執行中的工作階段已驗證",
+    "cancel": "取消測試",
+    "apply": "使用此連線",
+    "applied": "設定已儲存，請建立新的工具工作階段以使用此設定",
+    "restore": "還原原始設定",
+    "restored": "原始設定已還原，請建立新的工具工作階段",
+    "refresh": "重新整理",
+    "loading": "正在讀取工具設定…",
+    "conflict": "設定已在 ORGII 外部變更。套用或還原前請檢查這些變更；系統不會覆蓋它們",
+    "credentialsNote": "直接連線模式會將憑證寫入存取受限的 CLI 設定檔；刪除金鑰庫中的金鑰不會撤銷已匯出的憑證",
+    "import": "從 cc-switch 匯入",
+    "notInstalled": "請先安裝此工具，再測試或套用連線"
   }
 }

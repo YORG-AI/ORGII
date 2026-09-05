@@ -5,6 +5,7 @@ export const SETTINGS_SECTION_SLOT_IDS = {
   APP_SECURITY: "app.security",
   APP_MOBILE_REMOTE: "app.mobileRemote",
 
+  APP_HARNESS_CONNECTIONS: "app.harnessConnections",
   APP_MONITOR: "app.monitor",
 
   AGENT_OS_CONFIG: "agent.osAgentConfig",

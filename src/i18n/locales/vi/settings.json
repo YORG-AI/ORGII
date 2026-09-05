@@ -41,7 +41,8 @@
     "projectUsage": "Project & Sử dụng",
     "agentMemory": "Bộ nhớ Agent",
     "agentOrg": "Nhóm Agent",
-    "collaboration": "Cộng tác"
+    "collaboration": "Cộng tác",
+    "harnessConnections": "Kết nối công cụ"
   },
   "coreSidebar": {
     "groups": {
@@ -1370,5 +1371,39 @@
       "cloud": "Đám mây",
       "selfHosted": "Tự lưu trữ"
     }
+  },
+  "harnessConnections": {
+    "description": "Chọn kết nối cho từng công cụ lập trình",
+    "current": "Kết nối đã cấu hình",
+    "scope": "Áp dụng cho mặc định CLI trên máy này; cài đặt dự án và phiên đang chạy có thể được ưu tiên",
+    "original": "Thiết lập ban đầu",
+    "missingKey": "Không tìm thấy khóa đã chọn",
+    "connection": "Kết nối",
+    "choose": "Chọn kết nối đã lưu",
+    "add": "Thêm kết nối",
+    "empty": "Thêm khóa API hoặc nhập kết nối từ cc-switch",
+    "model": "Mô hình",
+    "routing": "Đường kết nối",
+    "direct": "Trực tiếp",
+    "proxy": "Qua ORGII",
+    "directHelp": "Hoạt động khi ORGII đóng",
+    "proxyHelp": "Cần giữ ORGII mở",
+    "advanced": "Nâng cao",
+    "test": "Kiểm tra kết nối",
+    "testHelp": "Gửi hai yêu cầu nhỏ đến nhà cung cấp để kiểm tra công cụ và truyền luồng; có thể phát sinh phí sử dụng",
+    "testPassed": "Đã xác minh lượt gọi công cụ, kết quả trả về và truyền luồng; kết quả kiểm tra hết hạn sau 15 phút",
+    "testRequired": "Kiểm tra điểm cuối và mô hình bên thứ ba này trước khi áp dụng",
+    "untested": "Lưu cấu hình không xác minh phiên đang chạy",
+    "cancel": "Hủy kiểm tra",
+    "apply": "Dùng kết nối này",
+    "applied": "Đã lưu cấu hình — hãy bắt đầu phiên công cụ mới",
+    "restore": "Khôi phục thiết lập ban đầu",
+    "restored": "Đã khôi phục thiết lập ban đầu — hãy bắt đầu phiên công cụ mới",
+    "refresh": "Làm mới",
+    "loading": "Đang đọc cấu hình công cụ…",
+    "conflict": "Cấu hình đã thay đổi bên ngoài ORGII. Xem lại thay đổi trước khi áp dụng hoặc khôi phục; chúng sẽ không bị ghi đè",
+    "credentialsNote": "Chế độ trực tiếp ghi thông tin xác thực vào cấu hình CLI với quyền truy cập hạn chế; xóa khóa trong kho không thu hồi thông tin xác thực đã xuất",
+    "import": "Nhập từ cc-switch",
+    "notInstalled": "Cài đặt công cụ này trước khi kiểm tra hoặc áp dụng kết nối"
   }
 }

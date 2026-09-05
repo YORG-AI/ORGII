@@ -14,14 +14,14 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 const TEST_PROXY_TOKEN: &str = "test-proxy-token";
-static TEST_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+pub(super) static TEST_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
-struct OrgiiHomeGuard {
+pub(super) struct OrgiiHomeGuard {
     previous: Option<OsString>,
 }
 
 impl OrgiiHomeGuard {
-    fn set(path: &Path) -> Self {
+    pub(super) fn set(path: &Path) -> Self {
         let previous = std::env::var_os("ORGII_HOME");
         std::env::set_var("ORGII_HOME", path);
         Self { previous }
@@ -37,7 +37,11 @@ impl Drop for OrgiiHomeGuard {
     }
 }
 
-fn test_target(id: &str, target_path: &Path, profile_root: &Path) -> CliConfigTargetFileManifest {
+pub(super) fn test_target(
+    id: &str,
+    target_path: &Path,
+    profile_root: &Path,
+) -> CliConfigTargetFileManifest {
     CliConfigTargetFileManifest {
         id: id.to_string(),
         target_path: target_path.to_string_lossy().to_string(),
@@ -57,7 +61,7 @@ fn test_target(id: &str, target_path: &Path, profile_root: &Path) -> CliConfigTa
     }
 }
 
-fn test_manifest(
+pub(super) fn test_manifest(
     agent_name: &str,
     targets: Vec<CliConfigTargetFileManifest>,
 ) -> CliConfigProfileManifest {
@@ -709,7 +713,13 @@ fn pending_transaction_recovers_exact_pre_operation_content() {
     let snapshots = read_target_snapshots(std::slice::from_ref(&target)).unwrap();
     let manifest = test_manifest("test-agent", vec![target]);
 
-    begin_transaction("test-agent", &snapshots, &manifest).unwrap();
+    begin_transaction(
+        "test-agent",
+        &snapshots,
+        &manifest,
+        &BTreeMap::from([("config".into(), TargetMutation::Write(b"managed".to_vec()))]),
+    )
+    .unwrap();
     write_file_atomic(&target_path, b"managed").unwrap();
     recover_pending_transaction_unlocked("test-agent").unwrap();
 
@@ -728,7 +738,13 @@ fn committed_transaction_cleanup_does_not_undo_target_changes() {
     let snapshots = read_target_snapshots(std::slice::from_ref(&target)).unwrap();
     let manifest = test_manifest("test-agent", vec![target]);
 
-    begin_transaction("test-agent", &snapshots, &manifest).unwrap();
+    begin_transaction(
+        "test-agent",
+        &snapshots,
+        &manifest,
+        &BTreeMap::from([("config".into(), TargetMutation::Write(b"managed".to_vec()))]),
+    )
+    .unwrap();
     write_file_atomic(&target_path, b"managed").unwrap();
     write_manifest(&manifest).unwrap();
     recover_pending_transaction_unlocked("test-agent").unwrap();

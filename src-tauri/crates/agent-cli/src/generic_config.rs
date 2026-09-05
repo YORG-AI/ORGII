@@ -407,6 +407,34 @@ fn resolve_config(
         .iter()
         .find(|entry| entry.agent_name == agent_name && entry.file_id == file_id)
         .ok_or_else(|| format!("Unsupported CLI config file: {agent_name}/{file_id}"))?;
+    if agent_name == "codex" || agent_name == "claude_code" {
+        let isolated = std::env::var_os("ORGII_EXTERNAL_HISTORY_HOME");
+        let variable = if agent_name == "codex" {
+            "CODEX_HOME"
+        } else {
+            "CLAUDE_CONFIG_DIR"
+        };
+        let directory = if let Some(home) = isolated {
+            Some(PathBuf::from(home).join(if agent_name == "codex" {
+                ".codex"
+            } else {
+                ".claude"
+            }))
+        } else {
+            std::env::var_os(variable)
+                .filter(|value| !value.is_empty())
+                .map(PathBuf::from)
+        };
+        if let Some(directory) = directory {
+            if !directory.is_absolute() {
+                return Err(format!("{variable} must be an absolute path"));
+            }
+            let name = Path::new(config.relative_path)
+                .file_name()
+                .ok_or("Invalid CLI config filename")?;
+            return Ok((directory.join(name), config.format));
+        }
+    }
     let base = match config.base {
         ConfigBase::Home => paths::home_dir(),
         ConfigBase::XdgConfig => xdg_config_home(),

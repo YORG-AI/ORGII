@@ -27,6 +27,7 @@ import {
   SquareArrowUpRight02Icon,
 } from "@src/icons";
 import { CliLaunchProfileSection } from "@src/modules/MainApp/Integrations/KeyVault/CliClients/Preview/CliLaunchProfileSection";
+import HarnessConnectionEditor from "@src/modules/MainApp/Settings/sections/HarnessConnections/HarnessConnectionEditor";
 import {
   SectionContainer,
   SectionRow,
@@ -376,11 +377,18 @@ const CliAgentDetailView: React.FC<CliAgentDetailViewProps> = ({
             />
           </SectionContainer>
 
-          <CliConfigSwitchCard
-            agent={agent}
-            credentials={credentials}
-            onOpenCredentials={openCredentialInIntegrations}
-          />
+          {agent.name === "claude_code" || agent.name === "codex" ? (
+            <HarnessConnectionEditor
+              agentName={agent.name}
+              onAdd={openCredentialInIntegrations}
+            />
+          ) : (
+            <CliConfigSwitchCard
+              agent={agent}
+              credentials={credentials}
+              onOpenCredentials={openCredentialInIntegrations}
+            />
+          )}
 
           {hasConfig && agent.configFiles.length > 1 && (
             <SectionContainer title={t("agentOrgs.cliAgentDetail.configFiles")}>

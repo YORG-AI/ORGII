@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 pub enum CliConfigMode {
     Default,
     OrgiiManaged,
+    Direct,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

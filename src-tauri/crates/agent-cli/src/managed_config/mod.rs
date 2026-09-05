@@ -11,7 +11,10 @@
 //! serializes every switch.
 
 mod adapters;
+mod direct;
 mod dto;
+mod target_lock;
+pub use direct::DirectConnection;
 mod file_io;
 mod generators;
 mod manifest;
@@ -21,6 +24,8 @@ mod registry;
 mod snapshot;
 mod transaction;
 
+#[cfg(test)]
+mod direct_tests;
 #[cfg(test)]
 mod tests;
 
@@ -90,6 +95,7 @@ pub fn managed_selection_for_agent(
     agent_name: &str,
 ) -> Result<Option<CliManagedConfigSelection>, String> {
     let _guard = config_operation_guard()?;
+    let _target_lock = target_lock::lock_targets(agent_name)?;
     recover_pending_transaction_unlocked(agent_name)?;
     managed_selection_for_agent_unlocked(agent_name)
 }
@@ -101,8 +107,21 @@ pub fn enable_orgii_managed(
     model: Option<String>,
     force: bool,
 ) -> Result<CliConfigManagedStatus, String> {
+    enable_orgii_managed_checked(agent_name, key_id, provider, model, force, None)
+}
+
+pub fn enable_orgii_managed_checked(
+    agent_name: &str,
+    key_id: Option<String>,
+    provider: Option<String>,
+    model: Option<String>,
+    force: bool,
+    expected: Option<&std::collections::BTreeMap<String, Option<String>>>,
+) -> Result<CliConfigManagedStatus, String> {
     let _guard = config_operation_guard()?;
+    let _target_lock = target_lock::lock_targets(agent_name)?;
     recover_pending_transaction_unlocked(agent_name)?;
+    verify_expected_targets(agent_name, expected)?;
     if !supported_agent(agent_name) {
         return Err(unavailable_agent_message(agent_name));
     }
@@ -119,6 +138,13 @@ pub fn restore_managed_configs_for_shutdown() -> Result<CliConfigShutdownRestore
 
     for adapter in MANAGED_CONFIG_ADAPTERS {
         let agent_name = adapter.agent_name;
+        let _target_lock = match target_lock::lock_targets(agent_name) {
+            Ok(lock) => lock,
+            Err(err) => {
+                report.failed_agents.push((agent_name.to_string(), err));
+                continue;
+            }
+        };
         if let Err(err) = recover_pending_transaction_unlocked(agent_name) {
             report.failed_agents.push((agent_name.to_string(), err));
             continue;
@@ -148,6 +174,7 @@ pub fn restore_managed_configs_for_shutdown() -> Result<CliConfigShutdownRestore
 pub async fn cli_config_get_status(agent_name: String) -> Result<CliConfigManagedStatus, String> {
     tokio::task::spawn_blocking(move || {
         let _guard = config_operation_guard()?;
+        let _target_lock = target_lock::lock_targets(&agent_name)?;
         recover_pending_transaction_unlocked(&agent_name)?;
         status_for_unlocked(&agent_name)
     })
@@ -162,6 +189,7 @@ pub async fn cli_config_restore_default(
 ) -> Result<CliConfigManagedStatus, String> {
     tokio::task::spawn_blocking(move || {
         let _guard = config_operation_guard()?;
+        let _target_lock = target_lock::lock_targets(&agent_name)?;
         recover_pending_transaction_unlocked(&agent_name)?;
         if !supported_agent(&agent_name) {
             return Err(unavailable_agent_message(&agent_name));
@@ -170,4 +198,54 @@ pub async fn cli_config_restore_default(
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
+}
+
+/// Apply native credentials without starting or depending on the local proxy.
+pub fn enable_direct(
+    agent_name: &str,
+    connection: DirectConnection,
+    expected: Option<&std::collections::BTreeMap<String, Option<String>>>,
+) -> Result<CliConfigManagedStatus, String> {
+    let _guard = config_operation_guard()?;
+    let _target_lock = target_lock::lock_targets(agent_name)?;
+    recover_pending_transaction_unlocked(agent_name)?;
+    verify_expected_targets(agent_name, expected)?;
+    operations::apply_connection_unlocked(
+        agent_name,
+        Some(connection.key_id.clone()),
+        Some(connection.provider.clone()),
+        Some(connection.model.clone()),
+        false,
+        Some(&connection),
+    )
+}
+
+/// Startup needs a proxy only when a previous managed profile remains active.
+pub fn has_active_managed_profiles() -> bool {
+    MANAGED_CONFIG_ADAPTERS.iter().any(|adapter| {
+        read_manifest(adapter.agent_name)
+            .ok()
+            .flatten()
+            .is_some_and(|manifest| manifest.mode == CliConfigMode::OrgiiManaged)
+    })
+}
+
+fn verify_expected_targets(
+    agent: &str,
+    expected: Option<&std::collections::BTreeMap<String, Option<String>>>,
+) -> Result<(), String> {
+    if let Some(expected) = expected {
+        let actual = status_for_unlocked(agent)?
+            .target_files
+            .into_iter()
+            .map(|target| (target.id, target.current_hash))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        if &actual != expected {
+            return Err(
+                "Configuration changed since it was displayed. Refresh and review before applying."
+                    .into(),
+            );
+        }
+    }
+    Ok(())
 }

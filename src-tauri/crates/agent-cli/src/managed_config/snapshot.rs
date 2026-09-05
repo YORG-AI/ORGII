@@ -28,6 +28,11 @@ pub(super) fn read_target_snapshots(
     let mut snapshots = BTreeMap::new();
     for target in targets {
         let target_path = PathBuf::from(&target.target_path);
+        if target_path.is_symlink() {
+            return Err(
+                "CLI configuration is a symbolic link. Resolve its target before switching.".into(),
+            );
+        }
         let existed = target_path.exists();
         let bytes = if existed {
             std::fs::read(&target_path)

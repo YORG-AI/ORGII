@@ -64,6 +64,7 @@ export interface CredentialImportFailure {
 }
 
 interface UseCredentialImportOptions {
+  sourceKind?: CredentialSuggestion["sourceKind"];
   /** Called after a fully successful batch so the parent can collapse. */
   onCompleted: () => void;
   /** Called after any successful item so the parent can reload agents/accounts. */
@@ -92,6 +93,7 @@ async function loadDisplayNames(): Promise<Map<string, string>> {
 }
 
 export function useCredentialImport({
+  sourceKind,
   onCompleted,
   onRefresh,
 }: UseCredentialImportOptions) {
@@ -122,11 +124,14 @@ export function useCredentialImport({
     Promise.all([listCredentialSuggestions(), loadDisplayNames()])
       .then(([suggestions, names]) => {
         if (cancelled) return;
-        const rows: CredentialImportRow[] = suggestions.map((suggestion) => ({
-          ...suggestion,
-          displayName: names.get(suggestion.agentType) ?? suggestion.agentType,
-          sourceKindLabel: sourceKindLabel(suggestion.sourceKind),
-        }));
+        const rows: CredentialImportRow[] = suggestions
+          .filter((item) => !sourceKind || item.sourceKind === sourceKind)
+          .map((suggestion) => ({
+            ...suggestion,
+            displayName:
+              names.get(suggestion.agentType) ?? suggestion.agentType,
+            sourceKindLabel: sourceKindLabel(suggestion.sourceKind),
+          }));
         setItems(sortSuggestions(rows));
         // Drop selections whose rows disappeared (imported or removed).
         setSelected((prev) => {
@@ -147,7 +152,7 @@ export function useCredentialImport({
     return () => {
       cancelled = true;
     };
-  }, [detectionRefreshKey, sourceKindLabel]);
+  }, [detectionRefreshKey, sourceKindLabel, sourceKind]);
 
   const allImportableItems = useMemo(
     () => importableSuggestions(items),

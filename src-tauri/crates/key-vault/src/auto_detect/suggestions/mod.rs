@@ -1600,3 +1600,38 @@ mod tests {
         assert_eq!(base_url, None);
     }
 }
+
+/// Read the selected source again at import time. Model and protocol are data,
+/// never executable snippets. Fingerprint changes require a fresh selection.
+pub(crate) fn cc_switch_connection_metadata(
+    selection: &CredentialSuggestion,
+) -> Result<Option<(String, String)>, String> {
+    if selection.source_kind != SuggestionSourceKind::CcSwitch {
+        return Ok(None);
+    }
+    let path = PathBuf::from(
+        selection
+            .source_path
+            .as_deref()
+            .ok_or("Missing cc-switch source")?,
+    );
+    let reference = selection
+        .source_ref
+        .as_deref()
+        .ok_or("Missing cc-switch profile reference")?;
+    let credential = read_cc_switch_credentials(&path)?
+        .into_iter()
+        .find(|entry| entry.reference() == reference)
+        .ok_or("cc-switch profile no longer exists")?;
+    if selection.agent_type != credential.agent
+        || selection.fingerprint.as_deref() != Some(secret_fingerprint(&credential.secret).as_str())
+    {
+        return Err("cc-switch profile changed; refresh the import list".into());
+    }
+    let protocol = match credential.agent {
+        "claude_code" => "anthropic",
+        "codex" => "openai",
+        _ => return Ok(None),
+    };
+    Ok(credential.model.map(|model| (model, protocol.to_string())))
+}

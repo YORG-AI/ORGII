@@ -13,7 +13,8 @@ export type SettingsSectionSegment =
   | "security"
   | "mobile-remote"
   | "update"
-  | "monitor";
+  | "monitor"
+  | "harness-connections";
 
 export type SettingsSubpageSegment = "editor-appearance";
 
@@ -25,6 +26,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionSegment[] = [
   "mobile-remote",
   "update",
   "monitor",
+  "harness-connections",
 ] as const;
 
 export const SETTINGS_SUBPAGES: readonly SettingsSubpageSegment[] = [

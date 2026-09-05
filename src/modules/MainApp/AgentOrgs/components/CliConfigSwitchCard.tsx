@@ -36,7 +36,7 @@ import {
   modelIdsFor,
 } from "./cliManagedConfigUtils";
 
-type CliConfigMode = "default" | "orgii_managed";
+type CliConfigMode = "default" | "orgii_managed" | "direct";
 type PendingAction = "apply" | "forceApply" | "restore" | "forceRestore";
 
 const DEFAULT_PROXY_URL = "http://127.0.0.1:17888";
@@ -173,9 +173,10 @@ const CliConfigSwitchCard: React.FC<CliConfigSwitchCardProps> = ({
   }, [loadStatus]);
 
   useEffect(() => {
-    if (proxyStatus?.running !== false) return;
+    if (proxyStatus?.running !== false || status?.mode !== "orgii_managed")
+      return;
     return startVisibilityAwarePoller(document, loadProxyStatus, 3000);
-  }, [loadProxyStatus, proxyStatus?.running]);
+  }, [loadProxyStatus, proxyStatus?.running, status?.mode]);
 
   useEffect(() => {
     const nextSelection = getManagedProxyDraftSelection(
@@ -299,10 +300,7 @@ const CliConfigSwitchCard: React.FC<CliConfigSwitchCardProps> = ({
   const targetFiles = status?.targetFiles ?? [];
   const managedActive = draftMode === "orgii_managed";
   const canApplyManaged =
-    managedActive &&
-    Boolean(selectedKeyId) &&
-    Boolean(selectedModel) &&
-    proxyStatus?.running === true;
+    managedActive && Boolean(selectedKeyId) && Boolean(selectedModel);
   const isBusy = pendingAction !== null;
   const modeLabel =
     status?.mode === "orgii_managed"

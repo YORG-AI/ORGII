@@ -230,13 +230,18 @@ export const CliLaunchProfileViewSchema = z.object({
 export type CliPermissionMode = z.infer<typeof CliPermissionModeSchema>;
 export type CliLaunchProfileView = z.infer<typeof CliLaunchProfileViewSchema>;
 
-export const CliConfigModeSchema = z.enum(["default", "orgii_managed"]);
+export const CliConfigModeSchema = z.enum([
+  "default",
+  "orgii_managed",
+  "direct",
+]);
 
 export const CliConfigManagedStatusInput = z.object({
   agentName: z.string(),
 });
 
 export const CliConfigEnableOrgiiManagedInput = z.object({
+  expectedHashes: z.record(z.string(), z.string().nullable()).optional(),
   agentName: z.string(),
   keyId: z.string().nullable().optional(),
   model: z.string().nullable().optional(),
@@ -366,3 +371,37 @@ export const CursorPluginInfoSchema = z.object({
 });
 
 export type CursorPluginInfo = z.infer<typeof CursorPluginInfoSchema>;
+
+export const HarnessConnectionInput = z.object({
+  agentName: z.enum(["claude_code", "codex"]),
+});
+export const HarnessConnectionSelectionInput = HarnessConnectionInput.extend({
+  keyId: z.string(),
+  model: z.string(),
+});
+export const HarnessConnectionTestInput =
+  HarnessConnectionSelectionInput.extend({ requestId: z.string() });
+export const HarnessConnectionApplyInput =
+  HarnessConnectionSelectionInput.extend({
+    expectedHashes: z.record(z.string(), z.string().nullable()),
+    routing: z.enum(["direct", "orgii_managed"]),
+    receipt: z.string().nullable().optional(),
+  });
+export const HarnessConnectionViewSchema = z.object({
+  installed: z.boolean(),
+  config: CliConfigManagedStatusSchema,
+  choices: z.array(
+    z.object({
+      keyId: z.string(),
+      name: z.string(),
+      models: z.array(z.string()),
+      endpoint: z.string().nullable(),
+      requiresTest: z.boolean(),
+      reason: z.string().nullable(),
+    })
+  ),
+});
+export type HarnessConnectionView = z.infer<typeof HarnessConnectionViewSchema>;
+export type ConnectionHarness = z.infer<
+  typeof HarnessConnectionInput
+>["agentName"];

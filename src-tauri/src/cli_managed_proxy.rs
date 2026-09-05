@@ -607,6 +607,24 @@ fn resolve_proxy_context_for_selection(
     proxy_token: String,
 ) -> Result<ProxyContext, String> {
     let descriptor = protocol_for_agent(agent_name)?;
+    if matches!(agent_name, "claude_code" | "codex") {
+        let key_id = key_id
+            .filter(|value| !value.trim().is_empty())
+            .ok_or("No KeyVault key selected")?;
+        let key = KEY_SERVICE
+            .get_key_by_id(key_id)
+            .ok_or("Selected KeyVault key does not exist")?;
+        let connection = key_vault::harness_connections::resolve(agent_name, &key, selected_model)?;
+        return Ok(ProxyContext {
+            key_id: connection.key_id,
+            provider: connection.provider,
+            model: connection.model,
+            upstream_base_url: connection.base_url,
+            api_key: connection.api_key,
+            proxy_token,
+            protocol: descriptor.protocol,
+        });
+    }
     let protocol = descriptor.protocol;
     let protocol_name = descriptor.protocol_name;
     let agent_display = descriptor.display_name;
@@ -766,24 +784,42 @@ pub async fn cli_config_enable_orgii_managed(
     key_id: Option<String>,
     model: Option<String>,
     force: bool,
+    expected_hashes: Option<std::collections::BTreeMap<String, Option<String>>>,
 ) -> Result<agent_cli::managed_config::CliConfigManagedStatus, String> {
+    crate::harness_connections::authorize_managed(
+        &agent_name,
+        key_id.as_deref(),
+        model.as_deref(),
+    )?;
     start_cli_managed_proxy_thread();
+    for _ in 0..20 {
+        if PROXY_RUNNING.load(Ordering::SeqCst) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
     tokio::task::spawn_blocking(move || {
         if !PROXY_RUNNING.load(Ordering::SeqCst) {
             return Err(proxy_unavailable_message());
         }
+        crate::harness_connections::authorize_managed(
+            &agent_name,
+            key_id.as_deref(),
+            model.as_deref(),
+        )?;
         let context = resolve_proxy_context_for_selection(
             &agent_name,
             key_id.as_deref(),
             model.as_deref(),
             String::new(),
         )?;
-        agent_cli::managed_config::enable_orgii_managed(
+        agent_cli::managed_config::enable_orgii_managed_checked(
             &agent_name,
             Some(context.key_id),
             Some(context.provider),
             Some(context.model),
             force,
+            expected_hashes.as_ref(),
         )
     })
     .await
@@ -792,7 +828,6 @@ pub async fn cli_config_enable_orgii_managed(
 
 #[tauri::command(rename_all = "camelCase")]
 pub async fn cli_managed_proxy_status(agent_name: String) -> Result<CliManagedProxyStatus, String> {
-    start_cli_managed_proxy_thread();
     let running = PROXY_RUNNING.load(Ordering::SeqCst);
     let url = agent_cli::managed_config::managed_proxy_url();
 

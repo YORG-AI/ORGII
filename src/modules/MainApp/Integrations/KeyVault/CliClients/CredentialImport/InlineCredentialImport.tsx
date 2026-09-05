@@ -28,6 +28,7 @@ import { credentialImportRowKey } from "./credentialImportUtils";
 import { useCredentialImport } from "./useCredentialImport";
 
 interface InlineCredentialImportProps {
+  sourceKind?: "cc_switch";
   /** Start expanded and route the toggle to `onCompleted` (wizard flows). */
   forceExpanded?: boolean;
   onCompleted?: () => void;
@@ -37,6 +38,7 @@ interface InlineCredentialImportProps {
 
 const InlineCredentialImport: React.FC<InlineCredentialImportProps> = ({
   forceExpanded = false,
+  sourceKind,
   onCompleted,
   onAfterImport,
 }) => {
@@ -56,6 +58,7 @@ const InlineCredentialImport: React.FC<InlineCredentialImportProps> = ({
     importColumns,
     handleImport,
   } = useCredentialImport({
+    sourceKind,
     onCompleted: onCompleted ?? (() => undefined),
     onRefresh: onAfterImport,
   });

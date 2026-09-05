@@ -41,7 +41,8 @@
     "projectUsage": "Project & Nutzung",
     "agentMemory": "Agent-Speicher",
     "agentOrg": "Agent-Team",
-    "collaboration": "Zusammenarbeit"
+    "collaboration": "Zusammenarbeit",
+    "harnessConnections": "Werkzeugverbindungen"
   },
   "coreSidebar": {
     "groups": {
@@ -1370,5 +1371,39 @@
       "cloud": "Cloud",
       "selfHosted": "Selbstgehostet"
     }
+  },
+  "harnessConnections": {
+    "description": "Verbindung für jedes Programmierwerkzeug auswählen",
+    "current": "Konfigurierte Verbindung",
+    "scope": "Gilt als CLI-Standard auf diesem Gerät; Projekteinstellungen und laufende Sitzungen können Vorrang haben",
+    "original": "Ursprüngliche Einrichtung",
+    "missingKey": "Ausgewählter Schlüssel fehlt",
+    "connection": "Verbindung",
+    "choose": "Gespeicherte Verbindung auswählen",
+    "add": "Verbindung hinzufügen",
+    "empty": "API-Schlüssel hinzufügen oder Verbindung aus cc-switch importieren",
+    "model": "Modell",
+    "routing": "Verbindungsweg",
+    "direct": "Direkt",
+    "proxy": "Über ORGII",
+    "directHelp": "Funktioniert auch bei geschlossenem ORGII",
+    "proxyHelp": "ORGII muss geöffnet bleiben",
+    "advanced": "Erweitert",
+    "test": "Verbindung testen",
+    "testHelp": "Sendet zwei kleine Anfragen an den Anbieter, um Werkzeugaufrufe und Streaming zu prüfen; es können Gebühren anfallen",
+    "testPassed": "Werkzeugaufruf mit Rückgabe und Streaming erfolgreich; Testergebnis gilt 15 Minuten",
+    "testRequired": "Diesen Drittanbieter-Endpunkt und das Modell vor dem Anwenden testen",
+    "untested": "Eine gespeicherte Konfiguration bestätigt keine laufende Sitzung",
+    "cancel": "Test abbrechen",
+    "apply": "Diese Verbindung verwenden",
+    "applied": "Konfiguration gespeichert – eine neue Werkzeugsitzung starten",
+    "restore": "Ursprüngliche Einrichtung wiederherstellen",
+    "restored": "Ursprüngliche Einrichtung wiederhergestellt – eine neue Werkzeugsitzung starten",
+    "refresh": "Aktualisieren",
+    "loading": "Werkzeugkonfiguration wird gelesen…",
+    "conflict": "Konfiguration außerhalb von ORGII geändert. Änderungen vor dem Anwenden oder Wiederherstellen prüfen; sie werden nicht überschrieben",
+    "credentialsNote": "Der Direktmodus schreibt Zugangsdaten in die CLI-Konfiguration mit eingeschränktem Dateizugriff; das Löschen eines Tresorschlüssels widerruft die exportierten Zugangsdaten nicht",
+    "import": "Aus cc-switch importieren",
+    "notInstalled": "Dieses Werkzeug vor dem Testen oder Anwenden einer Verbindung installieren"
   }
 }

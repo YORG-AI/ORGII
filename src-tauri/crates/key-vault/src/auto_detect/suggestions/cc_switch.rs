@@ -31,6 +31,7 @@ pub(super) struct CcSwitchCredential {
     pub secret: String,
     pub base_url: Option<String>,
     pub is_current: bool,
+    pub model: Option<String>,
 }
 
 impl CcSwitchCredential {
@@ -46,7 +47,9 @@ pub(super) fn cc_switch_db_path_in(home: &Path) -> PathBuf {
 
 /// Read every profile that carries a usable secret. Read-only; no writes,
 /// no locks held beyond the query.
-pub(super) fn read_cc_switch_credentials(db_path: &Path) -> Result<Vec<CcSwitchCredential>, String> {
+pub(super) fn read_cc_switch_credentials(
+    db_path: &Path,
+) -> Result<Vec<CcSwitchCredential>, String> {
     let conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
         .map_err(|e| format!("Failed to open cc-switch database: {e}"))?;
 
@@ -96,13 +99,19 @@ pub(super) fn read_cc_switch_credentials(db_path: &Path) -> Result<Vec<CcSwitchC
             continue;
         };
         if let Some((agent, secret, base_url)) = credential_from_settings(&app_type, &config) {
+            // Upstream's proxy takeover sentinel is not a provider credential.
+            // Source: cc-switch services/proxy.rs PROXY_TOKEN_PLACEHOLDER.
+            if secret == "PROXY_MANAGED" {
+                continue;
+            }
             out.push(CcSwitchCredential {
-                app_type,
+                app_type: app_type.clone(),
                 id,
                 name,
                 agent,
                 secret,
                 base_url,
+                model: model_from_settings(&app_type, &config),
                 is_current,
             });
         }
@@ -135,7 +144,21 @@ pub(super) fn credential_from_settings(
             ))
         }
         "codex" => {
-            let secret = non_empty_str(config.get("auth").and_then(|a| a.get("OPENAI_API_KEY")))?;
+            let native_bearer = || -> Option<String> {
+                let parsed: toml::Value = toml::from_str(config.get("config")?.as_str()?).ok()?;
+                let selected = parsed.get("model_provider")?.as_str()?;
+                parsed
+                    .get("model_providers")?
+                    .get(selected)?
+                    .get("experimental_bearer_token")?
+                    .as_str()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string)
+            };
+            let secret = native_bearer().or_else(|| {
+                non_empty_str(config.get("auth").and_then(|a| a.get("OPENAI_API_KEY")))
+            })?;
             let base_url = config
                 .get("config")
                 .and_then(|c| c.as_str())
@@ -315,5 +338,58 @@ mod tests {
             Some("https://a.example/v1")
         );
         assert_eq!(codex_base_url_from_config_toml("not = [toml"), None);
+    }
+}
+
+fn model_from_settings(app: &str, config: &serde_json::Value) -> Option<String> {
+    match app {
+        "claude" | "claude-desktop" => {
+            non_empty_str(config.get("env").and_then(|env| env.get("ANTHROPIC_MODEL")))
+                .or_else(|| non_empty_str(config.get("model")))
+        }
+        "codex" => {
+            let config: toml::Value = toml::from_str(config.get("config")?.as_str()?).ok()?;
+            config
+                .get("model")?
+                .as_str()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+        }
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod connection_tests {
+    use super::*;
+    #[test]
+    fn import_retains_model_and_selected_native_bearer_but_excludes_proxy_sentinels() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("cc-switch.db");
+        let config = serde_json::json!({"auth":{"OPENAI_API_KEY":"unused-login-key"},"config":"model = 'fixture-model'\nmodel_provider = 'gateway'\n[model_providers.gateway]\nbase_url='https://gateway.example/v1'\nexperimental_bearer_token='fixture-key'"}).to_string();
+        fixtures::write_db(
+            &path,
+            &[
+                ("test", "codex", "Gateway", &config, false),
+                (
+                    "proxy",
+                    "claude",
+                    "Proxy",
+                    r#"{"env":{"ANTHROPIC_AUTH_TOKEN":"PROXY_MANAGED"}}"#,
+                    false,
+                ),
+            ],
+        );
+        let before = std::fs::read(&path).unwrap();
+        let credentials = read_cc_switch_credentials(&path).unwrap();
+        assert_eq!(credentials.len(), 1);
+        assert_eq!(credentials[0].model.as_deref(), Some("fixture-model"));
+        assert_eq!(credentials[0].secret, "fixture-key");
+        assert_eq!(
+            model_from_settings("claude", &serde_json::json!({"model":"root-model"})),
+            Some("root-model".into())
+        );
+        assert_eq!(std::fs::read(path).unwrap(), before);
     }
 }

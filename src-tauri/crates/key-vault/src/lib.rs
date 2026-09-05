@@ -18,6 +18,7 @@
 pub mod auto_detect;
 pub mod commands;
 pub mod e2e_guard;
+pub mod harness_connections;
 pub mod key_extractor;
 pub mod key_store;
 pub mod provider_config;
