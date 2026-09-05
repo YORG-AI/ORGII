@@ -17,6 +17,7 @@ import "@src/util/core/storage/cleanup";
 import { cleanUpBrowserStorage } from "@src/util/core/storage/quotaRecovery";
 import "@src/util/platform/browserModeShim";
 import "@src/util/platform/tauri";
+import { installTransientScrollbars } from "@src/util/ui/transientScrollbars";
 
 import "./index.scss";
 import { clearAllOpenedRepos } from "./store/repo";
@@ -30,6 +31,8 @@ initializeLogging();
 installGlobalTauriSelectAllShortcut();
 const disposeLeadingBlankLineGuard = installLeadingBlankLineGuard();
 module.hot?.dispose(disposeLeadingBlankLineGuard);
+const disposeTransientScrollbars = installTransientScrollbars();
+module.hot?.dispose(disposeTransientScrollbars);
 
 const log = createLogger("Init");
 

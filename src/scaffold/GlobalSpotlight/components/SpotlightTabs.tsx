@@ -101,7 +101,9 @@ export function SpotlightTabs<T extends string>({
     <div
       ref={containerRef}
       className={
-        format === "attached" ? "mb-2 shrink-0 overflow-x-auto" : "contents"
+        format === "attached"
+          ? "mb-2 scrollbar-hide shrink-0 overflow-x-auto"
+          : "contents"
       }
     >
       {format === "pill" ? (

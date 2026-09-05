@@ -12,6 +12,11 @@
  */
 import { IFRAME_STYLE_NONCE, stampStyleNonces } from "@src/util/iframeCspNonce";
 
+import {
+  ISOLATED_CANVAS_SCROLLBAR_SCRIPT,
+  ISOLATED_CANVAS_SCROLLBAR_STYLES,
+} from "./canvasScrollbar";
+
 const CANVAS_THEME_VARIABLES = [
   "--app-font-family",
   "--code-font-family",
@@ -19,8 +24,10 @@ const CANVAS_THEME_VARIABLES = [
   "--color-bg-2",
   "--color-fill-2",
   "--color-fill-3",
+  "--scrollbar-size",
+  "--scrollbar-hit-area-size",
+  "--scrollbar-edge-inset",
   "--scrollbar-thumb-color",
-  "--scrollbar-thumb-hover-color",
   "--color-border-1",
   "--color-text-1",
   "--color-text-2",
@@ -49,22 +56,27 @@ function buildThemeStyleTag(): string {
   return `<style nonce="${IFRAME_STYLE_NONCE}">:root{${themeVariables}}</style>`;
 }
 
-function injectThemeVariables(html: string): string {
-  const themeStyleTag = buildThemeStyleTag();
-  if (!themeStyleTag) return html;
+function buildScrollbarStyleTag(): string {
+  return `<style nonce="${IFRAME_STYLE_NONCE}">${ISOLATED_CANVAS_SCROLLBAR_STYLES}</style>`;
+}
+
+function buildScrollbarScriptTag(): string {
+  return `<script nonce="${IFRAME_STYLE_NONCE}">${ISOLATED_CANVAS_SCROLLBAR_SCRIPT}</script>`;
+}
+
+function injectCanvasChrome(html: string): string {
+  const chromeTags = `${buildThemeStyleTag()}${buildScrollbarStyleTag()}${buildScrollbarScriptTag()}`;
 
   if (/<head\b[^>]*>/i.test(html)) {
-    return html.replace(/<head\b([^>]*)>/i, `<head$1>${themeStyleTag}`);
+    return html.replace(/<head\b([^>]*)>/i, `<head$1>${chromeTags}`);
   }
 
-  return html.replace(
-    /<html\b([^>]*)>/i,
-    `<html$1><head>${themeStyleTag}</head>`
-  );
+  return html.replace(/<html\b([^>]*)>/i, `<html$1><head>${chromeTags}</head>`);
 }
 
 const BASE_STYLES = `
   *,*::before,*::after{box-sizing:border-box;}
+  ${ISOLATED_CANVAS_SCROLLBAR_STYLES}
   html,body{margin:0;padding:0;background:var(--color-bg-2,#141420);color:var(--color-text-1,#e2e2e8);
     font-family:var(--app-font-family,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif);
     font-size:14px;line-height:1.6;min-height:100%;overflow-x:auto;}
@@ -77,10 +89,6 @@ const BASE_STYLES = `
   pre code{background:none;padding:0;}
   img{max-width:100%;height:auto;border-radius:4px;}
   button{cursor:var(--interactive-cursor,default);}
-  ::-webkit-scrollbar{width:6px;height:6px;}
-  ::-webkit-scrollbar-track{background:transparent;}
-  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb-color,rgba(255,255,255,.09));border-radius:3px;}
-  ::-webkit-scrollbar-thumb:hover{background:var(--scrollbar-thumb-hover-color,rgba(255,255,255,.15));}
 `;
 
 /**
@@ -106,14 +114,14 @@ export function buildHtmlDocument(html: string): string {
     // Agent supplied a full document. Stamp nonces onto its inline <style>
     // blocks and ship it directly — wrapping it in another <html>/<body>
     // would invalidate the markup and strip the agent's styles.
-    return injectThemeVariables(stampStyleNonces(html));
+    return injectCanvasChrome(stampStyleNonces(html));
   }
   const themeStyleTag = buildThemeStyleTag();
   return `<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 ${themeStyleTag}<style nonce="${IFRAME_STYLE_NONCE}">${BASE_STYLES}</style>
-</head><body style="padding:16px">${html}</body></html>`;
+${buildScrollbarScriptTag()}</head><body style="padding:16px">${html}</body></html>`;
 }
 
 export function buildReactDocument(source: string): string {
@@ -127,6 +135,7 @@ body{padding:16px;background:var(--color-bg-2,#0f1018);color:var(--color-text-1,
 #root{min-height:100vh;}
 #error{display:none;margin:12px 0;padding:12px;border:1px solid #ef4444;border-radius:8px;background:rgba(239,68,68,.1);color:#fecaca;white-space:pre-wrap;font-family:var(--code-font-family,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px;}
 </style>
+${buildScrollbarScriptTag()}
 </head><body><div id="root"></div><pre id="error"></pre>
 <script nonce="${IFRAME_STYLE_NONCE}">
 const source = ${JSON.stringify(escapedSource)};

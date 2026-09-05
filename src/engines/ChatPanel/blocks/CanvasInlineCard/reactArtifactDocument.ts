@@ -27,6 +27,11 @@ import reactRuntime from "@/node_modules/react-artifact-runtime/umd/react.produc
 import reactDomRuntime from "@/node_modules/react-dom-artifact-runtime/umd/react-dom.production.min.js?raw";
 import { transform } from "sucrase";
 
+import {
+  ISOLATED_CANVAS_SCROLLBAR_SCRIPT,
+  ISOLATED_CANVAS_SCROLLBAR_STYLES,
+} from "./canvasScrollbar";
+
 /**
  * CSP delivered both as the `<meta http-equiv>` inside the document and as
  * the `Content-Security-Policy` response header from the canvas-artifact
@@ -121,8 +126,9 @@ export function buildReactArtifactDocument(source: string): string {
   return `<!doctype html><html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 ${REACT_ARTIFACT_FRAME_CSP_META}
-<style>*{box-sizing:border-box}html,body,#root{margin:0;min-height:100%;width:100%}body{background:#0b0d12;color:#f2f4f8;font-family:system-ui,-apple-system,sans-serif}#error{display:none;margin:16px;padding:12px;border:1px solid rgba(248,113,113,.35);border-radius:8px;background:rgba(127,29,29,.16);color:#fecaca;white-space:pre-wrap;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}</style>
+<style>*{box-sizing:border-box}${ISOLATED_CANVAS_SCROLLBAR_STYLES}html,body,#root{margin:0;min-height:100%;width:100%}body{background:#0b0d12;color:#f2f4f8;font-family:system-ui,-apple-system,sans-serif}#error{display:none;margin:16px;padding:12px;border:1px solid rgba(248,113,113,.35);border-radius:8px;background:rgba(127,29,29,.16);color:#fecaca;white-space:pre-wrap;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}</style>
 </head><body><div id="root"></div><pre id="error"></pre>
+<script>${escapeInlineScript(ISOLATED_CANVAS_SCROLLBAR_SCRIPT)}</script>
 <script>${escapeInlineScript(reactRuntime)}</script>
 <script>${escapeInlineScript(reactDomRuntime)}</script>
 <script>const errorElement=document.getElementById('error');function showError(error){errorElement.style.display='block';errorElement.textContent=error&&error.stack?error.stack:String(error)}window.addEventListener('error',event=>showError(event.error||event.message));window.addEventListener('unhandledrejection',event=>showError(event.reason));try{const root=ReactDOM.createRoot(document.getElementById('root'));const render=element=>root.render(element);${escapeInlineScript(compiled)}}catch(error){showError(error)}</script>

@@ -9,10 +9,15 @@
  *   and coalesced with requestAnimationFrame.
  * - The track is pointer-events:none so wheel events always reach the native
  *   scroller underneath, preserving macOS inertial momentum scrolling.
- * - Visibility toggling (showScrollbar/hideScrollbar) is batched inside the
- *   rAF callback AFTER layout reads to avoid forced style recalculation.
+ * - Visibility uses the app-wide transient scrollbar controller, so mounted
+ *   editors add no idle timers and share the same scroll-only reveal policy.
  */
 import React, { useCallback, useEffect, useRef } from "react";
+
+import {
+  clearTransientScrollbar,
+  revealTransientScrollbar,
+} from "@src/util/ui/transientScrollbars";
 
 import "./index.scss";
 
@@ -67,23 +72,11 @@ export const CustomScrollbar: React.FC<CustomScrollbarProps> = ({
   const thumbTopRef = useRef(0);
   const thumbHeightRef = useRef(30);
   const rafIdRef = useRef(0);
-  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragListenerCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     scrollerRef.current = scrollElement;
   }, [scrollElement]);
-
-  const showScrollbar = useCallback(() => {
-    trackRef.current?.classList.add("visible");
-    thumbRef.current?.classList.add("visible");
-  }, []);
-
-  const hideScrollbar = useCallback(() => {
-    if (isDraggingRef.current) return;
-    trackRef.current?.classList.remove("visible");
-    thumbRef.current?.classList.remove("visible");
-  }, []);
 
   // Direct DOM update — bypasses React render cycle entirely.
   // Reads layout first, then writes — avoids layout thrashing.
@@ -145,88 +138,66 @@ export const CustomScrollbar: React.FC<CustomScrollbarProps> = ({
     scroller.scrollTop = scrollRatio * maxScrollTop;
   }, []);
 
-  const handleThumbMouseDown = useCallback((event: React.MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    isDraggingRef.current = true;
-    trackRef.current?.classList.add("visible");
-    thumbRef.current?.classList.add("visible");
-    dragStartY.current = event.clientY;
-    dragStartScrollTop.current = thumbTopRef.current;
-    document.body.style.cursor = "grabbing";
-    document.body.style.userSelect = "none";
+  const stopThumbDrag = useCallback(() => {
+    dragListenerCleanupRef.current?.();
+    dragListenerCleanupRef.current = null;
+    isDraggingRef.current = false;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
   }, []);
+
+  const handleThumbMouseDown = useCallback(
+    (event: React.MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      dragListenerCleanupRef.current?.();
+      isDraggingRef.current = true;
+      if (trackRef.current) revealTransientScrollbar(trackRef.current);
+      dragStartY.current = event.clientY;
+      dragStartScrollTop.current = thumbTopRef.current;
+      document.body.style.cursor = "grabbing";
+      document.body.style.userSelect = "none";
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        handleThumbDrag(moveEvent.clientY);
+      };
+      const handleMouseUp = () => stopThumbDrag();
+      const cleanupDragListeners = () => {
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
+      dragListenerCleanupRef.current = cleanupDragListeners;
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    },
+    [handleThumbDrag, stopThumbDrag]
+  );
 
   useEffect(() => {
     const scroller = scrollElement;
-    if (!scroller) return;
+    const track = trackRef.current;
+    if (!scroller || !track) return;
 
     const handleScroll = () => {
       cancelAnimationFrame(rafIdRef.current);
       rafIdRef.current = requestAnimationFrame(() => {
         updateThumbDOM();
-        // Show AFTER layout reads to avoid forced style recalculation
-        showScrollbar();
+        // Reveal AFTER layout reads to avoid forced style recalculation.
+        revealTransientScrollbar(track);
       });
-
-      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-      scrollTimeoutRef.current = setTimeout(hideScrollbar, 1000);
-    };
-
-    const handleMouseMove = (event: MouseEvent) => {
-      if (isDraggingRef.current) handleThumbDrag(event.clientY);
-    };
-
-    const handleMouseUp = () => {
-      if (isDraggingRef.current) {
-        isDraggingRef.current = false;
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-        scrollTimeoutRef.current = setTimeout(hideScrollbar, 1000);
-      }
-    };
-
-    const handleEditorEnter = () => {
-      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-      showScrollbar();
-    };
-
-    const handleEditorLeave = () => {
-      if (isDraggingRef.current) return;
-      hoverTimeoutRef.current = setTimeout(hideScrollbar, 800);
     };
 
     scroller.addEventListener("scroll", handleScroll, { passive: true });
-    scroller.addEventListener("mouseenter", handleEditorEnter);
-    scroller.addEventListener("mouseleave", handleEditorLeave);
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
 
-    requestAnimationFrame(updateThumbDOM);
+    rafIdRef.current = requestAnimationFrame(updateThumbDOM);
 
     return () => {
       cancelAnimationFrame(rafIdRef.current);
       scroller.removeEventListener("scroll", handleScroll);
-      scroller.removeEventListener("mouseenter", handleEditorEnter);
-      scroller.removeEventListener("mouseleave", handleEditorLeave);
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-      if (isDraggingRef.current) {
-        isDraggingRef.current = false;
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-      }
+      clearTransientScrollbar(track);
+      if (isDraggingRef.current) stopThumbDrag();
     };
-  }, [
-    scrollElement,
-    updateThumbDOM,
-    handleThumbDrag,
-    showScrollbar,
-    hideScrollbar,
-  ]);
+  }, [scrollElement, updateThumbDOM, stopThumbDrag]);
 
   useEffect(() => {
     const observer = new ResizeObserver(() => {

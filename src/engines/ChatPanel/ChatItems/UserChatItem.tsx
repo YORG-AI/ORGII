@@ -515,7 +515,7 @@ const UserChatItem = ({
                 ))}
 
               {cachedFiles.length > 0 && (
-                <div className="scrollbar-x-hover flex max-w-full flex-nowrap gap-2">
+                <div className="scrollbar-overlay flex max-w-full flex-nowrap gap-2 overflow-x-auto">
                   {cachedFiles.map((file) => (
                     <CachedFileChip
                       key={file}

@@ -193,8 +193,6 @@ const ChatCodeBlock: React.FC<ChatCodeBlockProps> = memo(
       contentHeight,
       useVirtualScroll,
       virtualListHeight,
-      isScrolling,
-      containerRefCb,
       streamingWrapperRef,
     } = useCodeBlockState({
       code,
@@ -565,11 +563,7 @@ const ChatCodeBlock: React.FC<ChatCodeBlockProps> = memo(
                   : "py-1"
               }
             >
-              <div
-                ref={containerRefCb}
-                className="chat-code-block__code-container chat-code-block__scroll-hover w-full max-w-full min-w-0 overflow-x-auto overflow-y-hidden"
-                data-scrolling={isScrolling || undefined}
-              >
+              <div className="chat-code-block__code-container scrollbar-overlay w-full max-w-full min-w-0 overflow-x-auto overflow-y-hidden">
                 <Suspense
                   fallback={
                     <div

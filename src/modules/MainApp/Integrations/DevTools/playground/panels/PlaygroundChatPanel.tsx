@@ -232,7 +232,7 @@ export function PlaygroundChatPanel({
       <div className="tool-event-preview-shell__content tool-event-preview-shell__content--chat">
         {/* Events area — wp__chat__history class activates the scoped SCSS rules from ChatHistory/index.scss */}
         <div
-          className="wp__chat__history flex-1 overflow-auto px-3 py-4"
+          className="wp__chat__history scrollbar-hide flex-1 overflow-auto px-3 py-4"
           style={chatStyleVars}
         >
           {hasHistoryContent && !inputOnly ? (
