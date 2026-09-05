@@ -128,7 +128,7 @@ describe("EventBlockHeader text selection", () => {
     expect(onToggleCollapse).toHaveBeenCalledOnce();
   });
 
-  it("makes only expandable rows use the clickable cursor", () => {
+  it("makes expandable rows use the clickable cursor", () => {
     act(() => {
       root.render(
         createElement(
@@ -143,8 +143,11 @@ describe("EventBlockHeader text selection", () => {
     expect(header.classList.contains("cursor-pointer")).toBe(true);
   });
 
-  it("keeps a navigate-only row inert while leaving its arrow accessible", () => {
+  it("reveals from the whole row when there is nothing to expand", () => {
     const onNavigate = vi.fn();
+    vi.spyOn(window, "getSelection").mockReturnValue({
+      isCollapsed: true,
+    } as Selection);
 
     act(() => {
       root.render(
@@ -160,8 +163,13 @@ describe("EventBlockHeader text selection", () => {
     const navigate = container.querySelector<HTMLButtonElement>(
       '[data-testid="event-navigate"]'
     );
-    expect(header.classList.contains("cursor-default")).toBe(true);
-    expect(header.tabIndex).toBe(-1);
+    expect(header.classList.contains("cursor-pointer")).toBe(true);
+
+    act(() => header.click());
+    expect(onNavigate).toHaveBeenCalledOnce();
+
+    act(() => navigate?.click());
+    expect(onNavigate).toHaveBeenCalledTimes(2);
     expect(navigate?.tabIndex).toBe(0);
     expect(navigate?.getAttribute("aria-label")).toBe("View in Agent Station");
   });
