@@ -1,8 +1,8 @@
 /**
  * Unified Scrollbar Mixins
  *
- * Single source of truth for scrollbar styles across the app, including
- * CodeMirror through the base-layer global application in src/index.scss.
+ * Single source of truth for scrollbar styles across the app.
+ * CodeMirror scrollbar is handled globally in src/index.scss (.cm-scroller)
  *
  * Usage:
  *   @import "@src/styles/mixins/scrollbar";

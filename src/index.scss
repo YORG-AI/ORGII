@@ -336,8 +336,8 @@ html[data-window-focused="false"] *::after {
 
 // Global scrollbar styles are a base default. Keep them in the base layer so
 // explicit surface policies such as `scrollbar-hide` (chat panes, tab strips,
-// breadcrumbs, and compact title/tool bars) and `scrollbar-overlay`
-// (dropdowns, editors, and other opted-in content scrollers) win the cascade.
+// breadcrumbs, and 36px title bars) and `scrollbar-overlay` (dropdowns,
+// editors, and other opted-in content scrollers) win the cascade.
 @layer base {
   * {
     @include scrollbar.scrollbar-unified;
@@ -346,7 +346,7 @@ html[data-window-focused="false"] *::after {
 
 // Settings surfaces (SettingsSlot body + SettingsSidebar) hide all
 // scrollbars by design — the panel is dense with section cards and the
-// shared transient scrollbar adds visual noise on every nested overflow area.
+// global 4px scrollbar adds visual noise on every nested overflow area.
 // Scoped via [data-settings-surface] so the rule only applies inside
 // settings; CodeMirror exclusion preserved in case a settings tab
 // embeds an editor surface (currently none do, but harmless).

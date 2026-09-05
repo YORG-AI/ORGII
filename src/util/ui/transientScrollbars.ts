@@ -1,6 +1,4 @@
 export const TRANSIENT_SCROLLBAR_ATTRIBUTE = "data-scrollbar-scrolling";
-export const TRANSIENT_SCROLLBAR_OWNER_ATTRIBUTE =
-  "data-transient-scrollbar-owner";
 export const TRANSIENT_SCROLLBAR_HIDE_DELAY_MS = 900;
 
 interface TransientScrollbarController {
@@ -16,9 +14,7 @@ function resolveScrollTarget(
   ownerDocument: Document,
   target: EventTarget | null
 ): Element | null {
-  if (target instanceof Element) {
-    return target.closest(`[${TRANSIENT_SCROLLBAR_OWNER_ATTRIBUTE}]`) ?? target;
-  }
+  if (target instanceof Element) return target;
   return target === ownerDocument ? ownerDocument.scrollingElement : null;
 }
 
@@ -90,12 +86,7 @@ export function installTransientScrollbars(
 
   const handleScroll = (event: Event) => {
     const element = resolveScrollTarget(ownerDocument, event.target);
-    if (!element) return;
-    if (element.classList.contains("scrollbar-hide")) {
-      clear(element);
-      return;
-    }
-    reveal(element);
+    if (element) reveal(element);
   };
 
   const handleVisibilityChange = () => {
@@ -130,18 +121,4 @@ export function revealTransientScrollbar(element: Element): void {
 /** Release a custom overlay scrollbar immediately when its owner unmounts. */
 export function clearTransientScrollbar(element: Element): void {
   installedController?.clear(element);
-}
-
-/**
- * Bridges a scroller in an isolated ShadowRoot into the app-wide controller.
- * The bridge owns no timer and must be disposed with its surface.
- */
-export function observeTransientScrollbar(element: Element): () => void {
-  const handleScroll = () => revealTransientScrollbar(element);
-  element.addEventListener("scroll", handleScroll, { passive: true });
-
-  return () => {
-    element.removeEventListener("scroll", handleScroll);
-    clearTransientScrollbar(element);
-  };
 }

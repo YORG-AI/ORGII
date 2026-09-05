@@ -4,10 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   TRANSIENT_SCROLLBAR_ATTRIBUTE,
   TRANSIENT_SCROLLBAR_HIDE_DELAY_MS,
-  TRANSIENT_SCROLLBAR_OWNER_ATTRIBUTE,
   clearTransientScrollbar,
   installTransientScrollbars,
-  observeTransientScrollbar,
   revealTransientScrollbar,
 } from "../transientScrollbars";
 
@@ -37,17 +35,6 @@ describe("transient scrollbar activity", () => {
     expect(scroller.hasAttribute(TRANSIENT_SCROLLBAR_ATTRIBUTE)).toBe(true);
 
     vi.advanceTimersByTime(TRANSIENT_SCROLLBAR_HIDE_DELAY_MS);
-    expect(scroller.hasAttribute(TRANSIENT_SCROLLBAR_ATTRIBUTE)).toBe(false);
-    expect(vi.getTimerCount()).toBe(0);
-  });
-
-  it("never reveals an explicitly hidden scrollbar", () => {
-    const scroller = document.createElement("div");
-    scroller.className = "scrollbar-hide";
-    document.body.appendChild(scroller);
-
-    scroller.dispatchEvent(new Event("scroll"));
-
     expect(scroller.hasAttribute(TRANSIENT_SCROLLBAR_ATTRIBUTE)).toBe(false);
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -87,21 +74,6 @@ describe("transient scrollbar activity", () => {
     expect(vi.getTimerCount()).toBe(1);
   });
 
-  it("routes third-party internal scroll events to their visual owner", () => {
-    const owner = document.createElement("div");
-    const internalScroller = document.createElement("div");
-    owner.setAttribute(TRANSIENT_SCROLLBAR_OWNER_ATTRIBUTE, "");
-    owner.appendChild(internalScroller);
-    document.body.appendChild(owner);
-
-    internalScroller.dispatchEvent(new Event("scroll"));
-
-    expect(owner.hasAttribute(TRANSIENT_SCROLLBAR_ATTRIBUTE)).toBe(true);
-    expect(internalScroller.hasAttribute(TRANSIENT_SCROLLBAR_ATTRIBUTE)).toBe(
-      false
-    );
-  });
-
   it("shares the same activity state with custom overlay scrollbars", () => {
     const overlay = document.createElement("div");
     document.body.appendChild(overlay);
@@ -112,25 +84,6 @@ describe("transient scrollbar activity", () => {
     clearTransientScrollbar(overlay);
     expect(overlay.hasAttribute(TRANSIENT_SCROLLBAR_ATTRIBUTE)).toBe(false);
     expect(vi.getTimerCount()).toBe(0);
-  });
-
-  it("bridges and disposes isolated shadow-root scrollers", () => {
-    const host = document.createElement("div");
-    const scroller = document.createElement("div");
-    const shadowRoot = host.attachShadow({ mode: "open" });
-    shadowRoot.appendChild(scroller);
-    document.body.appendChild(host);
-    const stopObserving = observeTransientScrollbar(scroller);
-
-    scroller.dispatchEvent(new Event("scroll"));
-    expect(scroller.hasAttribute(TRANSIENT_SCROLLBAR_ATTRIBUTE)).toBe(true);
-
-    stopObserving();
-    expect(scroller.hasAttribute(TRANSIENT_SCROLLBAR_ATTRIBUTE)).toBe(false);
-    expect(vi.getTimerCount()).toBe(0);
-
-    scroller.dispatchEvent(new Event("scroll"));
-    expect(scroller.hasAttribute(TRANSIENT_SCROLLBAR_ATTRIBUTE)).toBe(false);
   });
 
   it("clears active work while hidden and fully disposes listeners", () => {

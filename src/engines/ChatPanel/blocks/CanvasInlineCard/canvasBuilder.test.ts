@@ -17,15 +17,17 @@ describe("buildReactDocument", () => {
     expect(document).not.toContain('type="module"');
   });
 
-  it("uses the transient shared scrollbar contract", () => {
+  it("uses a visible native scrollbar without an activity observer", () => {
     const document = buildReactDocument(
       `function App() { return React.createElement("div", null, "Hello"); }`
     );
 
-    expect(document).toContain("scrollbar-color:transparent transparent");
-    expect(document).toContain("[data-scrollbar-scrolling]");
-    expect(document).toContain("const hideDelayMs=900");
-    expect(document).toContain("{capture:true,passive:true}");
+    expect(document).toContain("scrollbar-width:thin");
+    expect(document).toContain(
+      "scrollbar-color:var(--scrollbar-thumb-color,rgba(128,128,128,.72)) transparent"
+    );
+    expect(document).not.toContain("[data-scrollbar-scrolling]");
+    expect(document).not.toContain("const hideDelayMs=900");
   });
 
   it("escapes script terminators in agent source", () => {
@@ -40,16 +42,15 @@ describe("buildReactDocument", () => {
 });
 
 describe("buildHtmlDocument", () => {
-  it("injects the transient scrollbar style and observer into full documents", () => {
+  it("leaves full documents on their native scrollbar behavior", () => {
     const document = buildHtmlDocument(
       '<!doctype html><html><head><style>.app{display:block}</style></head><body><div class="app">Hi</div></body></html>'
     );
 
-    expect(document).toContain("scrollbar-color:transparent transparent");
-    expect(document).toContain("[data-scrollbar-scrolling]");
-    expect(document).toContain("document.addEventListener('scroll'");
+    expect(document).not.toContain("[data-scrollbar-scrolling]");
+    expect(document).not.toContain("document.addEventListener('scroll'");
     expect(
       document.match(new RegExp(`nonce="${IFRAME_STYLE_NONCE}"`, "g"))
-    ).toHaveLength(3);
+    ).toHaveLength(1);
   });
 });

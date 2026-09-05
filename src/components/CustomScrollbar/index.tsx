@@ -189,9 +189,10 @@ export const CustomScrollbar: React.FC<CustomScrollbarProps> = ({
 
     scroller.addEventListener("scroll", handleScroll, { passive: true });
 
-    rafIdRef.current = requestAnimationFrame(updateThumbDOM);
+    const initialRafId = requestAnimationFrame(updateThumbDOM);
 
     return () => {
+      cancelAnimationFrame(initialRafId);
       cancelAnimationFrame(rafIdRef.current);
       scroller.removeEventListener("scroll", handleScroll);
       clearTransientScrollbar(track);

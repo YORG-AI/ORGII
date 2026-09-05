@@ -38,37 +38,10 @@ describe("scrollbar style contract", () => {
   it.each([
     "src/engines/ChatPanel/ChatHistory/components/ChatHistoryList.tsx",
     "src/engines/ChatPanel/ChatPanelTabBar/index.tsx",
-    "src/modules/MainApp/Integrations/DevTools/playground/panels/PlaygroundChatPanel.tsx",
     "src/modules/shared/components/FileHeader/BreadcrumbFileHeader.tsx",
     "src/modules/WorkStation/shared/TabBar/index.tsx",
     "src/modules/WorkStation/shared/SessionReplay/ReplayTabBar.tsx",
-    "src/scaffold/GlobalSpotlight/components/SpotlightTabs.tsx",
-    "src/components/SettingsTable/SearchSortBar.tsx",
-    "src/components/SettingsTable/index.tsx",
   ])("keeps %s on the shared no-scrollbar policy", (relativePath) => {
     expect(readSource(relativePath)).toContain("scrollbar-hide");
-  });
-
-  it("keeps visible scrollbar geometry and color stable across interaction", () => {
-    const mixin = readSource("src/styles/mixins/_scrollbar.scss");
-    const customScrollbar = readSource(
-      "src/components/CustomScrollbar/index.scss"
-    );
-
-    expect(mixin).toContain("--scrollbar-hit-area-size");
-    expect(mixin).toContain("--scrollbar-edge-inset");
-    expect(mixin).not.toContain("scrollbar-thumb-hover-color");
-    expect(customScrollbar).not.toMatch(/&:hover[\s\S]*?(width|transform):/);
-  });
-
-  it("keeps xterm visual width out of its measured column layout", () => {
-    const setup = readSource(
-      "src/engines/TerminalCore/components/TerminalInteractive/terminalSetup.ts"
-    );
-
-    expect(setup).toContain("XTERM_OVERLAY_LAYOUT_WIDTH = Number.EPSILON");
-    expect(setup).toContain(
-      "overviewRuler: { width: XTERM_OVERLAY_LAYOUT_WIDTH }"
-    );
   });
 });

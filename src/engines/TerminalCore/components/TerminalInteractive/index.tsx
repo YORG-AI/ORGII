@@ -399,11 +399,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
 
     return (
       <div className="xterm-terminal-view" style={terminalViewStyle}>
-        <div
-          ref={containerRef}
-          className="xterm-terminal-container"
-          data-transient-scrollbar-owner
-        />
+        <div ref={containerRef} className="xterm-terminal-container" />
       </div>
     );
   }
