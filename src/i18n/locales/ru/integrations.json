@@ -105,6 +105,8 @@
     "quota": {
       "title": "Информация о квоте",
       "plan": "План",
+      "balance": "Баланс",
+      "payAsYouGo": "Оплата по мере использования",
       "includedRequests": "Включённые запросы",
       "cursorIncludedRequests": "Квота Auto/Composer",
       "quotaUsage": "Использование квоты",

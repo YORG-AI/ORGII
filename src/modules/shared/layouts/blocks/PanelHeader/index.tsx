@@ -139,6 +139,8 @@ interface PanelRefreshButtonProps {
   onRefresh: () => void;
   loading: boolean;
   title?: string;
+  disabled?: boolean;
+  dataTestId?: string;
 }
 
 /**
@@ -150,13 +152,15 @@ export const PanelRefreshButton: React.FC<PanelRefreshButtonProps> = ({
   onRefresh,
   loading,
   title,
+  disabled = false,
+  dataTestId,
 }) => {
   const { spinClass, handleClick } = useRefreshSpin(onRefresh, loading);
   return (
     <Button
       {...PANEL_HEADER_TOKENS.actionButton}
       onClick={handleClick}
-      disabled={!!spinClass}
+      disabled={disabled || !!spinClass}
       icon={
         <HugeiconsIcon
           icon={Refresh04Icon}
@@ -167,6 +171,8 @@ export const PanelRefreshButton: React.FC<PanelRefreshButtonProps> = ({
         />
       }
       title={title}
+      aria-label={title ?? "Refresh"}
+      data-testid={dataTestId}
     />
   );
 };

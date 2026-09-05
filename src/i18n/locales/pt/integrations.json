@@ -106,6 +106,8 @@
     "quota": {
       "title": "Informações de cota",
       "plan": "Plano",
+      "balance": "Saldo",
+      "payAsYouGo": "Pagamento conforme o uso",
       "includedRequests": "Solicitações incluídas",
       "cursorIncludedRequests": "Cota Auto/Composer",
       "quotaUsage": "Uso da cota",

@@ -13,8 +13,8 @@ import {
   LaunchpadActionCard,
 } from "@src/features/SessionCreator/components/LaunchpadActionGrid";
 import {
+  Coins01Icon,
   Download01Icon,
-  GaugeIcon,
   HugeiconsIcon,
   ImportIcon,
   Key02Icon,
@@ -27,6 +27,8 @@ import {
   CHAT_PANEL_CREATE_TARGET,
   type ChatPanelCreateTarget,
 } from "@src/store/ui/chatPanelAtom";
+
+import { StartPageQuotaModal } from "./StartPageQuotaModal";
 
 type StartPageView = "session" | "work-item" | "more";
 
@@ -51,7 +53,6 @@ interface ChatPanelStartPageProps {
   onAddApiKey: () => void;
   onCreateTarget: (target: string) => void;
   onInstallLatestUpdate: () => void;
-  onShowRuntime: () => void;
   onProjectAgentModeChange: (enabled: boolean) => void;
   onWorkItemAgentModeChange: (enabled: boolean) => void;
   projectAgentMode: boolean;
@@ -101,7 +102,6 @@ export function ChatPanelStartPage({
   onAddApiKey,
   onCreateTarget,
   onInstallLatestUpdate,
-  onShowRuntime,
   onProjectAgentModeChange,
   onWorkItemAgentModeChange,
   projectAgentMode,
@@ -115,6 +115,7 @@ export function ChatPanelStartPage({
   );
   const [isImportSessionDialogOpen, setIsImportSessionDialogOpen] =
     useState(false);
+  const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false);
   const availableUpdate = useAvailableAppUpdate();
   const importSessionAction: LaunchpadAction = {
     id: "import-session",
@@ -144,18 +145,18 @@ export function ChatPanelStartPage({
     onClick: onAddApiKey,
     tone: "neutral",
   };
-  const showRuntimeAction: LaunchpadAction = {
-    id: "show-runtime",
-    title: t("chat.startPage.showRuntime.title"),
+  const showQuotaAction: LaunchpadAction = {
+    id: "show-quota",
+    title: t("chat.startPage.showQuota.title"),
     icon: (
       <HugeiconsIcon
-        icon={GaugeIcon}
-        data-icon="gauge"
+        icon={Coins01Icon}
+        data-icon="coins"
         size={16}
         strokeWidth={1.8}
       />
     ),
-    onClick: onShowRuntime,
+    onClick: () => setIsQuotaModalOpen(true),
     tone: "neutral",
   };
   const utilityActions: LaunchpadAction[] = availableUpdate?.available
@@ -176,9 +177,9 @@ export function ChatPanelStartPage({
         },
         importSessionAction,
         addApiKeyAction,
-        showRuntimeAction,
+        showQuotaAction,
       ]
-    : [importSessionAction, addApiKeyAction, showRuntimeAction];
+    : [importSessionAction, addApiKeyAction, showQuotaAction];
   const selectedMoreTarget = createTargetOptions.some(
     (option) => option.value === createTarget
   )
@@ -392,6 +393,10 @@ export function ChatPanelStartPage({
           onClose={() => setIsImportSessionDialogOpen(false)}
         />
       )}
+      <StartPageQuotaModal
+        visible={isQuotaModalOpen}
+        onClose={() => setIsQuotaModalOpen(false)}
+      />
     </div>
   );
 }

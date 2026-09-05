@@ -109,7 +109,7 @@ describe("StartPageQuotaGrid", () => {
     expect(quotaCardIndex).toBeGreaterThan(refreshIndex);
     expect(markup).toContain('data-testid="quota-refresh-controls"');
     expect(markup).toContain(
-      'class="sticky top-0 z-20 -mx-4 bg-chat-pane px-4 pb-1"'
+      'class="flex min-h-9 items-center justify-between gap-3 -mx-4 bg-chat-pane px-4 pt-2 pb-1"'
     );
     expect(markup).toContain("flex flex-col gap-3 @container/quota");
     expect(markup).toContain("kanban.dataSource.views.quota");
@@ -141,6 +141,36 @@ describe("StartPageQuotaGrid", () => {
     expect(markup).not.toContain("chat.startPage.hints.previous");
     expect(markup).not.toContain("chat.startPage.hints.next");
     expect(markup).not.toContain("1 / 2");
+  });
+
+  it("can move refresh controls into an owning modal header", async () => {
+    const onRefreshControlChange = vi.fn();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        createElement(StartPageQuotaGrid, {
+          showHeader: false,
+          onRefreshControlChange,
+        })
+      );
+    });
+
+    expect(
+      container.querySelector('[data-testid="quota-refresh-controls"]')
+    ).toBeNull();
+    expect(onRefreshControlChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        disabled: false,
+        onRefresh: expect.any(Function),
+        refreshing: false,
+      })
+    );
+
+    act(() => root.unmount());
+    container.remove();
   });
 
   it("bounds account refreshes and stops queued work when unmounted", async () => {

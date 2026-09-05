@@ -16,7 +16,7 @@ vi.mock("@src/components/ModelIcon", () => ({
 }));
 
 describe("RuntimeScanningPanel", () => {
-  it("renders only the demand-loaded scanning inventory", () => {
+  it("waits for the inventory before mounting either the settings or table structure", () => {
     const markup = renderToStaticMarkup(
       createElement(
         Provider,
@@ -25,11 +25,13 @@ describe("RuntimeScanningPanel", () => {
       )
     );
 
-    expect(markup).toContain("table-expanded-no-hover");
-    expect(markup).toContain("table-settings-expanded-compact");
-    expect(markup).toContain("tabs.all");
-    expect(markup).toContain("tabs.apps");
-    expect(markup).toContain("tabs.clis");
+    expect(markup).toContain('data-testid="runtime-scanning-title"');
+    expect(markup).toContain("views.scanning");
+    expect(markup).not.toContain("table-expanded-no-hover");
+    expect(markup).not.toContain("table-settings-expanded-compact");
+    expect(markup).not.toContain("tabs.all");
+    expect(markup).not.toContain("tabs.apps");
+    expect(markup).not.toContain("tabs.clis");
     expect(markup).not.toContain("data-source-view-usage");
     expect(markup).not.toContain("data-source-scroll-region");
   });

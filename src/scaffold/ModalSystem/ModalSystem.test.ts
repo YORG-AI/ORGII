@@ -150,4 +150,33 @@ describe("Modal opening focus", () => {
       document.querySelector('[data-testid="ok"]')
     );
   });
+
+  it("places supplied header actions before the close button", () => {
+    act(() => {
+      root.render(
+        createElement(
+          Modal,
+          {
+            visible: true,
+            title: "Quota",
+            headerActions: createElement(
+              "button",
+              { "data-testid": "refresh" },
+              "Refresh"
+            ),
+          },
+          createElement("div", null, "Body")
+        )
+      );
+    });
+
+    const refresh = document.querySelector('[data-testid="refresh"]');
+    const close = document.querySelector('button[title="Close"]');
+    if (!refresh || !close) {
+      throw new Error("Expected the refresh action and close button");
+    }
+    expect(
+      refresh.compareDocumentPosition(close) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
 });

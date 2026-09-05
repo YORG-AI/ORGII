@@ -909,8 +909,8 @@
       "addApiKey": {
         "title": "新增 API 金鑰"
       },
-      "showRuntime": {
-        "title": "顯示執行階段"
+      "showQuota": {
+        "title": "查看配額"
       },
       "installLatestUpdate": {
         "title": "安裝最新更新"

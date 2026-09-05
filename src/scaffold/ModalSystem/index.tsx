@@ -98,6 +98,8 @@ interface ModalProps {
   };
   /** Custom close icon */
   closeIcon?: React.ReactNode;
+  /** Additional icon-only actions displayed before the close button. */
+  headerActions?: React.ReactNode;
   /** Additional className for the modal container */
   className?: string;
   /** Additional className for the modal body */
@@ -140,6 +142,7 @@ const Modal: React.FC<ModalProps> = ({
   okButtonProps,
   cancelButtonProps,
   closeIcon,
+  headerActions,
   className = "",
   bodyClassName = "p-3",
   closable = true,
@@ -406,23 +409,28 @@ const Modal: React.FC<ModalProps> = ({
             <PanelHeader
               title={typeof title === "string" ? title : undefined}
               actions={
-                closable ? (
-                  <Button
-                    {...PANEL_HEADER_TOKENS.actionButton}
-                    icon={
-                      closeIcon || (
-                        <HugeiconsIcon
-                          icon={Cancel01Icon}
-                          data-icon="x"
-                          size={PANEL_HEADER_TOKENS.buttonIconSize}
-                          strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
-                        />
-                      )
-                    }
-                    onClick={handleClose}
-                    title="Close"
-                    htmlType="button"
-                  />
+                headerActions || closable ? (
+                  <div className="flex items-center gap-1">
+                    {headerActions}
+                    {closable ? (
+                      <Button
+                        {...PANEL_HEADER_TOKENS.actionButton}
+                        icon={
+                          closeIcon || (
+                            <HugeiconsIcon
+                              icon={Cancel01Icon}
+                              data-icon="x"
+                              size={PANEL_HEADER_TOKENS.buttonIconSize}
+                              strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
+                            />
+                          )
+                        }
+                        onClick={handleClose}
+                        title="Close"
+                        htmlType="button"
+                      />
+                    ) : null}
+                  </div>
                 ) : undefined
               }
             >

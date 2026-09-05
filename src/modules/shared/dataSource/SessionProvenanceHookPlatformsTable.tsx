@@ -23,12 +23,7 @@ import SettingsTable, {
 import Switch from "@src/components/Switch";
 import Tag, { type TagProps } from "@src/components/Tag";
 import { INFO_CARD_TOKENS } from "@src/config/detailPanelTokens";
-import {
-  Alert01Icon,
-  ComputerTerminal01Icon,
-  HugeiconsIcon,
-  Refresh04Icon,
-} from "@src/icons";
+import { Alert01Icon, ComputerTerminal01Icon, HugeiconsIcon } from "@src/icons";
 import {
   SECTION_GAP_CLASSES,
   SectionContainer,
@@ -44,6 +39,7 @@ import { copyText } from "@src/util/data/clipboard";
 import { formatRelativeElapsedShort } from "@src/util/data/formatters/date";
 import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
 
+import { RuntimeRefreshButton } from "./RuntimeSectionHeader";
 import SessionProvenanceSourceIcon from "./SessionProvenanceSourceIcon";
 import { tildePath } from "./sourcePath";
 import { startVisibilityAwarePolling } from "./visibilityPolling";
@@ -484,21 +480,12 @@ const SessionProvenanceHookPlatformsTable: React.FC = () => {
           onSearchClear: () => setSearchQuery(""),
           searchInputSize: "default",
           rightContent: (
-            <Button
-              variant="secondary"
-              size="default"
-              loading={refreshing}
-              icon={
-                <HugeiconsIcon
-                  icon={Refresh04Icon}
-                  data-icon="refresh-cw"
-                  size={14}
-                />
-              }
-              onClick={() => void loadStatuses()}
-            >
-              {tCommon("actions.refresh")}
-            </Button>
+            <RuntimeRefreshButton
+              label={tCommon("actions.refresh")}
+              onRefresh={() => void loadStatuses()}
+              refreshing={refreshing}
+              dataTestId="session-provenance-hooks-refresh"
+            />
           ),
         }}
         expandable={{

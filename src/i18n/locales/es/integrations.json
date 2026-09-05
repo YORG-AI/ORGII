@@ -102,6 +102,8 @@
     "quota": {
       "title": "Información de cuota",
       "plan": "Plan",
+      "balance": "Saldo",
+      "payAsYouGo": "Pago por uso",
       "includedRequests": "Solicitudes incluidas",
       "cursorIncludedRequests": "Cuota Auto/Composer",
       "quotaUsage": "Uso de cuota",

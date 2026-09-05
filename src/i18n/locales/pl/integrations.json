@@ -103,6 +103,8 @@
     "quota": {
       "title": "Informacje o limicie",
       "plan": "Plan",
+      "balance": "Saldo",
+      "payAsYouGo": "Płatność za użycie",
       "includedRequests": "Zapytania w pakiecie",
       "cursorIncludedRequests": "Limit Auto/Composer",
       "quotaUsage": "Zużycie limitu",

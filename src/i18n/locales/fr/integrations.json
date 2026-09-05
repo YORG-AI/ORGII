@@ -105,6 +105,8 @@
     "quota": {
       "title": "Informations de quota",
       "plan": "Plan",
+      "balance": "Solde",
+      "payAsYouGo": "Paiement à l’utilisation",
       "includedRequests": "Requêtes incluses",
       "cursorIncludedRequests": "Quota Auto/Composer",
       "quotaUsage": "Utilisation du quota",
