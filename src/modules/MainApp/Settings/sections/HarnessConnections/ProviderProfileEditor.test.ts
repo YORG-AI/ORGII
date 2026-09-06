@@ -4,13 +4,13 @@ import { type Root, createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
-  ClaudeProviderProfile,
   HarnessConnectionView,
+  HarnessProviderProfile,
 } from "@src/api/tauri/rpc/schemas/agentOrgs";
 
-import ClaudeProfileEditor from "./ClaudeProfileEditor";
-import { newClaudeProfile } from "./useClaudeProfileEditor";
+import ProviderProfileEditor from "./ProviderProfileEditor";
 import { refreshHarnessConnections } from "./useHarnessConnection";
+import { newProviderProfile } from "./useProviderProfileEditor";
 
 const mocks = vi.hoisted(() => ({
   status: vi.fn(),
@@ -92,9 +92,11 @@ async function input(label: string, value: string) {
     element.dispatchEvent(new Event("input", { bubbles: true }));
   });
 }
-async function mount(target: ClaudeProviderProfile["target"] = "claude_code") {
+async function mount(target: HarnessProviderProfile["target"] = "claude_code") {
   await act(async () =>
-    root.render(createElement(ClaudeProfileEditor, { target, onAdd: vi.fn() }))
+    root.render(
+      createElement(ProviderProfileEditor, { target, onAdd: vi.fn() })
+    )
   );
 }
 async function createAndSave() {
@@ -137,7 +139,7 @@ beforeEach(() => {
   };
   mocks.status.mockImplementation(async () => structuredClone(view));
   mocks.saveProfile.mockImplementation(
-    async ({ profile }: { profile: ClaudeProviderProfile }) => {
+    async ({ profile }: { profile: HarnessProviderProfile }) => {
       const saved = { ...profile, revision: profile.revision + 1 };
       view.profiles = [saved];
       return saved;
@@ -154,7 +156,7 @@ afterEach(async () => {
   refreshHarnessConnections();
 });
 
-describe("ClaudeProfileEditor", () => {
+describe("ProviderProfileEditor", () => {
   it("renders mapping rows and saves without applying, then requires tests for activation", async () => {
     await mount();
     await click("claudeProfiles.new");
@@ -251,7 +253,7 @@ describe("ClaudeProfileEditor", () => {
   });
   it("marks saved updates pending without relabeling the applied revision", async () => {
     const first = {
-      ...newClaudeProfile("claude_code", "Profile", view),
+      ...newProviderProfile("claude_code", "Profile", view),
       revision: 1,
     };
     view.profiles = [{ ...first, revision: 2 }];
@@ -274,4 +276,72 @@ describe("ClaudeProfileEditor", () => {
     expect(mocks.apply).not.toHaveBeenCalled();
     expect(mocks.saveProfile).not.toHaveBeenCalled();
   });
+});
+
+it("saves and activates custom Codex models with reasoning and limits without Claude roles", async () => {
+  view.config.agentName = "codex";
+  view.choices[0].models = [];
+  await mount("codex");
+  await click("claudeProfiles.new");
+  expect(container.textContent).not.toContain("claudeProfiles.mapping");
+  await input("codexProfiles.model", "vendor/custom-reasoner");
+  await input(
+    "harnessConnections.endpoint",
+    "https://gateway.example/prefix/v1"
+  );
+  await input("codexProfiles.contextWindow", "64000");
+  await input("codexProfiles.autoCompactTokenLimit", "50000");
+  const select = container.querySelector<HTMLSelectElement>(
+    'select[aria-label="codexProfiles.reasoning"]'
+  )!;
+  await act(async () => {
+    select.value = "high";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await click("claudeProfiles.save");
+  expect(mocks.saveProfile.mock.calls[0][0].profile).toMatchObject({
+    target: "codex",
+    authScheme: "bearer",
+    endpoint: "https://gateway.example/prefix/v1",
+    models: {
+      model: "vendor/custom-reasoner",
+      reasoningEffort: "high",
+      contextWindow: 64000,
+      autoCompactTokenLimit: 50000,
+    },
+  });
+  expect(mocks.apply).not.toHaveBeenCalled();
+  await click("claudeProfiles.test");
+  await click("harnessConnections.apply");
+  expect(mocks.apply.mock.calls[0][0]).toMatchObject({
+    agentName: "codex",
+    model: "vendor/custom-reasoner",
+    routing: "direct",
+    receipt: "receipt",
+  });
+  await click("claudeProfiles.test");
+  await input("codexProfiles.contextWindow", "65000");
+  expect(button("harnessConnections.apply").disabled).toBe(true);
+});
+it("keeps Codex manual entry available after failed discovery and discards late discovery on cancel", async () => {
+  view.config.agentName = "codex";
+  await mount("codex");
+  await click("claudeProfiles.new");
+  mocks.fetchModels.mockRejectedValueOnce(new Error("No model catalog"));
+  await click("claudeProfiles.fetchModels");
+  expect(container.textContent).toContain("No model catalog");
+  await input("codexProfiles.model", "manual/model");
+  await click("claudeProfiles.save");
+  let complete!: (value: string[]) => void;
+  mocks.fetchModels.mockImplementationOnce(
+    () =>
+      new Promise<string[]>((resolve) => {
+        complete = resolve;
+      })
+  );
+  await click("claudeProfiles.fetchModels");
+  await click("harnessConnections.cancel");
+  await act(async () => complete(["late/model"]));
+  expect(container.querySelector('option[value="late/model"]')).toBeNull();
+  expect(mocks.cancelTest).toHaveBeenCalled();
 });

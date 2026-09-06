@@ -2,8 +2,8 @@ use super::tests::{OrgiiHomeGuard, TEST_ENV_LOCK};
 use super::{claude_models::*, provider_profiles::*, *};
 use std::{collections::BTreeMap, sync::Mutex};
 
-fn profile(target: &str) -> ClaudeProviderProfile {
-    ClaudeProviderProfile {
+fn profile(target: &str) -> HarnessProviderProfile {
+    HarnessProviderProfile {
         id: "fixture-profile".into(),
         revision: 0,
         name: "Gateway profile".into(),
@@ -11,7 +11,7 @@ fn profile(target: &str) -> ClaudeProviderProfile {
         key_id: "vault-reference".into(),
         endpoint: "https://gateway.example/prefix".into(),
         auth_scheme: "x-api-key".into(),
-        models: ClaudeModels {
+        models: super::profile_models::ProfileModels::Claude(ClaudeModels {
             default_role: ClaudeRole::Opus,
             roles: [
                 ClaudeRole::Sonnet,
@@ -31,16 +31,14 @@ fn profile(target: &str) -> ClaudeProviderProfile {
                 )
             })
             .collect(),
-        },
+        }),
     }
 }
-fn connection(profile: ClaudeProviderProfile) -> DirectConnection {
+fn connection(profile: HarnessProviderProfile) -> DirectConnection {
     DirectConnection {
         key_id: profile.key_id.clone(),
         provider: "custom_api".into(),
-        model: profile.models.roles[&profile.models.default_role]
-            .model
-            .clone(),
+        model: profile.models.default_model().unwrap().to_string(),
         base_url: profile.endpoint.clone(),
         api_key: "synthetic-native-secret".into(),
         desktop_auth_scheme: (profile.target == "claude_desktop")
@@ -69,7 +67,7 @@ impl Drop for ExternalHome {
 #[test]
 fn cli_writer_maps_all_roles_and_clears_stale_capabilities_without_leaking_labels_into_ids() {
     let mut p = profile("claude_code");
-    p.models.roles.insert(
+    p.models.claude_mut().unwrap().roles.insert(
         ClaudeRole::Subagent,
         ClaudeModel {
             model: "vendor/worker".into(),
@@ -107,7 +105,7 @@ fn cli_writer_maps_all_roles_and_clears_stale_capabilities_without_leaking_label
 #[test]
 fn desktop_uses_native_family_tiers_exact_ids_and_default_order_even_when_ids_repeat() {
     let mut p = profile("claude_desktop");
-    for entry in p.models.roles.values_mut() {
+    for entry in p.models.claude_mut().unwrap().roles.values_mut() {
         entry.model = "vendor/shared".into();
     }
     let generated = desktop::generate(&BTreeMap::new(), &connection(p), None).unwrap();
@@ -138,13 +136,23 @@ fn invalid_profiles_are_rejected_before_persistence() {
     p.target = "codex".into();
     assert!(save(p).is_err());
     let mut p = original.clone();
-    p.models.roles.remove(&ClaudeRole::Fable);
+    p.models
+        .claude_mut()
+        .unwrap()
+        .roles
+        .remove(&ClaudeRole::Fable);
     assert!(save(p).is_err());
     let mut p = original.clone();
-    p.models.roles.get_mut(&ClaudeRole::Sonnet).unwrap().model = "injected\nmodel".into();
+    p.models
+        .claude_mut()
+        .unwrap()
+        .roles
+        .get_mut(&ClaudeRole::Sonnet)
+        .unwrap()
+        .model = "injected\nmodel".into();
     assert!(save(p).is_err());
     let mut p = original.clone();
-    p.models.default_role = ClaudeRole::Subagent;
+    p.models.claude_mut().unwrap().default_role = ClaudeRole::Subagent;
     assert!(save(p).is_err());
     let mut p = original;
     p.auth_scheme = "unknown".into();
@@ -169,6 +177,8 @@ fn save_apply_switch_and_restore_keep_catalog_and_native_state_independent() {
     let mut edited = first.clone();
     edited
         .models
+        .claude_mut()
+        .unwrap()
         .roles
         .get_mut(&ClaudeRole::Opus)
         .unwrap()
@@ -205,18 +215,22 @@ fn save_apply_switch_and_restore_keep_catalog_and_native_state_independent() {
 #[test]
 fn repeated_models_are_tested_once_and_capability_changes_remain_distinct_configuration() {
     let mut p = profile("claude_code");
-    for entry in p.models.roles.values_mut() {
+    for entry in p.models.claude_mut().unwrap().roles.values_mut() {
         entry.model = "same-model".into();
     }
     assert_eq!(p.models.request_models().len(), 1);
     let before = serde_json::to_string(&p).unwrap();
     p.models
+        .claude_mut()
+        .unwrap()
         .roles
         .get_mut(&ClaudeRole::Sonnet)
         .unwrap()
         .context_1m = true;
     assert_ne!(serde_json::to_string(&p).unwrap(), before);
     p.models
+        .claude_mut()
+        .unwrap()
         .roles
         .get_mut(&ClaudeRole::Haiku)
         .unwrap()
@@ -295,4 +309,171 @@ fn catalog_is_bounded_and_conflicting_writers_cannot_replace_it() {
     assert!(list("claude_code").is_err());
     assert!(save(profile("claude_code")).is_err());
     assert_eq!(std::fs::read_to_string(path).unwrap(), "{malformed-catalog");
+}
+
+fn codex_profile() -> HarnessProviderProfile {
+    serde_json::from_value(serde_json::json!({
+        "id":"codex-fixture", "revision":0, "name":"Responses gateway", "target":"codex",
+        "keyId":"vault-reference", "endpoint":"https://gateway.example/prefix/v1", "authScheme":"bearer",
+        "models":{"model":"vendor/reasoner", "reasoningEffort":"high", "contextWindow":64000,"autoCompactTokenLimit":50000}
+    })).unwrap()
+}
+
+#[test]
+fn codex_profiles_write_exact_model_effort_and_limits_preserve_auth_and_restore() {
+    let _lock = TEST_ENV_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let _home = OrgiiHomeGuard::set(&temp.path().join("orgii"));
+    let _external = ExternalHome::set(temp.path());
+    let config = temp.path().join(".codex/config.toml");
+    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+    let original = "model = 'old'\nmodel_reasoning_effort = 'low'\n[mcp_servers.fixture]\ncommand = 'original'\n";
+    std::fs::write(&config, original).unwrap();
+    let auth = config.with_file_name("auth.json");
+    std::fs::write(&auth, "original-subscription-login").unwrap();
+    let first = save(codex_profile()).unwrap();
+    assert_eq!(list("codex").unwrap(), vec![first.clone()]);
+    assert!(list("claude_code").unwrap().is_empty());
+    assert_eq!(std::fs::read_to_string(&config).unwrap(), original);
+    enable_direct("codex", connection(first.clone()), None).unwrap();
+    let raw = std::fs::read_to_string(&config).unwrap();
+    let native: toml::Value = toml::from_str(&raw).unwrap();
+    assert_eq!(native["model"].as_str(), Some("vendor/reasoner"));
+    assert_eq!(native["model_reasoning_effort"].as_str(), Some("high"));
+    assert_eq!(native["model_context_window"].as_integer(), Some(64000));
+    assert_eq!(
+        native["model_auto_compact_token_limit"].as_integer(),
+        Some(50000)
+    );
+    assert_eq!(
+        native["model_providers"]["orgii"]["base_url"].as_str(),
+        Some("https://gateway.example/prefix/v1")
+    );
+    assert_eq!(
+        native["model_providers"]["orgii"]["wire_api"].as_str(),
+        Some("responses")
+    );
+    assert_eq!(
+        native["model_providers"]["orgii"]["experimental_bearer_token"].as_str(),
+        Some("synthetic-native-secret")
+    );
+    assert_eq!(
+        native["mcp_servers"]["fixture"]["command"].as_str(),
+        Some("original")
+    );
+    assert_eq!(applied("codex").unwrap(), Some(first.clone()));
+    assert!(delete("codex", &first.id, first.revision).is_err());
+    let mut edited = first.clone();
+    edited.models =
+        super::profile_models::ProfileModels::Codex(super::profile_models::CodexModels {
+            model: "another/model".into(),
+            reasoning_effort: None,
+            context_window: None,
+            auto_compact_token_limit: None,
+        });
+    let edited = save(edited).unwrap();
+    assert!(enable_direct("codex", connection(first), None).is_err());
+    assert_eq!(std::fs::read_to_string(&config).unwrap(), raw);
+    enable_direct("codex", connection(edited.clone()), None).unwrap();
+    let raw = std::fs::read_to_string(&config).unwrap();
+    assert!(!raw.contains("model_reasoning_effort"));
+    assert!(!raw.contains("model_context_window"));
+    assert!(!raw.contains("model_auto_compact_token_limit"));
+    assert_eq!(
+        std::fs::read_to_string(&auth).unwrap(),
+        "original-subscription-login"
+    );
+    std::fs::write(&config, format!("{raw}\n# external edit\n")).unwrap();
+    assert!(enable_direct("codex", connection(edited), None).is_err());
+    assert!(operations::restore_agent_default_unlocked("codex", false).is_err());
+    std::fs::write(&config, &raw).unwrap();
+    operations::restore_agent_default_unlocked("codex", false).unwrap();
+    assert_eq!(std::fs::read_to_string(&config).unwrap(), original);
+    assert!(applied("codex").unwrap().is_none());
+}
+
+#[test]
+fn codex_profile_validation_rejects_mixed_models_auth_and_invalid_limits() {
+    let base = serde_json::to_value(codex_profile()).unwrap();
+    for (field, value) in [
+        ("model", serde_json::json!("bad model")),
+        ("reasoningEffort", serde_json::json!("made-up")),
+        ("contextWindow", serde_json::json!(0)),
+        ("autoCompactTokenLimit", serde_json::json!(64001)),
+    ] {
+        let mut json = base.clone();
+        json["models"][field] = value;
+        let p: HarnessProviderProfile = serde_json::from_value(json).unwrap();
+        assert!(save(p).is_err());
+    }
+    for (field, value) in [("target", "claude_code"), ("authScheme", "x-api-key")] {
+        let mut json = base.clone();
+        json[field] = value.into();
+        assert!(save(serde_json::from_value(json).unwrap()).is_err());
+    }
+    let mut p = codex_profile();
+    if let super::profile_models::ProfileModels::Codex(m) = &mut p.models {
+        m.context_window = None;
+    }
+    assert!(save(p).is_err());
+    let mut json = base;
+    json["models"]["roles"] = serde_json::json!({});
+    assert!(serde_json::from_value::<HarnessProviderProfile>(json).is_err());
+}
+
+#[test]
+fn codex_overrides_and_mismatched_native_connection_cannot_bypass_tested_profile() {
+    for raw in ["profile='work'", "model_catalog_json='custom.json'"] {
+        assert!(direct::generate_direct_configs(
+            "codex",
+            &BTreeMap::from([("config".into(), raw.into())]),
+            &connection(codex_profile()),
+            None
+        )
+        .is_err());
+    }
+    let mut wrong = connection(codex_profile());
+    wrong.model = "untested".into();
+    assert!(direct::generate_direct_configs("codex", &BTreeMap::new(), &wrong, None).is_err());
+    assert!(direct::generate_direct_configs(
+        "claude_code",
+        &BTreeMap::new(),
+        &connection(codex_profile()),
+        None
+    )
+    .is_err());
+}
+
+#[test]
+fn leaving_codex_profile_for_proxy_or_quick_connection_clears_only_profile_model_settings() {
+    let _lock = TEST_ENV_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let _home = OrgiiHomeGuard::set(&temp.path().join("orgii"));
+    let _external = ExternalHome::set(temp.path());
+    let p = save(codex_profile()).unwrap();
+    enable_direct("codex", connection(p.clone()), None).unwrap();
+    let mut quick = connection(p.clone());
+    quick.profile = None;
+    enable_direct("codex", quick, None).unwrap();
+    let path = temp.path().join(".codex/config.toml");
+    assert!(!std::fs::read_to_string(&path)
+        .unwrap()
+        .contains("model_context_window"));
+    enable_direct("codex", connection(p), None).unwrap();
+    operations::enable_agent_orgii_managed_unlocked(
+        "codex",
+        Some("vault-reference".into()),
+        Some("custom_api".into()),
+        Some("proxy-model".into()),
+        false,
+    )
+    .unwrap();
+    let raw = std::fs::read_to_string(path).unwrap();
+    for field in [
+        "model_reasoning_effort",
+        "model_context_window",
+        "model_auto_compact_token_limit",
+    ] {
+        assert!(!raw.contains(field));
+    }
 }

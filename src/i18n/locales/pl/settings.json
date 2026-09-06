@@ -1452,5 +1452,16 @@
     "fetchDone": "Lista wczytana; wybierz lub wpisz ID",
     "testDone": "Wywołanie narzędzia z odpowiedzią i strumieniowanie sprawdzone; wynik wygasa po 15 minutach",
     "role": "Rola"
+  },
+  "codexProfiles": {
+    "model": "ID żądanego modelu",
+    "modelHelp": "Wpisz ID modelu obsługiwanego przez endpoint Responses; pobranie listy jest opcjonalne",
+    "reasoning": "Poziom rozumowania",
+    "reasoningHelp": "Wybierz poziom obsługiwany przez model; test połączenia sprawdzi to ustawienie",
+    "default": "Domyślne Codex",
+    "contextWindow": "Okno kontekstu (tokeny)",
+    "contextWindowHelp": "Opcjonalna deklaracja pojemności dostawcy; nie zwiększa limitu modelu",
+    "autoCompactTokenLimit": "Automatyczna kompresja przy (tokeny)",
+    "autoCompactTokenLimitHelp": "Opcjonalny próg; wymaga okna kontekstu i nie może go przekraczać"
   }
 }

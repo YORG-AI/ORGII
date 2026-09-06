@@ -1449,5 +1449,16 @@
     "fetchDone": "Đã tải danh sách; chọn hoặc nhập ID",
     "testDone": "Đã xác minh lượt gọi công cụ, kết quả trả về và truyền luồng; kết quả kiểm tra hết hạn sau 15 phút",
     "role": "Vai trò"
+  },
+  "codexProfiles": {
+    "model": "ID mô hình yêu cầu",
+    "modelHelp": "Nhập ID mô hình được điểm cuối Responses hỗ trợ; việc lấy danh sách là tùy chọn",
+    "reasoning": "Mức suy luận",
+    "reasoningHelp": "Chọn mức được mô hình hỗ trợ; kiểm tra kết nối sẽ xác minh thiết lập này",
+    "default": "Mặc định Codex",
+    "contextWindow": "Cửa sổ ngữ cảnh (token)",
+    "contextWindowHelp": "Khai báo tùy chọn về dung lượng nhà cung cấp; không tăng giới hạn của mô hình",
+    "autoCompactTokenLimit": "Tự nén tại (token)",
+    "autoCompactTokenLimitHelp": "Ngưỡng nén tùy chọn; cần có cửa sổ ngữ cảnh và không được vượt quá giới hạn đó"
   }
 }

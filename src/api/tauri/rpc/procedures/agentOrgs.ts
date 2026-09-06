@@ -121,13 +121,15 @@ const managedConfig = {
 
 const connections = {
   saveProfile: defineProcedure("harness_profile_save")
-    .input(z.object({ profile: schemas.agentOrgs.ClaudeProviderProfileSchema }))
-    .output(schemas.agentOrgs.ClaudeProviderProfileSchema)
+    .input(
+      z.object({ profile: schemas.agentOrgs.HarnessProviderProfileSchema })
+    )
+    .output(schemas.agentOrgs.HarnessProviderProfileSchema)
     .build(),
   deleteProfile: defineProcedure("harness_profile_delete")
     .input(
       z.object({
-        agentName: z.enum(["claude_code", "claude_desktop"]),
+        agentName: z.enum(["claude_code", "claude_desktop", "codex"]),
         id: z.string(),
         revision: z.number().int().nonnegative(),
       })
@@ -136,7 +138,7 @@ const connections = {
   fetchModels: defineProcedure("harness_profile_models")
     .input(
       z.object({
-        agentName: z.enum(["claude_code", "claude_desktop"]),
+        agentName: z.enum(["claude_code", "claude_desktop", "codex"]),
         keyId: z.string(),
         endpoint: z.string(),
         authScheme: z.enum(["bearer", "x-api-key"]),

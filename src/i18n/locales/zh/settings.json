@@ -1563,5 +1563,16 @@
     "fetchDone": "模型列表已加载，可选择或手动输入 ID",
     "testDone": "工具调用往返和流式响应测试通过；测试凭证在 15 分钟后过期",
     "role": "模型角色"
+  },
+  "codexProfiles": {
+    "model": "请求模型 ID",
+    "modelHelp": "输入 Responses 端点支持的任意模型 ID，模型发现为可选操作",
+    "reasoning": "推理强度",
+    "reasoningHelp": "选择模型支持的强度，连接测试会验证此设置",
+    "default": "Codex 默认值",
+    "contextWindow": "上下文窗口（令牌）",
+    "contextWindowHelp": "可选的提供商容量声明，不会增加模型的实际上限",
+    "autoCompactTokenLimit": "自动压缩阈值（令牌）",
+    "autoCompactTokenLimitHelp": "可选的压缩阈值，需设置上下文窗口且不能超过其大小"
   }
 }

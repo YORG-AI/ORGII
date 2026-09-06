@@ -1449,5 +1449,16 @@
     "fetchDone": "Model listesi yüklendi; bir kimlik seçin veya girin",
     "testDone": "Araç çağrısı, dönüşü ve akış doğrulandı; test sonucu 15 dakika sonra geçersiz olur",
     "role": "Rol"
+  },
+  "codexProfiles": {
+    "model": "İstek modeli kimliği",
+    "modelHelp": "Responses uç noktasının desteklediği bir model kimliği girin; model keşfi isteğe bağlıdır",
+    "reasoning": "Akıl yürütme düzeyi",
+    "reasoningHelp": "Modelin desteklediği bir düzey seçin; bağlantı testi bu ayarı denetler",
+    "default": "Codex varsayılanı",
+    "contextWindow": "Bağlam penceresi (token)",
+    "contextWindowHelp": "İsteğe bağlı sağlayıcı kapasitesi beyanı; modelin sınırını artırmaz",
+    "autoCompactTokenLimit": "Otomatik sıkıştırma eşiği (token)",
+    "autoCompactTokenLimitHelp": "İsteğe bağlı eşik; bağlam penceresi gerektirir ve onu aşamaz"
   }
 }

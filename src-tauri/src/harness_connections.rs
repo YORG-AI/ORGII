@@ -2,7 +2,7 @@
 mod desktop;
 mod probe;
 mod profiles;
-use agent_cli::managed_config::provider_profiles::ClaudeProviderProfile;
+use agent_cli::managed_config::provider_profiles::HarnessProviderProfile;
 pub use profiles::*;
 
 use agent_cli::managed_config::{CliConfigManagedStatus, DirectConnection};
@@ -45,8 +45,8 @@ pub struct HarnessConnectionView {
     version: Option<String>,
     configuration_issue: Option<String>,
     desktop_options: Option<DesktopConnectionOptions>,
-    profiles: Vec<ClaudeProviderProfile>,
-    applied_profile: Option<ClaudeProviderProfile>,
+    profiles: Vec<HarnessProviderProfile>,
+    applied_profile: Option<HarnessProviderProfile>,
     choices: Vec<ConnectionChoice>,
 }
 
@@ -117,11 +117,7 @@ pub async fn harness_connection_status(
                         endpoint: result.as_ref().ok().map(|value| value.base_url.clone()),
                         requires_test: target == ConnectionTarget::ClaudeDesktop
                             || result.as_ref().is_ok_and(|value| value.requires_test),
-                        reason: if target != ConnectionTarget::Codex {
-                            validate_connection_key(&agent_name, key).err()
-                        } else {
-                            result.err()
-                        },
+                        reason: validate_connection_key(&agent_name, key).err(),
                     }
                 })
                 .collect();
@@ -140,7 +136,7 @@ pub async fn harness_connection_status(
     })
     .await
     .map_err(|_| "Connection lookup failed")?;
-    let (profiles, applied_profile) = if target != ConnectionTarget::Codex {
+    let (profiles, applied_profile) = {
         let target = config.agent_name.clone();
         tokio::task::spawn_blocking(move || {
             Ok::<_, String>((
@@ -150,8 +146,6 @@ pub async fn harness_connection_status(
         })
         .await
         .map_err(|_| "Profile lookup failed")??
-    } else {
-        (vec![], None)
     };
     Ok(HarnessConnectionView {
         profiles,
@@ -172,7 +166,7 @@ pub async fn harness_connection_test(
     model: String,
     request_id: String,
     desktop_options: Option<DesktopConnectionOptions>,
-    profile: Option<ClaudeProviderProfile>,
+    profile: Option<HarnessProviderProfile>,
 ) -> Result<String, String> {
     let (cancel, cancelled) = tokio::sync::oneshot::channel();
     {
@@ -193,7 +187,7 @@ pub async fn harness_connection_test(
             let models = profile.as_ref().map(|p| p.models.request_models().into_iter().map(str::to_string).collect::<Vec<_>>()).unwrap_or_else(|| vec![model.clone()]);
             for model in models {
                 connection.model = model;
-                probe::test(&connection).await.map_err(|error| format!("Model {}: {error}", connection.model))?;
+                probe::test(&connection, profile.as_ref().and_then(|p| p.models.reasoning_effort())).await.map_err(|error| format!("Model {}: {error}", connection.model))?;
             }
             Ok::<_, String>(connection)
         }) => result.unwrap_or_else(|_| Err("Connection test timed out".into())),
@@ -262,14 +256,14 @@ pub async fn harness_connection_apply(
     routing: String,
     desktop_options: Option<DesktopConnectionOptions>,
     receipt: Option<String>,
-    profile: Option<ClaudeProviderProfile>,
+    profile: Option<HarnessProviderProfile>,
     expected_hashes: std::collections::BTreeMap<String, Option<String>>,
 ) -> Result<CliConfigManagedStatus, String> {
     if !matches!(routing.as_str(), "direct" | "orgii_managed") {
         return Err("Unsupported routing mode".into());
     }
     if (agent_name == "claude_desktop" || profile.is_some()) && routing != "direct" {
-        return Err("Claude profiles support native direct connections only".into());
+        return Err("Provider profiles support native direct connections only".into());
     }
     verify_installed_version(&agent_name).await?;
     let connection = profiles::selection(

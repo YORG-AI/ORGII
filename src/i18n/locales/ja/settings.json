@@ -1449,5 +1449,16 @@
     "fetchDone": "モデル一覧を取得しました。ID を選択または入力してください",
     "testDone": "ツール呼び出しの往復とストリーミングに成功しました。テスト結果の有効期限は 15 分です",
     "role": "ロール"
+  },
+  "codexProfiles": {
+    "model": "リクエストモデル ID",
+    "modelHelp": "Responses エンドポイントが対応するモデル ID を入力できます。モデル取得は任意です",
+    "reasoning": "推論の強度",
+    "reasoningHelp": "モデルが対応する強度を選択してください。接続テストでこの設定を確認します",
+    "default": "Codex の既定値",
+    "contextWindow": "コンテキストウィンドウ（トークン）",
+    "contextWindowHelp": "プロバイダーの容量を任意で指定します。モデルの上限は増えません",
+    "autoCompactTokenLimit": "自動圧縮のしきい値（トークン）",
+    "autoCompactTokenLimitHelp": "任意の圧縮しきい値です。コンテキストウィンドウの設定が必要で、その値を超えることはできません"
   }
 }

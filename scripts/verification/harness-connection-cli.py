@@ -18,6 +18,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--writer", required=True)
     parser.add_argument("--claude-profiles", action="store_true", help="Verify all four native Claude role mappings")
+    parser.add_argument("--codex-profiles", action="store_true", help="Verify native Codex model and reasoning settings")
     args = parser.parse_args()
     writer = str(Path(args.writer).resolve())
     observed = []
@@ -72,6 +73,8 @@ def main():
     thread.start()
     try:
         cases = [("claude_profiles", "claude", role) for role in ("sonnet", "opus", "fable", "haiku")] if args.claude_profiles else [("codex", "codex", None), ("claude_code", "claude", None)]
+        if args.codex_profiles:
+            cases = [("codex_profiles", "codex", None)]
         for agent, command, role in cases:
             executable = shutil.which(command)
             if not executable:
@@ -83,10 +86,10 @@ def main():
                            CODEX_HOME=str(root / ".codex"), CLAUDE_CONFIG_DIR=str(root / ".claude"),
                            CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1", DISABLE_TELEMETRY="1")
                 endpoint = f"http://127.0.0.1:{server.server_port}"
-                subprocess.run([writer, agent, endpoint + ("/v1" if agent == "codex" else "")], env=env, cwd=root, check=True, timeout=15)
+                subprocess.run([writer, agent, endpoint + ("/v1" if command == "codex" else "")], env=env, cwd=root, check=True, timeout=15)
                 (root / ".claude.json").write_text(json.dumps({"hasCompletedOnboarding": True}))
                 before = len(observed)
-                arguments = ["exec", "--skip-git-repo-check", "--sandbox", "read-only", "Reply with ORGII_CONNECTION_OK"] if agent == "codex" else ["-p", "Reply with ORGII_CONNECTION_OK", "--tools", "", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}', "--setting-sources", "user", "--disable-slash-commands"]
+                arguments = ["exec", "--skip-git-repo-check", "--sandbox", "read-only", "Reply with ORGII_CONNECTION_OK"] if command == "codex" else ["-p", "Reply with ORGII_CONNECTION_OK", "--tools", "", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}', "--setting-sources", "user", "--disable-slash-commands"]
                 if role:
                     arguments.extend(["--model", role])
                 result = subprocess.run([executable, *arguments], env=env, cwd=root, capture_output=True, text=True, timeout=45)
@@ -99,6 +102,9 @@ def main():
                         assert api_key == "orgii-fixture-key" and authorization is None, "Explicit API key authentication was not used"
                     else:
                         assert authorization == "Bearer orgii-fixture-key", f"{agent} used a different credential"
+                    if args.codex_profiles:
+                        assert path == "/v1/responses", "Codex did not preserve the API base path"
+                        assert body.get("reasoning", {}).get("effort") == "high", "Codex did not use configured reasoning"
                     expected_model = f"fixture-{role}" if role else "fixture-model"
                     assert body["model"] == expected_model, f"{agent} {role} used {body['model']}, expected {expected_model}"
                 print(f"PASS {agent} {role or 'default'}: native generated config -> {len(requests)} local request(s) -> rendered response")

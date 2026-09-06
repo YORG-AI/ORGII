@@ -1449,5 +1449,16 @@
     "fetchDone": "Liste chargée ; sélectionnez ou saisissez un ID",
     "testDone": "Aller-retour d’outil et streaming validés ; le résultat expire après 15 minutes",
     "role": "Rôle"
+  },
+  "codexProfiles": {
+    "model": "ID du modèle demandé",
+    "modelHelp": "Saisissez un ID accepté par votre endpoint Responses ; la découverte est facultative",
+    "reasoning": "Effort de raisonnement",
+    "reasoningHelp": "Choisissez un niveau pris en charge par le modèle ; le test de connexion vérifie ce réglage",
+    "default": "Valeur par défaut de Codex",
+    "contextWindow": "Fenêtre de contexte (tokens)",
+    "contextWindowHelp": "Déclaration facultative de capacité du fournisseur ; ne relève pas la limite du modèle",
+    "autoCompactTokenLimit": "Compaction automatique à (tokens)",
+    "autoCompactTokenLimitHelp": "Seuil facultatif ; nécessite une fenêtre de contexte et ne peut pas la dépasser"
   }
 }

@@ -1461,5 +1461,16 @@
     "fetchDone": "模型清單已載入，可選擇或手動輸入 ID",
     "testDone": "工具呼叫往返和串流回應測試通過；測試憑證在 15 分鐘後到期",
     "role": "模型角色"
+  },
+  "codexProfiles": {
+    "model": "請求模型 ID",
+    "modelHelp": "輸入 Responses 端點支援的任意模型 ID，模型探索為選用操作",
+    "reasoning": "推理強度",
+    "reasoningHelp": "選擇模型支援的強度，連線測試會驗證此設定",
+    "default": "Codex 預設值",
+    "contextWindow": "上下文視窗（權杖）",
+    "contextWindowHelp": "選用的供應商容量宣告，不會增加模型的實際上限",
+    "autoCompactTokenLimit": "自動壓縮門檻（權杖）",
+    "autoCompactTokenLimitHelp": "選用的壓縮門檻，需設定上下文視窗且不能超過其大小"
   }
 }

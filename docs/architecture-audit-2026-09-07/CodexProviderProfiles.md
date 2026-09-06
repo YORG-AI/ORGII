@@ -1,0 +1,20 @@
+# Codex provider profile architecture review
+
+Acceptance criteria: Codex saves endpoint/model/effort/limits independently of the vault catalog; test and apply resolve the same complete revision; native config is transactional and reversible; existing Claude catalog JSON remains readable; target-specific concepts do not leak into the other forms.
+
+| Layer                  | Covered boundary                                                           | Finding / decision                                                                                                                                |
+| ---------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 Compilation          | Rust native adapter, key resolver, root commands, TypeScript schema and UI | Targeted tests, frontend typecheck/lint, and Clippy verify the changed call chain                                                                 |
+| 2 Deduplication        | ProviderProfileEditor, useProviderProfileEditor, provider_profiles catalog | Generalize the existing profile lifecycle instead of adding a separate Codex catalog/controller                                                   |
+| 3 Naming               | HarnessProviderProfile, ProfileModels, ResolvedProviderEndpoint            | Shared names no longer imply Claude-only ownership; Claude-specific model controls retain their names                                             |
+| 4 Semantic overloading | Target / key / endpoint / model / reasoning / capacity                     | Saved profile chooses the target and overrides endpoint/model; credential reference stays separate; context is a declaration                      |
+| 5 Defaults             | ProfileModels exhaustive match and validation                              | Codex accepts only its own model-settings shape and Bearer auth; unknown targets/settings fail before persistence                                 |
+| 6 Domain boundaries    | Native model forms                                                         | Claude role semantics remain in ClaudeModels; Codex settings remain in CodexModels; neither expands the executable agent registry                 |
+| 7 Discoverability      | Settings and guide                                                         | All three selectors mount the common editor; native default limitations and recovery are documented                                               |
+| 8 Wire                 | Native TOML, profile JSON, Responses HTTP                                  | Existing Claude JSON shape remains stable; Codex writes exact ID and effort; synthetic requests assert model/effort/path/auth                     |
+| 9 Entry-point parity   | Settings save/test/apply, native apply, old quick/proxy controls           | Full profile validation runs before save and at the native writer; test receipt binds the whole profile; legacy routes retain original validation |
+| 10 Resolver symmetry   | Endpoint, model, auth and key revision                                     | All fields resolve from one profile plus one current vault key; save normalizes the endpoint, apply re-resolves and rejects stale evidence        |
+
+All ten layers reviewed; no layer skipped. Frontend schema accepts the new Codex branch while preserving Claude payloads. No dependencies or SQL migration. Before downgrade, restore native config with the current build because older builds do not understand a Codex profile snapshot.
+
+The existing quick/proxy editor remains available in CLI details. Its transition out of a Codex profile explicitly clears the profile's optional model settings; unrelated native settings and subscription auth remain preserved. External native edits and named-profile/catalog overrides stop activation instead of silently redirecting the tested model.

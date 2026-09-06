@@ -1,11 +1,11 @@
 //! Profile commands resolve credentials only on the backend.
 use super::*;
 use agent_cli::managed_config::provider_profiles;
-use key_vault::harness_connections::{resolve_claude_profile, ConnectionAuthScheme};
+use key_vault::harness_connections::{resolve_provider_profile, ConnectionAuthScheme};
 use sha2::{Digest, Sha256};
 
 pub(super) fn resolve_profile(
-    profile: &ClaudeProviderProfile,
+    profile: &HarnessProviderProfile,
 ) -> Result<ResolvedHarnessConnection, String> {
     profile.validate()?;
     let key = KEY_SERVICE
@@ -19,12 +19,12 @@ pub(super) fn resolve_profile(
             ConnectionAuthScheme::Bearer
         }),
     };
-    let model = &profile.models.roles[&profile.models.default_role].model;
-    let mut connection = resolve_claude_profile(&profile.target, &key, model, &options)?;
+    let model = profile.models.default_model()?;
+    let mut connection = resolve_provider_profile(&profile.target, &key, model, &options)?;
     bind_revision(&mut connection, profile);
     Ok(connection)
 }
-fn bind_revision(connection: &mut ResolvedHarnessConnection, profile: &ClaudeProviderProfile) {
+fn bind_revision(connection: &mut ResolvedHarnessConnection, profile: &HarnessProviderProfile) {
     connection.revision = format!(
         "{:x}",
         Sha256::digest(
@@ -39,18 +39,13 @@ pub(super) fn selection(
     key: &str,
     model: &str,
     options: Option<&DesktopConnectionOptions>,
-    profile: Option<&ClaudeProviderProfile>,
+    profile: Option<&HarnessProviderProfile>,
 ) -> Result<ResolvedHarnessConnection, String> {
     if let Some(profile) = profile {
         if profile.target != agent
             || profile.key_id != key
             || options.is_some()
-            || profile
-                .models
-                .roles
-                .get(&profile.models.default_role)
-                .map(|m| m.model.as_str())
-                != Some(model)
+            || profile.models.default_model()? != model
         {
             return Err("Profile and connection selection disagree".into());
         }
@@ -61,8 +56,8 @@ pub(super) fn selection(
 }
 #[tauri::command(rename_all = "camelCase")]
 pub async fn harness_profile_save(
-    profile: ClaudeProviderProfile,
-) -> Result<ClaudeProviderProfile, String> {
+    profile: HarnessProviderProfile,
+) -> Result<HarnessProviderProfile, String> {
     tokio::task::spawn_blocking(move || {
         let connection = resolve_profile(&profile)?;
         let mut profile = profile;
@@ -105,7 +100,7 @@ pub async fn harness_profile_models(
         _ = cancelled => Err("Model discovery cancelled".to_string()),
         result = tokio::time::timeout(Duration::from_secs(20), async {
             let key = KEY_SERVICE.get_key_by_id(&key_id).ok_or("Selected credential no longer exists")?;
-            let connection = key_vault::harness_connections::resolve_claude_endpoint(&agent_name, &key, &endpoint, auth_scheme)?;
+            let connection = key_vault::harness_connections::resolve_provider_endpoint(&agent_name, &key, &endpoint, auth_scheme)?;
             super::probe::models(&connection).await
         }) => result.unwrap_or_else(|_| Err("Model discovery timed out; enter model IDs manually".into())),
     };
@@ -119,9 +114,66 @@ pub async fn harness_profile_models(
 mod tests {
     use super::*;
     use key_vault::key_store::{ModelKey, ModelType, ProviderProtocol};
-    fn profile() -> ClaudeProviderProfile {
+    fn profile() -> HarnessProviderProfile {
         let entry = serde_json::json!({"model":"gateway/model", "displayName":"Friendly", "context1m":false});
         serde_json::from_value(serde_json::json!({"id":"fixture", "revision":1, "name":"Provider", "target":"claude_code", "keyId":"key", "endpoint":"https://gateway.example/prefix", "authScheme":"x-api-key", "models":{"defaultRole":"sonnet", "roles":{"sonnet":entry,"opus":entry,"fable":entry,"haiku":entry}}})).unwrap()
+    }
+    fn claude_models_mut(
+        p: &mut HarnessProviderProfile,
+    ) -> &mut agent_cli::managed_config::claude_models::ClaudeModels {
+        match &mut p.models {
+            agent_cli::managed_config::profile_models::ProfileModels::Claude(m) => m,
+            _ => panic!("Expected Claude fixture"),
+        }
+    }
+    #[test]
+    fn codex_receipts_cover_reasoning_context_revision_endpoint_and_key() {
+        let mut p = profile();
+        p.target = "codex".into();
+        p.auth_scheme = "bearer".into();
+        p.models = serde_json::from_value(serde_json::json!({"model":"vendor/manual", "reasoningEffort":"high", "contextWindow":64000, "autoCompactTokenLimit":50000})).unwrap();
+        let mut key = ModelKey::new(ModelType::CustomApi);
+        key.id = p.key_id.clone();
+        key.api_key = Some("synthetic-key".into());
+        key.protocol = Some(ProviderProtocol::OpenAi);
+        let fingerprint = |p: &HarnessProviderProfile, key: &ModelKey| {
+            p.validate().unwrap();
+            let mut c = resolve_provider_profile(
+                &p.target,
+                key,
+                p.models.default_model().unwrap(),
+                &DesktopConnectionOptions {
+                    endpoint: Some(p.endpoint.clone()),
+                    auth_scheme: Some(ConnectionAuthScheme::Bearer),
+                },
+            )
+            .unwrap();
+            bind_revision(&mut c, p);
+            c.revision
+        };
+        let first = fingerprint(&p, &key);
+        for (field, value) in [
+            ("model", serde_json::json!("another/model")),
+            ("reasoningEffort", serde_json::json!("low")),
+            ("contextWindow", serde_json::json!(65000)),
+            ("autoCompactTokenLimit", serde_json::json!(51000)),
+        ] {
+            let mut json = serde_json::to_value(&p).unwrap();
+            json["models"][field] = value;
+            assert_ne!(
+                first,
+                fingerprint(&serde_json::from_value(json).unwrap(), &key)
+            );
+        }
+        let mut changed = p.clone();
+        changed.revision += 1;
+        assert_ne!(first, fingerprint(&changed, &key));
+        changed = p.clone();
+        changed.endpoint = "https://other.example/v1".into();
+        assert_ne!(first, fingerprint(&changed, &key));
+        key.api_key = Some("rotated-synthetic".into());
+        assert_ne!(first, fingerprint(&p, &key));
+        assert!(selection("claude_code", &p.key_id, "vendor/manual", None, Some(&p)).is_err());
     }
     #[test]
     fn receipts_bind_the_entire_profile_and_credential_not_just_the_default_model() {
@@ -130,7 +182,7 @@ mod tests {
         key.id = p.key_id.clone();
         key.api_key = Some("synthetic-key".into());
         key.protocol = Some(ProviderProtocol::Anthropic);
-        let resolve = |p: &ClaudeProviderProfile, key: &ModelKey| {
+        let resolve = |p: &HarnessProviderProfile, key: &ModelKey| {
             let options = DesktopConnectionOptions {
                 endpoint: Some(p.endpoint.clone()),
                 auth_scheme: Some(if p.auth_scheme == "x-api-key" {
@@ -139,10 +191,10 @@ mod tests {
                     ConnectionAuthScheme::Bearer
                 }),
             };
-            let mut value = resolve_claude_profile(
+            let mut value = resolve_provider_profile(
                 &p.target,
                 key,
-                &p.models.roles[&p.models.default_role].model,
+                p.models.default_model().unwrap(),
                 &options,
             )
             .unwrap();
@@ -158,16 +210,14 @@ mod tests {
             .insert(token.clone(), (first.revision.clone(), Instant::now()));
         assert!(require_receipt(&first, Some(&token)).is_ok());
         let mut changed = p.clone();
-        changed
-            .models
+        claude_models_mut(&mut changed)
             .roles
             .get_mut(&agent_cli::managed_config::claude_models::ClaudeRole::Opus)
             .unwrap()
             .model = "different-model".into();
         assert!(require_receipt(&resolve(&changed, &key), Some(&token)).is_err());
         changed = p.clone();
-        changed
-            .models
+        claude_models_mut(&mut changed)
             .roles
             .get_mut(&agent_cli::managed_config::claude_models::ClaudeRole::Sonnet)
             .unwrap()

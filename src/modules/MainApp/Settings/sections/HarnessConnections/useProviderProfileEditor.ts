@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { rpc } from "@src/api/tauri/rpc";
 import type {
-  ClaudeProviderProfile,
   HarnessConnectionView,
+  HarnessProviderProfile,
 } from "@src/api/tauri/rpc/schemas/agentOrgs";
 
 import {
@@ -12,15 +12,15 @@ import {
   useHarnessConnection,
 } from "./useHarnessConnection";
 
-type Target = ClaudeProviderProfile["target"];
+type Target = HarnessProviderProfile["target"];
 type Action = "save" | "test" | "apply" | "restore" | "delete" | "fetch";
-export function newClaudeProfile(
+export function newProviderProfile(
   target: Target,
   name: string,
   view: HarnessConnectionView | null,
   copy = false
-): ClaudeProviderProfile {
-  if (copy && view?.appliedProfile)
+): HarnessProviderProfile {
+  if (copy && view?.appliedProfile?.target === target)
     return {
       ...view.appliedProfile,
       id: crypto.randomUUID(),
@@ -35,13 +35,29 @@ export function newClaudeProfile(
   const entry = { model, displayName: "", context1m: false };
   const endpoint =
     (copy ? view?.desktopOptions?.endpoint : null) ?? choice?.endpoint ?? "";
-  return {
+  const common = {
     id: crypto.randomUUID(),
     revision: 0,
     name,
     target,
     keyId: choice?.keyId ?? "",
     endpoint,
+  };
+  if (target === "codex")
+    return {
+      ...common,
+      target,
+      authScheme: "bearer",
+      models: {
+        model,
+        reasoningEffort: null,
+        contextWindow: null,
+        autoCompactTokenLimit: null,
+      },
+    };
+  return {
+    ...common,
+    target,
     authScheme:
       (copy ? view?.desktopOptions?.authScheme : null) ??
       (endpoint === "https://api.anthropic.com" ? "x-api-key" : "bearer"),
@@ -56,10 +72,10 @@ export function newClaudeProfile(
     },
   };
 }
-export function useClaudeProfileEditor(target: Target) {
+export function useProviderProfileEditor(target: Target) {
   const { t } = useTranslation("settings");
   const { view, loading, error, reload } = useHarnessConnection(target);
-  const [draft, setDraft] = useState<ClaudeProviderProfile | null>(null);
+  const [draft, setDraft] = useState<HarnessProviderProfile | null>(null);
   const [busy, setBusy] = useState<Action | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<string | null>(null);
@@ -86,7 +102,7 @@ export function useClaudeProfileEditor(target: Target) {
     },
     []
   );
-  const edit = (profile: ClaudeProviderProfile | null) => {
+  const edit = (profile: HarnessProviderProfile | null) => {
     generation.current++;
     setReceipt(null);
     setMessage(null);
@@ -117,7 +133,7 @@ export function useClaudeProfileEditor(target: Target) {
         const selection = {
           agentName: target,
           keyId: draft.keyId,
-          model: draft.models.roles[draft.models.defaultRole].model,
+          model: profileDefaultModel(draft),
           profile: draft,
         };
         if (action === "save") {
@@ -216,4 +232,10 @@ export function useClaudeProfileEditor(target: Target) {
     act,
     cancel,
   };
+}
+
+export function profileDefaultModel(profile: HarnessProviderProfile): string {
+  return profile.target === "codex"
+    ? profile.models.model
+    : profile.models.roles[profile.models.defaultRole].model;
 }
