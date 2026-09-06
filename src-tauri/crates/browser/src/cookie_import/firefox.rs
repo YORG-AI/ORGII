@@ -40,7 +40,7 @@ pub fn read_cookies(store_path: &Path) -> Result<Vec<DecryptedCookie>, CookieRea
             Ok(DecryptedCookie {
                 host_key: row.get::<_, String>(0)?,
                 name: row.get::<_, String>(1)?,
-                value: row.get::<_, String>(2)?,
+                value: String::from_utf8_lossy(&super::bytes_column(row, 2)?).into_owned(),
                 path: row.get::<_, String>(3)?,
                 // Firefox stores expiry as unix seconds; 0 marks a session cookie.
                 expires_utc: if expiry > 0 { Some(expiry) } else { None },
@@ -56,7 +56,10 @@ pub fn read_cookies(store_path: &Path) -> Result<Vec<DecryptedCookie>, CookieRea
         match row {
             Ok(cookie) if !cookie.name.is_empty() => cookies.push(cookie),
             Ok(_) => {}
-            Err(error) => return Err(CookieReadError::Query(error.to_string())),
+            // One odd row is one lost cookie, not a failed profile.
+            Err(error) => {
+                tracing::debug!(error = %error, "cookie_import: skipping unreadable Firefox row");
+            }
         }
     }
     Ok(cookies)

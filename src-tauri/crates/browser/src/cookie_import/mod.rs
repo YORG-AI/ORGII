@@ -274,6 +274,23 @@ fn to_sqlite_uri(path: &Path) -> String {
     uri
 }
 
+/// Read a column that the browser normally writes as BLOB but that older rows
+/// may hold as TEXT. SQLite is dynamically typed, so a strict blob read fails
+/// on such a row — and one such row must not take the whole profile down.
+pub(crate) fn bytes_column(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<Vec<u8>> {
+    use rusqlite::types::ValueRef;
+
+    match row.get_ref(index)? {
+        ValueRef::Blob(bytes) | ValueRef::Text(bytes) => Ok(bytes.to_vec()),
+        ValueRef::Null => Ok(Vec::new()),
+        other => Err(rusqlite::Error::InvalidColumnType(
+            index,
+            format!("column {index}"),
+            other.data_type(),
+        )),
+    }
+}
+
 /// Open a browser cookie database read-only, tolerating a running browser.
 pub fn open_sqlite_readonly(path: &Path) -> Result<rusqlite::Connection, CookieReadError> {
     use rusqlite::OpenFlags;

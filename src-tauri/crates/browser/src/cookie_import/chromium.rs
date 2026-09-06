@@ -174,8 +174,9 @@ pub fn read_cookies(
             Ok(RawRow {
                 host_key: row.get::<_, String>(0)?,
                 name: row.get::<_, String>(1)?,
-                value: row.get::<_, String>(2)?,
-                encrypted_value: row.get::<_, Vec<u8>>(3)?,
+                value: String::from_utf8_lossy(&super::bytes_column(row, 2)?).into_owned(),
+                // Older Chrome rows hold the ciphertext as TEXT, not BLOB.
+                encrypted_value: super::bytes_column(row, 3)?,
                 path: row.get::<_, String>(4)?,
                 expires_utc: row.get::<_, i64>(5)?,
                 is_secure: row.get::<_, i64>(6)? != 0,
@@ -189,7 +190,16 @@ pub fn read_cookies(
     let mut undecryptable = 0usize;
 
     for row in rows {
-        let row = row.map_err(|error| CookieReadError::Query(error.to_string()))?;
+        // A row this reader cannot make sense of is one lost cookie, reported
+        // in the count, never a reason to fail the whole profile.
+        let row = match row {
+            Ok(row) => row,
+            Err(error) => {
+                tracing::debug!(error = %error, "cookie_import: skipping unreadable Chromium row");
+                undecryptable += 1;
+                continue;
+            }
+        };
         if row.name.is_empty() {
             continue;
         }
