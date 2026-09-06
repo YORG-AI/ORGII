@@ -1,8 +1,9 @@
 import {
   extractGptModelTier,
+  isModelVariantSuffixToken,
   stripCursorHostedModelPrefix,
   withCursorHostedModelPrefix,
-} from "./modelGrouping";
+} from "./modelNameGrammar";
 
 export const MODEL_REASONING_LEVEL = {
   NONE: "none",
@@ -48,22 +49,6 @@ const GPT_BASE_PATTERN = /^(gpt-\d+(?:\.\d+)?)(?:-(.+))?$/i;
 const COMPOSER_BASE_PATTERN = /^(composer-\d+(?:\.\d+)?)(?:-(.+))?$/i;
 const O_SERIES_BASE_PATTERN = /^o(\d+(?:\.\d+)?)(?:-(.+))?$/i;
 
-const VARIANT_SUFFIX_TOKENS = new Set<string>([
-  "none",
-  "low",
-  "medium",
-  "high",
-  "extra",
-  "extra-high",
-  "xhigh",
-  "ultra",
-  "max",
-  "ultracode",
-  "minimal",
-  "thinking",
-  "fast",
-]);
-
 function normalizeReasoning(
   value: string | undefined
 ): ModelReasoningLevel | undefined {
@@ -95,7 +80,7 @@ function collectSuffixTokens(
   const suffixTokens: string[] = [];
   while (baseSegments.length > minBaseLength) {
     const last = baseSegments.at(-1);
-    if (!last || !VARIANT_SUFFIX_TOKENS.has(last)) break;
+    if (!last || !isModelVariantSuffixToken(last)) break;
     suffixTokens.unshift(last);
     baseSegments.pop();
   }
@@ -255,10 +240,6 @@ function parseOSeriesVariant(model: string): ModelVariantMetadata | undefined {
       ? `${versionRoot}-${baseSegments.join("-")}`
       : versionRoot;
   return buildVariant(model, baseModel, suffixTokens);
-}
-
-export function isModelVariantSuffixToken(token: string): boolean {
-  return VARIANT_SUFFIX_TOKENS.has(token.toLowerCase());
 }
 
 export function parseModelVariant(
