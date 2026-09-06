@@ -8,7 +8,7 @@ Reusable layout components for the Orgii application.
 
 The main application shell used by all routes under `/orgii/*`. Provides:
 
-- Global toolbar (with WebGL Liquid Glass)
+- Global application chrome
 - Dynamic sidebar slot
 - Floating sidebar (hover-triggered when collapsed)
 - Tab bar (conditionally shown)
@@ -64,7 +64,7 @@ Renders app-wide modals (Login, ComponentIssue). Used internally by AppLayout.
 ```
 AppShell (src/modules/index.tsx)
 └── AppLayout
-    ├── GlobalToolbar (stable, contains WebGL)
+    ├── Application chrome
     ├── HoverSidebar.Trigger
     ├── Sidebar slot (dynamic per route)
     ├── FloatingSidebar (hover container)

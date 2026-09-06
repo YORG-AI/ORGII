@@ -11,7 +11,6 @@ src/contexts/
 ├── workstation/                 # Workstation page contexts
 ├── integration/                # External service contexts
 ├── session/                    # Session navigation contexts
-├── ui/                         # UI state contexts
 └── workspace/                  # Workspace-level contexts
 ```
 
@@ -45,14 +44,6 @@ Contexts for session navigation and file tracking.
 | -------------------- | ----------------------------------- |
 | `RecentFilesContext` | Recent files tracking in editor     |
 | `SessionListContext` | Session list for navigation sidebar |
-
-### `ui/` - UI State Contexts
-
-Contexts for UI state management.
-
-| File                  | Contents                       |
-| --------------------- | ------------------------------ |
-| `ToolbarThemeContext` | Toolbar/tabbar theme decisions |
 
 ### `workspace/` - Workspace Contexts
 
@@ -101,7 +92,6 @@ Reorganized on 2026-01-29:
 - Moved `GitStatusContext/` → `git/GitStatusContext/`
 - Moved `AutomationContext`, `BrowserContext`, `EditorContext`, `FilesContext`, `TerminalContext` → `workstation/`
 - Moved `SessionListContext`, `RecentFilesContext` → `session/`
-- Moved `ToolbarThemeContext` → `ui/`
 - Kept `workspace/` as-is (already organized)
 
 Updated on 2026-03-29:

@@ -1,6 +1,6 @@
 /**
  * Dock-aligned title bar center: icon + label for Workstation and simulator AppType.
- * Icons match Dock (My Station) and DockReplayControl / getAppById (Chat).
+ * Icons match the Workstation app switcher and DockReplayControl/getAppById.
  */
 import type { TFunction } from "i18next";
 

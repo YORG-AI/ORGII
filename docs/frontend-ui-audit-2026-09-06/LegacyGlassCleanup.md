@@ -1,12 +1,16 @@
 # Legacy Glass Cleanup UI audit
 
+Scope: removal of the unreachable dock component and archived background UI,
+plus pruning dead exports. The surviving dock controls keep their existing
+rendered structure and design-system usage.
+
 ## D1 — Raw HTML vs Design System
 
 | Line                      | Element                       | Verdict          | Reason                                                                                                                                                                                     | Suggested change |
 | ------------------------- | ----------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
 | `DockContextMenu.tsx:174` | Positioned menu panel `<div>` | keep with reason | The element owns callback-ref positioning and hover lifecycle while reusing the shared dropdown panel tokens; there is no additional presentation logic that warrants a component wrapper. | None.            |
 | `DockContextMenu.tsx:191` | Menu action `<button>`        | keep with reason | A native button provides the correct disabled and keyboard semantics, and its presentation comes from `DROPDOWN_CLASSES.menuActionItem`.                                                   | None.            |
-| `dockLayout.tsx:76`       | Dock icon-strip `<div>`       | keep with reason | This is a layout-only primitive shared by the live and replay docks; it has no independent interaction or surface styling.                                                                 | None.            |
+| `dockLayout.tsx:76`       | Dock icon-strip `<div>`       | keep with reason | This is a layout-only primitive used by the replay dock; it has no independent interaction or surface styling.                                                                             | None.            |
 
 ## D2 — Arbitrary Tailwind Value vs Token
 

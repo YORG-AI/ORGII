@@ -8,11 +8,11 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { BACKGROUND_COLOR_PRESETS } from "@src/config/appearance/backgroundColors";
+import { normalizeHexColor } from "@src/config/appearance/backgroundConfig";
 import { Add01Icon, Cancel01Icon, HugeiconsIcon } from "@src/icons";
 import type { BackgroundConfig } from "@src/store/ui/backgroundConfigAtom";
 
 import { MAX_CUSTOM_BACKGROUND_COLORS } from "../config";
-import { normalizeHexColor } from "../utils";
 
 const COLOR_SWATCH_SIZE = "h-8 w-8";
 

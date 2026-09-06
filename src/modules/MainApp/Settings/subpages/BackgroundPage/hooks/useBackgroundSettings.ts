@@ -13,6 +13,7 @@ import {
   getBackgroundColorPresetById,
   resolveBackgroundColorPreset,
 } from "@src/config/appearance/backgroundColors";
+import { normalizeHexColor } from "@src/config/appearance/backgroundConfig";
 import {
   APPEARANCE_MODE,
   APPEARANCE_MODE_OPTIONS,
@@ -46,13 +47,10 @@ import { swapThemeCss } from "@src/util/ui/theme/swapThemeCss";
 import { showThemeTransitionCover } from "@src/util/ui/theme/themeTransitionCover";
 
 import { MAX_CUSTOM_BACKGROUND_COLORS } from "../config";
-import { normalizeHexColor } from "../utils";
 
 export interface UseBackgroundSettingsReturn {
   // State
   config: BackgroundConfig;
-  globalThemeId: string;
-  isDarkTheme: boolean;
   appearanceMode: AppearanceMode;
   appearanceModeOptions: { label: string; value: AppearanceMode }[];
   skinOptions: { label: string; value: string }[];
@@ -287,8 +285,6 @@ export function useBackgroundSettings(): UseBackgroundSettingsReturn {
   return {
     // State
     config,
-    globalThemeId,
-    isDarkTheme,
     appearanceMode,
     appearanceModeOptions,
     skinOptions,

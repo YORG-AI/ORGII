@@ -27,7 +27,7 @@ import { classNames } from "@src/util/ui/classNames";
 export interface StationDockChromeProps {
   /** When true, dock collapses to the pill until hover/focus within the strip. */
   autoHide: boolean;
-  /** Dock body — e.g. Dock or DockReplayControl. */
+  /** Dock body, currently supplied by DockReplayControl. */
   children: React.ReactNode;
   /** Extra classes on the outer wrapper (e.g. border from parent layout). */
   className?: string;
@@ -103,11 +103,9 @@ export const StationDockChrome: React.FC<StationDockChromeProps> = memo(
     const expanded = !autoHide || openByPointer || focusInside;
 
     // Fix the expanded dock body to a single 48px row so My Station's
-    // pure-icon `Dock` and Agent Station's `DockReplayControl` (which can
-    // grow with subagent / overflow / agent-working trailers) both end up
-    // exactly the same chrome height. Without this, intrinsic content
-    // height drifts by ~1–4px between the two surfaces depending on which
-    // trailers render.
+    // Keep dock content at one 48px row even when subagent, overflow, or
+    // agent-working trailers are present. Without this, intrinsic content
+    // height drifts by ~1–4px as those trailers change.
     const dockBodyClass = autoHide
       ? classNames(
           "flex w-full items-center justify-center overflow-hidden transition-[max-height,opacity] duration-300 ease-out",
@@ -124,11 +122,10 @@ export const StationDockChrome: React.FC<StationDockChromeProps> = memo(
         )
       : "";
 
-    // Chrome owns the divider line above the dock so every caller — My
-    // Station's `<StatusBarRenderer />` + `Dock`, Agent Station's
-    // Status bars and replay controls own their own border rhythm, so status-bar-hidden
-    // mode, autoHide-collapsed mode — gets the exact same 1px hairline at
-    // the exact same DOM depth. Previously each surface drew its own
+    // Chrome owns the divider line above the dock so status bars and replay
+    // controls share one border rhythm. Status-bar-hidden and auto-hide
+    // collapsed modes therefore get the same 1px hairline at the same DOM
+    // depth. Previously each surface drew its own
     // border (BaseStatusBar.border-b, AppShell content fallback border-b,
     // SimulatorSingleView.border-b), and the line drifted by 1px or
     // changed token whenever the path differed. When dock is fully

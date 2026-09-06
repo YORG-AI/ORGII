@@ -2,7 +2,7 @@
  * Global Spotlight Portal Component
  *
  * Mounts the GlobalSpotlight when its open atom is true. The spotlight
- * itself owns its chrome (portal, glass, positioning, footer) via
+ * itself owns its chrome (portal, surface, positioning, footer) via
  * SpotlightShell — this wrapper is just an open-state binding.
  */
 import { useAtom } from "jotai";

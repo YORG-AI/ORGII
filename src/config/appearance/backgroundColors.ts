@@ -130,9 +130,6 @@ export const BACKGROUND_COLOR_PRESETS = [
   },
 ] as const satisfies BackgroundColorPreset[];
 
-export type BackgroundColorPresetId =
-  (typeof BACKGROUND_COLOR_PRESETS)[number]["id"];
-
 export function getBackgroundColorPresetById(
   id: string | undefined
 ): BackgroundColorPreset | null {

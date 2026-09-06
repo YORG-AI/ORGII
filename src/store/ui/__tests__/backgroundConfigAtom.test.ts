@@ -3,24 +3,6 @@ import { describe, expect, it } from "vitest";
 import { normalizeBackgroundConfig } from "../backgroundConfigAtom";
 
 describe("normalizeBackgroundConfig", () => {
-  it("drops retired image-background fields from persisted state", () => {
-    expect(
-      normalizeBackgroundConfig({
-        imageUrl: "data:image/png;base64,legacy",
-        selectedImageId: "old-image",
-        customImages: ["old-image"],
-        blurAmount: 12,
-        adaptiveColors: true,
-        glass: "regular",
-      })
-    ).toEqual({
-      customColors: [],
-      backgroundColorId: "graphite",
-      pageOpacity: 100,
-      sidebarOpacity: 85,
-    });
-  });
-
   it("preserves a valid custom solid color and sanitizes its palette", () => {
     expect(
       normalizeBackgroundConfig({

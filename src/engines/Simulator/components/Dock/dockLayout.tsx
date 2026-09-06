@@ -1,7 +1,7 @@
 /**
  * Station dock layout primitives — icon strip, icon columns, segment divider, row wrapper.
- * Consumed by Dock and DockReplayControl; kept out of index.ts to avoid circular imports
- * (those components cannot import from the barrel that re-exports them).
+ * Consumed by DockReplayControl; kept out of index.ts so the barrel only exposes
+ * complete dock surfaces rather than their internal layout pieces.
  */
 import React, { memo } from "react";
 
@@ -105,10 +105,6 @@ export interface DockIconColumnProps {
   trailer: DockIconTrailerMode;
 }
 
-export interface CompactDockIconColumnProps {
-  children: React.ReactNode;
-}
-
 /**
  * One dock app slot: 36×36 icon area + fixed trailer row so total height matches Agent dock.
  */
@@ -140,13 +136,3 @@ export const DockIconColumn: React.FC<DockIconColumnProps> = memo(
 );
 
 DockIconColumn.displayName = "DockIconColumn";
-
-export const CompactDockIconColumn: React.FC<CompactDockIconColumnProps> = memo(
-  ({ children }) => (
-    <div className="group relative flex h-[36px] items-center justify-center overflow-visible">
-      {children}
-    </div>
-  )
-);
-
-CompactDockIconColumn.displayName = "CompactDockIconColumn";

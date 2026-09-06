@@ -108,7 +108,7 @@ export function syncThemeAppearance(cssPath: string): void {
  * Warm the browser's stylesheet cache for the given theme CSS files so a
  * subsequent `swapThemeCss(...)` finishes parsing on the same frame as the
  * JS atom flip — avoiding a 1–2 frame lag where Tailwind/CSS-variable
- * surfaces visibly trail JS-driven surfaces (background, glass, etc.)
+ * surfaces visibly trail JS-driven theme-token surfaces
  * during a theme switch.
  *
  * Implemented as `<link rel="preload" as="style">` so the browser fetches,

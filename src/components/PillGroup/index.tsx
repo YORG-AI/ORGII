@@ -81,7 +81,7 @@ export interface PillGroupSegment {
   onClick?: (event: React.MouseEvent) => void;
   /** Stable selector for rendered UI tests */
   dataTestId?: string;
-  /** Open selector-style pills on press start for glass/driver hit-test parity */
+  /** Open selector-style pills on press start for driver hit-test parity */
   activateOnMouseDown?: boolean;
   /** Hard cap on the label width — applies overflow ellipsis */
   maxLabelWidth?: number;

@@ -79,8 +79,7 @@ src/util/
 │
 ├── ui/                          # UI utilities
 │   ├── theme/
-│   │   ├── themeUtils.ts       # Theme utility functions
-│   │   └── toolbarTheme.ts     # Toolbar theme resolver
+│   │   └── themeUtils.ts       # Theme utility functions
 │   ├── tabs/
 │   │   └── tabHelpers.ts       # Tab helper functions
 │   ├── terminal/

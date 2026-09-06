@@ -218,5 +218,3 @@ export const DockContextMenu: React.FC<DockContextMenuProps> = ({
     </div>
   );
 };
-
-export default DockContextMenu;
