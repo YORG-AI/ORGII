@@ -125,41 +125,6 @@ describe("NavigationSidebar", () => {
     ).toBeLessThan(markup.indexOf('data-testid="sidebar-sessions-refresh"'));
   });
 
-  it("autofocuses inline search while keeping fixed navigation visible", () => {
-    const markup = renderToStaticMarkup(
-      createElement(NavigationSidebar, {
-        items: [],
-        activeKey: "",
-        onChange: vi.fn(),
-        pinnedMenuItems: [
-          { id: "new-session", key: "new-session", label: "New session" },
-        ],
-        menuItems: [
-          {
-            id: "separator-today",
-            key: "separator-today",
-            label: "Today",
-          },
-          { id: "match", key: "match", label: "Matching session" },
-          { id: "other", key: "other", label: "Unrelated task" },
-        ],
-        search: {
-          value: "matching",
-          onChange: vi.fn(),
-          placeholder: "Search sessions...",
-          autoFocus: true,
-          filterPinnedItems: false,
-        },
-      })
-    );
-
-    expect(markup).toContain('placeholder="Search sessions..."');
-    expect(markup).toContain('autofocus=""');
-    expect(markup).toContain('data-test-menu-item="new-session"');
-    expect(markup).toContain('data-test-menu-item="match"');
-    expect(markup).not.toContain('data-test-menu-item="other"');
-  });
-
   it("renders the standard loading state without dummy rows", () => {
     const markup = renderToStaticMarkup(
       createElement(NavigationSidebar, {

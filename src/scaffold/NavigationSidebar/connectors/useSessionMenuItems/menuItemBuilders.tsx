@@ -5,7 +5,6 @@ import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/compone
 import type { BranchPrSnapshot } from "@src/store/git";
 import type { Session } from "@src/store/session";
 import { isSessionInProgress } from "@src/util/session/sessionInProgress";
-import { getSessionSearchText } from "@src/util/session/sessionSearch";
 import {
   getSessionListDisplayName,
   resolveSessionRowIcon,
@@ -126,7 +125,6 @@ export function buildSessionMenuItem({
     id: session.session_id,
     key: session.session_id,
     label: displayName,
-    searchText: getSessionSearchText(session, untitledSession),
     dataTestId: `sidebar-session-item-${session.session_id}`,
     pinned: session.pinned === true,
     icon: resolveSessionRowIcon(session),

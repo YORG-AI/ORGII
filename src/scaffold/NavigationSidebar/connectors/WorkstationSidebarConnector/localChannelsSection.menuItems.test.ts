@@ -68,7 +68,7 @@ describe("local channels section visibility", () => {
 });
 
 describe("local channel rows", () => {
-  it("always uses # rows (no private visibility locally) with topic search", () => {
+  it("always uses # rows (no private visibility locally)", () => {
     const channel = makeChannel({ id: "ch-a", name: "plans", topic: "Q3" });
     const items = buildLocalChannelsMenuItems(
       buildParams({ channels: [channel] })
@@ -77,7 +77,6 @@ describe("local channel rows", () => {
     expect(row.id).toBe(buildLocalChannelRowId("ch-a"));
     expect(row.icon).toBe(HashtagIcon);
     expect(row.label).toBe("plans");
-    expect(row.searchText).toBe("plans Q3");
     expect(row.dataTestId).toBe("sidebar-local-channel-ch-a");
   });
 

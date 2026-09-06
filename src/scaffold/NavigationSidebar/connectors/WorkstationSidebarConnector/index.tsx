@@ -10,6 +10,7 @@ import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import { teamInboxUnreadCountAtom } from "@src/modules/MainApp/TeamInbox/store";
 import { useTeamInboxDataSource } from "@src/modules/MainApp/TeamInbox/useTeamInboxDataSource";
+import { openAgentSessionSearchSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import {
   activeSessionCreatorDraftIdAtom,
   deleteSessionCreatorDraftAtom,
@@ -132,11 +133,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const { goToNewSession, navigateTo } = useAppNavigation();
   const [activeSidebarKey, setActiveSidebarKey] =
     useState<WorkstationSidebarKey>("workstation");
-  const [sessionSearchQuery, setSessionSearchQuery] = useState("");
-  const [sessionSearchVisible, setSessionSearchVisible] = useState(false);
-  const handleOpenSessionSearch = useCallback(() => {
-    setSessionSearchVisible(true);
-  }, []);
   const [channelsOpen, setChannelsOpen] = useState(false);
   const [workItemsOpen, setWorkItemsOpen] = useState(false);
   const workItemsContentVisible =
@@ -357,7 +353,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
     repoPathToName,
     groupByMode,
     untitledSession,
-    searchQuery: sessionSearchQuery,
     selectedOrgIds: sessionFilterOrgIds,
     extraSessionIds: cloudScopedExtraSessionIds,
     excludedSessionIds: sessionListExcludedIds,
@@ -387,7 +382,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     sessionSearchLabel: t("sidebar.search.sessions"),
     sessionRefreshLabel: tCommon("actions.refresh"),
     sessionRefreshIconClassName: refreshSpinClass,
-    onSessionSearch: handleOpenSessionSearch,
+    onSessionSearch: openAgentSessionSearchSpotlight,
     onSessionRefresh: handleRefreshSessions,
     createProjectLabel,
     createWorkItemLabel,
@@ -640,20 +635,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
         hostTopBarLeadingContent={sidebarOrgSelector}
         macTopBarFollowingContent={
           <div className="shrink-0 px-3 pt-1">{sidebarOrgSelector}</div>
-        }
-        search={
-          activeViewKey === "sessions" && sessionSearchVisible
-            ? {
-                value: sessionSearchQuery,
-                onChange: setSessionSearchQuery,
-                placeholder: t("sidebar.search.sessions"),
-                noResultsTitle: t("sidebar.empty.noResultsFor", {
-                  query: sessionSearchQuery,
-                }),
-                autoFocus: true,
-                filterPinnedItems: false,
-              }
-            : undefined
         }
         preListContent={
           <WorkstationSidebarViewSwitcher

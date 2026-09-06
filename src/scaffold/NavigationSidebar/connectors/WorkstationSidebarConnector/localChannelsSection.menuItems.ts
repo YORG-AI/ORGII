@@ -95,7 +95,6 @@ export function buildLocalChannelsMenuItems({
       buildChannelMenuRow({
         id: buildLocalChannelRowId(channel.id),
         name: channel.name,
-        topic: channel.topic,
         icon: HashtagIcon,
         dataTestId: `sidebar-local-channel-${channel.id}`,
         rowActions: [
@@ -146,7 +145,6 @@ export function buildLocalChannelsMenuItems({
           return buildChannelMenuRow({
             id: buildLocalChannelRowId(channel.id),
             name: channel.name,
-            topic: channel.topic,
             icon: HashtagIcon,
             dataTestId: `sidebar-local-channel-${channel.id}`,
             rowActions,

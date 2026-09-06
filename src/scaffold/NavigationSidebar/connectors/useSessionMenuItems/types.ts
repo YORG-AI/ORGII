@@ -32,7 +32,6 @@ export interface UseSessionMenuItemsParams {
   repoPathToName: Map<string, string>;
   groupByMode: GroupByMode;
   untitledSession: string;
-  searchQuery?: string;
   /**
    * Org ids accepted by the sidebar org selector (see orgFilter.ts). A set,
    * not a single id: a collab org selection also accepts its local

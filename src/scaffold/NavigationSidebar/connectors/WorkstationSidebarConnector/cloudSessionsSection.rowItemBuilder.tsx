@@ -324,7 +324,6 @@ export function useCloudSessionRowItemBuilder({
         id: itemId,
         key: itemId,
         label: displayTitle,
-        searchText: `${displayTitle} ${row.ownerDisplayName}`,
         dataTestId: `sidebar-cloud-session-item-${bareSessionId}`,
         opensChatPanelTab: true,
         pinned: isPinned,

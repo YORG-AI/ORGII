@@ -34,8 +34,6 @@ export interface NavigationMenuItem {
   id: string;
   key: string;
   label: string;
-  /** Optional hidden text used by sidebar search/filtering. */
-  searchText?: string;
   /** Optional secondary line rendered below the label (e.g. branch name). */
   subtitle?: ReactNode;
   /** Glyph data or a brand component (`""` = no icon) — rendered via `AnyIcon`. */

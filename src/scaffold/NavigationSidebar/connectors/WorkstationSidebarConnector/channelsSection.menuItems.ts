@@ -120,8 +120,6 @@ export function buildChannelsSectionHeader({
 interface ChannelMenuRowParams {
   id: string;
   name: string;
-  /** Joins `searchText` so sidebar search matches on the topic too. */
-  topic?: string;
   icon: IconSvgElement;
   dataTestId: string;
   rowActions?: NavigationMenuRowAction[];
@@ -131,7 +129,6 @@ interface ChannelMenuRowParams {
 export function buildChannelMenuRow({
   id,
   name,
-  topic,
   icon,
   dataTestId,
   rowActions,
@@ -140,7 +137,6 @@ export function buildChannelMenuRow({
     id,
     key: id,
     label: name,
-    searchText: topic ? `${name} ${topic}` : undefined,
     icon,
     dataTestId,
     opensChatPanelTab: true,
@@ -254,7 +250,6 @@ function buildChannelRow(
   return buildChannelMenuRow({
     id: buildCloudChannelRowId(orgId, channel.id),
     name: channel.name,
-    topic: channel.topic,
     icon: channel.visibility === "private" ? LockIcon : HashtagIcon,
     dataTestId: `sidebar-cloud-channel-${channel.id}`,
     rowActions,
