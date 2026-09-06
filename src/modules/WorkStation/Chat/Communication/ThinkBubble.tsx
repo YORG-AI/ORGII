@@ -127,7 +127,7 @@ export const ThinkBubble: React.FC<{
           </div>
         ) : (
           <div
-            className={`activity-thinking activity-thinking--no-style allow-select ${SESSION_UI_TOKENS.TEXT.BODY_BASE}`}
+            className={`activity-thinking allow-select ${SESSION_UI_TOKENS.TEXT.BODY_BASE}`}
           >
             <Markdown textContent={displayContent} />
           </div>
