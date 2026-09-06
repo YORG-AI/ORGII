@@ -154,19 +154,6 @@ describe("syncMacosRootTint", () => {
     vi.restoreAllMocks();
   });
 
-  it("removes the native layer and restores the CSS tint when the root is not a plain colour", async () => {
-    html.dataset[NATIVE_ROOT_TINT_ATTRIBUTE] = "1";
-    document.body.style.backgroundImage = "url(wallpaper.png)";
-
-    await syncMacosRootTint();
-
-    expect(invoke).toHaveBeenCalledWith("set_window_root_tint", {
-      color: null,
-    });
-    expect(html.dataset[NATIVE_ROOT_TINT_ATTRIBUTE]).toBeUndefined();
-    document.body.style.backgroundImage = "";
-  });
-
   it("keeps the CSS tint when the native call fails", async () => {
     invoke.mockRejectedValue(new Error("window closed"));
 

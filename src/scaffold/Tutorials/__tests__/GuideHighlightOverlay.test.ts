@@ -49,10 +49,6 @@ vi.mock("@src/components/Button", () => ({
     React.createElement("button", { type: "button", onClick }, "close"),
 }));
 
-vi.mock("@src/components/Glass/config", () => ({
-  getMaterialConfig: () => ({ blur: 12, background: "white" }),
-}));
-
 vi.mock("@src/util/ui/theme/themeUtils", () => ({
   useCurrentTheme: () => ({ isDark: false }),
 }));

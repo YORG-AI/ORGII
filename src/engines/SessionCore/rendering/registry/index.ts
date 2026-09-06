@@ -74,7 +74,6 @@ export {
 export * from "./events";
 export {
   getActionConfig,
-  shouldShowStatusLine,
   requiresItemIndex,
   getRegisteredActionTypes,
   prefetchCommonComponents,

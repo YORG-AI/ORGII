@@ -44,7 +44,7 @@ src/api/
 │   ├── agent/                     # Agent commands (session, gateway, config, tools, etc.)
 │   ├── session/                   # Aggregate session queries (cross-CLI/SDE/OS)
 │   ├── search/                    # Code + semantic search subsystem
-│   ├── perf/                      # Performance utilities (hash, binary, metrics, luminance)
+│   ├── perf/                      # Performance utilities (hash, binary, metrics)
 │   ├── diff/                      # Diff computation (delegates to rpc)
 │   ├── devRecord/                 # DevRecord Tauri commands
 │   ├── repo/                      # Repo management Tauri commands

@@ -1,25 +1,3 @@
-/** Sample region definition (normalized 0.0-1.0) */
-export interface SampleRegion {
-  name: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-/** Luminance result for a region */
-interface LuminanceResult {
-  name: string;
-  luminance: number;
-  is_light: boolean;
-}
-
-/** Full luminance analysis result */
-export interface LuminanceAnalysis {
-  regions: LuminanceResult[];
-  processing_time_ms: number;
-}
-
 /** Binary check result */
 export interface BinaryCheckResult {
   is_binary: boolean;

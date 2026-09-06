@@ -3,8 +3,9 @@
 ORG2 uses AppKit's `NSVisualEffectView` with the `Menu` material and
 `BehindWindow` blending beneath its transparent WKWebView. This is the native
 material configured by Codex's normal macOS window. Existing ORG2 sidebar,
-page-opacity, wallpaper, and theme settings still control the web surfaces above
-it; this change does not copy Codex's CSS or its size-based opaque-window policy.
+page-opacity, solid-background, and theme settings still control the web
+surfaces above it; this change does not copy Codex's CSS or its size-based
+opaque-window policy.
 
 ## Compatibility
 
@@ -14,12 +15,12 @@ ORG2's 10.15 deployment minimum. Apple Silicon starts at macOS 11. No macOS 26
 class lookup, private material variant, or undocumented native corner-radius
 selector is used. AppKit owns the decorated window's outer clipping.
 
-| macOS | Native implementation | Validation scope |
-| --- | --- | --- |
-| 10.15 Catalina (Intel) | Public menu vibrancy | SDK API availability |
-| 11 Big Sur / 12 Monterey | Public menu vibrancy | SDK API availability, Intel and Apple Silicon |
-| 13 Ventura / 14 Sonoma / 15 Sequoia | Public menu vibrancy | SDK API availability, Intel and Apple Silicon |
-| 26 Tahoe | Public menu vibrancy | SDK API availability, Intel and Apple Silicon; development host is 26.3 arm64 |
+| macOS                               | Native implementation | Validation scope                                                              |
+| ----------------------------------- | --------------------- | ----------------------------------------------------------------------------- |
+| 10.15 Catalina (Intel)              | Public menu vibrancy  | SDK API availability                                                          |
+| 11 Big Sur / 12 Monterey            | Public menu vibrancy  | SDK API availability, Intel and Apple Silicon                                 |
+| 13 Ventura / 14 Sonoma / 15 Sequoia | Public menu vibrancy  | SDK API availability, Intel and Apple Silicon                                 |
+| 26 Tahoe                            | Public menu vibrancy  | SDK API availability, Intel and Apple Silicon; development host is 26.3 arm64 |
 
 An SDK availability check proves the selected APIs are declared for those
 deployment targets, not that the application was run on each OS. The material's
@@ -28,8 +29,8 @@ accessibility settings. Allow AppKit to manage them instead of reproducing the
 material in CSS or forcing a private variant.
 
 The transparent WKWebView still relies on the existing `macOSPrivateApi`
-configuration and background-drawing helpers. Removing the Liquid Glass plugin
-does not remove that separate requirement or raise the deployment minimum.
+configuration. Removing the Liquid Glass plugin does not remove that separate
+requirement or raise the deployment minimum.
 
 ## Ownership and lifecycle
 
@@ -48,9 +49,7 @@ boundary. The window's content view retains its material subview, identified by
 
 Initial main-window setup, main-window recovery, and detached session windows
 continue to call the same apply helper. The startup opaque cover remains until
-the frontend is ready. The external-page navigation command still removes the
-material and supplies its opaque color/image cover, then restores the material
-on return. Its IPC arguments and result type are unchanged.
+the frontend is ready.
 
 ## Dependency choice
 
@@ -74,8 +73,8 @@ remain necessary on representative older and current macOS releases:
 
 - Light and dark themes, bright/dark desktop backgrounds, and Reduce
   Transparency enabled/disabled.
-- Cold startup and frontend-ready transition, main-window recovery, detached
-  session creation/close, and external-page navigation/return.
+- Cold startup and frontend-ready transition, main-window recovery, and
+  detached session creation/close.
 - Repeated enable/disable, proving the content view has zero or one owned
   material view and unrelated subviews remain intact.
 - Focus changes, minimize/restore, resize/fullscreen, and Retina/external-display

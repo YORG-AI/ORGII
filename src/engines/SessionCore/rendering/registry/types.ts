@@ -28,8 +28,6 @@ export interface ComponentOption {
 export interface ChatContextConfig {
   /** Requires itemIndex prop for chat history */
   requiresItemIndex?: boolean;
-  /** Show status line in chat panel */
-  showStatusLine?: boolean;
 }
 
 /** Simulator context configuration */

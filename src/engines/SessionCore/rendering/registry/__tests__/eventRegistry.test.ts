@@ -4,7 +4,6 @@ import {
   COMPONENT_LOADERS,
   CONTEXT_CONFIG,
   chatRequiresItemIndex,
-  chatShowsStatusLine,
   getAllEventTypes,
   getChatContextConfig,
   getChatLazyComponent,
@@ -91,18 +90,10 @@ describe("CONTEXT_CONFIG", () => {
     }
   });
 
-  it("read_file has chat.showStatusLine=true", () => {
-    expect(CONTEXT_CONFIG["read_file"]?.chat?.showStatusLine).toBe(true);
-  });
-
   it("read_file has simulator.supportsFullscreen=true", () => {
     expect(CONTEXT_CONFIG["read_file"]?.simulator?.supportsFullscreen).toBe(
       true
     );
-  });
-
-  it("run_shell has chat.showStatusLine=false", () => {
-    expect(CONTEXT_CONFIG["run_shell"]?.chat?.showStatusLine).toBe(false);
   });
 
   it("edit_file has simulator.supportsSplitView=true", () => {
@@ -119,10 +110,6 @@ describe("CONTEXT_CONFIG", () => {
 
   it("agent_message has chat.requiresItemIndex=true", () => {
     expect(CONTEXT_CONFIG["agent_message"]?.chat?.requiresItemIndex).toBe(true);
-  });
-
-  it("thinking has chat.showStatusLine=false", () => {
-    expect(CONTEXT_CONFIG["thinking"]?.chat?.showStatusLine).toBe(false);
   });
 
   it("tool_call has chat and simulator fallback config", () => {
@@ -343,22 +330,12 @@ describe("getChatContextConfig", () => {
 
     expect(config).not.toBeNull();
     expect(config?.requiresItemIndex).toBe(true);
-    expect(config?.showStatusLine).toBe(true);
   });
 
   it("returns correct config for read_file", () => {
     const config = getChatContextConfig("read_file");
 
-    expect(config).not.toBeNull();
-    expect(config?.showStatusLine).toBe(true);
-    expect(config?.requiresItemIndex).toBe(false);
-  });
-
-  it("returns correct config for thinking", () => {
-    const config = getChatContextConfig("thinking");
-
-    expect(config).not.toBeNull();
-    expect(config?.showStatusLine).toBe(false);
+    expect(config).toEqual({});
   });
 
   it("returns null for unknown events", () => {
@@ -369,43 +346,13 @@ describe("getChatContextConfig", () => {
   it("resolves CLI aliases before lookup", () => {
     const config = getChatContextConfig("Read");
 
-    expect(config).not.toBeNull();
-    expect(config?.showStatusLine).toBe(true);
-  });
-
-  it("returns correct config for run_shell", () => {
-    const config = getChatContextConfig("run_shell");
-
-    expect(config).not.toBeNull();
-    expect(config?.showStatusLine).toBe(false);
+    expect(config).toBe(CONTEXT_CONFIG.read_file.chat);
   });
 });
 
 // ============================================
-// chatShowsStatusLine / chatRequiresItemIndex
+// chatRequiresItemIndex
 // ============================================
-
-describe("chatShowsStatusLine", () => {
-  it("returns true for read_file", () => {
-    expect(chatShowsStatusLine("read_file")).toBe(true);
-  });
-
-  it("returns false for thinking", () => {
-    expect(chatShowsStatusLine("thinking")).toBe(false);
-  });
-
-  it("returns true (default) for unknown event", () => {
-    expect(chatShowsStatusLine("unknown_event")).toBe(true);
-  });
-
-  it("returns true for edit_file", () => {
-    expect(chatShowsStatusLine("edit_file")).toBe(true);
-  });
-
-  it("returns false for run_shell", () => {
-    expect(chatShowsStatusLine("run_shell")).toBe(false);
-  });
-});
 
 describe("chatRequiresItemIndex", () => {
   it("returns true for agent_message", () => {

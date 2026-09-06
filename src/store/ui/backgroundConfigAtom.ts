@@ -1,11 +1,9 @@
 /**
  * Background Configuration Atoms
  *
- * Manages the app's wallpaper / background state:
- *   - Image (bundled presets + user uploads)
+ * Manages the app's solid background and translucent surface state:
  *   - Solid color (preset IDs + custom hex)
- *   - Glass thickness
- *   - Adaptive colors
+ *   - Page and sidebar opacity
  *
  * Persisted to localStorage under `orgii_background_config`.
  */
@@ -16,7 +14,7 @@ import {
   resolveBackgroundColorPreset,
 } from "@src/config/appearance/backgroundColors";
 import {
-  DEFAULT_BUNDLED_BACKGROUND_IMAGE,
+  normalizeHexColor,
   sanitizeCustomColorsArray,
 } from "@src/config/appearance/backgroundConfig";
 import { createLogger } from "@src/hooks/logger";
@@ -28,26 +26,19 @@ const log = createLogger("BackgroundConfig");
 // ============================================
 
 export interface BackgroundConfig {
-  imageUrl: string;
-  selectedImageId?: string;
-  blurAmount?: number;
-  customImages?: string[];
-  adaptiveColors?: boolean;
   /** DIY solid hex colors (#rrggbb), shown after presets */
   customColors?: string[];
   /** Applied CSS color. Presets use app background tokens; custom colors use literal values. */
   backgroundColor?: string;
   /**
    * Stable ID of the active preset desktop background color (e.g. "classic",
-   * "ocean"). Absent for custom colors and image backgrounds.
+   * "ocean"). Absent for custom colors.
    */
   backgroundColorId?: string;
-  /** Glass thickness level. Undefined = off. */
-  glass?: "regular" | "medium" | "thick";
   /**
    * Opacity of the page panel surface (`bg-bg-2`) as an integer percent
-   * 0–100. Lower values let more of the wallpaper / desktop background
-   * bleed through. Undefined or 100 = fully opaque (no bleed-through).
+   * 0–100. Lower values reveal more of the solid app background or native
+   * desktop material. Undefined or 100 = fully opaque.
    */
   pageOpacity?: number;
   /**
@@ -62,8 +53,6 @@ export interface BackgroundConfig {
 // ============================================
 
 const BACKGROUND_CONFIG_KEY = "orgii_background_config";
-
-const VALID_GLASS_LEVELS = new Set(["regular", "medium", "thick"]);
 
 const DEFAULT_BACKGROUND_COLOR_ID = "graphite";
 
@@ -107,36 +96,44 @@ export function sanitizeSidebarOpacity(value: unknown): number {
 }
 
 const DEFAULT_BACKGROUND_CONFIG: BackgroundConfig = {
-  imageUrl: DEFAULT_BUNDLED_BACKGROUND_IMAGE,
-  blurAmount: 0,
-  customImages: [],
   customColors: [],
-  adaptiveColors: true,
   backgroundColorId: DEFAULT_BACKGROUND_COLOR_ID,
   pageOpacity: DEFAULT_PAGE_OPACITY,
   sidebarOpacity: DEFAULT_SIDEBAR_OPACITY,
 };
 
+export function normalizeBackgroundConfig(raw: unknown): BackgroundConfig {
+  const parsed =
+    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const requestedPresetId =
+    typeof parsed.backgroundColorId === "string"
+      ? parsed.backgroundColorId
+      : undefined;
+  const presetId = getBackgroundColorPresetById(requestedPresetId)?.id;
+  const customColor =
+    typeof parsed.backgroundColor === "string"
+      ? normalizeHexColor(parsed.backgroundColor)
+      : null;
+
+  return {
+    customColors: sanitizeCustomColorsArray(parsed.customColors),
+    ...(presetId
+      ? { backgroundColorId: presetId }
+      : customColor
+        ? { backgroundColor: customColor }
+        : { backgroundColorId: DEFAULT_BACKGROUND_COLOR_ID }),
+    pageOpacity: sanitizePageOpacity(parsed.pageOpacity),
+    sidebarOpacity: sanitizeSidebarOpacity(parsed.sidebarOpacity),
+  };
+}
+
 function getStoredBackgroundConfig(): BackgroundConfig {
   try {
     const stored = localStorage.getItem(BACKGROUND_CONFIG_KEY);
     if (stored) {
-      const parsed = JSON.parse(stored) as Record<string, unknown>;
-      delete parsed.animation;
-      delete parsed.matrixCharSet;
-      if (!VALID_GLASS_LEVELS.has(parsed.glass as string)) {
-        parsed.glass = undefined;
-      }
-      const merged = {
-        ...DEFAULT_BACKGROUND_CONFIG,
-        ...parsed,
-      } as BackgroundConfig;
-      return {
-        ...merged,
-        customColors: sanitizeCustomColorsArray(merged.customColors),
-        pageOpacity: sanitizePageOpacity(merged.pageOpacity),
-        sidebarOpacity: sanitizeSidebarOpacity(merged.sidebarOpacity),
-      };
+      const normalized = normalizeBackgroundConfig(JSON.parse(stored));
+      localStorage.setItem(BACKGROUND_CONFIG_KEY, JSON.stringify(normalized));
+      return normalized;
     }
   } catch (err) {
     log.warn("[BackgroundConfig] Failed to parse stored config:", err);
@@ -156,9 +153,9 @@ backgroundConfigAtom.debugLabel = "backgroundConfigAtom";
 export const backgroundConfigPersistAtom = atom(
   (get) => get(backgroundConfigAtom),
   (get, set, value: BackgroundConfig) => {
-    set(backgroundConfigAtom, value);
-    localStorage.setItem(BACKGROUND_CONFIG_KEY, JSON.stringify(value));
-    window.dispatchEvent(new Event("backgroundConfigChange"));
+    const normalized = normalizeBackgroundConfig(value);
+    set(backgroundConfigAtom, normalized);
+    localStorage.setItem(BACKGROUND_CONFIG_KEY, JSON.stringify(normalized));
   }
 );
 

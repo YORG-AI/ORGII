@@ -247,7 +247,7 @@ export function ChatPanelTerminalContent({
   // Resolve the *visible* chat-pane background at runtime so xterm's opaque
   // WebGL fill matches whatever the chat-pane surface looks like right now.
   // We read the parent's computed `background-color` (an already-resolved
-  // rgb/rgba value) so any wallpaper tint via page-opacity is captured too.
+  // rgb/rgba value) so any solid backdrop tint via page-opacity is captured too.
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [resolvedBg, setResolvedBg] = useState<string | undefined>(undefined);
 

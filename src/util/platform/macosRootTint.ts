@@ -60,8 +60,8 @@ function parseAlpha(token: string | undefined): number | null {
 /**
  * Parse the serialisations WebKit uses for a computed `background-color`:
  * `rgb()` / `rgba()` with commas or spaces, `color(srgb r g b / a)`, and the
- * `transparent` keyword. Anything else (an image, `currentcolor`, a colour
- * space we cannot composite in) returns `null`.
+ * `transparent` keyword. Anything else (`currentcolor`, a colour space we
+ * cannot composite in) returns `null`.
  */
 export function parseCssColor(value: string): Rgba | null {
   const text = value.trim().toLowerCase();
@@ -152,9 +152,6 @@ export function measureCssRootTint(): Rgba | null {
     const layers: Rgba[] = [];
     for (const surface of rootSurfaces()) {
       const style = getComputedStyle(surface);
-      if (style.backgroundImage && style.backgroundImage !== "none") {
-        return null;
-      }
       const color = parseCssColor(style.backgroundColor);
       if (!color) return null;
       layers.push(color);

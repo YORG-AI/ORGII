@@ -38,8 +38,7 @@ export function signalFirstPaintComplete(): void {
 
   firstPaintComplete = true;
 
-  // Remove the native startup background — the React CSS background
-  // is now painted and we can restore transparent glass appearance.
+  // Remove the native startup cover once the React CSS surface is painted.
   import("@tauri-apps/api/core")
     .then(({ invoke }) => invoke("remove_window_background"))
     .catch(() => {

@@ -4,7 +4,6 @@
  * Public exports for Orgii-specific components
  */
 
-export { BackgroundLayer } from "./BackgroundLayer";
 export {
   ActivityHeaderActionButton,
   ActivityTimestamp,

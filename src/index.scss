@@ -399,6 +399,14 @@ html[data-window-focused="false"] *::after {
   background: var(--color-bg-2, var(--splash-bg));
 }
 
+// Browser mode uses the Linux host profile. Both use the selected solid color
+// as their root backdrop; macOS and Windows keep their native material rules.
+html[data-host-desktop="linux"],
+html[data-host-desktop="linux"] body,
+html[data-host-desktop="linux"] #root {
+  background: var(--app-solid-background, var(--color-bg-2, var(--splash-bg)));
+}
+
 // Remove border radius in fullscreen mode
 html.fullscreen,
 html.fullscreen body,
@@ -733,29 +741,6 @@ html[data-host-desktop="windows"] [data-windows-top-bar="true"] {
   -ms-user-select: none !important;
   user-select: none !important;
 }
-.GloballightBg {
-  background-image: url("./assets/bg/bamboo-blue.jpg");
-}
-.GlobalDarkBg {
-  background-image: url('data:image/svg+xml,<svg width="1440" height="960" viewBox="0 0 1440 960" fill="none " xmlns="http://www.w3.org/2000/svg"><g clip-path="url(%23clip0_1705_676)"><rect width="1440" height="960" fill="black"/><g filter="url(%23filter0_f_1705_676)"><path d="M1106.33 18.0475L-11.7564 736.314C-45.9596 801.182 -115.781 933.749 -121.442 945.072C-127.104 956.394 180.489 1013.48 334.993 1040.6C745.431 1012.3 1566.31 950.733 1566.31 930.919C1566.31 906.151 1608.77 18.0475 1601.69 3.89447C1596.03 -7.42796 1269.09 8.61215 1106.33 18.0475Z" fill="%23060286"/></g><g filter="url(%23filter1_f_1705_676)"><ellipse cx="1333.67" cy="847.596" rx="410.127" ry="452.658" fill="%23311432"/></g><g filter="url(%23filter2_f_1705_676)"><ellipse cx="960.876" cy="971.448" rx="410.438" ry="382.132" fill="%23F3F5FC"/></g><g filter="url(%23filter3_f_1705_676)"><ellipse cx="610.631" cy="1023.8" rx="507.342" ry="306.835" fill="%23001f3f"/></g><g style="mix-blend-mode:overlay" filter="url(%23filter4_f_1705_676)"><ellipse cx="247.21" cy="-68.3783" rx="1118.45" ry="517.173" transform="rotate(-17.7477 247.21 -68.3783)" fill="black"/></g></g><defs><filter id="filter0_f_1705_676" x="-546.836" y="-425.316" width="2574.64" height="1891.24" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur stdDeviation="212.658" result="effect1_foregroundBlur_1705_676"/></filter><filter id="filter1_f_1705_676" x="631.897" y="103.292" width="1403.55" height="1488.61" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur stdDeviation="145.823" result="effect1_foregroundBlur_1705_676"/></filter><filter id="filter2_f_1705_676" x="258.792" y="297.671" width="1404.17" height="1347.56" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur stdDeviation="145.823" result="effect1_foregroundBlur_1705_676"/></filter><filter id="filter3_f_1705_676" x="-188.357" y="425.317" width="1597.97" height="1196.96" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur stdDeviation="145.823" result="effect1_foregroundBlur_1705_676"/></filter><filter id="filter4_f_1705_676" x="-1121.4" y="-959.119" width="2737.22" height="1781.48" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur stdDeviation="145.823" result="effect1_foregroundBlur_1705_676"/></filter><clipPath id="clip0_1705_676"><rect width="1440" height="960" fill="white"/></clipPath></defs></svg>');
-}
-body.drag-over::after {
-  content: "Drop image to upload";
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: rgba(0, 0, 0, 0.5);
-  color: white;
-  font-size: 24px;
-  z-index: 9999;
-  pointer-events: none;
-}
-
 /* Auto-discover dropdown keyboard highlight.
  * Applied by dropdown keyboard utilities to the row that's currently
  * keyboard-focused inside any open dropdown panel. Mirrors the :hover fill
@@ -886,54 +871,6 @@ body.drag-over::after {
   background-color: var(--ansi-white);
 }
 
-/* ============================================
- * Adaptive Colors for Custom Backgrounds
- * Uses Contrast.js to automatically adjust text/icon colors
- * based on background brightness
- * ============================================ */
-
-/* Base adaptive text class */
-.adaptive-text {
-  transition: color 0.2s ease;
-}
-
-/* Adaptive text variants */
-.adaptive-text-1 {
-  @extend .adaptive-text;
-  color: var(--color-text-1);
-}
-
-.adaptive-text-2 {
-  @extend .adaptive-text;
-  color: var(--color-text-2);
-}
-
-.adaptive-text-3 {
-  @extend .adaptive-text;
-  color: var(--color-text-3);
-}
-
-/* Adaptive icon class */
-.adaptive-icon {
-  transition:
-    filter 0.2s ease,
-    color 0.2s ease;
-}
-
-/* Sidebar-specific adaptive text */
-.sidebar-adaptive-text {
-  @extend .adaptive-text;
-}
-
-/* Dark mode icon invert - for monochrome black icons */
-.dark-mode-icon-invert {
-  transition: filter 0.2s ease;
-}
-
-[data-theme="dark"] .dark-mode-icon-invert {
-  filter: invert(1) brightness(0.9);
-}
-
 /* Simulator compact mode - hides sidebar and reduces padding for multi-task grid */
 .simulator-compact-mode {
   /* Hide Messages sidebar in compact mode */
@@ -1027,37 +964,6 @@ body.drag-over::after {
     pre {
       padding: 0.5em !important;
       margin: 0.5em 0 !important;
-    }
-  }
-}
-
-/* Compact diff styles for multi-task grid view - smaller gutter area */
-.compact-diff {
-  .diff-line {
-    min-height: 20px !important;
-  }
-
-  .diff-line-gutter {
-    width: 18px !important;
-    padding: 0 4px !important;
-    font-size: 10px !important;
-    backdrop-filter: blur(8px);
-  }
-
-  .diff-line-indicator {
-    width: 16px !important;
-    backdrop-filter: blur(8px);
-  }
-
-  .diff-line-content {
-    font-size: 11px !important;
-  }
-
-  /* Ensure context lines have solid background instead of transparent */
-  .diff-line-context {
-    .diff-line-gutter,
-    .diff-line-indicator {
-      background: var(--color-bg-2);
     }
   }
 }

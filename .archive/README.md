@@ -99,9 +99,11 @@ The WorkStation "Database" app (the **Data** dock app, its tab types, renderers,
 
 The standalone Home/Start Page and the global `mainApp` ↔ `workStation` view-mode switch were retired. Workstation and Settings now share one router-owned Workbench shell; standalone Market/Ideas/Dev pages use a plain route outlet. This removes the duplicated route/view/tab state machine, sticky mounts, route caching, and Home-only customization state.
 
-**What moved here:**
+**What was removed or moved here:**
 
-- `src/modules/MainApp/StartPage/` and its `appGridAtom`
+- The archived `src/modules/MainApp/StartPage/` and its `appGridAtom` were
+  deleted after the wallpaper and Glass systems were retired; their remaining
+  restoration value did not justify keeping an unreachable UI tree
 - the Home-only repository-drop overlay layout helper at `src/components/GlobalDragDrop/useGlobalDragDrop/useLayoutHelpers.ts`
 - the old month/day Changelog UI was retired; its generated git-summary
   documents and data-bound page were deleted instead of archived
@@ -269,7 +271,7 @@ from `scripts/`, `tests/`, `tools/`, or a root config — no test roots) leaves
 modules the app never loads and only the suite keeps alive. A passing test is
 not evidence a module is wanted.
 
-**26 modules + the 21 tests that were their only consumer (8,081 LOC).**
+**25 modules + the 20 tests that were their only consumer.**
 
 Whole units:
 
@@ -291,7 +293,7 @@ sessionGenerationGuard}.ts`, `components/{FloatingScrollNav,TrafficLights}/`,
 `MainApp/Settings/settingsRouteModel.ts`,
 `SpreadsheetEditor/clipboardUtils.ts`, `shared/pr/types.ts`,
 `CodeReviewBlocks/ReviewSeverityIcon.tsx`,
-`TerminalCore/terminalSessionSidebarLayout.ts`, `util/ui/theme/luminance.ts`
+`TerminalCore/terminalSessionSidebarLayout.ts`
 — each with its one test.
 
 ### More duplicate implementations, same shape as `dndKit`

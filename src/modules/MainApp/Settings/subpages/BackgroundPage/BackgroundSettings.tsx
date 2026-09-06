@@ -7,7 +7,7 @@ import {
   PanelHeader,
   ScrollFadeContainer,
 } from "@/src/modules/shared/layouts/blocks";
-import React, { useCallback, useState } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Select from "@src/components/Select";
@@ -26,13 +26,9 @@ import {
   MIN_SIDEBAR_OPACITY,
 } from "@src/store/ui/backgroundConfigAtom";
 
-import { ColorSection, ImageSection } from "./components";
+import { ColorSection } from "./components";
 import { useBackgroundSettings } from "./hooks";
-import {
-  BACKGROUND_CONTENT_SOURCE,
-  type BackgroundContentSource,
-  type BackgroundSettingsProps,
-} from "./types";
+import type { BackgroundSettingsProps } from "./types";
 
 export const BackgroundSettings: React.FC<BackgroundSettingsProps> = ({
   showHeader = true,
@@ -49,42 +45,16 @@ export const BackgroundSettings: React.FC<BackgroundSettingsProps> = ({
     skinOptions,
     activeSkinId,
     handleSkinChange,
-    isOptimizing,
-    images,
-    storageInfo,
-
     // Handlers
     handleBack,
-    handleImageSelect,
     handleColorSelect,
     handleSelectCustomPaletteHex,
     handleAddCustomPaletteHex,
     handleRemoveCustomPaletteHex,
-    handleBlurChange,
     handlePageOpacityChange,
     handleSidebarOpacityChange,
-    handleUpload,
-    handleDeleteCustomImage,
     handleAppearanceModeChange,
   } = useBackgroundSettings();
-
-  const initialBackgroundSource: BackgroundContentSource =
-    !config.backgroundColorId &&
-    !config.backgroundColor &&
-    !config.glass &&
-    !!config.imageUrl
-      ? BACKGROUND_CONTENT_SOURCE.IMAGES
-      : BACKGROUND_CONTENT_SOURCE.COLORS;
-  const [backgroundContentSource, setBackgroundContentSource] =
-    useState<BackgroundContentSource>(initialBackgroundSource);
-
-  const handleBackgroundSourceChange = useCallback(
-    (value: string | number | (string | number)[]) => {
-      const next = String(value) as BackgroundContentSource;
-      setBackgroundContentSource(next);
-    },
-    []
-  );
 
   const showAppearanceChrome = !embedded;
 
@@ -115,49 +85,14 @@ export const BackgroundSettings: React.FC<BackgroundSettingsProps> = ({
       )}
 
       <SectionContainer title={t("background.title")}>
-        <SectionRow label={t("background.source")}>
-          <Select
-            value={backgroundContentSource}
-            onChange={handleBackgroundSourceChange}
-            options={[
-              {
-                label: t("background.colors"),
-                value: BACKGROUND_CONTENT_SOURCE.COLORS,
-              },
-              {
-                label: t("background.images"),
-                value: BACKGROUND_CONTENT_SOURCE.IMAGES,
-              },
-            ]}
-            size="default"
-            style={SECTION_CONTROL_STYLE}
-          />
-        </SectionRow>
-
-        {backgroundContentSource === BACKGROUND_CONTENT_SOURCE.COLORS && (
-          <ColorSection
-            config={config}
-            translationNamespace={translationNamespace}
-            onColorSelect={handleColorSelect}
-            onSelectCustomHex={handleSelectCustomPaletteHex}
-            onAddCustomHex={handleAddCustomPaletteHex}
-            onRemoveCustomHex={handleRemoveCustomPaletteHex}
-          />
-        )}
-
-        {backgroundContentSource === BACKGROUND_CONTENT_SOURCE.IMAGES && (
-          <ImageSection
-            config={config}
-            images={images}
-            storagePath={storageInfo.path}
-            isOptimizing={isOptimizing}
-            translationNamespace={translationNamespace}
-            onBlurChange={handleBlurChange}
-            onImageSelect={handleImageSelect}
-            onUpload={handleUpload}
-            onDeleteCustomImage={handleDeleteCustomImage}
-          />
-        )}
+        <ColorSection
+          config={config}
+          translationNamespace={translationNamespace}
+          onColorSelect={handleColorSelect}
+          onSelectCustomHex={handleSelectCustomPaletteHex}
+          onAddCustomHex={handleAddCustomPaletteHex}
+          onRemoveCustomHex={handleRemoveCustomPaletteHex}
+        />
 
         <SectionRow label={t("background.pageOpacity")}>
           <div className="min-w-0" style={SECTION_CONTROL_STYLE}>

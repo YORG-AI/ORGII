@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 
 import InlineAlert from "@src/components/InlineAlert";
 import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
-import { CHAT_PANEL_GLASS_SURFACE_CLASS } from "@src/engines/ChatPanel/header/chatPanelHeaderLayout";
+import { CHAT_PANEL_HEADER_SURFACE_CLASS } from "@src/engines/ChatPanel/header/chatPanelHeaderLayout";
 
 export interface SessionDerivedViewShellProps {
   testId: string;
@@ -82,7 +82,7 @@ export const SessionDerivedViewShell: React.FC<SessionDerivedViewShellProps> =
       const summaryStrip = (
         <div
           className={`shrink-0 border-b border-border-2 ${
-            topInset > 0 ? CHAT_PANEL_GLASS_SURFACE_CLASS : ""
+            topInset > 0 ? CHAT_PANEL_HEADER_SURFACE_CLASS : ""
           }`}
           data-testid={`${testId}-summary`}
         >

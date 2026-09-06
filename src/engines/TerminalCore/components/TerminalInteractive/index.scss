@@ -100,28 +100,10 @@
       opacity: 1 !important;
     }
   }
-
-  .xterm-terminal-loading {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-    background: var(--cm-editor-background);
-    color: var(--color-text-3);
-    font-size: 14px;
-    backdrop-filter: blur(4px);
-    z-index: 10;
-  }
 }
 
 .chat-panel-terminal-core {
-  // Match the *visible* chat-pane color (possibly tinted by the wallpaper
+  // Match the *visible* chat-pane color (possibly tinted by the app backdrop
   // via `color-mix()` when page opacity < 100%). The xterm WebGL fill is
   // driven at runtime from the same computed background so the sub-cell
   // remainder and the painted cells stay seam-free.

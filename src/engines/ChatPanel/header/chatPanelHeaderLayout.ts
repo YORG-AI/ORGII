@@ -16,9 +16,13 @@ export const CHAT_PANEL_TRANSCRIPT_TOP_GAP_PX = 24;
 export const CHAT_PANEL_TRANSCRIPT_TOP_PADDING_PX =
   CHAT_PANEL_HEADER_STACK_HEIGHT_PX + CHAT_PANEL_TRANSCRIPT_TOP_GAP_PX;
 
-/** Dense glass shared by the chat header stack and its pinned subheaders. */
-export const CHAT_PANEL_GLASS_SURFACE_CLASS =
-  "bg-chat-pane/70 backdrop-blur-xl backdrop-saturate-150";
+/**
+ * Solid surface shared by the chat header stack and its pinned subheaders.
+ * Deliberately opaque and blur-free: a `backdrop-filter` here is re-rendered
+ * by WebKit every frame the transcript scrolls underneath it, on top of the
+ * native window material that already blurs behind the window.
+ */
+export const CHAT_PANEL_HEADER_SURFACE_CLASS = "bg-chat-pane";
 
 interface ChatPanelHeaderOverlayState {
   showSessionContent: boolean;
@@ -96,7 +100,7 @@ export function resolveChatPanelChromeTopInsetPx(
     : CHAT_PANEL_HEADER_STACK_HEIGHT_PX;
 }
 
-/** Session views share one floating glass-header contract in the chat pane. */
+/** Session views share one floating-header contract in the chat pane. */
 export function shouldOverlayChatSessionHeaders({
   showSessionContent,
   standaloneToolTabActive,

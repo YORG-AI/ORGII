@@ -126,28 +126,6 @@
   /* Sticky header shadow - used in Git changes view file headers */
   --shadow-sticky-header: 0 4px 8px -2px rgba(0, 0, 0, 0.3);
 
-  /* Liquid Glass Pattern - Light Theme Shadows
-   * Subtle, soft shadows that complement the glass material */
-  --shadow-light-ultrathin:
-    0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-light-thin:
-    0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
-  --shadow-light-medium:
-    0 8px 20px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.06);
-  --shadow-light-thick:
-    0 12px 28px rgba(0, 0, 0, 0.1), 0 6px 12px rgba(0, 0, 0, 0.08);
-
-  /* Liquid Glass Pattern - Dark Theme Shadows
-   * Deeper shadows for depth against dark backgrounds */
-  --shadow-dark-ultrathin:
-    0 2px 8px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.15);
-  --shadow-dark-thin:
-    0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.25);
-  --shadow-dark-medium:
-    0 8px 20px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.35);
-  --shadow-dark-thick:
-    0 12px 28px rgba(0, 0, 0, 0.5), 0 6px 12px rgba(0, 0, 0, 0.45);
-
   --animate-marquee: marquee 2s linear infinite;
   --animate-stamp-slam: stamp-slam 0.4s ease-out;
   --animate-fade-in-up: fade-in-up 0.6s ease-out;

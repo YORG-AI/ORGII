@@ -99,7 +99,7 @@ const InlineThinkingBlock: React.FC<{ content: string }> = ({ content }) => {
 
       {!isCollapsed && (
         <div className={getEventBlockContentClasses({ padding: "p-0" })}>
-          <div className="activity-thinking activity-thinking--no-style allow-select">
+          <div className="activity-thinking allow-select">
             <div className="activity-thinking__content allow-select">
               <Markdown textContent={content} />
             </div>

@@ -1,7 +1,7 @@
 /**
- * Station dock layout primitives — glass pill, icon columns, segment divider, row wrapper.
- * Consumed by Dock and DockReplayControl; kept out of index.ts to avoid circular imports
- * (those components cannot import from the barrel that re-exports them).
+ * Station dock layout primitives — icon strip, icon columns, segment divider, row wrapper.
+ * Consumed by DockReplayControl; kept out of index.ts so the barrel only exposes
+ * complete dock surfaces rather than their internal layout pieces.
  */
 import React, { memo } from "react";
 
@@ -69,11 +69,11 @@ export const DockSegmentDivider: React.FC = memo(() => (
 
 DockSegmentDivider.displayName = "DockSegmentDivider";
 
-export interface StationDockGlassPillProps {
+export interface StationDockIconStripProps {
   children: React.ReactNode;
 }
 
-export const StationDockGlassPill: React.FC<StationDockGlassPillProps> = memo(
+export const StationDockIconStrip: React.FC<StationDockIconStripProps> = memo(
   ({ children }) => (
     <div className="relative flex h-12 flex-row items-center gap-1 overflow-visible px-1.5 py-0">
       {children}
@@ -81,13 +81,11 @@ export const StationDockGlassPill: React.FC<StationDockGlassPillProps> = memo(
   )
 );
 
-StationDockGlassPill.displayName = "StationDockGlassPill";
+StationDockIconStrip.displayName = "StationDockIconStrip";
 
 export interface StationDockRowProps {
-  /** Centered under chrome (My Station); left + room for trailing (Agent) */
-  layout: "centered" | "withTrailingSlot";
   children: React.ReactNode;
-  /** Rendered immediately to the right of the glass pill (e.g. keyboard) */
+  /** Rendered immediately to the right of the icon strip (e.g. keyboard) */
   trailing?: React.ReactNode;
 }
 
@@ -105,10 +103,6 @@ StationDockRow.displayName = "StationDockRow";
 export interface DockIconColumnProps {
   children: React.ReactNode;
   trailer: DockIconTrailerMode;
-}
-
-export interface CompactDockIconColumnProps {
-  children: React.ReactNode;
 }
 
 /**
@@ -142,13 +136,3 @@ export const DockIconColumn: React.FC<DockIconColumnProps> = memo(
 );
 
 DockIconColumn.displayName = "DockIconColumn";
-
-export const CompactDockIconColumn: React.FC<CompactDockIconColumnProps> = memo(
-  ({ children }) => (
-    <div className="group relative flex h-[36px] items-center justify-center overflow-visible">
-      {children}
-    </div>
-  )
-);
-
-CompactDockIconColumn.displayName = "CompactDockIconColumn";

@@ -345,8 +345,8 @@ shared_state = { path = "crates/shared-state" }
 # preference changes into `agent_core` without `settings` knowing about it.
 settings = { path = "crates/settings" }
 
-# Performance-critical leaf utilities: image luminance (rayon-parallel),
-# binary detection (memchr + infer magic-byte sniffing), fast JSON parsing
+# Performance-critical leaf utilities: binary detection (memchr + infer
+# magic-byte sniffing), fast JSON parsing
 # (simd-json), hashing (sha2 + blake3), diff/patch (similar), process
 # metrics (sysinfo). Owns ~36 `#[tauri::command]`s — `app` re-registers them
 # in `commands/handler_list.inc` via bare `perf_utils::…` paths. Pure leaf —
@@ -486,8 +486,8 @@ time = { version = "0.3", features = ["formatting"] }
 # ===========================================
 # Performance Optimizations
 # ===========================================
-# Hot-path leaf utilities (image luminance, simd-json, sha2/blake3 batch
-# hashing, similar diff/patch, sysinfo memory breakdown, memchr binary
+# Hot-path leaf utilities (simd-json, sha2/blake3 batch hashing, similar
+# diff/patch, sysinfo memory breakdown, memchr binary
 # sniffing, infer magic-byte detection) moved to the `perf_utils` workspace
 # crate. `app/src` only needs SHA-256 for OAuth PKCE flows.
 sha2 = "0.10"            # SHA-256 for OAuth PKCE code challenges
@@ -612,7 +612,7 @@ strip = true
 # wall-clock on every fresh `target/`, and ballooned `target/` disk usage.
 # We now leave deps at the default `opt-level = 0` and only opt in the
 # specific crates whose inner loops the user actually feels (tree-sitter
-# parses, image luminance, hashing, diffing, compression, regex, ripgrep
+# parses, image processing, hashing, diffing, compression, regex, ripgrep
 # walkers). See per-package overrides below.
 [profile.dev]
 incremental = true

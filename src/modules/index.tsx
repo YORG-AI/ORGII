@@ -22,16 +22,11 @@ import React, {
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { ROUTES } from "@src/config/routes";
-import {
-  HOST_DESKTOP,
-  resolveHostDesktop,
-} from "@src/config/windowChromeRadius";
 import { BrowserProvider, TerminalProvider } from "@src/contexts/workstation";
 import { useViewportWidth } from "@src/engines/ChatPanel/hooks/useViewportWidth";
 import { useAgentADEActions } from "@src/engines/SessionCore/hooks/useAgentADEActions";
 import { useProjectDataChangedListener } from "@src/hooks/project";
 import { useUrlPreviewEvents } from "@src/hooks/tabHost/useUrlPreviewEvents";
-import { useBackgroundImage } from "@src/hooks/theme/useBackgroundImage";
 import { useGlobalBrowserWebviewLayering } from "@src/modules/WorkStation/Browser/hooks";
 import { CODE_EDITOR_TOUR_EVENT } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import {
@@ -40,7 +35,6 @@ import {
 } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 import { TUTORIALS_OPEN_EVENT } from "@src/scaffold/Tutorials/tutorialRegistry";
-import { resolvedBackgroundConfigAtom } from "@src/store";
 import {
   activeChatPanelTabAtom,
   resolveChatPanelMaximizedForLayout,
@@ -61,13 +55,7 @@ import {
 } from "@src/store/ui/sidebarAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { chatPanelPositionAtom } from "@src/store/ui/workStationAtom";
-import { prewarmColor } from "@src/util/ui/theme/glassMaterial";
 
-// Deep import, not the `./shared/components` barrel: the barrel re-exports
-// MarkdownContent, which pulls the Markdown renderer (and with it
-// react-markdown + the Prism grammar set) into the pre-paint startup graph.
-// `src/app/root/__tests__/startupGraph.test.ts` pins this.
-import { BackgroundLayer } from "./shared/components/BackgroundLayer";
 import { useRouteLayoutType, useWorkspaceEvents } from "./shared/hooks";
 import { AppLayout } from "./shared/layouts";
 import { FloatingSidebar } from "./shared/layouts/sidebar/FloatingSidebar";
@@ -135,31 +123,6 @@ const BrowserEventBridge: React.FC = () => {
 const WorkStationLoadingFallback: React.FC = () => (
   <div className="h-full w-full bg-workstation-bg" />
 );
-
-const HOST_DESKTOP_VALUE = resolveHostDesktop();
-const HOST_USES_NATIVE_BACKDROP =
-  HOST_DESKTOP_VALUE === HOST_DESKTOP.MACOS ||
-  HOST_DESKTOP_VALUE === HOST_DESKTOP.WINDOWS;
-
-/** Legacy wallpaper/color background, retained for browser and Linux hosts. */
-const ConfiguredBackgroundLayer: React.FC = () => {
-  const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
-  const currentBackgroundImage = useBackgroundImage();
-
-  useEffect(() => {
-    if (!backgroundConfig.backgroundColor) return;
-    prewarmColor(backgroundConfig.backgroundColor);
-  }, [backgroundConfig.backgroundColor]);
-
-  return (
-    <BackgroundLayer
-      image={backgroundConfig.backgroundColor ? null : currentBackgroundImage}
-      blurAmount={backgroundConfig.blurAmount ?? 0}
-      backgroundColor={backgroundConfig.backgroundColor}
-      glass={backgroundConfig.glass}
-    />
-  );
-};
 
 const AppShell = () => {
   const location = useLocation();
@@ -404,8 +367,6 @@ const AppShell = () => {
           className="relative flex h-full"
           data-guide-target={GUIDE_TARGETS.APP_ROOT}
         >
-          {!HOST_USES_NATIVE_BACKDROP && <ConfiguredBackgroundLayer />}
-
           {/* Main layout with sidebar, toolbar, content, and chat panel */}
           <AppLayout
             viewportWidth={viewportWidth}

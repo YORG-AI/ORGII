@@ -19,10 +19,10 @@
 
 ## D3 — Hardcoded Sizes / Colors
 
-| Line | Value                         | Verdict          | Reason                                                                                                                                                  | Suggested change |
-| ---- | ----------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| 125  | Light/dark glass border alpha | keep with reason | The values complement runtime material backgrounds from `getMaterialConfig`; replacing them with a static color token would break the material pairing. | —                |
-| 221  | Spotlight mask/glow colors    | keep with reason | These colors are effect parameters for the dedicated tutorial spotlight, not reusable surface or text colors.                                           | —                |
+| Line | Value                         | Verdict          | Reason                                                                                                                                         | Suggested change |
+| ---- | ----------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| 125  | Light/dark popup border alpha | keep with reason | The values are effect parameters for the runtime guide surface; ordinary border tokens do not express the paired light/dark overlay treatment. | —                |
+| 221  | Spotlight mask/glow colors    | keep with reason | These colors are effect parameters for the dedicated tutorial spotlight, not reusable surface or text colors.                                  | —                |
 
 ## D4 — Accessibility
 

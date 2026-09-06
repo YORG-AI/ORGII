@@ -8,6 +8,7 @@
  * Managed properties:
  * - Native WebView scale + coordinate scale variables         (uiScaleAtom, 0–200 %)
  * - `--app-font-family`                                    (applicationUiFontAtom)
+ * - `--app-solid-background`                       (resolvedBackgroundConfigAtom)
  * - Chat typography variables                              (chat appearance settings)
  * - `html.fullscreen` class                                (windowFullscreenAtom)
  *
@@ -15,7 +16,7 @@
  * applied before any child component paints, avoiding a flash of unstyled UI.
  */
 import { useAtomValue } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 
 import { getApplicationUiFontStack } from "@src/config/appearance/applicationUiFonts";
 import { createLogger } from "@src/hooks/logger";
@@ -24,6 +25,7 @@ import {
   chatFontSizeAtom,
   chatLineHeightAtom,
 } from "@src/store/config/configAtom";
+import { resolvedBackgroundConfigAtom } from "@src/store/ui/backgroundConfigAtom";
 import {
   applicationUiFontAtom,
   uiScaleAtom,
@@ -42,6 +44,18 @@ export function useAppShellEffects(): void {
   const chatFontSize = useAtomValue(chatFontSizeAtom);
   const chatCodeFontSize = useAtomValue(chatCodeFontSizeAtom);
   const chatLineHeight = useAtomValue(chatLineHeightAtom);
+  const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty(
+      "--app-solid-background",
+      backgroundConfig.backgroundColor ?? "var(--color-bg-2, var(--splash-bg))"
+    );
+    return () => {
+      root.style.removeProperty("--app-solid-background");
+    };
+  }, [backgroundConfig.backgroundColor]);
 
   useEffect(() => {
     let disposed = false;

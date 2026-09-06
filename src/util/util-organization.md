@@ -18,7 +18,6 @@ This document describes the organization of the `src/util/` folder — structure
 src/util/
 ├── core/                        # Core framework utilities
 │   ├── init/
-│   │   ├── backgroundInit.ts   # Background initialization
 │   │   ├── deferredInit.ts     # Deferred initialization
 │   │   ├── menuInit.ts         # Menu initialization
 │   │   └── themeInit.ts        # Theme initialization
@@ -27,10 +26,7 @@ src/util/
 │   │   ├── instrumentedStore.ts # Instrumented Jotai store
 │   │   └── windowId.ts         # Storage-safe per-window identity
 │   ├── storage/
-│   │   ├── backgroundImage.ts   # Background image storage
 │   │   ├── cleanup.ts           # Storage cleanup utilities
-│   │   ├── devIndexedDBProtection.ts # Dev IndexedDB protection
-│   │   ├── diagnosis.ts         # Storage diagnosis tools
 │   │   ├── indexedDB.ts         # IndexedDB wrapper
 │   │   └── localStorage.ts      # LocalStorage cache
 │   ├── error/
@@ -83,9 +79,7 @@ src/util/
 │
 ├── ui/                          # UI utilities
 │   ├── theme/
-│   │   ├── glassMaterial.ts    # Glass material theme resolver
-│   │   ├── themeUtils.ts       # Theme utility functions
-│   │   └── toolbarTheme.ts     # Toolbar theme resolver
+│   │   └── themeUtils.ts       # Theme utility functions
 │   ├── tabs/
 │   │   └── tabHelpers.ts       # Tab helper functions
 │   ├── terminal/
@@ -346,7 +340,6 @@ import {
   - **`breadcrumb.tsx`** - Breadcrumb rendering
   - **`chatDetail.ts`** - Chat detail creation
 
-- **`ui/theme/glassMaterial.ts`** - Glass material theme resolution
 - **`ui/window/windowManager.ts`** - Window management operations
 
 ### Platform Utilities

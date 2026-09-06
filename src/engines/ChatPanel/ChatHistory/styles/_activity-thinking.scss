@@ -1,33 +1,17 @@
 /**
  * Activity Styles — Thinking / LLM Reasoning
  *
- * Minimal clean style for thinking/reasoning display (supports light/dark mode).
- * Includes streaming state, cursor blink, and dot-pulse animations.
+ * Minimal inline style for thinking/reasoning display. Includes the cursor
+ * blink used by live reasoning output.
  */
-@import "./variables";
 
 .activity-thinking {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  padding: 6px 8px;
-  border-radius: 8px;
-
-  background: var(--color-fill-1);
-  border: 1px solid var(--color-border-2);
-
-  // Font size one smaller than chat font size
-  font-size: calc(var(--chat-font-size, $font-size-fallback) - 1px);
+  padding: 0 8px;
+  font-size: inherit;
   color: var(--color-text-4);
-
-  svg {
-    width: calc(var(--chat-font-size, $font-size-fallback) - 1px);
-    height: calc(var(--chat-font-size, $font-size-fallback) - 1px);
-    color: var(--color-text-4);
-    flex-shrink: 0;
-    // Align with first line of text (line-height based offset)
-    margin-top: 4px;
-  }
 
   p {
     margin: 0;
@@ -64,115 +48,6 @@
     vertical-align: text-bottom;
     animation: cursor-blink 0.8s infinite;
   }
-
-  // Streaming variant - subtle border effect
-  &--streaming {
-    border-color: var(--color-border-3);
-
-    svg {
-      animation: brain-pulse 1.5s ease-in-out infinite;
-    }
-  }
-
-  &--loading {
-    align-items: center;
-  }
-
-  // No style variant - removes background and border for collapsible version
-  &--no-style {
-    background: none;
-    border: none;
-    padding: 0 8px 0 8px;
-    font-size: inherit;
-  }
-
-  &__dots {
-    display: flex;
-    gap: 4px;
-
-    span {
-      width: 4px;
-      height: 4px;
-      border-radius: 50%;
-      background: var(--color-text-4);
-      animation: dot-pulse 1.4s infinite ease-in-out both;
-
-      &:nth-child(1) {
-        animation-delay: -0.32s;
-      }
-
-      &:nth-child(2) {
-        animation-delay: -0.16s;
-      }
-    }
-  }
-}
-
-.thinking-header-preview {
-  color: var(--color-text-1);
-  display: block;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-
-  &--expanded {
-    font-weight: 700;
-  }
-}
-
-// ThinkingBlock expanded content - tight spacing, no extra margins
-.thinking-block-content {
-  color: var(--color-text-2);
-
-  .chat-markdown-body {
-    color: var(--color-text-2);
-    font-size: inherit;
-
-    // Zero out all bottom margins so expanded content sits tight
-    p,
-    blockquote,
-    ul,
-    ol,
-    dl,
-    pre {
-      &:last-child {
-        margin-bottom: 0 !important;
-      }
-    }
-
-    // Slightly tighter line-height for thinking text
-    p {
-      line-height: 1.6;
-    }
-  }
-}
-
-// ============================================
-// Streaming cursor for main agent message text
-// ============================================
-
-// Applied to the Markdown wrapper div when the message is actively streaming.
-// The ::after pseudo-element renders a blinking vertical bar that appears to
-// follow the last character of the rendered markdown output.
-.chat-stream-cursor {
-  position: relative;
-
-  // Append a blinking cursor after the last block-level child
-  .chat-markdown-body > *:last-child {
-    &::after {
-      content: "";
-      display: inline-block;
-      width: 2px;
-      height: 0.85em;
-      background: var(--color-text-2);
-      margin-left: 3px;
-      vertical-align: text-bottom;
-      border-radius: 1px;
-      animation: cursor-blink 0.8s infinite;
-    }
-  }
 }
 
 // ============================================
@@ -188,30 +63,5 @@
   51%,
   100% {
     opacity: 0;
-  }
-}
-
-// Brain icon pulse animation for streaming
-@keyframes brain-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-@keyframes dot-pulse {
-  0%,
-  80%,
-  100% {
-    transform: scale(0.6);
-    opacity: 0.5;
-  }
-
-  40% {
-    transform: scale(1);
-    opacity: 1;
   }
 }

@@ -26,7 +26,7 @@ export interface ContextConfig {
 export const CONTEXT_CONFIG: Record<string, ContextConfig> = {
   // File operations
   read_file: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: {
       supportsSplitView: false,
       supportsFullscreen: true,
@@ -34,7 +34,7 @@ export const CONTEXT_CONFIG: Record<string, ContextConfig> = {
     },
   },
   edit_file: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: {
       supportsSplitView: true,
       supportsFullscreen: true,
@@ -42,172 +42,172 @@ export const CONTEXT_CONFIG: Record<string, ContextConfig> = {
     },
   },
   delete_file: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   list_dir: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   tool_search: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
   // Terminal
   run_shell: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: true, supportsFullscreen: true },
   },
 
   // Await output (background task monitor)
   await_output: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   inspect_terminals: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
   // Search
   code_search: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: true },
   },
   web_search: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   glob_file_search: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
   // Conversation
   agent_message: {
-    chat: { requiresItemIndex: true, showStatusLine: true },
+    chat: { requiresItemIndex: true },
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   thinking: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   user: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   ask_user_questions: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   org_send_message: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   // Approval
   ask_user_permissions: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
   // Subagent / Task
   subagent: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   suggest_mode_switch: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   manage_todo: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   task_create: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   task_update: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   task_list: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
   task_get: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
   // Browser
   browser: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: true },
   },
   internal_browser: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: true },
   },
 
   // MCP server tools
   mcp_tool: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
   // Turn summary
   turn_summary: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
   // Rate limit hint
   rate_limit_hint: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
   // Compact boundary (context compacted marker)
   context_compacted: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
   // Team discussion row (cloud session comment rendered in-stream)
   session_discussion: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
   // Worktree
   worktree: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
   // Setup repo
   setup_repo: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
   // Canvas card
   canvas_inline: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
   // Plan card
   plan_approval: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
   // Generic fallback
   tool_call: {
-    chat: { requiresItemIndex: false, showStatusLine: true },
+    chat: {},
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 };
@@ -219,19 +219,11 @@ export const CONTEXT_CONFIG: Record<string, ContextConfig> = {
 /**
  * Get chat context config for an event type.
  */
-export function getChatContextConfig(eventType: string): {
-  requiresItemIndex?: boolean;
-  showStatusLine?: boolean;
-} | null {
+export function getChatContextConfig(
+  eventType: string
+): ChatContextConfig | null {
   const uiCanonical = getCliUiCanonical(eventType);
   return CONTEXT_CONFIG[uiCanonical]?.chat ?? null;
-}
-
-/**
- * Check if an event type should show status line in chat context.
- */
-export function chatShowsStatusLine(eventType: string): boolean {
-  return getChatContextConfig(eventType)?.showStatusLine ?? true;
 }
 
 /**
@@ -245,19 +237,8 @@ export function chatRequiresItemIndex(eventType: string): boolean {
  * Get action configuration for chat context (alias used by the chat
  * item pipeline / ActionRegistry).
  */
-export function getActionConfig(actionType: string): {
-  requiresItemIndex?: boolean;
-  showStatusLine?: boolean;
-} | null {
+export function getActionConfig(actionType: string): ChatContextConfig | null {
   return getChatContextConfig(actionType);
-}
-
-/**
- * Check if action_type should show status line in chat
- */
-export function shouldShowStatusLine(actionType: string): boolean {
-  const config = getActionConfig(actionType);
-  return config?.showStatusLine ?? true;
 }
 
 /**
