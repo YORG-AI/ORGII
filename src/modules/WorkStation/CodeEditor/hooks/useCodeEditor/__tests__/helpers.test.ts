@@ -5,7 +5,7 @@ import {
   collectExpandedPaths,
   countTreeNodes,
   findNodeInTree,
-  pruneCollapsedSubtree,
+  pruneCollapsedSubtrees,
   updateTreeChildren,
   updateTreeExpansion,
 } from "@src/modules/WorkStation/CodeEditor/hooks/useCodeEditor/helpers";
@@ -141,7 +141,7 @@ describe("findNodeInTree", () => {
   });
 });
 
-describe("pruneCollapsedSubtree", () => {
+describe("pruneCollapsedSubtrees", () => {
   function browsedTree(): FileNode[] {
     return [
       dir("/repo/src", "src", {
@@ -172,7 +172,7 @@ describe("pruneCollapsedSubtree", () => {
   }
 
   it("drops a collapsed directory's children and remembers expanded descendants", () => {
-    const next = pruneCollapsedSubtree(browsedTree(), "/repo/src");
+    const next = pruneCollapsedSubtrees(browsedTree(), new Set(["/repo/src"]));
     const src = next[0];
     expect(src?.children).toBeUndefined();
     expect(src?.expanded).toBe(false);
@@ -191,22 +191,29 @@ describe("pruneCollapsedSubtree", () => {
         children: [file("/repo/lib/z.ts", "z.ts")],
       }),
     ];
-    const next = pruneCollapsedSubtree(tree, "/repo/lib");
+    const next = pruneCollapsedSubtrees(tree, new Set(["/repo/lib"]));
     expect(next[0]?.children).toBeUndefined();
     expect(next[0]).not.toHaveProperty("retainedExpandedPaths");
   });
 
   it("never prunes an expanded directory, a file, or an unloaded directory", () => {
     const tree = browsedTree();
-    expect(pruneCollapsedSubtree(tree, "/repo/docs")[1]?.children).toHaveLength(
-      1
+    expect(
+      pruneCollapsedSubtrees(tree, new Set(["/repo/docs"]))[1]?.children
+    ).toHaveLength(1);
+    expect(
+      pruneCollapsedSubtrees(tree, new Set(["/repo/src/index.ts"]))
+    ).toEqual(tree);
+    expect(pruneCollapsedSubtrees(tree, new Set(["/repo/src/b"]))).toEqual(
+      tree
     );
-    expect(pruneCollapsedSubtree(tree, "/repo/src/index.ts")).toEqual(tree);
-    expect(pruneCollapsedSubtree(tree, "/repo/src/b")).toEqual(tree);
   });
 
   it("prunes nested targets in place", () => {
-    const next = pruneCollapsedSubtree(browsedTree(), "/repo/src/a/closed");
+    const next = pruneCollapsedSubtrees(
+      browsedTree(),
+      new Set(["/repo/src/a/closed"])
+    );
     const closed = findNodeInTree(next, "/repo/src/a/closed");
     expect(closed?.children).toBeUndefined();
     expect(findNodeInTree(next, "/repo/src/a/deep")?.children).toHaveLength(1);
@@ -215,7 +222,7 @@ describe("pruneCollapsedSubtree", () => {
 
 describe("updateTreeChildren after pruning", () => {
   it("clears the remembered expansion once children are reloaded", () => {
-    const pruned = pruneCollapsedSubtree(
+    const pruned = pruneCollapsedSubtrees(
       [
         dir("/repo/src", "src", {
           expanded: false,
@@ -227,7 +234,7 @@ describe("updateTreeChildren after pruning", () => {
           ],
         }),
       ],
-      "/repo/src"
+      new Set(["/repo/src"])
     );
     expect(pruned[0]?.retainedExpandedPaths).toEqual(["/repo/src/a"]);
     const reloaded = updateTreeChildren(pruned, "/repo/src", [
@@ -241,7 +248,7 @@ describe("updateTreeChildren after pruning", () => {
 
 describe("carryRetainedExpansion", () => {
   it("copies remembered expansion onto a rebuilt tree", () => {
-    const old = pruneCollapsedSubtree(
+    const old = pruneCollapsedSubtrees(
       [
         dir("/repo/src", "src", {
           expanded: false,
@@ -253,7 +260,7 @@ describe("carryRetainedExpansion", () => {
           ],
         }),
       ],
-      "/repo/src"
+      new Set(["/repo/src"])
     );
     const rebuilt: FileNode[] = [
       dir("/repo/src", "src", { expanded: false, children: [] }),
@@ -303,5 +310,29 @@ describe("collectExpandedPaths / countTreeNodes", () => {
     ];
     expect(collectExpandedPaths(tree)).toEqual(["/repo/src", "/repo/src/a"]);
     expect(countTreeNodes(tree)).toBe(4);
+  });
+});
+
+describe("batched subtree pruning", () => {
+  it("visits a wide tree once for many collapsed targets", () => {
+    let pathReads = 0;
+    const tree = Array.from({ length: 1000 }, (_, index) => ({
+      name: String(index),
+      get path() {
+        pathReads += 1;
+        return `/repo/${index}`;
+      },
+      type: "directory" as const,
+      expanded: false,
+      children: [file(`/repo/${index}/x`, "x")],
+    }));
+    const next = pruneCollapsedSubtrees(
+      tree,
+      new Set(Array.from({ length: 1000 }, (_, i) => `/repo/${i}`))
+    );
+    expect(next.every((node) => !node.children)).toBe(true);
+    // One membership check and one immutable copy per directory, independent
+    // of the number of selected paths (the former per-path sweep was quadratic).
+    expect(pathReads).toBe(2000);
   });
 });
