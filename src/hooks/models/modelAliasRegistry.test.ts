@@ -192,3 +192,16 @@ describe("getModelAliasIcon / getModelAliasDisplayName — unknown keys", () => 
     expect(getModelAliasDisplayName("does-not-exist")).toBeUndefined();
   });
 });
+
+it("keeps labels scoped to a key and removes conflicting global labels", () => {
+  replaceModelAliasesFromKeys([
+    { id: "one", model_aliases: [{ alias: "shared", display_name: "One" }] },
+    { id: "two", model_aliases: [{ alias: "shared", display_name: "Two" }] },
+  ]);
+  expect(getModelAliasDisplayName("shared", "one")).toBe("One");
+  expect(getModelAliasDisplayName("shared", "two")).toBe("Two");
+  expect(getModelAliasDisplayName("shared")).toBeUndefined();
+  expect(getModelAliasDisplayName("shared", "unlabeled-key")).toBeUndefined();
+  replaceModelAliasesFromKeys([]);
+  expect(getModelAliasDisplayName("shared", "one")).toBeUndefined();
+});

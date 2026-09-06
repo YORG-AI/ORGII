@@ -123,7 +123,10 @@ export function buildKeyModelItems({
   persistDefaultVariantForAccount,
 }: BuildKeyModelItemsParams): SpotlightItem[] {
   const items: SpotlightItem[] = [];
-  const groups = groupModels(enabledAccountModelIds(account));
+  const literalModels = account.modelType === "custom_api";
+  const groups = literalModels
+    ? enabledAccountModelIds(account).flatMap((model) => groupModels([model]))
+    : groupModels(enabledAccountModelIds(account));
 
   for (const group of groups) {
     const sortedVariants = [...group.models].sort(compareModelsByVersion);
@@ -133,24 +136,29 @@ export function buildKeyModelItems({
     const variantInfos = sortedVariants.map((modelId) =>
       resolveModelVariantFields(modelId)
     );
-    const baseModel =
-      parseModelVariant(representative)?.baseModel ??
-      variantInfos[0]?.base_model ??
-      representative;
+    const baseModel = literalModels
+      ? representative
+      : (parseModelVariant(representative)?.baseModel ??
+        variantInfos[0]?.base_model ??
+        representative);
     const persisted = (account.defaultVariants ?? []).find(
       (entry) =>
         entry.base_model === baseModel && sortedVariants.includes(entry.model)
     )?.model;
-    const launchModel =
-      resolveDefaultVariant(baseModel, variantInfos, persisted) ??
-      representative;
+    const launchModel = literalModels
+      ? representative
+      : (resolveDefaultVariant(baseModel, variantInfos, persisted) ??
+        representative);
 
     const ModelItemIcon = () => (
       <ModelIcon modelName={representative} size={14} />
     );
 
     const hasMultipleVariants = sortedVariants.length > 1;
-    const aliasDisplayName = getModelAliasDisplayName(representative);
+    const aliasDisplayName = getModelAliasDisplayName(
+      representative,
+      account.id
+    );
     const displayLabel = hasMultipleVariants
       ? group.label
       : (aliasDisplayName ?? formatModelNameFull(representative));
@@ -169,20 +177,23 @@ export function buildKeyModelItems({
         <span className="shrink-0 font-normal text-text-1">{displayLabel}</span>
       );
 
-    const trailing: React.ReactNode = hasMultipleVariants ? (
-      <VariantPill
-        modelId={launchModel}
-        groupModelIds={sortedVariants}
-        onApply={(nextModelId) =>
-          persistDefaultVariantForAccount(account.id, baseModel, nextModelId)
-        }
-      />
-    ) : (
-      <VariantPill modelId={baseModel} />
-    );
+    const trailing: React.ReactNode =
+      literalModels ? null : hasMultipleVariants ? (
+        <VariantPill
+          modelId={launchModel}
+          groupModelIds={sortedVariants}
+          onApply={(nextModelId) =>
+            persistDefaultVariantForAccount(account.id, baseModel, nextModelId)
+          }
+        />
+      ) : (
+        <VariantPill modelId={baseModel} />
+      );
 
     items.push({
-      id: `key-model:${account.id}:${group.label}:${group.sortVersion}`,
+      id: literalModels
+        ? `key-model:${account.id}:${representative}`
+        : `key-model:${account.id}:${group.label}:${group.sortVersion}`,
       label: [displayLabel, ...sortedVariants].join(" "),
       icon: ModelItemIcon,
       type: "action" as const,

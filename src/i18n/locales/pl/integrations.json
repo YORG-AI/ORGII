@@ -75,6 +75,7 @@
       "notice": "Nie udało się automatycznie wykryć dostępnych modeli z tego proxy. Możesz dodać modele ręcznie poniżej lub spróbować ponownie kliknąć Waliduj."
     },
     "customModels": {
+      "manualSetupHint": "Dodaj dokładny identyfikator modelu akceptowany przez endpoint i opcjonalną nazwę. Wykrywanie modeli jest opcjonalne; włączenie nie sprawdza zgodności.",
       "notice": "Nazwa modelu = id używane do wywołania LLM. Nazwa wyświetlana = etykieta widoczna w selektorach.",
       "modelNamePlaceholder": "Wprowadź id modelu...",
       "displayName": "Nazwa wyświetlana",

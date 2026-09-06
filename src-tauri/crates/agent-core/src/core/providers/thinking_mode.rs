@@ -595,7 +595,11 @@ pub fn resolve_openai_compat_thinking(
     resolved_model: &str,
     provider_name: &str,
 ) -> OpenAiCompatThinking {
-    let parsed = parse_model_variant(resolved_model);
+    let parsed = if provider_name == crate::providers::registry::provider_id::CUSTOM {
+        ParsedVariant::bare(resolved_model)
+    } else {
+        parse_model_variant(resolved_model)
+    };
     let mode = resolve_thinking_mode(&parsed.base_model, provider_name);
     let reasoning_effort = if mode == ThinkingMode::OpenAiEffort {
         openai_effort(parsed.level).map(str::to_string)

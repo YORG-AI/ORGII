@@ -31,6 +31,8 @@ export interface ModelAlias {
   alias: string;
   /** User-chosen icon provider key (e.g., "openai", "claude") */
   icon?: string;
+  /** Transient unnamed row; never persisted as a model ID */
+  isDraft?: boolean;
 }
 
 interface ModelVariant {

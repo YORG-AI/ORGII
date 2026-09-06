@@ -110,6 +110,7 @@ export function renderUnifiedModelEditCell(
         />
       ) : (
         <CustomModelNameInput
+          isDraft={getModelAlias(args.modelAliases, model)?.isDraft}
           modelName={model}
           onCommit={args.handleModelNameChange}
           onCommittedBlur={args.handleModelNameBlur}
@@ -139,6 +140,7 @@ export function renderCustomGroupEditCell(
     <div className="flex w-full min-w-0 items-center gap-2">
       {renderModelIconSelect(model, args)}
       <CustomModelNameInput
+        isDraft={getModelAlias(args.modelAliases, model)?.isDraft}
         modelName={model}
         onCommit={args.handleModelNameChange}
         onCommittedBlur={args.handleModelNameBlur}

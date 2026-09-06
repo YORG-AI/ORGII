@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use super::save::filter_dated_models;
 use super::{key_info_from_entry, FullKeyResponse, KeyInfo};
 use crate::commands::validate::invalidate_key_quota_runtime;
 use crate::key_store::{HealthStatus, ModelType, KEY_SERVICE};
@@ -120,16 +119,13 @@ pub async fn update_key_health(
             _ => HealthStatus::Unknown,
         };
 
-        // Filter out dated snapshot models from enabled_models
-        let filtered_enabled = enabled_models.map(filter_dated_models);
-
         KEY_SERVICE
             .update_key_health(
                 &key_id,
                 status,
                 error_message,
                 available_models,
-                filtered_enabled,
+                enabled_models,
                 quota_info,
                 model_context_lengths.as_ref(),
             )

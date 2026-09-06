@@ -10,6 +10,7 @@ import { useSyncExternalStore } from "react";
 import type { IconProvider } from "@src/components/ModelIcon/config";
 
 interface KeyRecordWithModelAliases {
+  id?: string;
   model_aliases?: Array<{
     alias?: string | null;
     display_name?: string | null;
@@ -20,6 +21,7 @@ interface KeyRecordWithModelAliases {
 
 const modelAliasIconMap = new Map<string, IconProvider>();
 const modelAliasDisplayNameMap = new Map<string, string>();
+const keyDisplayNames = new Map<string, Map<string, string>>();
 const subscribers = new Set<() => void>();
 let version = 0;
 
@@ -50,9 +52,12 @@ export function getModelAliasIcon(modelName: string): IconProvider | undefined {
 }
 
 export function getModelAliasDisplayName(
-  modelName: string
+  modelName: string,
+  keyId?: string
 ): string | undefined {
-  return modelAliasDisplayNameMap.get(modelName);
+  return keyId
+    ? keyDisplayNames.get(keyId)?.get(modelName)
+    : modelAliasDisplayNameMap.get(modelName);
 }
 
 export function replaceModelAliasesFromKeys(
@@ -60,7 +65,11 @@ export function replaceModelAliasesFromKeys(
 ): void {
   modelAliasIconMap.clear();
   modelAliasDisplayNameMap.clear();
+  keyDisplayNames.clear();
+  const ambiguous = new Set<string>();
   for (const key of keys) {
+    const labels = new Map<string, string>();
+    if (key.id) keyDisplayNames.set(key.id, labels);
     for (const alias of key.model_aliases ?? []) {
       if (!alias.alias) continue;
       if (alias.icon) {
@@ -68,9 +77,14 @@ export function replaceModelAliasesFromKeys(
       }
       const displayName = alias.display_name ?? alias.displayName;
       if (displayName?.trim()) {
+        labels.set(alias.alias, displayName);
+        const previous = modelAliasDisplayNameMap.get(alias.alias);
+        if (previous !== undefined && previous !== displayName)
+          ambiguous.add(alias.alias);
         modelAliasDisplayNameMap.set(alias.alias, displayName);
       }
     }
   }
+  for (const model of ambiguous) modelAliasDisplayNameMap.delete(model);
   notifySubscribers();
 }

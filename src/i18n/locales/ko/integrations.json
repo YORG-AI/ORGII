@@ -74,6 +74,7 @@
       "notice": "이 프록시에서 사용 가능한 모델을 자동 감지할 수 없습니다. 아래에서 수동으로 모델을 추가하거나 Validate를 다시 클릭해 보세요."
     },
     "customModels": {
+      "manualSetupHint": "엔드포인트에서 허용하는 모델 ID와 선택적 표시 이름을 입력하세요. 모델 검색은 선택 사항이며 활성화만으로 호환성이 검증되지는 않습니다.",
       "notice": "모델 이름 = LLM 호출에 사용하는 id. 표시 이름 = 선택기에 표시되는 라벨.",
       "modelNamePlaceholder": "모델 id 입력...",
       "displayName": "표시 이름",

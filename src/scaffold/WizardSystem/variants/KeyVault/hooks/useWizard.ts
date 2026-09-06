@@ -14,7 +14,6 @@ import {
 } from "@src/api/tauri/rpc/schemas/validation";
 import { LOCAL_MODEL_PROVIDER, type ModelType } from "@src/api/types/keys";
 import { useUndoableState } from "@src/hooks/ui";
-import { isPlaceholderModelName } from "@src/modules/MainApp/Integrations/KeyVault/shared/ModelTable/unifiedCustomFlatExtras";
 
 import { DEFAULT_WIZARD_DATA } from "../config";
 import type { WizardData } from "../types";
@@ -183,42 +182,24 @@ export function useWizard(options: UseWizardOptions): UseWizardReturn {
           existingAccountNames
         );
 
-    // Models the backend should use for this account. Auto-detected models:
-    // enabled_models directly. Manual rows: derive from non-empty `alias`
-    // (the actual proxy model id used to call the LLM).
-    const allowedModels = (() => {
-      const enabledModels = (data.enabled_models || []).filter(
-        (model) => !isPlaceholderModelName(model)
-      );
-      if (enabledModels.length > 0) return enabledModels;
-      return data.model_aliases
-        .filter(
-          (alias) =>
-            alias.alias.trim() !== "" && !isPlaceholderModelName(alias.alias)
-        )
-        .map((alias) => alias.alias);
-    })();
-
-    // Wire `available_models` is the union of validator-detected models and
-    // user-added custom rows. Wizard state keeps `available_models` vs
-    // `custom_models` split; the unified `ModelTable` owns edits for custom rows.
-    const allAvailableModels = (() => {
-      const detected = data.available_models || [];
-      const custom = (data.custom_models || []).filter(
-        (model) => !isPlaceholderModelName(model)
-      );
-      const merged = detected.filter((model) => !isPlaceholderModelName(model));
-      for (const model of custom) {
-        if (!merged.includes(model)) merged.push(model);
-      }
-      if (merged.length > 0) return merged;
-      return data.model_aliases
-        .filter(
-          (alias) =>
-            alias.alias.trim() !== "" && !isPlaceholderModelName(alias.alias)
-        )
-        .map((alias) => alias.alias);
-    })();
+    const draftIds = new Set(
+      data.model_aliases
+        .filter((alias) => alias.isDraft)
+        .map((alias) => alias.alias)
+    );
+    const savedAliases = data.model_aliases.filter(
+      (alias) => !alias.isDraft && alias.alias.trim() !== ""
+    );
+    const allowedModels = data.enabled_models.filter(
+      (model) => !draftIds.has(model)
+    );
+    const allAvailableModels = [
+      ...new Set([
+        ...data.available_models,
+        ...data.custom_models,
+        ...savedAliases.map((alias) => alias.alias),
+      ]),
+    ].filter((model) => !draftIds.has(model));
 
     const modelVariants = buildModelVariantsForSave(data, allAvailableModels);
 
@@ -238,20 +219,11 @@ export function useWizard(options: UseWizardOptions): UseWizardReturn {
       available_models:
         allAvailableModels.length > 0 ? allAvailableModels : allowedModels,
       enabled_models: allowedModels,
-      model_aliases:
-        data.model_aliases.length > 0
-          ? data.model_aliases
-              .filter(
-                (alias) =>
-                  alias.alias.trim() !== "" &&
-                  !isPlaceholderModelName(alias.alias)
-              )
-              .map((alias) => ({
-                display_name: alias.displayName,
-                alias: alias.alias,
-                icon: alias.icon,
-              }))
-          : undefined,
+      model_aliases: savedAliases.map((alias) => ({
+        display_name: alias.displayName,
+        alias: alias.alias,
+        icon: alias.icon,
+      })),
       model_variants: modelVariants.length > 0 ? modelVariants : undefined,
       default_variants:
         data.default_variants.length > 0 ? data.default_variants : undefined,

@@ -77,6 +77,7 @@
       "notice": "Verfügbare Modelle konnten nicht automatisch von diesem Proxy erkannt werden. Sie können Modelle unten manuell hinzufügen oder erneut auf Validate klicken."
     },
     "customModels": {
+      "manualSetupHint": "Gib die exakte Modell-ID deines Endpunkts und optional einen Anzeigenamen ein. Die Modellsuche ist optional; Aktivieren prüft keine Kompatibilität.",
       "notice": "Modellname = id für LLM-Aufrufe. Anzeigename = Bezeichnung in Auswahlmenüs.",
       "modelNamePlaceholder": "Modell-id eingeben...",
       "displayName": "Anzeigename",

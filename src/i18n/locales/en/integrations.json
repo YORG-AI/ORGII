@@ -80,6 +80,7 @@
       "notice": "Could not auto-detect available models from this proxy. You can add models manually below, or try clicking Validate again."
     },
     "customModels": {
+      "manualSetupHint": "Add the exact model ID your endpoint accepts and an optional display name. Model discovery is optional; enabling a model does not verify endpoint compatibility.",
       "notice": "Model name = id used to call the LLM. Display name = label shown in selectors.",
       "modelNamePlaceholder": "Enter model id...",
       "displayName": "Display Name",

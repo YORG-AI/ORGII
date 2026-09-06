@@ -222,6 +222,7 @@ const GenericSetup: FC<AgentSetupProps> = ({
       model_context_lengths: {},
       enabled_models: [],
       model_aliases: [],
+      custom_models: [],
     });
 
     if (method === GENERIC_SETUP_METHOD.ENTER_KEY) {

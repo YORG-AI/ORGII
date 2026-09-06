@@ -9,6 +9,11 @@ pub fn context_window_hint(model: &str) -> usize {
 }
 
 pub fn wire_model_name(spec: &ProviderSpec, model: &str) -> String {
+    // Custom API catalog entries are literal provider request IDs. Neither
+    // Claude shorthand nor provider prefixes are ORGII aliases here.
+    if spec.name == super::registry::provider_id::CUSTOM {
+        return model.to_string();
+    }
     let stripped = {
         let mut result = model;
         for prefix in spec.skip_prefixes {

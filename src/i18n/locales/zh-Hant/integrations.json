@@ -74,6 +74,7 @@
       "notice": "無法從此代理自動檢測可用模型。您可以在下方手動添加模型，或再次點擊 Validate 重試。"
     },
     "customModels": {
+      "manualSetupHint": "填寫端點接受的實際模型 ID 和可選顯示名稱。模型探索為選填；啟用模型不代表已驗證端點相容性。",
       "notice": "模型名稱 = 調用 LLM 時使用的 id；顯示名稱 = 在選擇器中展示的標籤。",
       "modelNamePlaceholder": "輸入模型 id...",
       "displayName": "顯示名稱",

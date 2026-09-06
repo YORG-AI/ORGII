@@ -7,6 +7,8 @@ export interface ModelTableModelAlias {
   displayName: string;
   alias: string;
   icon?: string;
+  /** Transient unnamed row; never persisted as a model ID */
+  isDraft?: boolean;
   rowId?: string;
 }
 

@@ -7,6 +7,14 @@ export function buildModelVariantsForSave(
   data: WizardData,
   allAvailableModels: string[]
 ): NonNullable<SaveKeyRequest["model_variants"]> {
+  if (data.agent_type === "custom_api") {
+    return allAvailableModels.map((model) => ({
+      model,
+      base_model: model,
+      fast: false,
+      context_window: data.model_context_lengths?.[model],
+    }));
+  }
   const modelVariantsById = new Map(
     data.model_variants
       .filter(
