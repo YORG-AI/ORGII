@@ -151,11 +151,3 @@ export const STYLE_CONFIG = {
 // ============================================
 
 export { getFileName } from "@src/util/file/pathUtils";
-
-/**
- * Truncate path for display
- */
-export const truncatePath = (path: string, maxLength: number = 40): string => {
-  if (path.length <= maxLength) return path;
-  return "..." + path.slice(-maxLength + 3);
-};

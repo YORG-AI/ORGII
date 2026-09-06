@@ -24,11 +24,10 @@ import {
   type Org2CloudAuthState,
   Org2CloudAuthStateSchema,
   type Org2CloudProfile,
-  Org2CloudProfileSchema,
   parseStoredOrg2CloudAuth,
 } from "./org2CloudAuthState";
 
-export { Org2CloudAuthStateSchema, Org2CloudProfileSchema };
+export { Org2CloudAuthStateSchema };
 export type { Org2CloudAuthState, Org2CloudProfile };
 
 export const ORG2_CLOUD_AUTH_STORAGE_KEY = SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY;

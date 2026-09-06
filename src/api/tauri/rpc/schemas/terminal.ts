@@ -72,5 +72,4 @@ export const GetPtyInfoInput = z.object({
 // Static types
 // ============================================================================
 
-export type PtyInfo = z.infer<typeof PtyInfoSchema>;
 export type PtyMemoryInfo = z.infer<typeof PtyMemoryInfoSchema>;

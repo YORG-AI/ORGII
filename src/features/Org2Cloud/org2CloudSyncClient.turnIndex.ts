@@ -58,10 +58,6 @@ const NO_TURN_INDEX: CloudSessionTurnIndex = { epoch: null, turns: null };
 /** supabaseUrl set of backends that rejected the 0012 signatures. */
 const turnIndexUnsupportedEndpoints = new Set<string>();
 
-export const __TURN_INDEX_INTERNALS = {
-  resetTurnIndexSupport: () => turnIndexUnsupportedEndpoints.clear(),
-};
-
 /**
  * Owner-only: publish the compact per-round index for the session's current
  * epoch. Returns false (a quiet no-op) on backends without 0012 — the

@@ -85,9 +85,6 @@ export const GENERAL_TAB_KEYS = {
   SELF_HOSTED: "self-hosted",
 } as const;
 
-export type GeneralTabKey =
-  (typeof GENERAL_TAB_KEYS)[keyof typeof GENERAL_TAB_KEYS];
-
 const NotificationsTab = lazy(() => import("./NotificationsTab"));
 const ShortcutsTab = lazy(() => import("./ShortcutsSection"));
 

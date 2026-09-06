@@ -64,10 +64,6 @@ export function consumeRestoredStopDraft(options: {
   return true;
 }
 
-export function clearRestoredStopDraft(sessionId: string): void {
-  restoredStopDraftsBySessionId.delete(sessionId);
-}
-
 export function consumeRestoredStopSubmitSuppression(options: {
   sessionId: string;
   displayContent: string;

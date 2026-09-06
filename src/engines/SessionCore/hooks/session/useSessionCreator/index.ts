@@ -6,4 +6,3 @@
 
 export { useSessionCreator } from "./useSessionCreator";
 export { default } from "./useSessionCreator";
-export type { UseSessionCreatorReturn } from "./types";

@@ -7,7 +7,4 @@ export {
   SHARED_BROWSER_HOST_SCOPE,
   activeSharedBrowserHostAtom,
   sharedBrowserHostRegistryAtom,
-  type SharedBrowserHostId,
-  type SharedBrowserHostScope,
-  type SharedBrowserHostRect,
 } from "./sharedBrowserHostAtoms";

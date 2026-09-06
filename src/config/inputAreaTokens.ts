@@ -126,16 +126,6 @@ export const INPUT_AREA_PADDING_COMPACT = {
   gapClass: "gap-1",
 } as const;
 
-/** Default variant (standalone session creator) */
-export const INPUT_AREA_PADDING_DEFAULT = {
-  paddingX: 16,
-  paddingXClass: "px-4",
-  paddingTop: 16,
-  paddingBottom: 16,
-  gap: 8,
-  gapClass: "gap-2",
-} as const;
-
 // ==============================================
 // Toolbar / Button Tokens
 // ==============================================

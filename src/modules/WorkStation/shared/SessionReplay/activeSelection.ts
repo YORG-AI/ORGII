@@ -19,14 +19,6 @@
 /** Kinds of selection that can drive a replay sidebar's main pane. */
 export type ActiveSelectionKind = "file" | "explore" | "terminal" | "tool";
 
-/** One section's per-kind selection entry. */
-export interface SelectionByKind {
-  /** Section kind. */
-  kind: ActiveSelectionKind;
-  /** Current selection for this section (null = none). */
-  eventId: string | null;
-}
-
 /**
  * Given a map of `kind → selectedEventId` and the currently-active kind,
  * return the same map with every non-active entry nulled out. Callers wire

@@ -16,8 +16,6 @@ export const TOOL_CATEGORY_ORDER = [
   "general",
 ] as const;
 
-export type ToolCategory = (typeof TOOL_CATEGORY_ORDER)[number];
-
 export const ALL_CATEGORY_KEY = "__all__";
 
 /** Static English labels for tool categories — not localized. */

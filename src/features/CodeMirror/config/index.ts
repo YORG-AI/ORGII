@@ -10,10 +10,6 @@ export { codeMirrorCspNonceExtension } from "./csp";
 
 // Theme configuration
 export {
-  CODE_FONT_FAMILY,
-  CODE_FONT_SIZE,
-  CODE_FONT_SIZE_SMALL,
-  CODE_LINE_HEIGHT,
   CODEMIRROR_BASE_LAYOUT_THEME,
   getCodeMirrorTheme,
   createCodeMirrorTheme,
@@ -32,14 +28,13 @@ export {
 export { minimapExtension } from "./minimap";
 
 // Go to line
-export { goToLineExtension, openGoToLinePanel } from "./goToLine";
+export { goToLineExtension } from "./goToLine";
 
 // BasicSetup presets
 export { BASIC_SETUP_CONFIG, BASIC_SETUP_SQL_CONFIG } from "./setupConfig";
 
 // Dirty diff gutter
 export { dirtyDiffGutter } from "./dirtyDiff";
-export type { DiffLineType } from "./dirtyDiff";
 
 // Git blame inline annotation
 export { gitBlameExtension } from "./gitBlame";

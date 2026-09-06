@@ -22,9 +22,6 @@
 export {
   // Main normalization function
   normalizeActivity,
-  // Helper functions (normalizeFunctionName delegates to cliAgents/toolAliasMap)
-  normalizeFunctionName,
-  getRegistryEventType,
 } from "./activityNormalizers";
 
 // ============================================

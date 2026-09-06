@@ -14,20 +14,16 @@ export {
   collectWebViewRuntimeDiagnostics,
   getLoadedScriptSourceStats,
   type LoadedScriptSourceStats,
-  type SidebarMemoryKind,
   type WebViewRuntimeDiagnostics,
 } from "./runtimeMemoryStats";
 export { useSidebarMemoryEntry } from "./useSidebarMemoryEntry";
 export {
   describeAppMemoryMeasurement,
   refreshAppMemorySnapshot,
-  getAppMemoryMetricKind,
   getAppMemoryRoleLabelKey,
   getAppMemoryTotals,
   useAppMemorySnapshot,
-  type AppMemoryProcess,
   type AppMemorySnapshotState,
   type AppMemorySnapshot,
   type ToolProcessMemoryDiagnostic,
 } from "./appMemorySnapshot";
-export type { ConnectionStatus } from "./useNetworkMonitor";

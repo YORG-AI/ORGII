@@ -39,19 +39,6 @@ function readBearerHint(): string | null {
   return localStorage.getItem(SERVICE_AUTH_STORAGE_KEYS.accessToken);
 }
 
-export function getGlobalSSEHeaders(): Record<string, string> {
-  const _selectedItem =
-    (localStorage.getItem("selectedParentItem") as LLMType) || LLMType.DEEPSEEK;
-  const bearer = readBearerHint();
-  return {
-    "Content-Type": "application/json",
-    ...(bearer && {
-      Authorization: `Bearer ${bearer}`,
-    }),
-    "X-key-type": getKeyTypeFromSelectedParentItem(),
-    "X-llm-type": getLLMTypeFromSelectedItem(),
-  };
-}
 export function getGlobalCommonHeaders(): Record<string, string> {
   const _selectedItem =
     (localStorage.getItem("selectedParentItem") as LLMType) || LLMType.DEEPSEEK;
@@ -60,17 +47,6 @@ export function getGlobalCommonHeaders(): Record<string, string> {
     ...(bearer && {
       Authorization: `Bearer ${bearer}`,
     }),
-    "X-key-type": getKeyTypeFromSelectedParentItem(),
-    "X-llM-type": getLLMTypeFromSelectedItem(),
-  };
-}
-export function getImageCommonHeaders(): Record<string, string> {
-  const bearer = readBearerHint();
-  return {
-    ...(bearer && {
-      Authorization: `Bearer ${bearer}`,
-    }),
-    responseType: "blob",
     "X-key-type": getKeyTypeFromSelectedParentItem(),
     "X-llM-type": getLLMTypeFromSelectedItem(),
   };

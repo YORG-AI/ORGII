@@ -10,7 +10,7 @@ export {
   EventBlockExpandableStackList,
 } from "./EventBlock";
 export { EventBlockHeader } from "./EventBlockHeader";
-export type { EventBlockHeaderProps } from "./types";
+
 export { EventBlockHeaderIcon } from "./EventBlockHeaderIcon";
 export {
   EventBlockHeaderInfo,
@@ -22,10 +22,6 @@ export { default as ChatLoadingBlock } from "./ChatLoadingBlock";
 
 // Hooks
 export { useEventBlockHeader } from "./useEventBlockHeader";
-export type {
-  UseEventBlockHeaderOptions,
-  UseEventBlockHeaderReturn,
-} from "./useEventBlockHeader";
 
 // Context: read-only (nested) block mode — suppresses toggle interactions
 export { NestedBlockContext } from "./nestedBlockContext";
@@ -44,7 +40,6 @@ export { StackListRow as ComposerStackListRow } from "@src/components/StackListR
 
 // Generic expandable list with N visible by default + gradient fade + show-more
 export { default as ExpandableItemList } from "./ExpandableItemList";
-export type { ExpandableItemListProps } from "./ExpandableItemList";
 
 // Stacked block primitive (paginated same-category grouping)
 export { default as StackedBlock } from "./StackedBlock";

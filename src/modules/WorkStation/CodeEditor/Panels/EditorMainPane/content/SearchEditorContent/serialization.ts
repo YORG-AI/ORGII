@@ -278,38 +278,3 @@ export function serializeSearchResults(
     totalFiles: fileCount,
   };
 }
-
-/**
- * Parse a line click position to get navigation info
- *
- * @param docLine - Line number in the serialized document (1-indexed)
- * @param filePathRanges - File path ranges from serialization
- * @param matchRanges - Match ranges from serialization
- * @returns Navigation info or null if not a navigable line
- */
-export function parseLineNavigation(
-  docLine: number,
-  filePathRanges: FilePathRange[],
-  matchRanges: MatchRange[]
-): { filePath: string; line: number; column?: number } | null {
-  // Check if clicking on a file path line
-  const filePathRange = filePathRanges.find((fp) => fp.docLine === docLine);
-  if (filePathRange) {
-    return {
-      filePath: filePathRange.filePath,
-      line: filePathRange.firstMatchLine,
-    };
-  }
-
-  // Check if clicking on a match line
-  const matchOnLine = matchRanges.find((mr) => mr.docLine === docLine);
-  if (matchOnLine) {
-    return {
-      filePath: matchOnLine.filePath,
-      line: matchOnLine.sourceLine,
-      column: matchOnLine.sourceColumn,
-    };
-  }
-
-  return null;
-}

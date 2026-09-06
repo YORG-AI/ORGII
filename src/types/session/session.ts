@@ -80,21 +80,6 @@ export type CliSessionStatus =
   | "waiting_for_user"
   | "waiting_for_funds";
 
-/**
- * Market-specific session statuses.
- * - "queued", "in_progress", "killed" — Market-only states
- * - Others shared with SessionStatus
- */
-export type MarketSessionStatus =
-  | "pending"
-  | "queued"
-  | "in_progress"
-  | "running"
-  | "completed"
-  | "failed"
-  | "killed"
-  | "cancelled";
-
 // ============================================
 // Status Sets
 // ============================================
@@ -149,62 +134,9 @@ export function toUnifiedStatus(
   return "active";
 }
 
-/**
- * Check if status represents an "active" session in unified model.
- */
-export function isUnifiedActive(status: string | undefined): boolean {
-  return toUnifiedStatus(status) === "active";
-}
-
-/**
- * Check if status represents a "completed" session in unified model.
- */
-export function isUnifiedCompleted(status: string | undefined): boolean {
-  return toUnifiedStatus(status) === "completed";
-}
-
-/**
- * Check if status represents a "failed" session in unified model.
- */
-export function isUnifiedFailed(status: string | undefined): boolean {
-  return toUnifiedStatus(status) === "failed";
-}
-
 // ============================================
 // Request Models
 // ============================================
-
-/**
- * Request to create a new session
- */
-export interface SessionCreateRequest {
-  /** Repo UUID (path derived from repo.path) */
-  repo_id: string;
-  /** User's request/goal for this session */
-  user_input: string;
-  /** Session configuration overrides (provider, model, etc.) */
-  config?: Record<string, unknown>;
-}
-
-/**
- * Request to answer a pending question
- */
-export interface AnswerQuestionRequest {
-  /** Question UUID to answer */
-  question_id: string;
-  /** User's answer */
-  answer: string;
-}
-
-/**
- * Request to send a message to a session
- */
-export interface MessageRequest {
-  /** Message content */
-  content: string;
-  /** Role of the message sender (default: "user") */
-  role?: "user" | "system";
-}
 
 /**
  * Query parameters for listing sessions
@@ -304,71 +236,6 @@ export interface SessionStatusData {
 }
 
 /**
- * Response data for session creation
- */
-export interface SessionCreatedData {
-  /** Created session UUID */
-  session_id: string;
-}
-
-/**
- * Response data for successful answer submission
- */
-export interface AnswerSuccessData {
-  /** Whether answer was accepted */
-  success: boolean;
-}
-
-/**
- * Response data for pause/resume/message operations
- */
-export interface PauseResumeSuccessData {
-  /** Whether operation was successful */
-  success: boolean;
-  /** Whether message was queued (for send message while running) */
-  queued?: boolean;
-}
-
-/**
- * Structured question answer for market sessions
- */
-export interface QuestionAnswer {
-  /** Question ID to answer */
-  question_id: string;
-  /** User's answer */
-  answer: string;
-}
-
-/**
- * Request to continue a completed session with new feedback
- * Supports two modes:
- * 1. Simple text feedback: Just provide `feedback` string
- * 2. Structured answers: Provide `question_answers` list for form-based responses
- */
-export interface ContinueSessionRequest {
-  /** New user feedback/instruction (1-10000 chars) - optional if question_answers provided */
-  feedback?: string;
-  /** Structured question answers (for market sessions) */
-  question_answers?: QuestionAnswer[];
-}
-
-/**
- * Response data for continue session
- */
-export interface ContinueSessionData {
-  /** Session UUID */
-  session_id: string;
-  /** New status (will be "pending" after continue) */
-  status: string;
-  /** How many times session has been continued */
-  continue_count: number;
-  /** Total cost in USD */
-  total_cost_usd: number;
-  /** Success message */
-  message: string;
-}
-
-/**
  * Response data for session list
  */
 export interface SessionListData {
@@ -376,14 +243,6 @@ export interface SessionListData {
   sessions: SessionStatusData[];
   /** Total count (for pagination) */
   total: number;
-}
-
-/**
- * Response data for cancel all
- */
-export interface CancelAllData {
-  /** Number of sessions cancelled */
-  cancelled_count: number;
 }
 
 // ============================================
@@ -414,18 +273,6 @@ export interface ActivityChunk {
   process_id?: string;
 }
 
-/**
- * Response data for activity list
- */
-export interface ActivityListData {
-  /** List of activity chunks */
-  chunks: ActivityChunk[];
-  /** Total count of chunks returned */
-  total: number;
-  /** Whether more chunks exist after this batch */
-  has_more: boolean;
-}
-
 // ============================================
 // API Response Types (wrapped in BaseResp)
 // ============================================
@@ -438,9 +285,4 @@ export interface BaseResp<T> {
   data: T;
 }
 
-export type SessionCreateResponse = BaseResp<SessionCreatedData>;
-export type WorkflowSessionStatusResponse = BaseResp<SessionStatusData>;
 export type SessionListResponse = BaseResp<SessionListData>;
-export type AnswerResponse = BaseResp<AnswerSuccessData>;
-export type CancelAllResponse = BaseResp<CancelAllData>;
-export type ActivityListResponse = BaseResp<ActivityListData>;

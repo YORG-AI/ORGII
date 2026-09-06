@@ -5,8 +5,6 @@
  */
 import type { RefObject } from "react";
 
-import type { SessionItem } from "./config";
-
 // ============================================
 // Component Props
 // ============================================
@@ -54,23 +52,4 @@ export interface UseTextSelectionDropdownReturn {
   showDropdown: (position: { x: number; y: number }, text: string) => void;
   /** Hide the dropdown */
   hideDropdown: () => void;
-}
-
-// ============================================
-// Session Selector Types
-// ============================================
-
-export interface SessionSelectorProps {
-  /** Available sessions */
-  sessions: SessionItem[];
-  /** Loading state */
-  loading?: boolean;
-  /** Currently active/selected session index */
-  activeIndex: number;
-  /** Callback when session is selected (null = new session) */
-  onSelect: (sessionId: string | null) => void;
-  /** Callback when hovering over an item */
-  onHover: (index: number) => void;
-  /** Callback to go back to main menu */
-  onBack: () => void;
 }

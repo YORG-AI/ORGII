@@ -41,15 +41,11 @@ import {
 export {
   clearAuthStateCompletely,
   serviceAuthAtom,
-  serviceErrorAtom,
   serviceExpiryAtom,
-  serviceLoadingAtom,
-  serviceRefreshingAtom,
   hostedTokenAtom,
   serviceValidatedAtom,
   useServiceAuthState,
 } from "./serviceAuthAtoms";
-export type { UseServiceAuthStateReturn } from "./serviceAuthAtoms";
 
 const logger = createLogger("ServiceAuth");
 

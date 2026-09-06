@@ -333,4 +333,3 @@ const ActionCard: React.FC<ActionCardProps> = ({
 };
 
 export default ActionCard;
-export type { ActionCardLayout, ActionCardVariant } from "./types";

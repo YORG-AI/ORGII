@@ -18,21 +18,11 @@ import * as client from "./client";
 export * from "./types";
 export type {
   PortableRoutineSummary,
-  ProjectScopeOptions,
   RoutineRunStatus,
   RoutineRunSummary,
   WorkItemReadBucket,
-  WorkItemsReadOptions,
 } from "./client";
-export type {
-  AdapterAuthMethod,
-  AdapterDescriptor,
-  OAuthDeviceFlow,
-  OAuthFlowKind,
-  OAuthFlowStart,
-  OAuthRedirectFlow,
-  SyncStatusReport,
-} from "./sync";
+export type { OAuthFlowStart } from "./sync";
 export { OAUTH_FLOW_KIND, projectSyncApi } from "./sync";
 
 export {

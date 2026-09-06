@@ -254,19 +254,3 @@ export async function loadUsageTelemetry(
   touchSessionCache(sessionId, toolUsageByCallId);
   return { toolUsageByCallId, llmUsageByTurnId };
 }
-
-export async function loadAndCacheToolUsage(
-  sessionId: string
-): Promise<Map<string, ToolUsageMetadata>> {
-  const { toolUsageByCallId } = await loadUsageTelemetry(sessionId);
-  return toolUsageByCallId;
-}
-
-export function getCachedToolUsage(
-  sessionId: string
-): Map<string, ToolUsageMetadata> | undefined {
-  const cached = sessionUsageCache.get(sessionId);
-  if (!cached) return undefined;
-  touchSessionCache(sessionId, cached);
-  return cached;
-}

@@ -7,11 +7,9 @@
 // Colors
 export {
   STATUS_COLORS,
-  STATUS_BG_COLORS,
   PRIORITY_COLORS,
-  HEALTH_COLORS,
-  ENTITY_COLORS,
   LABEL_COLORS,
+  ENTITY_COLORS,
   DEFAULT_LABELS,
   MILESTONE_COLORS,
 } from "./colors";
@@ -33,4 +31,4 @@ export {
 } from "./priorityOptions";
 
 // Health options
-export { HEALTH_OPTIONS, getHealthConfig } from "./healthOptions";
+export { getHealthConfig } from "./healthOptions";

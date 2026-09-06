@@ -9,19 +9,9 @@
 export {
   // Factories
   fileTabFactory,
-  directoryTabFactory,
   explorerTabFactory,
-  gitDiffTabFactory,
   sourceControlTabFactory,
-  gitLogTabFactory,
-  gitCommitDetailTabFactory,
-  gitStashDetailTabFactory,
   terminalTabFactory,
-  terminalContentTabFactory,
-  domComponentPreviewTabFactory,
-  aiImpactTabFactory,
-  searchSessionsTabFactory,
-  searchTabFactory,
   SOURCE_CONTROL_CHANGES_TAB_ID,
   CODE_EDITOR_MAIN_TERMINAL_SESSION_ID,
   CODE_EDITOR_MAIN_TERMINAL_TAB_ID,
@@ -39,34 +29,17 @@ export {
   createTerminalTab,
   createTerminalContentTab,
   createDomComponentPreviewTab,
-  createAIImpactTab,
   createSearchSessionsTab,
   createSearchTab,
   createUrlPreviewTab,
 } from "./codeEditor";
-export type {
-  FileTabData,
-  DirectoryTabData,
-  GitDiffTabData,
-  SourceControlHistorySelection,
-  SourceControlTabData,
-  GitLogTabData,
-  GitCommitDetailTabData,
-  GitStashDetailTabData,
-  TerminalTabData,
-  TerminalContentTabData,
-  DomComponentPreviewTabData,
-  SearchTabData,
-  UrlPreviewTabData,
-} from "./codeEditor";
+export type { SourceControlHistorySelection } from "./codeEditor";
 
 // Browser
-export { browserSessionTabFactory, createBrowserSessionTab } from "./browser";
-export type { BrowserSessionTabData } from "./browser";
+export { createBrowserSessionTab } from "./browser";
 
 // Chat
-export { chatSessionTabFactory, createChatSessionTab } from "./chat";
-export type { ChatSessionTabData } from "./chat";
+export { createChatSessionTab } from "./chat";
 
 // Project Manager
 export {
@@ -77,24 +50,12 @@ export {
   PROJECT_LINEAR_SURFACE_VIEW,
   PROJECT_DETAIL_SURFACE_VIEW,
   normalizeProjectLinearSurfaceView,
-  PROJECT_MANAGER_WORKSPACE_TITLE_KEY,
   resolveProjectManagerTabTitle,
-  projectDashboardTabFactory,
-  projectWorkItemsIndexTabFactory,
-  projectLinearProjectsTabFactory,
-  projectLinearWorkItemsTabFactory,
-  projectSettingsTabFactory,
-  projectOrgSettingsTabFactory,
-  projectOrgTabFactory,
-  projectGitSyncReviewTabFactory,
-  projectWorkItemsTabFactory,
-  workItemDetailTabFactory,
   createProjectDashboardTab,
   createProjectWorkItemsIndexTab,
   createProjectLinearProjectsTab,
   createProjectLinearWorkItemsTab,
   createProjectSettingsTab,
-  createProjectOrgSettingsTab,
   createProjectOrgTab,
   normalizeProjectOrgSurfaceView,
   normalizeProjectDetailSurfaceView,
@@ -107,23 +68,14 @@ export {
   getWorkItemDetailTabChrome,
 } from "./project";
 export type {
-  ProjectOrgFilterTabData,
   ProjectOrgScope,
-  ProjectSettingsTabData,
-  ProjectOrgSettingsTabData,
-  ProjectOrgTabData,
   ProjectOrgSurfaceView,
   ProjectLinearSurfaceView,
   ProjectDetailSurfaceView,
-  ProjectGitSyncReviewTabData,
-  ProjectWorkItemsTabData,
-  WorkItemDetailTabData,
 } from "./project";
-export type { NewWorkItemTabData } from "../types";
 
 // Subagent
-export { subagentDetailTabFactory, createSubagentDetailTab } from "./subagent";
-export type { SubagentDetailTabData } from "../types";
+export { createSubagentDetailTab } from "./subagent";
 
 // Agent Config
 export { agentConfigTabFactory, createAgentConfigTab } from "./agentConfig";

@@ -54,12 +54,8 @@ export async function initSessionCore(): Promise<void> {
 // ============================================
 
 export type {
-  ActivityStatus,
-  CachedSession,
-  EventDisplayStatus,
   EventDisplayVariant,
   ReplayMode,
-  ReplayTimeRange,
   SessionEvent,
   SessionLoadStatus,
   SessionSpec,
@@ -85,7 +81,6 @@ export { eventStore, eventStoreProxy } from "./core/store";
 export type {
   DerivedSnapshot,
   StreamingSnapshot,
-  Snapshot,
   EventStoreProxy,
 } from "./core/store";
 export { useEventStoreSelector } from "./core/store";
@@ -94,46 +89,31 @@ export { useEventStoreSelector } from "./core/store";
 export {
   currentEventAtom,
   currentEventIdAtom,
-  currentEventIndexAtom,
   replayBarValueAtom,
   replayModeAtom,
   replayTimeRangeAtom,
-  replayTimeRangeValidAtom,
 } from "./core/atoms";
 
 // Metadata Atoms
 export {
-  hasMoreEventsAtom,
-  isFromCacheAtom,
-  isLoadingMoreAtom,
-  lastFetchedAtom,
   loadErrorAtom,
   loadStatusAtom,
   sessionIdAtom,
   sessionReloadEpochMapAtom,
   triggerSessionReloadAtom,
-  sessionHydrationCountMapAtom,
   sessionHydrationByIdAtom,
   beginSessionHydrationAtom,
   endSessionHydrationAtom,
   specsAtom,
 } from "./core/atoms";
-export type { SessionHydrationState } from "./core/atoms";
 
 // Action Atoms
 export {
-  appendEventsAtom,
   clearSessionAtom,
   clearSessionLoadErrorAtom,
   failSessionLoadAtom,
-  goLiveAtom,
   loadSessionAtom,
-  navigateNextAtom,
-  navigatePrevAtom,
-  navigateToEventAtom,
-  updateEventAtom,
   updateEventByIdAtom,
-  updateEventByPredicateAtom,
 } from "./core/atoms";
 
 // Note: Context-aware atoms (effectiveEventsAtom, threadFilteredEventsAtom, etc.)
@@ -162,7 +142,6 @@ export {
   navigateToSimulatorEventByIndexAtom,
   simulatorEventCountAtom,
   simulatorEventPreviewByIdAtom,
-  simulatorEventsAtom,
   sortedSimulatorEventIdsAtom,
 } from "./derived/simulatorEvents";
 
@@ -172,21 +151,13 @@ export {
 
 // Visibility filters — chat visibility only; simulator/messages visibility
 // is computed exclusively in Rust (derived.rs) and consumed via snapshots
-export {
-  isVisibleInChat,
-  stripTerminalCodeBlocks,
-} from "./ingestion/visibilityFilters";
+export { isVisibleInChat } from "./ingestion/visibilityFilters";
 
 // NOTE: normalizeChunk/normalizeChunks are ARCHIVED — use processChunksRust/normalizeChunkRust instead
 
-export {
-  normalizeChunkRust,
-  processChunksRust,
-  setEventStoreRepoContext,
-} from "./ingestion/rustBridge";
+export { processChunksRust } from "./ingestion/rustBridge";
 
 export {
-  type PersistedMessage,
   mergeToolResults,
   parseActivityImages,
   persistedMessageToSessionEvent,
@@ -207,15 +178,8 @@ export { useCanvasRevisionDraftForSession } from "./hooks/useCanvasRevisionDraft
 export { useSessionDiscovery } from "./hooks/session/useSessionDiscovery";
 export { useSessionCreator } from "./hooks/session/useSessionCreator";
 
-export type { UseSessionCreatorReturn } from "./hooks/session/useSessionCreator/types";
-
 // Replay & navigation (hooks/replay/)
 export { useStepState, usePlanningIndicator } from "./hooks/replay";
-
-export type {
-  UseStepStateReturn,
-  PlanningIndicatorState,
-} from "./hooks/replay";
 
 // ============================================
 // Rendering (tool registry + React-coupled accessors)
@@ -224,25 +188,11 @@ export type {
 // Registry — pure logic only
 export { resolveToolName } from "./rendering/registry";
 
-export type {
-  ComponentLoader,
-  RenderContext,
-  RenderMode,
-  ChatContextConfig,
-  SimulatorContextConfig,
-  UnifiedRenderOptions,
-} from "./rendering/registry/types";
-
 // Pure data extractors
 export { extractTodoData } from "./rendering/props";
 
 // Universal props types
-export type {
-  UniversalEventProps,
-  EventStatus,
-  EventVariant,
-  AnimationConfig,
-} from "./rendering/types/universalProps";
+export type { EventStatus } from "./rendering/types/universalProps";
 
 // ============================================
 // Storage
@@ -250,7 +200,6 @@ export type {
 
 // Unified cache adapter
 export { cacheAdapter } from "./storage/cacheAdapter";
-export type { CacheStats, SearchResult } from "./storage/cacheAdapter";
 
 // Individual backends
 export { sqliteCache } from "./storage/sqliteCache";
@@ -266,7 +215,7 @@ export { sqliteCache } from "./storage/sqliteCache";
 
 // Workspace atoms - Only externally-used atoms are exported
 // Use focused workspace hooks for other state.
-export { repoPathAtom, isExploringAtom } from "./workspace/atoms";
+export { isExploringAtom } from "./workspace/atoms";
 
 // Workspace hooks (replace useSessionContext, useUIContext)
 // Note: For chat UI state, use useChatContext from contexts/workspace/ChatContext

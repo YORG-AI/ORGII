@@ -86,7 +86,7 @@ export const JsonRecordSchema = UnknownRecordSchema;
 export const JsonStringArraySchema = z.array(z.string());
 
 export type ParsedRawSessionEvent = z.output<typeof RawSessionEventSchema>;
-export type ParsedSessionEvent = z.output<typeof SessionEventSchema>;
+
 export type ParsedSessionSpec = z.output<typeof SessionSpecSchema>;
 
 export function parseRawSessionEvent(raw: string): ParsedRawSessionEvent {

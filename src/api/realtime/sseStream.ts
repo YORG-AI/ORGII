@@ -17,11 +17,6 @@ import type { SSEEndData, SSEErrorData, SSEOutputData } from "./sseSchemas";
 
 const log = createLogger("SSE");
 
-export interface SSEMessage {
-  event: string;
-  data: string;
-}
-
 export interface SSEStreamOptions {
   url: string;
   onStart?: (data: unknown) => void;

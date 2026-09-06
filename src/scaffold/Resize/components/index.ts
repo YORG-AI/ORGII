@@ -23,4 +23,3 @@ export {
 
 // Split Group
 export { Pane, SplitGroup } from "./SplitGroup";
-export type { PaneProps } from "./SplitGroup";

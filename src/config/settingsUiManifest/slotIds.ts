@@ -14,13 +14,3 @@ export const SETTINGS_SECTION_SLOT_IDS = {
 
 export type SettingsSectionSlotId =
   (typeof SETTINGS_SECTION_SLOT_IDS)[keyof typeof SETTINGS_SECTION_SLOT_IDS];
-
-/**
- * Row slot ids — kept for the renderer's row dispatch even when empty.
- * Add an entry when a settings row needs to render a fully custom React
- * component (instead of a schema-driven control).
- */
-export const SETTINGS_ROW_SLOT_IDS = {} as const;
-
-export type SettingsRowSlotId =
-  (typeof SETTINGS_ROW_SLOT_IDS)[keyof typeof SETTINGS_ROW_SLOT_IDS];

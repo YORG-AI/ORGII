@@ -13,7 +13,7 @@ import SplitListHeader from "@src/modules/shared/layouts/SplitListHeader";
 import { WorkItemsHeaderContent } from "./WorkItemsHeaderContent";
 import type { WorkItemsPageHeaderProps } from "./types";
 
-export type { StatusCounts, WorkItemsViewTab } from "./types";
+export type { WorkItemsViewTab } from "./types";
 
 const WorkItemsPageHeader = ({
   projectName,

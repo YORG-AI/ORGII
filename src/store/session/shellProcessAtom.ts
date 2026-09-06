@@ -164,18 +164,6 @@ export const updateShellProcessAtom = atom(
 updateShellProcessAtom.debugLabel = "updateShellProcess";
 
 /**
- * Get process status for a specific (sessionId, pid) pair.
- * Returns undefined if not found.
- */
-export function getProcessStatus(
-  processMap: ShellProcessMap,
-  sessionId: string,
-  pid: number
-): ShellProcessState | undefined {
-  return processMap.get(sessionId)?.get(pid);
-}
-
-/**
  * Clear all processes for a session (on session end/cleanup).
  */
 export const clearSessionProcessesAtom = atom(

@@ -14,19 +14,16 @@ export {
   eventIndexAtom,
   eventSecondaryLookupAtom,
   sortedEventsAtom,
-  sortedEventIndexMapAtom,
   streamingDeltaContentAtom,
 } from "./events";
-export type { StreamingDeltaContent, StreamingDeltaKind } from "./events";
+export type { StreamingDeltaContent } from "./events";
 
 // Replay State
 export {
   currentEventIdAtom,
   currentEventAtom,
-  currentEventIndexAtom,
   replayBarValueAtom,
   replayTimeRangeAtom,
-  replayTimeRangeValidAtom,
   replayModeAtom,
 } from "./replay";
 
@@ -37,18 +34,12 @@ export {
   loadErrorAtom,
   sessionReloadEpochMapAtom,
   triggerSessionReloadAtom,
-  sessionHydrationCountMapAtom,
   sessionHydrationByIdAtom,
   beginSessionHydrationAtom,
   endSessionHydrationAtom,
-  isFromCacheAtom,
-  lastFetchedAtom,
-  hasMoreEventsAtom,
-  isLoadingMoreAtom,
   pendingSyntheticEventAtom,
   specsAtom,
 } from "./metadata";
-export type { SessionHydrationState } from "./metadata";
 
 // Compound Actions
 export {
@@ -56,10 +47,7 @@ export {
   clearSessionLoadErrorAtom,
   failSessionLoadAtom,
   loadSessionAtom,
-  appendEventsAtom,
-  updateEventAtom,
   updateEventByIdAtom,
-  updateEventByPredicateAtom,
   navigateToEventAtom,
   navigateNextAtom,
   navigatePrevAtom,

@@ -111,9 +111,6 @@ export const MergeThreeWayInput = z.object({
 // Static types
 // ============================================================================
 
-export type DiffAlgorithm = z.infer<typeof DiffAlgorithmSchema>;
 export type DiffStats = z.infer<typeof DiffStatsSchema>;
-export type DiffResult = z.infer<typeof DiffResultSchema>;
-export type PatchResult = z.infer<typeof PatchResultSchema>;
-export type FuzzyPatchResult = z.infer<typeof FuzzyPatchResultSchema>;
+
 export type MergeResult = z.infer<typeof MergeResultSchema>;

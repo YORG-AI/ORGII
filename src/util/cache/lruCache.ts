@@ -28,13 +28,6 @@ export interface LRUCacheEntry<T> {
   lastAccessed: number;
 }
 
-export interface LRUCacheOptions {
-  /** Maximum number of entries before eviction */
-  maxSize: number;
-  /** Time-to-live in milliseconds (entries expire after this time) */
-  ttl?: number;
-}
-
 // ============================================
 // LRU Cache Implementation
 // ============================================
@@ -247,71 +240,6 @@ export class LRUCache<K, V> {
       newestEntryAge,
     };
   }
-}
-
-// ============================================
-// Jotai-compatible LRU Cache Helpers
-// ============================================
-
-/**
- * Create an LRU cache for Jotai atoms
- * Returns a Map-compatible interface that can be used in atoms
- */
-export function createAtomLRUCache<K, V>(
-  maxSize: number,
-  ttl?: number
-): Map<K, V> {
-  const lru = new LRUCache<K, V>(maxSize, ttl);
-
-  // Return a Map-like proxy that uses LRU internally
-  return {
-    get(key: K): V | undefined {
-      return lru.get(key);
-    },
-    set(key: K, value: V): Map<K, V> {
-      lru.set(key, value);
-      return this as Map<K, V>;
-    },
-    has(key: K): boolean {
-      return lru.has(key);
-    },
-    delete(key: K): boolean {
-      return lru.delete(key);
-    },
-    clear(): void {
-      lru.clear();
-    },
-    get size(): number {
-      return lru.size;
-    },
-    keys(): IterableIterator<K> {
-      return lru.keys();
-    },
-    values(): IterableIterator<V> {
-      // Convert LRUCacheEntry to values
-      return Array.from(lru.entries())
-        .map(([_, entry]) => entry.value)
-        [Symbol.iterator]();
-    },
-    entries(): IterableIterator<[K, V]> {
-      // Convert LRUCacheEntry to [key, value] pairs
-      return Array.from(lru.entries())
-        .map(([key, entry]) => [key, entry.value] as [K, V])
-        [Symbol.iterator]();
-    },
-    forEach(
-      callbackfn: (value: V, key: K, map: Map<K, V>) => void,
-      thisArg?: unknown
-    ): void {
-      for (const [key, entry] of lru.entries()) {
-        callbackfn.call(thisArg, entry.value, key, this as Map<K, V>);
-      }
-    },
-    [Symbol.iterator](): IterableIterator<[K, V]> {
-      return this.entries();
-    },
-    [Symbol.toStringTag]: "Map",
-  } as Map<K, V>;
 }
 
 export default LRUCache;

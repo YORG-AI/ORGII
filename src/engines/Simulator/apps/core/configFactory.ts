@@ -80,15 +80,6 @@ export function defineSimulatorAppConfig<TState extends SimulatorAppBaseState>(
 // ============================================
 
 /**
- * Common interface for operation-based app states.
- * Used by Database, Project Manager, etc.
- */
-export interface OperationBasedState<TOperation> extends SimulatorAppBaseState {
-  operations: TOperation[];
-  selectedOperation: TOperation | null;
-}
-
-/**
  * Helper to derive operation-based state.
  * Extracts operations from events and finds the selected one.
  */

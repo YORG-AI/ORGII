@@ -8,12 +8,6 @@ export type AgentOrgsTabSegment = "agents" | "orgs" | "clis";
 
 export const AGENT_ORGS_NAMESPACE = "agent-orgs";
 
-export const AGENT_ORGS_TABS: readonly AgentOrgsTabSegment[] = [
-  "agents",
-  "orgs",
-  "clis",
-] as const;
-
 export interface AgentOrgsPathOptions {
   tab?: AgentOrgsTabSegment | "org" | "integrations";
   category?: IntegrationsCategorySegment;

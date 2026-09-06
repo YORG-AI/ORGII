@@ -19,15 +19,7 @@ import { atomWithStorage } from "jotai/utils";
 
 import type { GlobalTabsState } from "./globalTabsTypes";
 
-export type {
-  BrowserTab,
-  TerminalSession,
-  EditorRepo,
-  DocumentFile,
-  WorkspaceSession,
-  ShortcutItem,
-  GlobalTabsState,
-} from "./globalTabsTypes";
+export type { TerminalSession, GlobalTabsState } from "./globalTabsTypes";
 
 export { getFaviconUrl, getSiteNameFromUrl } from "./globalTabsTypes";
 

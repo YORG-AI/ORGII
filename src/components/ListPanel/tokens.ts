@@ -202,9 +202,3 @@ export const LIST_PANEL_SECTIONS = {
   /** Padding-top before a section stacked below another (replaces outer gap-4) */
   sectionGroupTopSpacing: "pt-5",
 } as const;
-
-// ==============================================
-// Type Exports
-// ==============================================
-
-export type ListItemTokens = typeof LIST_ITEM;

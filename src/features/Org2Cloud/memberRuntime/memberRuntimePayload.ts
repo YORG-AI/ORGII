@@ -101,10 +101,6 @@ export function getMemberRuntimeMachineCached(): Promise<MemberRuntimeMachine> {
   return cachedMachine;
 }
 
-export function __resetMemberRuntimeMachineCacheForTests(): void {
-  cachedMachine = null;
-}
-
 /** One burst sample, stamped with the client clock at collection. */
 export async function collectMemberRuntimeSample(
   nowMs: number

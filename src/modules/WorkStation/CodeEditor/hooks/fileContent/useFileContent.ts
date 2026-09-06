@@ -24,7 +24,6 @@ import {
   hasLoadedFileThisSession,
   invalidateFileCache,
   markFileLoadedThisSession,
-  onExternalFileChange,
   popUnsavedContent,
   subscribeToFileChanges,
   updateCachedFileMtime,
@@ -45,7 +44,6 @@ export {
   clearFileCache,
   clearUnsavedContentCache,
   invalidateFileCache,
-  onExternalFileChange,
   subscribeToFileChanges,
   updateCachedFileMtime,
 };

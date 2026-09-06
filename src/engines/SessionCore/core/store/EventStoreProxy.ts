@@ -43,12 +43,9 @@ import { SnapshotCacheManager } from "./snapshotCacheManager";
 
 export type {
   DerivedSnapshot,
-  EventStoreMemoryStats,
   Snapshot,
   SnapshotDelta,
   SnapshotEnvelope,
-  SnapshotEventMembership,
-  SnapshotPayload,
   StreamingSnapshot,
 } from "./EventStoreProxyTypes";
 export {

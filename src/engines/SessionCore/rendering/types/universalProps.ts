@@ -279,23 +279,3 @@ export interface ExtractedTodoData {
 export interface ThinkingEventProps extends UniversalEventProps {
   extracted: ExtractedThinkingData;
 }
-
-export interface FileEventProps extends UniversalEventProps {
-  extracted: ExtractedFileData;
-}
-
-export interface EditEventProps extends UniversalEventProps {
-  extracted: ExtractedEditData;
-}
-
-export interface ShellEventProps extends UniversalEventProps {
-  extracted: ExtractedShellData;
-}
-
-export interface SearchEventProps extends UniversalEventProps {
-  extracted: ExtractedSearchData;
-}
-
-export interface TodoEventProps extends UniversalEventProps {
-  extracted: ExtractedTodoData;
-}

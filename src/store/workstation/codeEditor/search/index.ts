@@ -147,7 +147,7 @@ export const searchAppendResultsAtom = atom(
 // ============================================
 
 export * from "./cacheAtom";
-export type { IndexingProgress } from "./indexingProgressAtom";
+
 export {
   indexingProgressAtom,
   isIndexingAtom,

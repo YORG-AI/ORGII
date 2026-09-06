@@ -17,7 +17,6 @@ import {
 export {
   MARKDOWN_CONTENT_PREVIEW_MAX_HEIGHT,
   MarkdownContent,
-  normalizeMarkdownContent,
 } from "@src/modules/shared/components/MarkdownContent";
 
 interface ActivityHeaderActionButtonProps extends Omit<

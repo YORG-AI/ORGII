@@ -197,13 +197,3 @@ export function tallyItems(items: AwaitJobItem[] | undefined): JobKindTally {
   }
   return tally;
 }
-
-/**
- * Guess whether a bare handle string references a shell PID (numeric) or a
- * subagent session. Used only as a last-ditch fallback; prefer the tallied
- * `jobKind` from `awaitMeta.items`.
- */
-export function guessJobKind(handle: string | undefined): AwaitJobKind {
-  if (!handle) return "shell";
-  return /^\d+$/.test(handle) ? "shell" : "subagent";
-}

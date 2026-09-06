@@ -22,8 +22,4 @@ export * from "./routines";
 export * from "./workItemProperties";
 export * from "./workItems";
 export * from "./workRuns";
-export type {
-  ProjectScopeOptions,
-  WorkItemReadBucket,
-  WorkItemsReadOptions,
-} from "./scope";
+export type { WorkItemReadBucket } from "./scope";

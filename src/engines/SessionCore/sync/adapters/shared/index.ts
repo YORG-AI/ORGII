@@ -6,18 +6,7 @@
  */
 
 // Types
-export type {
-  AgentMessage,
-  AgentTokenUsage,
-  AgentWSEvent,
-  ExitPlanModeEvent,
-  PermissionRequestEvent,
-  PlanReadyForApprovalEvent,
-  QuestionRequestEvent,
-  StreamingInfo,
-  StreamRefs,
-  ToolCallDeltaBuffer,
-} from "./types";
+export type { AgentWSEvent, PermissionRequestEvent } from "./types";
 
 // Event factories
 export {
@@ -40,11 +29,8 @@ export {
 // Helpers (subagent tracking, spawned session detection, stream content)
 export {
   capStreamContent,
-  findActiveSubagentCallIndex,
   findSubagentParentEventId,
-  isSubagentSpawningTool,
   SPAWNED_SESSION_RE,
-  SPAWNING_TOOLS_ARRAY,
 } from "./subagentTracking";
 
 // Subagent session store (in-memory buffer + live streaming + SQLite flush)

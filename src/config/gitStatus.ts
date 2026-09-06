@@ -331,35 +331,3 @@ export function getStatusColorForFile(
   const letter = getStatusLetterForFile(status, staged);
   return STATUS_TEXT_COLOR_MAP[letter] || "text-text-2";
 }
-
-// ============================================
-// Theme Customization (Future Enhancement)
-// ============================================
-
-/**
- * FUTURE: Theme override function
- *
- * Example usage when theme system is implemented:
- *
- * ```typescript
- * setGitStatusTheme({
- *   textColors: {
- *     M: "text-custom-modified",
- *     U: "text-custom-untracked",
- *     // ... etc
- *   },
- *   bgColors: {
- *     M: "bg-custom-modified",
- *     U: "bg-custom-untracked",
- *     // ... etc
- *   }
- * });
- * ```
- *
- * This would update STATUS_TEXT_COLOR_MAP and STATUS_BG_COLOR_MAP,
- * and all components would automatically use the new theme colors.
- */
-export interface GitStatusTheme {
-  textColors?: Partial<Record<GitStatusLetter, string>>;
-  bgColors?: Partial<Record<GitStatusLetter, string>>;
-}

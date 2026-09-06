@@ -72,36 +72,7 @@ export const disableInspectMode = () => {
 
 // --- Highlight Lock ---
 
-export const lockHighlight = () => {
-  setHighlightLocked(true);
-  window.dispatchEvent(
-    new CustomEvent("highlight-lock-changed", {
-      detail: { locked: true },
-    })
-  );
-};
-
-export const unlockHighlight = () => {
-  setHighlightLocked(false);
-  window.dispatchEvent(
-    new CustomEvent("highlight-lock-changed", {
-      detail: { locked: false },
-    })
-  );
-};
-
 // --- Cleanup ---
-
-export const cleanupInspectMode = () => {
-  resetInspectState();
-  setInspectModeEnabled(false);
-  removeHighlightOverlay();
-  window.dispatchEvent(
-    new CustomEvent("inspect-mode-changed", {
-      detail: { enabled: false },
-    })
-  );
-};
 
 // --- Level Navigation ---
 
@@ -167,17 +138,6 @@ export const moveDownLevel = (): boolean => {
   );
 
   return true;
-};
-
-/**
- * Reset level to 0 (original hovered element).
- */
-export const resetLevel = () => {
-  setCurrentLevel(0);
-  const lastHoveredElement = getLastHoveredElement();
-  if (isInspectModeEnabled() && lastHoveredElement) {
-    updateHighlight(lastHoveredElement);
-  }
 };
 
 // --- Label Visibility ---

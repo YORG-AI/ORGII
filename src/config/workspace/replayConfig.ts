@@ -23,6 +23,3 @@ export const REPLAY_CONFIG = {
   /** Timeout (ms) before resetting replay mode after user interaction */
   REPLAY_MODE_TIMEOUT: 5000,
 } as const;
-
-/** Type for REPLAY_CONFIG values */
-export type ReplayConfigType = typeof REPLAY_CONFIG;

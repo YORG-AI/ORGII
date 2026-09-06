@@ -14,26 +14,6 @@ export async function checkBinaryByPath(path: string): Promise<boolean | null> {
   return invoke<boolean | null>("check_binary_by_path", { path });
 }
 
-export async function checkBinaryContent(
-  content: Uint8Array,
-  sampleSize?: number
-): Promise<BinaryCheckResult> {
-  return invoke<BinaryCheckResult>("check_binary_content", {
-    content: Array.from(content),
-    sampleSize,
-  });
-}
-
-export async function checkFileIsBinary(
-  path: string,
-  sampleSize?: number
-): Promise<BinaryCheckResult> {
-  return invoke<BinaryCheckResult>("check_file_is_binary", {
-    path,
-    sampleSize,
-  });
-}
-
 // ============================================
 // Enhanced Detection with Magic Bytes (infer)
 // ============================================

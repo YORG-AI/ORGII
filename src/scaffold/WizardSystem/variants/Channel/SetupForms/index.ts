@@ -84,5 +84,3 @@ export function canSubmitChannel(
       return false;
   }
 }
-
-export type { ChannelFormProps } from "./types";

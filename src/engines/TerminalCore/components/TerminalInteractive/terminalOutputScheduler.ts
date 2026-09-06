@@ -330,11 +330,6 @@ export function getChunkSize(sessionId: string): number {
   return paneMap.get(sessionId)?.chunkSize ?? INITIAL_CHUNK_SIZE;
 }
 
-/** Return the pane's last measured foreground render time. */
-export function getLastRenderMs(sessionId: string): number {
-  return paneMap.get(sessionId)?.lastRenderMs ?? 0;
-}
-
 /** Apply an adaptive-sizing sample directly for unit tests. */
 export function _testApplyRenderMs(sessionId: string, renderMs: number): void {
   const pane = paneMap.get(sessionId);
@@ -353,7 +348,6 @@ export {
   ADAPT_SHRINK_THRESHOLD_MS,
   BACKGROUND_DRAIN_INTERVAL_MS,
   BACKGROUND_TIME_BUDGET_MS,
-  FOREGROUND_WRITES_PER_TURN,
   HIDDEN_BACKLOG_CAP,
   INITIAL_CHUNK_SIZE,
   INTERACTIVE_BYPASS_BUDGET,

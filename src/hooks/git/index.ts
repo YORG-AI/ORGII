@@ -28,7 +28,6 @@ export { useRepoState } from "./useRepoState";
 
 // Checks whether a workspace path currently has a .git directory
 export { useRepoGitInitialization } from "./useRepoGitInitialization";
-export type { RepoGitInitializationState } from "./useRepoGitInitialization";
 
 // Git error dialog (standalone function for git errors)
 export { showGitErrorAndHandle } from "./gitErrorDialog";

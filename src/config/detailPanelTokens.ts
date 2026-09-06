@@ -144,21 +144,6 @@ export const DETAIL_PANEL_TOKENS = {
 } as const;
 
 // ============================================
-// Bordered Section (divider + collapsible section with equal spacing)
-// ============================================
-
-export const BORDERED_SECTION_TOKENS = {
-  /** Wrapper — border-top divider with equal padding, neutralises CollapsibleSection mb */
-  wrapper: "border-t border-border-2 pt-4 *:mb-0!",
-  /** Bottom padding on the block above the first bordered section (matches CollapsibleSection py-3) */
-  precedingBlock: "pb-3",
-  /** Standalone line separator between sections */
-  separator: "border-t border-border-2",
-  /** Content wrapper inside CollapsibleSection — horizontal padding + strip trailing child margins */
-  sectionContent: "px-4 [&>*:last-child]:mb-0!",
-} as const;
-
-// ============================================
 // Stat Card Grid (Dev Record stat cards, responsive via container queries)
 // ============================================
 

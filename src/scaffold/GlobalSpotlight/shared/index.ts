@@ -8,11 +8,7 @@
 export { SpotlightInput } from "./SpotlightInput";
 
 // Refresh spin (shared by every pinned "Refresh" action)
-export {
-  REFRESH_SPIN_MIN_MS,
-  remainingSpinMs,
-  useRefreshSpin,
-} from "./refreshSpin";
+export { remainingSpinMs, useRefreshSpin } from "./refreshSpin";
 
 // Types
 export type {

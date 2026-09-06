@@ -4,8 +4,6 @@
  */
 export type {
   KanbanTask,
-  KanbanColumnData,
   KanbanResultStatus,
-  TaskPriority,
   TaskStatus,
 } from "@src/features/KanbanBoard/types";

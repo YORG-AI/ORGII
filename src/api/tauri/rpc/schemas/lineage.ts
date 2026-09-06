@@ -522,37 +522,20 @@ export const OrgtrackFileSessionHistorySchema = z.object({
   sessions: z.array(OrgtrackFileSessionHistorySessionSchema),
 });
 
-export type FunctionEntry = z.output<typeof FunctionEntrySchema>;
 export type SessionImpact = z.output<typeof SessionImpactSchema>;
-export type OrgtrackTier = z.output<typeof OrgtrackTierSchema>;
-export type OrgtrackTierSupport = z.output<typeof OrgtrackTierSupportSchema>;
-export type OrgtrackSourceTierPolicy = z.output<
-  typeof OrgtrackSourceTierPolicySchema
->;
-export type OrgtrackExtractionMemoryGate = z.output<
-  typeof OrgtrackExtractionMemoryGateSchema
->;
+
 export type OrgtrackSessionEditArtifact = z.output<
   typeof OrgtrackSessionEditArtifactSchema
 >;
-export type OrgtrackSessionDiffChunk = z.output<
-  typeof OrgtrackSessionDiffChunkSchema
->;
+
 export type OrgtrackSessionFinalDiff = z.output<
   typeof OrgtrackSessionFinalDiffSchema
 >;
-export type OrgtrackCommitLink = z.output<typeof OrgtrackCommitLinkSchema>;
+
 export type OrgtrackDiffReplayPreview = z.output<
   typeof OrgtrackDiffReplayPreviewSchema
 >;
-export type OrgtrackSessionCheckpoint = z.output<
-  typeof OrgtrackSessionCheckpointSchema
->;
-export type OrgtrackCheckpointFileState = z.output<
-  typeof OrgtrackCheckpointFileStateSchema
->;
-export type OrgtrackExportResult = z.output<typeof OrgtrackExportResultSchema>;
-export type OrgtrackIndex = z.output<typeof OrgtrackIndexSchema>;
+
 export type OrgtrackFileTimeline = z.output<typeof OrgtrackFileTimelineSchema>;
 export const CoreSessionSummarySchema = z.object({
   sessionId: z.string(),

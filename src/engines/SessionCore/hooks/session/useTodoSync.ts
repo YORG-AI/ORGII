@@ -29,7 +29,6 @@ import {
 
 import { syncTodosFromReplayEvents } from "./syncTodosFromReplayEvents";
 import {
-  type RawPersistedTodoItem,
   isExpectedTodoLoadRejection,
   normalizePersistedTodo as normalizePersistedTodoCore,
   normalizePersistedTodoList as normalizePersistedTodoListCore,
@@ -44,12 +43,6 @@ export {
   serializeTodoSnapshot,
 } from "./todoReplayDerivation";
 
-/**
- * Re-export the dependency-light normalisation helpers so the
- * existing consumers of `useTodoSync` (and its tests) don't have to
- * change their import paths.
- */
-export type { RawPersistedTodoItem };
 export const normalizePersistedTodo = normalizePersistedTodoCore;
 export const normalizePersistedTodoList = normalizePersistedTodoListCore;
 

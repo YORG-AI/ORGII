@@ -41,10 +41,6 @@ export const IntegrationsConfigSchema = z
   .record(z.string(), z.unknown())
   .describe("IntegrationsConfig (shape owned by Rust config.rs)");
 
-export type IntegrationsConfigRecord = z.output<
-  typeof IntegrationsConfigSchema
->;
-
 /**
  * Typed slice of `IntegrationsConfig.mcp`.
  *
@@ -57,17 +53,6 @@ export const McpIntegrationsSliceSchema = z.object({
   smitheryApiKey: z.string().optional(),
 });
 
-export type McpIntegrationsSlice = z.output<typeof McpIntegrationsSliceSchema>;
-
-/** Read the typed `mcp` slice from a fetched IntegrationsConfig. */
-export function readMcpIntegrationsSlice(
-  config: IntegrationsConfigRecord
-): McpIntegrationsSlice {
-  const raw = config.mcp;
-  if (raw == null || typeof raw !== "object") return {};
-  return McpIntegrationsSliceSchema.parse(raw);
-}
-
 /**
  * Typed patch for `IntegrationsConfig.mcp`.
  *
@@ -79,8 +64,6 @@ export const McpPatchSchema = z.object({
   smitheryApiKey: z.string(),
 });
 
-export type McpPatch = z.output<typeof McpPatchSchema>;
-
 /**
  * Partial patch for `IntegrationsConfig`. Every field is optional; present
  * keys replace the corresponding sub-struct on the config wholesale.
@@ -89,10 +72,6 @@ export type McpPatch = z.output<typeof McpPatchSchema>;
 export const IntegrationsConfigPatchSchema = z
   .record(z.string(), z.unknown())
   .describe("IntegrationsConfigPatch (partial fields, wholesale replace)");
-
-export type IntegrationsConfigPatchInput = z.output<
-  typeof IntegrationsConfigPatchSchema
->;
 
 /** Input to `integrations_update_patch`. */
 export const IntegrationsUpdatePatchInput = z.object({

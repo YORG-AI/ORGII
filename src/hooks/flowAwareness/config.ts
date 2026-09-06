@@ -31,32 +31,3 @@ export const FLOW_AWARENESS_CONFIG = {
   /** Enable detailed logging for debugging purposes. */
   DEBUG_LOGGING: process.env.NODE_ENV === "development",
 } as const;
-
-/** Activity type mappings for better type safety. */
-export const ACTIVITY_TYPES = {
-  FILE_EDIT: "file_edit",
-  FILE_OPEN: "file_open",
-  TERMINAL_COMMAND: "terminal_command",
-  SEARCH: "search",
-  CLIPBOARD: "clipboard",
-  GIT_OPERATION: "git_operation",
-  NAVIGATION: "navigation",
-  ERROR: "error",
-  DEBUG: "debug",
-} as const;
-
-/** Search scope mappings for consistent usage. */
-export const SEARCH_SCOPES = {
-  CODEBASE: "codebase",
-  CURRENT_FILE: "current_file",
-  FILES: "files",
-} as const;
-
-/** Error type mappings for consistent error categorization. */
-export const ERROR_TYPES = {
-  BUILD: "build",
-  TEST: "test",
-  LINT: "lint",
-  TYPE_CHECK: "type_check",
-  RUNTIME: "runtime",
-} as const;

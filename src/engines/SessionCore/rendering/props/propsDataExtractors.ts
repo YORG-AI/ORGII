@@ -13,9 +13,7 @@ export {
   stripLineNumberPrefixes,
   mergeUnifiedDiffStrings,
   parseUnifiedDiffToOldNew,
-  parseUnifiedDiffToHunks,
 } from "./extractorShared";
-export type { ParsedDiffHunk } from "./extractorShared";
 
 // Domain extractors
 export { extractThinkingData } from "./thinkingExtractors";
@@ -23,7 +21,6 @@ export { extractFileData } from "./fileExtractors";
 export {
   extractEditData,
   extractApplyPatchDataFromRust,
-  splitCombinedDiffIntoSegments,
 } from "./editExtractors";
 export { extractShellData } from "./shellExtractors";
 export { extractSearchData } from "./searchExtractors";

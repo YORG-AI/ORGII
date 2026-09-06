@@ -2,7 +2,7 @@ import React from "react";
 
 import type { IconSvgElement } from "@src/icons";
 
-import type { SpotlightItem, SpotlightItemData, StatusType } from "./shared";
+import type { SpotlightItem, SpotlightItemData } from "./shared";
 
 // ============ PARAM TYPES ============
 
@@ -93,7 +93,7 @@ export interface BranchItem {
 
 // ============ SPOTLIGHT ITEM ============
 // Re-export shared types from Spotlight/shared
-export type { SpotlightItem, SpotlightItemData, StatusType };
+export type { SpotlightItem, SpotlightItemData };
 
 // ============ COMPONENT PROPS ============
 

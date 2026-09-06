@@ -44,11 +44,11 @@ import { gitDiff, gitStatus } from "./gitStatusActions.zod";
  * - Stash
  * - History (Amend/Cherry-pick/Revert/Reset/Conflict Resolution)
  */
-export { gitDiff, gitStatus } from "./gitStatusActions.zod";
+export { gitStatus } from "./gitStatusActions.zod";
 
 export { gitCommit } from "./gitStagingActions.zod";
 
-export { gitFetch, gitPublish, gitPull, gitPush } from "./gitRemoteActions.zod";
+export { gitFetch, gitPush } from "./gitRemoteActions.zod";
 
 export {
   gitCheckout,

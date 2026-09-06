@@ -12,9 +12,6 @@ import {
 } from "./state";
 
 // Get the currently selected element (accounting for level)
-export const getCurrentSelectedElement = (): Element | null => {
-  return getElementAtLevel(getLastHoveredElementState(), getCurrentLevel());
-};
 
 /**
  * Get the currently effective element (accounting for level navigation).

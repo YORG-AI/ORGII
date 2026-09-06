@@ -103,15 +103,6 @@ export function isWorktreeCacheFresh(
   return getWorktreeCacheFreshness(entry, now, ttlMs) === "fresh";
 }
 
-/** Safe read that tolerates a `null` key (returns `undefined`). */
-export function readWorktreeCacheEntry<E>(
-  map: ReadonlyMap<string, E>,
-  key: string | null
-): E | undefined {
-  if (!key) return undefined;
-  return map.get(key);
-}
-
 /**
  * Immutably write an entry, keeping the map bounded to `maxEntries`.
  *
@@ -133,19 +124,6 @@ export function writeWorktreeCacheEntry<E>(
     const oldest = next.keys().next().value;
     if (oldest === undefined) break;
     next.delete(oldest);
-  }
-  return next;
-}
-
-/** Immutably drop every entry older than the TTL window. */
-export function pruneWorktreeCache<E extends WorktreeCacheEntryBase>(
-  map: ReadonlyMap<string, E>,
-  now: number,
-  ttlMs: number
-): Map<string, E> {
-  const next = new Map<string, E>();
-  for (const [key, entry] of map) {
-    if (now - entry.fetchedAt < ttlMs) next.set(key, entry);
   }
   return next;
 }

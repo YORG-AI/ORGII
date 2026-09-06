@@ -93,10 +93,6 @@ export const PRESENCE_STANCES: PresenceStance[] = [
   PRESENCE_STANCE.AUTONOMOUS,
 ];
 
-export function isPresenceStance(value: string): value is PresenceStance {
-  return (PRESENCE_STANCES as readonly string[]).includes(value);
-}
-
 /** Full per-mode record: prompt identity + runtime behavior policy. */
 export interface PresenceModeSpec {
   /** "online" | "invisible" | "away" | "role:<slug>" */

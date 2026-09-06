@@ -8,42 +8,22 @@
 import { rpc } from "@src/api/tauri/rpc";
 import type {
   CoreSessionSummary,
-  FunctionEntry,
-  OrgtrackCheckpointFileState,
-  OrgtrackCommitLink,
   OrgtrackDiffReplayPreview,
-  OrgtrackExportResult,
-  OrgtrackExtractionMemoryGate,
   OrgtrackFileSessionHistory,
   OrgtrackFileTimeline,
-  OrgtrackIndex,
-  OrgtrackSessionCheckpoint,
-  OrgtrackSessionDiffChunk,
   OrgtrackSessionEditArtifact,
   OrgtrackSessionFinalDiff,
-  OrgtrackSourceTierPolicy,
-  OrgtrackTier,
   SessionImpact,
 } from "@src/api/tauri/rpc/schemas/lineage";
 
 // Re-export types for backward compat
 export type {
   CoreSessionSummary,
-  FunctionEntry,
-  OrgtrackCheckpointFileState,
   OrgtrackDiffReplayPreview,
-  OrgtrackExportResult,
-  OrgtrackExtractionMemoryGate,
-  OrgtrackCommitLink,
   OrgtrackFileSessionHistory,
   OrgtrackFileTimeline,
-  OrgtrackIndex,
-  OrgtrackSessionCheckpoint,
-  OrgtrackSessionDiffChunk,
   OrgtrackSessionEditArtifact,
   OrgtrackSessionFinalDiff,
-  OrgtrackSourceTierPolicy,
-  OrgtrackTier,
   SessionImpact,
 };
 

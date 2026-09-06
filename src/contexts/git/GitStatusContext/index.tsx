@@ -15,7 +15,7 @@
 import { useContext } from "react";
 
 import { DeferredGitStatusProvider } from "./DeferredGitStatusProvider";
-import { GitStatusContext, GitStatusProvider } from "./GitStatusProvider";
+import { GitStatusContext } from "./GitStatusProvider";
 import type { GitStatusContextValue } from "./types";
 
 // ============================================
@@ -34,5 +34,5 @@ export function useGitStatus(): GitStatusContextValue {
 // Exports
 // ============================================
 
-export { DeferredGitStatusProvider, GitStatusProvider, GitStatusContext };
+export { DeferredGitStatusProvider, GitStatusContext };
 export type { GitStatusContextValue };

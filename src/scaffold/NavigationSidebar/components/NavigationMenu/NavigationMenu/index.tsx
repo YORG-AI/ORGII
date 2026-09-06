@@ -204,5 +204,4 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
 
 NavigationMenu.displayName = "NavigationMenu";
 
-export type { NavigationMenuProps } from "./types";
 export default NavigationMenu;

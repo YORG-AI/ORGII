@@ -1,36 +1,3 @@
-export interface SessionChatResponse {
-  status: number;
-  data: SessionChat;
-}
-export interface SessionChat {
-  message_id: string;
-  text: string;
-  role: string;
-  created_time: string;
-  type: string;
-}
-export interface ChatMessageResponse {
-  status: number;
-  data: {
-    messages: ChatMessage[];
-  };
-}
-export interface ChatMessage {
-  message_id: string;
-  text: string;
-  role: string;
-  created_time: string;
-  type: string;
-  status: string;
-}
-
-export interface ChatModel {
-  icon: JSX.Element;
-  title: string;
-  key: string;
-  updating?: boolean;
-  info?: Record<string, unknown>;
-}
 export interface WsSpec {
   session_id: string;
   spec: string;
@@ -42,16 +9,6 @@ export interface WsSpec {
   step_id?: string | null;
 }
 
-export interface SearchActType {
-  results: Array<{
-    file_path: string;
-    content: string;
-    start_line: number;
-    end_line: number;
-  }>;
-  files: number;
-  message?: string;
-}
 /**
  * BackendEvent - Event format from backend API/WebSocket
  *
@@ -85,20 +42,6 @@ export interface BackendEvent {
   created_time: string;
 }
 
-export interface SessionStateResponse {
-  data: {
-    events: BackendEvent[];
-    specs?: WsSpec[];
-    session_id: string;
-    created_time: string;
-    updated_time: string;
-  };
-  status: number;
-}
-export interface GithubIssueResponse {
-  data: GithubIssue[];
-  status: number;
-}
 export interface GithubIssue {
   chunk_id: string;
   session_id: string;
@@ -113,19 +56,7 @@ export interface GithubIssue {
   html_url: string;
   labels: string;
 }
-export interface WSTokenResponse {
-  data: {
-    session_id: string;
-    token: string;
-  };
-  status: number;
-}
-export interface WpSessionListResponse {
-  data: {
-    sessions: WpSession[];
-  };
-  status: number;
-}
+
 export interface SessionConfig {
   feedback_wait_time_minutes: number;
   thought_action_wait_time_seconds: number;
@@ -141,27 +72,6 @@ export interface WpSessionConfig {
   origin: SessionConfig | undefined;
 }
 
-export interface WpSession {
-  session_id: string;
-  user_id: string;
-  repo_id: string;
-  name: string;
-  session_metadata: Record<string, unknown>;
-  updated_time: string;
-  session_config: SessionConfig;
-  star: boolean;
-  branch: string;
-  created_time: string;
-  snapshots_count: number;
-  repo_name: string;
-  fs_uri: string;
-  spec: string;
-  spec_watermark: string;
-}
-export interface WpSessionResponse {
-  data: WpSession;
-  status: number;
-}
 export interface WpApiKey {
   chunk_id: string;
   api_key: string;
@@ -171,12 +81,7 @@ export interface WpApiKeyList {
   cur: WpApiKey[];
   origin: WpApiKey[];
 }
-export interface WpApiKeyResponse {
-  data: {
-    api_keys: WpApiKey[];
-  };
-  status: number;
-}
+
 export interface ContextAddMap {
   init_tab: string;
   follow_tab_add: string;
@@ -187,12 +92,7 @@ export interface WpWebItem {
   link: string;
   description: string;
 }
-export interface WebListResponse {
-  data: {
-    links: WpWebItem[];
-  };
-  status: number;
-}
+
 export interface WpSnapShot {
   snapshot_id: string;
   session_id: string;
@@ -200,91 +100,20 @@ export interface WpSnapShot {
   snapshot_path: string;
   title: string;
 }
-export interface SnapshotListResponse {
-  data: WpSnapShot[];
-  status: number;
-}
 
-export interface ContextParseResponse {
-  data: {
-    api_keys: { value: string; description: string }[];
-    urls: { value: string; description: string }[];
-  };
-  status: number;
-}
 export interface FileEdits {
   session_id?: string;
   added: number;
   deleted: number;
   modified: number;
 }
-export interface BackEndSessIdResponse {
-  data: {
-    backend_session_id: string;
-  };
-  status: number;
-}
-export interface WpTimeRange {
-  start: string;
-  end: string;
-}
+
 export interface FeedBackInfo {
   isFeedBack: boolean;
   info?: Record<string, unknown>;
   callback?: () => void;
 }
-export interface DashBoardInfoResponse {
-  data: DashBoardInfo;
-  status: number;
-}
-export interface DashBoardInfo {
-  summary: {
-    token_usage: number;
-    earning_time: number;
-    awarded: number;
-    saving: number;
-  };
-  by_category: {
-    planner_dashboard: {
-      steps: number;
-      actions: number;
-    };
-    file_change_dashboard: {
-      additions: number;
-      deletions: number;
-      files_added: number;
-      files_modified: number;
-      files_deleted: number;
-    };
-    code_submission_dashboard: {
-      commits: number;
-      pull_requests: number;
-    };
-    context_dashboard: {
-      items: number;
-      attention_recommended: number;
-      attention_required: number;
-      attention_optional: number;
-    };
-    spec_dashboard: {
-      items: number;
-      attention_recommended: number;
-      attention_required: number;
-      attention_optional: number;
-    };
-    other_dashboard: {
-      items: number;
-    };
-    memory_dashboard: {
-      items: number;
-    };
-  };
-  by_status: {
-    attention_required: number;
-    attention_recommended: number;
-    attention_optional: number;
-  };
-}
+
 export interface ReviewItem {
   type: string;
   displayd_type: string;
@@ -298,28 +127,7 @@ export interface Artifact {
   title?: string;
 }
 
-export interface MessageTypeResponse {
-  status: number;
-  data: {
-    message_type: string;
-  };
-}
-
 // Git Action Types
-export type GitActionType =
-  | "commit"
-  | "push"
-  | "pull"
-  | "publish"
-  | "publish_repository"
-  | "publish_branch"
-  | "create_pr"
-  | "fetch"
-  | "resolve_conflicts"
-  | "stage"
-  | "stash_pop"
-  | "init"
-  | "none";
 
 // ============================================================================
 // Git API Types
@@ -371,11 +179,6 @@ export interface GitRepositoryStatus {
   cherry_pick_in_progress: boolean;
   working_directory: GitWorkingDirectory;
   do_conflicted_files_exist: boolean;
-}
-
-export interface GitRepositoryStatusResponse {
-  status: number;
-  data: GitRepositoryStatus;
 }
 
 // Branch information
@@ -463,72 +266,6 @@ export interface GitOperationResult {
   message: string;
 }
 
-export interface GitPullResult {
-  success: boolean;
-  message: string;
-  commits_pulled: number;
-  fast_forward: boolean;
-}
-
-export interface GitCommitResult {
-  sha: string;
-  short_sha: string;
-  message: string;
-  files_committed: number;
-}
-
 // ============================================
 // Cursor History Types
 // ============================================
-
-/**
- * Metadata from a Cursor conversation export
- */
-export interface CursorExportMetadata {
-  /** Title of the conversation */
-  title: string;
-  /** Export timestamp string */
-  exportedAt: string;
-  /** Cursor IDE version */
-  cursorVersion: string;
-}
-
-/**
- * Code block extracted from a Cursor message
- */
-export interface CursorCodeBlock {
-  /** Programming language */
-  language: string;
-  /** Code content */
-  content: string;
-  /** Inferred file path from context */
-  filePath?: string;
-}
-
-/**
- * A parsed message from Cursor conversation history
- */
-export interface CursorHistoryMessage {
-  /** Unique message identifier */
-  id: string;
-  /** Message role - user or cursor */
-  role: "user" | "cursor";
-  /** Full message content */
-  content: string;
-  /** Extracted code blocks */
-  codeBlocks: CursorCodeBlock[];
-  /** Message index in conversation */
-  index: number;
-  /** Optional timestamp */
-  timestamp?: string;
-}
-
-/**
- * Full parsed Cursor conversation
- */
-export interface CursorConversation {
-  /** Export metadata */
-  metadata: CursorExportMetadata;
-  /** All messages in the conversation */
-  messages: CursorHistoryMessage[];
-}

@@ -39,12 +39,7 @@ import {
 } from "./hooks";
 import "./index.scss";
 
-export type {
-  BrowserAddToConversationNavState,
-  ChatHistoryProps,
-  FollowAgentNavState,
-  ScrollNavState,
-} from "./ChatHistory.types";
+export type { ScrollNavState } from "./ChatHistory.types";
 
 const EMPTY_ORG_MEMBERS: ChatHistoryProps["agentOrgMembers"] = [];
 

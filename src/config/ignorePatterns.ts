@@ -15,12 +15,6 @@ export interface IgnorePattern {
   isDirectory: boolean; // Patterns ending with / match directories only
 }
 
-export interface ParsedIgnoreFile {
-  patterns: IgnorePattern[];
-  source: "default" | "file";
-  filePath?: string;
-}
-
 // ============================================
 // Default Patterns
 // ============================================

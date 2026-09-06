@@ -112,9 +112,6 @@ export type SessionProvenanceRecentSignal = z.output<
   typeof SessionProvenanceRecentSignalSchema
 >;
 export type AgentLiveStatus = z.output<typeof AgentLiveStatusSchema>;
-export type SessionProvenanceSignalAction = z.output<
-  typeof SessionProvenanceSignalActionSchema
->;
 
 export const CliConfigFileInput = z.object({
   agentName: z.string(),
@@ -349,15 +346,11 @@ export const CursorPluginSkillSchema = z.object({
   skillPath: z.string(),
 });
 
-export type CursorPluginSkill = z.infer<typeof CursorPluginSkillSchema>;
-
 export const CursorPluginHookSchema = z.object({
   eventType: z.string(),
   label: z.string(),
   hookPath: z.string(),
 });
-
-export type CursorPluginHook = z.infer<typeof CursorPluginHookSchema>;
 
 export const CursorPluginInfoSchema = z.object({
   slug: z.string(),

@@ -50,21 +50,3 @@ export function getBigThreeRegionModelTypeForSession(
 
   return "";
 }
-
-/** English product names for monitor.regionRestricted (matches getRestrictedProviders). */
-export function bigThreeProviderLabelForModelType(
-  modelType: ModelType | ""
-): string {
-  switch (modelType) {
-    case "openai_api":
-    case "codex":
-      return "OpenAI";
-    case "anthropic_api":
-    case "claude_code":
-      return "Anthropic";
-    case "gemini_api":
-      return "Google";
-    default:
-      return "";
-  }
-}

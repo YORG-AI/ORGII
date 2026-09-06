@@ -26,16 +26,6 @@ export const REPO_SWITCH_DEBOUNCE_MS = 300;
 export const WATCHER_REGISTRATION_DELAY_MS = 2000;
 
 /**
- * Timeout for requestIdleCallback when conflict info is missing.
- */
-export const IDLE_CALLBACK_TIMEOUT_MS = 2000;
-
-/**
- * Fallback timeout when requestIdleCallback is unavailable.
- */
-export const FALLBACK_REFRESH_TIMEOUT_MS = 500;
-
-/**
  * Timeout for deferred provider mount via requestIdleCallback.
  */
 export const DEFERRED_MOUNT_TIMEOUT_MS = 500;

@@ -4,7 +4,7 @@
  * Barrel export for all file preview components.
  */
 
-export { PreviewBottomBar, formatFileSize } from "./PreviewBottomBar";
+export { formatFileSize } from "./PreviewBottomBar";
 
 export { ImagePreview } from "./ImagePreview";
 

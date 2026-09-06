@@ -6,7 +6,6 @@
 export { default as GitFileListItem } from "./GitFileListItem";
 
 export { default as GitFileTreeItem } from "./GitFileTreeItem";
-export type { GitFileTreeNode } from "./GitFileTreeItem";
 
 // Virtualized tree row component
 export { default as SourceControlTreeRow } from "./SourceControlTreeRow";

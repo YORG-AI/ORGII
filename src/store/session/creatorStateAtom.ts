@@ -73,13 +73,6 @@ export interface SessionLaunchOrgContext {
   productMode?: string;
 }
 
-export function createDefaultSessionLaunchOrgContext(): SessionLaunchOrgContext {
-  return {
-    orgId: DEFAULT_SESSION_ORG_ID,
-    orgName: DEFAULT_SESSION_ORG_NAME,
-  };
-}
-
 /** Unified source selection for session creation */
 export interface SessionSource {
   /** Source type: local repo/folder, github remote repo, or system path scope */
