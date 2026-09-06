@@ -2448,5 +2448,41 @@
     "officialApp": "應用",
     "cli": "命令列",
     "thirdParty": "第三方"
+  },
+  "browserCookieImport": {
+    "title": "從瀏覽器匯入 Cookie",
+    "subtitle": "選擇一個瀏覽器，將其已儲存的登入狀態匯入內建瀏覽器。",
+    "action": "從瀏覽器匯入 Cookie",
+    "scanning": "正在尋找已安裝的瀏覽器…",
+    "reading": "正在從 {{browser}} 讀取 Cookie…",
+    "keychainHint": "系統可能會要求授權以讀取該瀏覽器儲存的資料",
+    "selectAll": "全選",
+    "selectedSummary": "{{sites}} 個網站 · {{cookies}} 個 Cookie",
+    "cookieCount_one": "{{count}} 個 Cookie",
+    "cookieCount_other": "{{count}} 個 Cookie",
+    "cautionNote": "涉及金流、電子郵件或單一登入的網站預設不勾選",
+    "noSites": "此設定檔中未找到 Cookie",
+    "importAction_one": "匯入 {{count}} 個網站",
+    "importAction_other": "匯入 {{count}} 個網站",
+    "imported_one": "已匯入 {{count}} 個 Cookie",
+    "imported_other": "已匯入 {{count}} 個 Cookie",
+    "doneTitle_one": "已匯入 {{count}} 個 Cookie",
+    "doneTitle_other": "已匯入 {{count}} 個 Cookie",
+    "doneSkipped_one": "已略過 {{count}} 個 Cookie",
+    "doneSkipped_other": "已略過 {{count}} 個 Cookie",
+    "empty": {
+      "title": "找不到支援的瀏覽器",
+      "body": "請安裝帶有已儲存登入資訊的 Chrome、Edge、Brave 或 Firefox。"
+    },
+    "category": {
+      "banking": "銀行",
+      "email": "郵件",
+      "sso": "登入"
+    },
+    "errors": {
+      "listFailed": "找不到可匯入的瀏覽器",
+      "previewFailed": "無法從該瀏覽器讀取 Cookie",
+      "importFailed": "無法匯入所選 Cookie"
+    }
   }
 }

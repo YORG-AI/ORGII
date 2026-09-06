@@ -2432,5 +2432,41 @@
     "officialApp": "Uygulama",
     "cli": "CLI",
     "thirdParty": "Üçüncü taraf"
+  },
+  "browserCookieImport": {
+    "title": "Import cookies from your browser",
+    "subtitle": "Choose a browser to bring its saved logins into the built-in browser.",
+    "action": "Import cookies from your browser",
+    "scanning": "Looking for installed browsers…",
+    "reading": "Reading cookies from {{browser}}…",
+    "keychainHint": "Your system may ask for permission to read the browser's saved data",
+    "selectAll": "Select all",
+    "selectedSummary": "{{sites}} sites · {{cookies}} cookies",
+    "cookieCount_one": "{{count}} cookie",
+    "cookieCount_other": "{{count}} cookies",
+    "cautionNote": "Sites that handle money, email, or single sign-on are unchecked by default",
+    "noSites": "No cookies were found in this profile",
+    "importAction_one": "Import {{count}} site",
+    "importAction_other": "Import {{count}} sites",
+    "imported_one": "Imported {{count}} cookie",
+    "imported_other": "Imported {{count}} cookies",
+    "doneTitle_one": "Imported {{count}} cookie",
+    "doneTitle_other": "Imported {{count}} cookies",
+    "doneSkipped_one": "{{count}} cookie was skipped",
+    "doneSkipped_other": "{{count}} cookies were skipped",
+    "empty": {
+      "title": "No supported browsers found",
+      "body": "Install Chrome, Edge, Brave, or Firefox with saved logins to import from."
+    },
+    "category": {
+      "banking": "Bank",
+      "email": "Mail",
+      "sso": "Sign-in"
+    },
+    "errors": {
+      "listFailed": "Couldn't find browsers to import from",
+      "previewFailed": "Couldn't read cookies from that browser",
+      "importFailed": "Couldn't import the selected cookies"
+    }
   }
 }

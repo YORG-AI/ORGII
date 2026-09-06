@@ -57,6 +57,16 @@ url = "2"
 # Tracing for logging.rs warn paths
 tracing = "0.1"
 
+# Cookie import: read source browser cookie stores (SQLite) and decrypt
+# Chromium's macOS `v10` values (AES-128-CBC under a PBKDF2-derived keychain
+# key). `rusqlite` reuses the workspace's bundled SQLite; the RustCrypto crates
+# are pure-Rust and small. Firefox stores plaintext, so it needs no crypto.
+rusqlite = { workspace = true }
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc", "block-padding"] }
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+sha1 = "0.10"
+
 
 # macOS-specific: vibrancy on standalone browser windows + ObjC bridges
 # for WKWebView cookie store, NSHTTPCookieStorage fallback, NSStringFrom*.
@@ -71,6 +81,10 @@ objc2 = { workspace = true }
 objc2-foundation = { workspace = true }
 objc2-app-kit = { workspace = true }
 block2 = { workspace = true }
+
+# Cookie import reads the Chromium value-encryption password from the login
+# keychain (the one step that triggers the OS consent prompt).
+security-framework = "3"
 
 # Windows-specific WebView2 bindings for retrieving JavaScript evaluation
 # results from inline webviews. Tauri exposes the WebView2 controller, but

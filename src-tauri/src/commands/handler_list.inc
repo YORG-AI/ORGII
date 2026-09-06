@@ -43,6 +43,10 @@ browser::reload_inline_webview,
 // Browser commands - Logging & Cookies
 browser::get_webview_console_logs,
 browser::get_webview_network_logs,
+// Browser commands - Cookie import (saved logins from other installed browsers)
+browser::cookie_import::list_cookie_import_sources,
+browser::cookie_import::preview_cookie_import,
+browser::cookie_import::import_browser_cookies,
 // Browser commands - Element Inspector
 browser::toggle_webview_inspect_mode,
 browser::enable_webview_inspect_mode,

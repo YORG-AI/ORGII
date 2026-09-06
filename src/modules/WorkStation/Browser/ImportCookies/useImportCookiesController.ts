@@ -1,0 +1,195 @@
+/**
+ * Orchestrates the cookie-import flow: discover sources → preview one (which
+ * may trigger the OS keychain prompt) → import the chosen sites.
+ *
+ * Keeps the modal presentational. All backend calls funnel through here so the
+ * modal only renders state and dispatches intents.
+ *
+ * The host mounts the modal only while it is open, so this hook starts fresh
+ * on every open: sources load on mount and no state needs resetting.
+ */
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import {
+  type CookieImportPreview,
+  type CookieImportResult,
+  type CookieImportSource,
+  importBrowserCookies,
+  listCookieImportSources,
+  previewCookieImport,
+} from "@src/api/tauri/browserCookies";
+import Message from "@src/components/Message";
+import { createLogger } from "@src/hooks/logger";
+
+import {
+  initialSelectedDomains,
+  setAllDomains as setAllDomainsHelper,
+  toggleDomain as toggleDomainHelper,
+} from "./importCookiesSelection";
+
+const logger = createLogger("ImportCookies");
+
+/** Which screen of the flow is showing. */
+export type ImportStage = "sources" | "preview" | "done";
+
+export interface ImportCookiesController {
+  stage: ImportStage;
+  sourcesLoading: boolean;
+  sources: CookieImportSource[];
+  activeSource: CookieImportSource | null;
+  previewLoading: boolean;
+  preview: CookieImportPreview | null;
+  selectedDomains: ReadonlySet<string>;
+  importing: boolean;
+  result: CookieImportResult | null;
+  selectSource: (sourceId: string) => void;
+  toggleDomain: (domain: string) => void;
+  setAllDomains: (selected: boolean) => void;
+  runImport: () => void;
+  backToSources: () => void;
+}
+
+export function useImportCookiesController(
+  onImported?: (result: CookieImportResult) => void
+): ImportCookiesController {
+  const { t } = useTranslation();
+
+  const [stage, setStage] = useState<ImportStage>("sources");
+  const [sources, setSources] = useState<CookieImportSource[]>([]);
+  // Starts true: the source scan begins on mount (see the effect below).
+  const [sourcesLoading, setSourcesLoading] = useState(true);
+  const [activeSource, setActiveSource] = useState<CookieImportSource | null>(
+    null
+  );
+  const [preview, setPreview] = useState<CookieImportPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [selectedDomains, setSelectedDomains] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState<CookieImportResult | null>(null);
+
+  // Guards against a slow preview/import resolving after the modal closed or the
+  // user moved on to a different source.
+  const requestRef = useRef(0);
+
+  // Discover sources once per mount. State updates happen only in the async
+  // continuations, never synchronously in the effect body.
+  useEffect(() => {
+    let cancelled = false;
+    listCookieImportSources()
+      .then((found) => {
+        if (!cancelled) setSources(found);
+      })
+      .catch((error: unknown) => {
+        logger.error("failed to list cookie sources:", error);
+        if (!cancelled) {
+          setSources([]);
+          Message.error(t("browserCookieImport.errors.listFailed"));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSourcesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      requestRef.current += 1;
+    };
+  }, [t]);
+
+  const selectSource = useCallback(
+    (sourceId: string) => {
+      const source = sources.find((candidate) => candidate.id === sourceId);
+      if (!source) return;
+      const token = ++requestRef.current;
+      setActiveSource(source);
+      setStage("preview");
+      setPreview(null);
+      setPreviewLoading(true);
+
+      previewCookieImport(sourceId)
+        .then((loaded) => {
+          if (requestRef.current !== token) return;
+          setPreview(loaded);
+          setSelectedDomains(initialSelectedDomains(loaded));
+        })
+        .catch((error: unknown) => {
+          logger.error("failed to preview cookie source:", error);
+          if (requestRef.current !== token) return;
+          Message.error(t("browserCookieImport.errors.previewFailed"));
+          setActiveSource(null);
+          setStage("sources");
+        })
+        .finally(() => {
+          if (requestRef.current === token) setPreviewLoading(false);
+        });
+    },
+    [sources, t]
+  );
+
+  const toggleDomain = useCallback((domain: string) => {
+    setSelectedDomains((current) => toggleDomainHelper(current, domain));
+  }, []);
+
+  const setAllDomains = useCallback(
+    (selected: boolean) => {
+      setSelectedDomains(setAllDomainsHelper(preview?.sites ?? [], selected));
+    },
+    [preview]
+  );
+
+  const backToSources = useCallback(() => {
+    requestRef.current += 1;
+    setActiveSource(null);
+    setPreview(null);
+    setSelectedDomains(new Set());
+    setStage("sources");
+  }, []);
+
+  const runImport = useCallback(() => {
+    if (!activeSource || selectedDomains.size === 0) return;
+    const token = ++requestRef.current;
+    const domains = [...selectedDomains];
+    setImporting(true);
+
+    importBrowserCookies(activeSource.id, domains)
+      .then((imported) => {
+        if (requestRef.current !== token) return;
+        setResult(imported);
+        setStage("done");
+        Message.success(
+          t("browserCookieImport.imported", {
+            count: imported.importedCookies,
+          })
+        );
+        onImported?.(imported);
+      })
+      .catch((error: unknown) => {
+        logger.error("failed to import cookies:", error);
+        if (requestRef.current === token) {
+          Message.error(t("browserCookieImport.errors.importFailed"));
+        }
+      })
+      .finally(() => {
+        if (requestRef.current === token) setImporting(false);
+      });
+  }, [activeSource, selectedDomains, t, onImported]);
+
+  return {
+    stage,
+    sourcesLoading,
+    sources,
+    activeSource,
+    previewLoading,
+    preview,
+    selectedDomains,
+    importing,
+    result,
+    selectSource,
+    toggleDomain,
+    setAllDomains,
+    runImport,
+    backToSources,
+  };
+}

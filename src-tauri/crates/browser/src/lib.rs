@@ -8,6 +8,7 @@
 //! - [`inline`]: Embedded webviews within the main app window
 //! - [`logging`]: Console and network log capture from webviews
 //! - [`cookies`]: Native cookie access (including HttpOnly)
+//! - [`cookie_import`]: Import saved logins from other installed browsers
 //! - [`global_tokens`]: Stateless CSS-variable scanning for browser design tools
 //! - [`scripts`]: JavaScript injection scripts for anti-bot detection, etc.
 //! - [`internal_browser_commands`]: DOM automation Tauri commands for inline webviews
@@ -36,6 +37,7 @@
 
 pub mod automation;
 pub mod capture;
+pub mod cookie_import;
 pub mod cookies;
 pub mod dom_editor;
 pub mod global_tokens;
