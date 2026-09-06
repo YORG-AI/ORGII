@@ -1,20 +1,10 @@
 // Tab Management Hooks
 // Focused hooks (better performance - use these when you only need specific categories)
-export {
-  useGlobalBrowserTabs,
-  useGlobalTerminalTabs,
-  useGlobalEditorTabs,
-  useGlobalDocumentTabs,
-  useGlobalSessionTabs,
-  useGlobalShortcutTabs,
-  useGlobalTabCounts,
-} from "./useGlobalTabs";
-// Tab sync functions (for browser/terminal/editor contexts)
+export { useGlobalBrowserTabs, useGlobalTerminalTabs } from "./useGlobalTabs";
+// Tab sync functions (for browser/terminal contexts)
 export {
   useSyncBrowserTabs,
   useSyncTerminalSessions,
-  useSyncEditorRepos,
-  useSyncDocumentFiles,
 } from "./useSyncGlobalTabs";
 
 // Session view
