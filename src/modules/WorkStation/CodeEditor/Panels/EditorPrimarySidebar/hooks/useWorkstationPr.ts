@@ -29,6 +29,7 @@ import {
   workstationPrCallbackAtomFamily,
   workstationRepoScopeKey,
 } from "@src/store/workstation/codeEditor/workstationPrAtom";
+import { retainWorkstationRepoScope } from "@src/store/workstation/codeEditor/workstationRepoScopeRetention";
 
 import {
   formatWorkstationPrTitle,
@@ -68,6 +69,9 @@ export function useWorkstationPr(options: UseWorkstationPrOptions) {
   const navigate = useNavigate();
   const autoCreatePr = useAtomValue(gitAutoCreatePrAtom);
   const scopeKey = workstationRepoScopeKey(repoId, repoPath);
+  // Keep this repo's list atoms alive while mounted; released scopes fall
+  // into a bounded warm window instead of living for the app lifetime.
+  useEffect(() => retainWorkstationRepoScope(scopeKey), [scopeKey]);
   const setWorkstationPrAtom = useSetAtom(workstationPrAtomFamily(scopeKey));
   const setWorkstationPrCallbackAtom = useSetAtom(
     workstationPrCallbackAtomFamily(scopeKey)

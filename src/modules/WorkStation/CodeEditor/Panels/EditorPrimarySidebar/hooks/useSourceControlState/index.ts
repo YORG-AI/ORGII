@@ -26,6 +26,7 @@ import {
   workstationPrCommitMessageAtomFamily,
   workstationRepoScopeKey,
 } from "@src/store/workstation/codeEditor/workstationPrAtom";
+import { retainWorkstationRepoScope } from "@src/store/workstation/codeEditor/workstationRepoScopeRetention";
 
 import { useStashState } from "../useStashState";
 import type {
@@ -259,6 +260,8 @@ export function useSourceControlState(
   // useSourceControlSetup). Mirror its published atoms here instead of mounting
   // a second copy — that previously caused duplicate GitHub lookups, duplicate
   // auto-create timers and last-writer-wins races on the global atom.
+  // Keep this repo's list atoms alive while Source Control is mounted.
+  useEffect(() => retainWorkstationRepoScope(scopeKey), [scopeKey]);
   const {
     prUrl,
     isCreating: prCreating,
