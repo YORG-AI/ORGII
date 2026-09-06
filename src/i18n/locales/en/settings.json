@@ -43,7 +43,7 @@
     "agentOrg": "Agent Team",
     "collaboration": "Collaboration",
     "mobileRemote": "Mobile Remote",
-    "harnessConnections": "Harness connections"
+    "harnessConnections": "CLI Routing"
   },
   "coreSidebar": {
     "groups": {

@@ -43,7 +43,7 @@
     "agentOrg": "Agent 团队",
     "collaboration": "协作",
     "mobileRemote": "移动遥控",
-    "harnessConnections": "工具连接"
+    "harnessConnections": "CLI 路由"
   },
   "coreSidebar": {
     "groups": {

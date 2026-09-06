@@ -42,7 +42,7 @@
     "agentMemory": "Pamięć Agent",
     "agentOrg": "Zespół Agent",
     "collaboration": "Współpraca",
-    "harnessConnections": "Połączenia narzędzi"
+    "harnessConnections": "Routing CLI"
   },
   "coreSidebar": {
     "groups": {

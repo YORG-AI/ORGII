@@ -42,7 +42,7 @@
     "agentMemory": "Память Agent",
     "agentOrg": "Команда Agent",
     "collaboration": "Совместная работа",
-    "harnessConnections": "Подключения инструментов"
+    "harnessConnections": "Маршрутизация CLI"
   },
   "coreSidebar": {
     "groups": {

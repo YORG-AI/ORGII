@@ -42,7 +42,7 @@
     "agentMemory": "Agent-Speicher",
     "agentOrg": "Agent-Team",
     "collaboration": "Zusammenarbeit",
-    "harnessConnections": "Werkzeugverbindungen"
+    "harnessConnections": "CLI-Routing"
   },
   "coreSidebar": {
     "groups": {

@@ -156,7 +156,16 @@ describe("SessionUsagePanel", () => {
     expect(markup).toContain('data-testid="usage-source-range-controls"');
     expect(markup).toContain("h-4 w-px shrink-0 bg-border-2");
     expect(markup).toContain("select-size-small");
-    expect(markup).toContain("bg-surface-hover font-semibold text-primary-6");
+    expect(markup).toContain("bg-surface-hover font-semibold text-text-1");
+    expect(markup).toContain('data-active="true" data-tab-key="all"');
+    expect(markup).not.toMatch(
+      /data-tab-key="all"[^>]*aria-label="usage\.allSources"/
+    );
+    expect(markup).toContain("usage.allSources");
+    expect(markup).toMatch(
+      /data-active="false" data-tab-key="codex" aria-label="usage\.bucket\.codex" title="usage\.bucket\.codex"/
+    );
+    expect(markup).toContain("h-7 w-7 p-0");
     expect(markup).toContain('data-testid="usage-title-controls"');
     expect(markup).toContain('data-testid="usage-refresh"');
     expect(markup).toContain('aria-label="usage.refresh"');

@@ -42,7 +42,7 @@
     "agentMemory": "Agent 記憶",
     "agentOrg": "Agent 團隊",
     "collaboration": "協作",
-    "harnessConnections": "工具連線"
+    "harnessConnections": "CLI 路由"
   },
   "coreSidebar": {
     "groups": {

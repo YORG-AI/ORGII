@@ -42,7 +42,7 @@
     "agentMemory": "Agent Belleği",
     "agentOrg": "Agent Ekibi",
     "collaboration": "İş birliği",
-    "harnessConnections": "Araç bağlantıları"
+    "harnessConnections": "CLI Yönlendirmesi"
   },
   "coreSidebar": {
     "groups": {

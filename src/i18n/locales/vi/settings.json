@@ -42,7 +42,7 @@
     "agentMemory": "Bộ nhớ Agent",
     "agentOrg": "Nhóm Agent",
     "collaboration": "Cộng tác",
-    "harnessConnections": "Kết nối công cụ"
+    "harnessConnections": "Định tuyến CLI"
   },
   "coreSidebar": {
     "groups": {

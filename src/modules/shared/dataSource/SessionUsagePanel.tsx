@@ -39,7 +39,7 @@ import UsageRoundsTable, {
   USAGE_ROUNDS_DEFAULT_PAGE_SIZE,
 } from "./UsageRoundsTable";
 import UsageStatCards from "./UsageStatCards";
-import { bucketLabelKey } from "./usageBuckets";
+import { BucketIcon, bucketLabelKey } from "./usageBuckets";
 import {
   USAGE_RANGE_PRESETS,
   type UsageRangePreset,
@@ -360,10 +360,15 @@ export default function SessionUsagePanel() {
     (roundsOpen && roundLoading);
   const sourceTabs = useMemo<TabPillItem[]>(
     () => [
-      { key: SOURCE_ALL, label: t("usage.allSources") },
+      {
+        key: SOURCE_ALL,
+        label: t("usage.allSources"),
+        alwaysShowLabel: true,
+      },
       ...USAGE_BUCKETS.map((source) => ({
         key: source,
         label: t(bucketLabelKey(source)),
+        icon: <BucketIcon bucket={source} size={14} />,
       })),
     ],
     [t]
@@ -407,8 +412,10 @@ export default function SessionUsagePanel() {
                 setRoundPageIndex(0);
               }}
               variant="pill"
-              size="mini"
+              size="default"
               appearance="ghost"
+              inactiveIconOnly
+              activeTone="neutral"
               fillWidth={false}
             />
             <span

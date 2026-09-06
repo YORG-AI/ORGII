@@ -7,6 +7,8 @@ export interface TabPillItem {
   label: string;
   icon?: ReactNode;
   hoverIcon?: ReactNode;
+  /** Keep this tab's label visible when its siblings collapse to icons. */
+  alwaysShowLabel?: boolean;
   badge?: ReactNode;
   /** Trailing content revealed on hover while preserving the tab's width. */
   hoverBadge?: ReactNode;
@@ -26,6 +28,14 @@ export interface TabPillProps {
   color?: "default" | "fill";
   className?: string;
   iconOnly?: boolean;
+  /**
+   * Keeps the selected tab readable while compacting the remaining tabs to
+   * their icons. Tabs still expose their labels through accessible names and
+   * native tooltips.
+   */
+  inactiveIconOnly?: boolean;
+  /** Text treatment for the selected pill. */
+  activeTone?: "primary" | "neutral";
   fillWidth?: boolean;
   wrap?: boolean;
   size?: "mini" | "small" | "default" | "large" | "chatPanel";

@@ -42,7 +42,7 @@
     "agentMemory": "Agent メモリ",
     "agentOrg": "Agent チーム",
     "collaboration": "コラボレーション",
-    "harnessConnections": "ツールの接続"
+    "harnessConnections": "CLI ルーティング"
   },
   "coreSidebar": {
     "groups": {

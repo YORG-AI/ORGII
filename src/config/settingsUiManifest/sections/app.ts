@@ -128,7 +128,7 @@ export const APP_SETTINGS_UI_SECTIONS: SettingsSectionDefinition[] = [
   {
     id: "harness-connections",
     tab: "app",
-    labelKey: "harnessConnections",
+    labelKey: "sections.harnessConnections",
     headingTitleKey: "sections.harnessConnections",
     icon: iconForSegment("harness-connections"),
     customSectionSlotId: SETTINGS_SECTION_SLOT_IDS.APP_HARNESS_CONNECTIONS,

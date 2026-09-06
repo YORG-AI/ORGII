@@ -26,7 +26,6 @@ describe("settingsNavigation", () => {
           "editor",
           "mobile-remote",
           "monitor",
-          "harness-connections",
         ],
       },
       {
@@ -34,8 +33,8 @@ describe("settingsNavigation", () => {
         items: [
           "agent-orgs",
           "models",
+          "harness-connections",
           "rulesMemoryEvolution",
-          "security",
           "routines",
         ],
       },
@@ -82,6 +81,13 @@ describe("settingsNavigation", () => {
     ).toMatchObject({
       label: "settings:coreSidebar.items.rulesMemoryEvolution",
       path: "/orgii/app/settings/integrations/rules-memory-and-evolution",
+    });
+    expect(
+      items.find((item) => item.id === "harness-connections")
+    ).toMatchObject({
+      label: "settings:sections.harnessConnections",
+      path: "/orgii/app/settings/app/harness-connections",
+      groupId: "core",
     });
     expect(items.every((item) => item.icon)).toBe(true);
   });

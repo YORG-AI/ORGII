@@ -56,7 +56,7 @@ const APP_SECTION_ITEM_IDS: readonly SettingsNavigationItemId[] =
   getSettingsSectionsByTab("app")
     .map((section) => asSettingsSectionSegment(section.id))
     // Security is an app section, but product navigation places it in Core.
-    .filter((id) => id !== SECURITY_ITEM_ID)
+    .filter((id) => id !== SECURITY_ITEM_ID && id !== "harness-connections")
     // Profile is backed by the My Roles integration destination, but belongs
     // with the user-facing app settings rather than the Core group.
     .flatMap((id) => (id === "appearance" ? [id, "myRoles"] : [id]));
@@ -81,8 +81,8 @@ const SETTINGS_NAVIGATION_GROUP_DEFINITIONS: readonly SettingsNavigationGroupDef
       itemIds: [
         AGENT_ORGS_SETTINGS_NAVIGATION_ID,
         "models",
+        "harness-connections",
         "rulesMemoryEvolution",
-        SECURITY_ITEM_ID,
         "routines",
       ],
     },
@@ -110,9 +110,11 @@ function buildSettingsNavigationItem(
       ? "navigation:labels.agentOrgs"
       : id === "myRoles" && groupId === "app"
         ? "settings:general.profile"
-        : groupId === "app"
-          ? getSegmentLabelKey(registrySegment)
-          : `settings:coreSidebar.items.${id}`;
+        : id === "harness-connections"
+          ? "settings:sections.harnessConnections"
+          : groupId === "app"
+            ? getSegmentLabelKey(registrySegment)
+            : `settings:coreSidebar.items.${id}`;
   const icon =
     id === AGENT_ORGS_SETTINGS_NAVIGATION_ID
       ? Infinity01Icon

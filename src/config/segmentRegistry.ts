@@ -26,6 +26,7 @@ import {
   HierarchyCircle01Icon as Network,
   PackageIcon as Package,
   PaintBrush01Icon as Paintbrush,
+  Plug01Icon as Plug,
   TwentyFourHoursClockIcon as RoutineClock,
   RulerDimensionLineIcon as RulerDimensionLine,
   Settings02Icon as Settings2,
@@ -152,7 +153,7 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
   update: { labelKey: "settings:sections.appUpdate", icon: Package },
   "harness-connections": {
     labelKey: "settings:sections.harnessConnections",
-    icon: Code,
+    icon: Plug,
   },
   monitor: { labelKey: "settings:sections.monitor", icon: Activity },
 
