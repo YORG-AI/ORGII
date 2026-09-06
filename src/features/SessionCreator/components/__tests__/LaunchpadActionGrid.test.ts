@@ -51,7 +51,7 @@ describe("LaunchpadActionGrid", () => {
     Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
   });
 
-  it("collapses and restores a card grid with tertiary controls", () => {
+  it("starts collapsed and expands, collapses, and restores cards with tertiary controls", () => {
     act(() => {
       root.render(
         createElement(
@@ -70,6 +70,20 @@ describe("LaunchpadActionGrid", () => {
         )
       );
     });
+
+    const initialExpandButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="launchpad-action-grid-expand"]'
+    );
+    expect(initialExpandButton?.getAttribute("aria-expanded")).toBe("false");
+    expect(
+      container.querySelector<HTMLElement>(".launchpad-action-grid-content")
+        ?.hidden
+    ).toBe(true);
+    act(() => initialExpandButton?.click());
+    expect(
+      container.querySelector<HTMLElement>(".launchpad-action-grid-content")
+        ?.hidden
+    ).toBe(false);
 
     const collapseButton = container.querySelector<HTMLButtonElement>(
       '[data-testid="launchpad-action-grid-collapse"]'
@@ -118,7 +132,7 @@ describe("LaunchpadActionGrid", () => {
     ).not.toBeNull();
   });
 
-  it("keeps the narrow four-action card grid compact", () => {
+  it("allows four columns in wide panes and keeps narrow panes compact", () => {
     act(() => {
       root.render(
         createElement(
@@ -136,6 +150,10 @@ describe("LaunchpadActionGrid", () => {
       ".launchpad-action-grid-content"
     );
     expect(grid?.parentElement?.className).toContain("max-w-[320px]");
+    expect(grid?.parentElement?.className).toContain(
+      "@[640px]/focusedchat:max-w-[640px]"
+    );
+    expect(grid?.className).toContain("@[560px]/startactions:grid-cols-4");
   });
 
   it("pins compositor layers so hover repaints cannot re-round icon pixels", () => {
@@ -155,6 +173,14 @@ describe("LaunchpadActionGrid", () => {
         )
       );
     });
+
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="launchpad-action-grid-expand"]'
+        )
+        ?.click()
+    );
 
     // The launchpad block is positioned on a fractional device pixel, so a
     // compositor layer that is created and destroyed on hover re-rounds every
