@@ -210,6 +210,7 @@ describe("WorkItemsHeaderContent", () => {
           todo: 0,
           inProgress: 0,
           inReview: 0,
+          blocked: 0,
           done: 0,
           cancelled: 0,
           duplicate: 0,

@@ -467,6 +467,92 @@ describe("TeamInboxView split layout", () => {
     expect(componentProps.assignedDetail).not.toBeNull();
   });
 
+  it.each(["pull-request", "list-fullscreen"] as const)(
+    "reveals a notification target after %s presentation",
+    async (presentation) => {
+      const pullRequest = createPullRequest();
+      const dataSource = {
+        listPage: async () => ({ items: [partialLoadItem], nextCursor: null }),
+      };
+      const renderView = (requestId?: number) =>
+        createElement(TeamInboxView, {
+          dataSource,
+          pullRequests: [pullRequest],
+          focusRequest:
+            requestId === undefined
+              ? null
+              : {
+                  itemKey: `assigned_work_item:${partialLoadItem.id}`,
+                  requestId,
+                },
+        });
+      await act(async () => {
+        root.render(renderView());
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await act(async () => {
+        if (presentation === "pull-request") {
+          (
+            componentProps.list?.onSelectPullRequest as (
+              item: ManagedPrItem
+            ) => void
+          )(pullRequest);
+        } else {
+          container
+            .querySelector<HTMLButtonElement>(
+              '[data-testid="split-list-fullscreen-toggle"]'
+            )
+            ?.click();
+        }
+      });
+      if (presentation === "pull-request") {
+        expect(componentProps.list?.selectedPullRequestKey).toBe(
+          "orgii/desktop#42"
+        );
+      } else {
+        expect(
+          container
+            .querySelector('[data-testid="team-inbox-list-detail-layout"]')
+            ?.getAttribute("data-layout-mode")
+        ).toBe("single");
+      }
+      componentProps.assignedDetail = null;
+      componentProps.prDetail = null;
+      await act(async () => root.render(renderView(1)));
+      expect(
+        container
+          .querySelector('[data-testid="team-inbox-list-detail-layout"]')
+          ?.getAttribute("data-layout-mode")
+      ).toBe("split");
+      expect(componentProps.assignedDetail).toMatchObject({
+        item: partialLoadItem,
+      });
+      expect(componentProps.prDetail).toBeNull();
+      expect(componentProps.list?.selectedPullRequestKey).toBeNull();
+
+      // A focus request must not permanently lock the user's layout toggle.
+      await act(async () =>
+        container
+          .querySelector<HTMLButtonElement>(
+            '[data-testid="split-list-fullscreen-toggle"]'
+          )
+          ?.click()
+      );
+      expect(
+        container
+          .querySelector('[data-testid="team-inbox-list-detail-layout"]')
+          ?.getAttribute("data-layout-mode")
+      ).toBe("single");
+      await act(async () => root.render(renderView(2)));
+      expect(
+        container
+          .querySelector('[data-testid="team-inbox-list-detail-layout"]')
+          ?.getAttribute("data-layout-mode")
+      ).toBe("split");
+    }
+  );
+
   it("keeps a show-side control after the detail pane is closed", async () => {
     const store = createStore();
     await act(async () => {

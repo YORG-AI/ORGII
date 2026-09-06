@@ -70,12 +70,11 @@ impl SkillsLoader {
 
         // Org-shared materializations load last and never shadow a local
         // copy of the same name — the sharer keeps editing their original.
-        let org_root = app_paths::org_skills_root();
-        if org_root.exists() {
+        if let Some(org_dir) = self.org_skills_dir().filter(|dir| dir.exists()) {
             let mut seen: std::collections::HashSet<String> =
                 skills.iter().map(|skill| skill.name.clone()).collect();
             let mut org_shared = Vec::new();
-            self.scan_supplemental_dir_recursive(&org_root, "org-shared", &mut org_shared);
+            self.scan_supplemental_dir(&org_dir, "org-shared", &mut org_shared);
             for skill in org_shared {
                 if seen.insert(skill.name.clone()) {
                     skills.push(skill);
@@ -129,7 +128,8 @@ impl SkillsLoader {
                     .find_map(|dir| self.find_named_skill_recursive(dir, name, "agent-source"))
             })
             .or_else(|| {
-                self.find_named_skill_recursive(&app_paths::org_skills_root(), name, "org-shared")
+                self.org_skills_dir()
+                    .and_then(|dir| self.load_named_skill_dir(&dir.join(name), "org-shared"))
             })
             .or_else(|| {
                 super::super::super::builtin::list_builtin_skills()

@@ -345,6 +345,12 @@ impl UnifiedMessageProcessor {
             .clone()
             .unwrap_or_else(|| self.agent_id.clone());
         let load_workspace_resources = self.runtime.resolved.load_workspace_resources;
+        let org_id = tokio::task::block_in_place(|| {
+            super::unified_persistence::get_session(session_id)
+                .ok()
+                .flatten()
+                .and_then(|record| record.org_id)
+        });
 
         Some(tokio::spawn(async move {
             let result = crate::skills::prefetch::select_skills(
@@ -355,6 +361,7 @@ impl UnifiedMessageProcessor {
                 &disabled_skills,
                 &source_dirs,
                 &agent_id,
+                org_id.as_deref(),
                 load_workspace_resources,
             )
             .await;

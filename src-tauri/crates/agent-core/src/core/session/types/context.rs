@@ -286,6 +286,9 @@ pub struct SystemPromptConfig {
     /// guidance sections: only `project` sessions are told to mutate the
     /// work system through `org2-pm`.
     pub product_mode: Option<String>,
+    /// Owning org for org-shared skill discovery. `None` means that no
+    /// org-shared materialization is visible to this session.
+    pub org_id: Option<String>,
     pub ide_context: Option<IdeContext>,
     /// User presence snapshot (online / invisible / away). Plumbed out
     /// of [`IdeContext::user_presence`] at prompt-build time so the

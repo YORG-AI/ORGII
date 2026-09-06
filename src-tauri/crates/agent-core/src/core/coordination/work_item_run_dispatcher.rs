@@ -357,8 +357,9 @@ async fn dispatch_claim(
 ) -> Result<(), String> {
     let run = &lease.run;
     let consent_snapshot = run.target_snapshot.clone();
+    let consent_org_id = run.org_id.clone();
     tokio::task::spawn_blocking(move || {
-        crate::skills::work_run_manifest::verify(&consent_snapshot)
+        crate::skills::work_run_manifest::verify(&consent_org_id, &consent_snapshot)
     })
     .await
     .map_err(|err| format!("skill consent verification task failed: {err}"))??;

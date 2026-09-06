@@ -162,7 +162,18 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   const [dismissedLoadNoticeKey, setDismissedLoadNoticeKey] = useState<
     string | null
   >(null);
-  const [listFullscreen, setListFullscreen] = useState(false);
+  const focusRequestId = focusRequest?.requestId ?? null;
+  // Full-list presentation belongs to the current explicit selection. A new
+  // notification reveals its detail; users can still expand the list afterward.
+  const [fullscreenSelection, setFullscreenSelection] = useState<{
+    focusRequestId: number | null;
+  } | null>(null);
+  const listFullscreen = fullscreenSelection?.focusRequestId === focusRequestId;
+  const setListFullscreen = useCallback(
+    (enabled: boolean) =>
+      setFullscreenSelection(enabled ? { focusRequestId } : null),
+    [focusRequestId]
+  );
   const initialCombinedLoadPending =
     inboxInitialLoading || pullRequestsInitialLoading;
   const presentedItems = useMemo(
@@ -214,12 +225,18 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
     : (authoritativeUnreadCounts ?? loadedUnreadCounts);
   const selectedPullRequest = useMemo(
     () =>
-      presentedPullRequests.find(
-        (pullRequest) =>
-          getManagedPullRequestKey(pullRequest) ===
-          viewState.selectedPullRequestKey
-      ) ?? null,
-    [presentedPullRequests, viewState.selectedPullRequestKey]
+      focusRequestActive
+        ? null
+        : (presentedPullRequests.find(
+            (pullRequest) =>
+              getManagedPullRequestKey(pullRequest) ===
+              viewState.selectedPullRequestKey
+          ) ?? null),
+    [
+      focusRequestActive,
+      presentedPullRequests,
+      viewState.selectedPullRequestKey,
+    ]
   );
   const selectedPullRequestIdentity = useMemo<PrIdentity | null>(
     () =>
@@ -278,7 +295,12 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
         supersededFocusRequestId: focusRequest?.requestId ?? null,
       }));
     },
-    [focusRequest?.requestId, focusRequestActive, updateViewState]
+    [
+      focusRequest?.requestId,
+      focusRequestActive,
+      setListFullscreen,
+      updateViewState,
+    ]
   );
 
   const handleQueryChange = useCallback(
@@ -304,7 +326,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
         supersededFocusRequestId: focusRequest?.requestId ?? null,
       }));
     },
-    [focusRequest?.requestId, updateViewState]
+    [focusRequest?.requestId, setListFullscreen, updateViewState]
   );
   const handleCloseDetail = useCallback(() => {
     setListFullscreen(false);
@@ -314,7 +336,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
       supersededFocusRequestId:
         focusRequest?.requestId ?? current.supersededFocusRequestId,
     }));
-  }, [focusRequest?.requestId, updateViewState]);
+  }, [focusRequest?.requestId, setListFullscreen, updateViewState]);
   const detailPaneOpen =
     focusRequestActive || viewState.detailPaneOpen !== false;
   const isListOnly = !detailPaneOpen || listFullscreen;
@@ -327,8 +349,8 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
       }));
       return;
     }
-    setListFullscreen((current) => !current);
-  }, [detailPaneOpen, updateViewState]);
+    setListFullscreen(!listFullscreen);
+  }, [detailPaneOpen, listFullscreen, setListFullscreen, updateViewState]);
   // Every split presentation owns its controls in the left-column header.
   const useSplitListHeader = detailPaneOpen && !listFullscreen;
 
@@ -588,7 +610,9 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
             pullRequests={presentedPullRequests}
             pullRequestsLoading={pullRequestsLoading}
             pullRequestsError={pullRequestsError}
-            selectedPullRequestKey={viewState.selectedPullRequestKey}
+            selectedPullRequestKey={
+              focusRequestActive ? null : viewState.selectedPullRequestKey
+            }
             onQueryChange={handleQueryChange}
             onSelectItem={handleSelect}
             onSelectPullRequest={handleSelectPullRequest}

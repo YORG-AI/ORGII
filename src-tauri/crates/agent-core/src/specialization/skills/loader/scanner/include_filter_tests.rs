@@ -380,3 +380,62 @@ fn malformed_managed_provenance_fails_closed() {
     assert!(!managed.consent_valid);
     assert!(!managed.available);
 }
+
+#[test]
+#[serial_test::serial]
+fn org_shared_skills_are_scoped_and_list_lookup_agree() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let ws = temp_workspace("org_scope");
+    for (org_id, marker) in [
+        ("org-a", "ORG_A_BODY"),
+        ("org-b", "ORG_B_BODY"),
+        ("personal-org", "PERSONAL_BODY"),
+    ] {
+        let org_dir = app_paths::org_skills_dir(org_id).expect("valid org skill dir");
+        let skill_dir = org_dir.join("same-name");
+        fs::create_dir_all(&skill_dir).expect("mkdir org skill");
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            format!(
+                "---\nname: same-name\ndescription: {marker}\n---\n\n# same-name\n\n{marker}\n"
+            ),
+        )
+        .expect("write org skill");
+    }
+
+    for (org_id, marker) in [
+        ("org-a", "ORG_A_BODY"),
+        ("org-b", "ORG_B_BODY"),
+        ("personal-org", "PERSONAL_BODY"),
+    ] {
+        let loader = SkillsLoader::new(&ws).with_org_id(org_id);
+        let listed = loader
+            .list_skills()
+            .into_iter()
+            .filter(|skill| skill.name == "same-name")
+            .collect::<Vec<_>>();
+        assert_eq!(listed.len(), 1, "{org_id} sees exactly its own skill");
+        assert!(listed[0].description.contains(marker));
+        let consent_lookup = loader
+            .find_skill_fresh("same-name")
+            .expect("listed skill resolves for Work Item consent");
+        assert!(consent_lookup.description.contains(marker));
+        let loaded = loader.load_skill("same-name").expect("listed skill loads");
+        assert!(loaded.contains(marker));
+        for foreign in ["ORG_A_BODY", "ORG_B_BODY", "PERSONAL_BODY"] {
+            if foreign != marker {
+                assert!(!loaded.contains(foreign), "{org_id} leaked {foreign}");
+            }
+        }
+    }
+
+    let unscoped = SkillsLoader::new(&ws);
+    assert!(
+        unscoped
+            .list_skills()
+            .iter()
+            .all(|skill| skill.name != "same-name"),
+        "a loader without a session or Work Item org must not scan every org"
+    );
+    assert!(unscoped.load_skill("same-name").is_none());
+}

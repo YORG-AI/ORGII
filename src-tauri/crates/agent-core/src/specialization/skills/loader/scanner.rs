@@ -31,6 +31,7 @@ pub struct SkillsLoader {
     disabled_skills: Vec<String>,
     skills_enabled: bool,
     agent_id: Option<String>,
+    org_id: Option<String>,
     load_workspace_resources: bool,
 }
 
@@ -47,6 +48,7 @@ impl SkillsLoader {
             disabled_skills: Vec::new(),
             skills_enabled: true,
             agent_id: None,
+            org_id: None,
             load_workspace_resources: true,
         }
     }
@@ -80,6 +82,19 @@ impl SkillsLoader {
     pub fn with_agent_id(mut self, agent_id: impl Into<String>) -> Self {
         self.agent_id = Some(agent_id.into());
         self
+    }
+
+    /// Restrict org-shared skills to the session or Work Item's owning org.
+    pub fn with_org_id(mut self, org_id: impl Into<String>) -> Self {
+        let org_id = org_id.into();
+        self.org_id = (!org_id.trim().is_empty()).then_some(org_id);
+        self
+    }
+
+    pub(super) fn org_skills_dir(&self) -> Option<PathBuf> {
+        self.org_id
+            .as_deref()
+            .and_then(|org_id| app_paths::org_skills_dir(org_id).ok())
     }
 
     pub fn with_load_workspace_resources(mut self, enabled: bool) -> Self {

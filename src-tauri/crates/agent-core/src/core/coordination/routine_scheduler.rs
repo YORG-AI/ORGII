@@ -81,7 +81,15 @@ async fn portable_tick(now: DateTime<Utc>) -> Result<(), String> {
             .await
             .map_err(|err| format!("Task join error: {err}"))??;
 
-    let mut schedule_marks: std::collections::BTreeMap<String, Option<i64>> =
+    #[derive(Default)]
+    struct ScheduleMark {
+        next_fire_at: Option<i64>,
+        retry_required: bool,
+        one_time_accepted: bool,
+        has_recurring_activation: bool,
+    }
+
+    let mut schedule_marks: std::collections::BTreeMap<String, ScheduleMark> =
         std::collections::BTreeMap::new();
     for candidate in candidates {
         let window_start = candidate
@@ -104,11 +112,16 @@ async fn portable_tick(now: DateTime<Utc>) -> Result<(), String> {
                     "[routine-scheduler] portable routine {} cron error: {}",
                     candidate.name, err
                 );
+                schedule_marks
+                    .entry(candidate.name.clone())
+                    .or_default()
+                    .retry_required = true;
                 continue;
             }
         };
 
         let mut activation_accepted = false;
+        let mut activation_failed = false;
         for scheduled_at in
             apply_catch_up_policy(&due, candidate.catch_up, candidate.max_catch_up_runs)
         {
@@ -144,34 +157,53 @@ async fn portable_tick(now: DateTime<Utc>) -> Result<(), String> {
                         candidate.name, event.status
                     );
                 }
-                Err(err) => warn!(
-                    "[routine-scheduler] portable routine {} fire failed: {}",
-                    candidate.name, err
-                ),
+                Err(err) => {
+                    activation_failed = true;
+                    warn!(
+                        "[routine-scheduler] portable routine {} fire failed: {}",
+                        candidate.name, err
+                    );
+                }
             }
         }
 
-        let next = next_occurrence(&trigger, &now)
-            .ok()
-            .flatten()
-            .map(|at| at.timestamp_millis());
-        schedule_marks
-            .entry(candidate.name.clone())
-            .and_modify(|current| {
-                if let Some(next) = next {
-                    *current = Some(current.map_or(next, |current| current.min(next)));
-                }
-            })
-            .or_insert(next);
-        if matches!(
+        let (next, schedule_failed) = match next_occurrence(&trigger, &now) {
+            Ok(next) => (next.map(|at| at.timestamp_millis()), false),
+            Err(err) => {
+                warn!(
+                    "[routine-scheduler] portable routine {} next occurrence error: {}",
+                    candidate.name, err
+                );
+                (None, true)
+            }
+        };
+        let is_one_time = matches!(
             candidate.trigger,
             routines::ScheduledTrigger::OneTime { .. }
-        ) && activation_accepted
-        {
-            routines::legacy_bridge::disable_one_time(&candidate.name)?;
+        );
+        let mark = schedule_marks.entry(candidate.name.clone()).or_default();
+        if let Some(next) = next {
+            mark.next_fire_at = Some(mark.next_fire_at.map_or(next, |current| current.min(next)));
         }
+        mark.retry_required |= activation_failed || schedule_failed;
+        mark.one_time_accepted |= is_one_time && activation_accepted;
+        mark.has_recurring_activation |= !is_one_time;
     }
-    for (name, next_fire_at) in schedule_marks {
+    for (name, mark) in schedule_marks {
+        // The watermark is shared by every activation in a routine. If any
+        // due activation failed, leave it untouched so the failed occurrence
+        // remains due. Successful siblings are safe to revisit because their
+        // stable invoke keys make request_activation idempotent.
+        if mark.retry_required {
+            continue;
+        }
+        // A routine is inert only after its final one-time occurrence. Mixed
+        // or multiple-activation routines retain their future watermark.
+        if mark.one_time_accepted && !mark.has_recurring_activation && mark.next_fire_at.is_none() {
+            routines::legacy_bridge::disable_one_time(&name)?;
+            continue;
+        }
+        let next_fire_at = mark.next_fire_at;
         tokio::task::spawn_blocking(move || {
             routines::mark_evaluated(&name, now.timestamp_millis(), next_fire_at)
         })
@@ -248,6 +280,17 @@ mod tests {
         project_management::routine_service::list_runs(None, 100)
             .expect("list runs")
             .len()
+    }
+
+    fn portable_schedule_mark(name: &str) -> (Option<i64>, Option<i64>) {
+        let connection = database::db::get_projects_connection().expect("projects connection");
+        connection
+            .query_row(
+                "SELECT last_evaluated_at, next_fire_at FROM pm_routines WHERE name = ?1",
+                rusqlite::params![name],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("routine schedule mark")
     }
 
     fn init_project_schema() {
@@ -377,6 +420,8 @@ mod tests {
         )
         .expect("set failing target");
 
+        let mark_before_failure = portable_schedule_mark(&file.metadata.name);
+
         portable_tick(now)
             .await
             .expect("failed invocation is contained");
@@ -384,6 +429,94 @@ mod tests {
         assert!(
             portable_enabled(&file.metadata.name),
             "failed one-time activation remains retryable"
+        );
+        assert_eq!(
+            portable_schedule_mark(&file.metadata.name),
+            mark_before_failure,
+            "a failed activation must not advance the shared routine watermark"
+        );
+
+        project_management::routine_service::set_default_target(
+            &file.metadata.name,
+            &project_management::routine_service::RoutineInvocationTarget::standalone(None),
+        )
+        .expect("repair target");
+        portable_tick(now + chrono::Duration::seconds(30))
+            .await
+            .expect("retry tick");
+        assert_eq!(
+            portable_run_count(),
+            1,
+            "the preserved trigger retries once"
+        );
+        assert!(
+            !portable_enabled(&file.metadata.name),
+            "the successful retry consumes the one-time routine"
+        );
+
+        portable_tick(now + chrono::Duration::seconds(60))
+            .await
+            .expect("post-success tick");
+        assert_eq!(
+            portable_run_count(),
+            1,
+            "the accepted trigger stays idempotent"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_activation_does_not_let_a_sibling_advance_the_shared_watermark() {
+        use project_management::routine_service::spec::Activation;
+
+        let _sandbox = test_helpers::test_env::sandbox();
+        init_project_schema();
+        let now = Utc::now();
+        let mut file =
+            one_time_fixture("multi-activation-retry", now - chrono::Duration::seconds(1));
+        file.spec.activations.push(Activation::OneTime {
+            at: (now + chrono::Duration::hours(1)).to_rfc3339(),
+            policies: Default::default(),
+        });
+        project_management::routine_service::apply(&file).expect("apply multi activation");
+        project_management::routine_service::mark_evaluated(
+            &file.metadata.name,
+            (now - chrono::Duration::seconds(30)).timestamp_millis(),
+            None,
+        )
+        .expect("force due scan");
+        project_management::routine_service::set_default_target(
+            &file.metadata.name,
+            &project_management::routine_service::RoutineInvocationTarget::ExistingProjectWork {
+                project_slug: "missing-project".to_string(),
+                root_work_item_id: "MISSING-0001".to_string(),
+            },
+        )
+        .expect("set failing target");
+        let mark_before_failure = portable_schedule_mark(&file.metadata.name);
+
+        portable_tick(now).await.expect("failed activation tick");
+        assert_eq!(
+            portable_schedule_mark(&file.metadata.name),
+            mark_before_failure
+        );
+
+        project_management::routine_service::set_default_target(
+            &file.metadata.name,
+            &project_management::routine_service::RoutineInvocationTarget::standalone(None),
+        )
+        .expect("repair target");
+        portable_tick(now + chrono::Duration::seconds(30))
+            .await
+            .expect("retry activation tick");
+        assert_eq!(portable_run_count(), 1);
+        assert!(
+            portable_enabled(&file.metadata.name),
+            "a future sibling one-time activation keeps the routine enabled"
+        );
+        assert_eq!(
+            portable_schedule_mark(&file.metadata.name).1,
+            Some((now + chrono::Duration::hours(1)).timestamp_millis()),
+            "the successful retry advances to the earliest future sibling"
         );
     }
 

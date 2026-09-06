@@ -152,12 +152,15 @@ impl UnifiedMessageProcessor {
             .and_then(|ctx| ctx.user_profile.clone())
             .or_else(crate::interaction::profile_state::global_profile);
 
-        let product_mode = tokio::task::block_in_place(|| {
+        let persisted_session = tokio::task::block_in_place(|| {
             super::unified_persistence::get_session(session_id)
                 .ok()
                 .flatten()
-                .and_then(|record| record.product_mode)
         });
+        let product_mode = persisted_session
+            .as_ref()
+            .and_then(|record| record.product_mode.clone());
+        let org_id = persisted_session.and_then(|record| record.org_id);
 
         let prompt_config = SystemPromptConfig {
             model: self.runtime.model.clone(),
@@ -172,6 +175,7 @@ impl UnifiedMessageProcessor {
             chat_id: self.chat_id.clone(),
             agent_mode: self.agent_mode,
             product_mode,
+            org_id,
             ide_context: self.ide_context.clone(),
             user_presence,
             user_profile,
@@ -288,10 +292,10 @@ impl UnifiedMessageProcessor {
         // after launch, and without this live row the model rediscovers
         // projects, creates duplicates, or asks for a scope that is optional.
         // Keep this volatile because the bootstrap link is session-specific.
+        let linked_session =
+            tokio::task::block_in_place(|| super::unified_persistence::get_session(session_id));
         {
-            let linked_session =
-                tokio::task::block_in_place(|| super::unified_persistence::get_session(session_id));
-            match linked_session {
+            match &linked_session {
                 Ok(Some(session)) => {
                     if let Some(context) = linked_work_item_context_for_session(
                         session.product_mode.as_deref(),
@@ -325,6 +329,11 @@ impl UnifiedMessageProcessor {
                 ),
             }
         }
+        let skill_org_id = linked_session
+            .as_ref()
+            .ok()
+            .and_then(|session| session.as_ref())
+            .and_then(|session| session.org_id.as_deref());
 
         // Skill listing attachment (per-turn name+description summary). Full SKILL.md
         // content is loaded via `read_file` when the LLM invokes it; the listing
@@ -358,6 +367,7 @@ impl UnifiedMessageProcessor {
                     &effective_disabled,
                     include_filter,
                     agent_key,
+                    skill_org_id,
                     self.runtime.resolved.load_workspace_resources,
                 );
                 let listing = {
@@ -371,6 +381,9 @@ impl UnifiedMessageProcessor {
                                 .with_load_workspace_resources(
                                     self.runtime.resolved.load_workspace_resources,
                                 );
+                            if let Some(org_id) = skill_org_id {
+                                loader = loader.with_org_id(org_id);
+                            }
                             if !self.runtime.resolved.skills.source_dirs.is_empty() {
                                 loader = loader.with_extra_source_dirs(
                                     &self.runtime.resolved.skills.source_dirs,

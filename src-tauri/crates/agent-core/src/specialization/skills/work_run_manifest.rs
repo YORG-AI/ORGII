@@ -82,9 +82,10 @@ fn build_manifest(
 /// Agent Org Run starts at its coordinator, so that coordinator definition is
 /// the owning binding; member catalogs belong to their later delegated runs.
 pub fn resolve(
+    org_id: &str,
     snapshot: &WorkItemRunTargetSnapshot,
 ) -> Result<Vec<WorkItemRunSkillManifestEntry>, String> {
-    let Some((loader, include, excluded)) = configured_loader(snapshot)? else {
+    let Some((loader, include, excluded)) = configured_loader(org_id, snapshot)? else {
         return Ok(Vec::new());
     };
 
@@ -106,6 +107,7 @@ pub fn resolve(
 }
 
 fn configured_loader(
+    org_id: &str,
     snapshot: &WorkItemRunTargetSnapshot,
 ) -> Result<Option<ConfiguredLoader>, String> {
     let explicit_agent_id = snapshot
@@ -154,6 +156,7 @@ fn configured_loader(
         .with_builtin_dir(global_skills_dir())
         .with_disabled_skills(disabled)
         .with_agent_id(agent_id)
+        .with_org_id(org_id)
         .with_load_workspace_resources(definition.load_workspace_resources.unwrap_or(true));
     if !config.source_dirs.is_empty() {
         loader = loader.with_extra_source_dirs(&config.source_dirs);
@@ -163,9 +166,10 @@ fn configured_loader(
 }
 
 fn resolve_included(
+    org_id: &str,
     snapshot: &WorkItemRunTargetSnapshot,
 ) -> Result<Vec<WorkItemRunSkillManifestEntry>, String> {
-    let Some((loader, include, _excluded)) = configured_loader(snapshot)? else {
+    let Some((loader, include, _excluded)) = configured_loader(org_id, snapshot)? else {
         return Ok(Vec::new());
     };
     let names = if include.is_empty() {
@@ -187,7 +191,7 @@ fn resolve_included(
 /// Refuse to launch a new Session when the consented catalog changed after
 /// enqueue. Legacy and targets without an ORGII agent definition keep their
 /// pre-manifest empty behavior.
-pub fn verify(snapshot: &WorkItemRunTargetSnapshot) -> Result<(), String> {
+pub fn verify(org_id: &str, snapshot: &WorkItemRunTargetSnapshot) -> Result<(), String> {
     let Some(expected_digest) = snapshot.skill_manifest_digest.as_deref() else {
         return Ok(());
     };
@@ -196,7 +200,7 @@ pub fn verify(snapshot: &WorkItemRunTargetSnapshot) -> Result<(), String> {
     // The enqueue snapshot already names the effective skills. Revalidate
     // only those bundles (or the definition's explicit include list) instead
     // of recursively hashing every unrelated skill source a second time.
-    let current = resolve_included(snapshot)?;
+    let current = resolve_included(org_id, snapshot)?;
     let current_digest = project_management::work_run_service::skill_manifest_digest(&current)?;
     if captured_digest == expected_digest
         && current_digest == expected_digest

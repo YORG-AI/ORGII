@@ -61,7 +61,11 @@ fn extract_screenshot_store(
 /// **workspace path contract**: callers pass the workspace root (`workspace_path`). This function
 /// internally joins `.orgii` so the loader scans `{project}/.orgii/skills/`, matching the
 /// canonical project skill location documented in `create-skill/SKILL.md`.
-fn expand_skill_slash_command(content: &str, workspace: Option<&std::path::Path>) -> String {
+fn expand_skill_slash_command(
+    content: &str,
+    workspace: Option<&std::path::Path>,
+    org_id: Option<&str>,
+) -> String {
     let trimmed = content.trim_start();
     if !trimmed.starts_with('/')
         || trimmed.len() <= 1
@@ -78,8 +82,11 @@ fn expand_skill_slash_command(content: &str, workspace: Option<&std::path::Path>
 
     let ws_root = workspace.unwrap_or_else(|| std::path::Path::new(""));
     let ws = ws_root.join(".orgii");
-    let loader = crate::specialization::skills::loader::SkillsLoader::new(&ws)
+    let mut loader = crate::specialization::skills::loader::SkillsLoader::new(&ws)
         .with_builtin_dir(crate::specialization::skills::loader::global_skills_dir());
+    if let Some(org_id) = org_id {
+        loader = loader.with_org_id(org_id);
+    }
 
     let Some(skill_md) = loader.load_skill(slash_name) else {
         return content.to_string();
@@ -187,7 +194,17 @@ pub async fn process_message(
         turn_intent_id: input.turn_intent_id,
     };
 
-    let content = expand_skill_slash_command(&input.content, Some(workspace_path.as_path()));
+    let session_org_id = tokio::task::block_in_place(|| {
+        crate::session::persistence::get_session(&session.id)
+            .ok()
+            .flatten()
+            .and_then(|record| record.org_id)
+    });
+    let content = expand_skill_slash_command(
+        &input.content,
+        Some(workspace_path.as_path()),
+        session_org_id.as_deref(),
+    );
 
     let (ide_repo_path, workspace_folders) = input
         .ide_context
@@ -197,8 +214,11 @@ pub async fn process_message(
 
     let skill_ws = workspace_path.join(".orgii");
     let skill_loader_fn = |name: &str| -> Option<String> {
-        let loader = crate::specialization::skills::loader::SkillsLoader::new(&skill_ws)
+        let mut loader = crate::specialization::skills::loader::SkillsLoader::new(&skill_ws)
             .with_builtin_dir(crate::specialization::skills::loader::global_skills_dir());
+        if let Some(org_id) = session_org_id.as_deref() {
+            loader = loader.with_org_id(org_id);
+        }
         loader.load_skill(name)
     };
 
@@ -233,6 +253,7 @@ mod tests {
         let expanded = expand_skill_slash_command(
             "/newline-skill\nrun the relevant frontend spec",
             Some(workspace.path()),
+            None,
         );
 
         assert!(

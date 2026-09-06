@@ -226,6 +226,9 @@ impl PromptSection for AlwaysSkillsSection {
             .with_builtin_dir(crate::skills::loader::global_skills_dir())
             .with_agent_id(ctx.config.agent_id.clone())
             .with_load_workspace_resources(ctx.config.load_workspace_resources);
+        if let Some(org_id) = ctx.config.org_id.as_deref() {
+            loader = loader.with_org_id(org_id);
+        }
         if !skills.source_dirs.is_empty() {
             loader = loader.with_extra_source_dirs(&skills.source_dirs);
         }

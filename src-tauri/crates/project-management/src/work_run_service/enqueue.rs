@@ -198,7 +198,7 @@ fn hydrate_target_snapshot(
     }
     // Never trust a client-supplied manifest. Freeze effective skill consent
     // at the durable enqueue boundary.
-    snapshot.skill_manifest = super::resolve_skill_manifest(snapshot)?;
+    snapshot.skill_manifest = super::resolve_skill_manifest(&request.org_id, snapshot)?;
     snapshot.skill_manifest_digest = Some(super::skill_manifest_digest(&snapshot.skill_manifest)?);
     Ok(())
 }

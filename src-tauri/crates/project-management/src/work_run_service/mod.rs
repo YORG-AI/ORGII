@@ -71,7 +71,7 @@ const MAX_RUN_ATTEMPTS: u32 = 10;
 
 /// Dependency-inverted resolver supplied by `agent_core` at app startup.
 pub type WorkItemRunSkillManifestResolver =
-    fn(&WorkItemRunTargetSnapshot) -> Result<Vec<WorkItemRunSkillManifestEntry>, String>;
+    fn(&str, &WorkItemRunTargetSnapshot) -> Result<Vec<WorkItemRunSkillManifestEntry>, String>;
 static WORK_ITEM_RUN_SKILL_MANIFEST_RESOLVER: OnceLock<WorkItemRunSkillManifestResolver> =
     OnceLock::new();
 
@@ -86,10 +86,11 @@ pub fn skill_manifest_digest(manifest: &[WorkItemRunSkillManifestEntry]) -> Resu
 }
 
 fn resolve_skill_manifest(
+    org_id: &str,
     snapshot: &WorkItemRunTargetSnapshot,
 ) -> Result<Vec<WorkItemRunSkillManifestEntry>, String> {
     match WORK_ITEM_RUN_SKILL_MANIFEST_RESOLVER.get() {
-        Some(resolve) => resolve(snapshot),
+        Some(resolve) => resolve(org_id, snapshot),
         None => Ok(Vec::new()),
     }
 }
