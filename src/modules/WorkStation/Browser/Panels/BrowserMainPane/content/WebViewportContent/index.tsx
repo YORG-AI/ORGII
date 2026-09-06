@@ -64,6 +64,11 @@ interface WebViewportProps {
   manageWebviews?: boolean;
 }
 
+function hasActiveBrowserWebview(url?: string): boolean {
+  const normalizedUrl = url?.trim().toLowerCase();
+  return Boolean(normalizedUrl && !normalizedUrl.startsWith("about:blank"));
+}
+
 // ============================================
 // Main Component
 // ============================================
@@ -187,6 +192,7 @@ export const WebViewport: React.FC<WebViewportProps> = memo(
       const historyIndex = activeSession.historyIndex ?? 0;
       return historyIndex < history.length - 1;
     }, [activeSession]);
+    const hasActiveWebview = hasActiveBrowserWebview(activeSession?.url);
 
     // Handle URL navigation
     const handleNavigate = useCallback(
@@ -304,6 +310,7 @@ export const WebViewport: React.FC<WebViewportProps> = memo(
             onStop={handleStop}
             canGoBack={canGoBack}
             canGoForward={canGoForward}
+            hasActiveWebview={hasActiveWebview}
             onOpenNativeDevTools={onOpenNativeDevTools}
             onToggleDevToolsPane={onToggleDevToolsPane}
             devToolsPaneCollapsed={devToolsPaneCollapsed}

@@ -2,7 +2,11 @@ import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import { ArrowLeftRightIcon, HugeiconsIcon } from "@src/icons";
+import {
+  ArrowBigDownDashIcon,
+  ArrowBigRightDashIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import type { SecondaryPanelPosition } from "@src/store/ui/workStationAtom";
 
 import { HEADER_ICON_SIZE } from "../tokens";
@@ -19,6 +23,10 @@ export const PanelPositionToggle: React.FC<PanelPositionToggleProps> = memo(
       position === "right"
         ? t("tooltips.movePanelToBottom")
         : t("tooltips.movePanelToRight");
+    const targetIcon =
+      position === "right" ? ArrowBigDownDashIcon : ArrowBigRightDashIcon;
+    const targetIconName =
+      position === "right" ? "arrow-big-down-dash" : "arrow-big-right-dash";
 
     return (
       <Button
@@ -30,8 +38,8 @@ export const PanelPositionToggle: React.FC<PanelPositionToggleProps> = memo(
         title={title}
         icon={
           <HugeiconsIcon
-            icon={ArrowLeftRightIcon}
-            data-icon="arrow-left-right"
+            icon={targetIcon}
+            data-icon={targetIconName}
             size={HEADER_ICON_SIZE.md}
           />
         }

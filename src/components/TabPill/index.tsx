@@ -27,6 +27,7 @@ const TabPill: React.FC<TabPillProps> = ({
   iconOnly = false,
   inactiveIconOnly = false,
   activeTone = "primary",
+  showActiveIndicator = true,
   fillWidth = true,
   wrap = false,
   size = "default",
@@ -247,12 +248,14 @@ const TabPill: React.FC<TabPillProps> = ({
             isActive,
             hoveredTabKey === tab.key
           )}
-          <span
-            className={cn(
-              "mt-1 h-1 w-1 rounded-full",
-              isActive ? "bg-primary-6" : "invisible"
-            )}
-          />
+          {showActiveIndicator && (
+            <span
+              className={cn(
+                "mt-1 h-1 w-1 rounded-full",
+                isActive ? "bg-primary-6" : "invisible"
+              )}
+            />
+          )}
         </button>
       );
     }

@@ -82,8 +82,6 @@ export function useBrowserLayoutState({
     sessionCount: browser.sessionCount,
     currentSessionIndex: browser.currentSessionIndex,
     selectedElement: browser.selectedElement,
-    primarySidebarCollapsed: browser.primarySidebarCollapsed,
-    togglePrimarySidebar: browser.togglePrimarySidebar,
     handleToggleDevTools,
     handlePrevSession: browser.handlePrevSession,
     handleNextSession: browser.handleNextSession,
@@ -138,14 +136,6 @@ export function useBrowserLayoutState({
     onCloseActiveTab: handleWorkStationCloseActiveBrowserTab,
   });
 
-  const handleSelectSession = useCallback(
-    (sessionId: string) => {
-      browser.browserState.setActiveSession(sessionId);
-      browserPane.switchToTab(createBrowserSessionTabId(sessionId));
-    },
-    [browser.browserState, browserPane]
-  );
-
   // ============================================
   // Derived state
   // ============================================
@@ -190,7 +180,6 @@ export function useBrowserLayoutState({
     isShowingBrowserSession,
     showBrowserViewport,
     hasBrowserSessions,
-    handleSelectSession,
     handleCloseSession,
     handleOpenEditor,
     handleToggleDevTools,

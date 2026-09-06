@@ -36,6 +36,8 @@ export interface TabPillProps {
   inactiveIconOnly?: boolean;
   /** Text treatment for the selected pill. */
   activeTone?: "primary" | "neutral";
+  /** Show the active-state dot used by the compact `simple` variant. */
+  showActiveIndicator?: boolean;
   fillWidth?: boolean;
   wrap?: boolean;
   size?: "mini" | "small" | "default" | "large" | "chatPanel";

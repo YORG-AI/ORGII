@@ -43,6 +43,7 @@ export { default as ArchiveArrowUpIcon } from "@hugeicons/core-free-icons/Archiv
 export { default as ArchiveIcon } from "@hugeicons/core-free-icons/ArchiveIcon";
 export { default as ArrangeByLettersZAIcon } from "@hugeicons/core-free-icons/ArrangeByLettersZAIcon";
 export { default as ArrangeByNumbersOneNineIcon } from "@hugeicons/core-free-icons/ArrangeByNumbersOneNineIcon";
+export { default as ArrowBigDownDashIcon } from "@hugeicons/core-free-icons/ArrowBigDownDashIcon";
 export { default as ArrowBigRightDashIcon } from "@hugeicons/core-free-icons/ArrowBigRightDashIcon";
 export { default as ArrowDown01Icon } from "@hugeicons/core-free-icons/ArrowDown01Icon";
 export { default as ArrowDown02Icon } from "@hugeicons/core-free-icons/ArrowDown02Icon";

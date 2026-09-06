@@ -19,6 +19,7 @@ import {
   HugeiconsIcon,
 } from "@src/icons";
 
+import { PortsStatusMenu } from "./PortsStatusMenu";
 import {
   BaseStatusBar,
   StatusBarButton,
@@ -114,6 +115,7 @@ const BrowserStatusBar: React.FC<BrowserStatusBarProps> = memo(
               )}
             </StatusBarButton>
           )}
+          <PortsStatusMenu />
         </div>
       ),
       [itemTextClass, warningCount, errorCount, onToggleDevTools]

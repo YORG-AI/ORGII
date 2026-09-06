@@ -30,8 +30,6 @@ interface BrowserStatusBarSyncOptions {
   sessionCount: number;
   currentSessionIndex: number;
   selectedElement: ElementInfo | null;
-  primarySidebarCollapsed: boolean;
-  togglePrimarySidebar: () => void;
   handleToggleDevTools: () => void;
   handlePrevSession: () => void;
   handleNextSession: () => void;
@@ -52,8 +50,6 @@ export function useBrowserStatusBar({
   sessionCount,
   currentSessionIndex,
   selectedElement,
-  primarySidebarCollapsed,
-  togglePrimarySidebar,
   handleToggleDevTools,
   handlePrevSession,
   handleNextSession,
@@ -116,8 +112,8 @@ export function useBrowserStatusBar({
 
     setStatusBarCallbacks((prev) => ({
       ...prev,
-      primaryPanelCollapsed: primarySidebarCollapsed,
-      onTogglePrimaryPanel: togglePrimarySidebar,
+      onTogglePrimaryPanel: undefined,
+      primaryPanelCollapsed: undefined,
       onToggleDevTools: handleToggleDevTools,
       devToolsOpen: !devToolsCollapsed,
       onPrevSession: handlePrevSession,
@@ -134,8 +130,6 @@ export function useBrowserStatusBar({
     };
   }, [
     isActive,
-    primarySidebarCollapsed,
-    togglePrimarySidebar,
     handleToggleDevTools,
     devToolsCollapsed,
     handlePrevSession,

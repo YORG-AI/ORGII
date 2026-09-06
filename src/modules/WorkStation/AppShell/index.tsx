@@ -35,6 +35,7 @@ import { useAppShellStatusBar } from "./hooks/useAppShellStatusBar";
 import { useLaunchpadTab } from "./hooks/useLaunchpadTab";
 import { useTerminalTabTeardown } from "./hooks/useTerminalTabTeardown";
 import { shouldShowWorkStationStatusBar } from "./statusBarVisibility";
+import { shouldEnableWorkspacePortScan } from "./workspacePortScanVisibility";
 
 interface AppShellProps {
   /** Whether the routed WorkStation surface is currently visible */
@@ -112,17 +113,22 @@ const AppShell = React.memo(
       workStationPanels,
     });
 
-    // The WorkStation host stays mounted behind the Launchpad / maximized chat
-    // surface. Port discovery is useful only while an actual code-host tab is
-    // visible; keeping it alive behind those overlays causes an idle 60s scan.
-    const portsEnabled =
-      isCodeMode &&
-      isActive &&
-      !chatPanelFocused &&
-      activeWorkStationTab != null &&
-      activeWorkStationTab.type !== "start" &&
-      !isAgentStation;
-    useWorkspacePortAdvertisedUrls(portsEnabled);
+    // The Browser and Terminal status bars expose running servers. Keep the
+    // shared scanner off behind the Launchpad / chat takeover so its 60s
+    // safety scan is never active on an invisible surface.
+    const portsEnabled = shouldEnableWorkspacePortScan({
+      isCodeMode,
+      isBrowserMode,
+      isActive,
+      chatPanelFocused,
+      hasActiveTab: activeWorkStationTab != null,
+      isLaunchpad: activeWorkStationTab?.type === "start",
+      isAgentStation,
+    });
+    // PTY-output URL ingestion stays owned by the Code/Terminal host. Browser
+    // consumes the resulting shared scan state but does not add a second PTY
+    // subscription lifecycle.
+    useWorkspacePortAdvertisedUrls(isCodeMode && portsEnabled);
 
     const showStatusBar = shouldShowWorkStationStatusBar({
       statusBarHidden,

@@ -14,10 +14,6 @@ import {
 } from "vitest";
 
 import type { WorkspacePort } from "@src/api/tauri/workspacePorts";
-import {
-  workStationBrowserSidebarCollapsedAtom,
-  workStationBrowserSidebarCollapsedPersistAtom,
-} from "@src/store/ui/workStationAtom";
 import { workspacePortsStateAtom } from "@src/store/workstation/codeEditor/workspacePortsAtom";
 
 import BrowserBlankTabPlaceholder, {
@@ -132,9 +128,8 @@ describe("BrowserBlankTabPlaceholder", () => {
     Reflect.deleteProperty(reactActEnvironment, "IS_REACT_ACT_ENVIRONMENT");
   });
 
-  it("shows the browser sidebar shortcut and cached scanned ports", () => {
+  it("shows cached scanned ports without a browser sidebar action", () => {
     const store = createStore();
-    store.set(workStationBrowserSidebarCollapsedPersistAtom, false);
     const workspacePorts = Array.from(
       { length: BLANK_TAB_PORT_OPTION_LIMIT + 2 },
       (_, index) => createWorkspacePort(1998 + index)
@@ -168,17 +163,11 @@ describe("BrowserBlankTabPlaceholder", () => {
     expect(container.querySelector('[data-placeholder-icon="browser"]')).not
       .toBeNull;
 
-    const sidebarAction = container.querySelector<HTMLButtonElement>(
-      '[data-action-id="toggle-browser-sidebar"]'
-    );
-    expect(sidebarAction?.textContent).toBe("commands.hidePrimarySidebar");
-    expect(sidebarAction?.dataset.shortcut).toBeTruthy();
-
-    act(() => sidebarAction?.click());
-    expect(store.get(workStationBrowserSidebarCollapsedAtom)).toBe(true);
-
     const actions = container.querySelectorAll("button");
-    expect(actions).toHaveLength(BLANK_TAB_PORT_OPTION_LIMIT + 1);
+    expect(actions).toHaveLength(BLANK_TAB_PORT_OPTION_LIMIT);
+    expect(
+      container.querySelector('[data-action-id="toggle-browser-sidebar"]')
+    ).toBeNull();
     expect(container.textContent).not.toContain("5432");
 
     const portAction = container.querySelector<HTMLButtonElement>(

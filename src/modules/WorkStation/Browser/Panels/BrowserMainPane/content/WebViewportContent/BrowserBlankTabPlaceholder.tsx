@@ -1,18 +1,13 @@
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { WorkspacePort } from "@src/api/tauri/workspacePorts";
-import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import {
   NoTabsPlaceholder,
   type QuickAction,
 } from "@src/modules/WorkStation/shared";
 import { WorkspacePortScanner } from "@src/modules/WorkStation/shared/StatusBar/WorkspacePortScanner";
-import {
-  workStationBrowserSidebarCollapsedAtom,
-  workStationBrowserSidebarCollapsedPersistAtom,
-} from "@src/store/ui/workStationAtom";
 import {
   addressForPort,
   browserUrlForPort,
@@ -37,12 +32,6 @@ interface BrowserBlankTabPlaceholderProps {
 const BrowserBlankTabPlaceholder: React.FC<BrowserBlankTabPlaceholderProps> =
   memo(({ isIncognito = false, onOpen }) => {
     const { t } = useTranslation();
-    const sidebarCollapsed = useAtomValue(
-      workStationBrowserSidebarCollapsedAtom
-    );
-    const setSidebarCollapsed = useSetAtom(
-      workStationBrowserSidebarCollapsedPersistAtom
-    );
     const scannedPorts = useAtomValue(workspacePortsAtom);
     const ports = useMemo(
       () => selectBlankTabPortOptions(scannedPorts),
@@ -50,14 +39,6 @@ const BrowserBlankTabPlaceholder: React.FC<BrowserBlankTabPlaceholderProps> =
     );
 
     const actions = useMemo<QuickAction[]>(() => {
-      const sidebarAction: QuickAction = {
-        id: "toggle-browser-sidebar",
-        label: sidebarCollapsed
-          ? t("commands.showPrimarySidebar")
-          : t("commands.hidePrimarySidebar"),
-        shortcut: getShortcutKeys("browser_sidebar"),
-        onAction: () => setSidebarCollapsed("toggle"),
-      };
       const portActions: QuickAction[] = ports.map((port) => {
         const address = addressForPort(port);
         return {
@@ -67,8 +48,8 @@ const BrowserBlankTabPlaceholder: React.FC<BrowserBlankTabPlaceholderProps> =
         };
       });
 
-      return [sidebarAction, ...portActions];
-    }, [onOpen, ports, setSidebarCollapsed, sidebarCollapsed, t]);
+      return portActions;
+    }, [onOpen, ports, t]);
 
     return (
       <>

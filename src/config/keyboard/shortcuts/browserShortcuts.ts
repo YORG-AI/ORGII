@@ -10,14 +10,6 @@ export const BROWSER_SHORTCUTS: ShortcutEntry[] = [
     category: "navigation",
   },
   {
-    id: "browser_sidebar",
-    command: "Toggle sidebar",
-    macKeys: "⌥⌘U",
-    winKeys: "Ctrl+Alt+U",
-    scope: "browser",
-    category: "panels",
-  },
-  {
     id: "browser_devtools",
     command: "Toggle DevTools panel",
     macKeys: "⌥⌘I",

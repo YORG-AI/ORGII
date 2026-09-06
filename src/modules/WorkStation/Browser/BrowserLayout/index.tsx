@@ -15,7 +15,6 @@
 import { useAtom, useAtomValue } from "jotai";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
-import { extractSessionId } from "@src/store/workstation/browser/tabs";
 import {
   workstationNewBrowserSessionConsumedTickAtom,
   workstationNewBrowserSessionRequestAtom,
@@ -24,10 +23,8 @@ import {
 import {
   WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS,
   WorkStationShell,
-  buildPrimarySidebarConfig,
   buildSecondaryPanelConfig,
 } from "../../shared";
-import BrowserPrimarySidebar from "../Panels/BrowserPrimarySidebar";
 import {
   type BrowserHostContextValue,
   BrowserHostProvider,
@@ -85,53 +82,6 @@ export const BrowserLayout: React.FC<BrowserLayoutProps> = memo(
       setConsumedTick,
       addBrowserSession,
     ]);
-
-    // ============================================
-    // Primary sidebar config
-    // ============================================
-
-    const activeSessionId = state.showBrowserViewport
-      ? state.isShowingBrowserSession
-        ? extractSessionId(state.activeTab?.id ?? "")
-        : state.browser.browserState.activeSessionId
-      : null;
-
-    const primarySidebarConfig = useMemo(
-      () =>
-        buildPrimarySidebarConfig({
-          content: (
-            <BrowserPrimarySidebar
-              sessions={state.browser.browserState.sessions}
-              activeSessionId={activeSessionId}
-              onSelectSession={state.handleSelectSession}
-              onNewSession={state.browser.handleNewSession}
-              onNewPrivateSession={state.browser.handleNewPrivateSession}
-              onCloseSession={state.handleCloseSession}
-              sessionsOnly
-            />
-          ),
-          collapsed: state.browser.primarySidebarCollapsed,
-          size: state.browser.primarySidebarWidth,
-          onSizeChange: state.browser.setPrimarySidebarWidth,
-          onClose: state.browser.closePrimarySidebar,
-          onPositionChange: state.browser.setLayoutMode,
-          minSize: 180,
-          maxSize: 400,
-        }),
-      [
-        state.browser.browserState.sessions,
-        activeSessionId,
-        state.handleSelectSession,
-        state.browser.handleNewSession,
-        state.browser.handleNewPrivateSession,
-        state.handleCloseSession,
-        state.browser.primarySidebarCollapsed,
-        state.browser.primarySidebarWidth,
-        state.browser.setPrimarySidebarWidth,
-        state.browser.closePrimarySidebar,
-        state.browser.setLayoutMode,
-      ]
-    );
 
     // ============================================
     // Main content
@@ -345,11 +295,10 @@ export const BrowserLayout: React.FC<BrowserLayoutProps> = memo(
     return (
       <BrowserHostProvider value={browserHostValue}>
         <WorkStationShell
-          primarySidebarConfig={primarySidebarConfig}
+          primarySidebarConfig={{ content: null, collapsed: true, size: 0 }}
           secondaryPanelConfig={secondaryPanelConfig}
           content={mainContent}
           statusBar={null}
-          layoutMode={state.browser.layoutMode}
           appClassName="browser-explorer"
         />
       </BrowserHostProvider>

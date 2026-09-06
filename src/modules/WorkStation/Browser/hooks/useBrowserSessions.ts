@@ -17,12 +17,6 @@ import { useWorkStationPanels } from "@src/hooks/tabHost/useWorkStationPanels";
 import {
   browserDevToolsPositionAtom,
   browserDevToolsPositionPersistAtom,
-  workStationBrowserSidebarCollapsedAtom,
-  workStationBrowserSidebarCollapsedPersistAtom,
-  workStationLayoutModeAtom,
-  workStationLayoutModePersistAtom,
-  workStationPrimarySidebarWidthAtom,
-  workStationPrimarySidebarWidthPersistAtom,
 } from "@src/store/ui/workStationAtom";
 import type { SecondaryPanelPosition } from "@src/store/ui/workStationAtom";
 
@@ -41,14 +35,6 @@ export interface UseBrowserSessionsReturn {
   browserState: ReturnType<typeof useBrowserContextAdapter>;
 
   // Panel state
-  layoutMode: "left" | "right";
-  setLayoutMode: (value: "left" | "right") => void;
-  primarySidebarCollapsed: boolean;
-  setPrimarySidebarCollapsed: (value: boolean | "toggle") => void;
-  togglePrimarySidebar: () => void;
-  closePrimarySidebar: () => void;
-  primarySidebarWidth: number;
-  setPrimarySidebarWidth: (width: number) => void;
   devToolsCollapsed: boolean;
   setDevToolsCollapsed: (collapsed: boolean) => void;
   devToolsPanelWidth: number;
@@ -103,28 +89,6 @@ export function useBrowserSessions(
 
   // Get browser state from context
   const browserState = useBrowserContextAdapter();
-
-  // Browser-specific sidebar state — independent of the shared Code Editor / DB atom.
-  const layoutMode = useAtomValue(workStationLayoutModeAtom);
-  const setLayoutMode = useSetAtom(workStationLayoutModePersistAtom);
-  const primarySidebarCollapsed = useAtomValue(
-    workStationBrowserSidebarCollapsedAtom
-  );
-  const setPrimarySidebarCollapsed = useSetAtom(
-    workStationBrowserSidebarCollapsedPersistAtom
-  );
-  const primarySidebarWidth = useAtomValue(workStationPrimarySidebarWidthAtom);
-  const setPrimarySidebarWidth = useSetAtom(
-    workStationPrimarySidebarWidthPersistAtom
-  );
-
-  const togglePrimarySidebar = useCallback(() => {
-    setPrimarySidebarCollapsed("toggle");
-  }, [setPrimarySidebarCollapsed]);
-
-  const closePrimarySidebar = useCallback(() => {
-    setPrimarySidebarCollapsed(true);
-  }, [setPrimarySidebarCollapsed]);
 
   const { devToolsCollapsed, setDevToolsCollapsed } = useWorkStationPanels();
   const [devToolsPanelWidth, setDevToolsPanelWidth] = useState(250);
@@ -321,14 +285,6 @@ export function useBrowserSessions(
 
   return {
     browserState,
-    layoutMode,
-    setLayoutMode,
-    primarySidebarCollapsed,
-    setPrimarySidebarCollapsed,
-    togglePrimarySidebar,
-    closePrimarySidebar,
-    primarySidebarWidth,
-    setPrimarySidebarWidth,
     devToolsCollapsed,
     setDevToolsCollapsed,
     devToolsPanelWidth,

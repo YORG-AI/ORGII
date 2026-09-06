@@ -46,10 +46,9 @@ const WorkstationTabHeader: React.FC = memo(() => {
   const isSourceControlTab =
     activeApp === "code" && activeTab?.type === "source-control";
   const isBrowserTab = activeApp === "browser";
-  // The Browser app draws its own divider after the back/forward/refresh
-  // buttons (see WebUrlBar), so the sidebar toggle should sit flush against
-  // them here — same gap-px rhythm as the icons within each group — instead
-  // of behind a second, earlier divider.
+  // The Browser URL toolbar owns its leading controls and divider (see
+  // WebUrlBar), so it starts flush with the shell edge rather than behind a
+  // redundant leading gutter.
   const joinsSidebarGroup = isSourceControlTab || isBrowserTab;
   const publishedHeaderPaddingLeftClassName = joinsSidebarGroup
     ? "pl-0"
@@ -70,7 +69,7 @@ const WorkstationTabHeader: React.FC = memo(() => {
       }`}
       data-tauri-drag-region={windowsHost ? undefined : true}
     >
-      {!shellLeadingChromeHidden && (
+      {!shellLeadingChromeHidden && !isBrowserTab && (
         <>
           <NoDragRegion className="flex shrink-0 items-center gap-px">
             <WorkStationSidebarToggleButton

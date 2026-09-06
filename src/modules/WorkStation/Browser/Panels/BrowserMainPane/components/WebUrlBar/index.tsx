@@ -62,6 +62,8 @@ interface WebUrlBarProps {
   canGoBack?: boolean;
   /** Whether forward navigation is available */
   canGoForward?: boolean;
+  /** Whether the active browser session owns a native webview. */
+  hasActiveWebview?: boolean;
   /** Open native browser DevTools (Safari Inspector / Edge DevTools) */
   onOpenNativeDevTools?: () => void;
   /** Toggle the WorkStation Browser secondary DevTools pane. */
@@ -125,6 +127,7 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
     onStop,
     canGoBack = false,
     canGoForward = false,
+    hasActiveWebview = true,
     onOpenNativeDevTools,
     onToggleDevToolsPane,
     devToolsPaneCollapsed = false,
@@ -373,6 +376,7 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
               size="small"
               iconOnly
               onClick={isLoading ? onStop : onReload}
+              disabled={!hasActiveWebview}
               aria-label={reloadControlLabel}
               icon={
                 isLoading ? (
@@ -452,6 +456,7 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
                   size="small"
                   iconOnly
                   onClick={onToggleInspectMode}
+                  disabled={!hasActiveWebview}
                   aria-label={t(
                     isInspectMode
                       ? "tooltips.disableInspectMode"
@@ -507,6 +512,7 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
                   size="small"
                   iconOnly
                   onClick={onOpenNativeDevTools}
+                  disabled={!hasActiveWebview}
                   aria-label={t("tooltips.openNativeDevTools")}
                   icon={
                     <HugeiconsIcon

@@ -99,4 +99,17 @@ describe("TabPill", () => {
     ).toHaveLength(1);
     expect(boardTab?.dataset.active).toBe("true");
   });
+
+  it("can omit the simple variant's active indicator", () => {
+    const markup = renderToStaticMarkup(
+      createElement(TabPill, {
+        variant: "simple",
+        activeTab: "design",
+        showActiveIndicator: false,
+        tabs: [{ key: "design", label: "Design" }],
+      })
+    );
+
+    expect(markup).not.toContain("h-1 w-1 rounded-full");
+  });
 });

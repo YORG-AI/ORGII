@@ -57,6 +57,22 @@ function activateLaunchpadTab(store: ReturnType<typeof createStore>) {
   store.set(workstationTabsStateAtom, state);
 }
 
+function activateBrowserTab(store: ReturnType<typeof createStore>) {
+  const tab: WorkStationTab = {
+    id: "browser-session:session-1",
+    type: "browser-session",
+    title: "New Tab",
+    data: {},
+  };
+  const state = emptyWorkstationTabsState();
+  state.globalWorkspace = {
+    tabs: [tab],
+    activeTabRef: { partition: "workspace", tabId: tab.id },
+    tabOrder: [{ partition: "workspace", tabId: tab.id }],
+  };
+  store.set(workstationTabsStateAtom, state);
+}
+
 describe("WorkstationTabHeader", () => {
   it("does not reserve the empty 36px row on the Launchpad", () => {
     const store = createStore();
@@ -151,5 +167,22 @@ describe("WorkstationTabHeader", () => {
     expect(markup).toContain("My Station content");
     expect(markup).toContain("pl-2");
     expect(markup).not.toContain("pl-[15px]");
+  });
+
+  it("omits the sidebar toggle from the Browser header", () => {
+    const store = createStore();
+    store.set(activeStatusBarAppAtom, "browser");
+    activateBrowserTab(store);
+
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(WorkstationTabHeader)
+      )
+    );
+
+    expect(markup).not.toContain('data-icon="sidebar-left"');
+    expect(markup).not.toContain('data-icon="layout-align-left"');
   });
 });

@@ -243,6 +243,7 @@ const WebDevTools: React.FC<WebDevToolsProps> = memo(
                       activeTab="dom-tree"
                       tabs={[{ key: "dom-tree", label: t("tooltips.domTree") }]}
                       variant="simple"
+                      showActiveIndicator={false}
                       fillWidth={false}
                       size="small"
                     />
@@ -322,6 +323,7 @@ const WebDevTools: React.FC<WebDevToolsProps> = memo(
                         setComponentsSubTab(key as ComponentsSubTab)
                       }
                       variant="simple"
+                      showActiveIndicator={false}
                       fillWidth={false}
                       size="small"
                       tabs={[
