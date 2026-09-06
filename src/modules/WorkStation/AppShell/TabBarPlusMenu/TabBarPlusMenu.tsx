@@ -24,6 +24,7 @@ import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotal
 import { Add01Icon, HugeiconsIcon } from "@src/icons";
 import { WorkstationTabIcon } from "@src/modules/WorkStation/shared/TabBar/components/WorkstationTabIcon";
 import { CODE_EDITOR_TOUR_TARGETS } from "@src/scaffold/Tutorials/codeEditorTourConfig";
+import { shouldShowInRecentTabsMenu } from "@src/shared/tabs/recentTabsMenu";
 import {
   openRecentWorkstationTabAtom,
   recentWorkstationTabsAtom,
@@ -70,6 +71,10 @@ const TabBarPlusMenuComponent: React.FC<TabBarPlusMenuProps> = ({
     () => actions.filter((action) => items.includes(action.id)),
     [actions, items]
   );
+  const visibleRecentTabs = useMemo(
+    () => recentTabs.filter(shouldShowInRecentTabsMenu),
+    [recentTabs]
+  );
   const triggerLabel = t("workstation.plusMenu.title");
   const droplist = (
     <div
@@ -83,7 +88,7 @@ const TabBarPlusMenuComponent: React.FC<TabBarPlusMenuProps> = ({
           onActionComplete={() => setMenuVisible(false)}
         />
         <RecentTabsMenuSection
-          tabs={recentTabs.map((tab) => ({
+          tabs={visibleRecentTabs.map((tab) => ({
             id: tab.id,
             title: tab.title,
             leadingIcon: <WorkstationTabIcon tab={tab} isActive={false} />,

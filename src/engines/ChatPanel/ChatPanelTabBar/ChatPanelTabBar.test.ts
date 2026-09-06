@@ -333,6 +333,11 @@ describe("ChatPanelTabBar", () => {
             title: "Closed chat",
             sessionId: "codexapp-closed-chat",
           },
+          {
+            id: "closed-kanban",
+            type: "work-management",
+            title: "Kanban",
+          },
         ],
         onOpenRecentTab: vi.fn(),
         onClose: vi.fn(),
@@ -349,6 +354,7 @@ describe("ChatPanelTabBar", () => {
     expect(markup).toContain(
       'data-session-identity-icon="codexapp-closed-chat"'
     );
+    expect(markup).not.toContain('data-recent-tab-id="closed-kanban"');
     expect(markup).not.toContain('data-icon="work-history"');
   });
 });

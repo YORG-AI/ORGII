@@ -25,6 +25,7 @@ import {
   MessageAdd02Icon,
   PictureInPicture01Icon,
 } from "@src/icons";
+import { shouldShowInRecentTabsMenu } from "@src/shared/tabs/recentTabsMenu";
 import {
   type ChatPanelTab,
   openRecentChatPanelTabAtom,
@@ -175,7 +176,7 @@ export function PlusMenuContent({
           </button>
         ))}
         <RecentTabsMenuSection
-          tabs={recentTabs.map((tab) => ({
+          tabs={recentTabs.filter(shouldShowInRecentTabsMenu).map((tab) => ({
             id: tab.id,
             title: tab.title,
             leadingIcon:
