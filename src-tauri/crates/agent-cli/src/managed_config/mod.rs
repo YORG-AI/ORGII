@@ -11,9 +11,11 @@
 //! serializes every switch.
 
 mod adapters;
+pub mod claude_models;
 pub mod desktop;
 mod direct;
 mod dto;
+pub mod provider_profiles;
 mod target_lock;
 pub use direct::DirectConnection;
 mod file_io;
@@ -29,6 +31,8 @@ mod transaction;
 mod desktop_tests;
 #[cfg(test)]
 mod direct_tests;
+#[cfg(test)]
+mod provider_profiles_tests;
 #[cfg(test)]
 mod tests;
 

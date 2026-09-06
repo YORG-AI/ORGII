@@ -120,6 +120,31 @@ const managedConfig = {
 } as const;
 
 const connections = {
+  saveProfile: defineProcedure("harness_profile_save")
+    .input(z.object({ profile: schemas.agentOrgs.ClaudeProviderProfileSchema }))
+    .output(schemas.agentOrgs.ClaudeProviderProfileSchema)
+    .build(),
+  deleteProfile: defineProcedure("harness_profile_delete")
+    .input(
+      z.object({
+        agentName: z.enum(["claude_code", "claude_desktop"]),
+        id: z.string(),
+        revision: z.number().int().nonnegative(),
+      })
+    )
+    .build(),
+  fetchModels: defineProcedure("harness_profile_models")
+    .input(
+      z.object({
+        agentName: z.enum(["claude_code", "claude_desktop"]),
+        keyId: z.string(),
+        endpoint: z.string(),
+        authScheme: z.enum(["bearer", "x-api-key"]),
+        requestId: z.string(),
+      })
+    )
+    .output(z.array(z.string()))
+    .build(),
   status: defineProcedure("harness_connection_status")
     .input(schemas.agentOrgs.HarnessConnectionInput)
     .output(schemas.agentOrgs.HarnessConnectionViewSchema)

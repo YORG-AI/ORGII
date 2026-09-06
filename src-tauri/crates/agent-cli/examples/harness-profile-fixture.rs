@@ -7,13 +7,58 @@ fn main() -> Result<(), String> {
     {
         return Err("Fixture requires an isolated config root and a loopback endpoint".into());
     }
+    let mapped = args[1] == "claude_profiles";
+    let profile = if mapped {
+        use agent_cli::managed_config::{
+            claude_models::{ClaudeModel, ClaudeModels, ClaudeRole},
+            provider_profiles::{save, ClaudeProviderProfile},
+        };
+        Some(save(ClaudeProviderProfile {
+            id: "fixture".into(),
+            revision: 0,
+            name: "Fixture".into(),
+            target: "claude_code".into(),
+            key_id: "fixture".into(),
+            endpoint: args[2].clone(),
+            auth_scheme: "x-api-key".into(),
+            models: ClaudeModels {
+                default_role: ClaudeRole::Sonnet,
+                roles: [
+                    ClaudeRole::Sonnet,
+                    ClaudeRole::Opus,
+                    ClaudeRole::Fable,
+                    ClaudeRole::Haiku,
+                ]
+                .into_iter()
+                .map(|role| {
+                    (
+                        role,
+                        ClaudeModel {
+                            model: format!("fixture-{}", role.as_str()),
+                            display_name: format!("Display {}", role.as_str()),
+                            context_1m: false,
+                        },
+                    )
+                })
+                .collect(),
+            },
+        })?)
+    } else {
+        None
+    };
     agent_cli::managed_config::enable_direct(
-        &args[1],
+        if mapped { "claude_code" } else { &args[1] },
         agent_cli::managed_config::DirectConnection {
+            profile,
             desktop_auth_scheme: None,
             key_id: "fixture".into(),
             provider: "custom_api".into(),
-            model: "fixture-model".into(),
+            model: if mapped {
+                "fixture-sonnet"
+            } else {
+                "fixture-model"
+            }
+            .into(),
             base_url: args[2].clone(),
             api_key: "orgii-fixture-key".into(),
         },

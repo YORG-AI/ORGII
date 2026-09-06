@@ -1,6 +1,9 @@
 //! Shared Settings/CLI-detail connection commands. No work starts on an idle timer.
 mod desktop;
 mod probe;
+mod profiles;
+use agent_cli::managed_config::provider_profiles::ClaudeProviderProfile;
+pub use profiles::*;
 
 use agent_cli::managed_config::{CliConfigManagedStatus, DirectConnection};
 use key_vault::{
@@ -42,6 +45,8 @@ pub struct HarnessConnectionView {
     version: Option<String>,
     configuration_issue: Option<String>,
     desktop_options: Option<DesktopConnectionOptions>,
+    profiles: Vec<ClaudeProviderProfile>,
+    applied_profile: Option<ClaudeProviderProfile>,
     choices: Vec<ConnectionChoice>,
 }
 
@@ -112,7 +117,7 @@ pub async fn harness_connection_status(
                         endpoint: result.as_ref().ok().map(|value| value.base_url.clone()),
                         requires_test: target == ConnectionTarget::ClaudeDesktop
                             || result.as_ref().is_ok_and(|value| value.requires_test),
-                        reason: if target == ConnectionTarget::ClaudeDesktop {
+                        reason: if target != ConnectionTarget::Codex {
                             validate_connection_key(&agent_name, key).err()
                         } else {
                             result.err()
@@ -135,7 +140,22 @@ pub async fn harness_connection_status(
     })
     .await
     .map_err(|_| "Connection lookup failed")?;
+    let (profiles, applied_profile) = if target != ConnectionTarget::Codex {
+        let target = config.agent_name.clone();
+        tokio::task::spawn_blocking(move || {
+            Ok::<_, String>((
+                agent_cli::managed_config::provider_profiles::list(&target)?,
+                agent_cli::managed_config::provider_profiles::applied(&target)?,
+            ))
+        })
+        .await
+        .map_err(|_| "Profile lookup failed")??
+    } else {
+        (vec![], None)
+    };
     Ok(HarnessConnectionView {
+        profiles,
+        applied_profile,
         config,
         choices,
         installed,
@@ -152,6 +172,7 @@ pub async fn harness_connection_test(
     model: String,
     request_id: String,
     desktop_options: Option<DesktopConnectionOptions>,
+    profile: Option<ClaudeProviderProfile>,
 ) -> Result<String, String> {
     let (cancel, cancelled) = tokio::sync::oneshot::channel();
     {
@@ -166,10 +187,14 @@ pub async fn harness_connection_test(
     }
     let result = tokio::select! {
         _ = cancelled => Err("Connection test cancelled".to_string()),
-        result = tokio::time::timeout(Duration::from_secs(45), async {
+        result = tokio::time::timeout(Duration::from_secs(if profile.is_some() { 225 } else { 45 }), async {
             verify_installed_version(&agent_name).await?;
-            let connection = selected(&agent_name, &key_id, Some(&model), desktop_options.as_ref())?;
-            probe::test(&connection).await?;
+            let mut connection = profiles::selection(&agent_name, &key_id, &model, desktop_options.as_ref(), profile.as_ref())?;
+            let models = profile.as_ref().map(|p| p.models.request_models().into_iter().map(str::to_string).collect::<Vec<_>>()).unwrap_or_else(|| vec![model.clone()]);
+            for model in models {
+                connection.model = model;
+                probe::test(&connection).await.map_err(|error| format!("Model {}: {error}", connection.model))?;
+            }
             Ok::<_, String>(connection)
         }) => result.unwrap_or_else(|_| Err("Connection test timed out".into())),
     };
@@ -227,6 +252,8 @@ fn require_receipt(
     Err("Test this third-party endpoint and model before applying; previous evidence is missing, expired, or belongs to a different connection".into())
 }
 
+// Keep existing named IPC arguments compatible; the optional profile adds mapping metadata.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command(rename_all = "camelCase")]
 pub async fn harness_connection_apply(
     agent_name: String,
@@ -235,16 +262,23 @@ pub async fn harness_connection_apply(
     routing: String,
     desktop_options: Option<DesktopConnectionOptions>,
     receipt: Option<String>,
+    profile: Option<ClaudeProviderProfile>,
     expected_hashes: std::collections::BTreeMap<String, Option<String>>,
 ) -> Result<CliConfigManagedStatus, String> {
     if !matches!(routing.as_str(), "direct" | "orgii_managed") {
         return Err("Unsupported routing mode".into());
     }
-    if agent_name == "claude_desktop" && routing != "direct" {
-        return Err("Claude Desktop currently supports direct connections only".into());
+    if (agent_name == "claude_desktop" || profile.is_some()) && routing != "direct" {
+        return Err("Claude profiles support native direct connections only".into());
     }
     verify_installed_version(&agent_name).await?;
-    let connection = selected(&agent_name, &key_id, Some(&model), desktop_options.as_ref())?;
+    let connection = profiles::selection(
+        &agent_name,
+        &key_id,
+        &model,
+        desktop_options.as_ref(),
+        profile.as_ref(),
+    )?;
     require_receipt(&connection, receipt.as_deref())?;
     if routing == "orgii_managed" {
         return crate::cli_managed_proxy::cli_config_enable_orgii_managed(
@@ -258,11 +292,18 @@ pub async fn harness_connection_apply(
     }
     tokio::task::spawn_blocking(move || {
         // Resolve again at the write boundary; key changes invalidate the receipt.
-        let connection = selected(&agent_name, &key_id, Some(&model), desktop_options.as_ref())?;
+        let connection = profiles::selection(
+            &agent_name,
+            &key_id,
+            &model,
+            desktop_options.as_ref(),
+            profile.as_ref(),
+        )?;
         require_receipt(&connection, receipt.as_deref())?;
         agent_cli::managed_config::enable_direct(
             &agent_name,
             DirectConnection {
+                profile,
                 key_id: connection.key_id,
                 provider: connection.provider,
                 model: connection.model,

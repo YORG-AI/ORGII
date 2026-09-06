@@ -359,3 +359,70 @@ mod transport_tests {
         }
     }
 }
+
+pub(super) async fn models(
+    connection: &key_vault::harness_connections::ResolvedClaudeEndpoint,
+) -> Result<Vec<String>, String> {
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(18))
+        .build()
+        .map_err(|_| "Cannot create model discovery client")?;
+    let request = client
+        .get(format!("{}/v1/models?limit=1000", connection.base_url))
+        .header("anthropic-version", "2023-06-01");
+    let request =
+        if connection.auth_scheme == key_vault::harness_connections::ConnectionAuthScheme::ApiKey {
+            request.header("x-api-key", &connection.api_key)
+        } else {
+            request.bearer_auth(&connection.api_key)
+        };
+    let response = request
+        .send()
+        .await
+        .map_err(|_| "Model discovery failed; enter IDs manually")?;
+    let bytes = read_bounded(response).await?;
+    parse_models(&bytes)
+}
+fn parse_models(bytes: &[u8]) -> Result<Vec<String>, String> {
+    let value: Value =
+        serde_json::from_slice(bytes).map_err(|_| "Invalid model discovery response")?;
+    let data = value["data"]
+        .as_array()
+        .ok_or("Endpoint does not support model discovery; enter IDs manually")?;
+    if data.len() > 1000 || value["has_more"] == true {
+        return Err("Model catalog is too large; enter the model ID manually".into());
+    }
+    let mut models = std::collections::BTreeSet::new();
+    for entry in data {
+        let id = entry["id"]
+            .as_str()
+            .ok_or("Model discovery returned an invalid ID")?;
+        agent_cli::managed_config::claude_models::validate_id(id)?;
+        models.insert(id.to_string());
+    }
+    Ok(models.into_iter().collect())
+}
+
+#[cfg(test)]
+mod model_discovery_tests {
+    use super::*;
+    #[test]
+    fn validates_and_bounds_model_catalogs_without_treating_labels_as_ids() {
+        assert_eq!(parse_models(br#"{"data":[{"id":"vendor/id","display_name":"Friendly"},{"id":"vendor/id"},{"id":"second"}]}"#).unwrap(), vec!["second", "vendor/id"]);
+        for bytes in [
+            br#"{"data":[{"display_name":"No ID"}]}"#.as_slice(),
+            br#"{"data":[{"id":"bad\nvalue"}]}"#,
+            br#"{"data":[],"has_more":true}"#,
+            b"{secret",
+        ] {
+            assert!(parse_models(bytes).is_err());
+        }
+        let large = serde_json::to_vec(
+            &serde_json::json!({"data":vec![serde_json::json!({"id":"model"});1001]}),
+        )
+        .unwrap();
+        assert!(parse_models(&large).is_err());
+    }
+}

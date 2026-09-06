@@ -5,6 +5,7 @@ use super::dto::{CliConfigMode, CliConfigProfileManifest};
 
 // Intentionally no Debug/Serialize: this value holds a decrypted credential.
 pub struct DirectConnection {
+    pub profile: Option<super::provider_profiles::ClaudeProviderProfile>,
     pub key_id: String,
     pub provider: String,
     pub model: String,
@@ -24,6 +25,9 @@ pub(super) fn generate_direct_configs(
     }
     if agent == super::desktop::TARGET {
         return super::desktop::generate(contents, connection, previous);
+    }
+    if connection.profile.is_some() && !matches!(agent, "claude_code" | "claude_desktop") {
+        return Err("Claude profiles cannot configure another app".into());
     }
     if connection.desktop_auth_scheme.is_some() {
         return Err("Desktop authentication settings cannot be applied to a CLI target".into());
@@ -65,6 +69,15 @@ fn claude(raw: &str, connection: &DirectConnection) -> Result<String, String> {
                 .into(),
         );
     }
+    if connection.profile.is_some()
+        && root
+            .get("modelOverrides")
+            .is_some_and(|v| v.as_object().is_none_or(|m| !m.is_empty()))
+    {
+        return Err(
+            "Resolve Claude Code modelOverrides before applying a role mapping profile".into(),
+        );
+    }
     let env = root
         .entry("env")
         .or_insert_with(|| serde_json::json!({}))
@@ -96,7 +109,17 @@ fn claude(raw: &str, connection: &DirectConnection) -> Result<String, String> {
     ] {
         env.remove(key);
     }
-    let auth_field = if connection.base_url == "https://api.anthropic.com" {
+    super::claude_models::clear_role_overrides(env);
+    if let Some(profile) = &connection.profile {
+        profile.validate()?;
+        profile.models.write_cli(env);
+    }
+    let auth_field = if connection
+        .profile
+        .as_ref()
+        .map(|p| p.auth_scheme.as_str() == "x-api-key")
+        .unwrap_or(connection.base_url == "https://api.anthropic.com")
+    {
         "ANTHROPIC_API_KEY"
     } else {
         "ANTHROPIC_AUTH_TOKEN"
@@ -106,8 +129,13 @@ fn claude(raw: &str, connection: &DirectConnection) -> Result<String, String> {
         "ANTHROPIC_BASE_URL".into(),
         connection.base_url.clone().into(),
     );
-    env.insert("ANTHROPIC_MODEL".into(), connection.model.clone().into());
-    root.insert("model".into(), connection.model.clone().into());
+    let model = connection
+        .profile
+        .as_ref()
+        .map(|p| p.models.default_role.as_str())
+        .unwrap_or(&connection.model);
+    env.insert("ANTHROPIC_MODEL".into(), model.into());
+    root.insert("model".into(), model.into());
     serde_json::to_string_pretty(&settings)
         .map_err(|_| "Failed to serialize Claude Code settings".into())
 }

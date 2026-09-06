@@ -1,20 +1,27 @@
 # Claude Desktop connections
 
+For saved providers, custom model IDs, and role mappings, see [Claude provider profiles](claude-provider-profiles.md).
+
 Open **Settings → App connections → Claude Desktop**. Claude Code CLI and Codex have separate selectors and independent applied connections. The existing `app/harness-connections` settings URL is unchanged.
 
-Choose a saved API connection card, or add a connection through the key vault. Set the Desktop API endpoint, authentication scheme (Bearer token or x-api-key), and full model ID. **Test connection** checks a synthetic tool round trip and streaming against that exact endpoint, credential, and model. **Use this connection** saves the native Desktop configuration. Fully quit and reopen Claude Desktop after applying or restoring.
-
-**Copy from Claude Code CLI** copies the currently configured key/model selection into the Desktop editor for review. It does not apply either app's configuration. Desktop endpoint changes do not edit the vault key or the CLI's endpoint. The same saved key can therefore serve different endpoints in each app.
+Create a saved provider profile, or copy the current Desktop connection. Select
+its Key Vault credential, endpoint, and authentication scheme, then configure the
+model roles. Save the profile, test its models, and apply it. Fully quit and reopen
+Claude Desktop after applying or restoring. Endpoint and mapping changes belong
+to this app's profile and do not edit the shared credential or CLI configuration.
 
 ## Compatibility
 
-This first delivery implements direct Anthropic Messages connections for full `claude-sonnet-*`, `claude-opus-*`, `claude-haiku-*`, and `claude-fable-*` IDs, optionally prefixed by `anthropic/`. Model availability is determined by the configured endpoint. IDs can be entered manually without changing the shared vault model list.
+Saved profiles support custom model IDs through native Desktop family-tier
+mapping. The older single-model quick editor still accepts full
+`claude-sonnet-*`, `claude-opus-*`, `claude-haiku-*`, and `claude-fable-*` IDs,
+optionally prefixed by `anthropic/`. Model availability depends on the endpoint.
 
 The native adapter targets Claude Desktop 1.46388.1 and newer on macOS and Windows. The local macOS installation inspected during development was 1.46388.4. Version detection supports `/Applications/Claude.app`, user Applications installs, and Windows `%LOCALAPPDATA%/Claude/Claude.exe`. Other Windows installation layouts are not detected by this delivery. Linux is explicitly unsupported by this adapter, even though newer upstream Desktop versions document Linux configuration.
 
 Native Desktop UI/runtime behavior, including separate Chat/Cowork/Code sessions, has not been exercised. A protocol test or generated profile does not establish native-app runtime compatibility. This change neither launches nor restarts Desktop automatically.
 
-Arbitrary upstream model mapping, per-role aliases, context declarations, protocol translation, and the broader Codex/ORGII model catalog expansion remain the following implementation phases. Desktop does not offer ORGII proxy routing in this delivery.
+Protocol translation and the broader Codex/ORGII model catalog expansion remain separate work. Desktop profiles use native direct routing, without an ORGII proxy.
 
 ## Configuration ownership and recovery
 
