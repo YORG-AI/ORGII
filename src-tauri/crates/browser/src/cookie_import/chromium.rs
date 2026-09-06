@@ -225,16 +225,43 @@ pub fn read_cookies(
     })
 }
 
+/// Derived keys by keychain service, for the life of the process.
+///
+/// Holding the derived 16-byte key (never the password) means the OS consent
+/// prompt appears once per app session: the preview and the later import
+/// share it, and a denied attempt caches nothing, so the next click simply
+/// prompts again.
+#[cfg(target_os = "macos")]
+static CHROMIUM_KEYS: std::sync::OnceLock<
+    std::sync::Mutex<std::collections::HashMap<String, [u8; 16]>>,
+> = std::sync::OnceLock::new();
+
 /// Read the Chromium value-encryption password from the macOS login keychain
-/// and derive the AES key. Triggers the system keychain consent prompt.
+/// and derive the AES key, caching the result per service.
+///
+/// The cache lock is held across the OS call on purpose: a second attempt
+/// made while a prompt is still open waits for it, then finds the cached key
+/// (or, after a denial, prompts afresh) instead of queueing a second dialog.
 #[cfg(target_os = "macos")]
 pub fn chromium_keychain_key(
     service: &str,
     account: &str,
 ) -> Result<[u8; 16], CookieReadError> {
+    let cache = CHROMIUM_KEYS.get_or_init(|| std::sync::Mutex::new(Default::default()));
+    let mut keys = cache
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(key) = keys.get(service) {
+        return Ok(*key);
+    }
     let password = security_framework::passwords::get_generic_password(service, account)
-        .map_err(|error| CookieReadError::Keychain(error.to_string()))?;
-    Ok(derive_chromium_key(&password))
+        .map_err(|error| CookieReadError::Keychain {
+            code: error.code(),
+            message: error.to_string(),
+        })?;
+    let key = derive_chromium_key(&password);
+    keys.insert(service.to_string(), key);
+    Ok(key)
 }
 
 #[cfg(test)]

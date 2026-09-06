@@ -16,6 +16,7 @@ import {
   type CookieImportResult,
   type CookieImportSource,
   importBrowserCookies,
+  isCookieImportError,
   listCookieImportSources,
   openFullDiskAccessSettings as openFullDiskAccessSettingsPane,
   previewCookieImport,
@@ -30,6 +31,13 @@ import {
 } from "./importCookiesSelection";
 
 const logger = createLogger("ImportCookies");
+
+/** A declined keychain prompt gets its own, retry-oriented message. */
+function failureMessageKey(error: unknown, fallbackKey: string): string {
+  return isCookieImportError(error) && error.code === "keychain_denied"
+    ? "browserCookieImport.errors.keychainDenied"
+    : fallbackKey;
+}
 
 /** Which screen of the flow is showing. */
 export type ImportStage = "sources" | "preview" | "done";
@@ -147,9 +155,22 @@ export function useImportCookiesController(
         .catch((error: unknown) => {
           logger.error("failed to preview cookie source:", error);
           if (requestRef.current !== token) return;
-          Message.error(t("browserCookieImport.errors.previewFailed"));
+          // Back to the picker with the row still clickable: a declined
+          // keychain prompt or a blocked store must be retryable, not final.
           setActiveSource(null);
           setStage("sources");
+          if (isCookieImportError(error) && error.code === "full_disk_access") {
+            setUnavailableSource(source);
+            return;
+          }
+          Message.error(
+            t(
+              failureMessageKey(
+                error,
+                "browserCookieImport.errors.previewFailed"
+              )
+            )
+          );
         })
         .finally(() => {
           if (requestRef.current === token) setPreviewLoading(false);
@@ -197,9 +218,11 @@ export function useImportCookiesController(
       })
       .catch((error: unknown) => {
         logger.error("failed to import cookies:", error);
-        if (requestRef.current === token) {
-          Message.error(t("browserCookieImport.errors.importFailed"));
-        }
+        if (requestRef.current !== token) return;
+        // Stay on the checklist so Import can simply be pressed again.
+        Message.error(
+          t(failureMessageKey(error, "browserCookieImport.errors.importFailed"))
+        );
       })
       .finally(() => {
         if (requestRef.current === token) setImporting(false);

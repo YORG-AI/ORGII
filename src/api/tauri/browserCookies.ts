@@ -76,6 +76,34 @@ export interface CookieImportResult {
   skippedCookies: number;
 }
 
+/**
+ * What a failed command lets the UI act on. `keychain_denied` means the user
+ * cancelled or failed the macOS keychain prompt — trying again prompts afresh.
+ */
+export type CookieImportErrorCode =
+  | "keychain_denied"
+  | "keychain_failed"
+  | "full_disk_access"
+  | "source_not_found"
+  | "other";
+
+/** Rejection value of the cookie-import commands (Tauri passes it through). */
+export interface CookieImportError {
+  code: CookieImportErrorCode;
+  message: string;
+}
+
+export function isCookieImportError(
+  error: unknown
+): error is CookieImportError {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    typeof (error as { code?: unknown }).code === "string" &&
+    typeof (error as { message?: unknown }).message === "string"
+  );
+}
+
 /** Open the macOS Full Disk Access pane so the user can allow the app. */
 export function openFullDiskAccessSettings(): Promise<void> {
   return shellOpen(FULL_DISK_ACCESS_SETTINGS_URL);

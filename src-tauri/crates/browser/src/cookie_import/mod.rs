@@ -163,10 +163,13 @@ pub enum CookieReadError {
     Open(String),
     /// A SQL query against the cookie database failed.
     Query(String),
-    /// The system keychain denied or failed the value-key lookup.
-    Keychain(String),
+    /// The system keychain denied or failed the value-key lookup; `code` is
+    /// the `OSStatus` so the caller can tell a denial from a real failure.
+    Keychain { code: i32, message: String },
     /// The requested source is not supported on this platform.
     Unsupported(String),
+    /// No discovered source has this id (it may have been removed).
+    NotFound(String),
     /// The store is in a folder macOS gates behind Full Disk Access (Safari).
     FullDiskAccess,
 }
@@ -176,10 +179,13 @@ impl std::fmt::Display for CookieReadError {
         match self {
             CookieReadError::Open(message) => write!(formatter, "open cookie store: {message}"),
             CookieReadError::Query(message) => write!(formatter, "read cookie store: {message}"),
-            CookieReadError::Keychain(message) => {
-                write!(formatter, "keychain access failed: {message}")
+            CookieReadError::Keychain { code, message } => {
+                write!(formatter, "keychain access failed ({code}): {message}")
             }
             CookieReadError::Unsupported(message) => write!(formatter, "{message}"),
+            CookieReadError::NotFound(source_id) => {
+                write!(formatter, "browser source not found: {source_id}")
+            }
             CookieReadError::FullDiskAccess => write!(
                 formatter,
                 "this browser's cookies are in a folder macOS protects; allow the app under Full Disk Access in System Settings"
@@ -189,6 +195,63 @@ impl std::fmt::Display for CookieReadError {
 }
 
 impl std::error::Error for CookieReadError {}
+
+/// `OSStatus` values that mean the user declined the keychain prompt rather
+/// than the lookup failing: `errSecUserCanceled` and `errSecAuthFailed`.
+const KEYCHAIN_DENIED_CODES: [i32; 2] = [-128, -25293];
+
+/// What the frontend can act on when a command fails.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CookieImportErrorCode {
+    /// The user cancelled or failed the keychain prompt; trying again prompts afresh.
+    KeychainDenied,
+    /// The keychain lookup failed for another reason.
+    KeychainFailed,
+    /// The store needs Full Disk Access (Safari).
+    FullDiskAccess,
+    /// The chosen source is no longer there.
+    SourceNotFound,
+    Other,
+}
+
+/// Error returned by the cookie-import commands: a code the UI branches on
+/// plus a message for logs. Serialized as the command's rejection value.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CookieImportError {
+    pub code: CookieImportErrorCode,
+    pub message: String,
+}
+
+impl CookieImportError {
+    fn other(message: impl Into<String>) -> Self {
+        Self {
+            code: CookieImportErrorCode::Other,
+            message: message.into(),
+        }
+    }
+}
+
+impl From<CookieReadError> for CookieImportError {
+    fn from(error: CookieReadError) -> Self {
+        let code = match &error {
+            CookieReadError::Keychain { code, .. } if KEYCHAIN_DENIED_CODES.contains(code) => {
+                CookieImportErrorCode::KeychainDenied
+            }
+            CookieReadError::Keychain { .. } => CookieImportErrorCode::KeychainFailed,
+            CookieReadError::FullDiskAccess => CookieImportErrorCode::FullDiskAccess,
+            CookieReadError::NotFound(_) => CookieImportErrorCode::SourceNotFound,
+            CookieReadError::Open(_) | CookieReadError::Query(_) | CookieReadError::Unsupported(_) => {
+                CookieImportErrorCode::Other
+            }
+        };
+        Self {
+            code,
+            message: error.to_string(),
+        }
+    }
+}
 
 // ============================================================================
 // SQLite helper
@@ -275,9 +338,7 @@ fn find_location(source_id: &str) -> Result<sources::SourceLocation, CookieReadE
     sources::discover_sources()
         .into_iter()
         .find(|location| location.id == source_id)
-        .ok_or_else(|| {
-            CookieReadError::Unsupported(format!("browser source not found: {source_id}"))
-        })
+        .ok_or_else(|| CookieReadError::NotFound(source_id.to_string()))
 }
 
 /// Group cookies into per-site rows with categories and default selection.
@@ -335,7 +396,7 @@ fn group_sites(cookies: &[DecryptedCookie]) -> Vec<CookieSiteGroup> {
 
 /// List importable browser profiles found on this machine.
 #[tauri::command]
-pub async fn list_cookie_import_sources() -> Result<Vec<CookieImportSource>, String> {
+pub async fn list_cookie_import_sources() -> Result<Vec<CookieImportSource>, CookieImportError> {
     tauri::async_runtime::spawn_blocking(|| {
         sources::discover_sources()
             .into_iter()
@@ -350,7 +411,7 @@ pub async fn list_cookie_import_sources() -> Result<Vec<CookieImportSource>, Str
             .collect()
     })
     .await
-    .map_err(|error| format!("failed to enumerate browser sources: {error}"))
+    .map_err(|error| CookieImportError::other(format!("failed to enumerate browser sources: {error}")))
 }
 
 /// Preview the sites a source holds logins for, without importing anything.
@@ -358,7 +419,9 @@ pub async fn list_cookie_import_sources() -> Result<Vec<CookieImportSource>, Str
 /// For a Chromium source this reads the value-encryption key from the system
 /// keychain, which triggers the OS's own consent prompt the first time.
 #[tauri::command]
-pub async fn preview_cookie_import(source_id: String) -> Result<CookieImportPreview, String> {
+pub async fn preview_cookie_import(
+    source_id: String,
+) -> Result<CookieImportPreview, CookieImportError> {
     tauri::async_runtime::spawn_blocking(move || {
         let location = find_location(&source_id)?;
         let outcome = read_source_cookies(&location)?;
@@ -377,8 +440,8 @@ pub async fn preview_cookie_import(source_id: String) -> Result<CookieImportPrev
         })
     })
     .await
-    .map_err(|error| format!("cookie preview task failed: {error}"))?
-    .map_err(|error| error.to_string())
+    .map_err(|error| CookieImportError::other(format!("cookie preview task failed: {error}")))?
+    .map_err(CookieImportError::from)
 }
 
 /// Import the cookies for the chosen sites (registrable domains) into the app's
@@ -388,7 +451,7 @@ pub async fn import_browser_cookies(
     app: AppHandle,
     source_id: String,
     domains: Vec<String>,
-) -> Result<CookieImportResult, String> {
+) -> Result<CookieImportResult, CookieImportError> {
     let requested_domains = domains.len();
     let selected: std::collections::HashSet<String> = domains.into_iter().collect();
 
@@ -403,11 +466,11 @@ pub async fn import_browser_cookies(
         Ok::<_, CookieReadError>(chosen)
     })
     .await
-    .map_err(|error| format!("cookie read task failed: {error}"))?
-    .map_err(|error| error.to_string())?;
+    .map_err(|error| CookieImportError::other(format!("cookie read task failed: {error}")))?
+    .map_err(CookieImportError::from)?;
 
     let total = cookies.len();
-    let imported = install_cookies(&app, cookies)?;
+    let imported = install_cookies(&app, cookies).map_err(CookieImportError::other)?;
 
     Ok(CookieImportResult {
         requested_domains,

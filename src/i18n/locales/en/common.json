@@ -2628,6 +2628,7 @@
     },
     "errors": {
       "openSettingsFailed": "Couldn't open System Settings",
+      "keychainDenied": "Keychain access was denied. Pick the profile again and choose Allow.",
       "listFailed": "Couldn't find browsers to import from",
       "previewFailed": "Couldn't read cookies from that browser",
       "importFailed": "Couldn't import the selected cookies"

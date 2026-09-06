@@ -2486,6 +2486,7 @@
     },
     "errors": {
       "openSettingsFailed": "無法開啟系統設定",
+      "keychainDenied": "鑰匙圈存取遭拒。請重新選擇該設定檔並點選「允許」。",
       "listFailed": "找不到可匯入的瀏覽器",
       "previewFailed": "無法從該瀏覽器讀取 Cookie",
       "importFailed": "無法匯入所選 Cookie"
