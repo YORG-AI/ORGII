@@ -29,6 +29,8 @@ export interface ShortcutEntry {
   command: string;
   macKeys: string;
   winKeys: string;
+  /** Tauri native-menu accelerator syntax, when the shortcut binds a menu item. */
+  accelerator?: string;
   scope: ShortcutScope;
   category: ShortcutCategory;
 }

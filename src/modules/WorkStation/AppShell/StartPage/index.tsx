@@ -122,7 +122,11 @@ export const WorkStationStartPage: React.FC = memo(() => {
               key={action.id}
               icon={action.icon}
               label={action.label}
-              shortcut={action.shortcut}
+              shortcut={
+                action.shortcutId
+                  ? getShortcutKeys(action.shortcutId)
+                  : undefined
+              }
               additions={action.id === "sourceControl" ? additions : undefined}
               deletions={action.id === "sourceControl" ? deletions : undefined}
               onClick={action.onClick}

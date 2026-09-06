@@ -180,7 +180,7 @@ export const editorFormat = defineZodAction(
     category: "editor",
     description: "Format the current document",
     params: z.object({}),
-    shortcut: "Shift+Alt+F",
+    shortcut: getShortcutKeys("format_document"),
     examples: ["format document", "format code", "prettify"],
   },
   async () => {

@@ -127,18 +127,18 @@
     "health": {
       "cloudListingInvalid": "Anúncio na nuvem inválido",
       "cloudListingDegraded": "Anúncio na nuvem degradado",
-      "cloudInvalidMessage": "Sua chave local funciona, mas o anúncio no marketplace tem problemas.",
-      "cloudDegradedMessage": "Sua chave local funciona, mas o anúncio na nuvem tem alguns modelos indisponíveis.",
-      "invalidListingMessage": "A chave deste anúncio é inválida e precisa ser atualizada.",
-      "invalidKeyMessage": "Esta chave de API não é mais válida. Atualize suas chaves.",
+      "cloudInvalidMessage": "Sua chave local funciona, mas o anúncio no marketplace tem problemas",
+      "cloudDegradedMessage": "Sua chave local funciona, mas o anúncio na nuvem tem alguns modelos indisponíveis",
+      "invalidListingMessage": "A chave deste anúncio é inválida e precisa ser atualizada",
+      "invalidKeyMessage": "Esta chave de API não é mais válida. Atualize suas chaves",
       "failuresDetected_one": "{{count}} falha detectada",
       "failuresDetected_other": "{{count}} falhas detectadas",
       "errorWithMessage": "Erro: {{message}}",
       "degradedListing": "Anúncio degradado",
       "degradedKey": "Chave degradada",
-      "modelsUnavailable": "{{disabled}} modelo(s) indisponíveis. Apenas {{available}} modelo(s) em funcionamento.",
-      "someModelsFailures": "Alguns modelos estão apresentando falhas.",
-      "someModelsUnavailable": "Alguns modelos estão indisponíveis."
+      "modelsUnavailable": "{{disabled}} modelo(s) indisponíveis. Apenas {{available}} modelo(s) em funcionamento",
+      "someModelsFailures": "Alguns modelos estão apresentando falhas",
+      "someModelsUnavailable": "Alguns modelos estão indisponíveis"
     },
     "verification": {
       "pendingVerification": "Aguardando verificação",

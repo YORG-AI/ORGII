@@ -39,6 +39,7 @@ export {
 export {
   getShortcutKeys,
   getShortcutEntry,
+  getShortcutAccelerator,
   labelWithShortcut,
   isModifierPressed,
   matchesKey,

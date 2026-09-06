@@ -230,7 +230,7 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
   const titleNode = (
     <div className="flex min-w-0 flex-1 items-center gap-1.5">
       {!hideIcon && (
-        <span className="flex h-[14px] shrink-0 items-center text-text-3">
+        <span className="flex h-[14px] shrink-0 items-center">
           {resolvedIcon}
         </span>
       )}

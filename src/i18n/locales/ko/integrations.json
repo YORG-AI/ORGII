@@ -123,18 +123,18 @@
     "health": {
       "cloudListingInvalid": "클라우드 목록 무효",
       "cloudListingDegraded": "클라우드 목록 저하됨",
-      "cloudInvalidMessage": "로컬 자격 증명은 정상이지만 마켓플레이스 목록에 문제가 있습니다.",
-      "cloudDegradedMessage": "로컬 자격 증명은 정상이지만 클라우드 목록의 일부 모델을 사용할 수 없습니다.",
-      "invalidListingMessage": "이 목록의 자격 증명이 무효하며 업데이트가 필요합니다.",
-      "invalidKeyMessage": "이 API Key는 더 이상 유효하지 않습니다. 자격 증명을 업데이트하세요.",
+      "cloudInvalidMessage": "로컬 자격 증명은 정상이지만 마켓플레이스 목록에 문제가 있습니다",
+      "cloudDegradedMessage": "로컬 자격 증명은 정상이지만 클라우드 목록의 일부 모델을 사용할 수 없습니다",
+      "invalidListingMessage": "이 목록의 자격 증명이 무효하며 업데이트가 필요합니다",
+      "invalidKeyMessage": "이 API Key는 더 이상 유효하지 않습니다. 자격 증명을 업데이트하세요",
       "failuresDetected_one": "{{count}}건의 실패 감지됨",
       "failuresDetected_other": "{{count}}건의 실패 감지됨",
       "errorWithMessage": "오류: {{message}}",
       "degradedListing": "목록 저하됨",
       "degradedKey": "자격 증명 저하됨",
-      "modelsUnavailable": "{{disabled}}개 모델 사용 불가. {{available}}개 모델만 작동 중.",
-      "someModelsFailures": "일부 모델에서 장애가 발생하고 있습니다.",
-      "someModelsUnavailable": "일부 모델을 사용할 수 없습니다."
+      "modelsUnavailable": "{{disabled}}개 모델 사용 불가. {{available}}개 모델만 작동 중",
+      "someModelsFailures": "일부 모델에서 장애가 발생하고 있습니다",
+      "someModelsUnavailable": "일부 모델을 사용할 수 없습니다"
     },
     "verification": {
       "pendingVerification": "검증 대기 중",

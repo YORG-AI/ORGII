@@ -123,18 +123,18 @@
     "health": {
       "cloudListingInvalid": "Bulut listesi geçersiz",
       "cloudListingDegraded": "Bulut listesi bozulmuş",
-      "cloudInvalidMessage": "Yerel kimlik bilginiz çalışıyor, ancak pazar yeri listesinde sorunlar var.",
-      "cloudDegradedMessage": "Yerel kimlik bilginiz çalışıyor, ancak bulut listesinin bazı modelleri kullanılamıyor.",
-      "invalidListingMessage": "Bu listenin kimlik bilgisi geçersiz ve güncellenmesi gerekiyor.",
-      "invalidKeyMessage": "Bu API Key artık geçerli değil. Lütfen kimlik bilgilerinizi güncelleyin.",
+      "cloudInvalidMessage": "Yerel kimlik bilginiz çalışıyor, ancak pazar yeri listesinde sorunlar var",
+      "cloudDegradedMessage": "Yerel kimlik bilginiz çalışıyor, ancak bulut listesinin bazı modelleri kullanılamıyor",
+      "invalidListingMessage": "Bu listenin kimlik bilgisi geçersiz ve güncellenmesi gerekiyor",
+      "invalidKeyMessage": "Bu API Key artık geçerli değil. Lütfen kimlik bilgilerinizi güncelleyin",
       "failuresDetected_one": "{{count}} başarısızlık algılandı",
       "failuresDetected_other": "{{count}} başarısızlık algılandı",
       "errorWithMessage": "Hata: {{message}}",
       "degradedListing": "Bozulmuş Liste",
       "degradedKey": "Bozulmuş Kimlik Bilgisi",
-      "modelsUnavailable": "{{disabled}} model kullanılamıyor. Yalnızca {{available}} model çalışıyor.",
-      "someModelsFailures": "Bazı modeller arıza yaşıyor.",
-      "someModelsUnavailable": "Bazı modeller kullanılamıyor."
+      "modelsUnavailable": "{{disabled}} model kullanılamıyor. Yalnızca {{available}} model çalışıyor",
+      "someModelsFailures": "Bazı modeller arıza yaşıyor",
+      "someModelsUnavailable": "Bazı modeller kullanılamıyor"
     },
     "verification": {
       "pendingVerification": "Doğrulama Bekliyor",

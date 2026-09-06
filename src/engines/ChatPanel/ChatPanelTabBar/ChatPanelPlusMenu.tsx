@@ -11,8 +11,13 @@ import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import {
+  KEYBOARD_SHORTCUT_VARIANT,
+  KeyboardShortcut,
+} from "@src/components/KeyboardShortcut";
 import { RecentTabsMenuSection } from "@src/components/RecentTabsMenuSection";
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
+import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { CHROME_TOOLTIP_HOVER_DELAY } from "@src/config/tooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import {
@@ -31,7 +36,6 @@ import {
   openRecentChatPanelTabAtom,
   recentChatPanelTabsAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
-import { isMacOS } from "@src/util/platform/tauri";
 
 import { SessionIdentityIconById } from "../components/SessionIdentityIcon";
 import { CHAT_PANEL_HEADER_NO_DRAG_STYLE } from "../header";
@@ -62,7 +66,6 @@ export function PlusMenuContent({
   onClose,
 }: PlusMenuContentProps) {
   const { t } = useTranslation(["sessions", "navigation"]);
-  const MOD = isMacOS() ? "⌘" : "Ctrl";
 
   // New session opens the singleton start page. It carries the ⌘N hint since
   // that shortcut (handled in ChatPanelTabBar) opens the same surface.
@@ -78,7 +81,7 @@ export function PlusMenuContent({
         />
       ),
       label: t("sessions:chat.startPage.newSession.title"),
-      hint: `${MOD}N`,
+      shortcutId: "new_session",
       onClick: onOpenLaunchpad,
     },
     {
@@ -168,10 +171,13 @@ export function PlusMenuContent({
               {item.icon}
               <span className="truncate">{item.label}</span>
             </span>
-            {"hint" in item && item.hint ? (
-              <span className="ml-4 shrink-0 text-[11px] text-text-3">
-                {item.hint}
-              </span>
+            {"shortcutId" in item && item.shortcutId ? (
+              <KeyboardShortcut
+                shortcut={getShortcutKeys(item.shortcutId)}
+                variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
+                size="sm"
+                className="ml-4"
+              />
             ) : null}
           </button>
         ))}

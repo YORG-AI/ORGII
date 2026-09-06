@@ -58,6 +58,12 @@ const KeyHealthBadge: React.FC<KeyHealthBadgeProps> = ({
   const isInvalid = healthStatus === "invalid";
   const isDegraded = healthStatus === "degraded";
   const cooldownUntil = formatCooldownUntil(temporaryUnavailableUntil);
+  const titleWithFailureCount = (title: string) =>
+    failureCount > 0
+      ? `${title} · ${t("keyVault.health.failuresDetected", {
+          count: failureCount,
+        })}`
+      : title;
 
   // Cloud warning - local works but cloud has issues (shown in All/Local tabs)
   if (isCloudWarning) {
@@ -71,14 +77,11 @@ const KeyHealthBadge: React.FC<KeyHealthBadgeProps> = ({
         : t("keyVault.health.cloudDegradedMessage");
 
     return (
-      <InlineAlert type="warning">
-        <div className="min-w-0">
-          <div className="text-sm font-medium">{title}</div>
-          <p className="mt-1 text-sm">{message}</p>
-          {lastFailureMessage && (
-            <p className="mt-1 text-xs wrap-break-word">{lastFailureMessage}</p>
-          )}
-        </div>
+      <InlineAlert type="warning" title={title}>
+        <p className="text-sm">{message}</p>
+        {lastFailureMessage && (
+          <p className="mt-1 text-xs wrap-break-word">{lastFailureMessage}</p>
+        )}
       </InlineAlert>
     );
   }
@@ -90,24 +93,14 @@ const KeyHealthBadge: React.FC<KeyHealthBadgeProps> = ({
       : t("keyVault.health.invalidKeyMessage");
 
     return (
-      <InlineAlert type="danger">
-        <div className="min-w-0">
-          <div className="text-sm font-medium">{message}</div>
-          {failureCount > 0 && (
-            <p className="mt-1 text-xs">
-              {t("keyVault.health.failuresDetected", {
-                count: failureCount,
-              })}
-            </p>
-          )}
-          {lastFailureMessage && (
-            <p className="mt-1 text-xs wrap-break-word">
-              {t("keyVault.health.errorWithMessage", {
-                message: lastFailureMessage,
-              })}
-            </p>
-          )}
-        </div>
+      <InlineAlert type="danger" title={titleWithFailureCount(message)}>
+        {lastFailureMessage && (
+          <p className="text-xs wrap-break-word">
+            {t("keyVault.health.errorWithMessage", {
+              message: lastFailureMessage,
+            })}
+          </p>
+        )}
       </InlineAlert>
     );
   }
@@ -137,43 +130,27 @@ const KeyHealthBadge: React.FC<KeyHealthBadgeProps> = ({
     }
 
     return (
-      <InlineAlert type="warning">
-        <div className="min-w-0">
-          <div className="text-sm font-medium">{title}</div>
-          <p className="mt-1 text-sm">{message}</p>
-          {cooldownUntil && (
-            <p className="mt-1 text-xs">
-              Temporarily unavailable until {cooldownUntil}
-              {temporaryUnavailableReason
-                ? ` (${temporaryUnavailableReason})`
-                : ""}
-              {lastUpstreamStatus ? ` · HTTP ${lastUpstreamStatus}` : ""}
-            </p>
-          )}
-          {failureCount > 0 && (
-            <p className="mt-1 text-xs">
-              {t("keyVault.health.failuresDetected", {
-                count: failureCount,
-              })}
-            </p>
-          )}
-          {lastFailureMessage && (
-            <p className="mt-1 text-xs wrap-break-word">{lastFailureMessage}</p>
-          )}
-        </div>
+      <InlineAlert type="warning" title={titleWithFailureCount(title)}>
+        <p className="text-sm">{message}</p>
+        {cooldownUntil && (
+          <p className="mt-1 text-xs">
+            Temporarily unavailable until {cooldownUntil}
+            {temporaryUnavailableReason
+              ? ` (${temporaryUnavailableReason})`
+              : ""}
+            {lastUpstreamStatus ? ` · HTTP ${lastUpstreamStatus}` : ""}
+          </p>
+        )}
+        {lastFailureMessage && (
+          <p className="mt-1 text-xs wrap-break-word">{lastFailureMessage}</p>
+        )}
       </InlineAlert>
     );
   }
 
   // Valid state (green) - typically not shown, but available if needed
   return (
-    <InlineAlert type="success">
-      <div className="min-w-0">
-        <div className="text-sm font-medium">
-          {t("keyVault.quickActions.valid")}
-        </div>
-      </div>
-    </InlineAlert>
+    <InlineAlert type="success" title={t("keyVault.quickActions.valid")} />
   );
 };
 

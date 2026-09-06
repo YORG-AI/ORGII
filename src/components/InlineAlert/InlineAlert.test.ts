@@ -46,6 +46,15 @@ describe("InlineAlert", () => {
     expect(selectableCount).toBe(3);
   });
 
+  it("lets the icon inherit the alert title color", () => {
+    const markup = renderToStaticMarkup(
+      createElement(InlineAlert, { type: "danger", title: "Failed" }, "Details")
+    );
+
+    expect(markup).toContain('class="flex h-[14px] shrink-0 items-center"');
+    expect(markup).not.toContain("items-center text-text-3");
+  });
+
   it("groups the action and tertiary close button with a one-pixel gap", () => {
     const markup = renderToStaticMarkup(
       createElement(

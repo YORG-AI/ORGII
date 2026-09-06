@@ -126,18 +126,18 @@
     "health": {
       "cloudListingInvalid": "Cloud-Angebot ungültig",
       "cloudListingDegraded": "Cloud-Angebot beeinträchtigt",
-      "cloudInvalidMessage": "Ihre lokalen Anmeldedaten funktionieren, aber das Marktplatz-Angebot hat Probleme.",
-      "cloudDegradedMessage": "Ihre lokalen Anmeldedaten funktionieren, aber einige Modelle des Cloud-Angebots sind nicht verfügbar.",
-      "invalidListingMessage": "Die Anmeldedaten dieses Angebots sind ungültig und müssen aktualisiert werden.",
-      "invalidKeyMessage": "Dieser API Key ist nicht mehr gültig. Bitte aktualisieren Sie Ihre Anmeldedaten.",
+      "cloudInvalidMessage": "Ihre lokalen Anmeldedaten funktionieren, aber das Marktplatz-Angebot hat Probleme",
+      "cloudDegradedMessage": "Ihre lokalen Anmeldedaten funktionieren, aber einige Modelle des Cloud-Angebots sind nicht verfügbar",
+      "invalidListingMessage": "Die Anmeldedaten dieses Angebots sind ungültig und müssen aktualisiert werden",
+      "invalidKeyMessage": "Dieser API Key ist nicht mehr gültig. Bitte aktualisieren Sie Ihre Anmeldedaten",
       "failuresDetected_one": "{{count}} Fehler erkannt",
       "failuresDetected_other": "{{count}} Fehler erkannt",
       "errorWithMessage": "Fehler: {{message}}",
       "degradedListing": "Beeinträchtigtes Angebot",
       "degradedKey": "Beeinträchtigte Anmeldedaten",
-      "modelsUnavailable": "{{disabled}} Modell(e) nicht verfügbar. Nur {{available}} Modell(e) funktionsfähig.",
-      "someModelsFailures": "Einige Modelle haben Ausfälle.",
-      "someModelsUnavailable": "Einige Modelle sind nicht verfügbar."
+      "modelsUnavailable": "{{disabled}} Modell(e) nicht verfügbar. Nur {{available}} Modell(e) funktionsfähig",
+      "someModelsFailures": "Einige Modelle haben Ausfälle",
+      "someModelsUnavailable": "Einige Modelle sind nicht verfügbar"
     },
     "verification": {
       "pendingVerification": "Verifizierung ausstehend",

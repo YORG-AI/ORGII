@@ -124,18 +124,18 @@
     "health": {
       "cloudListingInvalid": "Oferta w chmurze nieprawidłowa",
       "cloudListingDegraded": "Oferta w chmurze pogorszona",
-      "cloudInvalidMessage": "Twój lokalny klucz działa, ale oferta w marketplace ma problemy.",
-      "cloudDegradedMessage": "Twój lokalny klucz działa, ale niektóre modele w ofercie w chmurze są niedostępne.",
-      "invalidListingMessage": "Ten klucz oferty jest nieprawidłowy i wymaga aktualizacji.",
-      "invalidKeyMessage": "Ten klucz API nie jest już prawidłowy. Zaktualizuj swoje klucze.",
+      "cloudInvalidMessage": "Twój lokalny klucz działa, ale oferta w marketplace ma problemy",
+      "cloudDegradedMessage": "Twój lokalny klucz działa, ale niektóre modele w ofercie w chmurze są niedostępne",
+      "invalidListingMessage": "Ten klucz oferty jest nieprawidłowy i wymaga aktualizacji",
+      "invalidKeyMessage": "Ten klucz API nie jest już prawidłowy. Zaktualizuj swoje klucze",
       "failuresDetected_one": "Wykryto {{count}} błąd",
       "failuresDetected_other": "Wykryto {{count}} błędów",
       "errorWithMessage": "Błąd: {{message}}",
       "degradedListing": "Pogorszona oferta",
       "degradedKey": "Pogorszony klucz",
-      "modelsUnavailable": "Niedostępnych modeli: {{disabled}}. Tylko {{available}} model(i) działa.",
-      "someModelsFailures": "Niektóre modele zgłaszają błędy.",
-      "someModelsUnavailable": "Niektóre modele są niedostępne."
+      "modelsUnavailable": "Niedostępnych modeli: {{disabled}}. Tylko {{available}} model(i) działa",
+      "someModelsFailures": "Niektóre modele zgłaszają błędy",
+      "someModelsUnavailable": "Niektóre modele są niedostępne"
     },
     "verification": {
       "pendingVerification": "Oczekuje na weryfikację",

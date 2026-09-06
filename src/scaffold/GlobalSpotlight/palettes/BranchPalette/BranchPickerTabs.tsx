@@ -17,7 +17,7 @@ export function BranchPickerTabs({
   const { t } = useTranslation();
   return (
     <SpotlightTabs
-      shortcut="ctrlTab"
+      navigationMode="ctrlTab"
       ariaLabel={`${t("selectors.branch.tabs.branches")} / ${t("selectors.branch.tabs.prs")}`}
       dataTestId="branch-picker-tabs"
       value={value}

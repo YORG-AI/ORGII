@@ -126,18 +126,18 @@
     "health": {
       "cloudListingInvalid": "Облачное предложение недействительно",
       "cloudListingDegraded": "Облачное предложение деградировано",
-      "cloudInvalidMessage": "Ваши локальные учётные данные работают, но у предложения на маркетплейсе есть проблемы.",
-      "cloudDegradedMessage": "Ваши локальные учётные данные работают, но некоторые модели облачного предложения недоступны.",
-      "invalidListingMessage": "Учётные данные этого предложения недействительны и требуют обновления.",
-      "invalidKeyMessage": "Этот API Key больше не действителен. Пожалуйста, обновите учётные данные.",
+      "cloudInvalidMessage": "Ваши локальные учётные данные работают, но у предложения на маркетплейсе есть проблемы",
+      "cloudDegradedMessage": "Ваши локальные учётные данные работают, но некоторые модели облачного предложения недоступны",
+      "invalidListingMessage": "Учётные данные этого предложения недействительны и требуют обновления",
+      "invalidKeyMessage": "Этот API Key больше не действителен. Пожалуйста, обновите учётные данные",
       "failuresDetected_one": "Обнаружен {{count}} сбой",
       "failuresDetected_other": "Обнаружено {{count}} сбоев",
       "errorWithMessage": "Ошибка: {{message}}",
       "degradedListing": "Предложение деградировано",
       "degradedKey": "Учётные данные деградированы",
-      "modelsUnavailable": "{{disabled}} моделей недоступно. Только {{available}} моделей работает.",
-      "someModelsFailures": "Некоторые модели испытывают сбои.",
-      "someModelsUnavailable": "Некоторые модели недоступны."
+      "modelsUnavailable": "{{disabled}} моделей недоступно. Только {{available}} моделей работает",
+      "someModelsFailures": "Некоторые модели испытывают сбои",
+      "someModelsUnavailable": "Некоторые модели недоступны"
     },
     "verification": {
       "pendingVerification": "Ожидание проверки",

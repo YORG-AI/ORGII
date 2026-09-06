@@ -1,0 +1,9 @@
+# KeyHealthBadge UI audit
+
+| Line                                                 | Element                | Verdict          | Reason                                                                                                                                             | Suggested change                                                                              |
+| ---------------------------------------------------- | ---------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `src/modules/shared/keyVault/KeyHealthBadge.tsx:78`  | Health alert shell     | keep with reason | Reuses the shared `InlineAlert` design-system primitive for cloud, invalid, degraded, and valid states                                             | None                                                                                          |
+| `src/modules/shared/keyVault/KeyHealthBadge.tsx:63`  | Failure-count headline | fix              | Failure count was rendered in the body, which made the leading icon center against the entire multi-line content block instead of the headline row | Pass the composed headline through `InlineAlert.title` so the icon aligns with the title line |
+| `src/modules/shared/keyVault/KeyHealthBadge.tsx:101` | Detailed error copy    | keep with reason | Technical failure details belong in the alert body below the concise headline                                                                      | None                                                                                          |
+
+Verdict totals: **1 fix**, **2 keep with reason**, **0 abstract**.

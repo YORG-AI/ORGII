@@ -10,6 +10,7 @@ import i18next from "i18next";
 import { useEffect, useRef } from "react";
 
 import type { TreePanelNode } from "@src/components/TreePanelSidebar/types";
+import { getShortcutAccelerator } from "@src/config/keyboard/shortcutDisplay";
 import { createLogger } from "@src/hooks/logger";
 import { fileClipboardAtom } from "@src/store/workstation/codeEditor/file";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
@@ -98,7 +99,7 @@ export function FileExplorerContextMenu(props: FileExplorerContextMenuProps) {
                 text: translate("actions.newFile", {
                   defaultValue: "New File",
                 }),
-                accelerator: "CmdOrCtrl+N",
+                accelerator: getShortcutAccelerator("file_menu_new_file"),
                 action: () => {
                   if (contextMenuRef.current) {
                     const targetDirectory = getTargetDirectory(
@@ -121,7 +122,7 @@ export function FileExplorerContextMenu(props: FileExplorerContextMenuProps) {
                 text: translate("actions.newFolder", {
                   defaultValue: "New Folder",
                 }),
-                accelerator: "CmdOrCtrl+Shift+N",
+                accelerator: getShortcutAccelerator("file_menu_new_folder"),
                 action: () => {
                   if (contextMenuRef.current) {
                     const targetDirectory = getTargetDirectory(
@@ -153,7 +154,7 @@ export function FileExplorerContextMenu(props: FileExplorerContextMenuProps) {
                 { item: "Separator" },
                 {
                   text: translate("actions.rename", { defaultValue: "Rename" }),
-                  accelerator: "Enter",
+                  accelerator: getShortcutAccelerator("file_menu_rename"),
                   action: () => {
                     if (contextMenuRef.current?.node) {
                       contextMenuRef.current.onStartRename?.(
@@ -165,7 +166,7 @@ export function FileExplorerContextMenu(props: FileExplorerContextMenuProps) {
                 },
                 {
                   text: translate("actions.delete", { defaultValue: "Delete" }),
-                  accelerator: "CmdOrCtrl+Backspace",
+                  accelerator: getShortcutAccelerator("file_menu_delete"),
                   action: async () => {
                     if (contextMenuRef.current?.node) {
                       const nodePath = contextMenuRef.current.node.path;
@@ -198,7 +199,7 @@ export function FileExplorerContextMenu(props: FileExplorerContextMenuProps) {
                   text: translate("actions.duplicate", {
                     defaultValue: "Duplicate",
                   }),
-                  accelerator: "CmdOrCtrl+D",
+                  accelerator: getShortcutAccelerator("file_menu_duplicate"),
                   action: () => {
                     if (contextMenuRef.current?.node) {
                       contextMenuRef.current.dispatch(
@@ -213,7 +214,7 @@ export function FileExplorerContextMenu(props: FileExplorerContextMenuProps) {
                 { item: "Separator" },
                 {
                   text: translate("actions.copy", { defaultValue: "Copy" }),
-                  accelerator: "CmdOrCtrl+C",
+                  accelerator: getShortcutAccelerator("file_menu_copy"),
                   action: () => {
                     if (contextMenuRef.current?.node) {
                       contextMenuRef.current.dispatch(
@@ -227,7 +228,7 @@ export function FileExplorerContextMenu(props: FileExplorerContextMenuProps) {
                 },
                 {
                   text: translate("actions.paste", { defaultValue: "Paste" }),
-                  accelerator: "CmdOrCtrl+V",
+                  accelerator: getShortcutAccelerator("file_menu_paste"),
                   enabled: hasPasteItems ?? false,
                   action: () => {
                     if (contextMenuRef.current?.node) {
@@ -292,7 +293,7 @@ export function FileExplorerContextMenu(props: FileExplorerContextMenuProps) {
                   { item: "Separator" },
                   {
                     text: translate("actions.paste", { defaultValue: "Paste" }),
-                    accelerator: "CmdOrCtrl+V",
+                    accelerator: getShortcutAccelerator("file_menu_paste"),
                     action: () => {
                       if (contextMenuRef.current) {
                         contextMenuRef.current.dispatch(

@@ -11,7 +11,7 @@ interface SpotlightTabsProps<
   /** Compact search-row pill, or raised tabs attached to the result divider. */
   format?: "pill" | "attached";
   /** Palettes with Tab section navigation can retain Ctrl+Tab for tabs. */
-  shortcut?: "tab" | "ctrlTab";
+  navigationMode?: "tab" | "ctrlTab";
 }
 
 /**
@@ -20,7 +20,7 @@ interface SpotlightTabsProps<
  */
 export function SpotlightTabs<T extends string>({
   format = "pill",
-  shortcut = "tab",
+  navigationMode = "tab",
   ...props
 }: SpotlightTabsProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -52,7 +52,7 @@ export function SpotlightTabs<T extends string>({
       }
 
       const switchWithTab =
-        event.key === "Tab" && event.ctrlKey === (shortcut === "ctrlTab");
+        event.key === "Tab" && event.ctrlKey === (navigationMode === "ctrlTab");
       const switchWithArrow =
         withinTabs &&
         !event.ctrlKey &&
@@ -95,7 +95,7 @@ export function SpotlightTabs<T extends string>({
     };
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [format, onChange, options, shortcut, value]);
+  }, [format, navigationMode, onChange, options, value]);
 
   return (
     <div

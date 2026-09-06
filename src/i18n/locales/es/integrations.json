@@ -123,18 +123,18 @@
     "health": {
       "cloudListingInvalid": "Listado en la nube inválido",
       "cloudListingDegraded": "Listado en la nube degradado",
-      "cloudInvalidMessage": "Tu credencial local funciona, pero el listado del marketplace tiene problemas.",
-      "cloudDegradedMessage": "Tu credencial local funciona, pero el listado en la nube tiene algunos modelos no disponibles.",
-      "invalidListingMessage": "La credencial de este listado es inválida y necesita ser actualizada.",
-      "invalidKeyMessage": "Esta API Key ya no es válida. Por favor actualiza tus credenciales.",
+      "cloudInvalidMessage": "Tu credencial local funciona, pero el listado del marketplace tiene problemas",
+      "cloudDegradedMessage": "Tu credencial local funciona, pero el listado en la nube tiene algunos modelos no disponibles",
+      "invalidListingMessage": "La credencial de este listado es inválida y necesita ser actualizada",
+      "invalidKeyMessage": "Esta API Key ya no es válida. Por favor actualiza tus credenciales",
       "failuresDetected_one": "{{count}} fallo detectado",
       "failuresDetected_other": "{{count}} fallos detectados",
       "errorWithMessage": "Error: {{message}}",
       "degradedListing": "Listado degradado",
       "degradedKey": "Credencial degradada",
-      "modelsUnavailable": "{{disabled}} modelo(s) no disponible(s). Solo {{available}} modelo(s) funcionando.",
-      "someModelsFailures": "Algunos modelos están experimentando fallos.",
-      "someModelsUnavailable": "Algunos modelos no están disponibles."
+      "modelsUnavailable": "{{disabled}} modelo(s) no disponible(s). Solo {{available}} modelo(s) funcionando",
+      "someModelsFailures": "Algunos modelos están experimentando fallos",
+      "someModelsUnavailable": "Algunos modelos no están disponibles"
     },
     "verification": {
       "pendingVerification": "Verificación pendiente",

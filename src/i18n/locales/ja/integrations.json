@@ -126,18 +126,18 @@
     "health": {
       "cloudListingInvalid": "クラウドリスティング無効",
       "cloudListingDegraded": "クラウドリスティング劣化",
-      "cloudInvalidMessage": "ローカル認証情報は正常ですが、マーケットプレイスのリスティングに問題があります。",
-      "cloudDegradedMessage": "ローカル認証情報は正常ですが、クラウドリスティングの一部のモデルが利用できません。",
-      "invalidListingMessage": "このリスティングの認証情報は無効で、更新が必要です。",
-      "invalidKeyMessage": "この API Key は無効になりました。認証情報を更新してください。",
+      "cloudInvalidMessage": "ローカル認証情報は正常ですが、マーケットプレイスのリスティングに問題があります",
+      "cloudDegradedMessage": "ローカル認証情報は正常ですが、クラウドリスティングの一部のモデルが利用できません",
+      "invalidListingMessage": "このリスティングの認証情報は無効で、更新が必要です",
+      "invalidKeyMessage": "この API Key は無効になりました。認証情報を更新してください",
       "failuresDetected_one": "{{count}} 件の失敗を検出",
       "failuresDetected_other": "{{count}} 件の失敗を検出",
       "errorWithMessage": "エラー：{{message}}",
       "degradedListing": "リスティング劣化",
       "degradedKey": "認証情報劣化",
-      "modelsUnavailable": "{{disabled}} モデルが利用不可。{{available}} モデルのみ動作中。",
-      "someModelsFailures": "一部のモデルで障害が発生しています。",
-      "someModelsUnavailable": "一部のモデルが利用できません。"
+      "modelsUnavailable": "{{disabled}} モデルが利用不可。{{available}} モデルのみ動作中",
+      "someModelsFailures": "一部のモデルで障害が発生しています",
+      "someModelsUnavailable": "一部のモデルが利用できません"
     },
     "verification": {
       "pendingVerification": "検証待ち",

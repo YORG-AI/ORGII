@@ -126,18 +126,18 @@
     "health": {
       "cloudListingInvalid": "Danh sách đám mây không hợp lệ",
       "cloudListingDegraded": "Danh sách đám mây suy giảm",
-      "cloudInvalidMessage": "Thông tin xác thực cục bộ của bạn hoạt động, nhưng danh sách Marketplace gặp sự cố.",
-      "cloudDegradedMessage": "Thông tin xác thực cục bộ của bạn hoạt động, nhưng một số mô hình trong danh sách đám mây không khả dụng.",
-      "invalidListingMessage": "Thông tin xác thực của danh sách này không hợp lệ và cần được cập nhật.",
-      "invalidKeyMessage": "API Key này không còn hợp lệ. Vui lòng cập nhật thông tin xác thực.",
+      "cloudInvalidMessage": "Thông tin xác thực cục bộ của bạn hoạt động, nhưng danh sách Marketplace gặp sự cố",
+      "cloudDegradedMessage": "Thông tin xác thực cục bộ của bạn hoạt động, nhưng một số mô hình trong danh sách đám mây không khả dụng",
+      "invalidListingMessage": "Thông tin xác thực của danh sách này không hợp lệ và cần được cập nhật",
+      "invalidKeyMessage": "API Key này không còn hợp lệ. Vui lòng cập nhật thông tin xác thực",
       "failuresDetected_one": "Phát hiện {{count}} lỗi",
       "failuresDetected_other": "Phát hiện {{count}} lỗi",
       "errorWithMessage": "Lỗi: {{message}}",
       "degradedListing": "Danh sách suy giảm",
       "degradedKey": "Thông tin xác thực suy giảm",
-      "modelsUnavailable": "{{disabled}} mô hình không khả dụng. Chỉ {{available}} mô hình đang hoạt động.",
-      "someModelsFailures": "Một số mô hình đang gặp lỗi.",
-      "someModelsUnavailable": "Một số mô hình không khả dụng."
+      "modelsUnavailable": "{{disabled}} mô hình không khả dụng. Chỉ {{available}} mô hình đang hoạt động",
+      "someModelsFailures": "Một số mô hình đang gặp lỗi",
+      "someModelsUnavailable": "Một số mô hình không khả dụng"
     },
     "verification": {
       "pendingVerification": "Chờ xác minh",

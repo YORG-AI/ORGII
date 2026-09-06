@@ -83,7 +83,7 @@ export function useTabShortcuts() {
   // the All-Tabs and Browser surfaces mount a TabBarPlusMenu, so this
   // event is a no-op in Code / Data / Project modes by design (per
   // host-appropriate UX). MainApp: create a chat tab.
-  const handleGoToCreateSession = useCallback((_shortcut: string) => {
+  const handleGoToCreateSession = useCallback(() => {
     if (isWorkbenchPath(window.location.pathname)) {
       window.dispatchEvent(new CustomEvent("workstation-new-tab"));
       return;
@@ -221,13 +221,13 @@ export function useTabShortcuts() {
     dispatchWorkStationAction(ACTION_ID.WORKSTATION_OPEN_TERMINAL_TAB);
   }, [dispatchWorkStationAction]);
 
-  const handleNextTab = useCallback((_shortcut: string) => {
+  const handleNextTab = useCallback(() => {
     if (isWorkbenchPath(window.location.pathname)) {
       window.dispatchEvent(new CustomEvent("switch-to-next-tab"));
     }
   }, []);
 
-  const handlePreviousTab = useCallback((_shortcut: string) => {
+  const handlePreviousTab = useCallback(() => {
     if (isWorkbenchPath(window.location.pathname)) {
       window.dispatchEvent(new CustomEvent("switch-to-previous-tab"));
     }

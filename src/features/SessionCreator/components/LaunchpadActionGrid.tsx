@@ -180,7 +180,7 @@ export function LaunchpadActionGrid({
   const cardWidthClass =
     cardWidthClassName ??
     (actionCount >= 4
-      ? "max-w-[600px]"
+      ? "max-w-[320px]"
       : actionCount === 3
         ? "max-w-[480px]"
         : "max-w-[320px]");

@@ -31,7 +31,7 @@ interface ShortcutRegistrationOptions {
   spotlightOpenRef: MutableRefObject<boolean>;
   handleCreateNewSession: () => void;
   handleNewSessionShortcut: () => void;
-  handleGoToCreateSession: (shortcut: string) => void;
+  handleGoToCreateSession: () => void;
   handleToggleSpotlight: () => void;
   handleOpenModelSelector: () => void;
   handleOpenWorkspaceSelector: () => void;
@@ -48,8 +48,8 @@ interface ShortcutRegistrationOptions {
   handleOpenCodeEditorSourceControl: () => void;
   handleOpenCodeEditorSearchSidebar: () => void;
   handleOpenCodeEditorTerminal: () => void;
-  handleNextTab: (shortcut: string) => void;
-  handlePreviousTab: (shortcut: string) => void;
+  handleNextTab: () => void;
+  handlePreviousTab: () => void;
   handleCloseCurrentTab: () => boolean;
   handleToggleWorkStationChatFocus: () => void;
 }
@@ -137,10 +137,8 @@ export function useShortcutRegistration(options: ShortcutRegistrationOptions) {
         () => void WorkStationViewService.showWorkStation()
       ),
       shortcutRegistry.on("new_session", handleNewSessionShortcut),
-      shortcutRegistry.on("new_tab", () => handleGoToCreateSession("Cmd+T")),
-      shortcutRegistry.on("new_tab_alt", () =>
-        handleGoToCreateSession("Cmd+L")
-      ),
+      shortcutRegistry.on("new_tab", handleGoToCreateSession),
+      shortcutRegistry.on("new_tab_alt", handleGoToCreateSession),
       shortcutRegistry.on("open_settings", handleOpenSettings),
       shortcutRegistry.on("toggle_sidebar", handleToggleSidebar),
       shortcutRegistry.on("toggle_spotlight", handleToggleSpotlight),
@@ -152,14 +150,10 @@ export function useShortcutRegistration(options: ShortcutRegistrationOptions) {
       shortcutRegistry.on("open_branch_selector", handleOpenBranchSelector),
       shortcutRegistry.on("open_location_selector", handleOpenLocationSelector),
       shortcutRegistry.on("agent_session_search", handleOpenAgentSessionSearch),
-      shortcutRegistry.on("next_tab", () => handleNextTab("Ctrl+Tab")),
-      shortcutRegistry.on("previous_tab", () =>
-        handlePreviousTab("Ctrl+Shift+Tab")
-      ),
-      shortcutRegistry.on("next_tab_mac", () => handleNextTab("Cmd+Option+→")),
-      shortcutRegistry.on("previous_tab_mac", () =>
-        handlePreviousTab("Cmd+Option+←")
-      ),
+      shortcutRegistry.on("next_tab", handleNextTab),
+      shortcutRegistry.on("previous_tab", handlePreviousTab),
+      shortcutRegistry.on("next_tab_mac", handleNextTab),
+      shortcutRegistry.on("previous_tab_mac", handlePreviousTab),
       shortcutRegistry.on("toggle_api_panel", handleToggleAPICallPanel),
       shortcutRegistry.on("toggle_ade_manager", () => {
         const store = getInstrumentedStore();

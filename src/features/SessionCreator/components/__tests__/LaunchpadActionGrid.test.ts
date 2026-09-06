@@ -118,6 +118,26 @@ describe("LaunchpadActionGrid", () => {
     ).not.toBeNull();
   });
 
+  it("keeps the narrow four-action card grid compact", () => {
+    act(() => {
+      root.render(
+        createElement(
+          LaunchpadActionGrid,
+          { layoutActionCount: 4, presentation: "card" },
+          createElement(LaunchpadActionCard, {
+            action,
+            presentation: "card",
+          })
+        )
+      );
+    });
+
+    const grid = container.querySelector<HTMLElement>(
+      ".launchpad-action-grid-content"
+    );
+    expect(grid?.parentElement?.className).toContain("max-w-[320px]");
+  });
+
   it("pins compositor layers so hover repaints cannot re-round icon pixels", () => {
     act(() => {
       root.render(

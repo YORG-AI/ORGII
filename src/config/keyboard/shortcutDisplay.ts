@@ -35,6 +35,11 @@ export function getShortcutEntry(id: string): ShortcutEntry | undefined {
   return shortcutMap.get(id);
 }
 
+/** Get the Tauri accelerator for a native menu item by shortcut ID. */
+export function getShortcutAccelerator(id: string): string | undefined {
+  return shortcutMap.get(id)?.accelerator;
+}
+
 /** Build a display label like "Search (⌘⇧P)" from a label and shortcut ID. */
 export function labelWithShortcut(label: string, shortcutId: string): string {
   const keys = getShortcutKeys(shortcutId);

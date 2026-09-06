@@ -13,6 +13,7 @@ import {
   KEYBOARD_SHORTCUT_VARIANT,
   KeyboardShortcut,
 } from "@src/components/KeyboardShortcut";
+import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 
 // ============ TYPES ============
 
@@ -69,7 +70,7 @@ export const SpotlightFooter: React.FC<SpotlightFooterProps> = ({
     <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 px-4 py-2 text-[11px] text-text-2">
       <span className="flex items-center gap-1.5">
         <KeyboardShortcut
-          shortcut="up down"
+          shortcut={getShortcutKeys("spotlight_navigate")}
           variant={KEYBOARD_SHORTCUT_VARIANT.spotlightFooter}
         />
         <span>{t("selectors.spotlightFooter.navigate")}</span>
@@ -77,7 +78,7 @@ export const SpotlightFooter: React.FC<SpotlightFooterProps> = ({
 
       <span className="flex items-center gap-1.5">
         <KeyboardShortcut
-          shortcut="enter"
+          shortcut={getShortcutKeys("spotlight_select")}
           variant={KEYBOARD_SHORTCUT_VARIANT.spotlightFooter}
         />
         <span>{t("selectors.spotlightFooter.select")}</span>
@@ -88,7 +89,7 @@ export const SpotlightFooter: React.FC<SpotlightFooterProps> = ({
         activeActionChip === SPOTLIGHT_FOOTER_ACTIVE_CHIP.switchSection ? (
           <span className="flex items-center gap-1.5">
             <KeyboardShortcut
-              shortcut="tab"
+              shortcut={getShortcutKeys("spotlight_switch_focus")}
               variant={KEYBOARD_SHORTCUT_VARIANT.spotlightFooter}
             />
             <span>
@@ -100,7 +101,7 @@ export const SpotlightFooter: React.FC<SpotlightFooterProps> = ({
         ) : (
           <span className="flex items-center gap-1.5">
             <KeyboardShortcut
-              shortcut="backspace"
+              shortcut={getShortcutKeys("spotlight_back")}
               variant={KEYBOARD_SHORTCUT_VARIANT.spotlightFooter}
             />
             <span>{t("actions.back")}</span>
@@ -109,7 +110,7 @@ export const SpotlightFooter: React.FC<SpotlightFooterProps> = ({
 
       <span className="flex items-center gap-1.5">
         <KeyboardShortcut
-          shortcut="esc"
+          shortcut={getShortcutKeys("spotlight_close")}
           variant={KEYBOARD_SHORTCUT_VARIANT.spotlightFooter}
         />
         <span>{t("actions.close")}</span>

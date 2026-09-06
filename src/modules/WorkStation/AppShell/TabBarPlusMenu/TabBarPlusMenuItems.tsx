@@ -7,6 +7,7 @@ import {
   KEYBOARD_SHORTCUT_VARIANT,
   KeyboardShortcut,
 } from "@src/components/KeyboardShortcut";
+import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 
 import type { WorkStationLaunchAction } from "../useWorkStationLaunchActions";
@@ -52,10 +53,11 @@ export function TabBarPlusMenuItems({
                 />
               ) : null}
             </span>
-            {action.shortcut ? (
+            {action.shortcutId ? (
               <KeyboardShortcut
-                shortcut={action.shortcut}
+                shortcut={getShortcutKeys(action.shortcutId)}
                 variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
+                size="sm"
               />
             ) : null}
           </button>

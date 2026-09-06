@@ -352,7 +352,7 @@ export const EDITOR_ACTIONS = [
     modeKey: "command",
     labelKey: "label",
     prefix: ">",
-    shortcut: ">",
+    shortcut: getShortcutKeys("spotlight_command_mode"),
   },
   {
     id: "go-to-editor-symbol",

@@ -127,18 +127,18 @@
     "health": {
       "cloudListingInvalid": "云端列表无效",
       "cloudListingDegraded": "云端列表降级",
-      "cloudInvalidMessage": "您的本地密钥正常，但市场列表存在问题。",
-      "cloudDegradedMessage": "您的本地密钥正常，但云端列表部分模型不可用。",
-      "invalidListingMessage": "此列表的密钥无效，需要更新。",
-      "invalidKeyMessage": "此 API Key 已失效。请更新您的密钥。",
+      "cloudInvalidMessage": "您的本地密钥正常，但市场列表存在问题",
+      "cloudDegradedMessage": "您的本地密钥正常，但云端列表部分模型不可用",
+      "invalidListingMessage": "此列表的密钥无效，需要更新",
+      "invalidKeyMessage": "此 API Key 已失效。请更新您的密钥",
       "failuresDetected_one": "检测到 {{count}} 次失败",
       "failuresDetected_other": "检测到 {{count}} 次失败",
       "errorWithMessage": "错误：{{message}}",
       "degradedListing": "列表降级",
       "degradedKey": "密钥降级",
-      "modelsUnavailable": "{{disabled}} 个模型不可用。仅 {{available}} 个模型正常工作。",
-      "someModelsFailures": "部分模型出现故障。",
-      "someModelsUnavailable": "部分模型不可用。"
+      "modelsUnavailable": "{{disabled}} 个模型不可用。仅 {{available}} 个模型正常工作",
+      "someModelsFailures": "部分模型出现故障",
+      "someModelsUnavailable": "部分模型不可用"
     },
     "verification": {
       "pendingVerification": "等待验证",

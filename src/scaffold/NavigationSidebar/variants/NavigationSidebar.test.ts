@@ -120,6 +120,7 @@ describe("NavigationSidebar", () => {
     expect(markup).toContain('title="Search sessions"');
     expect(markup).toContain('data-testid="sidebar-sessions-refresh"');
     expect(markup).toContain('title="Refresh"');
+    expect(markup.match(/group-hover\/sidebar:inline-flex/g)).toHaveLength(2);
     expect(
       markup.indexOf('data-testid="sidebar-sessions-search"')
     ).toBeLessThan(markup.indexOf('data-testid="sidebar-sessions-refresh"'));

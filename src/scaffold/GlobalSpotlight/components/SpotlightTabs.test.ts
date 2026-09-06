@@ -9,12 +9,12 @@ type Tab = "one" | "two" | "three";
 
 function Harness({
   onChange,
-  shortcut = "tab",
+  navigationMode = "tab",
   disableSecond = false,
   format = "pill",
 }: {
   onChange: (value: Tab) => void;
-  shortcut?: "tab" | "ctrlTab";
+  navigationMode?: "tab" | "ctrlTab";
   disableSecond?: boolean;
   format?: "pill" | "attached";
 }) {
@@ -26,7 +26,7 @@ function Harness({
     createElement(SpotlightTabs<Tab>, {
       ariaLabel: "Sources",
       value,
-      shortcut,
+      navigationMode,
       format,
       options: [
         { value: "one", label: "One" },
@@ -116,7 +116,9 @@ describe("SpotlightTabs", () => {
   it("keeps Ctrl+Tab palettes' ordinary Tab available for section navigation", () => {
     const onChange = vi.fn();
     act(() =>
-      root.render(createElement(Harness, { onChange, shortcut: "ctrlTab" }))
+      root.render(
+        createElement(Harness, { onChange, navigationMode: "ctrlTab" })
+      )
     );
     const input = container.querySelector("input")!;
     expect(press(input, "Tab").defaultPrevented).toBe(false);

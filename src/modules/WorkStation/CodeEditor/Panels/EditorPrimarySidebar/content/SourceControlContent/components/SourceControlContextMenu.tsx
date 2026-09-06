@@ -10,6 +10,7 @@
 import i18next from "i18next";
 import { useEffect, useRef } from "react";
 
+import { getShortcutAccelerator } from "@src/config/keyboard/shortcutDisplay";
 import { createLogger } from "@src/hooks/logger";
 import type { GitFile } from "@src/types/git/types";
 import { copyText } from "@src/util/data/clipboard";
@@ -251,7 +252,7 @@ export default function SourceControlContextMenu(
             // --- Copy Path ---
             items.push({
               text: t("common:actions.copyPath"),
-              accelerator: "CmdOrCtrl+Alt+C",
+              accelerator: getShortcutAccelerator("file_menu_copy_path"),
               action: async () => {
                 const ref = contextMenuRef.current;
                 if (ref) {
@@ -267,7 +268,9 @@ export default function SourceControlContextMenu(
             // --- Copy Relative Path ---
             items.push({
               text: t("common:actions.copyRelativePath"),
-              accelerator: "CmdOrCtrl+Shift+C",
+              accelerator: getShortcutAccelerator(
+                "file_menu_copy_relative_path"
+              ),
               action: async () => {
                 const ref = contextMenuRef.current;
                 if (ref) {

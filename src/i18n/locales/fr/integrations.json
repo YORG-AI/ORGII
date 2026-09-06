@@ -126,18 +126,18 @@
     "health": {
       "cloudListingInvalid": "Annonce cloud invalide",
       "cloudListingDegraded": "Annonce cloud dégradée",
-      "cloudInvalidMessage": "Votre identifiant local fonctionne, mais l'annonce du marketplace a des problèmes.",
-      "cloudDegradedMessage": "Votre identifiant local fonctionne, mais l'annonce cloud a certains modèles indisponibles.",
-      "invalidListingMessage": "L'identifiant de cette annonce est invalide et doit être mis à jour.",
-      "invalidKeyMessage": "Cette API Key n'est plus valide. Veuillez mettre à jour vos identifiants.",
+      "cloudInvalidMessage": "Votre identifiant local fonctionne, mais l'annonce du marketplace a des problèmes",
+      "cloudDegradedMessage": "Votre identifiant local fonctionne, mais l'annonce cloud a certains modèles indisponibles",
+      "invalidListingMessage": "L'identifiant de cette annonce est invalide et doit être mis à jour",
+      "invalidKeyMessage": "Cette API Key n'est plus valide. Veuillez mettre à jour vos identifiants",
       "failuresDetected_one": "{{count}} échec détecté",
       "failuresDetected_other": "{{count}} échecs détectés",
       "errorWithMessage": "Erreur : {{message}}",
       "degradedListing": "Annonce dégradée",
       "degradedKey": "Identifiant dégradé",
-      "modelsUnavailable": "{{disabled}} modèle(s) indisponible(s). Seulement {{available}} modèle(s) fonctionnel(s).",
-      "someModelsFailures": "Certains modèles rencontrent des échecs.",
-      "someModelsUnavailable": "Certains modèles sont indisponibles."
+      "modelsUnavailable": "{{disabled}} modèle(s) indisponible(s). Seulement {{available}} modèle(s) fonctionnel(s)",
+      "someModelsFailures": "Certains modèles rencontrent des échecs",
+      "someModelsUnavailable": "Certains modèles sont indisponibles"
     },
     "verification": {
       "pendingVerification": "Vérification en attente",

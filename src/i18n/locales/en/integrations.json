@@ -129,18 +129,18 @@
     "health": {
       "cloudListingInvalid": "Cloud listing invalid",
       "cloudListingDegraded": "Cloud listing degraded",
-      "cloudInvalidMessage": "Your local key works, but the marketplace listing has issues.",
-      "cloudDegradedMessage": "Your local key works, but the cloud listing has some models unavailable.",
-      "invalidListingMessage": "This listing key is invalid and needs to be updated.",
-      "invalidKeyMessage": "This API key is no longer valid. Please update your keys.",
+      "cloudInvalidMessage": "Your local key works, but the marketplace listing has issues",
+      "cloudDegradedMessage": "Your local key works, but the cloud listing has some models unavailable",
+      "invalidListingMessage": "This listing key is invalid and needs to be updated",
+      "invalidKeyMessage": "This API key is no longer valid. Please update your keys",
       "failuresDetected_one": "{{count}} failure detected",
       "failuresDetected_other": "{{count}} failures detected",
       "errorWithMessage": "Error: {{message}}",
       "degradedListing": "Degraded Listing",
       "degradedKey": "Degraded key",
-      "modelsUnavailable": "{{disabled}} model(s) unavailable. Only {{available}} model(s) working.",
-      "someModelsFailures": "Some models are experiencing failures.",
-      "someModelsUnavailable": "Some models are unavailable."
+      "modelsUnavailable": "{{disabled}} model(s) unavailable. Only {{available}} model(s) working",
+      "someModelsFailures": "Some models are experiencing failures",
+      "someModelsUnavailable": "Some models are unavailable"
     },
     "verification": {
       "pendingVerification": "Pending Verification",

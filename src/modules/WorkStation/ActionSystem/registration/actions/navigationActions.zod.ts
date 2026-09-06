@@ -20,7 +20,7 @@ export const navigationGoToDefinition = defineZodAction(
     category: "navigation",
     description: "Go to the definition of the symbol under cursor",
     params: z.object({}),
-    shortcut: "F12",
+    shortcut: getShortcutKeys("go_to_definition"),
     examples: ["go to definition", "jump to definition"],
   },
   async () => {
@@ -37,7 +37,7 @@ export const navigationFindReferences = defineZodAction(
     category: "navigation",
     description: "Find all references of the symbol under cursor",
     params: z.object({}),
-    shortcut: "Shift+F12",
+    shortcut: getShortcutKeys("find_references"),
     examples: ["find references", "find usages"],
   },
   async () => {

@@ -398,7 +398,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         <span className="min-w-0 truncate text-[11px] font-medium tracking-wider text-text-2 uppercase">
                           {section.title}
                         </span>
-                        <span className="hidden shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
+                        <span className="hidden shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex group-hover/sidebar:inline-flex">
                           <NavigationMenuRowActionButton
                             icon={
                               isSectionCollapsed
@@ -476,7 +476,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         <span className="min-w-0 truncate text-[11px] font-medium tracking-wider text-text-2 uppercase">
                           {section.title}
                         </span>
-                        <span className="hidden shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
+                        <span className="hidden shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex group-hover/sidebar:inline-flex">
                           <NavigationMenuRowActionButton
                             icon={
                               isSectionCollapsed
@@ -497,7 +497,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                               (action) => action.active
                             )
                               ? "inline-flex"
-                              : "hidden group-hover/section-title:inline-flex"
+                              : "hidden group-hover/section-title:inline-flex group-hover/sidebar:inline-flex"
                           }`}
                         >
                           {section.headerActions.map((action) => {

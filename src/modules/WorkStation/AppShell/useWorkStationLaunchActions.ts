@@ -15,7 +15,6 @@ import { useSetAtom } from "jotai";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import {
   DeliveryBox01Icon,
   FileDiffIcon,
@@ -56,12 +55,18 @@ export type WorkStationLaunchActionId =
   | "workItems"
   | "projects";
 
+export type WorkStationLaunchShortcutId =
+  | "open_file_folder_tab"
+  | "quick_open"
+  | "open_source_control_tab"
+  | "open_terminal_tab";
+
 export interface WorkStationLaunchAction {
   id: WorkStationLaunchActionId;
   icon: IconSvgElement;
   label: string;
-  /** Display string for the keyboard hint, when the action has one. */
-  shortcut?: string;
+  /** Shortcut registry ID for the keyboard hint, when the action has one. */
+  shortcutId?: WorkStationLaunchShortcutId;
   onClick: () => void;
 }
 
@@ -111,14 +116,14 @@ export function useWorkStationLaunchActions(): WorkStationLaunchAction[] {
         id: "explorer",
         icon: FolderClosedIcon,
         label: t("common:labels.files"),
-        shortcut: getShortcutKeys("open_file_folder_tab"),
+        shortcutId: "open_file_folder_tab",
         onClick: () => openTabInMainPane(createExplorerTab()),
       },
       {
         id: "searchFile",
         icon: FileSearchIcon,
         label: t("workstation.plusMenu.searchFile"),
-        shortcut: "⌘P",
+        shortcutId: "quick_open",
         onClick: () => openEditorSpotlight(""),
       },
       {
@@ -131,7 +136,7 @@ export function useWorkStationLaunchActions(): WorkStationLaunchAction[] {
         id: "sourceControl",
         icon: FileDiffIcon,
         label: t("common:actions.review"),
-        shortcut: getShortcutKeys("open_source_control_tab"),
+        shortcutId: "open_source_control_tab",
         onClick: () =>
           openTabInMainPane(createSourceControlTab(0, { mode: "all-changes" })),
       },
@@ -139,7 +144,7 @@ export function useWorkStationLaunchActions(): WorkStationLaunchAction[] {
         id: "terminal",
         icon: SquareTerminalIcon,
         label: t("common:tabs.terminal"),
-        shortcut: getShortcutKeys("open_terminal_tab"),
+        shortcutId: "open_terminal_tab",
         onClick: () =>
           openTabInMainPane(
             createTerminalTab(

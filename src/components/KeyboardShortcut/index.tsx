@@ -2,13 +2,9 @@ import { type ReactNode, memo } from "react";
 
 import {
   ArrowDown02Icon,
-  ArrowUp01Icon,
   ArrowUp02Icon,
-  ArrowUpBigIcon,
-  CommandIcon,
   CornerDownLeftIcon,
   HugeiconsIcon,
-  OptionIcon,
 } from "@src/icons";
 
 export const KEYBOARD_SHORTCUT_VARIANT = {
@@ -21,10 +17,13 @@ export const KEYBOARD_SHORTCUT_VARIANT = {
 export type KeyboardShortcutVariant =
   (typeof KEYBOARD_SHORTCUT_VARIANT)[keyof typeof KEYBOARD_SHORTCUT_VARIANT];
 
+export type KeyboardShortcutSize = "default" | "sm";
+
 export interface KeyboardShortcutProps {
   shortcut: string;
   className?: string;
   variant?: KeyboardShortcutVariant;
+  size?: KeyboardShortcutSize;
 }
 
 interface KeyboardShortcutTooltipRow {
@@ -166,43 +165,15 @@ function parseShortcut(shortcut: string): KeyToken[] {
   return tokens;
 }
 
-function ModifierKey({
-  modifier,
-  iconSize,
-}: {
-  modifier: ModifierType;
-  iconSize: number;
-}) {
-  const iconProps = { size: iconSize, strokeWidth: 2 };
+function ModifierKey({ modifier }: { modifier: ModifierType }) {
+  const character = {
+    cmd: "⌘",
+    shift: "⇧",
+    option: "⌥",
+    ctrl: IS_MAC ? "⌃" : "Ctrl",
+  }[modifier];
 
-  switch (modifier) {
-    case "cmd":
-      return (
-        <HugeiconsIcon icon={CommandIcon} data-icon="command" {...iconProps} />
-      );
-    case "shift":
-      return (
-        <HugeiconsIcon
-          icon={ArrowUpBigIcon}
-          data-icon="arrow-big-up"
-          {...iconProps}
-        />
-      );
-    case "option":
-      return (
-        <HugeiconsIcon icon={OptionIcon} data-icon="option" {...iconProps} />
-      );
-    case "ctrl":
-      return IS_MAC ? (
-        <HugeiconsIcon
-          icon={ArrowUp01Icon}
-          data-icon="chevron-up"
-          {...iconProps}
-        />
-      ) : (
-        <span>Ctrl</span>
-      );
-  }
+  return <span className="leading-none">{character}</span>;
 }
 
 function SpecialKey({
@@ -212,92 +183,78 @@ function SpecialKey({
   special: SpecialKeyType;
   iconSize: number;
 }) {
-  const iconProps = { size: iconSize, strokeWidth: 2 };
-
-  switch (special) {
-    case "arrowUp":
-      return (
-        <HugeiconsIcon
-          icon={ArrowUp02Icon}
-          data-icon="arrow-up"
-          {...iconProps}
-        />
-      );
-    case "arrowDown":
-      return (
-        <HugeiconsIcon
-          icon={ArrowDown02Icon}
-          data-icon="arrow-down"
-          {...iconProps}
-        />
-      );
-    case "enter":
-      return (
-        <HugeiconsIcon
-          icon={CornerDownLeftIcon}
-          data-icon="corner-down-left"
-          {...iconProps}
-        />
-      );
-    case "backspace":
-      return (
-        <svg
-          width={iconSize}
-          height={iconSize}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          data-icon="backspace"
-          aria-hidden="true"
-        >
-          <path d="M9 5h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-7-7Z" />
-          <path d="m12 9 6 6m0-6-6 6" />
-        </svg>
-      );
-    case "esc":
-      return <span className="leading-none">esc</span>;
-    case "tab":
-      // Unicode horizontal-tab glyph. macOS shows this on Tab keys; keeps
-      // the chip narrow and avoids translating the word "Tab".
-      return <span className="leading-none">⇥</span>;
+  if (special === "arrowUp" || special === "arrowDown") {
+    return (
+      <HugeiconsIcon
+        icon={special === "arrowUp" ? ArrowUp02Icon : ArrowDown02Icon}
+        size={iconSize}
+        strokeWidth={2}
+        data-icon={special === "arrowUp" ? "arrow-up" : "arrow-down"}
+      />
+    );
   }
+
+  if (special === "enter") {
+    return (
+      <HugeiconsIcon
+        icon={CornerDownLeftIcon}
+        size={iconSize}
+        strokeWidth={2}
+        data-icon="corner-down-left"
+      />
+    );
+  }
+
+  const character = {
+    backspace: "⌫",
+    esc: "esc",
+    tab: "⇥",
+  }[special];
+
+  return <span className="leading-none">{character}</span>;
 }
 
 // A shortcut chord is one joined pill, matching the compact presentation used
 // by Codex. Individual tokens only own their typography; the shared `kbd`
 // owns the background, height, padding, and rounded capsule shape.
 const KEY_CAP_BASE =
-  "inline-flex h-[18px] shrink-0 items-center justify-center gap-0.5 rounded-full px-1.5 font-medium leading-none";
-const KEY_TOKEN_GLYPH =
-  "inline-flex items-center justify-center text-[13px] font-semibold";
-const KEY_TOKEN_TEXT = "inline-flex items-center justify-center text-[12px]";
-const KEY_CAP_ICON_SIZE = 13;
+  "inline-flex shrink-0 items-center justify-center rounded-full font-normal leading-none";
+const KEY_TOKEN_BASE =
+  "inline-flex h-full items-center justify-center align-middle";
 
-const KEY_CAP_STYLES: Record<
-  KeyboardShortcutVariant,
-  { kbd: string; iconSize: number }
+const KEY_CAP_SIZES: Record<
+  KeyboardShortcutSize,
+  { cap: string; glyph: string; text: string; iconSize: number }
 > = {
   default: {
-    kbd: `${KEY_CAP_BASE} bg-fill-2 text-text-2`,
-    iconSize: KEY_CAP_ICON_SIZE,
+    cap: "h-[18px] px-1.5",
+    glyph: "text-[13px]",
+    text: "text-[12px]",
+    iconSize: 13,
+  },
+  sm: {
+    cap: "h-4 px-1",
+    glyph: "text-[11px]",
+    text: "text-[10px]",
+    iconSize: 11,
+  },
+};
+
+const KEY_CAP_STYLES: Record<KeyboardShortcutVariant, { kbd: string }> = {
+  default: {
+    kbd: "bg-fill-2 text-text-2",
   },
   workStation: {
-    kbd: `${KEY_CAP_BASE} bg-fill-2 text-text-2`,
-    iconSize: KEY_CAP_ICON_SIZE,
+    kbd: "bg-fill-2 text-text-2",
   },
   dropdown: {
-    kbd: `${KEY_CAP_BASE} bg-fill-2 text-text-2`,
-    iconSize: KEY_CAP_ICON_SIZE,
+    kbd: "bg-fill-2 text-text-2",
   },
   // Used on the Spotlight footer hint strip — the surrounding surface
   // panel is already `fill-2`, so pills bump one shade up to `fill-3` to
   // stay readable against it.
   spotlightFooter: {
-    kbd: `${KEY_CAP_BASE} bg-fill-3 text-text-2`,
-    iconSize: KEY_CAP_ICON_SIZE,
+    kbd: "bg-fill-3 text-text-2",
   },
 };
 
@@ -306,13 +263,26 @@ export const KeyboardShortcut = memo<KeyboardShortcutProps>(
     shortcut,
     className = "",
     variant = KEYBOARD_SHORTCUT_VARIANT.default,
+    size = "default",
   }) => {
     const tokens = parseShortcut(shortcut);
     const cap = KEY_CAP_STYLES[variant];
+    const capSize = KEY_CAP_SIZES[size];
+    const isArrowPair =
+      tokens.length === 2 &&
+      tokens.every(
+        (token) =>
+          token.type === "special" &&
+          (token.special === "arrowUp" || token.special === "arrowDown")
+      );
 
     return (
       <div className={`flex items-center ${className}`}>
-        <kbd className={cap.kbd}>
+        <kbd
+          className={`${KEY_CAP_BASE} ${capSize.cap} ${
+            isArrowPair ? "gap-0" : "gap-0.5"
+          } ${cap.kbd}`}
+        >
           {tokens.map((token, index) => {
             const isTextToken =
               (token.type === "modifier" &&
@@ -324,16 +294,18 @@ export const KeyboardShortcut = memo<KeyboardShortcutProps>(
             return (
               <span
                 key={index}
-                className={isTextToken ? KEY_TOKEN_TEXT : KEY_TOKEN_GLYPH}
+                className={`${KEY_TOKEN_BASE} ${
+                  isTextToken ? capSize.text : capSize.glyph
+                }`}
               >
                 {token.type === "modifier" && (
-                  <ModifierKey
-                    modifier={token.modifier}
-                    iconSize={cap.iconSize}
-                  />
+                  <ModifierKey modifier={token.modifier} />
                 )}
                 {token.type === "special" && (
-                  <SpecialKey special={token.special} iconSize={cap.iconSize} />
+                  <SpecialKey
+                    special={token.special}
+                    iconSize={capSize.iconSize}
+                  />
                 )}
                 {token.type === "key" && token.label}
               </span>
