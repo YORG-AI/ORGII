@@ -55,7 +55,8 @@ function asSettingsSectionSegment(id: string): SettingsSectionSegment {
 const APP_SECTION_ITEM_IDS: readonly SettingsNavigationItemId[] =
   getSettingsSectionsByTab("app")
     .map((section) => asSettingsSectionSegment(section.id))
-    // Security is an app section, but product navigation places it in Core.
+    // Security is an app section, but product navigation shows it as the
+    // fourth tab of Rules / Memory / Evolution, not as a sidebar item.
     .filter((id) => id !== SECURITY_ITEM_ID && id !== "harness-connections")
     // Profile is backed by the My Roles integration destination, but belongs
     // with the user-facing app settings rather than the Core group.

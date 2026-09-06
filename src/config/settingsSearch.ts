@@ -241,7 +241,11 @@ function resolveOwner(
     return { navigationItemId: "appearance", tab: "chat-panel" };
   }
   if (MY_ROLE_KEYS.has(key)) return { navigationItemId: "myRoles" };
-  if (SECURITY_KEYS.has(key)) return { navigationItemId: "security" };
+  // Security is the fourth tab of Rules / Memory / Evolution, not a sidebar
+  // item of its own, so its settings resolve to that destination.
+  if (SECURITY_KEYS.has(key)) {
+    return { navigationItemId: "rulesMemoryEvolution" };
+  }
   return CATEGORY_OWNER[category];
 }
 
