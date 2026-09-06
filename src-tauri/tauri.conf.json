@@ -35,7 +35,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' 'nonce-orgii-codemirror-style'; style-src-attr 'unsafe-inline'; img-src 'self' asset: http://asset.localhost https: data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost ipc://localhost https: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:* wss:; media-src 'self' asset: http://asset.localhost blob:; worker-src 'self' blob:; frame-src 'self' https: http://canvas-artifact.localhost canvas-artifact:; object-src 'none'; base-uri 'self'",
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' 'nonce-orgii-codemirror-style'; style-src-attr 'unsafe-inline'; img-src 'self' asset: http://asset.localhost https: data: blob:; font-src 'self' data:; connect-src 'self' asset: http://asset.localhost ipc: http://ipc.localhost ipc://localhost https: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:* wss:; media-src 'self' asset: http://asset.localhost blob:; worker-src 'self' blob:; frame-src 'self' asset: http://asset.localhost https: http://canvas-artifact.localhost canvas-artifact:; object-src 'none'; base-uri 'self'",
       "assetProtocol": {
         "enable": true,
         "scope": ["$HOME/.orgii/**", "$HOME/.cursor/plugins/cache/**"]
