@@ -106,6 +106,12 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
         });
         return;
       }
+      if (dataset === WORK_MANAGEMENT_DATASET.RUNS) {
+        setActiveWorkManagementSection({
+          section: WORK_MANAGEMENT_SECTION.RUNS,
+        });
+        return;
+      }
       setActiveWorkManagementSection({
         section:
           dataset === WORK_MANAGEMENT_DATASET.GITHUB_ISSUES

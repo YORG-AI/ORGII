@@ -11,6 +11,7 @@ export const WORK_MANAGEMENT_DATASET = {
   INBOX: "inbox",
   GITHUB_ISSUES: "github-issues",
   REVIEWS: "reviews",
+  RUNS: "runs",
 } as const;
 
 export type WorkManagementDataset =
@@ -35,6 +36,9 @@ export function resolveWorkManagementDataset({
   }
   if (section === WORK_MANAGEMENT_SECTION.GITHUB_PRS) {
     return WORK_MANAGEMENT_DATASET.REVIEWS;
+  }
+  if (section === WORK_MANAGEMENT_SECTION.RUNS) {
+    return WORK_MANAGEMENT_DATASET.RUNS;
   }
   if (
     section === WORK_MANAGEMENT_SECTION.PROJECTS &&

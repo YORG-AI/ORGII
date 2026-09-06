@@ -42,5 +42,11 @@ describe("resolveWorkManagementDataset", () => {
         projectsView: WORK_MANAGEMENT_PROJECTS_VIEW.PROJECTS,
       })
     ).toBe(WORK_MANAGEMENT_DATASET.REVIEWS);
+    expect(
+      resolveWorkManagementDataset({
+        section: WORK_MANAGEMENT_SECTION.RUNS,
+        projectsView: WORK_MANAGEMENT_PROJECTS_VIEW.PROJECTS,
+      })
+    ).toBe(WORK_MANAGEMENT_DATASET.RUNS);
   });
 });
