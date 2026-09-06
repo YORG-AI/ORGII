@@ -130,8 +130,32 @@ pub fn resolve_with_options(
     model: Option<&str>,
     options: Option<&DesktopConnectionOptions>,
 ) -> Result<ResolvedHarnessConnection, String> {
+    resolve_internal(agent, key, model, options, false)
+}
+/// Profile endpoints and model catalogs are independent of shared credentials.
+pub fn resolve_claude_profile(
+    agent: &str,
+    key: &ModelKey,
+    model: &str,
+    options: &DesktopConnectionOptions,
+) -> Result<ResolvedHarnessConnection, String> {
+    if !matches!(
+        ConnectionTarget::try_from(agent)?,
+        ConnectionTarget::ClaudeCode | ConnectionTarget::ClaudeDesktop
+    ) {
+        return Err("Claude profiles cannot configure another app".into());
+    }
+    resolve_internal(agent, key, Some(model), Some(options), true)
+}
+fn resolve_internal(
+    agent: &str,
+    key: &ModelKey,
+    model: Option<&str>,
+    options: Option<&DesktopConnectionOptions>,
+    profile: bool,
+) -> Result<ResolvedHarnessConnection, String> {
     let target = ConnectionTarget::try_from(agent)?;
-    if options.is_some() && target != ConnectionTarget::ClaudeDesktop {
+    if !profile && options.is_some() && target != ConnectionTarget::ClaudeDesktop {
         return Err("Desktop settings cannot be applied to another app".into());
     }
     let protocol = validate_connection_key(agent, key)?;
@@ -152,7 +176,9 @@ pub fn resolve_with_options(
         .or(key.base_url.as_deref())
         .map(str::trim)
         .filter(|value| !value.is_empty());
-    let endpoint = if required == "anthropic" {
+    let endpoint = if profile {
+        explicit.map(str::to_string)
+    } else if required == "anthropic" {
         explicit
             .and_then(|url| {
                 config
@@ -168,18 +194,6 @@ pub fn resolve_with_options(
         explicit.map(str::to_string).or(config.default_base_url)
     }
     .ok_or("This connection needs an endpoint")?;
-    let url = url::Url::parse(&endpoint).map_err(|_| "Invalid connection endpoint")?;
-    if !matches!(url.scheme(), "http" | "https")
-        || url.host_str().is_none()
-        || !url.username().is_empty()
-        || url.password().is_some()
-        || url.query().is_some()
-        || url.fragment().is_some()
-    {
-        return Err(
-            "Use an HTTP(S) endpoint without embedded credentials, query, or fragment".into(),
-        );
-    }
     let models = if key.enabled_models.is_empty() {
         &key.available_models
     } else {
@@ -190,20 +204,13 @@ pub fn resolve_with_options(
         .filter(|value| !value.is_empty())
         .or_else(|| models.first().map(String::as_str))
         .ok_or("Select a model for this connection")?;
-    if target != ConnectionTarget::ClaudeDesktop
+    if !profile
+        && target != ConnectionTarget::ClaudeDesktop
         && !models.iter().any(|candidate| candidate == model)
     {
         return Err("Model is not enabled for the selected connection".into());
     }
-    let base_url = if required == "anthropic" {
-        endpoint
-            .trim_end_matches('/')
-            .strip_suffix("/v1")
-            .unwrap_or(endpoint.trim_end_matches('/'))
-            .to_string()
-    } else {
-        endpoint.trim_end_matches('/').to_string()
-    };
+    let base_url = normalize_endpoint(&endpoint, protocol)?;
     let official = match protocol {
         HarnessProtocol::AnthropicMessages => base_url == "https://api.anthropic.com",
         HarnessProtocol::OpenaiResponses => base_url == "https://api.openai.com/v1",
@@ -235,9 +242,65 @@ pub fn resolve_with_options(
         api_key,
         protocol,
         auth_scheme,
-        requires_test: !official || target == ConnectionTarget::ClaudeDesktop,
+        requires_test: profile || !official || target == ConnectionTarget::ClaudeDesktop,
         revision,
     })
+}
+
+// Endpoint discovery intentionally does not resolve or validate any model selection.
+pub struct ResolvedClaudeEndpoint {
+    pub base_url: String,
+    pub api_key: String,
+    pub auth_scheme: ConnectionAuthScheme,
+}
+pub fn resolve_claude_endpoint(
+    agent: &str,
+    key: &ModelKey,
+    endpoint: &str,
+    auth_scheme: ConnectionAuthScheme,
+) -> Result<ResolvedClaudeEndpoint, String> {
+    if !matches!(
+        ConnectionTarget::try_from(agent)?,
+        ConnectionTarget::ClaudeCode | ConnectionTarget::ClaudeDesktop
+    ) {
+        return Err("Claude endpoints cannot configure another app".into());
+    }
+    let protocol = validate_connection_key(agent, key)?;
+    Ok(ResolvedClaudeEndpoint {
+        base_url: normalize_endpoint(endpoint, protocol)?,
+        api_key: key
+            .api_key
+            .as_deref()
+            .ok_or("Selected connection has no API key")?
+            .trim()
+            .to_string(),
+        auth_scheme,
+    })
+}
+fn normalize_endpoint(endpoint: &str, protocol: HarnessProtocol) -> Result<String, String> {
+    let endpoint = endpoint.trim();
+    let url = url::Url::parse(endpoint).map_err(|_| "Invalid connection endpoint")?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(
+            "Use an HTTP(S) endpoint without embedded credentials, query, or fragment".into(),
+        );
+    }
+    let base_url = if protocol == HarnessProtocol::AnthropicMessages {
+        endpoint
+            .trim_end_matches('/')
+            .strip_suffix("/v1")
+            .unwrap_or(endpoint.trim_end_matches('/'))
+            .to_string()
+    } else {
+        endpoint.trim_end_matches('/').to_string()
+    };
+    Ok(base_url)
 }
 
 #[cfg(test)]
@@ -252,6 +315,45 @@ mod tests {
         key.base_url = Some("https://gateway.example/v1".into());
         key.available_models = vec!["test-model".into()];
         key
+    }
+
+    #[test]
+    fn discovery_and_profile_models_do_not_depend_on_the_shared_key_catalog() {
+        let mut key = key();
+        key.protocol = Some(ProviderProtocol::Anthropic);
+        key.available_models.clear();
+        let endpoint = resolve_claude_endpoint(
+            "claude_code",
+            &key,
+            "https://gateway.example/prefix/v1/",
+            ConnectionAuthScheme::ApiKey,
+        )
+        .unwrap();
+        assert_eq!(endpoint.base_url, "https://gateway.example/prefix");
+        let options = DesktopConnectionOptions {
+            endpoint: Some(endpoint.base_url.clone()),
+            auth_scheme: Some(ConnectionAuthScheme::ApiKey),
+        };
+        let profile =
+            resolve_claude_profile("claude_code", &key, "arbitrary/provider-id", &options).unwrap();
+        assert_eq!(profile.model, "arbitrary/provider-id");
+        assert!(profile.requires_test);
+        assert!(resolve("claude_code", &key, Some("arbitrary/provider-id")).is_err());
+        assert!(resolve_claude_endpoint(
+            "codex",
+            &key,
+            "https://gateway.example",
+            ConnectionAuthScheme::ApiKey
+        )
+        .is_err());
+        assert!(resolve_claude_endpoint(
+            "claude_code",
+            &key,
+            "https://secret@gateway.example",
+            ConnectionAuthScheme::ApiKey
+        )
+        .is_err());
+        assert!(key.available_models.is_empty());
     }
 
     #[test]

@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--writer", required=True)
+    parser.add_argument("--claude-profiles", action="store_true", help="Verify all four native Claude role mappings")
     args = parser.parse_args()
     writer = str(Path(args.writer).resolve())
     observed = []
@@ -27,11 +28,11 @@ def main():
 
         def do_POST(self):
             body = json.loads(self.rfile.read(int(self.headers.get("content-length", 0))))
-            observed.append((self.path, self.headers.get("authorization"), body))
+            observed.append((self.path, self.headers.get("authorization"), self.headers.get("x-api-key"), body))
             is_claude = self.path.split("?", 1)[0].endswith("/messages")
             if is_claude:
                 events = [
-                    {"type": "message_start", "message": {"id": "msg_fixture", "type": "message", "role": "assistant", "model": "fixture-model", "content": [], "stop_reason": None, "usage": {"input_tokens": 1, "output_tokens": 0}}},
+                    {"type": "message_start", "message": {"id": "msg_fixture", "type": "message", "role": "assistant", "model": body.get("model", "fixture-model"), "content": [], "stop_reason": None, "usage": {"input_tokens": 1, "output_tokens": 0}}},
                     {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
                     {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "ORGII_CONNECTION_OK"}},
                     {"type": "content_block_stop", "index": 0},
@@ -40,7 +41,7 @@ def main():
                 ]
             else:
                 item = {"id": "msg_fixture", "type": "message", "role": "assistant", "status": "completed", "content": [{"type": "output_text", "text": "ORGII_CONNECTION_OK", "annotations": []}]}
-                response = {"id": "resp_fixture", "object": "response", "created_at": 1, "model": "fixture-model", "status": "completed", "output": [item], "usage": {"input_tokens": 1, "output_tokens": 3, "total_tokens": 4}}
+                response = {"id": "resp_fixture", "object": "response", "created_at": 1, "model": body.get("model", "fixture-model"), "status": "completed", "output": [item], "usage": {"input_tokens": 1, "output_tokens": 3, "total_tokens": 4}}
                 events = [
                     {"type": "response.created", "response": {**response, "status": "in_progress", "output": []}},
                     {"type": "response.output_item.added", "output_index": 0, "item": {**item, "status": "in_progress", "content": []}},
@@ -51,7 +52,7 @@ def main():
                     {"type": "response.completed", "response": response},
                 ]
             if is_claude and not body.get("stream"):
-                response = {"id": "msg_fixture", "type": "message", "role": "assistant", "model": "fixture-model", "content": [{"type": "text", "text": "ORGII_CONNECTION_OK"}], "stop_reason": "end_turn", "stop_sequence": None, "usage": {"input_tokens": 1, "output_tokens": 3}}
+                response = {"id": "msg_fixture", "type": "message", "role": "assistant", "model": body.get("model", "fixture-model"), "content": [{"type": "text", "text": "ORGII_CONNECTION_OK"}], "stop_reason": "end_turn", "stop_sequence": None, "usage": {"input_tokens": 1, "output_tokens": 3}}
                 raw = json.dumps(response).encode()
                 self.send_response(200)
                 self.send_header("content-type", "application/json")
@@ -70,7 +71,8 @@ def main():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        for agent, command in [("codex", "codex"), ("claude_code", "claude")]:
+        cases = [("claude_profiles", "claude", role) for role in ("sonnet", "opus", "fable", "haiku")] if args.claude_profiles else [("codex", "codex", None), ("claude_code", "claude", None)]
+        for agent, command, role in cases:
             executable = shutil.which(command)
             if not executable:
                 raise RuntimeError(f"{command} is not installed; fixture cannot verify this harness")
@@ -85,15 +87,21 @@ def main():
                 (root / ".claude.json").write_text(json.dumps({"hasCompletedOnboarding": True}))
                 before = len(observed)
                 arguments = ["exec", "--skip-git-repo-check", "--sandbox", "read-only", "Reply with ORGII_CONNECTION_OK"] if agent == "codex" else ["-p", "Reply with ORGII_CONNECTION_OK", "--tools", "", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}', "--setting-sources", "user", "--disable-slash-commands"]
+                if role:
+                    arguments.extend(["--model", role])
                 result = subprocess.run([executable, *arguments], env=env, cwd=root, capture_output=True, text=True, timeout=45)
                 requests = observed[before:]
                 assert result.returncode == 0, f"{agent} failed: {result.stderr[-1800:]} {result.stdout[-500:]}"
                 assert "ORGII_CONNECTION_OK" in result.stdout, f"{agent} did not render the fixture response"
                 assert requests, f"{agent} did not use the configured endpoint"
-                for path, authorization, body in requests:
-                    assert authorization == "Bearer orgii-fixture-key", f"{agent} used a different credential"
-                    assert body["model"] == "fixture-model", f"{agent} used a different model"
-                print(f"PASS {agent}: native generated config -> {len(requests)} local request(s) -> rendered response")
+                for path, authorization, api_key, body in requests:
+                    if role:
+                        assert api_key == "orgii-fixture-key" and authorization is None, "Explicit API key authentication was not used"
+                    else:
+                        assert authorization == "Bearer orgii-fixture-key", f"{agent} used a different credential"
+                    expected_model = f"fixture-{role}" if role else "fixture-model"
+                    assert body["model"] == expected_model, f"{agent} {role} used {body['model']}, expected {expected_model}"
+                print(f"PASS {agent} {role or 'default'}: native generated config -> {len(requests)} local request(s) -> rendered response")
     finally:
         server.shutdown()
         server.server_close()

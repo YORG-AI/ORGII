@@ -26,6 +26,7 @@ impl Drop for ExternalHome {
 }
 fn connection() -> DirectConnection {
     DirectConnection {
+        profile: None,
         key_id: "desktop-key".into(),
         provider: "custom_api".into(),
         model: "claude-sonnet-5".into(),

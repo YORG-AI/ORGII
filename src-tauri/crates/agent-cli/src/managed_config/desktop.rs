@@ -113,7 +113,7 @@ pub fn validate_model(model: &str) -> Result<(), String> {
     {
         Ok(())
     } else {
-        Err("Desktop direct connections require a full Claude Sonnet, Opus, Haiku or Fable model ID. Other IDs need model mapping, which is not supported yet.".into())
+        Err("Desktop direct connections require a full Claude Sonnet, Opus, Haiku or Fable model ID. For other IDs, use a model mapping profile in App connections.".into())
     }
 }
 
@@ -122,7 +122,11 @@ pub(super) fn generate(
     connection: &DirectConnection,
     previous: Option<&CliConfigProfileManifest>,
 ) -> Result<BTreeMap<String, String>, String> {
-    validate_model(&connection.model)?;
+    if let Some(profile) = &connection.profile {
+        profile.validate()?;
+    } else {
+        validate_model(&connection.model)?;
+    }
     let owned = previous.is_some_and(|manifest| manifest.mode != super::CliConfigMode::Default);
     if !owned
         && contents
@@ -170,7 +174,7 @@ pub(super) fn generate(
             "inferenceGatewayBaseUrl": connection.base_url,
             "inferenceGatewayApiKey": connection.api_key,
             "inferenceGatewayAuthScheme": options,
-            "inferenceModels": [{"name": connection.model}],
+            "inferenceModels": connection.profile.as_ref().map(|p| p.models.desktop_catalog()).unwrap_or_else(|| vec![json!({"name": connection.model})]),
             "modelDiscoveryEnabled": false
         }),
     );

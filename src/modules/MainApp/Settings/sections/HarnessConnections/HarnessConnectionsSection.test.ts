@@ -21,6 +21,10 @@ vi.mock("@src/scaffold/WizardSystem/variants/KeyVault", () => ({
 vi.mock("./useHarnessConnection", () => ({
   refreshHarnessConnections: vi.fn(),
 }));
+vi.mock("./ClaudeProfileEditor", () => ({
+  default: ({ target }: { target: string }) =>
+    createElement("section", { "data-target": target }),
+}));
 vi.mock("./HarnessConnectionEditor", () => ({
   default: ({ agentName }: { agentName: string }) =>
     createElement("section", { "data-target": agentName }),

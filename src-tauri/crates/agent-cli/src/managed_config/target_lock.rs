@@ -30,6 +30,17 @@ pub(super) fn lock_targets(agent: &str) -> Result<Vec<File>, String> {
         }
     }
     paths.push(canonical_target(&super::manifest::manifest_path(agent))?);
+    lock_paths(paths)
+}
+
+// Catalog editing is also coordinated on hosts where native Desktop activation is unsupported.
+pub(super) fn lock_profile_catalog(agent: &str) -> Result<Vec<File>, String> {
+    lock_paths(vec![canonical_target(
+        &super::manifest::manifest_path(agent).with_file_name("provider-profiles.json"),
+    )?])
+}
+
+fn lock_paths(mut paths: Vec<PathBuf>) -> Result<Vec<File>, String> {
     paths.sort();
     paths.dedup();
     paths.into_iter().map(|path| {

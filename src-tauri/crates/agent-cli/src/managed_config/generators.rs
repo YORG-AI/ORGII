@@ -167,6 +167,10 @@ pub(super) fn generate_claude_code_managed_config(
         return Err("Failed to build Claude Code env object".to_string());
     };
 
+    super::claude_models::clear_role_overrides(env);
+    env.remove("ANTHROPIC_API_KEY");
+    env.remove("CLAUDE_CODE_OAUTH_TOKEN");
+    env.insert("ANTHROPIC_DEFAULT_FABLE_MODEL".into(), model.into());
     env.insert(
         "ANTHROPIC_AUTH_TOKEN".to_string(),
         serde_json::Value::String(proxy_token.to_string()),

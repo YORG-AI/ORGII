@@ -66,6 +66,7 @@ pub(super) fn test_manifest(
     targets: Vec<CliConfigTargetFileManifest>,
 ) -> CliConfigProfileManifest {
     CliConfigProfileManifest {
+        provider_profile: None,
         agent: agent_name.to_string(),
         mode: CliConfigMode::OrgiiManaged,
         target_files: targets,

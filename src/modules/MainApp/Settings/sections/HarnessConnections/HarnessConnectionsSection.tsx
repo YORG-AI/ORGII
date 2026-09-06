@@ -9,12 +9,14 @@ import SegmentedTextPill from "@src/components/SegmentedTextPill";
 import InlineCredentialImport from "@src/modules/MainApp/Integrations/KeyVault/CliClients/CredentialImport/InlineCredentialImport";
 import { KeyVaultWizard } from "@src/scaffold/WizardSystem/variants/KeyVault";
 
+import ClaudeProfileEditor from "./ClaudeProfileEditor";
 import HarnessConnectionEditor from "./HarnessConnectionEditor";
 import { refreshHarnessConnections } from "./useHarnessConnection";
 
 export default function HarnessConnectionsSection() {
   const { t } = useTranslation("settings");
   const [target, setTarget] = useState<ConnectionHarness>("claude_code");
+  const [profileDirty, setProfileDirty] = useState(false);
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const submit = async (data: SaveKeyRequest) => {
@@ -51,18 +53,35 @@ export default function HarnessConnectionsSection() {
           value={target}
           onChange={setTarget}
           options={[
-            { value: "claude_code", label: "Claude Code CLI" },
-            { value: "claude_desktop", label: "Claude Desktop" },
-            { value: "codex", label: "Codex" },
+            {
+              value: "claude_code",
+              label: "Claude Code CLI",
+              disabled: profileDirty,
+            },
+            {
+              value: "claude_desktop",
+              label: "Claude Desktop",
+              disabled: profileDirty,
+            },
+            { value: "codex", label: "Codex", disabled: profileDirty },
           ]}
         />
       </div>
       <InlineCredentialImport onAfterImport={refreshHarnessConnections} />
-      <HarnessConnectionEditor
-        key={target}
-        agentName={target}
-        onAdd={() => setAdding(true)}
-      />
+      {target === "codex" ? (
+        <HarnessConnectionEditor
+          key={target}
+          agentName={target}
+          onAdd={() => setAdding(true)}
+        />
+      ) : (
+        <ClaudeProfileEditor
+          key={target}
+          target={target}
+          onDirtyChange={setProfileDirty}
+          onAdd={() => setAdding(true)}
+        />
+      )}
     </div>
   );
 }
