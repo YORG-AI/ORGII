@@ -1563,5 +1563,16 @@
     "fetchDone": "Model list loaded; choose or enter an ID",
     "testDone": "Tool round trip and streaming passed; test evidence expires after 15 minutes",
     "role": "Role"
+  },
+  "codexProfiles": {
+    "model": "Request model ID",
+    "modelHelp": "Type any model ID supported by your Responses endpoint; discovery is optional",
+    "reasoning": "Reasoning effort",
+    "reasoningHelp": "Choose an effort supported by this model; the connection test checks this setting",
+    "default": "Codex default",
+    "contextWindow": "Context window (tokens)",
+    "contextWindowHelp": "Optional declaration of provider capacity; this does not increase the model’s limit",
+    "autoCompactTokenLimit": "Auto-compact at (tokens)",
+    "autoCompactTokenLimitHelp": "Optional compaction threshold; requires a context window and cannot exceed it"
   }
 }

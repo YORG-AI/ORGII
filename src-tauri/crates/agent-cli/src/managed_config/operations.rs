@@ -207,6 +207,22 @@ pub(super) fn apply_connection_unlocked(
         }
     }
 
+    // A proxy selection must not inherit limits/effort from a previously active Codex profile.
+    if agent_name == "codex"
+        && direct.is_none()
+        && existing_manifest
+            .as_ref()
+            .and_then(|m| m.provider_profile.as_ref())
+            .is_some()
+    {
+        if let Some(raw) = current_contents.get_mut("config") {
+            let mut config = raw
+                .parse::<toml_edit::Document>()
+                .map_err(|_| "Invalid Codex TOML")?;
+            super::profile_models::CodexModels::clear_config(&mut config);
+            *raw = config.to_string();
+        }
+    }
     let proxy_url = managed_proxy_url();
     let proxy_token = generate_proxy_token();
     let managed_contents = if let Some(connection) = direct {

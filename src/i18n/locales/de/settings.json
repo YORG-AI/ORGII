@@ -1449,5 +1449,16 @@
     "fetchDone": "Modellliste geladen; ID auswählen oder eingeben",
     "testDone": "Werkzeugaufruf mit Rückgabe und Streaming erfolgreich; Testergebnis gilt 15 Minuten",
     "role": "Rolle"
+  },
+  "codexProfiles": {
+    "model": "Angeforderte Modell-ID",
+    "modelHelp": "Beliebige vom Responses-Endpunkt unterstützte Modell-ID eingeben; Modellabruf ist optional",
+    "reasoning": "Denkaufwand",
+    "reasoningHelp": "Eine vom Modell unterstützte Stufe wählen; der Verbindungstest prüft diese Einstellung",
+    "default": "Codex-Standard",
+    "contextWindow": "Kontextfenster (Token)",
+    "contextWindowHelp": "Optionale Angabe der Anbieterkapazität; erhöht nicht das Modelllimit",
+    "autoCompactTokenLimit": "Automatisch komprimieren bei (Token)",
+    "autoCompactTokenLimitHelp": "Optionaler Schwellenwert; erfordert ein Kontextfenster und darf es nicht überschreiten"
   }
 }

@@ -1,10 +1,10 @@
 //! Local, credential-free profile catalog. Native activation remains transactional.
-use super::{claude_models::ClaudeModels, file_io, manifest, target_lock};
+use super::{file_io, manifest, target_lock};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ClaudeProviderProfile {
+pub struct HarnessProviderProfile {
     pub id: String,
     pub revision: u32,
     pub name: String,
@@ -12,9 +12,9 @@ pub struct ClaudeProviderProfile {
     pub key_id: String,
     pub endpoint: String,
     pub auth_scheme: String,
-    pub models: ClaudeModels,
+    pub models: super::profile_models::ProfileModels,
 }
-impl ClaudeProviderProfile {
+impl HarnessProviderProfile {
     pub fn validate(&self) -> Result<(), String> {
         validate_target(&self.target)?;
         if self.id.is_empty()
@@ -53,12 +53,15 @@ impl ClaudeProviderProfile {
                 "Use an HTTP(S) endpoint without embedded credentials, query, or fragment".into(),
             );
         }
-        self.models.validate(self.target == "claude_desktop")
+        if self.target == "codex" && self.auth_scheme != "bearer" {
+            return Err("Codex profiles require Bearer authentication".into());
+        }
+        self.models.validate(&self.target)
     }
 }
 fn validate_target(target: &str) -> Result<(), String> {
-    if !matches!(target, "claude_code" | "claude_desktop") {
-        return Err("Profiles currently support Claude Code and Claude Desktop".into());
+    if !matches!(target, "claude_code" | "claude_desktop" | "codex") {
+        return Err("Unsupported provider profile target".into());
     }
     Ok(())
 }
@@ -69,9 +72,9 @@ fn path(target: &str) -> std::path::PathBuf {
 #[serde(deny_unknown_fields)]
 struct Catalog {
     version: u32,
-    profiles: Vec<ClaudeProviderProfile>,
+    profiles: Vec<HarnessProviderProfile>,
 }
-fn read_unlocked(target: &str) -> Result<Vec<ClaudeProviderProfile>, String> {
+fn read_unlocked(target: &str) -> Result<Vec<HarnessProviderProfile>, String> {
     let path = path(target);
     match std::fs::metadata(&path) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
@@ -96,7 +99,7 @@ fn read_unlocked(target: &str) -> Result<Vec<ClaudeProviderProfile>, String> {
     }
     Ok(catalog.profiles)
 }
-fn write_unlocked(target: &str, profiles: Vec<ClaudeProviderProfile>) -> Result<(), String> {
+fn write_unlocked(target: &str, profiles: Vec<HarnessProviderProfile>) -> Result<(), String> {
     let bytes = serde_json::to_vec_pretty(&Catalog {
         version: 1,
         profiles,
@@ -104,14 +107,14 @@ fn write_unlocked(target: &str, profiles: Vec<ClaudeProviderProfile>) -> Result<
     .map_err(|_| "Cannot serialize provider profiles")?;
     file_io::write_sensitive_file_atomic(&path(target), &bytes)
 }
-pub fn list(target: &str) -> Result<Vec<ClaudeProviderProfile>, String> {
+pub fn list(target: &str) -> Result<Vec<HarnessProviderProfile>, String> {
     validate_target(target)?;
     let _guard = super::config_operation_guard()?;
     let _lock = target_lock::lock_targets(target)?;
     let _catalog = target_lock::lock_profile_catalog(target)?;
     read_unlocked(target)
 }
-pub fn save(mut profile: ClaudeProviderProfile) -> Result<ClaudeProviderProfile, String> {
+pub fn save(mut profile: HarnessProviderProfile) -> Result<HarnessProviderProfile, String> {
     profile.validate()?;
     let _guard = super::config_operation_guard()?;
     let _lock = target_lock::lock_targets(&profile.target)?;
@@ -156,7 +159,7 @@ pub fn delete(target: &str, id: &str, revision: u32) -> Result<(), String> {
     profiles.remove(index);
     write_unlocked(target, profiles)
 }
-pub(super) fn require_saved_unlocked(profile: &ClaudeProviderProfile) -> Result<(), String> {
+pub(super) fn require_saved_unlocked(profile: &HarnessProviderProfile) -> Result<(), String> {
     profile.validate()?;
     let _catalog = target_lock::lock_profile_catalog(&profile.target)?;
     if !read_unlocked(&profile.target)?.contains(profile) {
@@ -166,7 +169,7 @@ pub(super) fn require_saved_unlocked(profile: &ClaudeProviderProfile) -> Result<
     }
     Ok(())
 }
-pub fn applied(target: &str) -> Result<Option<ClaudeProviderProfile>, String> {
+pub fn applied(target: &str) -> Result<Option<HarnessProviderProfile>, String> {
     validate_target(target)?;
     let _guard = super::config_operation_guard()?;
     let _lock = target_lock::lock_targets(target)?;

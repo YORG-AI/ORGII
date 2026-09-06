@@ -5,7 +5,7 @@ use super::dto::{CliConfigMode, CliConfigProfileManifest};
 
 // Intentionally no Debug/Serialize: this value holds a decrypted credential.
 pub struct DirectConnection {
-    pub profile: Option<super::provider_profiles::ClaudeProviderProfile>,
+    pub profile: Option<super::provider_profiles::HarnessProviderProfile>,
     pub key_id: String,
     pub provider: String,
     pub model: String,
@@ -23,11 +23,18 @@ pub(super) fn generate_direct_configs(
     if connection.api_key.trim().is_empty() || connection.model.trim().is_empty() {
         return Err("An API key and model are required".into());
     }
+    if let Some(profile) = &connection.profile {
+        profile.validate()?;
+        if profile.target != agent
+            || profile.key_id != connection.key_id
+            || profile.endpoint != connection.base_url
+            || profile.models.default_model()? != connection.model
+        {
+            return Err("Profile and native connection disagree".into());
+        }
+    }
     if agent == super::desktop::TARGET {
         return super::desktop::generate(contents, connection, previous);
-    }
-    if connection.profile.is_some() && !matches!(agent, "claude_code" | "claude_desktop") {
-        return Err("Claude profiles cannot configure another app".into());
     }
     if connection.desktop_auth_scheme.is_some() {
         return Err("Desktop authentication settings cannot be applied to a CLI target".into());
@@ -112,7 +119,7 @@ fn claude(raw: &str, connection: &DirectConnection) -> Result<String, String> {
     super::claude_models::clear_role_overrides(env);
     if let Some(profile) = &connection.profile {
         profile.validate()?;
-        profile.models.write_cli(env);
+        profile.models.claude()?.write_cli(env);
     }
     let auth_field = if connection
         .profile
@@ -132,7 +139,8 @@ fn claude(raw: &str, connection: &DirectConnection) -> Result<String, String> {
     let model = connection
         .profile
         .as_ref()
-        .map(|p| p.models.default_role.as_str())
+        .map(|p| p.models.claude().map(|m| m.default_role.as_str()))
+        .transpose()?
         .unwrap_or(&connection.model);
     env.insert("ANTHROPIC_MODEL".into(), model.into());
     root.insert("model".into(), model.into());
@@ -152,6 +160,11 @@ fn codex(
         .is_some_and(|item| !item.is_table())
     {
         return Err("Codex model_providers must be a table".into());
+    }
+    if connection.profile.is_some()
+        && (config.get("profile").is_some() || config.get("model_catalog_json").is_some())
+    {
+        return Err("Resolve Codex profile and model_catalog_json overrides before applying a provider profile".into());
     }
     let owned = previous.is_some_and(|manifest| manifest.mode != CliConfigMode::Default);
     if !owned
@@ -177,6 +190,11 @@ fn codex(
     config["model_providers"]["orgii"] = Item::Table(provider);
     config["model_provider"] = value("orgii");
     config["model"] = value(&connection.model);
+    if let Some(profile) = &connection.profile {
+        profile.models.codex()?.write_config(&mut config);
+    } else if previous.and_then(|p| p.provider_profile.as_ref()).is_some() {
+        super::profile_models::CodexModels::clear_config(&mut config);
+    }
     // auth.json, the OS credential store, other providers and profiles remain untouched.
     Ok(config.to_string())
 }

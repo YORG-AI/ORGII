@@ -1449,5 +1449,16 @@
     "fetchDone": "모델 목록을 불러왔습니다. ID를 선택하거나 입력하세요",
     "testDone": "도구 호출 왕복과 스트리밍 테스트를 통과했습니다. 테스트 결과는 15분 후 만료됩니다",
     "role": "역할"
+  },
+  "codexProfiles": {
+    "model": "요청 모델 ID",
+    "modelHelp": "Responses 엔드포인트가 지원하는 모델 ID를 입력하세요. 모델 검색은 선택 사항입니다",
+    "reasoning": "추론 강도",
+    "reasoningHelp": "모델이 지원하는 강도를 선택하세요. 연결 테스트에서 이 설정을 확인합니다",
+    "default": "Codex 기본값",
+    "contextWindow": "컨텍스트 창 (토큰)",
+    "contextWindowHelp": "선택적인 제공업체 용량 선언이며 모델의 한도를 늘리지 않습니다",
+    "autoCompactTokenLimit": "자동 압축 기준 (토큰)",
+    "autoCompactTokenLimitHelp": "선택적인 압축 기준으로 컨텍스트 창을 설정해야 하며 이를 초과할 수 없습니다"
   }
 }

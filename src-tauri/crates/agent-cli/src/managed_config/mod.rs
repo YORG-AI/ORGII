@@ -15,6 +15,7 @@ pub mod claude_models;
 pub mod desktop;
 mod direct;
 mod dto;
+pub mod profile_models;
 pub mod provider_profiles;
 mod target_lock;
 pub use direct::DirectConnection;

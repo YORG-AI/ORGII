@@ -410,11 +410,40 @@ export const ClaudeProviderProfileSchema = z.object({
     }),
   }),
 });
+export const CodexProviderProfileSchema = ClaudeProviderProfileSchema.omit({
+  target: true,
+  models: true,
+  authScheme: true,
+}).extend({
+  target: z.literal("codex"),
+  authScheme: z.literal("bearer"),
+  models: z.object({
+    model: z.string(),
+    reasoningEffort: z
+      .enum(["minimal", "low", "medium", "high", "xhigh"])
+      .nullable(),
+    contextWindow: z.number().int().positive().max(1_000_000_000).nullable(),
+    autoCompactTokenLimit: z
+      .number()
+      .int()
+      .positive()
+      .max(1_000_000_000)
+      .nullable(),
+  }),
+});
+export const HarnessProviderProfileSchema = z.union([
+  ClaudeProviderProfileSchema,
+  CodexProviderProfileSchema,
+]);
+export type HarnessProviderProfile = z.infer<
+  typeof HarnessProviderProfileSchema
+>;
+export type CodexProviderProfile = z.infer<typeof CodexProviderProfileSchema>;
 export type ClaudeProviderProfile = z.infer<typeof ClaudeProviderProfileSchema>;
 export type ClaudeRole = z.infer<typeof ClaudeRoleSchema>;
 export const HarnessConnectionSelectionInput = HarnessConnectionInput.extend({
   desktopOptions: DesktopConnectionOptionsSchema.optional(),
-  profile: ClaudeProviderProfileSchema.optional(),
+  profile: HarnessProviderProfileSchema.optional(),
   keyId: z.string(),
   model: z.string(),
 });
@@ -427,8 +456,8 @@ export const HarnessConnectionApplyInput =
     receipt: z.string().nullable().optional(),
   });
 export const HarnessConnectionViewSchema = z.object({
-  profiles: z.array(ClaudeProviderProfileSchema).optional(),
-  appliedProfile: ClaudeProviderProfileSchema.nullable().optional(),
+  profiles: z.array(HarnessProviderProfileSchema).optional(),
+  appliedProfile: HarnessProviderProfileSchema.nullable().optional(),
   version: z.string().nullable().optional(),
   configurationIssue: z.string().nullable().optional(),
   desktopOptions: DesktopConnectionOptionsSchema.nullable().optional(),

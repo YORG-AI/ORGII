@@ -52,7 +52,10 @@ fn request(
     )
 }
 
-pub(super) async fn test(connection: &ResolvedHarnessConnection) -> Result<(), String> {
+pub(super) async fn test(
+    connection: &ResolvedHarnessConnection,
+    reasoning: Option<&str>,
+) -> Result<(), String> {
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(std::time::Duration::from_secs(10))
@@ -61,7 +64,7 @@ pub(super) async fn test(connection: &ResolvedHarnessConnection) -> Result<(), S
         .map_err(|_| "Cannot create connection test client")?;
     let schema = json!({"type":"object","properties":{"value":{"type":"string"}},"required":["value"],"additionalProperties":false});
     let prompt = "Call orgii_connection_echo with value 'ok'. After receiving the tool result, reply with 'ok'.";
-    let initial = match connection.protocol {
+    let mut initial = match connection.protocol {
         HarnessProtocol::AnthropicMessages => {
             json!({"model":connection.model,"max_tokens":128,"stream":false,
             "messages":[{"role":"user","content":prompt}],
@@ -75,6 +78,9 @@ pub(super) async fn test(connection: &ResolvedHarnessConnection) -> Result<(), S
             "tool_choice":{"type":"function","name":"orgii_connection_echo"}})
         }
     };
+    if let Some(effort) = reasoning {
+        initial["reasoning"] = json!({"effort": effort});
+    }
     let response = request(&client, connection, &initial)?
         .send()
         .await
@@ -342,12 +348,18 @@ mod transport_tests {
                 requires_test: true,
                 revision: "fixture".into(),
             };
-            let result = test(&connection).await;
+            let effort = (protocol == HarnessProtocol::OpenaiResponses).then_some("high");
+            let result = test(&connection, effort).await;
             server.abort();
             let _ = server.await;
             result.unwrap();
             let requests = requests.lock().unwrap();
             assert_eq!(requests.len(), 2);
+            if protocol == HarnessProtocol::OpenaiResponses {
+                assert!(requests
+                    .iter()
+                    .all(|body| body["reasoning"]["effort"] == "high"));
+            }
             if protocol == HarnessProtocol::AnthropicMessages {
                 assert_eq!(
                     requests[1]["messages"][2]["content"][0]["tool_use_id"],
@@ -361,7 +373,7 @@ mod transport_tests {
 }
 
 pub(super) async fn models(
-    connection: &key_vault::harness_connections::ResolvedClaudeEndpoint,
+    connection: &key_vault::harness_connections::ResolvedProviderEndpoint,
 ) -> Result<Vec<String>, String> {
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
@@ -369,9 +381,12 @@ pub(super) async fn models(
         .timeout(std::time::Duration::from_secs(18))
         .build()
         .map_err(|_| "Cannot create model discovery client")?;
-    let request = client
-        .get(format!("{}/v1/models?limit=1000", connection.base_url))
-        .header("anthropic-version", "2023-06-01");
+    let request = match connection.protocol {
+        HarnessProtocol::AnthropicMessages => client
+            .get(format!("{}/v1/models?limit=1000", connection.base_url))
+            .header("anthropic-version", "2023-06-01"),
+        HarnessProtocol::OpenaiResponses => client.get(format!("{}/models", connection.base_url)),
+    };
     let request =
         if connection.auth_scheme == key_vault::harness_connections::ConnectionAuthScheme::ApiKey {
             request.header("x-api-key", &connection.api_key)
@@ -399,7 +414,7 @@ fn parse_models(bytes: &[u8]) -> Result<Vec<String>, String> {
         let id = entry["id"]
             .as_str()
             .ok_or("Model discovery returned an invalid ID")?;
-        agent_cli::managed_config::claude_models::validate_id(id)?;
+        agent_cli::managed_config::profile_models::validate_request_model_id(id)?;
         models.insert(id.to_string());
     }
     Ok(models.into_iter().collect())
@@ -424,5 +439,57 @@ mod model_discovery_tests {
         )
         .unwrap();
         assert!(parse_models(&large).is_err());
+    }
+}
+
+#[cfg(test)]
+mod codex_discovery_tests {
+    use super::*;
+    use axum::{
+        http::{HeaderMap, StatusCode},
+        response::Redirect,
+        routing::get,
+        Router,
+    };
+    use key_vault::harness_connections::{ConnectionAuthScheme, ResolvedProviderEndpoint};
+    #[tokio::test]
+    async fn codex_discovery_preserves_prefix_and_bearer_without_following_redirects() {
+        crate::test_utils::install_crypto_provider_for_tests();
+        let app = Router::new()
+            .route(
+                "/prefix/v1/models",
+                get(|headers: HeaderMap| async move {
+                    assert_eq!(headers["authorization"], "Bearer synthetic");
+                    assert!(!headers.contains_key("x-api-key"));
+                    assert!(!headers.contains_key("anthropic-version"));
+                    (StatusCode::OK, r#"{"data":[{"id":"vendor/model"}]}"#)
+                }),
+            )
+            .route(
+                "/redirect/models",
+                get(|| async { Redirect::temporary("/must-not-follow") }),
+            )
+            .route(
+                "/must-not-follow",
+                get(|| async { "Unexpected redirect destination" }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        let mut connection = ResolvedProviderEndpoint {
+            protocol: HarnessProtocol::OpenaiResponses,
+            base_url: format!("http://{address}/prefix/v1"),
+            api_key: "synthetic".into(),
+            auth_scheme: ConnectionAuthScheme::Bearer,
+        };
+        let list = models(&connection).await;
+        connection.base_url = format!("http://{address}/redirect");
+        let redirect = models(&connection).await;
+        server.abort();
+        let _ = server.await;
+        assert_eq!(list.unwrap(), vec!["vendor/model"]);
+        assert!(redirect.unwrap_err().contains("HTTP 307"));
     }
 }

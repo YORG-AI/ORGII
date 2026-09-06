@@ -28,7 +28,7 @@ pub struct CliConfigTargetFileManifest {
 #[serde(rename_all = "camelCase")]
 pub struct CliConfigProfileManifest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub provider_profile: Option<super::provider_profiles::ClaudeProviderProfile>,
+    pub provider_profile: Option<super::provider_profiles::HarnessProviderProfile>,
     pub agent: String,
     pub mode: CliConfigMode,
     pub target_files: Vec<CliConfigTargetFileManifest>,

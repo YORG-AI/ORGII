@@ -9,8 +9,7 @@ import SegmentedTextPill from "@src/components/SegmentedTextPill";
 import InlineCredentialImport from "@src/modules/MainApp/Integrations/KeyVault/CliClients/CredentialImport/InlineCredentialImport";
 import { KeyVaultWizard } from "@src/scaffold/WizardSystem/variants/KeyVault";
 
-import ClaudeProfileEditor from "./ClaudeProfileEditor";
-import HarnessConnectionEditor from "./HarnessConnectionEditor";
+import ProviderProfileEditor from "./ProviderProfileEditor";
 import { refreshHarnessConnections } from "./useHarnessConnection";
 
 export default function HarnessConnectionsSection() {
@@ -68,20 +67,12 @@ export default function HarnessConnectionsSection() {
         />
       </div>
       <InlineCredentialImport onAfterImport={refreshHarnessConnections} />
-      {target === "codex" ? (
-        <HarnessConnectionEditor
-          key={target}
-          agentName={target}
-          onAdd={() => setAdding(true)}
-        />
-      ) : (
-        <ClaudeProfileEditor
-          key={target}
-          target={target}
-          onDirtyChange={setProfileDirty}
-          onAdd={() => setAdding(true)}
-        />
-      )}
+      <ProviderProfileEditor
+        key={target}
+        target={target}
+        onDirtyChange={setProfileDirty}
+        onAdd={() => setAdding(true)}
+      />
     </div>
   );
 }

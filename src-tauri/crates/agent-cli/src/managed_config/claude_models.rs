@@ -114,16 +114,10 @@ impl ClaudeModels {
             .collect()
     }
 }
-pub fn validate_id(id: &str) -> Result<(), String> {
-    if id.is_empty()
-        || id.len() > 256
-        || id.chars().any(|c| c.is_whitespace() || c.is_control())
-        || id.contains(['[', ']'])
-    {
-        return Err(
-            "Enter a model ID without spaces or context suffixes; use the 1M checkbox separately"
-                .into(),
-        );
+fn validate_id(id: &str) -> Result<(), String> {
+    super::profile_models::validate_request_model_id(id)?;
+    if id.contains(['[', ']']) {
+        return Err("Use the 1M checkbox separately from the request model ID".into());
     }
     Ok(())
 }

@@ -174,7 +174,7 @@ pub(super) fn generate(
             "inferenceGatewayBaseUrl": connection.base_url,
             "inferenceGatewayApiKey": connection.api_key,
             "inferenceGatewayAuthScheme": options,
-            "inferenceModels": connection.profile.as_ref().map(|p| p.models.desktop_catalog()).unwrap_or_else(|| vec![json!({"name": connection.model})]),
+            "inferenceModels": connection.profile.as_ref().map(|p| p.models.claude().map(|m| m.desktop_catalog())).transpose()?.unwrap_or_else(|| vec![json!({"name": connection.model})]),
             "modelDiscoveryEnabled": false
         }),
     );

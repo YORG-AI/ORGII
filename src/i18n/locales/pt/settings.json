@@ -1449,5 +1449,16 @@
     "fetchDone": "Lista carregada; selecione ou digite um ID",
     "testDone": "Chamada de ferramenta com retorno e streaming verificados; o resultado expira em 15 minutos",
     "role": "Função"
+  },
+  "codexProfiles": {
+    "model": "ID do modelo solicitado",
+    "modelHelp": "Digite um ID aceito pelo endpoint Responses; buscar a lista é opcional",
+    "reasoning": "Esforço de raciocínio",
+    "reasoningHelp": "Escolha um nível compatível com o modelo; o teste de conexão verifica esta configuração",
+    "default": "Padrão do Codex",
+    "contextWindow": "Janela de contexto (tokens)",
+    "contextWindowHelp": "Declaração opcional da capacidade do provedor; não aumenta o limite do modelo",
+    "autoCompactTokenLimit": "Compactar automaticamente em (tokens)",
+    "autoCompactTokenLimitHelp": "Limite opcional; requer uma janela de contexto e não pode ultrapassá-la"
   }
 }

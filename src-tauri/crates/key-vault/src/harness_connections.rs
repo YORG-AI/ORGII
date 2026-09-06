@@ -133,18 +133,12 @@ pub fn resolve_with_options(
     resolve_internal(agent, key, model, options, false)
 }
 /// Profile endpoints and model catalogs are independent of shared credentials.
-pub fn resolve_claude_profile(
+pub fn resolve_provider_profile(
     agent: &str,
     key: &ModelKey,
     model: &str,
     options: &DesktopConnectionOptions,
 ) -> Result<ResolvedHarnessConnection, String> {
-    if !matches!(
-        ConnectionTarget::try_from(agent)?,
-        ConnectionTarget::ClaudeCode | ConnectionTarget::ClaudeDesktop
-    ) {
-        return Err("Claude profiles cannot configure another app".into());
-    }
     resolve_internal(agent, key, Some(model), Some(options), true)
 }
 fn resolve_internal(
@@ -222,6 +216,9 @@ fn resolve_internal(
             ConnectionAuthScheme::Bearer
         },
     );
+    if protocol == HarnessProtocol::OpenaiResponses && auth_scheme != ConnectionAuthScheme::Bearer {
+        return Err("Codex profiles require Bearer authentication".into());
+    }
     let fields = serde_json::json!([
         agent,
         key.id,
@@ -248,25 +245,24 @@ fn resolve_internal(
 }
 
 // Endpoint discovery intentionally does not resolve or validate any model selection.
-pub struct ResolvedClaudeEndpoint {
+pub struct ResolvedProviderEndpoint {
+    pub protocol: HarnessProtocol,
     pub base_url: String,
     pub api_key: String,
     pub auth_scheme: ConnectionAuthScheme,
 }
-pub fn resolve_claude_endpoint(
+pub fn resolve_provider_endpoint(
     agent: &str,
     key: &ModelKey,
     endpoint: &str,
     auth_scheme: ConnectionAuthScheme,
-) -> Result<ResolvedClaudeEndpoint, String> {
-    if !matches!(
-        ConnectionTarget::try_from(agent)?,
-        ConnectionTarget::ClaudeCode | ConnectionTarget::ClaudeDesktop
-    ) {
-        return Err("Claude endpoints cannot configure another app".into());
-    }
+) -> Result<ResolvedProviderEndpoint, String> {
     let protocol = validate_connection_key(agent, key)?;
-    Ok(ResolvedClaudeEndpoint {
+    if protocol == HarnessProtocol::OpenaiResponses && auth_scheme != ConnectionAuthScheme::Bearer {
+        return Err("Codex profiles require Bearer authentication".into());
+    }
+    Ok(ResolvedProviderEndpoint {
+        protocol,
         base_url: normalize_endpoint(endpoint, protocol)?,
         api_key: key
             .api_key
@@ -318,11 +314,46 @@ mod tests {
     }
 
     #[test]
+    fn codex_profile_uses_manual_model_and_its_own_endpoint_without_mutating_key_catalog() {
+        let mut key = key();
+        key.available_models.clear();
+        let original = key.base_url.clone();
+        let options = DesktopConnectionOptions {
+            endpoint: Some("https://other.example/prefix/v1/".into()),
+            auth_scheme: Some(ConnectionAuthScheme::Bearer),
+        };
+        let connection =
+            resolve_provider_profile("codex", &key, "vendor/manual", &options).unwrap();
+        assert_eq!(connection.model, "vendor/manual");
+        assert_eq!(connection.base_url, "https://other.example/prefix/v1");
+        assert_eq!(connection.auth_scheme, ConnectionAuthScheme::Bearer);
+        assert!(connection.requires_test);
+        assert!(resolve("codex", &key, Some("vendor/manual")).is_err());
+        assert_eq!(key.base_url, original);
+        assert!(key.available_models.is_empty());
+        assert!(resolve_provider_endpoint(
+            "codex",
+            &key,
+            &connection.base_url,
+            ConnectionAuthScheme::ApiKey
+        )
+        .is_err());
+        let endpoint = resolve_provider_endpoint(
+            "codex",
+            &key,
+            &connection.base_url,
+            ConnectionAuthScheme::Bearer,
+        )
+        .unwrap();
+        assert_eq!(endpoint.protocol, HarnessProtocol::OpenaiResponses);
+        assert_eq!(endpoint.base_url, connection.base_url);
+    }
+    #[test]
     fn discovery_and_profile_models_do_not_depend_on_the_shared_key_catalog() {
         let mut key = key();
         key.protocol = Some(ProviderProtocol::Anthropic);
         key.available_models.clear();
-        let endpoint = resolve_claude_endpoint(
+        let endpoint = resolve_provider_endpoint(
             "claude_code",
             &key,
             "https://gateway.example/prefix/v1/",
@@ -335,18 +366,19 @@ mod tests {
             auth_scheme: Some(ConnectionAuthScheme::ApiKey),
         };
         let profile =
-            resolve_claude_profile("claude_code", &key, "arbitrary/provider-id", &options).unwrap();
+            resolve_provider_profile("claude_code", &key, "arbitrary/provider-id", &options)
+                .unwrap();
         assert_eq!(profile.model, "arbitrary/provider-id");
         assert!(profile.requires_test);
         assert!(resolve("claude_code", &key, Some("arbitrary/provider-id")).is_err());
-        assert!(resolve_claude_endpoint(
+        assert!(resolve_provider_endpoint(
             "codex",
             &key,
             "https://gateway.example",
             ConnectionAuthScheme::ApiKey
         )
         .is_err());
-        assert!(resolve_claude_endpoint(
+        assert!(resolve_provider_endpoint(
             "claude_code",
             &key,
             "https://secret@gateway.example",

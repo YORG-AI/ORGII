@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ClaudeProviderProfile } from "@src/api/tauri/rpc/schemas/agentOrgs";
+import type { HarnessProviderProfile } from "@src/api/tauri/rpc/schemas/agentOrgs";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
@@ -13,17 +13,18 @@ import {
 } from "@src/modules/shared/layouts/SectionLayout";
 
 import ClaudeModelMappings from "./ClaudeModelMappings";
+import CodexModelSettings from "./CodexModelSettings";
 import {
-  newClaudeProfile,
-  useClaudeProfileEditor,
-} from "./useClaudeProfileEditor";
+  newProviderProfile,
+  useProviderProfileEditor,
+} from "./useProviderProfileEditor";
 
-export default function ClaudeProfileEditor({
+export default function ProviderProfileEditor({
   target,
   onAdd,
   onDirtyChange,
 }: {
-  target: ClaudeProviderProfile["target"];
+  target: HarnessProviderProfile["target"];
   onAdd: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
@@ -43,7 +44,7 @@ export default function ClaudeProfileEditor({
     saved,
     act,
     cancel,
-  } = useClaudeProfileEditor(target);
+  } = useProviderProfileEditor(target);
   useEffect(() => {
     onDirtyChange?.(dirty);
     return () => onDirtyChange?.(false);
@@ -63,11 +64,19 @@ export default function ClaudeProfileEditor({
     draft?.name.trim() &&
     draft.keyId &&
     draft.endpoint &&
-    Object.values(draft.models.roles).every((m) => m.model.trim())
+    (draft.target === "codex"
+      ? draft.models.model.trim()
+      : Object.values(draft.models.roles).every((m) => m.model.trim()))
   );
   return (
     <SectionContainer
-      title={target === "claude_code" ? "Claude Code CLI" : "Claude Desktop"}
+      title={
+        target === "codex"
+          ? "Codex"
+          : target === "claude_code"
+            ? "Claude Code CLI"
+            : "Claude Desktop"
+      }
       dataTestId={`harness-connection-${target}`}
     >
       <SectionRow showHeader={false}>
@@ -84,7 +93,7 @@ export default function ClaudeProfileEditor({
               disabled={disabled || dirty}
               onClick={() =>
                 edit(
-                  newClaudeProfile(target, t("claudeProfiles.newName"), view)
+                  newProviderProfile(target, t("claudeProfiles.newName"), view)
                 )
               }
             >
@@ -101,7 +110,7 @@ export default function ClaudeProfileEditor({
               }
               onClick={() =>
                 edit(
-                  newClaudeProfile(
+                  newProviderProfile(
                     target,
                     t("claudeProfiles.copyName"),
                     view,
@@ -246,35 +255,51 @@ export default function ClaudeProfileEditor({
               value={draft.endpoint}
               disabled={disabled}
               style={SECTION_CONTROL_STYLE}
-              placeholder="https://gateway.example/anthropic"
+              placeholder={
+                target === "codex"
+                  ? "https://gateway.example/v1"
+                  : "https://gateway.example/anthropic"
+              }
               onChange={(endpoint) => edit({ ...draft, endpoint })}
             />
           </SectionRow>
-          <SectionRow label={t("harnessConnections.authentication")}>
-            <Select
-              ariaLabel={t("harnessConnections.authentication")}
-              value={draft.authScheme}
+          {draft.target !== "codex" && (
+            <SectionRow label={t("harnessConnections.authentication")}>
+              <Select
+                ariaLabel={t("harnessConnections.authentication")}
+                value={draft.authScheme}
+                disabled={disabled}
+                style={SECTION_CONTROL_STYLE}
+                options={[
+                  { value: "bearer", label: "Authorization: Bearer" },
+                  { value: "x-api-key", label: "x-api-key" },
+                ]}
+                onChange={(value) =>
+                  edit({
+                    ...draft,
+                    authScheme: value === "x-api-key" ? "x-api-key" : "bearer",
+                  })
+                }
+              />
+            </SectionRow>
+          )}
+          {draft.target === "codex" ? (
+            <CodexModelSettings
+              profile={draft}
               disabled={disabled}
-              style={SECTION_CONTROL_STYLE}
-              options={[
-                { value: "bearer", label: "Authorization: Bearer" },
-                { value: "x-api-key", label: "x-api-key" },
-              ]}
-              onChange={(value) =>
-                edit({
-                  ...draft,
-                  authScheme: value === "x-api-key" ? "x-api-key" : "bearer",
-                })
-              }
+              models={models}
+              onChange={edit}
+              onFetch={() => void act("fetch")}
             />
-          </SectionRow>
-          <ClaudeModelMappings
-            profile={draft}
-            disabled={disabled}
-            models={models}
-            onChange={edit}
-            onFetch={() => void act("fetch")}
-          />
+          ) : (
+            <ClaudeModelMappings
+              profile={draft}
+              disabled={disabled}
+              models={models}
+              onChange={edit}
+              onFetch={() => void act("fetch")}
+            />
+          )}
           <SectionRow showHeader={false}>
             <div className="flex w-full flex-col gap-3">
               <p className={SECTION_DESCRIPTION_CLASSES}>
