@@ -17,12 +17,8 @@ pub(crate) fn init_runtime_profile_and_window(
     // directly. Use it as the runtime source of truth for ports;
     // launcher env vars remain optional overrides for diagnostics.
     let runtime_profile =
-        runtime_instance::RuntimeInstanceProfile::from_identifier(
-            &app.config().identifier,
-        );
-    if !agent_cli::managed_config::set_managed_proxy_port_default(
-        runtime_profile.cli_proxy_port,
-    ) {
+        runtime_instance::RuntimeInstanceProfile::from_identifier(&app.config().identifier);
+    if !agent_cli::managed_config::set_managed_proxy_port_default(runtime_profile.cli_proxy_port) {
         tracing::warn!(
             requested_port = runtime_profile.cli_proxy_port,
             "[Runtime Instance] CLI proxy default was already configured"
@@ -104,15 +100,12 @@ pub(crate) fn init_runtime_profile_and_window(
         #[cfg(not(target_os = "macos"))]
         {
             let show_handle = app.handle().clone();
-            app.handle().listen(
-                "orgii:main-window-ready",
-                move |_| {
-                    if let Some(w) = show_handle.get_webview_window("main") {
-                        let _ = w.show();
-                        let _ = w.set_focus();
-                    }
-                },
-            );
+            app.handle().listen("orgii:main-window-ready", move |_| {
+                if let Some(w) = show_handle.get_webview_window("main") {
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                }
+            });
 
             // Safety fallback: if the frontend event never arrives
             // (bundle crash, IPC failure), show after 3 s so the user

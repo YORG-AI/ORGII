@@ -15,7 +15,8 @@
       "person": "Por pessoa",
       "assignedTo": "Atribuído a",
       "createdBy": "Criado por",
-      "targetDate": "Por data-alvo"
+      "targetDate": "Por data-alvo",
+      "property": "Por propriedade"
     },
     "source": {
       "localOnly": "Somente local",
@@ -541,7 +542,19 @@
       "cycles": "ciclos"
     },
     "viewWorkItems": "Ver itens de trabalho",
-    "fromRoutine": "From routine: {{name}}"
+    "fromRoutine": "From routine: {{name}}",
+    "batchField": {
+      "hint": "Aplica-se a {{count}} itens selecionados."
+    },
+    "batchStatus": {
+      "title": "Definir status"
+    },
+    "batchPriority": {
+      "title": "Definir prioridade"
+    },
+    "batchAssignee": {
+      "title": "Definir responsável"
+    }
   },
   "settings": {
     "sidebarGeneral": "Geral",

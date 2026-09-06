@@ -139,7 +139,7 @@ fn git_value(workspace_path: &str, args: &[&str]) -> Option<String> {
 fn hydrate_target_snapshot(
     request: &mut EnqueueWorkItemRunRequest,
     context: WorkItemExecutionContext,
-) {
+) -> Result<(), String> {
     request.org_id = context.org_id;
     let snapshot = &mut request.target_snapshot;
     snapshot.work_item_revision = context.revision;
@@ -196,6 +196,11 @@ fn hydrate_target_snapshot(
     if snapshot.agent_org_id.is_none() {
         snapshot.agent_org_id = context.agent_org_id;
     }
+    // Never trust a client-supplied manifest. Freeze effective skill consent
+    // at the durable enqueue boundary.
+    snapshot.skill_manifest = super::resolve_skill_manifest(snapshot)?;
+    snapshot.skill_manifest_digest = Some(super::skill_manifest_digest(&snapshot.skill_manifest)?);
+    Ok(())
 }
 /// Atomically create one Work Item Run and its first dispatch row.
 ///
@@ -252,7 +257,7 @@ pub(crate) fn enqueue_in_transaction(
     }
 
     let execution_context = resolve_work_item_scope(tx, &request)?;
-    hydrate_target_snapshot(&mut request, execution_context);
+    hydrate_target_snapshot(&mut request, execution_context)?;
     let revision = request.target_snapshot.work_item_revision;
 
     let scope = scope_key(request.project_slug.as_deref(), &request.org_id);

@@ -1,6 +1,18 @@
 import type { WorkItemHandoff } from "@src/api/http/project";
 
-export type TeamInboxFilter = "all" | "mentions" | "assigned";
+export type TeamInboxFilter = "all" | "mentions" | "assigned" | "archived";
+
+export type TeamInboxItemSource = "local" | "cloud";
+
+export type TeamInboxNotificationKind =
+  | "mention"
+  | "discussion_updated"
+  | "run_failed"
+  | "status_changed"
+  | "assignee_changed"
+  | "priority_changed"
+  | "dates_changed"
+  | "child_completed";
 
 export interface TeamInboxActor {
   id: string;
@@ -10,6 +22,8 @@ export interface TeamInboxActor {
 
 export interface SessionCommentTarget {
   kind: "session_comment";
+  /** Present for managed-cloud mentions; names the canonical conversation owner. */
+  orgId?: string;
   sessionId: string;
   sessionTitle: string;
   commentId: string;
@@ -41,6 +55,8 @@ interface TeamInboxItemBase {
   occurredAt: string;
   readAt: string | null;
   actor: TeamInboxActor;
+  /** Explicit production source; omitted only by legacy fixtures/callers. */
+  source?: TeamInboxItemSource;
 }
 
 export interface CommentMentionItem extends TeamInboxItemBase {
@@ -72,7 +88,24 @@ export interface AssignedWorkItem extends TeamInboxItemBase {
   };
 }
 
-export type TeamInboxItem = CommentMentionItem | AssignedWorkItem;
+export interface WorkItemUpdateItem extends TeamInboxItemBase {
+  kind: "work_item_updated" | "work_item_run_failed" | "child_completed";
+  target: WorkItemTarget;
+  payload: {
+    title: string;
+    eventKind: string;
+    status: string;
+    priority: string;
+    recipientMemberId: string;
+    recipientName?: string;
+    summary?: string;
+    updatedAt: string;
+  };
+}
+
+export type WorkItemInboxItem = AssignedWorkItem | WorkItemUpdateItem;
+
+export type TeamInboxItem = CommentMentionItem | WorkItemInboxItem;
 
 export interface TeamInboxCursor {
   occurredAt: string;
@@ -139,6 +172,7 @@ interface TeamInboxHandoffDestinationBase {
 
 export interface TeamInboxProjectHandoffDestination extends TeamInboxHandoffDestinationBase {
   kind: "project";
+  orgId: string;
   projectId: string;
   projectSlug: string;
 }
@@ -188,6 +222,8 @@ export interface TeamInboxDataSource {
    */
   scopeKey?: string;
   listPage(input: ListTeamInboxInput): Promise<TeamInboxPage>;
+  /** Archived rows are loaded only while the archived view is visible. */
+  listArchivedPage?(input: ListTeamInboxInput): Promise<TeamInboxPage>;
   markRead?(item: TeamInboxItem): Promise<void>;
   markUnread?(item: TeamInboxItem): Promise<void>;
   markAllRead?(
@@ -206,6 +242,13 @@ export interface TeamInboxDataSource {
    * `nextItem = null` removes an item that no longer belongs to this viewer.
    */
   reconcileItem?(itemKey: string, nextItem: TeamInboxItem | null): void;
+  archiveItem?(item: TeamInboxItem): Promise<void>;
+  unarchiveItem?(item: TeamInboxItem): Promise<void>;
+  listMutedKinds?(): Promise<TeamInboxNotificationKind[]>;
+  setKindMuted?(
+    kind: TeamInboxNotificationKind,
+    muted: boolean
+  ): Promise<TeamInboxNotificationKind[]>;
   /**
    * Creates a Work Item from a one-time Session snapshot. The implementation
    * owns persistence, idempotency, and source linkage.
@@ -225,6 +268,7 @@ export type TeamInboxNavigationIntent =
     }
   | {
       kind: "open_session_comment";
+      orgId?: string;
       sessionId: string;
       commentId: string;
       threadId: string;

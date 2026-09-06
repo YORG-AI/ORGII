@@ -26,6 +26,7 @@ interface CacheEntry<T> {
 
 const cache = new Map<string, CacheEntry<unknown>>();
 const inflight = new Map<string, Promise<unknown>>();
+const listeners = new Map<string, Set<() => void>>();
 /**
  * Fences reads that were already in flight when any mutation invalidated the
  * cache. Clearing `inflight` alone is insufficient: the detached Promise can
@@ -61,7 +62,33 @@ function endScopedRead(scope: string): void {
 function evictIfNeeded(): void {
   if (cache.size < MAX_ENTRIES) return;
   const firstKey = cache.keys().next().value;
-  if (firstKey) cache.delete(firstKey);
+  if (firstKey) {
+    cache.delete(firstKey);
+    notifyCacheKey(firstKey);
+  }
+}
+
+function notifyCacheKey(cacheKey: string): void {
+  for (const listener of listeners.get(cacheKey) ?? []) listener();
+}
+
+/** Latest successful value for React projections; never starts an IPC read. */
+export function readCachedSnapshot<T>(cacheKey: string): T | undefined {
+  return cache.get(cacheKey)?.data as T | undefined;
+}
+
+/** Subscribe to one API-owned cache entry without mirroring it in UI state. */
+export function subscribeCachedSnapshot(
+  cacheKey: string,
+  listener: () => void
+): () => void {
+  const forKey = listeners.get(cacheKey) ?? new Set<() => void>();
+  forKey.add(listener);
+  listeners.set(cacheKey, forKey);
+  return () => {
+    forKey.delete(listener);
+    if (forKey.size === 0) listeners.delete(cacheKey);
+  };
 }
 
 export async function cachedRead<T>(
@@ -105,6 +132,7 @@ export async function cachedRead<T>(
       }
       evictIfNeeded();
       cache.set(cacheKey, { data: result, timestamp: Date.now() });
+      notifyCacheKey(cacheKey);
       if (inflight.get(cacheKey) === promise) inflight.delete(cacheKey);
       return result;
     })
@@ -132,6 +160,7 @@ export function invalidateCache(slug?: string): void {
     scopedInvalidationGenerations.clear();
     cache.clear();
     inflight.clear();
+    for (const cacheKey of listeners.keys()) notifyCacheKey(cacheKey);
     return;
   }
   if ((activeReadsByScope.get(slug) ?? 0) > 0) {
@@ -150,5 +179,8 @@ export function invalidateCache(slug?: string): void {
     if (key.startsWith(prefix)) {
       inflight.delete(key);
     }
+  }
+  for (const cacheKey of listeners.keys()) {
+    if (cacheKey.startsWith(prefix)) notifyCacheKey(cacheKey);
   }
 }

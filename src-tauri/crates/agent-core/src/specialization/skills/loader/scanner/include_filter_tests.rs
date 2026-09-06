@@ -78,6 +78,56 @@ fn include_filter_narrows_listing_to_named_skills() {
 }
 
 #[test]
+fn targeted_consent_lookup_resolves_only_the_named_effective_skill() {
+    let ws = temp_workspace("targeted_consent");
+    write_skill(&ws, "selected", &skill_doc("selected", "selected skill"));
+    let unrelated = ws.join("skills/unrelated");
+    fs::create_dir_all(unrelated.join("large/nested/tree")).expect("mkdir unrelated tree");
+    fs::write(unrelated.join("SKILL.md"), "not valid frontmatter").expect("write unrelated");
+
+    let selected = SkillsLoader::new(&ws)
+        .find_skill_fresh("selected")
+        .expect("selected skill");
+
+    assert_eq!(selected.name, "selected");
+    assert_eq!(selected.source, "workspace");
+    assert!(!selected.content_digest.is_empty());
+}
+
+#[test]
+fn targeted_consent_lookup_applies_the_existing_disabled_policy() {
+    let ws = temp_workspace("targeted_disabled");
+    write_skill(&ws, "selected", &skill_doc("selected", "selected skill"));
+
+    let selected = SkillsLoader::new(&ws)
+        .with_disabled_skills(vec!["selected".to_string()])
+        .find_skill_fresh("selected")
+        .expect("selected skill remains discoverable for verification");
+
+    assert!(!selected.enabled);
+}
+
+#[test]
+fn targeted_consent_lookup_rejects_path_like_names() {
+    let ws = temp_workspace("targeted_path_guard");
+    write_skill(&ws, "selected", &skill_doc("selected", "selected skill"));
+    let loader = SkillsLoader::new(&ws);
+
+    for unsafe_name in [
+        "../selected",
+        "skills/selected",
+        r"skills\selected",
+        ".",
+        "..",
+    ] {
+        assert!(
+            loader.find_skill_fresh(unsafe_name).is_none(),
+            "path-like skill name must fail closed: {unsafe_name}"
+        );
+    }
+}
+
+#[test]
 fn empty_include_filter_means_no_skills() {
     // The prompt code only passes `Some(&[..])` when the slice is
     // non-empty (`!sc.include.is_empty()`), so `Some(&[])` is a
@@ -309,4 +359,24 @@ fn disabled_skills_take_precedence_over_include_filter() {
         "alpha is disabled and must NOT appear; got:\n{attachment}",
     );
     assert!(attachment.contains("beta"));
+}
+
+#[test]
+fn malformed_managed_provenance_fails_closed() {
+    let ws = temp_workspace("invalid_provenance");
+    write_skill(&ws, "managed", &skill_doc("managed", "managed skill"));
+    fs::write(
+        ws.join("skills/managed")
+            .join(crate::skills::provenance::PROVENANCE_FILENAME),
+        "not-json",
+    )
+    .expect("write invalid provenance");
+
+    let skills = SkillsLoader::new(&ws).list_skills();
+    let managed = skills
+        .iter()
+        .find(|skill| skill.name == "managed")
+        .expect("managed skill scanned");
+    assert!(!managed.consent_valid);
+    assert!(!managed.available);
 }

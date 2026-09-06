@@ -345,35 +345,38 @@ export async function purgeExpiredDeletedWorkItems(
 export async function updateWorkItemPartial(
   projectSlug: string,
   shortId: string,
-  updates: WorkItemPartialUpdate
+  updates: WorkItemPartialUpdate,
+  expectedRevision?: number
 ): Promise<EnrichedWorkItem> {
-  const result = await invoke<EnrichedWorkItem>(
-    "project_update_work_item_partial",
-    {
+  try {
+    return await invoke<EnrichedWorkItem>("project_update_work_item_partial", {
       projectSlug,
       shortId,
       updates,
-    }
-  );
-  invalidateCache();
-  return result;
+      expectedRevision,
+    });
+  } finally {
+    // A rejected CAS proves the caller's cached snapshot is stale too.
+    invalidateCache();
+  }
 }
 
 export async function updateStandaloneWorkItemPartial(
   shortId: string,
   updates: WorkItemPartialUpdate,
-  options?: ProjectScopeOptions
+  options?: ProjectScopeOptions,
+  expectedRevision?: number
 ): Promise<WorkItemData> {
-  const result = await invoke<WorkItemData>(
-    "work_item_update_standalone_partial",
-    {
+  try {
+    return await invoke<WorkItemData>("work_item_update_standalone_partial", {
       ...scopeInvokePayload(options),
       shortId,
       updates,
-    }
-  );
-  invalidateCache();
-  return result;
+      expectedRevision,
+    });
+  } finally {
+    invalidateCache();
+  }
 }
 
 export async function transitionWorkItemHandoff(

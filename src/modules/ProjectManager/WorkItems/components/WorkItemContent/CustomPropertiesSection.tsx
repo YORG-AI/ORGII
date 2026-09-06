@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -21,22 +27,31 @@ import {
   ListChevronsDownUpIcon,
 } from "@src/icons";
 import { ActivityHeaderActionButton } from "@src/modules/shared/components/ActivityTimeline";
+import type { Person } from "@src/types/core/shared";
 
+import { usePropertyDefinitions } from "../../hooks/usePropertyDefinitions";
 import {
   WORK_ITEM_THREAD_TOKENS,
   WorkItemThreadSection,
 } from "../WorkItemThread";
+import {
+  type PropertyMemberSnapshot,
+  activeMemberEntriesToPeople,
+  resolvePropertyMembers,
+} from "./customPropertiesModel";
 
 interface CustomPropertiesSectionProps {
   projectSlug?: string | null;
   orgId?: string | null;
   shortId?: string | null;
+  members: Person[];
   editable: boolean;
 }
 
 interface PropertyValueEditorProps {
   property: PropertyDefinition;
   value: unknown;
+  members: Person[];
   disabled: boolean;
   onSave: (value: unknown | null) => Promise<void>;
 }
@@ -49,11 +64,14 @@ const PROPERTY_TYPES: PropertyType[] = [
   "date",
   "checkbox",
   "url",
+  "actor",
+  "multi_actor",
 ];
 
 function PropertyValueEditor({
   property,
   value,
+  members,
   disabled,
   onSave,
 }: PropertyValueEditorProps) {
@@ -81,24 +99,36 @@ function PropertyValueEditor({
 
   if (
     property.propertyType === "select" ||
-    property.propertyType === "multi_select"
+    property.propertyType === "multi_select" ||
+    property.propertyType === "actor" ||
+    property.propertyType === "multi_actor"
   ) {
-    const options: SelectOption[] = property.config.options.map((option) => ({
-      value: option.id,
-      label: option.name,
-    }));
-    const selectValue =
-      property.propertyType === "multi_select"
-        ? Array.isArray(value)
-          ? value.filter((entry): entry is string => typeof entry === "string")
-          : []
-        : typeof value === "string"
-          ? value
-          : undefined;
+    const isActor =
+      property.propertyType === "actor" ||
+      property.propertyType === "multi_actor";
+    const isMultiple =
+      property.propertyType === "multi_select" ||
+      property.propertyType === "multi_actor";
+    const options: SelectOption[] = isActor
+      ? members.map((member) => ({
+          value: `member:${member.id}`,
+          label: member.name,
+        }))
+      : property.config.options.map((option) => ({
+          value: option.id,
+          label: option.name,
+        }));
+    const selectValue = isMultiple
+      ? Array.isArray(value)
+        ? value.filter((entry): entry is string => typeof entry === "string")
+        : []
+      : typeof value === "string"
+        ? value
+        : "";
     return (
       <Select
         value={selectValue}
-        mode={property.propertyType === "multi_select" ? "multiple" : "single"}
+        mode={isMultiple ? "multiple" : "single"}
         options={options}
         allowClear
         disabled={disabled}
@@ -156,6 +186,7 @@ const CustomPropertiesSection: React.FC<CustomPropertiesSectionProps> = ({
   projectSlug,
   orgId,
   shortId,
+  members,
   editable,
 }) => {
   const { t } = useTranslation("projects");
@@ -171,7 +202,8 @@ const CustomPropertiesSection: React.FC<CustomPropertiesSectionProps> = ({
         : null,
     [projectSlug, resolvedOrgId, shortId]
   );
-  const [definitions, setDefinitions] = useState<PropertyDefinition[]>([]);
+  const { data: definitions, refresh: refreshDefinitions } =
+    usePropertyDefinitions(resolvedOrgId, Boolean(scope));
   const [values, setValues] = useState<WorkItemPropertyValue[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [busyPropertyId, setBusyPropertyId] = useState<string | null>(null);
@@ -180,32 +212,57 @@ const CustomPropertiesSection: React.FC<CustomPropertiesSectionProps> = ({
   const [draftName, setDraftName] = useState("");
   const [draftType, setDraftType] = useState<PropertyType>("text");
   const [draftOptions, setDraftOptions] = useState("");
+  const [memberSnapshot, setMemberSnapshot] =
+    useState<PropertyMemberSnapshot | null>(null);
+  const loadGenerationRef = useRef(0);
+  const memberScopeKey = `${resolvedOrgId}:${projectSlug ?? "-"}`;
+  const propertyMembers = useMemo(
+    () =>
+      resolvePropertyMembers(
+        projectSlug,
+        memberScopeKey,
+        memberSnapshot,
+        members
+      ),
+    [memberScopeKey, memberSnapshot, members, projectSlug]
+  );
 
   const reload = useCallback(async () => {
+    const generation = loadGenerationRef.current + 1;
+    loadGenerationRef.current = generation;
     if (!scope) {
-      setDefinitions([]);
       setValues([]);
+      setMemberSnapshot(null);
       setIsLoading(false);
       return;
     }
     setIsLoading(true);
     try {
-      const [nextDefinitions, nextValues] = await Promise.all([
-        projectApi.listPropertyDefinitions(scope.orgId),
+      const [nextValues, nextMembers] = await Promise.all([
         projectApi.listWorkItemPropertyValues(scope),
+        projectSlug
+          ? projectApi
+              .readMembers(projectSlug)
+              .then((result) => activeMemberEntriesToPeople(result.members))
+          : Promise.resolve(members),
       ]);
-      setDefinitions(nextDefinitions);
+      if (loadGenerationRef.current !== generation) return;
       setValues(nextValues);
+      setMemberSnapshot({ scopeKey: memberScopeKey, members: nextMembers });
       setError(null);
     } catch (cause) {
+      if (loadGenerationRef.current !== generation) return;
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setIsLoading(false);
+      if (loadGenerationRef.current === generation) setIsLoading(false);
     }
-  }, [scope]);
+  }, [memberScopeKey, members, projectSlug, scope]);
 
   useEffect(() => {
     void reload();
+    return () => {
+      loadGenerationRef.current += 1;
+    };
   }, [reload]);
 
   const valuesByPropertyId = useMemo(
@@ -273,7 +330,7 @@ const CustomPropertiesSection: React.FC<CustomPropertiesSectionProps> = ({
       setDraftOptions("");
       setDraftType("text");
       setShowCreate(false);
-      await reload();
+      await Promise.all([refreshDefinitions(), reload()]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -284,6 +341,7 @@ const CustomPropertiesSection: React.FC<CustomPropertiesSectionProps> = ({
     draftName,
     draftOptions,
     draftType,
+    refreshDefinitions,
     reload,
     resolvedOrgId,
     t,
@@ -293,15 +351,15 @@ const CustomPropertiesSection: React.FC<CustomPropertiesSectionProps> = ({
     async (propertyId: string) => {
       setBusyPropertyId(propertyId);
       try {
-        await projectApi.archivePropertyDefinition(propertyId);
-        await reload();
+        await projectApi.archivePropertyDefinition(propertyId, resolvedOrgId);
+        await Promise.all([refreshDefinitions(), reload()]);
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
       } finally {
         setBusyPropertyId(null);
       }
     },
-    [reload]
+    [refreshDefinitions, reload, resolvedOrgId]
   );
 
   if (!scope) return null;
@@ -444,6 +502,7 @@ const CustomPropertiesSection: React.FC<CustomPropertiesSectionProps> = ({
                     key={`${property.id}:${JSON.stringify(valuesByPropertyId.get(property.id))}`}
                     property={property}
                     value={valuesByPropertyId.get(property.id)}
+                    members={propertyMembers}
                     disabled={!editable || busyPropertyId === property.id}
                     onSave={(value) => handleSaveValue(property.id, value)}
                   />

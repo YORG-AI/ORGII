@@ -15,7 +15,8 @@
       "person": "사람별",
       "assignedTo": "담당자별",
       "createdBy": "작성자별",
-      "targetDate": "목표 날짜별"
+      "targetDate": "목표 날짜별",
+      "property": "속성별"
     },
     "source": {
       "localOnly": "로컬만",
@@ -541,7 +542,19 @@
       "cycles": "사이클"
     },
     "viewWorkItems": "Work Item 보기",
-    "fromRoutine": "From routine: {{name}}"
+    "fromRoutine": "From routine: {{name}}",
+    "batchField": {
+      "hint": "선택한 {{count}}개 항목에 적용됩니다."
+    },
+    "batchStatus": {
+      "title": "상태 설정"
+    },
+    "batchPriority": {
+      "title": "우선순위 설정"
+    },
+    "batchAssignee": {
+      "title": "담당자 설정"
+    }
   },
   "settings": {
     "sidebarGeneral": "일반",

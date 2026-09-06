@@ -4,11 +4,53 @@
 
 use std::collections::HashMap;
 
-use super::diff::{changed_fields_payload, touches_payload_tail};
+use rusqlite::{params, OptionalExtension};
+
+use super::diff::changed_fields_payload;
 use super::engine::update_work_item_atomic_with_revisions_scoped;
 use super::scope::{AtomicServiceOptions, AtomicWorkItemScope};
+use crate::projects::io::helpers::{conn, map_db};
 use crate::projects::io::work_items::extras::FieldRevision;
 use crate::projects::types::{WorkItemData, WorkItemPartialUpdate};
+
+struct PersistedWorkItemLocation {
+    data: WorkItemData,
+    org_id: String,
+    project_slug: Option<String>,
+}
+
+/// Re-read the authoritative post-commit scope; a partial patch may move the
+/// row to another project or to/from standalone scope.
+fn read_persisted_work_item_location(
+    work_item_id: &str,
+    short_id: &str,
+) -> Result<PersistedWorkItemLocation, String> {
+    let connection = conn()?;
+    let location = map_db(
+        connection
+            .query_row(
+                "SELECT w.org_id, p.slug
+                   FROM workitems w
+              LEFT JOIN projects p ON p.id = w.project_id
+                  WHERE w.id = ?1 AND w.short_id = ?2",
+                params![work_item_id, short_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
+            )
+            .optional(),
+    )?
+    .ok_or_else(|| format!("Work item '{}' not found after update", short_id))?;
+    drop(connection);
+
+    let data = match location.1.as_deref() {
+        Some(project_slug) => super::super::crud::read_work_item(project_slug, short_id)?,
+        None => super::super::crud::read_standalone_work_item(Some(&location.0), short_id)?,
+    };
+    Ok(PersistedWorkItemLocation {
+        data,
+        org_id: location.0,
+        project_slug: location.1,
+    })
+}
 
 /// Apply a partial update and return the new `WorkItemData`.
 ///
@@ -24,19 +66,65 @@ pub fn update_work_item_partial(
     short_id: &str,
     updates: &WorkItemPartialUpdate,
 ) -> Result<WorkItemData, String> {
-    let (data, changed_fields) =
-        update_work_item_partial_with_revisions(project_slug, short_id, HashMap::new(), updates)?;
-    if !changed_fields.is_empty() {
+    update_project_work_item_partial_serviced(
+        project_slug,
+        short_id,
+        updates,
+        AtomicServiceOptions::default(),
+    )
+}
+
+/// UI-facing partial update with an optimistic concurrency precondition.
+pub fn update_work_item_partial_at_revision(
+    project_slug: &str,
+    short_id: &str,
+    updates: &WorkItemPartialUpdate,
+    expected_revision: i64,
+) -> Result<WorkItemData, String> {
+    update_project_work_item_partial_serviced(
+        project_slug,
+        short_id,
+        updates,
+        AtomicServiceOptions {
+            expected_local_version: Some(expected_revision),
+            ..Default::default()
+        },
+    )
+}
+
+fn update_project_work_item_partial_serviced(
+    project_slug: &str,
+    short_id: &str,
+    updates: &WorkItemPartialUpdate,
+    service: AtomicServiceOptions,
+) -> Result<WorkItemData, String> {
+    let (data, changed_fields, payload_tail_changed) = update_work_item_partial_scoped(
+        AtomicWorkItemScope::Project(project_slug),
+        short_id,
+        HashMap::new(),
+        service,
+        updates,
+    )?;
+    let persisted = read_persisted_work_item_location(&data.frontmatter.id, short_id)?;
+    let moved = persisted.project_slug.as_deref() != Some(project_slug);
+    if moved {
+        crate::sync::collab_bridge::record_work_item_write(
+            &persisted.org_id,
+            persisted.project_slug.as_deref(),
+            &persisted.data.frontmatter.id,
+            persisted.data.frontmatter.deleted_at.is_some(),
+        )?;
+    } else if !changed_fields.is_empty() {
         let payload = changed_fields_payload(&data, &changed_fields);
         crate::sync::io::record_local_update(project_slug, short_id, &changed_fields, &payload)?;
-    } else if touches_payload_tail(updates) {
+    } else if payload_tail_changed {
         // Payload-tail-only patch (todos / comments / linked sessions /
         // orchestrator state / lock …): not covered by the sync-tracked
         // diff, but collab-synced orgs still need to push the row —
         // those fields travel in the server payload jsonb (design §16.3).
         crate::sync::collab_bridge::record_work_item_payload_touch(project_slug, short_id)?;
     }
-    Ok(data)
+    Ok(persisted.data)
 }
 
 /// Standalone-org counterpart to [`update_work_item_partial`].
@@ -51,22 +139,55 @@ pub fn update_standalone_work_item_partial(
     short_id: &str,
     updates: &WorkItemPartialUpdate,
 ) -> Result<WorkItemData, String> {
+    update_standalone_work_item_partial_serviced(
+        org_id,
+        short_id,
+        updates,
+        AtomicServiceOptions::default(),
+    )
+}
+
+pub fn update_standalone_work_item_partial_at_revision(
+    org_id: Option<&str>,
+    short_id: &str,
+    updates: &WorkItemPartialUpdate,
+    expected_revision: i64,
+) -> Result<WorkItemData, String> {
+    update_standalone_work_item_partial_serviced(
+        org_id,
+        short_id,
+        updates,
+        AtomicServiceOptions {
+            expected_local_version: Some(expected_revision),
+            ..Default::default()
+        },
+    )
+}
+
+fn update_standalone_work_item_partial_serviced(
+    org_id: Option<&str>,
+    short_id: &str,
+    updates: &WorkItemPartialUpdate,
+    service: AtomicServiceOptions,
+) -> Result<WorkItemData, String> {
     let org_id = org_id.unwrap_or("personal-org");
     let (data, changed_fields, payload_tail_changed) = update_work_item_partial_scoped(
         AtomicWorkItemScope::Standalone { org_id },
         short_id,
         HashMap::new(),
+        service,
         updates,
     )?;
+    let persisted = read_persisted_work_item_location(&data.frontmatter.id, short_id)?;
     if !changed_fields.is_empty() || payload_tail_changed {
         crate::sync::collab_bridge::record_work_item_write(
-            org_id,
-            None,
-            &data.frontmatter.id,
-            data.frontmatter.deleted_at.is_some(),
+            &persisted.org_id,
+            persisted.project_slug.as_deref(),
+            &persisted.data.frontmatter.id,
+            persisted.data.frontmatter.deleted_at.is_some(),
         )?;
     }
-    Ok(data)
+    Ok(persisted.data)
 }
 
 /// Variant of [`update_work_item_partial`] that lets the caller supply
@@ -87,6 +208,7 @@ pub fn update_work_item_partial_with_revisions(
         AtomicWorkItemScope::Project(project_slug),
         short_id,
         override_revisions,
+        AtomicServiceOptions::default(),
         updates,
     )?;
     Ok((data, changed_fields))
@@ -107,6 +229,7 @@ pub(crate) fn update_standalone_work_item_partial_with_revisions(
         AtomicWorkItemScope::Standalone { org_id },
         short_id,
         override_revisions,
+        AtomicServiceOptions::default(),
         updates,
     )?;
     Ok((data, changed_fields))
@@ -116,6 +239,7 @@ fn update_work_item_partial_scoped(
     scope: AtomicWorkItemScope<'_>,
     short_id: &str,
     override_revisions: HashMap<String, FieldRevision>,
+    service: AtomicServiceOptions,
     updates: &WorkItemPartialUpdate,
 ) -> Result<(WorkItemData, Vec<&'static str>, bool), String> {
     update_work_item_atomic_with_revisions_scoped(
@@ -123,7 +247,7 @@ fn update_work_item_partial_scoped(
         short_id,
         override_revisions,
         updates.actor.as_ref(),
-        AtomicServiceOptions::default(),
+        service,
         |fm, body| {
             let now_iso = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
@@ -206,6 +330,7 @@ fn update_work_item_partial_scoped(
                 frontmatter: fm.clone(),
                 body: body.clone(),
                 filename: short_id.to_string(),
+                revision: None,
             })
         },
     )

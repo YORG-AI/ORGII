@@ -21,8 +21,8 @@ mod types;
 // `commands::*`) — we keep those off the flat surface.
 pub use bundled_files::{skills_read_files_batch, skills_write_files_batch};
 pub use commands::{
-    global_skills_dir, skills_create, skills_list, skills_move, skills_read, skills_toggle,
-    skills_update, skills_validate_name,
+    global_skills_dir, skills_create, skills_list, skills_move, skills_read, skills_share_to_org,
+    skills_toggle, skills_update, skills_validate_name,
 };
 pub use scanner::SkillsLoader;
 pub use skill_env_storage::load_and_apply_skill_env;
@@ -33,5 +33,6 @@ pub use types::{DescriptionQuality, SkillInfo, SkillListingEntry};
 pub use bundled_files::{__cmd__skills_read_files_batch, __cmd__skills_write_files_batch};
 pub use commands::{
     __cmd__skills_create, __cmd__skills_list, __cmd__skills_move, __cmd__skills_read,
-    __cmd__skills_toggle, __cmd__skills_update, __cmd__skills_validate_name,
+    __cmd__skills_share_to_org, __cmd__skills_toggle, __cmd__skills_update,
+    __cmd__skills_validate_name,
 };

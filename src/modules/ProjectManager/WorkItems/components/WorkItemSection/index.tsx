@@ -45,7 +45,10 @@ const WorkItemSection: React.FC<WorkItemSectionProps> = ({
   const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
   const isExpanded = expanded ?? internalExpanded;
   const sectionLabel =
-    label ?? t(`workItems.statusLabels.${statusConfig.value}`);
+    label ??
+    t(`workItems.statusLabels.${statusConfig.value}`, {
+      defaultValue: statusConfig.label ?? statusConfig.value,
+    });
   const addTitle =
     addButtonTitle ??
     t("workItems.addStatusItem", {

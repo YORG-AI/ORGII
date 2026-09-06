@@ -27,6 +27,7 @@ export type ActivityType =
 
 export type WorkItemsViewTab =
   | "List"
+  | "Table"
   | "Kanban"
   | "Gantt"
   | "Calendar"
@@ -39,6 +40,7 @@ export type StatusFilterType =
   | "todo"
   | "inProgress"
   | "inReview"
+  | "blocked"
   | "done"
   | "cancelled"
   | "duplicate"
@@ -52,6 +54,7 @@ export interface StatusCounts {
   todo: number;
   inProgress: number;
   inReview: number;
+  blocked: number;
   done: number;
   cancelled: number;
   duplicate: number;
@@ -71,6 +74,7 @@ export const FILTER_TO_STATUS: Record<StatusFilterType, WorkItemStatus | null> =
     todo: "planned",
     inProgress: "in_progress",
     inReview: "in_review",
+    blocked: "blocked",
     done: "completed",
     cancelled: "cancelled",
     duplicate: "duplicate",
@@ -86,6 +90,7 @@ export const STATUS_FILTER_KEYS: StatusFilterType[] = [
   "todo",
   "inProgress",
   "inReview",
+  "blocked",
   "done",
   "backlog",
   "cancelled",

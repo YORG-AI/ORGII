@@ -21,6 +21,7 @@ function draft(
     destinations: [
       {
         kind: "project",
+        orgId: "org-1",
         key: "project:project-alpha",
         projectId: "project-1",
         projectSlug: "project-alpha",
@@ -131,6 +132,7 @@ describe("sessionHandoffForm", () => {
       destinations: [
         {
           kind: "project",
+          orgId: "org-1",
           key: "project:project-alpha",
           projectId: "project-1",
           projectSlug: "project-alpha",
@@ -201,6 +203,7 @@ describe("sessionHandoffForm", () => {
         ...draft().destinations,
         {
           kind: "project",
+          orgId: "org-2",
           key: "project:project-beta",
           projectId: "project-2",
           projectSlug: "project-beta",

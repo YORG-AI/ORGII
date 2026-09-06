@@ -16,11 +16,13 @@ import type {
 import {
   GITHUB_ISSUE_STATUS,
   type WorkItem as UIWorkItem,
+  type WorkItemComment,
   type WorkItemPriority,
   type WorkItemStatus,
 } from "@src/types/core/workItem";
 
 import type {
+  CommentEntry,
   EnrichedWorkItem,
   LabelEntry,
   MemberEntry,
@@ -28,6 +30,30 @@ import type {
   WorkItemData,
   WorkItemFrontmatter,
 } from "./types";
+
+/** Preserve the complete Discussion identity/concurrency payload on any
+ * compatibility whole-row writer. Direct Discussion commands remain the
+ * canonical mutation path. */
+export function workItemCommentToEntry(comment: WorkItemComment): CommentEntry {
+  return {
+    id: comment.id,
+    author: comment.author,
+    content: comment.content,
+    created_at: comment.created_at,
+    revision: comment.revision,
+    mentioned_user_ids: comment.mentioned_user_ids,
+    mentions: comment.mentions,
+    parent_id: comment.parent_id,
+    thread_id: comment.thread_id,
+    resolved_at: comment.resolved_at,
+    resolved_by: comment.resolved_by,
+    conclusion: comment.conclusion,
+    agent_session_id: comment.agent_session_id,
+    originator: comment.originator,
+    edited_at: comment.edited_at,
+    deleted_at: comment.deleted_at,
+  };
+}
 
 // ============================================
 // Validation
@@ -70,14 +96,20 @@ function validateEnum<T extends string>(
   return fallback;
 }
 
-function mapWorkItemStatus(status: string | undefined): WorkItemStatus {
+/** Preserve custom status keys while normalizing the two external GitHub
+ * states. Category semantics are resolved separately from the cached org
+ * definitions; collapsing unknown keys to backlog loses that identity. */
+export function normalizeWorkItemStatus(
+  status: string | undefined
+): WorkItemStatus {
   if (
     status === GITHUB_ISSUE_STATUS.OPEN ||
     status === GITHUB_ISSUE_STATUS.CLOSED
   ) {
     return status;
   }
-  return FILE_TO_UI_STATUS[status ?? ""] ?? "backlog";
+  if (!status) return "backlog";
+  return FILE_TO_UI_STATUS[status] ?? (status as WorkItemStatus);
 }
 
 // ============================================
@@ -139,6 +171,7 @@ const FILE_TO_UI_STATUS: Record<string, WorkItemStatus> = {
   todo: "planned",
   in_progress: "in_progress",
   in_review: "in_review",
+  blocked: "blocked",
   completed: "completed",
   cancelled: "cancelled",
   duplicate: "duplicate",
@@ -149,6 +182,7 @@ const UI_TO_FILE_STATUS: Record<WorkItemStatus, string> = {
   planned: "planned",
   in_progress: "in_progress",
   in_review: "in_review",
+  blocked: "blocked",
   completed: "completed",
   cancelled: "cancelled",
   duplicate: "duplicate",
@@ -218,6 +252,7 @@ export function projectDataToUI(
       planned: 0,
       in_progress: 0,
       in_review: 0,
+      blocked: 0,
       completed: 0,
       cancelled: 0,
     },
@@ -255,6 +290,7 @@ export function workItemDataToUI(
 
   return {
     session_id: frontmatter.id,
+    revision: itemData.revision,
     shortId: frontmatter.short_id,
     user_id: frontmatter.created_by ?? "",
     name: frontmatter.title,
@@ -264,7 +300,7 @@ export function workItemDataToUI(
     star: frontmatter.starred,
     spec: itemData.body,
     status: frontmatter.status,
-    workItemStatus: mapWorkItemStatus(frontmatter.status),
+    workItemStatus: normalizeWorkItemStatus(frontmatter.status),
     priority: validateEnum<WorkItemPriority>(
       frontmatter.priority,
       VALID_WORK_ITEM_PRIORITIES,
@@ -318,6 +354,7 @@ export function standaloneWorkItemDataToEnriched(
     title: frontmatter.title,
     body: itemData.body,
     filename: itemData.filename,
+    revision: itemData.revision ?? 0,
     status: frontmatter.status,
     priority: frontmatter.priority,
     starred: frontmatter.starred,
@@ -375,12 +412,7 @@ export function uiWorkItemToFrontmatter(
     existingFrontmatter?.todos ??
     [];
   const resolvedComments =
-    workItem.comments?.map((comment) => ({
-      id: comment.id,
-      author: comment.author,
-      content: comment.content,
-      created_at: comment.created_at,
-    })) ??
+    workItem.comments?.map(workItemCommentToEntry) ??
     existingFrontmatter?.comments ??
     [];
 
@@ -390,7 +422,7 @@ export function uiWorkItemToFrontmatter(
     title: workItem.name,
     project: workItem.project?.id,
     status: workItem.workItemStatus
-      ? UI_TO_FILE_STATUS[workItem.workItemStatus]
+      ? (UI_TO_FILE_STATUS[workItem.workItemStatus] ?? workItem.workItemStatus)
       : (existingFrontmatter?.status ?? "backlog"),
     priority: workItem.priority ?? "none",
     assignee: workItem.assignee?.id,
@@ -455,6 +487,7 @@ export function buildMemberMap(
 export function enrichedWorkItemToUI(item: EnrichedWorkItem): UIWorkItem {
   return {
     session_id: item.id,
+    revision: item.revision,
     shortId: item.shortId,
     user_id: item.createdBy ?? "",
     name: item.title,
@@ -465,7 +498,7 @@ export function enrichedWorkItemToUI(item: EnrichedWorkItem): UIWorkItem {
     star: item.starred,
     spec: item.body,
     status: item.status,
-    workItemStatus: mapWorkItemStatus(item.status),
+    workItemStatus: normalizeWorkItemStatus(item.status),
     priority: validateEnum<WorkItemPriority>(
       item.priority,
       VALID_WORK_ITEM_PRIORITIES,

@@ -3,7 +3,8 @@ use serde_json::json;
 
 use super::store::{
     list_page_with_connection, mark_all_read_with_connection, mark_read_with_connection,
-    mark_unread_with_connection, unread_count_with_connection, work_item_summary_excerpt,
+    mark_unread_with_connection, set_archived_with_connection, unread_count_with_connection,
+    work_item_summary_excerpt,
 };
 use super::{
     schema::init_team_inbox_tables, TeamInboxActor, TeamInboxCursor, TeamInboxFilter,
@@ -81,6 +82,25 @@ fn set_work_item_status(connection: &Connection, work_item_id: &str, status: &st
         .expect("update work item status");
 }
 
+fn insert_subscription_event(
+    connection: &Connection,
+    id: &str,
+    scope_key: &str,
+    work_item_id: &str,
+    recipient_id: &str,
+) {
+    connection
+        .execute(
+            "INSERT INTO pm_work_item_inbox_events (
+                id, scope_key, work_item_id, recipient_id, kind, actor_id,
+                payload_json, coalesce_key, occurred_at, archived_at
+             ) VALUES (?1, ?2, ?3, ?4, 'discussion_updated', NULL,
+                       '{\"title\":\"Updated\"}', ?1, 20, NULL)",
+            (id, scope_key, work_item_id, recipient_id),
+        )
+        .expect("insert subscription inbox event");
+}
+
 fn options(viewers: &[&str], limit: usize) -> TeamInboxListOptions {
     TeamInboxListOptions {
         viewer_member_ids: viewers.iter().map(|value| (*value).to_string()).collect(),
@@ -88,6 +108,79 @@ fn options(viewers: &[&str], limit: usize) -> TeamInboxListOptions {
         cursor: None,
         limit,
     }
+}
+
+#[test]
+fn archived_filter_is_viewer_scoped_and_not_starved_by_newer_active_rows() {
+    let mut connection = database();
+    insert_project(&connection, "project-1", "alpha");
+    for (id, short_id, updated_at) in [
+        ("work-new", "TST-3", 30),
+        ("work-mid", "TST-2", 20),
+        ("work-old", "TST-1", 10),
+    ] {
+        insert_work_item(
+            &connection,
+            WorkItemFixture {
+                id,
+                short_id,
+                title: id,
+                project_id: Some("project-1"),
+                assigned_human_id: Some("member-a"),
+                assignee: None,
+                assignee_type: None,
+                updated_at,
+                deleted_at: None,
+            },
+        );
+    }
+
+    assert!(set_archived_with_connection(
+        &mut connection,
+        &["member-a".into()],
+        "work_item_assigned:work-old",
+        true,
+        40,
+    )
+    .expect("archive old row"));
+
+    let active = list_page_with_connection(&connection, options(&["member-a"], 10))
+        .expect("list active rows");
+    assert_eq!(
+        active
+            .items
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<Vec<_>>(),
+        ["work_item_assigned:work-new", "work_item_assigned:work-mid"]
+    );
+
+    let archived = list_page_with_connection(
+        &connection,
+        TeamInboxListOptions {
+            viewer_member_ids: vec!["member-a".into()],
+            filter: TeamInboxFilter::Archived,
+            cursor: None,
+            limit: 1,
+        },
+    )
+    .expect("list archived rows");
+    assert_eq!(archived.items.len(), 1);
+    assert_eq!(archived.items[0].id, "work_item_assigned:work-old");
+    assert_eq!(archived.unread_count, 0);
+    assert_eq!(archived.unread_counts, Default::default());
+
+    let other_viewer = list_page_with_connection(
+        &connection,
+        TeamInboxListOptions {
+            viewer_member_ids: vec!["member-b".into()],
+            filter: TeamInboxFilter::Archived,
+            cursor: None,
+            limit: 10,
+        },
+    )
+    .expect("list another viewer's archive");
+    assert!(other_viewer.items.is_empty());
 }
 
 #[test]
@@ -319,6 +412,39 @@ fn terminal_assignments_are_not_actionable_or_counted_as_unread() {
 }
 
 #[test]
+fn archived_custom_terminal_status_remains_non_actionable() {
+    let connection = database();
+    connection
+        .execute(
+            "INSERT INTO pm_status_definitions (
+                id, org_id, key, name, category, position, archived_at, created_at, updated_at
+             ) VALUES ('status-shipped', 'personal-org', 'shipped', 'Shipped', 'completed', 0, 20, 10, 20)",
+            [],
+        )
+        .expect("insert archived completed status definition");
+    insert_work_item(
+        &connection,
+        WorkItemFixture {
+            id: "work-shipped",
+            short_id: "TST-1",
+            title: "Historical shipped assignment",
+            project_id: None,
+            assigned_human_id: Some("member-a"),
+            assignee: None,
+            assignee_type: None,
+            updated_at: 30,
+            deleted_at: None,
+        },
+    );
+    set_work_item_status(&connection, "work-shipped", "shipped");
+
+    let page = list_page_with_connection(&connection, options(&["member-a"], 50))
+        .expect("list actionable assignments");
+    assert!(page.items.is_empty());
+    assert_eq!(page.unread_count, 0);
+}
+
+#[test]
 fn cursor_is_stable_for_equal_timestamps_and_newer_insertions() {
     let connection = database();
     for id in ["work-c", "work-b", "work-a"] {
@@ -464,6 +590,156 @@ fn read_receipts_and_bulk_read_are_viewer_scoped_and_idempotent() {
         .expect("repeat mark all"),
         0
     );
+}
+
+#[test]
+fn subscription_receipts_require_a_live_scope_matched_authorized_source() {
+    let mut connection = database();
+    insert_work_item(
+        &connection,
+        WorkItemFixture {
+            id: "work-a",
+            short_id: "TST-1",
+            title: "Visible source",
+            project_id: None,
+            assigned_human_id: None,
+            assignee: None,
+            assignee_type: None,
+            updated_at: 10,
+            deleted_at: None,
+        },
+    );
+    insert_subscription_event(
+        &connection,
+        "event-valid",
+        "org:personal-org",
+        "TST-1",
+        "member-a",
+    );
+    insert_subscription_event(
+        &connection,
+        "event-orphan",
+        "org:personal-org",
+        "MISSING-1",
+        "member-a",
+    );
+    insert_subscription_event(
+        &connection,
+        "event-wrong-scope",
+        "org:another-org",
+        "TST-1",
+        "member-a",
+    );
+
+    let page = list_page_with_connection(&connection, options(&["member-a"], 20))
+        .expect("list only authoritative subscription sources");
+    let subscription_ids = page
+        .items
+        .iter()
+        .filter(|item| item.id.starts_with("work_item_subscription_event:"))
+        .map(|item| item.id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        subscription_ids,
+        ["work_item_subscription_event:event-valid"]
+    );
+    assert_eq!(page.unread_counts.updates, 1);
+
+    for item_id in [
+        "work_item_subscription_event:event-orphan",
+        "work_item_subscription_event:event-wrong-scope",
+    ] {
+        assert!(
+            !mark_read_with_connection(&mut connection, &["member-a".into()], item_id, 100,)
+                .expect("invalid source cannot be marked read")
+        );
+        assert!(!set_archived_with_connection(
+            &mut connection,
+            &["member-a".into()],
+            item_id,
+            true,
+            100,
+        )
+        .expect("invalid source cannot be archived"));
+    }
+    assert!(!mark_read_with_connection(
+        &mut connection,
+        &["member-b".into()],
+        "work_item_subscription_event:event-valid",
+        100,
+    )
+    .expect("another recipient cannot mark the source read"));
+    assert!(!set_archived_with_connection(
+        &mut connection,
+        &["member-b".into()],
+        "work_item_subscription_event:event-valid",
+        true,
+        100,
+    )
+    .expect("another recipient cannot archive the source"));
+
+    assert_eq!(
+        mark_all_read_with_connection(
+            &mut connection,
+            &["member-a".into()],
+            TeamInboxFilter::All,
+            200,
+        )
+        .expect("bulk read only authoritative sources"),
+        1
+    );
+    assert_eq!(
+        unread_count_with_connection(&connection, &["member-a".into()], TeamInboxFilter::All)
+            .expect("orphan and mismatched events do not count"),
+        0
+    );
+    let invalid_receipts: i64 = connection
+        .query_row(
+            "SELECT COUNT(*)
+               FROM team_inbox_read_receipts
+              WHERE source_id IN ('event-orphan', 'event-wrong-scope')
+                 OR viewer_member_id = 'member-b'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count invalid read receipts");
+    let invalid_archives: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM team_inbox_archive_receipts
+              WHERE source_id IN ('event-orphan', 'event-wrong-scope')
+                 OR viewer_member_id = 'member-b'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count invalid archive receipts");
+    assert_eq!(invalid_receipts, 0);
+    assert_eq!(invalid_archives, 0);
+
+    assert!(set_archived_with_connection(
+        &mut connection,
+        &["member-a".into()],
+        "work_item_subscription_event:event-valid",
+        true,
+        300,
+    )
+    .expect("recipient archives the valid source"));
+    assert!(!set_archived_with_connection(
+        &mut connection,
+        &["member-b".into()],
+        "work_item_subscription_event:event-valid",
+        false,
+        301,
+    )
+    .expect("another recipient cannot unarchive the source"));
+    let owner_archive: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM team_inbox_archive_receipts
+              WHERE viewer_member_id = 'member-a' AND source_id = 'event-valid'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("recipient archive remains");
+    assert_eq!(owner_archive, 1);
 }
 
 #[test]

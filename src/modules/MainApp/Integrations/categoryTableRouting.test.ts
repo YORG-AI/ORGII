@@ -418,6 +418,7 @@ describe("integration category table contracts", () => {
       addScope: "workspace",
       editName: null,
       editConfig: null,
+      servers: [],
       onSave: vi.fn(),
       onTest: vi.fn(),
       onAddClose: vi.fn(),

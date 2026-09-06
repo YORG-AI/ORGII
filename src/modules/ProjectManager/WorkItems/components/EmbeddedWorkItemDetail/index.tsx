@@ -41,6 +41,7 @@ interface EmbeddedWorkItemDetailProps {
   onRegisterActions?: (actions: WorkItemDetailActions) => void;
   repoPath: string | null;
   projectSlug: string | null;
+  orgId: string;
   shortId: string | null;
   onRefreshWorkItem: () => Promise<void>;
   onOpenSession?: (sessionId: string, title?: string) => void;
@@ -71,6 +72,7 @@ const EmbeddedWorkItemDetail: React.FC<EmbeddedWorkItemDetailProps> = ({
   onRegisterActions,
   repoPath,
   projectSlug,
+  orgId,
   shortId,
   onRefreshWorkItem,
   onOpenSession,
@@ -134,6 +136,7 @@ const EmbeddedWorkItemDetail: React.FC<EmbeddedWorkItemDetailProps> = ({
         onRegisterActions={onRegisterActions}
         repoPath={repoPath}
         projectSlug={projectSlug}
+        orgId={orgId}
         shortId={shortId}
         onRefreshWorkItem={onRefreshWorkItem}
         onOpenSession={onOpenSession}

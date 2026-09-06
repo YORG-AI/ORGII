@@ -19,6 +19,63 @@ use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 
 #[test]
+fn command_logging_redacts_mcp_config_values() {
+    let raw = vec![
+        "codex".to_string(),
+        "-c".to_string(),
+        "mcp_servers.docs.env={API_TOKEN = \"stdio-secret\"}".to_string(),
+        "-c".to_string(),
+        "model_reasoning_effort=\"medium\"".to_string(),
+        "task".to_string(),
+    ];
+
+    let redacted = redacted_command_parts(&raw);
+    assert_eq!(
+        redacted[2], "mcp_servers.docs.env=<redacted>",
+        "MCP config can contain stdio env and HTTP header secrets"
+    );
+    assert_eq!(redacted[4], "model_reasoning_effort=\"medium\"");
+    assert!(
+        !redacted.join(" ").contains("stdio-secret"),
+        "command logs must not retain MCP secret values"
+    );
+}
+
+#[test]
+fn command_logging_redacts_short_and_unicode_secrets_without_panicking() {
+    let raw = vec![
+        "cursor-agent".to_string(),
+        "--api-key".to_string(),
+        "short".to_string(),
+        "--market-token".to_string(),
+        "密钥-abcd-efgh-ijkl".to_string(),
+    ];
+
+    let redacted = redacted_command_parts(&raw);
+    assert_eq!(redacted[2], "<redacted>");
+    assert_ne!(redacted[4], raw[4]);
+    assert!(!redacted.join(" ").contains("密钥-abcd-efgh-ijkl"));
+    assert!(environment_key_is_sensitive("HTTP_AUTHORIZATION"));
+    assert!(environment_key_is_sensitive("database_password"));
+    assert!(environment_key_is_sensitive("session_cookie"));
+    assert!(!environment_key_is_sensitive("HTTP_PROXY"));
+}
+
+#[test]
+fn stderr_redaction_covers_resolved_environment_secrets() {
+    let mcp_servers = mcp_inject::SessionMcpServers::empty_for_test();
+    let redacted = redact_cli_stderr_line(
+        "provider echoed arbitrary-token-value and OPENAI_API_KEY=sk-abcdefghijklmnopqrstuvwxyz",
+        &["arbitrary-token-value".to_string()],
+        &mcp_servers,
+    );
+
+    assert!(!redacted.contains("arbitrary-token-value"));
+    assert!(!redacted.contains("sk-abcdefghijklmnopqrstuvwxyz"));
+    assert!(redacted.contains("[REDACTED_SECRET]"));
+}
+
+#[test]
 fn project_is_always_build_execution_while_ordinary_modes_stay_distinct() {
     assert_eq!(
         resolve_cli_effective_mode(Some("project"), Some("ask"), Some("plan")),
@@ -863,6 +920,8 @@ async fn stderr_collector_has_the_whole_output_once_drained() {
     collector.attach(
         child.stderr.take().expect("stderr was piped"),
         "test-session".to_string(),
+        Arc::new(Vec::new()),
+        Arc::new(mcp_inject::SessionMcpServers::empty_for_test()),
     );
 
     let status = child.wait().await.expect("wait for stderr writer");
@@ -908,6 +967,8 @@ async fn a_reader_the_grandchild_holds_open_is_aborted_not_detached() {
     collector.attach(
         child.stderr.take().expect("stderr was piped"),
         "test-session".to_string(),
+        Arc::new(Vec::new()),
+        Arc::new(mcp_inject::SessionMcpServers::empty_for_test()),
     );
     assert!(child
         .wait()
@@ -948,6 +1009,8 @@ async fn draining_the_stderr_collector_twice_is_a_no_op() {
     collector.attach(
         child.stderr.take().expect("stderr was piped"),
         "test-session".to_string(),
+        Arc::new(Vec::new()),
+        Arc::new(mcp_inject::SessionMcpServers::empty_for_test()),
     );
     let _ = child.wait().await;
 

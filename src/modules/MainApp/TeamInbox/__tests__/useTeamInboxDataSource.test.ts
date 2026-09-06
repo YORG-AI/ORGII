@@ -11,6 +11,7 @@ import {
   org2CloudRosterVersionAtom,
   sidebarActiveCloudOrgIdAtom,
 } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import { projectRosterChangedSignalAtom } from "@src/hooks/project/useProjectDataChanged";
 import { type SmokeRoot, createSmokeRoot } from "@src/test/reactSmokeHarness";
 
 import { teamInboxInvalidationAtom } from "../store";
@@ -229,7 +230,7 @@ describe("useTeamInboxDataSource orchestration", () => {
 
     const latestScope = refreshScopes().at(-1);
     expect(latestScope).toMatchObject({
-      viewerMemberIds: ["viewer-1"],
+      viewerMemberIds: ["viewer-1", "viewer@example.test"],
       activeCloudOrgId: null,
       prerequisiteIssue: {
         code: "partial_load",
@@ -323,7 +324,11 @@ describe("useTeamInboxDataSource orchestration", () => {
         scope.members.some((member) => member.id === "member-a")
       )
     ).toBe(false);
-    expect(latestViewerMemberIds).toEqual(["cloud-viewer", "viewer-1"]);
+    expect(latestViewerMemberIds).toEqual([
+      "cloud-viewer",
+      "viewer-1",
+      "viewer@example.test",
+    ]);
   });
 
   it("rejects a late roster from a previous authenticated identity in the same org", async () => {
@@ -408,7 +413,11 @@ describe("useTeamInboxDataSource orchestration", () => {
         scope.members.some((member) => member.id === "member-a")
       )
     ).toBe(false);
-    expect(latestViewerMemberIds).toEqual(["cloud-viewer-b", "viewer-1"]);
+    expect(latestViewerMemberIds).toEqual([
+      "cloud-viewer-b",
+      "viewer-1",
+      "viewer@example.test",
+    ]);
   });
 
   it("shares one local roster request across concurrent mounted consumers", async () => {
@@ -437,6 +446,7 @@ describe("useTeamInboxDataSource orchestration", () => {
   it("coalesces invalidation bursts and cancels the trailing refresh on unmount", async () => {
     await mount();
     expect(mocks.coordinatorRefresh).toHaveBeenCalledTimes(1);
+    expect(mocks.readProjects).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       store.set(teamInboxInvalidationAtom, 1);
@@ -444,6 +454,9 @@ describe("useTeamInboxDataSource orchestration", () => {
     });
     await flushAsync();
     expect(mocks.coordinatorRefresh).toHaveBeenCalledTimes(1);
+    // Work Item/comment invalidations refresh Inbox content, not the member
+    // roster that resolves viewer identity and handoff destinations.
+    expect(mocks.readProjects).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15_000);
@@ -461,5 +474,17 @@ describe("useTeamInboxDataSource orchestration", () => {
       await vi.advanceTimersByTimeAsync(15_000);
     });
     expect(mocks.coordinatorRefresh).toHaveBeenCalledTimes(callsBeforeUnmount);
+  });
+
+  it("reloads the local member roster only on its narrow version", async () => {
+    await mount();
+    expect(mocks.readProjects).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      store.set(projectRosterChangedSignalAtom, 1);
+    });
+    await flushAsync();
+
+    expect(mocks.readProjects).toHaveBeenCalledTimes(2);
   });
 });

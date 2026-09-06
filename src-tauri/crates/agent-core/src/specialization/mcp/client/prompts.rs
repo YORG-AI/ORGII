@@ -35,10 +35,12 @@ impl McpClient {
             .as_ref()
             .ok_or_else(|| format!("MCP '{}' has no live service", self.name))?;
 
-        let prompts = service
-            .list_all_prompts()
-            .await
-            .map_err(|err| format!("prompts/list failed for '{}': {}", self.name, err))?;
+        let prompts = service.list_all_prompts().await.map_err(|err| {
+            crate::specialization::mcp::config::redact_server_secrets_from_text(
+                &self.config,
+                &format!("prompts/list failed for '{}': {}", self.name, err),
+            )
+        })?;
 
         let converted = prompts
             .into_iter()
@@ -87,9 +89,12 @@ impl McpClient {
         };
 
         let result = service.get_prompt(params).await.map_err(|err| {
-            format!(
-                "prompts/get failed for '{}/{}': {}",
-                self.name, prompt_name, err
+            crate::specialization::mcp::config::redact_server_secrets_from_text(
+                &self.config,
+                &format!(
+                    "prompts/get failed for '{}/{}': {}",
+                    self.name, prompt_name, err
+                ),
             )
         })?;
 

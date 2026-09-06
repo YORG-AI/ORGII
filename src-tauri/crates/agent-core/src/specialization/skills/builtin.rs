@@ -8,6 +8,9 @@
 //! global builtin directory contains a matching skill.
 
 use super::loader::SkillInfo;
+use super::provenance::{
+    identity_digest, schema_digest, schema_value_from_content, sha256_digest, SkillOrigin,
+};
 
 struct BuiltinSkill {
     name: &'static str,
@@ -52,25 +55,38 @@ const BUILTIN_SKILLS: &[BuiltinSkill] = &[
 pub fn list_builtin_skills() -> Vec<SkillInfo> {
     BUILTIN_SKILLS
         .iter()
-        .map(|skill| SkillInfo {
-            name: skill.name.to_string(),
-            path: format!("builtin://{}/SKILL.md", skill.name).into(),
-            source: "builtin".to_string(),
-            always: false,
-            available: true,
-            enabled: true,
-            required_bins: Vec::new(),
-            required_env: Vec::new(),
-            description: skill.description.to_string(),
-            estimated_tokens: 0,
-            full_content_tokens: 0,
-            description_quality: super::loader::DescriptionQuality::Good,
-            version: String::new(),
-            license: String::new(),
-            compatibility: String::new(),
-            missing_bins: Vec::new(),
-            missing_env: Vec::new(),
-            bundled_files: Vec::new(),
+        .map(|skill| {
+            let id = format!("embedded:{}", skill.name);
+            let origin = SkillOrigin {
+                provider: "embedded_builtin".to_string(),
+                locator: skill.name.to_string(),
+            };
+            SkillInfo {
+                id: id.clone(),
+                name: skill.name.to_string(),
+                path: format!("builtin://{}/SKILL.md", skill.name).into(),
+                source: "builtin".to_string(),
+                origin: Some(origin.clone()),
+                identity_digest: identity_digest(&id, skill.name, &origin),
+                content_digest: sha256_digest(skill.content.as_bytes()),
+                schema_digest: schema_digest(&schema_value_from_content(skill.content, &[])),
+                consent_valid: true,
+                always: false,
+                available: true,
+                enabled: true,
+                required_bins: Vec::new(),
+                required_env: Vec::new(),
+                description: skill.description.to_string(),
+                estimated_tokens: 0,
+                full_content_tokens: 0,
+                description_quality: super::loader::DescriptionQuality::Good,
+                version: String::new(),
+                license: String::new(),
+                compatibility: String::new(),
+                missing_bins: Vec::new(),
+                missing_env: Vec::new(),
+                bundled_files: Vec::new(),
+            }
         })
         .collect()
 }

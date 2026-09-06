@@ -8,6 +8,7 @@ const MY_ROLE_SETTING_KEYS = [
   "agent.sde.planAutoApproveTimeoutByPresence",
   "agent.sde.goalMaxTurnsByPresence",
   "agent.sde.modeSwitchAutoPlanByPresence",
+  "agent.sde.followUpSuggestionsEnabled",
   "general.presenceGuidanceOnline",
   "general.presenceGuidanceInvisible",
   "general.presenceGuidanceAway",

@@ -3,6 +3,7 @@ export type {
   HubSkillResult,
   HubInstallResult,
   InstalledSkill,
+  SkillOrigin,
   SkillUpdateInfo,
   DescriptionQuality,
   SlashItemCategory,

@@ -15,7 +15,8 @@
       "person": "По человеку",
       "assignedTo": "Назначено",
       "createdBy": "Создано",
-      "targetDate": "По целевой дате"
+      "targetDate": "По целевой дате",
+      "property": "По свойству"
     },
     "source": {
       "localOnly": "Только локально",
@@ -541,7 +542,19 @@
       "cycles": "циклов"
     },
     "viewWorkItems": "Смотреть Work Items",
-    "fromRoutine": "From routine: {{name}}"
+    "fromRoutine": "From routine: {{name}}",
+    "batchField": {
+      "hint": "Применяется к {{count}} выбранным элементам."
+    },
+    "batchStatus": {
+      "title": "Установить статус"
+    },
+    "batchPriority": {
+      "title": "Установить приоритет"
+    },
+    "batchAssignee": {
+      "title": "Назначить исполнителя"
+    }
   },
   "settings": {
     "sidebarGeneral": "Общие",

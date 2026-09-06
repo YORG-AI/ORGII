@@ -409,7 +409,8 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
   const agentOrgSendGroupChatMessage = async (
     sessionId: string,
     targetMemberId: string | null,
-    content: string
+    content: string,
+    messageId?: string
   ): Promise<Result<{ result: Json }>> => {
     try {
       if (!sessionId) {
@@ -426,6 +427,7 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
       }
       const result = (await invoke("agent_org_send_group_chat_message", {
         sessionId,
+        messageId: messageId ?? crypto.randomUUID(),
         targetMemberId,
         content,
       })) as Json;

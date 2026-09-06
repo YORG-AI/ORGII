@@ -36,6 +36,7 @@ export type WorkItemStatus =
   | "planned"
   | "in_progress"
   | "in_review"
+  | "blocked"
   | "completed"
   | "cancelled"
   | "duplicate"
@@ -46,6 +47,7 @@ export const WORK_ITEM_STATUS = {
   PLANNED: "planned",
   IN_PROGRESS: "in_progress",
   IN_REVIEW: "in_review",
+  BLOCKED: "blocked",
   COMPLETED: "completed",
   CANCELLED: "cancelled",
   DUPLICATE: "duplicate",
@@ -106,6 +108,8 @@ export type WorkItemLabel = Label;
  */
 export interface WorkItemBase {
   session_id: string;
+  /** Local optimistic-concurrency revision for guarded edits. */
+  revision?: number;
   /** User-facing identifier; distinct from the stable internal row id. */
   shortId?: string;
   user_id: string;
@@ -146,6 +150,8 @@ export interface WorkItemComment {
   author: string;
   content: string;
   created_at: string;
+  /** Per-comment optimistic concurrency token; legacy comments start at 0. */
+  revision?: number;
   mentioned_user_ids?: string[];
   mentions?: Array<
     | { kind: "member"; id: string }
@@ -158,7 +164,12 @@ export interface WorkItemComment {
   resolved_at?: string;
   resolved_by?: string;
   conclusion?: boolean;
+  /** A2A chain: who caused the authoring agent's run. */
+  originator?: string;
   agent_session_id?: string;
+  edited_at?: string;
+  /** Tombstone: content and mentions are cleared, the entry stays. */
+  deleted_at?: string;
 }
 
 // ============================================

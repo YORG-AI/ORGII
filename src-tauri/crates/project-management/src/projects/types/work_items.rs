@@ -315,6 +315,10 @@ pub struct WorkItemData {
     pub body: String,
     /// Filename without extension (e.g. "AUTH-001")
     pub filename: String,
+    /// Local optimistic-concurrency revision. File/import snapshots omit it;
+    /// authoritative database reads always populate it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<i64>,
 }
 
 /// Narrow database projection consumed by the background schedule executor.
@@ -364,6 +368,7 @@ mod work_item_read_bucket_tests {
             "planned",
             "in_progress",
             "in_review",
+            "blocked",
             "cancelled",
             "duplicate",
         ] {

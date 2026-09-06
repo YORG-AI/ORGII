@@ -10,6 +10,9 @@ use std::path::{Path, PathBuf};
 use super::super::helpers::{collect_bundled_files, estimate_summary_line_tokens, estimate_tokens};
 use super::super::types::{DescriptionQuality, SkillInfo};
 use super::SkillsLoader;
+use crate::skills::provenance::{
+    content_digest, identity_digest, read_provenance, schema_digest, schema_value, SkillOrigin,
+};
 
 const DISCOVERED_SKILL_ROOT_MAX_DEPTH: usize = 4;
 const DISCOVERED_SKILL_ROOT_MAX_ENTRIES: usize = 500;
@@ -65,7 +68,113 @@ impl SkillsLoader {
             }
         }
 
+        // Org-shared materializations load last and never shadow a local
+        // copy of the same name — the sharer keeps editing their original.
+        let org_root = app_paths::org_skills_root();
+        if org_root.exists() {
+            let mut seen: std::collections::HashSet<String> =
+                skills.iter().map(|skill| skill.name.clone()).collect();
+            let mut org_shared = Vec::new();
+            self.scan_supplemental_dir_recursive(&org_root, "org-shared", &mut org_shared);
+            for skill in org_shared {
+                if seen.insert(skill.name.clone()) {
+                    skills.push(skill);
+                }
+            }
+        }
+
         skills
+    }
+
+    /// Resolve one effective skill using the same source precedence as a full
+    /// catalog scan. This is the dispatch-time consent path: a WorkItemRun
+    /// already carries the names it can use, so re-hashing every unrelated
+    /// bundle would add filesystem work without strengthening that boundary.
+    pub(crate) fn find_skill_fresh(&self, name: &str) -> Option<SkillInfo> {
+        let name = name.trim();
+        let path = Path::new(name);
+        if name.is_empty()
+            || name.contains(['/', '\\'])
+            || path.components().count() != 1
+            || !matches!(
+                path.components().next(),
+                Some(std::path::Component::Normal(_))
+            )
+        {
+            return None;
+        }
+
+        let workspace_skills_dir = self.workspace.join("skills");
+        let mut found = self
+            .load_workspace_resources
+            .then(|| self.load_named_skill_dir(&workspace_skills_dir.join(name), "workspace"))
+            .flatten()
+            .or_else(|| {
+                self.load_workspace_resources.then(|| {
+                    self.default_workspace_skill_source_dirs()
+                        .into_iter()
+                        .find_map(|dir| {
+                            self.find_named_skill_recursive(&dir, name, "external-source")
+                        })
+                })?
+            })
+            .or_else(|| {
+                self.builtin_dir
+                    .as_ref()
+                    .and_then(|dir| self.load_named_skill_dir(&dir.join(name), "builtin"))
+            })
+            .or_else(|| {
+                self.extra_source_dirs
+                    .iter()
+                    .find_map(|dir| self.find_named_skill_recursive(dir, name, "agent-source"))
+            })
+            .or_else(|| {
+                self.find_named_skill_recursive(&app_paths::org_skills_root(), name, "org-shared")
+            })
+            .or_else(|| {
+                super::super::super::builtin::list_builtin_skills()
+                    .into_iter()
+                    .find(|skill| skill.name == name)
+            })?;
+
+        if self.disabled_skills.contains(&found.name) {
+            found.enabled = false;
+        }
+        Some(found)
+    }
+
+    fn load_named_skill_dir(&self, dir: &Path, source: &str) -> Option<SkillInfo> {
+        let mut found = Vec::with_capacity(1);
+        self.scan_skill_dir(dir, source, &mut found);
+        found.pop()
+    }
+
+    fn find_named_skill_recursive(
+        &self,
+        dir: &Path,
+        name: &str,
+        source: &str,
+    ) -> Option<SkillInfo> {
+        let direct = dir.join(name);
+        if let Some(skill) = self.load_named_skill_dir(&direct, source) {
+            return Some(skill);
+        }
+        let entries = fs::read_dir(dir).ok()?;
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            if !entry.file_type().is_ok_and(|kind| kind.is_dir()) || path == direct {
+                continue;
+            }
+            // Match the catalog scanner: a directory containing SKILL.md is
+            // one bundle boundary, so nested assets are never another skill.
+            if path.join("SKILL.md").exists() {
+                continue;
+            }
+            if let Some(skill) = self.find_named_skill_recursive(&path, name, source) {
+                return Some(skill);
+            }
+        }
+        None
     }
 
     pub(super) fn default_workspace_skill_source_dirs(&self) -> Vec<PathBuf> {
@@ -281,7 +390,7 @@ impl SkillsLoader {
             return;
         }
 
-        let (available, m_bins, m_env) =
+        let (requirements_available, m_bins, m_env) =
             self.check_requirements(&meta.required_bins, &meta.required_env);
 
         let full_content_tokens = estimate_tokens(&content);
@@ -297,10 +406,70 @@ impl SkillsLoader {
 
         let bundled_files = collect_bundled_files(path);
 
+        let schema = match schema_value(path) {
+            Ok(schema) => schema,
+            Err(err) => {
+                tracing::warn!("Skipping skill {} with unreadable schema: {}", name, err);
+                return;
+            }
+        };
+        let live_content_digest = match content_digest(path) {
+            Ok(digest) => digest,
+            Err(err) => {
+                tracing::warn!("Skipping skill {} with unreadable bundle: {}", name, err);
+                return;
+            }
+        };
+        let live_schema_digest = schema_digest(&schema);
+        let (provenance, provenance_record_valid) = match read_provenance(path) {
+            Ok(Some(record)) => {
+                if record.name != name || record.id.trim().is_empty() {
+                    tracing::warn!(
+                        "Skill provenance identity mismatch at {}: expected name {}, got id={} name={}",
+                        path.display(),
+                        name,
+                        record.id,
+                        record.name
+                    );
+                }
+                (Some(record), true)
+            }
+            Ok(None) => (None, true),
+            Err(err) => {
+                tracing::warn!("Skill provenance is invalid at {}: {}", path.display(), err);
+                (None, false)
+            }
+        };
+        let id = provenance
+            .as_ref()
+            .map(|record| record.id.clone())
+            .unwrap_or_else(|| format!("{source}:{name}"));
+        let origin = provenance.as_ref().map(|record| record.origin.clone());
+        let effective_origin = origin.clone().unwrap_or_else(|| SkillOrigin {
+            provider: "local".to_string(),
+            locator: source.to_string(),
+        });
+        let live_identity_digest = identity_digest(&id, &name, &effective_origin);
+        let consent_valid = provenance_record_valid
+            && provenance.as_ref().is_none_or(|record| {
+                record.name == name
+                    && !record.id.trim().is_empty()
+                    && record.consent.identity_digest == live_identity_digest
+                    && record.consent.content_digest == live_content_digest
+                    && record.consent.schema_digest == live_schema_digest
+            });
+        let available = requirements_available && consent_valid;
+
         out.push(SkillInfo {
+            id,
             name,
             path: skill_file,
             source: source.to_string(),
+            origin,
+            identity_digest: live_identity_digest,
+            content_digest: live_content_digest,
+            schema_digest: live_schema_digest,
+            consent_valid,
             always: meta.always,
             available,
             enabled: true,

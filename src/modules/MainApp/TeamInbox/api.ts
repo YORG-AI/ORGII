@@ -7,6 +7,7 @@ import type {
   TeamInboxCursor,
   TeamInboxFilter,
   TeamInboxItem,
+  TeamInboxNotificationKind,
   TeamInboxPage,
 } from "./domain";
 
@@ -91,6 +92,12 @@ interface TeamInboxWirePage {
   items: TeamInboxWireItem[];
   nextCursor?: TeamInboxWireCursor;
   unreadCount: number;
+  unreadCounts?: {
+    all: number;
+    mentions: number;
+    assigned: number;
+    updates: number;
+  };
 }
 
 function toIso(timestamp: number | undefined): string | null {
@@ -112,6 +119,7 @@ function mapWireItem(item: TeamInboxWireItem): TeamInboxItem {
       return {
         id: item.id,
         kind: "comment_mention",
+        source: "local",
         occurredAt,
         readAt: toIso(item.readAt),
         actor,
@@ -135,6 +143,7 @@ function mapWireItem(item: TeamInboxWireItem): TeamInboxItem {
     return {
       id: item.id,
       kind: "comment_mention",
+      source: "local",
       occurredAt,
       readAt: toIso(item.readAt),
       actor,
@@ -159,9 +168,16 @@ function mapWireItem(item: TeamInboxWireItem): TeamInboxItem {
     item.target.type === "work_item" &&
     item.payload.type === "work_item_updated"
   ) {
+    const eventKind = item.payload.eventKind;
     return {
       id: item.id,
-      kind: "assigned_work_item",
+      kind:
+        eventKind === "child_completed"
+          ? "child_completed"
+          : item.kind === "work_item_run_failed"
+            ? "work_item_run_failed"
+            : "work_item_updated",
+      source: "local",
       occurredAt,
       readAt: toIso(item.readAt),
       actor,
@@ -176,9 +192,10 @@ function mapWireItem(item: TeamInboxWireItem): TeamInboxItem {
       },
       payload: {
         title: item.payload.title,
+        eventKind,
         status: item.payload.status,
         priority: item.payload.priority,
-        assigneeMemberId: item.payload.recipientMemberId,
+        recipientMemberId: item.payload.recipientMemberId,
         summary: item.payload.summary,
         updatedAt: occurredAt,
       },
@@ -193,6 +210,7 @@ function mapWireItem(item: TeamInboxWireItem): TeamInboxItem {
     return {
       id: item.id,
       kind: "assigned_work_item",
+      source: "local",
       occurredAt,
       readAt: toIso(item.readAt),
       actor,
@@ -251,9 +269,68 @@ export async function listLocalTeamInboxPage(
             itemKey: wire.nextCursor.itemId,
           }
         : null,
+      unreadCounts: wire.unreadCounts
+        ? {
+            all: wire.unreadCounts.all,
+            mentions: wire.unreadCounts.mentions,
+            assigned: wire.unreadCounts.assigned,
+          }
+        : undefined,
     },
     unreadCount: wire.unreadCount,
   };
+}
+
+export async function archiveLocalTeamInboxItem(
+  viewerMemberIds: readonly string[],
+  itemId: string
+): Promise<boolean> {
+  return invoke<boolean>("team_inbox_archive", {
+    viewerMemberIds: [...viewerMemberIds],
+    itemId,
+  });
+}
+
+export async function unarchiveLocalTeamInboxItem(
+  viewerMemberIds: readonly string[],
+  itemId: string
+): Promise<boolean> {
+  return invoke<boolean>("team_inbox_unarchive", {
+    viewerMemberIds: [...viewerMemberIds],
+    itemId,
+  });
+}
+
+export async function listLocalTeamInboxMutedKinds(
+  viewerMemberIds: readonly string[]
+): Promise<TeamInboxNotificationKind[]> {
+  if (viewerMemberIds.length === 0) return [];
+  const results = await Promise.all(
+    viewerMemberIds.map((recipientId) =>
+      invoke<string[]>("team_inbox_list_muted_kinds", { recipientId })
+    )
+  );
+  const mutedForEveryIdentity = results[0].filter((kind) =>
+    results.every((result) => result.includes(kind))
+  );
+  return mutedForEveryIdentity as TeamInboxNotificationKind[];
+}
+
+export async function setLocalTeamInboxKindMuted(
+  viewerMemberIds: readonly string[],
+  kind: TeamInboxNotificationKind,
+  muted: boolean
+): Promise<TeamInboxNotificationKind[]> {
+  await Promise.all(
+    viewerMemberIds.map((recipientId) =>
+      invoke<string[]>("team_inbox_set_kind_muted", {
+        recipientId,
+        kind,
+        muted,
+      })
+    )
+  );
+  return listLocalTeamInboxMutedKinds(viewerMemberIds);
 }
 
 export async function markLocalTeamInboxItemRead(

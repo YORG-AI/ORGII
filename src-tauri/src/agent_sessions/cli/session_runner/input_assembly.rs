@@ -101,10 +101,14 @@ fn project_mode_bridge(
     product_mode: Option<&str>,
     project_slug: Option<&str>,
     work_item_id: Option<&str>,
+    status_catalog: Option<&str>,
 ) -> Option<String> {
     if product_mode != Some("project") {
         return None;
     }
+    let status_section = status_catalog
+        .map(|catalog| format!("{catalog}\n"))
+        .unwrap_or_default();
 
     let scope = match project_slug {
         Some(slug) => format!(
@@ -130,8 +134,10 @@ fn project_mode_bridge(
          {}\n\
          {}\n\
          Split genuinely independent deliverables into child items. When the requested work is complete, post exactly one outcome receipt with `org2-pm work note <id> --kind progress --body \"...\"`; if blocked, transition the item to blocked and state why. Keep Work Item ids and bookkeeping mechanics out of the user-facing reply.\n\
-         </orgii_project_mode>",
-        scope, linked_item
+         Status discipline: state changes go through `org2-pm work transition <id> --to <state>` (`work claim` for in_progress). Use a custom status key from the catalog below when the team defines one that matches the work's stage; never invent a status key.\n\
+         Mention discipline: every note notifies the item's subscribers. When a Discussion comment wakes you, answer with ONE reply note (`--parent-id <comment-id>`); never reply to your own notes and never post a note just to acknowledge.\n\
+         {}</orgii_project_mode>",
+        scope, linked_item, status_section
     ))
 }
 
@@ -154,6 +160,7 @@ pub(super) fn build_effective_input(
     repo_path: Option<&str>,
     skills_enabled: bool,
     disabled_skills: &[String],
+    status_catalog: Option<&str>,
 ) -> String {
     let mut effective_input = user_input.to_string();
 
@@ -161,7 +168,8 @@ pub(super) fn build_effective_input(
         effective_input = format!("{}\n\n{}", exec_mode_bridge, effective_input);
     }
 
-    if let Some(project_mode_bridge) = project_mode_bridge(product_mode, project_slug, work_item_id)
+    if let Some(project_mode_bridge) =
+        project_mode_bridge(product_mode, project_slug, work_item_id, status_catalog)
     {
         effective_input = format!("{}\n\n{}", project_mode_bridge, effective_input);
     }
@@ -237,22 +245,35 @@ mod tests {
 
     #[test]
     fn ordinary_build_does_not_receive_pm_cli_guidance() {
-        assert!(project_mode_bridge(Some("build"), Some("repo"), Some("WI-1")).is_none());
+        assert!(project_mode_bridge(Some("build"), Some("repo"), Some("WI-1"), None).is_none());
     }
 
     #[test]
     fn project_is_build_plus_guarded_pm_cli() {
-        let bridge = project_mode_bridge(Some("project"), Some("repo"), Some("WI-1"))
+        let bridge = project_mode_bridge(Some("project"), Some("repo"), Some("WI-1"), None)
             .expect("project overlay");
         assert!(bridge.contains("Build execution plus"));
         assert!(bridge.contains("org2-pm work show WI-1"));
         assert!(bridge.contains("ORGII_SCOPE=repo"));
+        assert!(bridge.contains("Status discipline"));
+        assert!(bridge.contains("Mention discipline"));
+        assert!(bridge.ends_with("acknowledge.\n</orgii_project_mode>"));
+    }
+
+    #[test]
+    fn project_bridge_embeds_the_status_catalog_before_the_closing_tag() {
+        let catalog =
+            "Custom statuses defined by this organization:\n- completed: `shipped` (Shipped)";
+        let bridge =
+            project_mode_bridge(Some("project"), Some("repo"), Some("WI-1"), Some(catalog))
+                .expect("project overlay");
+        assert!(bridge.ends_with(&format!("{catalog}\n</orgii_project_mode>")));
     }
 
     #[test]
     fn project_without_project_scope_uses_org_level_work_items() {
-        let bridge =
-            project_mode_bridge(Some("project"), None, Some("WI-0095")).expect("project overlay");
+        let bridge = project_mode_bridge(Some("project"), None, Some("WI-0095"), None)
+            .expect("project overlay");
         assert!(bridge.contains("No Project is required"));
         assert!(bridge.contains("route there automatically"));
         assert!(bridge.contains("org2-pm work show WI-0095"));
@@ -317,6 +338,7 @@ mod tests {
                 workspace.path().to_str(),
                 false,
                 &[],
+                None,
             );
             assert!(
                 prompt.contains("PROVIDER_CONTEXT_SENTINEL"),
@@ -352,6 +374,7 @@ mod tests {
                 workspace.path().to_str(),
                 false,
                 &[],
+                None,
             )
         };
         assert!(build().contains("CONTEXT_V1"));
@@ -380,6 +403,7 @@ mod tests {
                 workspace.path().to_str(),
                 false,
                 &[],
+                None,
             )
         };
         assert!(build(true).contains("FRESH_CONTEXT"));

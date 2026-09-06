@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
-import type { CloudSessionComment } from "../org2CloudCommentsClient";
-import type { GroupedCommentThreads } from "../org2CloudSessionCommentsAtom.types";
+import type {
+  GroupedCommentThreads,
+  SessionComment,
+} from "../org2CloudSessionCommentsAtom.types";
 import { CONVERSATION_SENDER_ARG } from "./continuationEvents";
 import {
   SESSION_DISCUSSION_EVENT,
@@ -12,7 +14,7 @@ import {
   mergeConversationEvents,
 } from "./discussionEvents";
 
-function comment(overrides: Partial<CloudSessionComment>): CloudSessionComment {
+function comment(overrides: Partial<SessionComment>): SessionComment {
   return {
     id: "c-1",
     authorUserId: "user-1",
@@ -20,7 +22,7 @@ function comment(overrides: Partial<CloudSessionComment>): CloudSessionComment {
     body: "looks good",
     createdAt: "2026-08-20T10:00:00Z",
     ...overrides,
-  } as CloudSessionComment;
+  } as SessionComment;
 }
 
 function transcriptEvent(overrides: Partial<SessionEvent>): SessionEvent {
@@ -135,6 +137,29 @@ describe("buildDiscussionEvents", () => {
     expect(rows[0].args[CONVERSATION_SENDER_ARG]).toEqual({
       userId: "user-1",
       displayName: "Alice",
+    });
+  });
+
+  it("projects retained Team Chat delivery state into the native message", () => {
+    const rows = buildDiscussionEvents(
+      grouped({
+        sessionLevel: [
+          {
+            top: comment({
+              clientDeliveryStatus: "failed",
+              clientDeliveryError: "offline",
+            }),
+            replies: [],
+          },
+        ],
+      }),
+      "session-1",
+      new Map()
+    );
+    expect(rows[0].displayStatus).toBe("failed");
+    expect(discussionPayloadOf(rows[0])).toMatchObject({
+      deliveryStatus: "failed",
+      deliveryError: "offline",
     });
   });
 

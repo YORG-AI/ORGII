@@ -7,6 +7,7 @@ import React from "react";
 
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
 import {
+  BanIcon,
   CancelCircleIcon,
   CheckmarkCircle01Icon,
   CircleDashedIcon,
@@ -79,6 +80,15 @@ export const WORK_ITEM_STATUS_OPTIONS: DropdownOption<WorkItemStatus>[] = [
       size: DROPDOWN_ITEM.iconSize,
     }),
     color: STATUS_COLORS.in_review,
+  },
+  {
+    value: WORK_ITEM_STATUS.BLOCKED,
+    label: "Blocked",
+    icon: React.createElement(HugeiconsIcon, {
+      icon: BanIcon,
+      size: DROPDOWN_ITEM.iconSize,
+    }),
+    color: STATUS_COLORS.blocked,
   },
   {
     value: WORK_ITEM_STATUS.COMPLETED,

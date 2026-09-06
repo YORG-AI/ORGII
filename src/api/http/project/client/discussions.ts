@@ -89,3 +89,38 @@ export async function getWorkItemPrReadiness(
 ): Promise<PrReadiness> {
   return invoke("project_get_work_item_pr_readiness", { scope });
 }
+
+export async function editDiscussionComment(input: {
+  scope: WorkItemScope;
+  commentId: string;
+  actorId: string;
+  content: string;
+  expectedRevision?: number;
+}): Promise<import("../types").CommentEntry[]> {
+  const { scope, ...mutation } = input;
+  try {
+    return await invoke<import("../types").CommentEntry[]>(
+      "project_discussion_edit_comment",
+      { request: { ...scope, ...mutation } }
+    );
+  } finally {
+    invalidateCache();
+  }
+}
+
+export async function deleteDiscussionComment(input: {
+  scope: WorkItemScope;
+  commentId: string;
+  actorId: string;
+  expectedRevision?: number;
+}): Promise<import("../types").CommentEntry[]> {
+  const { scope, ...mutation } = input;
+  try {
+    return await invoke<import("../types").CommentEntry[]>(
+      "project_discussion_delete_comment",
+      { request: { ...scope, ...mutation } }
+    );
+  } finally {
+    invalidateCache();
+  }
+}

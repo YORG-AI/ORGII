@@ -11,6 +11,8 @@ import DetailPaneLayout, {
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 import type { WorkItem } from "@src/types/core/workItem";
 
+import { useWorkItemRevisionConflict } from "../../hooks/useWorkItemRevisionConflict";
+import RevisionConflictModal from "../RevisionConflictModal";
 import WorkItemDetail from "../WorkItemDetail";
 import { standaloneWorkItemUpdatesToPartial } from "./model";
 import type { WorkItemDetailPageProps } from "./types";
@@ -46,12 +48,15 @@ export function StandaloneWorkItemDetailPage({
         workItemId,
         orgId ? { orgId } : undefined
       );
-      setWorkItem(workItemDataToUI(item, EMPTY_RELATION_MAPS));
+      const next = workItemDataToUI(item, EMPTY_RELATION_MAPS);
+      setWorkItem(next);
+      return next;
     } catch (error) {
       logger.warn(
         `Failed to read standalone Work Item ${workItemId} in org ${orgId ?? "personal-org"}`,
         error
       );
+      return null;
     } finally {
       setLoading(false);
     }
@@ -86,23 +91,63 @@ export function StandaloneWorkItemDetailPage({
     if (workItemStatus) onWorkItemStatusResolved?.(workItemStatus);
   }, [onWorkItemStatusResolved, workItem]);
 
+  useEffect(() => {
+    if (workItem?.name !== undefined) {
+      onWorkItemNameUpdated?.(workItem.name);
+    }
+  }, [onWorkItemNameUpdated, workItem?.name]);
+
+  const acceptRevisionRecord = useCallback((record: WorkItem) => {
+    setWorkItem(record);
+  }, []);
+  const retryRevisionUpdate = useCallback(
+    async (updates: Partial<WorkItem>, expectedRevision: number) => {
+      const updated = await projectApi.updateStandaloneWorkItemPartial(
+        workItemId,
+        standaloneWorkItemUpdatesToPartial(updates, updates.spec),
+        orgId ? { orgId } : undefined,
+        expectedRevision
+      );
+      return workItemDataToUI(updated, EMPTY_RELATION_MAPS);
+    },
+    [orgId, workItemId]
+  );
+  const {
+    revisionConflict,
+    handleRevisionConflict,
+    useLatestRevisionConflict: handleUseLatest,
+    keepMineRevisionConflict: handleKeepMine,
+  } = useWorkItemRevisionConflict({
+    identityKey: JSON.stringify([orgId ?? "personal-org", workItemId]),
+    readLatest: loadWorkItem,
+    retry: retryRevisionUpdate,
+    acceptRecord: acceptRevisionRecord,
+    recordTitle: (record) => record.name,
+    recordDescription: (record) => record.spec,
+    recordRevision: (record) => record.revision,
+  });
+
   const handleUpdateWorkItem = useCallback(
     async (updates: Partial<WorkItem>) => {
       if (!workItem) return;
-      if (updates.name !== undefined) {
-        onWorkItemNameUpdated?.(updates.name);
-      }
       // Atomic partial update — the read-modify-write happens inside the
       // Rust BEGIN IMMEDIATE transaction, so concurrent edits can't be
       // silently dropped by a client-side merge + whole-row write.
-      await projectApi.updateStandaloneWorkItemPartial(
-        workItemId,
-        standaloneWorkItemUpdatesToPartial(updates, updates.spec),
-        orgId ? { orgId } : undefined
-      );
-      await loadWorkItem();
+      try {
+        const updated = await projectApi.updateStandaloneWorkItemPartial(
+          workItemId,
+          standaloneWorkItemUpdatesToPartial(updates, updates.spec),
+          orgId ? { orgId } : undefined,
+          workItem.revision
+        );
+        const nextWorkItem = workItemDataToUI(updated, EMPTY_RELATION_MAPS);
+        setWorkItem(nextWorkItem);
+      } catch (error) {
+        if (await handleRevisionConflict(error, updates)) return;
+        throw error;
+      }
     },
-    [loadWorkItem, onWorkItemNameUpdated, orgId, workItem, workItemId]
+    [handleRevisionConflict, orgId, workItem, workItemId]
   );
 
   if (!workItem) {
@@ -117,29 +162,50 @@ export function StandaloneWorkItemDetailPage({
   }
 
   return (
-    <WorkItemDetail
-      workItem={workItem}
-      onClose={onClose}
-      onNavigate={() => undefined}
-      hasPrev={false}
-      hasNext={false}
-      onUpdateWorkItem={handleUpdateWorkItem}
-      onDeleteWorkItem={onClose}
-      availableMembers={[]}
-      availableProjects={[]}
-      availableMilestones={[]}
-      availableLabels={[]}
-      showTime
-      repoPath={activeWorkspaceRootPath || null}
-      projectSlug={null}
-      orgId={orgId}
-      shortId={workItemId}
-      onRefreshWorkItem={loadWorkItem}
-      onOpenSession={onOpenChatSession}
-      initialPendingUpdates={pendingUpdates as Partial<WorkItem> | undefined}
-      propertiesOpen={propertiesOpen}
-      onToggleProperties={() => setPropertiesOpen((current) => !current)}
-      publishHeaderToWorkstation={publishHeaderToWorkstation}
-    />
+    <>
+      <WorkItemDetail
+        workItem={workItem}
+        onClose={onClose}
+        onNavigate={() => undefined}
+        hasPrev={false}
+        hasNext={false}
+        onUpdateWorkItem={handleUpdateWorkItem}
+        onDeleteWorkItem={onClose}
+        availableMembers={[]}
+        availableProjects={[]}
+        availableMilestones={[]}
+        availableLabels={[]}
+        showTime
+        repoPath={activeWorkspaceRootPath || null}
+        projectSlug={null}
+        orgId={orgId}
+        shortId={workItemId}
+        onRefreshWorkItem={loadWorkItem}
+        onOpenSession={onOpenChatSession}
+        initialPendingUpdates={pendingUpdates as Partial<WorkItem> | undefined}
+        propertiesOpen={propertiesOpen}
+        onToggleProperties={() => setPropertiesOpen((current) => !current)}
+        publishHeaderToWorkstation={publishHeaderToWorkstation}
+      />
+      <RevisionConflictModal
+        conflict={
+          revisionConflict
+            ? {
+                fieldLabel: t(
+                  revisionConflict.field === "title"
+                    ? "workItems.revisionConflict.titleField"
+                    : "workItems.revisionConflict.descriptionField"
+                ),
+                mine: revisionConflict.mine,
+                latest: revisionConflict.latest,
+                expectedRevision: revisionConflict.expectedRevision,
+                actualRevision: revisionConflict.actualRevision,
+              }
+            : null
+        }
+        onUseLatest={handleUseLatest}
+        onKeepMine={handleKeepMine}
+      />
+    </>
   );
 }

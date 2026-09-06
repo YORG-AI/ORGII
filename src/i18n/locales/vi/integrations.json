@@ -2214,7 +2214,10 @@
     "fireHistory": "Run history",
     "noFires": "No runs yet",
     "openSession": "Open session",
-    "openWorkItem": "Open work item"
+    "openWorkItem": "Open work item",
+    "fireError": "Không thể bắt đầu Routine: {{detail}}",
+    "provider": "Nhà cung cấp",
+    "eventKind": "Sự kiện"
   },
   "cursorPlugins": {
     "noPlugins": "Không có plugin Cursor nào được cài đặt",

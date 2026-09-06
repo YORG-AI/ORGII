@@ -86,7 +86,11 @@ pub(crate) fn handle_page_load(
         let app = webview.app_handle().clone();
         match browser::inline::close_all_inline_webviews(app) {
             Ok(closed) if !closed.is_empty() => {
-                tracing::info!(count = closed.len(), ?closed, "[PageReload] Closed inline webviews");
+                tracing::info!(
+                    count = closed.len(),
+                    ?closed,
+                    "[PageReload] Closed inline webviews"
+                );
             }
             Err(err) => {
                 tracing::warn!(error = %err, "[PageReload] Failed to close inline webviews");

@@ -187,6 +187,7 @@ export function useRoutinesState(
       const detail = error instanceof Error ? error.message : String(error);
       Message.error(
         t("routineFields.fireError", {
+          detail,
           defaultValue: `Could not start the Routine: ${detail}`,
         }),
         5000

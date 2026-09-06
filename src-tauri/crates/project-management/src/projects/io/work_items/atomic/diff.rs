@@ -2,7 +2,7 @@
 //! pre/post-mutation diff, the payload-tail fingerprint, and the outbox
 //! payload projection.
 
-use crate::projects::types::{WorkItemData, WorkItemFrontmatter, WorkItemPartialUpdate};
+use crate::projects::types::{WorkItemData, WorkItemFrontmatter};
 
 /// Sync-relevant fields whose mutations are tracked in
 /// `workitem_extras.field_revisions`. The names match
@@ -57,26 +57,6 @@ pub(super) fn payload_tail_fingerprint(fm: &WorkItemFrontmatter) -> serde_json::
         "close_out": fm.close_out,
         "work_products": fm.work_products,
     })
-}
-
-/// True when the patch touches any field that lives only in the server
-/// payload jsonb (outside the sync-tracked field set).
-pub(super) fn touches_payload_tail(updates: &WorkItemPartialUpdate) -> bool {
-    updates.todos.is_some()
-        || updates.comments.is_some()
-        || updates.handoff.is_some()
-        || updates.linked_sessions.is_some()
-        || updates.orchestrator_config.is_some()
-        || updates.orchestrator_state.is_some()
-        || updates.schedule.is_some()
-        || updates.execution_lock.is_some()
-        || updates.close_out.is_some()
-        || updates.work_products.is_some()
-        || updates.starred.is_some()
-        || updates.assignee_type.is_some()
-        || updates.project.is_some()
-        || updates.created_by.is_some()
-        || updates.stage.is_some()
 }
 
 /// Build the JSON payload that gets persisted to
@@ -141,8 +121,8 @@ pub(super) struct SyncFieldSnapshot {
     title: String,
     body: String,
     status: String,
-    priority: String,
-    assignee: Option<String>,
+    pub(super) priority: String,
+    pub(super) assignee: Option<String>,
     milestone: Option<String>,
     start_date: Option<String>,
     target_date: Option<String>,

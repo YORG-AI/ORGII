@@ -28,6 +28,7 @@ const WORK_ITEM_STATUS_TO_LINEAR_TYPE: Partial<
   planned: "unstarted",
   in_progress: "started",
   in_review: "started",
+  blocked: "started",
   completed: "completed",
   cancelled: "canceled",
 };

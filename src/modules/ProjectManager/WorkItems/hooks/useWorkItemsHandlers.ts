@@ -31,6 +31,7 @@ const WORK_ITEM_STATUS_TO_FILE: Record<WorkItemStatus, string> = {
   planned: "planned",
   in_progress: "in_progress",
   in_review: "in_review",
+  blocked: "blocked",
   completed: "completed",
   cancelled: "cancelled",
   duplicate: "duplicate",

@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use project_management::work_service;
 
-use super::{item_to_wire, require_short_id, standalone_fallback_item};
+use super::{
+    item_to_wire, query::custom_status_definition, require_short_id, standalone_fallback_item,
+};
 use crate::commands::{guarded, mutation_actor};
 use crate::context::ExecutionContext;
 use crate::envelope::{emit_error, emit_success, CliError, ErrorCode};
@@ -26,20 +28,26 @@ pub(super) fn run(
     let Some(to_state) = flags.get("to") else {
         return emit_error(CliError::new(
             ErrorCode::InvalidArgument,
-            "work transition requires --to <open|in_progress|blocked|completed|failed|cancelled>",
+            "work transition requires --to <open|in_progress|blocked|completed|failed|cancelled|custom-key>",
         ));
     };
     if work_service::WorkItemState::parse(to_state).is_none() {
-        return emit_error(
-            CliError::new(
-                ErrorCode::InvalidArgument,
-                format!(
-                    "Unknown state '{}'; expected one of open|in_progress|blocked|completed|failed|cancelled",
-                    to_state
-                ),
-            )
-            .with_details(serde_json::json!({ "field": "--to", "value": to_state })),
-        );
+        match custom_status_definition(context, to_state) {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                return emit_error(
+                    CliError::new(
+                        ErrorCode::InvalidArgument,
+                        format!(
+                            "Unknown state '{}'; expected one of open|in_progress|blocked|completed|failed|cancelled or an active custom status key",
+                            to_state
+                        ),
+                    )
+                    .with_details(serde_json::json!({ "field": "--to", "value": to_state })),
+                );
+            }
+            Err(err) => return emit_error(err),
+        }
     }
     if to_state == "in_progress" {
         return emit_error(CliError::new(

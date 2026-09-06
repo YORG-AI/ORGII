@@ -43,6 +43,29 @@ pub struct DiscussionPostResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DiscussionEditRequest {
+    #[serde(flatten)]
+    pub scope: WorkItemScope,
+    pub comment_id: String,
+    pub actor_id: String,
+    pub content: String,
+    #[serde(default)]
+    pub expected_revision: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscussionDeleteRequest {
+    #[serde(flatten)]
+    pub scope: WorkItemScope,
+    pub comment_id: String,
+    pub actor_id: String,
+    #[serde(default)]
+    pub expected_revision: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DiscussionTriggerPreview {
     pub will_wake: bool,
     pub reason: String,
@@ -129,6 +152,8 @@ pub enum PropertyType {
     Date,
     Checkbox,
     Url,
+    Actor,
+    MultiActor,
 }
 
 impl PropertyType {
@@ -141,6 +166,8 @@ impl PropertyType {
             Self::Date => "date",
             Self::Checkbox => "checkbox",
             Self::Url => "url",
+            Self::Actor => "actor",
+            Self::MultiActor => "multi_actor",
         }
     }
 }
@@ -157,6 +184,8 @@ impl TryFrom<&str> for PropertyType {
             "date" => Ok(Self::Date),
             "checkbox" => Ok(Self::Checkbox),
             "url" => Ok(Self::Url),
+            "actor" => Ok(Self::Actor),
+            "multi_actor" => Ok(Self::MultiActor),
             other => Err(format!("unknown property type '{other}'")),
         }
     }
@@ -212,6 +241,15 @@ pub struct WorkItemPropertyValue {
     pub definition: PropertyDefinition,
     pub value: serde_json::Value,
     pub updated_at: String,
+}
+
+/// One typed-property value row for a whole-scope read (table columns).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopePropertyValue {
+    pub property_id: String,
+    pub work_item_id: String,
+    pub value: serde_json::Value,
 }
 
 /// Durable collaboration projection for one typed-property value.

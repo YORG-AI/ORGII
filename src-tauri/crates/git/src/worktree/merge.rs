@@ -8,7 +8,10 @@ use tracing::{error, info, warn};
 
 use super::git_cmd::{current_head_ref, git_stderr, git_stdout, is_working_dir_clean, run_git};
 use super::paths::session_worktree_dir;
-use super::{session_branch_name, validate_session_id, MergeStrategy, WorktreeMergeResult};
+use super::{
+    ensure_worktree_excludes, session_branch_name, validate_session_id, MergeStrategy,
+    WorktreeMergeResult,
+};
 
 /// Commit any uncommitted changes in a session's worktree.
 ///
@@ -19,6 +22,10 @@ pub fn commit_worktree_changes(repo_path: &Path, session_id: &str) -> Result<boo
 
     if !wt_path.exists() {
         return Err("Worktree does not exist".to_string());
+    }
+
+    if let Err(err) = ensure_worktree_excludes(&wt_path) {
+        warn!("[worktree] {err}");
     }
 
     // Check for changes

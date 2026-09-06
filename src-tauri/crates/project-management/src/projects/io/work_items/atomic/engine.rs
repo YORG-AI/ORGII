@@ -11,9 +11,12 @@ use super::diff::{payload_tail_fingerprint, SyncFieldSnapshot};
 use super::row::{build_frontmatter, human_assignee_id, read_labels_in_tx, AtomicCore};
 use super::scope::{AtomicServiceOptions, AtomicWorkItemScope};
 use crate::projects::io::helpers::{conn, from_iso8601, map_db, now_ms, to_iso8601};
-use crate::projects::io::work_items::extras::{ExtrasPayload, FieldRevision, REVISION_SOURCE_LOCAL};
+use crate::projects::io::work_items::extras::{
+    ExtrasPayload, FieldRevision, REVISION_SOURCE_LOCAL,
+};
 use crate::projects::io::work_items::history::{append_mutation_event, WorkItemHistorySnapshot};
 use crate::projects::types::WorkItemFrontmatter;
+use crate::work_service::state::{map_legacy_status, WorkItemState};
 
 pub(super) fn update_work_item_atomic_with_revisions_scoped<T, F>(
     scope: AtomicWorkItemScope<'_>,
@@ -99,11 +102,9 @@ where
     // (mismatch -> conflict) or queues behind us.
     if let Some(expected) = service.expected_local_version {
         if expected != core.local_version {
-            return Err(format!(
-                "{}:{}:{}",
-                crate::work_service::error::REVISION_CONFLICT,
+            return Err(crate::work_service::error::revision_conflict(
                 expected,
-                core.local_version
+                core.local_version,
             ));
         }
     }
@@ -170,21 +171,6 @@ where
     // is still visible in the audit stream.
     let status_changed = core.status != frontmatter.status;
     let mut fsm_violation: Option<String> = None;
-    if status_changed {
-        if let Err(violation) = crate::work_service::state::validate_legacy_transition(
-            &core.status,
-            &frontmatter.status,
-        ) {
-            if service.strict_fsm {
-                return Err(crate::work_service::error::invalid_transition(
-                    &core.status,
-                    &frontmatter.status,
-                ));
-            }
-            fsm_violation = Some(violation);
-        }
-    }
-
     let changed_fields = before.diff(&frontmatter, &body);
     let assignment_changed =
         core.assignee != frontmatter.assignee || core.assignee_type != frontmatter.assignee_type;
@@ -226,6 +212,52 @@ where
         .ok_or_else(|| format!("Project '{}' not found", next_project_id))?
     } else {
         core.org_id.clone()
+    };
+    let status_scope_changed = core.org_id != next_org_id;
+    if status_changed || status_scope_changed {
+        crate::work_item_features::statuses::ensure_status_assignable_in(
+            &tx,
+            &next_org_id,
+            &frontmatter.status,
+            (!status_scope_changed).then_some(core.status.as_str()),
+        )?;
+    }
+    let (effective_status_from, effective_status_to) = if status_changed || status_scope_changed {
+        (
+            crate::work_item_features::statuses::effective_status_in(
+                &tx,
+                &core.org_id,
+                &core.status,
+            ),
+            crate::work_item_features::statuses::effective_status_in(
+                &tx,
+                &next_org_id,
+                &frontmatter.status,
+            ),
+        )
+    } else {
+        (core.status.clone(), frontmatter.status.clone())
+    };
+    let status_semantics_changed = effective_status_from != effective_status_to;
+    if status_changed {
+        if let Err(violation) = crate::work_service::state::validate_legacy_transition(
+            &core.status,
+            &frontmatter.status,
+        ) {
+            if service.strict_fsm {
+                return Err(crate::work_service::error::invalid_transition(
+                    &core.status,
+                    &frontmatter.status,
+                ));
+            }
+            fsm_violation = Some(violation);
+        }
+    }
+    let status_is_terminal = |status: &str| {
+        matches!(
+            map_legacy_status(status),
+            Some(WorkItemState::Completed | WorkItemState::Failed | WorkItemState::Cancelled)
+        )
     };
     if next_project_id != project_id {
         let exists_at_dest: bool = if let Some(next_project_id) = next_project_id.as_ref() {
@@ -375,6 +407,76 @@ where
         params![&core.work_item_id, next_extras_json],
     ))?;
 
+    let mut child_dispatch_ready = false;
+
+    {
+        let scope_key = match scope {
+            AtomicWorkItemScope::Project(slug) => format!("project:{slug}"),
+            AtomicWorkItemScope::Standalone { .. } => format!("org:{next_org_id}"),
+        };
+        let actor_id = actor.map(|value| value.id.as_str());
+        crate::work_item_features::subscriptions::notify_field_changes(
+            &tx,
+            crate::work_item_features::subscriptions::FieldChangeNotification {
+                scope_key: &scope_key,
+                work_item_id: &core.short_id,
+                title: &frontmatter.title,
+                actor_id,
+                status_change: status_changed
+                    .then_some((core.status.as_str(), frontmatter.status.as_str())),
+                assignee_change: assignment_changed
+                    .then_some((before.assignee.as_deref(), frontmatter.assignee.as_deref())),
+                priority_change: (before.priority != frontmatter.priority)
+                    .then_some((before.priority.as_str(), frontmatter.priority.as_str())),
+                dates_changed: changed_fields.contains(&"start_date")
+                    || changed_fields.contains(&"target_date"),
+                now,
+            },
+        )?;
+        if status_changed || status_semantics_changed {
+            let became_terminal = status_is_terminal(&effective_status_to)
+                && !status_is_terminal(&effective_status_from);
+            if became_terminal {
+                if let Some(parent) = frontmatter
+                    .parent
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|parent| !parent.is_empty())
+                {
+                    let project_slug = match scope {
+                        AtomicWorkItemScope::Project(slug) => Some(slug),
+                        AtomicWorkItemScope::Standalone { .. } => None,
+                    };
+                    crate::work_item_features::subscriptions::notify_child_terminal(
+                        &tx,
+                        crate::work_item_features::subscriptions::ChildTerminalNotification {
+                            scope_key: &scope_key,
+                            parent_short_id: parent,
+                            child_short_id: &core.short_id,
+                            child_title: &frontmatter.title,
+                            status: &frontmatter.status,
+                            actor_id,
+                            now,
+                        },
+                    )?;
+                    child_dispatch_ready |=
+                        crate::work_item_features::post_child_terminal_system_comment_in_transaction(
+                            &tx,
+                            crate::work_item_features::ChildTerminalSystemComment {
+                                project_slug,
+                                org_id: &next_org_id,
+                                parent_short_id: parent,
+                                child_short_id: &core.short_id,
+                                child_title: &frontmatter.title,
+                                status: &frontmatter.status,
+                                child_revision: next_version,
+                            },
+                        )?;
+                }
+            }
+        }
+    }
+
     // Audit + cross-process watermark, same transaction as the mutation
     // (frozen persistence invariant, design §19). Every RMW path funnels
     // through here, so UI patches, agent tools, sync merges and the
@@ -412,19 +514,15 @@ where
     )?;
 
     map_db(tx.commit())?;
+    if child_dispatch_ready {
+        crate::projects::events::notify_work_item_dispatch_ready();
+    }
     if scheduler_changed {
         crate::projects::events::notify_work_item_schedule_changed();
     }
-    if status_changed {
-        use crate::work_service::state::{map_legacy_status, WorkItemState};
-        let was_terminal = matches!(
-            map_legacy_status(&core.status),
-            Some(WorkItemState::Completed | WorkItemState::Failed | WorkItemState::Cancelled)
-        );
-        let is_terminal = matches!(
-            map_legacy_status(&frontmatter.status),
-            Some(WorkItemState::Completed | WorkItemState::Failed | WorkItemState::Cancelled)
-        );
+    if status_changed || status_semantics_changed {
+        let was_terminal = status_is_terminal(&effective_status_from);
+        let is_terminal = status_is_terminal(&effective_status_to);
         if is_terminal && !was_terminal {
             crate::projects::events::notify_work_item_terminal(
                 crate::projects::events::WorkItemTerminalEvent {

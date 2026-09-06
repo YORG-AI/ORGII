@@ -2,13 +2,19 @@ import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import AnyIcon from "@src/components/AnyIcon";
+import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import Textarea from "@src/components/Textarea";
 import TimePicker from "@src/components/TimePicker";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import { useTimezoneSelect } from "@src/hooks/geo/useTimezoneSelect";
-import { HierarchyCircle01Icon, HugeiconsIcon } from "@src/icons";
+import {
+  Add01Icon,
+  Delete02Icon,
+  HierarchyCircle01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 import {
   type CronParts,
   type ScheduleFrequency,
@@ -22,7 +28,12 @@ import {
 } from "@src/modules/shared/layouts/SectionLayout";
 
 import SpotlightSelectTrigger from "./SpotlightSelectTrigger";
-import type { RoutineDraft, UpdateRoutineDraft } from "./routineDraft";
+import {
+  type ActivationDraft,
+  type RoutineDraft,
+  type UpdateRoutineDraft,
+  createActivationDraft,
+} from "./routineDraft";
 
 interface RoutineBasicsSectionProps {
   draft: RoutineDraft;
@@ -59,6 +70,20 @@ const RoutineBasicsSection: React.FC<RoutineBasicsSectionProps> = ({
         value: "CRON",
         label: t("routineFields.cron"),
         dataTestId: "routine-wizard-trigger-option-cron",
+      },
+      {
+        value: "PROVIDER_EVENT",
+        label: t("routineFields.activationProviderEvent", {
+          defaultValue: "Provider event",
+        }),
+        dataTestId: "routine-wizard-trigger-option-provider_event",
+      },
+      {
+        value: "MANUAL",
+        label: t("routineFields.activationManual", {
+          defaultValue: "Manual",
+        }),
+        dataTestId: "routine-wizard-trigger-option-manual",
       },
     ],
     [t]
@@ -167,7 +192,49 @@ const RoutineBasicsSection: React.FC<RoutineBasicsSectionProps> = ({
           />
         </SectionRow>
 
-        {draft.triggerKind === "ONE_TIME" ? (
+        {draft.triggerKind === "MANUAL" ? null : draft.triggerKind ===
+          "PROVIDER_EVENT" ? (
+          <>
+            <SectionRow
+              label={t("routineFields.provider", { defaultValue: "Provider" })}
+              required
+              indent
+            >
+              <Input
+                value={draft.provider}
+                onChange={(value) => updateDraft("provider", value)}
+                placeholder={t("routineFields.providerPlaceholder", {
+                  defaultValue: "github",
+                })}
+                size="default"
+                style={SECTION_CONTROL_STYLE}
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                data-testid="routine-wizard-provider-input"
+              />
+            </SectionRow>
+            <SectionRow
+              label={t("routineFields.eventKind", { defaultValue: "Event" })}
+              required
+              indent
+            >
+              <Input
+                value={draft.eventKind}
+                onChange={(value) => updateDraft("eventKind", value)}
+                placeholder={t("routineFields.eventKindPlaceholder", {
+                  defaultValue: "pull_request",
+                })}
+                size="default"
+                style={SECTION_CONTROL_STYLE}
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                data-testid="routine-wizard-event-kind-input"
+              />
+            </SectionRow>
+          </>
+        ) : draft.triggerKind === "ONE_TIME" ? (
           <SectionRow label={t("routineFields.runAt")} required>
             <Input
               value={draft.at}
@@ -307,6 +374,170 @@ const RoutineBasicsSection: React.FC<RoutineBasicsSectionProps> = ({
             </SectionRow>
           </>
         )}
+      </SectionContainer>
+
+      <SectionContainer>
+        <SectionRow
+          label={t("routineFields.extraActivations", {
+            defaultValue: "Additional activations",
+          })}
+        >
+          <Button
+            variant="tertiary"
+            appearance="ghost"
+            size="small"
+            icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={13} />}
+            onClick={() =>
+              setDraft((current) => ({
+                ...current,
+                extraActivations: [
+                  ...current.extraActivations,
+                  createActivationDraft(),
+                ],
+              }))
+            }
+            data-testid="routine-wizard-add-activation"
+          >
+            {t("common:actions.add", { defaultValue: "Add" })}
+          </Button>
+        </SectionRow>
+        {draft.extraActivations.map((activation) => {
+          const patchActivation = (patch: Partial<ActivationDraft>) =>
+            setDraft((current) => ({
+              ...current,
+              extraActivations: current.extraActivations.map((entry) =>
+                entry.key === activation.key ? { ...entry, ...patch } : entry
+              ),
+            }));
+          return (
+            <SectionRow key={activation.key} label="" indent showHeader={false}>
+              <div
+                className="flex flex-wrap items-center gap-2 py-1"
+                data-testid={`routine-wizard-activation-${activation.key}`}
+              >
+                <Select
+                  value={activation.type}
+                  options={[
+                    {
+                      value: "schedule",
+                      label: t("routineFields.activationSchedule", {
+                        defaultValue: "Schedule",
+                      }),
+                    },
+                    {
+                      value: "one_time",
+                      label: t("routineFields.activationOneTime", {
+                        defaultValue: "One time",
+                      }),
+                    },
+                    {
+                      value: "provider_event",
+                      label: t("routineFields.activationProviderEvent", {
+                        defaultValue: "Provider event",
+                      }),
+                    },
+                    {
+                      value: "manual",
+                      label: t("routineFields.activationManual", {
+                        defaultValue: "Manual",
+                      }),
+                    },
+                  ]}
+                  onChange={(value) =>
+                    patchActivation({
+                      type: String(value) as ActivationDraft["type"],
+                    })
+                  }
+                  size="small"
+                  dataTestId={`routine-wizard-activation-type-${activation.key}`}
+                />
+                {activation.type === "schedule" ? (
+                  <>
+                    <Input
+                      value={activation.cron}
+                      onChange={(value) => patchActivation({ cron: value })}
+                      placeholder="0 9 * * 1"
+                      size="small"
+                      autoComplete="off"
+                      spellCheck={false}
+                      data-testid={`routine-wizard-activation-cron-${activation.key}`}
+                    />
+                    <Input
+                      value={activation.timezone}
+                      onChange={(value) => patchActivation({ timezone: value })}
+                      placeholder="UTC"
+                      size="small"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </>
+                ) : null}
+                {activation.type === "one_time" ? (
+                  <Input
+                    value={activation.at}
+                    onChange={(value) => patchActivation({ at: value })}
+                    placeholder="2026-05-07T09:00"
+                    size="small"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                ) : null}
+                {activation.type === "provider_event" ? (
+                  <>
+                    <Input
+                      value={activation.provider}
+                      onChange={(value) => patchActivation({ provider: value })}
+                      placeholder={t("routineFields.providerPlaceholder", {
+                        defaultValue: "github",
+                      })}
+                      size="small"
+                      autoComplete="off"
+                      spellCheck={false}
+                      data-testid={`routine-wizard-activation-provider-${activation.key}`}
+                    />
+                    <Input
+                      value={activation.eventKind}
+                      onChange={(value) =>
+                        patchActivation({ eventKind: value })
+                      }
+                      placeholder={t("routineFields.eventKindPlaceholder", {
+                        defaultValue: "pull_request",
+                      })}
+                      size="small"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </>
+                ) : null}
+                <Button
+                  variant="tertiary"
+                  appearance="ghost"
+                  size="small"
+                  iconOnly
+                  icon={
+                    <HugeiconsIcon
+                      icon={Delete02Icon}
+                      data-icon="trash-2"
+                      size={13}
+                    />
+                  }
+                  onClick={() =>
+                    setDraft((current) => ({
+                      ...current,
+                      extraActivations: current.extraActivations.filter(
+                        (entry) => entry.key !== activation.key
+                      ),
+                    }))
+                  }
+                  aria-label={t("common:actions.remove", {
+                    defaultValue: "Remove",
+                  })}
+                  data-testid={`routine-wizard-activation-remove-${activation.key}`}
+                />
+              </div>
+            </SectionRow>
+          );
+        })}
       </SectionContainer>
 
       <SectionContainer>

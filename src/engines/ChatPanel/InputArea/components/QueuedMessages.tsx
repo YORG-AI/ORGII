@@ -28,6 +28,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import Button from "@src/components/Button";
 import {
   CHAT_COMPOSER_STACK_BAR_INNER_PADDING_X_CLASS,
   CHAT_COMPOSER_STACK_BAR_SURFACE_BG_CLASS,
@@ -51,6 +52,7 @@ export const reorderActiveRef = { current: false };
 export interface QueuedMessagesProps {
   messages: QueuedMessage[];
   onCancel: (messageId: string) => void;
+  onClear: () => void;
   onSendNow: (messageId: string) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
   /** Called when the user closes the card (header collapse button). */
@@ -58,7 +60,7 @@ export interface QueuedMessagesProps {
 }
 
 const QueuedMessages: React.FC<QueuedMessagesProps> = memo(
-  ({ messages, onCancel, onSendNow, onReorder, onToggle }) => {
+  ({ messages, onCancel, onClear, onSendNow, onReorder, onToggle }) => {
     const { t } = useTranslation();
     const setEditTarget = useSetAtom(queueEditTargetAtom);
     const editTarget = useAtomValue(queueEditTargetAtom);
@@ -140,11 +142,23 @@ const QueuedMessages: React.FC<QueuedMessagesProps> = memo(
           }
           label={t("common:labels.queuedCount", { count: messages.length })}
           actions={
-            draggable ? (
-              <span className="text-[10px] text-text-4">
-                {t("common:labels.dragToReorder")}
-              </span>
-            ) : undefined
+            <>
+              {draggable && (
+                <span className="text-[10px] text-text-4">
+                  {t("common:labels.dragToReorder")}
+                </span>
+              )}
+              <Button
+                htmlType="button"
+                variant="tertiary"
+                size="mini"
+                onClick={onClear}
+                title={t("common:actions.clearAll")}
+                data-testid="queued-messages-clear-all"
+              >
+                {t("common:actions.clearAll")}
+              </Button>
+            </>
           }
           expanded={true}
           onToggle={onToggle}

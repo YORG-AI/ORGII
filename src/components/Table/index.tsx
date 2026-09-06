@@ -55,10 +55,21 @@ import { TableBody } from "./TableBody";
 import { TableColGroup } from "./TableColGroup";
 import { TableHeader } from "./TableHeader";
 import "./index.scss";
-import type { TableProps } from "./types";
+import type { TableProps, TableSorting } from "./types";
 import { useTableColumns } from "./useTableColumns";
 
 export type { TableColumn } from "./types";
+
+function fromPublicSorting(value: TableSorting | null): SortingState {
+  return value ? [{ id: value.column, desc: value.order === "descend" }] : [];
+}
+
+function toPublicSorting(value: SortingState): TableSorting | null {
+  const first = value[0];
+  return first
+    ? { column: first.id, order: first.desc ? "descend" : "ascend" }
+    : null;
+}
 
 function TableComponent<T = unknown>(
   {
@@ -68,6 +79,8 @@ function TableComponent<T = unknown>(
     loading: _loading = false,
     showHeader = true,
     pagination,
+    sorting: controlledSorting,
+    onSortingChange,
     onChange,
     rowSelection,
     hover = true,
@@ -89,7 +102,21 @@ function TableComponent<T = unknown>(
   ref: React.ForwardedRef<HTMLDivElement>
 ) {
   const { isDark } = useCurrentTheme();
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const [internalSorting, setInternalSorting] = useState<SortingState>([]);
+  const sorting =
+    controlledSorting === undefined
+      ? internalSorting
+      : fromPublicSorting(controlledSorting);
+  const handleSortingChange = useCallback(
+    (updater: SortingState | ((previous: SortingState) => SortingState)) => {
+      const next = typeof updater === "function" ? updater(sorting) : updater;
+      if (controlledSorting === undefined) {
+        setInternalSorting(next);
+      }
+      onSortingChange?.(toPublicSorting(next));
+    },
+    [controlledSorting, onSortingChange, sorting]
+  );
   const [internalExpandedRows, setInternalExpandedRows] = useState<Set<string>>(
     new Set()
   );
@@ -190,7 +217,7 @@ function TableComponent<T = unknown>(
       rowSelection: rowSelectionState,
       pagination: paginationState,
     },
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelectionState,

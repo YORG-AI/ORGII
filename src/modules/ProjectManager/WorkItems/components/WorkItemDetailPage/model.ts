@@ -1,6 +1,7 @@
-import type {
-  WorkItemFrontmatter,
-  WorkItemPartialUpdate,
+import {
+  type WorkItemFrontmatter,
+  type WorkItemPartialUpdate,
+  workItemCommentToEntry,
 } from "@src/api/http/project";
 import type { WorkItem } from "@src/types/core/workItem";
 
@@ -8,6 +9,18 @@ interface WorkItemNavigationState {
   index: number;
   hasPrev: boolean;
   hasNext: boolean;
+}
+
+/**
+ * Prefer the project record loaded for this detail surface over a cached tab
+ * scope. Persisted tabs can outlive an org switch, while the loaded project is
+ * the authoritative owner of property definitions and values.
+ */
+export function resolveProjectScopedOrgId(
+  projectOrgId?: string | null,
+  cachedOrgId?: string | null
+): string | null {
+  return projectOrgId ?? cachedOrgId ?? null;
 }
 
 export function getWorkItemNavigationState(
@@ -67,12 +80,7 @@ export function applyStandaloneWorkItemUpdates(
     }));
   }
   if (updates.comments !== undefined) {
-    next.comments = updates.comments.map((comment) => ({
-      id: comment.id,
-      author: comment.author,
-      content: comment.content,
-      created_at: comment.created_at,
-    }));
+    next.comments = updates.comments.map(workItemCommentToEntry);
   }
   if (updates.linkedSessions !== undefined) {
     next.linked_sessions = updates.linkedSessions;
@@ -140,12 +148,7 @@ export function standaloneWorkItemUpdatesToPartial(
     }));
   }
   if (updates.comments !== undefined) {
-    partial.comments = updates.comments.map((comment) => ({
-      id: comment.id,
-      author: comment.author,
-      content: comment.content,
-      created_at: comment.created_at,
-    }));
+    partial.comments = updates.comments.map(workItemCommentToEntry);
   }
   if (updates.linkedSessions !== undefined) {
     partial.linkedSessions = updates.linkedSessions;

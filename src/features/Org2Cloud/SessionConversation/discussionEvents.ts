@@ -1,9 +1,10 @@
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
-import type { CloudSessionComment } from "../org2CloudCommentsClient";
 import type {
   CommentThread,
   GroupedCommentThreads,
+  SessionComment,
+  SessionCommentDeliveryStatus,
 } from "../org2CloudSessionCommentsAtom.types";
 import {
   CONVERSATION_SENDER_ARG,
@@ -31,6 +32,8 @@ export interface DiscussionEventPayload {
   anchorOrphaned: boolean;
   /** Account ids the author explicitly @-mentioned (team-inbox targets). */
   mentionedUserIds: string[];
+  deliveryStatus: SessionCommentDeliveryStatus;
+  deliveryError: string | null;
 }
 
 export function discussionPayloadOf(
@@ -48,7 +51,7 @@ interface DiscussionAnchor {
 }
 
 function commentToDiscussionEvent(
-  comment: CloudSessionComment,
+  comment: SessionComment,
   sessionId: string,
   anchor: DiscussionAnchor | null
 ): SessionEvent | null {
@@ -68,6 +71,8 @@ function commentToDiscussionEvent(
     anchorExcerpt: anchor?.excerpt ?? null,
     anchorOrphaned: anchor?.orphaned ?? false,
     mentionedUserIds: comment.mentionedUserIds ?? [],
+    deliveryStatus: comment.clientDeliveryStatus ?? "sent",
+    deliveryError: comment.clientDeliveryError ?? null,
   };
   const base = {
     id: `${DISCUSSION_ID_PREFIX}${comment.id}`,
@@ -75,7 +80,12 @@ function commentToDiscussionEvent(
     sessionId,
     createdAt: comment.createdAt,
     displayText: body,
-    displayStatus: "completed",
+    displayStatus:
+      payload.deliveryStatus === "pending"
+        ? "pending"
+        : payload.deliveryStatus === "failed"
+          ? "failed"
+          : "completed",
     displayVariant: "message",
     activityStatus: "agent",
     payloadRefs: [],

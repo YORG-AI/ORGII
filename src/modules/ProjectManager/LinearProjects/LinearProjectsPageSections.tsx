@@ -242,6 +242,7 @@ export function LinearProjectsIndexWorkItemsView({
           />
         ) : (
           <WorkItemsListSurface
+            statusOrgId={null}
             groupedWorkItems={indexGroupedWorkItems}
             filteredWorkItems={indexFilteredWorkItems}
             selectedWorkItem={null}
@@ -393,6 +394,7 @@ export function LinearProjectSelectedContent({
 
   return (
     <WorkItemsListSurface
+      statusOrgId={null}
       groupedWorkItems={groupedWorkItems}
       filteredWorkItems={filteredWorkItems}
       selectedWorkItem={selectedWorkItem}

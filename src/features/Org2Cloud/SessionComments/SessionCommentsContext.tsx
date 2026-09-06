@@ -45,6 +45,7 @@ import type {
   CloudCommentResolution,
   CloudSessionComment,
 } from "../org2CloudCommentsClient";
+import { isOrg2CommentErrorCode } from "../org2CloudCommentsClient";
 import { loadCloudOrgMembers } from "../org2CloudMembersCoordinator";
 import {
   org2CloudOrgsAtom,
@@ -58,9 +59,11 @@ import {
   type AddCommentInput,
   type CloudSessionCommentsFetchState,
   type GroupedCommentThreads,
+  SessionCommentDeliveryError,
   groupCommentThreads,
   useSessionComments,
 } from "../org2CloudSessionCommentsAtom";
+import { org2CloudSyncEngine } from "../org2CloudSyncEngine";
 import {
   type SessionCommentTarget,
   useSessionCommentTarget,
@@ -73,6 +76,45 @@ const RUST_NATIVE_TRANSIENT_USER_EVENT_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type { CommentAnchorEventIdentity };
+
+/**
+ * A repo-scope/tag can make Team Chat available a few milliseconds before
+ * the owner push creates the Cloud session row. Repair that one admission
+ * race through the existing sync engine, then retry the exact comment once.
+ * Imported teammate sessions deliberately pass no repair callback.
+ */
+export async function addCommentWithSessionAdmissionRecovery(
+  add: () => Promise<CloudSessionComment>,
+  repair: (() => Promise<void>) | null,
+  retryRetained?: (
+    error: SessionCommentDeliveryError
+  ) => Promise<CloudSessionComment>
+): Promise<CloudSessionComment> {
+  try {
+    return await add();
+  } catch (error) {
+    const cause =
+      error instanceof SessionCommentDeliveryError ? error.cause : error;
+    if (!repair || !isOrg2CommentErrorCode(cause, "ORG2_SESSION_NOT_FOUND")) {
+      throw error;
+    }
+    try {
+      await repair();
+    } catch (repairError) {
+      if (error instanceof SessionCommentDeliveryError) {
+        throw new SessionCommentDeliveryError(
+          error.commentId,
+          error.input,
+          repairError
+        );
+      }
+      throw repairError;
+    }
+    return error instanceof SessionCommentDeliveryError && retryRetained
+      ? retryRetained(error)
+      : add();
+  }
+}
 
 /**
  * Build the local-render id -> durable cloud-anchor id projection once per
@@ -144,6 +186,11 @@ export interface SessionCommentsContextValue {
   mentionableMembers: readonly CloudOrgMember[];
   refresh: () => void;
   addComment: (input: AddCommentInput) => Promise<CloudSessionComment>;
+  retryComment: (
+    commentId: string,
+    editedBody?: string,
+    editedMentionedUserIds?: string[]
+  ) => Promise<CloudSessionComment>;
   /**
    * Batch follow-up (design 2026-07-11): address every unresolved thread as
    * one owner-only agent round, then post one parsed reply per thread. A
@@ -341,6 +388,7 @@ export const SessionCommentsProvider: React.FC<
     state,
     refresh,
     addComment,
+    retryComment,
     editComment,
     deleteComment,
     resolveComment,
@@ -348,6 +396,31 @@ export const SessionCommentsProvider: React.FC<
     target?.orgId ?? null,
     target?.sessionId ?? null,
     originSessionId
+  );
+  const addCommentWithRecovery = useCallback(
+    (input: AddCommentInput): Promise<CloudSessionComment> => {
+      const locallyOwnedTarget = Boolean(
+        session &&
+        target &&
+        session.session_id === target.sessionId &&
+        !session.importedFrom &&
+        !getSessionForkedFrom(session)
+      );
+      return addCommentWithSessionAdmissionRecovery(
+        () => addComment(input),
+        locallyOwnedTarget && target
+          ? async () => {
+              org2CloudSyncEngine.invalidatePushedMetadataHash(
+                target.orgId,
+                target.sessionId
+              );
+              await org2CloudSyncEngine.runSyncPassAndWaitForDrain();
+            }
+          : null,
+        (error) => retryComment(error.commentId)
+      );
+    },
+    [addComment, retryComment, session, target]
   );
   const viewer = useSessionCommentViewer(target);
   const mentionableMembers = useSessionCommentMentionableMembers(target);
@@ -445,7 +518,8 @@ export const SessionCommentsProvider: React.FC<
       viewerIsAdmin: viewer.viewerIsAdmin,
       mentionableMembers,
       refresh,
-      addComment,
+      addComment: addCommentWithRecovery,
+      retryComment,
       editComment,
       deleteComment,
       resolveComment,
@@ -465,7 +539,8 @@ export const SessionCommentsProvider: React.FC<
     viewer,
     mentionableMembers,
     refresh,
-    addComment,
+    addCommentWithRecovery,
+    retryComment,
     editComment,
     deleteComment,
     resolveComment,

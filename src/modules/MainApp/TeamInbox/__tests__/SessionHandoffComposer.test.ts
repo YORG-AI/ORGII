@@ -104,6 +104,7 @@ const DRAFT: TeamInboxSessionHandoffDraft = {
   destinations: [
     {
       kind: "project",
+      orgId: "org-1",
       key: "project:project-alpha",
       projectId: "project-1",
       projectSlug: "project-alpha",

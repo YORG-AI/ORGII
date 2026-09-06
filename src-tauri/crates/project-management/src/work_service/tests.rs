@@ -159,7 +159,10 @@ fn expected_revision_mismatch_is_a_typed_conflict() {
         err.starts_with(error::REVISION_CONFLICT),
         "unexpected error: {err}"
     );
-    assert!(err.ends_with(":7:0"), "carries expected/current: {err}");
+    assert!(
+        err.ends_with(":expected=7:actual=0"),
+        "carries expected/actual: {err}"
+    );
 
     let unchanged = read_work_item("demo", "AAA-0001").expect("read");
     assert_eq!(unchanged.frontmatter.status, "backlog");
@@ -504,4 +507,151 @@ fn standalone_note_audits_as_work_note() {
     let (operation, _, _) = last_audit_row();
     assert_eq!(operation, "work.note");
     assert!(work_item_noted_by_actor_since("SA-0001", "agent:os", before_ms).expect("query"));
+}
+
+#[test]
+fn threaded_note_stamps_the_originator_chain_on_the_comment() {
+    let _sandbox = test_env::sandbox();
+    let fm = work_item_fixture("SA-0002", "SA-0002", "Originator probe");
+    crate::projects::io::write_standalone_work_item(None, "SA-0002", &fm, "body")
+        .expect("seed standalone item");
+    let actor = crate::projects::types::WorkItemMutationActor {
+        id: "agent:builtin:sde".to_string(),
+        name: "sde".to_string(),
+    };
+
+    note_standalone_work_item_threaded(
+        None,
+        "SA-0002",
+        "comment",
+        "reporting back",
+        None,
+        Some(&actor),
+        Some("session-orig"),
+        Some("member:m-42"),
+    )
+    .expect("note with originator");
+
+    let item = crate::projects::io::read_standalone_work_item(None, "SA-0002").expect("read");
+    let comment = item.frontmatter.comments.last().expect("comment appended");
+    assert_eq!(comment.originator.as_deref(), Some("member:m-42"));
+    assert_eq!(comment.agent_session_id.as_deref(), Some("session-orig"));
+
+    let wire = serde_json::to_value(comment).expect("wire");
+    assert_eq!(wire["originator"], "member:m-42");
+
+    note_standalone_work_item(None, "SA-0002", "comment", "no chain", Some(&actor))
+        .expect("note without originator");
+    let item = crate::projects::io::read_standalone_work_item(None, "SA-0002").expect("read");
+    let plain = item.frontmatter.comments.last().expect("second comment");
+    assert!(plain.originator.is_none());
+    let wire = serde_json::to_value(plain).expect("wire");
+    assert!(wire.get("originator").is_none(), "{wire}");
+}
+
+#[test]
+fn timeline_merges_history_and_live_comments_in_time_order() {
+    use crate::projects::types::{
+        CommentEntry, WorkItemHistoryAction, WorkItemHistoryChange, WorkItemHistoryEvent,
+    };
+    use crate::work_service::timeline::{work_item_timeline, TimelineEntry, TimelineFilter};
+
+    let _sandbox = test_env::sandbox();
+    seed("demo", "p1");
+    let mut item = crate::projects::io::read_work_item("demo", "AAA-0001").expect("work item");
+    let history = |id: &str, at: &str, field: &str| WorkItemHistoryEvent {
+        id: id.to_string(),
+        action: WorkItemHistoryAction::Updated,
+        timestamp: at.to_string(),
+        actor_id: Some("user-a".to_string()),
+        actor_name: Some("Alice".to_string()),
+        changes: vec![WorkItemHistoryChange {
+            field: field.to_string(),
+            old_value: serde_json::json!("backlog"),
+            new_value: serde_json::json!("in_progress"),
+        }],
+        summary: None,
+    };
+    let comment = |id: &str, at: &str, deleted: bool| CommentEntry {
+        id: id.to_string(),
+        author: "user-b".to_string(),
+        content: format!("body {id}"),
+        created_at: at.to_string(),
+        revision: 0,
+        mentioned_user_ids: Vec::new(),
+        mentions: Vec::new(),
+        parent_id: None,
+        thread_id: Some(id.to_string()),
+        resolved_at: None,
+        resolved_by: None,
+        conclusion: false,
+        agent_session_id: None,
+        originator: None,
+        edited_at: None,
+        deleted_at: deleted.then(|| "2026-08-23T09:00:00.000Z".to_string()),
+    };
+    item.frontmatter.history = vec![
+        history("h2", "2026-08-23T08:30:00.000Z", "priority"),
+        history("h1", "2026-08-23T08:00:00.000Z", "status"),
+    ];
+    item.frontmatter.comments = vec![
+        comment("c1", "2026-08-23T08:15:00.000Z", false),
+        comment("c-gone", "2026-08-23T08:20:00.000Z", true),
+        comment("c2", "2026-08-23T08:45:00+00:00", false),
+    ];
+
+    let ids = |entries: &[TimelineEntry]| {
+        entries
+            .iter()
+            .map(|entry| match entry {
+                TimelineEntry::Activity { id, .. } | TimelineEntry::Comment { id, .. } => {
+                    id.clone()
+                }
+            })
+            .collect::<Vec<_>>()
+    };
+
+    let all = work_item_timeline(&item, TimelineFilter::default());
+    assert_eq!(ids(&all), vec!["h1", "c1", "h2", "c2"]);
+
+    let since = work_item_timeline(
+        &item,
+        TimelineFilter {
+            since: Some("2026-08-23T08:30:00Z"),
+            ..Default::default()
+        },
+    );
+    assert_eq!(ids(&since), vec!["h2", "c2"]);
+
+    let tail = work_item_timeline(
+        &item,
+        TimelineFilter {
+            tail: Some(1),
+            ..Default::default()
+        },
+    );
+    assert_eq!(ids(&tail), vec!["c2"]);
+
+    let activity = work_item_timeline(
+        &item,
+        TimelineFilter {
+            activity_only: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(ids(&activity), vec!["h1", "h2"]);
+
+    let comments = work_item_timeline(
+        &item,
+        TimelineFilter {
+            comments_only: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(ids(&comments), vec!["c1", "c2"]);
+
+    let wire = serde_json::to_value(&all[1]).expect("wire");
+    assert_eq!(wire["kind"], "comment", "{wire}");
+    assert_eq!(wire["author"], "user-b");
+    assert_eq!(wire["threadId"], "c1", "{wire}");
 }

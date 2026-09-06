@@ -37,8 +37,10 @@ import {
 } from "./org2CloudCommentsClient";
 import {
   EMPTY_ENTRY,
+  OPTIMISTIC_SESSION_COMMENT_ID_PREFIX,
   decideSessionCommentsFetch,
   insertComment,
+  isOptimisticSessionCommentId,
   mergeDeltaSessionComments,
   mergeFullSessionComments,
   patchComment,
@@ -60,8 +62,10 @@ import { useCloudFreshAccessToken } from "./org2CloudSessionCommentsAtom.freshTo
 import type {
   AddCommentInput,
   CloudSessionCommentsEntry,
+  SessionComment,
   UseSessionCommentsResult,
 } from "./org2CloudSessionCommentsAtom.types";
+import { SessionCommentDeliveryError } from "./org2CloudSessionCommentsAtom.types";
 
 // Re-exports: preserve this module's public import path for symbols that
 // now live in the sibling modules above (types / pure transforms /
@@ -72,10 +76,14 @@ export type {
   CloudSessionCommentsEntry,
   CloudSessionCommentsFetchState,
   GroupedCommentThreads,
+  SessionComment,
+  SessionCommentDeliveryStatus,
   UseSessionCommentsResult,
 } from "./org2CloudSessionCommentsAtom.types";
+export { SessionCommentDeliveryError } from "./org2CloudSessionCommentsAtom.types";
 export {
   MAX_SESSION_COMMENT_CACHE_ENTRIES,
+  OPTIMISTIC_SESSION_COMMENT_ID_PREFIX,
   SESSION_COMMENTS_DELTA_OVERLAP_MS,
   sessionCommentsDeltaSince,
   countLiveComments,
@@ -83,6 +91,7 @@ export {
   getThreadResolution,
   groupCommentThreads,
   insertComment,
+  isOptimisticSessionCommentId,
   isThreadResolved,
   mergeDeltaSessionComments,
   mergeFullSessionComments,
@@ -435,7 +444,7 @@ export function useSessionComments(
   const patchEntry = useCallback(
     (
       targetKey: string,
-      transform: (comments: CloudSessionComment[]) => CloudSessionComment[]
+      transform: (comments: SessionComment[]) => SessionComment[]
     ) => {
       const identityKey = authIdentityKey;
       if (!identityKey) return;
@@ -486,43 +495,148 @@ export function useSessionComments(
     );
   }, []);
 
+  const deliverComment = useCallback(
+    async (
+      commentId: string,
+      input: AddCommentInput
+    ): Promise<CloudSessionComment> => {
+      if (!orgId || !sessionId || !key) {
+        throw new Error("no cloud comment target");
+      }
+      try {
+        const { accessToken, identityKey } =
+          await freshTokenForCurrentIdentity();
+        const comment = await addSessionComment(accessToken, {
+          orgId,
+          sessionId,
+          body: input.body,
+          eventId: input.eventId,
+          parentId: input.parentId,
+          mentionedUserIds: input.mentionedUserIds,
+          ...(originSessionId && originSessionId !== sessionId
+            ? { originSessionId }
+            : {}),
+        });
+        if (!isCurrentIdentity(identityKey)) return comment;
+        patchEntry(key, (comments) =>
+          insertComment(
+            comments.filter((candidate) => candidate.id !== commentId),
+            comment
+          )
+        );
+        broadcastCommentsChangedToPeers(orgId, sessionId);
+        return comment;
+      } catch (error) {
+        let retained = false;
+        patchEntry(key, (comments) =>
+          comments.map((comment) => {
+            if (comment.id !== commentId) return comment;
+            retained = true;
+            return {
+              ...comment,
+              clientDeliveryStatus: "failed",
+              clientDeliveryError:
+                error instanceof Error ? error.message : String(error),
+            };
+          })
+        );
+        if (!retained) throw error;
+        throw new SessionCommentDeliveryError(commentId, input, error);
+      }
+    },
+    [
+      freshTokenForCurrentIdentity,
+      isCurrentIdentity,
+      key,
+      orgId,
+      originSessionId,
+      patchEntry,
+      sessionId,
+    ]
+  );
+
   const addComment = useCallback(
     async (input: AddCommentInput): Promise<CloudSessionComment> => {
       if (!orgId || !sessionId || !key) {
         throw new Error("no cloud comment target");
       }
-      const { accessToken, identityKey } = await freshTokenForCurrentIdentity();
-      const comment = await addSessionComment(accessToken, {
-        orgId,
-        sessionId,
-        body: input.body,
+      const optimistic: SessionComment = {
+        id: `${OPTIMISTIC_SESSION_COMMENT_ID_PREFIX}${crypto.randomUUID()}`,
         eventId: input.eventId,
         parentId: input.parentId,
-        mentionedUserIds: input.mentionedUserIds,
-        ...(originSessionId && originSessionId !== sessionId
-          ? { originSessionId }
-          : {}),
-      });
-      if (!isCurrentIdentity(identityKey)) return comment;
-      // The RPC returns the row in listing shape — insert without a refetch.
-      patchEntry(key, (comments) => insertComment(comments, comment));
-      broadcastCommentsChangedToPeers(orgId, sessionId);
-      return comment;
+        authorUserId: authRef.current?.userId ?? "",
+        authorDisplayName: authRef.current?.profile?.displayName ?? undefined,
+        body: input.body,
+        createdAt: new Date().toISOString(),
+        kind: "user",
+        mentionedUserIds: input.mentionedUserIds ?? [],
+        clientDeliveryStatus: "pending",
+      };
+      patchEntry(key, (comments) => insertComment(comments, optimistic));
+      return deliverComment(optimistic.id, input);
     },
-    [
-      orgId,
-      sessionId,
-      originSessionId,
-      key,
-      freshTokenForCurrentIdentity,
-      isCurrentIdentity,
-      patchEntry,
-    ]
+    [deliverComment, key, orgId, patchEntry, sessionId]
+  );
+
+  const retryComment = useCallback(
+    async (
+      commentId: string,
+      editedBody?: string,
+      editedMentionedUserIds?: string[]
+    ): Promise<CloudSessionComment> => {
+      if (!key) throw new Error("no cloud comment target");
+      let input: AddCommentInput | null = null;
+      patchEntry(key, (comments) =>
+        comments.map((comment) => {
+          if (
+            comment.id !== commentId ||
+            !isOptimisticSessionCommentId(comment.id) ||
+            comment.clientDeliveryStatus !== "failed"
+          ) {
+            return comment;
+          }
+          input = {
+            body: editedBody ?? comment.body,
+            eventId: comment.eventId,
+            parentId: comment.parentId,
+            mentionedUserIds:
+              editedMentionedUserIds ?? comment.mentionedUserIds,
+          };
+          return {
+            ...comment,
+            body: input.body,
+            mentionedUserIds: input.mentionedUserIds,
+            clientDeliveryStatus: "pending",
+            clientDeliveryError: undefined,
+          };
+        })
+      );
+      if (!input) throw new Error("failed Team Chat message was not found");
+      return deliverComment(commentId, input);
+    },
+    [deliverComment, key, patchEntry]
   );
 
   const editComment = useCallback(
     async (commentId: string, body: string): Promise<void> => {
       if (!orgId || !key) throw new Error("no cloud comment target");
+      if (isOptimisticSessionCommentId(commentId)) {
+        let edited = false;
+        patchEntry(key, (comments) =>
+          comments.map((comment) => {
+            if (
+              comment.id !== commentId ||
+              comment.clientDeliveryStatus !== "failed"
+            ) {
+              return comment;
+            }
+            edited = true;
+            return { ...comment, body };
+          })
+        );
+        if (!edited) throw new Error("only failed Team Chat messages can edit");
+        return;
+      }
       const { accessToken, identityKey } = await freshTokenForCurrentIdentity();
       const editedAt = await editSessionComment(
         accessToken,
@@ -557,6 +671,7 @@ export function useSessionComments(
         patchComment(comments, commentId, {
           deletedAt: new Date().toISOString(),
           body: "",
+          mentionedUserIds: [],
         })
       );
       if (sessionId) broadcastCommentsChangedToPeers(orgId, sessionId);
@@ -612,6 +727,7 @@ export function useSessionComments(
     refresh,
     insertLocalComment,
     addComment,
+    retryComment,
     editComment,
     deleteComment,
     resolveComment,

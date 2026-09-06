@@ -245,6 +245,7 @@ mod tests {
             },
             body: "Work item body".to_string(),
             filename: "DEM-0001".to_string(),
+            revision: None,
         };
 
         let records = project_with_work_items_sync_records(&project, &[work_item])

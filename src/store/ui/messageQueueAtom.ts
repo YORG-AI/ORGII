@@ -72,6 +72,60 @@ export interface QueuedMessage {
   createdAt: string;
 }
 
+export const MAX_QUEUED_MESSAGES = 100;
+export const MAX_QUEUED_MESSAGES_PER_SESSION = 25;
+export const MAX_QUEUED_MESSAGE_CHARS = 8 * 1024 * 1024;
+export const MAX_QUEUED_MESSAGE_CHARS_TOTAL = 32 * 1024 * 1024;
+
+export type QueueAdmissionResult =
+  | "enqueued"
+  | "duplicate"
+  | "message_too_large"
+  | "session_limit"
+  | "queue_limit";
+
+export function queuedMessageCharSize(message: QueuedMessage): number {
+  return (
+    message.content.length +
+    message.displayContent.length +
+    (message.imageDataUrls ?? []).reduce(
+      (total, image) => total + image.length,
+      0
+    )
+  );
+}
+
+export function queueAdmissionResult(
+  current: readonly QueuedMessage[],
+  message: QueuedMessage
+): Exclude<QueueAdmissionResult, "enqueued" | "duplicate"> | null {
+  const messageSize = queuedMessageCharSize(message);
+  if (messageSize > MAX_QUEUED_MESSAGE_CHARS) return "message_too_large";
+  if (
+    current.filter((item) => item.sessionId === message.sessionId).length >=
+    MAX_QUEUED_MESSAGES_PER_SESSION
+  ) {
+    return "session_limit";
+  }
+  if (current.length >= MAX_QUEUED_MESSAGES) return "queue_limit";
+  const totalSize = current.reduce(
+    (total, item) => total + queuedMessageCharSize(item),
+    messageSize
+  );
+  return totalSize > MAX_QUEUED_MESSAGE_CHARS_TOTAL ? "queue_limit" : null;
+}
+
+/** Keep only the oldest valid rows when recovering an oversized snapshot. */
+export function boundQueuedMessages(
+  messages: readonly QueuedMessage[]
+): QueuedMessage[] {
+  const bounded: QueuedMessage[] = [];
+  for (const message of messages) {
+    if (!queueAdmissionResult(bounded, message)) bounded.push(message);
+  }
+  return bounded;
+}
+
 // ============================================
 // Core Atom — THE single queue
 // ============================================
@@ -111,26 +165,24 @@ enqueueCountAtom.debugLabel = "enqueueCountAtom";
 
 export const enqueueMessageAtom = atom(
   null,
-  (_get, set, message: QueuedMessage) => {
-    let added = false;
-    set(messageQueueAtom, (prev) => {
-      // Dedupe by canonical user-intent id. Falls back to content-
-      // equality only when the caller hasn't minted an id yet (legacy
-      // entry points during the migration window). Once every submit
-      // boundary mints, the content fallback becomes dead code and can
-      // be removed.
-      const duplicate = prev.some((existing) =>
-        message.turnIntentId
-          ? existing.turnIntentId === message.turnIntentId
-          : existing.sessionId === message.sessionId &&
-            existing.content === message.content &&
-            existing.displayContent === message.displayContent
-      );
-      if (duplicate) return prev;
-      added = true;
-      return [...prev, message];
-    });
-    if (added) set(enqueueCountAtom, (n) => n + 1);
+  (get, set, message: QueuedMessage): QueueAdmissionResult => {
+    const current = get(messageQueueAtom);
+    // Dedupe by canonical user-intent id. Falls back to content-equality only
+    // when the caller hasn't minted an id yet (legacy migration entries).
+    const duplicate = current.some((existing) =>
+      message.turnIntentId
+        ? existing.turnIntentId === message.turnIntentId
+        : existing.sessionId === message.sessionId &&
+          existing.content === message.content &&
+          existing.displayContent === message.displayContent
+    );
+    if (duplicate) return "duplicate";
+    const rejected = queueAdmissionResult(current, message);
+    if (rejected) return rejected;
+
+    set(messageQueueAtom, [...current, message]);
+    set(enqueueCountAtom, (count) => count + 1);
+    return "enqueued";
   }
 );
 enqueueMessageAtom.debugLabel = "enqueueMessageAtom";
@@ -191,6 +243,19 @@ export const clearSessionQueueAtom = atom(
 );
 clearSessionQueueAtom.debugLabel = "clearSessionQueueAtom";
 
+/** Remove an exact visible queue projection without touching other Sessions. */
+export const clearQueuedMessagesAtom = atom(
+  null,
+  (_get, set, messageIds: readonly string[]) => {
+    if (messageIds.length === 0) return;
+    const ids = new Set(messageIds);
+    set(messageQueueAtom, (prev) =>
+      prev.filter((message) => !ids.has(message.id))
+    );
+  }
+);
+clearQueuedMessagesAtom.debugLabel = "clearQueuedMessagesAtom";
+
 export const editMessageAtom = atom(
   null,
   (
@@ -205,6 +270,7 @@ export const editMessageAtom = atom(
       agentExecMode?: AgentExecMode;
     }
   ) => {
+    let updated = false;
     set(messageQueueAtom, (prev) =>
       prev.map((msg) => {
         if (msg.id !== update.messageId) return msg;
@@ -212,6 +278,13 @@ export const editMessageAtom = atom(
           update.imageDataUrls !== undefined
             ? update.imageDataUrls
             : msg.imageDataUrls;
+        const draftSize =
+          update.content.length * 2 +
+          (nextImageDataUrls ?? []).reduce(
+            (total, image) => total + image.length,
+            0
+          );
+        if (draftSize > MAX_QUEUED_MESSAGE_CHARS) return msg;
         // The edit surface returns the display form, but `content` is what
         // the queue dispatcher sends to the model. Re-run the shared
         // projection so a saved edit can neither regress the agent copy to
@@ -224,7 +297,7 @@ export const editMessageAtom = atom(
             !(nextImageDataUrls && nextImageDataUrls.length > 0) &&
             !isCliSession(msg.sessionId),
         });
-        return {
+        const next: QueuedMessage = {
           ...msg,
           content: projection.agentContent ?? projection.displayContent,
           displayContent: projection.displayContent,
@@ -238,8 +311,13 @@ export const editMessageAtom = atom(
             agentExecMode: update.agentExecMode,
           }),
         };
+        const siblings = prev.filter((item) => item.id !== msg.id);
+        if (queueAdmissionResult(siblings, next)) return msg;
+        updated = true;
+        return next;
       })
     );
+    return updated;
   }
 );
 editMessageAtom.debugLabel = "editMessageAtom";

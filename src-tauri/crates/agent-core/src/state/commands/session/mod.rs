@@ -13,6 +13,7 @@ pub(crate) mod common;
 mod compaction;
 pub(crate) mod create;
 pub mod debug;
+mod follow_up_suggestions;
 mod gateway_cmds;
 mod housekeeper;
 pub(crate) mod identity;
@@ -25,6 +26,7 @@ mod workspace;
 
 pub use coding::*;
 pub use compaction::*;
+pub use follow_up_suggestions::*;
 pub use housekeeper::*;
 pub use interaction::*;
 pub use persistence::*;

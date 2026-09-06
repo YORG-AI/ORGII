@@ -9,11 +9,12 @@ pub fn note_project_work_item(
     body: &str,
     actor: Option<&WorkItemMutationActor>,
 ) -> Result<(), String> {
-    note_project_work_item_threaded(project_slug, short_id, kind, body, None, actor, None)
+    note_project_work_item_threaded(project_slug, short_id, kind, body, None, actor, None, None)
 }
 
 /// Append a note as a reply in a persisted Discussion thread without waking
 /// the linked Session again.
+#[allow(clippy::too_many_arguments)]
 pub fn note_project_work_item_threaded(
     project_slug: &str,
     short_id: &str,
@@ -22,6 +23,7 @@ pub fn note_project_work_item_threaded(
     parent_id: Option<&str>,
     actor: Option<&WorkItemMutationActor>,
     agent_session_id: Option<&str>,
+    originator: Option<&str>,
 ) -> Result<(), String> {
     let author = actor
         .map(|a| a.name.clone())
@@ -34,8 +36,14 @@ pub fn note_project_work_item_threaded(
     let reason = Some(kind.to_string());
     let body_owned = note_body;
     let parent_id = parent_id.map(str::to_string);
+    let agent_receipt = agent_session_id
+        .zip(actor.and_then(|value| value.id.strip_prefix("agent:")))
+        .map(|(session_id, agent_definition_id)| {
+            (session_id.to_string(), agent_definition_id.to_string())
+        });
     let agent_session_id = agent_session_id.map(str::to_string);
-    project_io::update_work_item_atomic_serviced(
+    let originator = originator.map(str::to_string);
+    let result = project_io::update_work_item_atomic_serviced(
         project_slug,
         short_id,
         actor,
@@ -73,11 +81,31 @@ pub fn note_project_work_item_threaded(
                     parent_id,
                     thread_id,
                     agent_session_id,
+                    originator,
                     ..Default::default()
                 });
             Ok(())
         },
-    )
+    );
+    if let (Ok(()), Some((session_id, agent_definition_id))) = (&result, agent_receipt) {
+        if let Err(error) =
+            crate::work_run_service::cancel_pending_assignee_escalations_for_agent_reply(
+                Some(project_slug),
+                "",
+                short_id,
+                &session_id,
+                &agent_definition_id,
+            )
+        {
+            tracing::warn!(
+                project_slug,
+                work_item_id = short_id,
+                error = %error,
+                "failed to cancel deferred assignee escalation after agent reply"
+            );
+        }
+    }
+    result
 }
 
 /// Idempotent form of [`note_project_work_item`] for durable consumers.
@@ -140,9 +168,10 @@ pub fn note_standalone_work_item(
     body: &str,
     actor: Option<&WorkItemMutationActor>,
 ) -> Result<(), String> {
-    note_standalone_work_item_threaded(org_id, short_id, kind, body, None, actor, None)
+    note_standalone_work_item_threaded(org_id, short_id, kind, body, None, actor, None, None)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn note_standalone_work_item_threaded(
     org_id: Option<&str>,
     short_id: &str,
@@ -151,6 +180,7 @@ pub fn note_standalone_work_item_threaded(
     parent_id: Option<&str>,
     actor: Option<&WorkItemMutationActor>,
     agent_session_id: Option<&str>,
+    originator: Option<&str>,
 ) -> Result<(), String> {
     let author = actor
         .map(|a| a.name.clone())
@@ -161,8 +191,14 @@ pub fn note_standalone_work_item_threaded(
         format!("[{}] {}", kind, body)
     };
     let parent_id = parent_id.map(str::to_string);
+    let agent_receipt = agent_session_id
+        .zip(actor.and_then(|value| value.id.strip_prefix("agent:")))
+        .map(|(session_id, agent_definition_id)| {
+            (session_id.to_string(), agent_definition_id.to_string())
+        });
     let agent_session_id = agent_session_id.map(str::to_string);
-    project_io::update_standalone_work_item_atomic_serviced(
+    let originator = originator.map(str::to_string);
+    let result = project_io::update_standalone_work_item_atomic_serviced(
         org_id,
         actor,
         project_io::AtomicServiceOptions {
@@ -200,11 +236,32 @@ pub fn note_standalone_work_item_threaded(
                     parent_id,
                     thread_id,
                     agent_session_id,
+                    originator,
                     ..Default::default()
                 });
             Ok(())
         },
-    )
+    );
+    if let (Ok(()), Some((session_id, agent_definition_id))) = (&result, agent_receipt) {
+        let org_id = org_id.unwrap_or("personal-org");
+        if let Err(error) =
+            crate::work_run_service::cancel_pending_assignee_escalations_for_agent_reply(
+                None,
+                org_id,
+                short_id,
+                &session_id,
+                &agent_definition_id,
+            )
+        {
+            tracing::warn!(
+                org_id,
+                work_item_id = short_id,
+                error = %error,
+                "failed to cancel deferred standalone assignee escalation after agent reply"
+            );
+        }
+    }
+    result
 }
 
 /// Standalone counterpart to [`note_project_work_item_idempotent`].

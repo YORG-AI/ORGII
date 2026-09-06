@@ -2,6 +2,7 @@ import {
   ROUTINE_CATCH_UP_POLICY,
   ROUTINE_CONCURRENCY_POLICY,
   ROUTINE_OUTPUT_MODE,
+  type RoutineActivation,
   type RoutineCatchUpPolicy,
   type RoutineConcurrencyPolicy,
   type RoutineDefinition,
@@ -14,7 +15,19 @@ import { parseCron } from "@src/modules/ProjectManager/WorkItems/components/Sche
 const ROUTINE_TRIGGER_KIND = {
   ONE_TIME: "one_time",
   CRON: "cron",
+  PROVIDER_EVENT: "provider_event",
+  MANUAL: "manual",
 } as const;
+
+const ACTIVATION_TYPE_TO_TRIGGER_KIND: Record<
+  RoutineActivation["type"],
+  keyof typeof ROUTINE_TRIGGER_KIND
+> = {
+  schedule: "CRON",
+  one_time: "ONE_TIME",
+  provider_event: "PROVIDER_EVENT",
+  manual: "MANUAL",
+};
 
 export const ROUTINE_TARGET_KIND = {
   AGENT_DEFINITION: "agent_definition",
@@ -39,15 +52,102 @@ type RoutineAgentTarget =
     }
   | { kind: typeof ROUTINE_TARGET_KIND.AGENT_ORG; agentOrgId: string };
 
+export const ACTIVATION_DRAFT_TYPES = [
+  "schedule",
+  "one_time",
+  "provider_event",
+  "manual",
+] as const;
+
+export interface ActivationDraft {
+  key: string;
+  type: (typeof ACTIVATION_DRAFT_TYPES)[number];
+  cron: string;
+  timezone: string;
+  at: string;
+  provider: string;
+  eventKind: string;
+}
+
+export function createActivationDraft(
+  type: ActivationDraft["type"] = "schedule"
+): ActivationDraft {
+  return {
+    key: `activation-${Math.random().toString(36).slice(2, 10)}`,
+    type,
+    cron: "",
+    timezone: "UTC",
+    at: "",
+    provider: "",
+    eventKind: "",
+  };
+}
+
+function activationToDraft(activation: RoutineActivation): ActivationDraft {
+  const draft = createActivationDraft(activation.type);
+  switch (activation.type) {
+    case "schedule":
+      return { ...draft, cron: activation.cron, timezone: activation.timezone };
+    case "one_time":
+      return { ...draft, at: isoForInput(activation.at) };
+    case "provider_event":
+      return {
+        ...draft,
+        provider: activation.provider,
+        eventKind: activation.eventKind,
+      };
+    default:
+      return draft;
+  }
+}
+
+export function activationFromDraft(
+  draft: ActivationDraft
+): RoutineActivation | null {
+  switch (draft.type) {
+    case "schedule":
+      return draft.cron.trim()
+        ? {
+            type: "schedule",
+            cron: draft.cron.trim(),
+            timezone: draft.timezone.trim() || "UTC",
+          }
+        : null;
+    case "one_time":
+      return draft.at.trim()
+        ? { type: "one_time", at: inputToIso(draft.at) }
+        : null;
+    case "provider_event":
+      return draft.provider.trim() && draft.eventKind.trim()
+        ? {
+            type: "provider_event",
+            provider: draft.provider.trim(),
+            eventKind: draft.eventKind.trim(),
+          }
+        : null;
+    default:
+      return { type: "manual" };
+  }
+}
+
+export function isActivationDraftValid(draft: ActivationDraft): boolean {
+  return activationFromDraft(draft) !== null;
+}
+
 export interface RoutineDraft {
   name: string;
   description: string;
   enabled: boolean;
   triggerKind: keyof typeof ROUTINE_TRIGGER_KIND;
+  /** Portable activations beyond the primary trigger. */
+  extraActivations: ActivationDraft[];
   at: string;
   cron: string;
   /** IANA timezone used to evaluate the cron schedule. */
   timezone: string;
+  /** Primary provider-event activation fields. */
+  provider: string;
+  eventKind: string;
   /** Whether the user is typing a raw cron instead of using the builder. */
   customCron: boolean;
   /** Consolidated "Agent responsible for this routine" — agent def or org. */
@@ -112,11 +212,23 @@ function inputToIso(value: string): string {
   return date.toISOString();
 }
 
+function primaryActivationOf(
+  routine: RoutineDefinition | undefined
+): RoutineActivation | undefined {
+  const first = routine?.activations?.[0];
+  if (first) return first;
+  const trigger = routine?.trigger;
+  if (!trigger) return undefined;
+  return trigger.kind === ROUTINE_TRIGGER_KIND.CRON
+    ? { type: "schedule", cron: trigger.cron, timezone: trigger.timezone }
+    : { type: "one_time", at: trigger.at };
+}
+
 export function createRoutineDraft(
   routine?: RoutineDefinition,
   defaultTimezone = "utc"
 ): RoutineDraft {
-  const isCron = routine?.trigger.kind === ROUTINE_TRIGGER_KIND.CRON;
+  const primary = primaryActivationOf(routine);
   const target = routine?.runTemplate.target;
   const workspace = routine?.runTemplate.workspace;
   const workspacePath =
@@ -141,27 +253,28 @@ export function createRoutineDraft(
     };
   }
 
-  const existingCron =
-    routine?.trigger.kind === ROUTINE_TRIGGER_KIND.CRON
-      ? routine.trigger.cron
-      : "";
+  const existingCron = primary?.type === "schedule" ? primary.cron : "";
 
   return {
     name: routine?.name ?? "",
     description: routine?.description ?? "",
     enabled: routine?.enabled ?? true,
-    triggerKind: isCron ? "CRON" : "ONE_TIME",
-    at:
-      routine?.trigger.kind === ROUTINE_TRIGGER_KIND.ONE_TIME
-        ? isoForInput(routine.trigger.at)
-        : "",
+    triggerKind: primary
+      ? ACTIVATION_TYPE_TO_TRIGGER_KIND[primary.type]
+      : "ONE_TIME",
+    extraActivations: (routine?.activations ?? [])
+      .slice(1)
+      .map(activationToDraft),
+    at: primary?.type === "one_time" ? isoForInput(primary.at) : "",
     cron: existingCron,
     timezone:
-      routine?.trigger.kind === ROUTINE_TRIGGER_KIND.CRON
-        ? routine.trigger.timezone.toLowerCase() === "utc"
+      primary?.type === "schedule"
+        ? primary.timezone.toLowerCase() === "utc"
           ? "utc"
-          : routine.trigger.timezone
+          : primary.timezone
         : defaultTimezone,
+    provider: primary?.type === "provider_event" ? primary.provider : "",
+    eventKind: primary?.type === "provider_event" ? primary.eventKind : "",
     customCron: existingCron !== "" && parseCron(existingCron) === null,
     target: storedTarget,
     targetLabel: "",
@@ -201,6 +314,61 @@ export function createRoutineDraft(
   };
 }
 
+function isPrimaryTriggerValid(draft: RoutineDraft): boolean {
+  switch (draft.triggerKind) {
+    case "CRON":
+      return draft.cron.trim() !== "";
+    case "ONE_TIME":
+      return draft.at.trim() !== "";
+    case "PROVIDER_EVENT":
+      return draft.provider.trim() !== "" && draft.eventKind.trim() !== "";
+    default:
+      return true;
+  }
+}
+
+export function primaryActivationFromDraft(
+  draft: RoutineDraft
+): RoutineActivation {
+  switch (draft.triggerKind) {
+    case "CRON":
+      return {
+        type: "schedule",
+        cron: draft.cron.trim(),
+        timezone:
+          draft.timezone.toLowerCase() === "utc" ? "UTC" : draft.timezone,
+      };
+    case "ONE_TIME":
+      return { type: "one_time", at: inputToIso(draft.at) };
+    case "PROVIDER_EVENT":
+      return {
+        type: "provider_event",
+        provider: draft.provider.trim(),
+        eventKind: draft.eventKind.trim(),
+      };
+    default:
+      return { type: "manual" };
+  }
+}
+
+export function triggerFromActivations(
+  activations: RoutineActivation[]
+): RoutineDefinition["trigger"] {
+  for (const activation of activations) {
+    if (activation.type === "schedule") {
+      return {
+        kind: ROUTINE_TRIGGER_KIND.CRON,
+        cron: activation.cron,
+        timezone: activation.timezone,
+      };
+    }
+    if (activation.type === "one_time") {
+      return { kind: ROUTINE_TRIGGER_KIND.ONE_TIME, at: activation.at };
+    }
+  }
+  return undefined;
+}
+
 export function isRoutineDraftValid(draft: RoutineDraft): boolean {
   const outputConfigValid =
     draft.outputMode === ROUTINE_OUTPUT_MODE.UPDATE_EXISTING_WORK_ITEM
@@ -212,9 +380,8 @@ export function isRoutineDraftValid(draft: RoutineDraft): boolean {
     draft.name.trim() !== "" &&
     draft.prompt.trim() !== "" &&
     draft.target !== null &&
-    (draft.triggerKind === "CRON"
-      ? draft.cron.trim() !== ""
-      : draft.at.trim() !== "") &&
+    isPrimaryTriggerValid(draft) &&
+    draft.extraActivations.every(isActivationDraftValid) &&
     (draft.workspaceKind === "NONE" || draft.workspacePath.trim() !== "") &&
     outputConfigValid
   );
@@ -229,15 +396,13 @@ export function createRoutineDefinition(
     throw new Error("A routine target is required before saving");
   }
 
-  const trigger =
-    draft.triggerKind === "CRON"
-      ? {
-          kind: ROUTINE_TRIGGER_KIND.CRON,
-          cron: draft.cron.trim(),
-          timezone:
-            draft.timezone.toLowerCase() === "utc" ? "UTC" : draft.timezone,
-        }
-      : { kind: ROUTINE_TRIGGER_KIND.ONE_TIME, at: inputToIso(draft.at) };
+  const extraActivations = draft.extraActivations
+    .map(activationFromDraft)
+    .filter(
+      (activation): activation is RoutineActivation => activation !== null
+    );
+  const activations = [primaryActivationFromDraft(draft), ...extraActivations];
+  const trigger = triggerFromActivations(activations);
 
   const target: RoutineRunTarget =
     draft.target.kind === ROUTINE_TARGET_KIND.AGENT_ORG
@@ -273,6 +438,7 @@ export function createRoutineDefinition(
     description: draft.description.trim(),
     enabled: draft.enabled,
     trigger,
+    activations,
     runTemplate: {
       prompt: draft.prompt.trim(),
       target,

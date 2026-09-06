@@ -9,6 +9,7 @@ use rusqlite::{
 use super::{
     schema::init_team_inbox_tables, TeamInboxActor, TeamInboxCursor, TeamInboxFilter,
     TeamInboxItem, TeamInboxItemKind, TeamInboxPage, TeamInboxPayload, TeamInboxTarget,
+    TeamInboxUnreadCounts,
 };
 use crate::projects::types::{
     WorkItemHandoff, WorkItemHandoffStatus, WorkItemHistoryAction, WorkItemHistoryEvent,
@@ -20,7 +21,9 @@ const SUBSCRIPTION_SOURCE_KIND: &str = "work_item_subscription_event";
 const DEFAULT_PAGE_LIMIT: usize = 50;
 const MAX_PAGE_LIMIT: usize = 100;
 const ACTIONABLE_ASSIGNMENT_PREDICATE: &str =
-    "LOWER(TRIM(w.status)) NOT IN ('completed', 'cancelled', 'canceled', 'duplicate', 'closed', 'done')";
+    "LOWER(TRIM(COALESCE((SELECT sd.category FROM pm_status_definitions sd \
+      WHERE sd.org_id = w.org_id AND sd.key = w.status), w.status))) \
+      NOT IN ('completed', 'cancelled', 'canceled', 'duplicate', 'closed', 'done')";
 /// Upper bound on the assigned-item summary so a long Work Item body never
 /// bloats the inbox payload; the detail surface links back to the full item.
 const SUMMARY_EXCERPT_MAX_CHARS: usize = 240;
@@ -163,6 +166,21 @@ pub fn mark_unread(viewer_member_ids: Vec<String>, item_id: &str) -> Result<bool
     mark_unread_with_connection(&mut connection, &viewer_member_ids, item_id)
 }
 
+pub fn set_archived(
+    viewer_member_ids: &[String],
+    item_id: &str,
+    archived: bool,
+) -> Result<bool, String> {
+    let mut connection = open_connection()?;
+    set_archived_with_connection(
+        &mut connection,
+        viewer_member_ids,
+        item_id,
+        archived,
+        now_ms(),
+    )
+}
+
 fn open_connection() -> Result<PooledConnection, String> {
     let connection = get_projects_connection().map_err(db_error)?;
     init_team_inbox_tables(&connection).map_err(db_error)?;
@@ -175,6 +193,7 @@ pub(crate) fn list_page_with_connection(
 ) -> Result<TeamInboxPage, String> {
     init_team_inbox_tables(connection).map_err(db_error)?;
     let viewer_ids = normalized_viewer_ids(&options.viewer_member_ids)?;
+    let archived_only = options.filter == TeamInboxFilter::Archived;
     let limit = options.limit.clamp(1, MAX_PAGE_LIMIT);
     let fetch_limit = limit + 1;
     let mut items = Vec::new();
@@ -184,6 +203,7 @@ pub(crate) fn list_page_with_connection(
             &viewer_ids,
             options.cursor.as_ref(),
             fetch_limit,
+            archived_only,
         )?);
     }
     if options.filter != TeamInboxFilter::Assigned {
@@ -192,14 +212,19 @@ pub(crate) fn list_page_with_connection(
             &viewer_ids,
             options.cursor.as_ref(),
             fetch_limit,
+            archived_only,
         )?);
     }
-    if options.filter == TeamInboxFilter::All {
+    if matches!(
+        options.filter,
+        TeamInboxFilter::All | TeamInboxFilter::Archived
+    ) {
         items.extend(list_subscription_events(
             connection,
             &viewer_ids,
             options.cursor.as_ref(),
             fetch_limit,
+            archived_only,
         )?);
     }
     items.sort_by(|left, right| {
@@ -219,12 +244,13 @@ pub(crate) fn list_page_with_connection(
             item_id: last.id.clone(),
         }
     });
-    let unread_count = unread_count_with_connection(connection, &viewer_ids, options.filter)?;
+    let unread_counts = unread_counts_with_connection(connection, &viewer_ids, options.filter)?;
 
     Ok(TeamInboxPage {
         items,
         next_cursor,
-        unread_count,
+        unread_count: unread_counts.all,
+        unread_counts,
     })
 }
 
@@ -233,10 +259,17 @@ fn list_subscription_events(
     viewer_ids: &[String],
     cursor: Option<&TeamInboxCursor>,
     limit: usize,
+    archived_only: bool,
 ) -> Result<Vec<TeamInboxItem>, String> {
     let placeholders = sql_placeholders(viewer_ids.len());
     let receipt_placeholders = sql_placeholders(viewer_ids.len());
     let item_id_expression = format!("'{SUBSCRIPTION_SOURCE_KIND}:' || event.id");
+    let archive_predicate = archive_receipt_predicate(
+        SUBSCRIPTION_SOURCE_KIND,
+        "event.id",
+        &receipt_placeholders,
+        archived_only,
+    );
     let cursor_predicate = if cursor.is_some() {
         format!(
             "AND (event.occurred_at < ? OR
@@ -264,6 +297,7 @@ fn list_subscription_events(
             AND w.deleted_at IS NULL
             AND ((event.scope_key = 'project:' || p.slug)
                  OR (w.project_id IS NULL AND event.scope_key = 'org:' || w.org_id))
+            AND {archive_predicate}
             {cursor_predicate}
           ORDER BY event.occurred_at DESC, {item_id_expression} DESC
           LIMIT ?"
@@ -274,6 +308,7 @@ fn list_subscription_events(
         .cloned()
         .map(Value::from)
         .collect::<Vec<_>>();
+    values.extend(viewer_ids.iter().cloned().map(Value::from));
     if let Some(cursor) = cursor {
         values.push(Value::from(cursor.occurred_at));
         values.push(Value::from(cursor.occurred_at));
@@ -345,10 +380,17 @@ fn list_assigned_items(
     viewer_ids: &[String],
     cursor: Option<&TeamInboxCursor>,
     limit: usize,
+    archived_only: bool,
 ) -> Result<Vec<TeamInboxItem>, String> {
     let viewer_placeholders = sql_placeholders(viewer_ids.len());
     let assignment_predicate = assignment_predicate(&viewer_placeholders);
     let receipt_viewer_predicate = format!("r.viewer_member_id IN ({viewer_placeholders})");
+    let archive_predicate = archive_receipt_predicate(
+        ASSIGNED_SOURCE_KIND,
+        "w.id",
+        &viewer_placeholders,
+        archived_only,
+    );
     let cursor_predicate = if cursor.is_some() {
         format!(
             "AND (w.updated_at < ? OR
@@ -375,12 +417,14 @@ fn list_assigned_items(
           WHERE w.deleted_at IS NULL
             AND {ACTIONABLE_ASSIGNMENT_PREDICATE}
             AND {assignment_predicate}
+            AND {archive_predicate}
           {cursor_predicate}
           ORDER BY w.updated_at DESC, w.id DESC
           LIMIT ?"
     );
 
     let mut values = assignment_values(viewer_ids);
+    values.extend(viewer_ids.iter().cloned().map(Value::from));
     values.extend(viewer_ids.iter().cloned().map(Value::from));
     if let Some(cursor) = cursor {
         values.push(Value::from(cursor.occurred_at));
@@ -434,6 +478,7 @@ fn list_work_item_comment_mentions(
     viewer_ids: &[String],
     cursor: Option<&TeamInboxCursor>,
     limit: usize,
+    archived_only: bool,
 ) -> Result<Vec<TeamInboxItem>, String> {
     let placeholders = sql_placeholders(viewer_ids.len());
     let receipt_viewer_predicate = format!("r.viewer_member_id IN ({placeholders})");
@@ -441,6 +486,12 @@ fn list_work_item_comment_mentions(
         "CAST((julianday(json_extract(c.value, '$.created_at')) - 2440587.5) * 86400000 AS INTEGER)";
     let item_id_expression =
         format!("'{COMMENT_MENTION_SOURCE_KIND}:' || w.id || ':' || json_extract(c.value, '$.id')");
+    let archive_predicate = archive_receipt_predicate(
+        COMMENT_MENTION_SOURCE_KIND,
+        "w.id || ':' || json_extract(c.value, '$.id')",
+        &placeholders,
+        archived_only,
+    );
     let cursor_predicate = if cursor.is_some() {
         format!(
             "AND ({occurred_expression} < ? OR
@@ -470,6 +521,7 @@ fn list_work_item_comment_mentions(
                   FROM json_each(COALESCE(json_extract(c.value, '$.mentioned_user_ids'), '[]')) m
                  WHERE CAST(m.value AS TEXT) IN ({placeholders})
             )
+            AND {archive_predicate}
             {cursor_predicate}
           ORDER BY occurred_at DESC, {item_id_expression} DESC
           LIMIT ?"
@@ -479,6 +531,7 @@ fn list_work_item_comment_mentions(
         .cloned()
         .map(Value::from)
         .collect::<Vec<_>>();
+    values.extend(viewer_ids.iter().cloned().map(Value::from));
     values.extend(viewer_ids.iter().cloned().map(Value::from));
     if let Some(cursor) = cursor {
         values.push(Value::from(cursor.occurred_at));
@@ -528,8 +581,19 @@ pub(crate) fn unread_count_with_connection(
     viewer_member_ids: &[String],
     filter: TeamInboxFilter,
 ) -> Result<u64, String> {
+    Ok(unread_counts_with_connection(connection, viewer_member_ids, filter)?.all)
+}
+
+fn unread_counts_with_connection(
+    connection: &Connection,
+    viewer_member_ids: &[String],
+    filter: TeamInboxFilter,
+) -> Result<TeamInboxUnreadCounts, String> {
     init_team_inbox_tables(connection).map_err(db_error)?;
     let viewer_ids = normalized_viewer_ids(viewer_member_ids)?;
+    if filter == TeamInboxFilter::Archived {
+        return Ok(TeamInboxUnreadCounts::default());
+    }
     let assigned_count = if filter == TeamInboxFilter::Mentions {
         0
     } else {
@@ -540,12 +604,17 @@ pub(crate) fn unread_count_with_connection(
     } else {
         comment_mention_unread_count(connection, &viewer_ids)?
     };
-    let subscription_count = if filter == TeamInboxFilter::All {
+    let updates_count = if filter == TeamInboxFilter::All {
         subscription_event_unread_count(connection, &viewer_ids)?
     } else {
         0
     };
-    Ok(assigned_count + mention_count + subscription_count)
+    Ok(TeamInboxUnreadCounts {
+        all: assigned_count + mention_count + updates_count,
+        mentions: mention_count,
+        assigned: assigned_count,
+        updates: updates_count,
+    })
 }
 
 fn subscription_event_unread_count(
@@ -555,10 +624,16 @@ fn subscription_event_unread_count(
     let placeholders = sql_placeholders(viewer_ids.len());
     let receipt_placeholders = sql_placeholders(viewer_ids.len());
     let sql = format!(
-        "SELECT COUNT(*) FROM pm_work_item_inbox_events event
+        "SELECT COUNT(*)
+           FROM pm_work_item_inbox_events event
+           JOIN workitems w ON w.short_id = event.work_item_id
+           LEFT JOIN projects p ON p.id = w.project_id
           WHERE event.archived_at IS NULL
             AND event.kind <> 'mention'
             AND event.recipient_id IN ({placeholders})
+            AND w.deleted_at IS NULL
+            AND ((event.scope_key = 'project:' || p.slug)
+                 OR (w.project_id IS NULL AND event.scope_key = 'org:' || w.org_id))
             AND NOT EXISTS (
                 SELECT 1 FROM team_inbox_read_receipts receipt
                  WHERE receipt.source_kind = '{SUBSCRIPTION_SOURCE_KIND}'
@@ -636,17 +711,22 @@ fn comment_mention_unread_count(
     Ok(count.max(0) as u64)
 }
 
-pub(crate) fn mark_read_with_connection(
-    connection: &mut Connection,
-    viewer_member_ids: &[String],
+struct AccessibleInboxSource {
+    kind: &'static str,
+    id: String,
+    sql: String,
+    values: Vec<Value>,
+}
+
+/// Resolve an inbox item id back to an authoritative, currently visible source.
+/// Receipt writers use this inside their transaction so stale, orphaned, or
+/// cross-viewer ids cannot manufacture durable read/archive state.
+fn accessible_inbox_source(
+    viewer_ids: &[String],
     item_id: &str,
-    read_at: i64,
-) -> Result<bool, String> {
-    init_team_inbox_tables(connection).map_err(db_error)?;
-    let viewer_ids = normalized_viewer_ids(viewer_member_ids)?;
+) -> Result<AccessibleInboxSource, String> {
     let placeholders = sql_placeholders(viewer_ids.len());
-    let (source_kind, source_id, sql, values) = if let Some(source_id) = assigned_source_id(item_id)
-    {
+    if let Some(source_id) = assigned_source_id(item_id) {
         let sql = format!(
             "SELECT 1 FROM workitems w
               WHERE w.id = ?
@@ -656,47 +736,75 @@ pub(crate) fn mark_read_with_connection(
             assignment_predicate(&placeholders)
         );
         let mut values = vec![Value::from(source_id.to_string())];
-        values.extend(assignment_values(&viewer_ids));
-        (ASSIGNED_SOURCE_KIND, source_id.to_string(), sql, values)
-    } else if let Some(source_id) = comment_mention_source_id(item_id) {
-        let sql = format!(
-                "SELECT 1
-                   FROM workitems w
-                   JOIN workitem_extras e ON e.work_item_id = w.id
-                   JOIN json_each(COALESCE(json_extract(e.extras_json, '$.comments'), '[]')) c
-                  WHERE w.deleted_at IS NULL
-                    AND w.id || ':' || json_extract(c.value, '$.id') = ?
-                    AND EXISTS (
-                        SELECT 1
-                          FROM json_each(COALESCE(json_extract(c.value, '$.mentioned_user_ids'), '[]')) m
-                         WHERE CAST(m.value AS TEXT) IN ({placeholders})
-                    )"
-            );
-        let mut values = vec![Value::from(source_id.to_string())];
-        values.extend(viewer_ids.iter().cloned().map(Value::from));
-        (
-            COMMENT_MENTION_SOURCE_KIND,
-            source_id.to_string(),
+        values.extend(assignment_values(viewer_ids));
+        Ok(AccessibleInboxSource {
+            kind: ASSIGNED_SOURCE_KIND,
+            id: source_id.to_string(),
             sql,
             values,
-        )
-    } else if let Some(source_id) = subscription_source_id(item_id) {
+        })
+    } else if let Some(source_id) = comment_mention_source_id(item_id) {
         let sql = format!(
-            "SELECT 1 FROM pm_work_item_inbox_events event
-              WHERE event.id = ? AND event.archived_at IS NULL
-                AND event.recipient_id IN ({placeholders})"
+            "SELECT 1
+               FROM workitems w
+               JOIN workitem_extras e ON e.work_item_id = w.id
+               JOIN json_each(COALESCE(json_extract(e.extras_json, '$.comments'), '[]')) c
+              WHERE w.deleted_at IS NULL
+                AND w.id || ':' || json_extract(c.value, '$.id') = ?
+                AND EXISTS (
+                    SELECT 1
+                      FROM json_each(COALESCE(json_extract(c.value, '$.mentioned_user_ids'), '[]')) m
+                     WHERE CAST(m.value AS TEXT) IN ({placeholders})
+                )"
         );
         let mut values = vec![Value::from(source_id.to_string())];
         values.extend(viewer_ids.iter().cloned().map(Value::from));
-        (SUBSCRIPTION_SOURCE_KIND, source_id.to_string(), sql, values)
+        Ok(AccessibleInboxSource {
+            kind: COMMENT_MENTION_SOURCE_KIND,
+            id: source_id.to_string(),
+            sql,
+            values,
+        })
+    } else if let Some(source_id) = subscription_source_id(item_id) {
+        let sql = format!(
+            "SELECT 1
+               FROM pm_work_item_inbox_events event
+               JOIN workitems w ON w.short_id = event.work_item_id
+               LEFT JOIN projects p ON p.id = w.project_id
+              WHERE event.id = ?
+                AND event.archived_at IS NULL
+                AND event.recipient_id IN ({placeholders})
+                AND w.deleted_at IS NULL
+                AND ((event.scope_key = 'project:' || p.slug)
+                     OR (w.project_id IS NULL AND event.scope_key = 'org:' || w.org_id))"
+        );
+        let mut values = vec![Value::from(source_id.to_string())];
+        values.extend(viewer_ids.iter().cloned().map(Value::from));
+        Ok(AccessibleInboxSource {
+            kind: SUBSCRIPTION_SOURCE_KIND,
+            id: source_id.to_string(),
+            sql,
+            values,
+        })
     } else {
-        return Err(format!("Unsupported Team Inbox item id: {item_id}"));
-    };
+        Err(format!("Unsupported Team Inbox item id: {item_id}"))
+    }
+}
+
+pub(crate) fn mark_read_with_connection(
+    connection: &mut Connection,
+    viewer_member_ids: &[String],
+    item_id: &str,
+    read_at: i64,
+) -> Result<bool, String> {
+    init_team_inbox_tables(connection).map_err(db_error)?;
+    let viewer_ids = normalized_viewer_ids(viewer_member_ids)?;
+    let source = accessible_inbox_source(&viewer_ids, item_id)?;
     let tx = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(db_error)?;
     let exists = tx
-        .query_row(&sql, params_from_iter(values), |_| Ok(()))
+        .query_row(&source.sql, params_from_iter(source.values), |_| Ok(()))
         .optional()
         .map_err(db_error)?
         .is_some();
@@ -712,7 +820,7 @@ pub(crate) fn mark_read_with_connection(
              VALUES (?1, ?2, ?3, ?4)
              ON CONFLICT(viewer_member_id, source_kind, source_id)
              DO UPDATE SET read_at = MAX(read_at, excluded.read_at)",
-            (viewer_id, source_kind, &source_id, read_at),
+            (viewer_id, source.kind, &source.id, read_at),
         )
         .map_err(db_error)?;
     }
@@ -728,6 +836,9 @@ pub(crate) fn mark_all_read_with_connection(
 ) -> Result<u64, String> {
     init_team_inbox_tables(connection).map_err(db_error)?;
     let viewer_ids = normalized_viewer_ids(viewer_member_ids)?;
+    if filter == TeamInboxFilter::Archived {
+        return Ok(0);
+    }
     let tx = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(db_error)?;
@@ -800,10 +911,16 @@ pub(crate) fn mark_all_read_with_connection(
     }
     if filter == TeamInboxFilter::All {
         let query = format!(
-            "SELECT event.id FROM pm_work_item_inbox_events event
+            "SELECT event.id
+               FROM pm_work_item_inbox_events event
+               JOIN workitems w ON w.short_id = event.work_item_id
+               LEFT JOIN projects p ON p.id = w.project_id
               WHERE event.archived_at IS NULL
                 AND event.kind <> 'mention'
                 AND event.recipient_id IN ({placeholders})
+                AND w.deleted_at IS NULL
+                AND ((event.scope_key = 'project:' || p.slug)
+                     OR (w.project_id IS NULL AND event.scope_key = 'org:' || w.org_id))
                 AND NOT EXISTS (
                     SELECT 1 FROM team_inbox_read_receipts receipt
                      WHERE receipt.source_kind = '{SUBSCRIPTION_SOURCE_KIND}'
@@ -884,6 +1001,64 @@ pub(crate) fn mark_unread_with_connection(
     Ok(affected > 0)
 }
 
+/// Archive is a per-viewer disposition on an inbox row, keyed exactly like
+/// a read receipt. Archiving also marks the row read so unread counts stay
+/// consistent without every counting query learning about archives.
+pub(crate) fn set_archived_with_connection(
+    connection: &mut Connection,
+    viewer_member_ids: &[String],
+    item_id: &str,
+    archived: bool,
+    archived_at: i64,
+) -> Result<bool, String> {
+    init_team_inbox_tables(connection).map_err(db_error)?;
+    let viewer_ids = normalized_viewer_ids(viewer_member_ids)?;
+    let source = accessible_inbox_source(&viewer_ids, item_id)?;
+    let tx = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(db_error)?;
+    let exists = tx
+        .query_row(&source.sql, params_from_iter(source.values), |_| Ok(()))
+        .optional()
+        .map_err(db_error)?
+        .is_some();
+    if !exists {
+        tx.commit().map_err(db_error)?;
+        return Ok(false);
+    }
+    for viewer_id in &viewer_ids {
+        if archived {
+            tx.execute(
+                "INSERT INTO team_inbox_archive_receipts
+                    (viewer_member_id, source_kind, source_id, archived_at)
+                 VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(viewer_member_id, source_kind, source_id)
+                 DO UPDATE SET archived_at = excluded.archived_at",
+                (viewer_id, source.kind, &source.id, archived_at),
+            )
+            .map_err(db_error)?;
+            tx.execute(
+                "INSERT INTO team_inbox_read_receipts
+                    (viewer_member_id, source_kind, source_id, read_at)
+                 VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(viewer_member_id, source_kind, source_id)
+                 DO UPDATE SET read_at = MAX(read_at, excluded.read_at)",
+                (viewer_id, source.kind, &source.id, archived_at),
+            )
+            .map_err(db_error)?;
+        } else {
+            tx.execute(
+                "DELETE FROM team_inbox_archive_receipts
+                  WHERE viewer_member_id = ?1 AND source_kind = ?2 AND source_id = ?3",
+                (viewer_id, source.kind, &source.id),
+            )
+            .map_err(db_error)?;
+        }
+    }
+    tx.commit().map_err(db_error)?;
+    Ok(!viewer_ids.is_empty())
+}
+
 fn normalized_viewer_ids(viewer_member_ids: &[String]) -> Result<Vec<String>, String> {
     let ids = viewer_member_ids
         .iter()
@@ -920,6 +1095,27 @@ fn sql_placeholders(count: usize) -> String {
     std::iter::repeat_n("?", count)
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+fn archive_receipt_predicate(
+    source_kind: &str,
+    source_id_expression: &str,
+    viewer_placeholders: &str,
+    archived_only: bool,
+) -> String {
+    let operator = if archived_only {
+        "EXISTS"
+    } else {
+        "NOT EXISTS"
+    };
+    format!(
+        "{operator} (
+            SELECT 1 FROM team_inbox_archive_receipts archive
+             WHERE archive.source_kind = '{source_kind}'
+               AND archive.source_id = {source_id_expression}
+               AND archive.viewer_member_id IN ({viewer_placeholders})
+        )"
+    )
 }
 
 fn assigned_item_id(source_id: &str) -> String {

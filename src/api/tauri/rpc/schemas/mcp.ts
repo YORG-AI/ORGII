@@ -8,6 +8,13 @@ import { z } from "zod/v4";
 
 // ── Transport & config ─────────────────────────────────────────────────────
 
+/** Stable write-only placeholder returned for MCP command/args/cwd/url and
+ * every env/header value. Sending it back preserves only the same field (and
+ * map key) on the same server in the exact owning scope. Non-empty `args` use
+ * `[sentinel]` as one whole-field placeholder; mixed args are rejected. */
+export const MCP_SECRET_REDACTED_SENTINEL =
+  "__ORGII_MCP_SECRET_REDACTED__" as const;
+
 export const McpTransportTypeSchema = z.enum([
   "stdio",
   "sse",
@@ -172,6 +179,9 @@ export const McpTestServerInput = z.object({
   serverName: z.string(),
   /** Single server block from settings; may include extra keys from JSON editor. */
   config: z.unknown(),
+  /** Required to resolve redacted connection values in a workspace owner. */
+  workspacePath: z.string().optional(),
+  scope: McpConfigScopeSchema.optional(),
 });
 
 export const McpServerNameInput = z.object({

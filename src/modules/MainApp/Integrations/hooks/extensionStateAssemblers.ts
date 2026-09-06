@@ -81,7 +81,11 @@ export interface McpAssemblerInput {
   onAddClose: () => void;
   editName: string | null;
   editConfig: McpServerConfig | null;
-  onSave: (name: string, config: McpServerConfig) => Promise<void>;
+  onSave: (
+    name: string,
+    config: McpServerConfig,
+    scope: McpConfigScope
+  ) => Promise<void>;
   mcpServers: ReturnType<typeof useMcpServers>;
   tools: McpToolDef[];
   toolsLoading: boolean;

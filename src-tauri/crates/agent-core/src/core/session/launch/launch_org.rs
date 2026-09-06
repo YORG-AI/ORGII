@@ -240,6 +240,7 @@ pub(super) async fn materialize_org_member_sessions(
                 additional_directories: None,
                 parent_session_id: Some(root_session_id.clone()),
                 org_member_id: Some(member.id.clone()),
+                agent_definition_id: None,
                 org_id: project_management::projects::types::PERSONAL_ORG_ID.to_string(),
                 project_id: None,
                 project_name: None,

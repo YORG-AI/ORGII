@@ -7,6 +7,7 @@ import {
   applyStandaloneWorkItemUpdates,
   getAdjacentWorkItemId,
   getWorkItemNavigationState,
+  resolveProjectScopedOrgId,
 } from "../model";
 
 const workItems = ["one", "two", "three"].map(
@@ -37,6 +38,16 @@ describe("WorkItemDetailPage model", () => {
     expect(getAdjacentWorkItemId(workItems, 1, "next")).toBe("three");
     expect(getAdjacentWorkItemId(workItems, 0, "prev")).toBeNull();
     expect(getAdjacentWorkItemId(workItems, 2, "next")).toBeNull();
+  });
+
+  it("uses the loaded project's org instead of a stale cached tab org", () => {
+    expect(resolveProjectScopedOrgId("org-authoritative", "personal-org")).toBe(
+      "org-authoritative"
+    );
+    expect(resolveProjectScopedOrgId(undefined, "org-cached")).toBe(
+      "org-cached"
+    );
+    expect(resolveProjectScopedOrgId(undefined, undefined)).toBeNull();
   });
 
   it("maps supported standalone UI updates to frontmatter", () => {

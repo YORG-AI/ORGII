@@ -2214,7 +2214,10 @@
     "fireHistory": "Run history",
     "noFires": "No runs yet",
     "openSession": "Open session",
-    "openWorkItem": "Open work item"
+    "openWorkItem": "Open work item",
+    "fireError": "Impossible de démarrer la routine : {{detail}}",
+    "provider": "Fournisseur",
+    "eventKind": "Événement"
   },
   "cursorPlugins": {
     "noPlugins": "Aucun plugin Cursor installé",

@@ -264,10 +264,16 @@ mod tests {
     #[test]
     fn build_selection_query_formats_correctly() {
         let skills = vec![SkillInfo {
+            id: "workspace:test-skill".into(),
             name: "test-skill".into(),
             description: "A test skill".into(),
             path: "/tmp/test/SKILL.md".into(),
             source: "workspace".into(),
+            origin: None,
+            identity_digest: String::new(),
+            content_digest: String::new(),
+            schema_digest: String::new(),
+            consent_valid: true,
             always: false,
             enabled: true,
             available: true,

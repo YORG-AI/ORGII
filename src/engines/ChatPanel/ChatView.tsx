@@ -88,6 +88,10 @@ import { useChatViewPlanPillState } from "./hooks/useChatViewPlanPillState";
 import { useChatViewScrollToBottom } from "./hooks/useChatViewScrollToBottom";
 import { useFollowAgent } from "./hooks/useFollowAgent";
 import type { SubmitOverrideInput } from "./hooks/useInputArea/types";
+import {
+  latestCompletedAssistantFingerprint,
+  useWorkItemFollowUpSuggestions,
+} from "./hooks/useWorkItemFollowUpSuggestions";
 
 const logger = createLogger("ChatView");
 
@@ -293,6 +297,18 @@ const ChatView: React.FC<ChatViewProps> = memo(
       [sessionId]
     );
     const transcriptEmpty = useAtomValue(transcriptEmptyAtom);
+    const followUpEventsAtom = useMemo(
+      () =>
+        selectAtom(
+          chatEventsForSessionAtomFamily(sessionId),
+          (events) => events,
+          (previous, next) =>
+            latestCompletedAssistantFingerprint(previous) ===
+            latestCompletedAssistantFingerprint(next)
+        ),
+      [sessionId]
+    );
+    const followUpEvents = useAtomValue(followUpEventsAtom);
     const showCurrentPlanSurfaceAtom = useMemo(
       () =>
         selectAtom(
@@ -351,6 +367,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
       groupChatMergedEvents,
       groupChatAgents,
       handleGroupChatTapEvents,
+      retryFailedGroupChatMessage,
       groupChatMentionOptions,
       groupChatPendingMessage,
       handleGroupChatViewToggle,
@@ -358,6 +375,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
       handleMainComposerSubmitOverride,
       cancelQueuedMessage,
       enqueueCount,
+      handleClearSessionQueue,
       handleReorderSessionQueue,
       handleSendNow,
       queueEditProps,
@@ -439,6 +457,15 @@ const ChatView: React.FC<ChatViewProps> = memo(
     // there made useMessageDispatch fail before onSubmitOverride could run
     // ("no active sessionId"), bypassing the fork-before-send flow entirely.
     const inputAreaSessionId = queueSessionId ?? sessionId;
+    const {
+      suggestions: followUpSuggestions,
+      clearSuggestions: clearFollowUpSuggestions,
+    } = useWorkItemFollowUpSuggestions({
+      sessionId,
+      inputAreaSessionId,
+      session: currentSession,
+      events: followUpEvents,
+    });
 
     const composerSectionProps = useMemo(
       (): ChatViewComposerSectionProps => ({
@@ -463,6 +490,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
         processExpanded,
         queuedMessages: sessionMessageQueue,
         onCancelQueuedMessage: cancelQueuedMessage,
+        onClearQueuedMessages: handleClearSessionQueue,
         onSendQueuedMessageNow: handleSendNow,
         onReorderQueuedMessages: handleReorderSessionQueue,
         onToggleQueue: toggleQueue,
@@ -484,6 +512,8 @@ const ChatView: React.FC<ChatViewProps> = memo(
         customMentionOptions: groupChatMentionOptions,
         queueEditProps,
         disableStopWhenEmpty: groupChatViewActive,
+        followUpSuggestions,
+        onFollowUpSuggestionSent: clearFollowUpSuggestions,
       }),
       [
         sessionId,
@@ -503,6 +533,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
         processExpanded,
         sessionMessageQueue,
         cancelQueuedMessage,
+        handleClearSessionQueue,
         handleSendNow,
         handleReorderSessionQueue,
         toggleQueue,
@@ -523,6 +554,8 @@ const ChatView: React.FC<ChatViewProps> = memo(
         handleMainComposerSubmitOverride,
         groupChatMentionOptions,
         queueEditProps,
+        followUpSuggestions,
+        clearFollowUpSuggestions,
       ]
     );
 
@@ -571,6 +604,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
                   groupChatAgents={groupChatAgents}
                   pipelineSessionId={pipelineSessionId}
                   handleGroupChatTapEvents={handleGroupChatTapEvents}
+                  retryFailedGroupChatMessage={retryFailedGroupChatMessage}
                   agentMessageClampEligible={agentMessageClampEligible}
                   surfaceBgClass={surfaceBgClass}
                   position={position}

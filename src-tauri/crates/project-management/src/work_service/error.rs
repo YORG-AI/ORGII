@@ -7,7 +7,10 @@ pub const IDEMPOTENCY_CONFLICT: &str = "PM_ERR:IDEMPOTENCY_CONFLICT";
 pub const ALREADY_EXISTS: &str = "PM_ERR:ALREADY_EXISTS";
 
 pub fn revision_conflict(expected: i64, current: i64) -> String {
-    format!("{}:{}:{}", REVISION_CONFLICT, expected, current)
+    format!(
+        "{}:expected={}:actual={}",
+        REVISION_CONFLICT, expected, current
+    )
 }
 
 pub fn invalid_transition(from: &str, to: &str) -> String {

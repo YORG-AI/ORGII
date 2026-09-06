@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { projectApi } from "@src/api/http/project";
+import { parseRevisionConflict, projectApi } from "@src/api/http/project";
 import type { DiscussionTriggerPreview } from "@src/api/http/project";
+import Message from "@src/components/Message";
 import type { TabPillItem } from "@src/components/TabPill";
 import { createLogger } from "@src/hooks/logger";
 import { useDebouncedCallback } from "@src/hooks/perf";
@@ -38,6 +39,15 @@ interface UseWorkItemContentStateOptions {
   projectSlug?: string | null;
   shortId?: string | null;
   orgId?: string | null;
+  onRefreshWorkflow?: () => void | Promise<void>;
+}
+
+export interface CommentRevisionConflictState {
+  commentId: string;
+  mine: string;
+  latest: string;
+  expectedRevision: number;
+  actualRevision: number;
 }
 
 export function useWorkItemContentState(
@@ -46,7 +56,6 @@ export function useWorkItemContentState(
   const {
     workItem,
     onUpdateWorkItem,
-    onUpdateWorkItemImmediate,
     currentUserProp,
     teamMembers = [],
     availableAgents = [],
@@ -54,6 +63,7 @@ export function useWorkItemContentState(
     projectSlug,
     shortId,
     orgId,
+    onRefreshWorkflow,
   } = options;
 
   const { t } = useTranslation("projects");
@@ -87,11 +97,41 @@ export function useWorkItemContentState(
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [triggerPreview, setTriggerPreview] =
     useState<DiscussionTriggerPreview | null>(null);
+  const [commentRevisionConflict, setCommentRevisionConflict] =
+    useState<CommentRevisionConflictState | null>(null);
   const previewGenerationRef = useRef(0);
 
   const currentPhase = workItem.orchestratorState?.current_phase ?? "idle";
   const isAgentRunning = currentPhase === "sde" || currentPhase === "review";
   const scopedShortId = shortId ?? workItem.shortId ?? "";
+
+  const readLatestComment = useCallback(
+    async (commentId: string): Promise<WorkItemComment | null> => {
+      if (!scopedShortId) return null;
+      if (projectSlug) {
+        const latest = await projectApi.readWorkItemEnriched(
+          projectSlug,
+          scopedShortId,
+          orgId ? { orgId } : undefined
+        );
+        return (
+          (latest.comments as WorkItemComment[]).find(
+            (comment) => comment.id === commentId
+          ) ?? null
+        );
+      }
+      const latest = await projectApi.readStandaloneWorkItem(
+        scopedShortId,
+        orgId ? { orgId } : undefined
+      );
+      return (
+        (latest.frontmatter.comments as WorkItemComment[]).find(
+          (comment) => comment.id === commentId
+        ) ?? null
+      );
+    },
+    [orgId, projectSlug, scopedShortId]
+  );
 
   const fetchTriggerPreview = useDebouncedCallback((content: string) => {
     const generation = previewGenerationRef.current + 1;
@@ -300,6 +340,7 @@ export function useWorkItemContentState(
       logger.debug(
         `Persisted Discussion comment ${result.comment.id} (${result.wakeReason})`
       );
+      await onRefreshWorkflow?.();
     } catch (err) {
       logger.error("Failed to create comment", err);
     } finally {
@@ -316,6 +357,7 @@ export function useWorkItemContentState(
     availableAgents,
     availableOrgs,
     orgId,
+    onRefreshWorkflow,
     projectSlug,
     replyToCommentId,
   ]);
@@ -324,7 +366,7 @@ export function useWorkItemContentState(
     async (threadId: string, conclusionCommentId?: string) => {
       if (!scopedShortId || !currentUser.id) return;
       try {
-        const comments = await projectApi.resolveDiscussionThread({
+        await projectApi.resolveDiscussionThread({
           scope: {
             projectSlug: projectSlug ?? null,
             orgId: orgId || "personal-org",
@@ -334,31 +376,19 @@ export function useWorkItemContentState(
           actorId: currentUser.id,
           conclusionCommentId: conclusionCommentId ?? null,
         });
-        const nextComments = comments as WorkItemComment[];
-        if (onUpdateWorkItemImmediate) {
-          onUpdateWorkItemImmediate({ comments: nextComments });
-        } else {
-          onUpdateWorkItem?.({ comments: nextComments });
-        }
+        await onRefreshWorkflow?.();
       } catch (error) {
         logger.error("Failed to resolve Discussion thread", error);
       }
     },
-    [
-      currentUser.id,
-      onUpdateWorkItem,
-      onUpdateWorkItemImmediate,
-      orgId,
-      projectSlug,
-      scopedShortId,
-    ]
+    [currentUser.id, onRefreshWorkflow, orgId, projectSlug, scopedShortId]
   );
 
   const handleReopenDiscussionThread = useCallback(
     async (threadId: string) => {
       if (!scopedShortId || !currentUser.id) return;
       try {
-        const comments = await projectApi.reopenDiscussionThread({
+        await projectApi.reopenDiscussionThread({
           scope: {
             projectSlug: projectSlug ?? null,
             orgId: orgId || "personal-org",
@@ -367,25 +397,169 @@ export function useWorkItemContentState(
           threadId,
           actorId: currentUser.id,
         });
-        const nextComments = comments as WorkItemComment[];
-        if (onUpdateWorkItemImmediate) {
-          onUpdateWorkItemImmediate({ comments: nextComments });
-        } else {
-          onUpdateWorkItem?.({ comments: nextComments });
-        }
+        await onRefreshWorkflow?.();
       } catch (error) {
         logger.error("Failed to reopen Discussion thread", error);
       }
     },
+    [currentUser.id, onRefreshWorkflow, orgId, projectSlug, scopedShortId]
+  );
+
+  const handleEditDiscussionComment = useCallback(
+    async (
+      commentId: string,
+      content: string,
+      expectedRevision: number
+    ): Promise<"saved" | "conflict" | "error"> => {
+      if (!scopedShortId || !currentUser.id || !content.trim()) return "error";
+      const mine = content.trim();
+      try {
+        await projectApi.editDiscussionComment({
+          scope: {
+            projectSlug: projectSlug ?? null,
+            orgId: orgId || "personal-org",
+            workItemId: scopedShortId,
+          },
+          commentId,
+          actorId: currentUser.id,
+          content: mine,
+          expectedRevision,
+        });
+        await onRefreshWorkflow?.();
+        return "saved";
+      } catch (error) {
+        const details = parseRevisionConflict(error);
+        if (details) {
+          const latest = await readLatestComment(commentId).catch(
+            (readError) => {
+              logger.error(
+                "Failed to reload conflicted Discussion comment",
+                readError
+              );
+              return null;
+            }
+          );
+          if (latest && !latest.deleted_at) {
+            setCommentRevisionConflict({
+              commentId,
+              mine,
+              latest: latest.content,
+              expectedRevision: details.expected,
+              actualRevision: latest.revision ?? details.actual,
+            });
+          } else {
+            Message.warning(t("workItems.revisionConflict.reloadNotice"), 5000);
+          }
+          await onRefreshWorkflow?.();
+          return "conflict";
+        }
+        logger.error("Failed to edit Discussion comment", error);
+        Message.error(String(error));
+        return "error";
+      }
+    },
     [
       currentUser.id,
-      onUpdateWorkItem,
-      onUpdateWorkItemImmediate,
+      onRefreshWorkflow,
       orgId,
       projectSlug,
+      readLatestComment,
       scopedShortId,
+      t,
     ]
   );
+
+  const handleDeleteDiscussionComment = useCallback(
+    async (commentId: string, expectedRevision: number) => {
+      if (!scopedShortId || !currentUser.id) return;
+      try {
+        await projectApi.deleteDiscussionComment({
+          scope: {
+            projectSlug: projectSlug ?? null,
+            orgId: orgId || "personal-org",
+            workItemId: scopedShortId,
+          },
+          commentId,
+          actorId: currentUser.id,
+          expectedRevision,
+        });
+        await onRefreshWorkflow?.();
+      } catch (error) {
+        if (parseRevisionConflict(error)) {
+          await onRefreshWorkflow?.();
+          Message.warning(t("workItems.revisionConflict.reloadNotice"), 5000);
+          return;
+        }
+        logger.error("Failed to delete Discussion comment", error);
+        Message.error(String(error));
+      }
+    },
+    [currentUser.id, onRefreshWorkflow, orgId, projectSlug, scopedShortId, t]
+  );
+
+  const handleUseLatestComment = useCallback(() => {
+    setCommentRevisionConflict(null);
+    void onRefreshWorkflow?.();
+  }, [onRefreshWorkflow]);
+
+  const handleKeepMineComment = useCallback(async () => {
+    const conflict = commentRevisionConflict;
+    if (!conflict || !scopedShortId || !currentUser.id) return;
+    try {
+      await projectApi.editDiscussionComment({
+        scope: {
+          projectSlug: projectSlug ?? null,
+          orgId: orgId || "personal-org",
+          workItemId: scopedShortId,
+        },
+        commentId: conflict.commentId,
+        actorId: currentUser.id,
+        content: conflict.mine,
+        expectedRevision: conflict.actualRevision,
+      });
+      setCommentRevisionConflict(null);
+      await onRefreshWorkflow?.();
+    } catch (error) {
+      const details = parseRevisionConflict(error);
+      if (details) {
+        const latest = await readLatestComment(conflict.commentId).catch(
+          (readError) => {
+            logger.error(
+              "Failed to reload conflicted Discussion comment",
+              readError
+            );
+            return null;
+          }
+        );
+        if (latest && !latest.deleted_at) {
+          setCommentRevisionConflict({
+            ...conflict,
+            latest: latest.content,
+            expectedRevision: details.expected,
+            actualRevision: latest.revision ?? details.actual,
+          });
+          await onRefreshWorkflow?.();
+          Message.warning(t("workItems.revisionConflict.retryFailed"), 5000);
+          return;
+        }
+        setCommentRevisionConflict(null);
+        await onRefreshWorkflow?.();
+        Message.warning(t("workItems.revisionConflict.reloadNotice"), 5000);
+        return;
+      }
+      logger.error("Failed to retry Discussion comment edit", error);
+      Message.error(String(error));
+    }
+  }, [
+    commentRevisionConflict,
+    currentUser.id,
+    onRefreshWorkflow,
+    orgId,
+    projectSlug,
+    readLatestComment,
+    scopedShortId,
+    t,
+  ]);
 
   const handleToggleSubscription = useCallback(async () => {
     if (!scopedShortId || !currentUser.id) return;
@@ -438,5 +612,10 @@ export function useWorkItemContentState(
     handleCommentSubmit,
     handleResolveDiscussionThread,
     handleReopenDiscussionThread,
+    handleEditDiscussionComment,
+    handleDeleteDiscussionComment,
+    commentRevisionConflict,
+    handleUseLatestComment,
+    handleKeepMineComment,
   };
 }

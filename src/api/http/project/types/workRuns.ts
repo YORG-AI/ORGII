@@ -35,6 +35,16 @@ export type WorkItemRunTarget =
     }
   | { kind: "resume_session"; sessionId: string };
 
+export interface WorkItemRunSkillManifestEntry {
+  id: string;
+  name: string;
+  source: string;
+  origin?: { provider: string; locator: string };
+  identityDigest: string;
+  contentDigest: string;
+  schemaDigest: string;
+}
+
 export interface WorkItemRunTargetSnapshot {
   target: WorkItemRunTarget;
   workItemRevision: number;
@@ -50,6 +60,10 @@ export interface WorkItemRunTargetSnapshot {
   workspaceMode?: "local_workspace" | "worktree" | null;
   agentDefinitionId?: string | null;
   agentOrgId?: string | null;
+  /** Effective consent metadata only; full skill bodies are not pinned. */
+  skillManifest?: WorkItemRunSkillManifestEntry[];
+  /** Present even for an empty captured set; absent only on legacy Runs. */
+  skillManifestDigest?: string;
 }
 
 export interface WorkItemRunUsage {

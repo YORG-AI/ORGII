@@ -70,6 +70,7 @@ describe("WorkItemThreadSurface", () => {
       createElement(WorkItemThreadSurface, {
         workItem,
         propertyProps: {
+          statusOrgId: "personal-org",
           onUpdate: vi.fn(),
         },
       })

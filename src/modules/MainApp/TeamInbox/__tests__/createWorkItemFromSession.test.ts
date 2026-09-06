@@ -183,6 +183,7 @@ describe("Session to Work Item mapping", () => {
       [
         {
           kind: "project",
+          orgId: "org-1",
           key: "project:platform",
           projectId: "project-1",
           projectSlug: "platform",

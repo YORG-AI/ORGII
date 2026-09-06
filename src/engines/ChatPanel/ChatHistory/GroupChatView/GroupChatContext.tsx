@@ -16,6 +16,7 @@ export interface GroupChatContextValue {
   resolveSenderName: (event: SessionEvent) => string;
   resolveRecipientName: (event: SessionEvent) => string | null;
   isCoordinatorTurnHeader: (event: SessionEvent) => boolean;
+  retryFailedMessage: (rowId: number, editedDisplayText?: string) => void;
 }
 
 const GroupChatContext = createContext<GroupChatContextValue | null>(null);
@@ -26,11 +27,13 @@ export function GroupChatProvider({
   enabled,
   coordinatorSessionId,
   orgMembers,
+  retryFailedMessage,
   children,
 }: {
   enabled: boolean;
   coordinatorSessionId: string;
   orgMembers: ReadonlyArray<AgentOrgRunMemberView>;
+  retryFailedMessage: (rowId: number, editedDisplayText?: string) => void;
   children: React.ReactNode;
 }) {
   const value = useMemo<GroupChatContextValue>(
@@ -44,8 +47,9 @@ export function GroupChatProvider({
         resolveGroupMessageRecipient(event, coordinatorSessionId, orgMembers),
       isCoordinatorTurnHeader: (event: SessionEvent) =>
         isCoordinatorHumanUserEvent(event, coordinatorSessionId),
+      retryFailedMessage,
     }),
-    [enabled, coordinatorSessionId, orgMembers]
+    [enabled, coordinatorSessionId, orgMembers, retryFailedMessage]
   );
 
   return (

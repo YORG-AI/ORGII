@@ -28,6 +28,7 @@ import {
 } from "@src/hooks/session/useSessionPatch";
 import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
 import { creatorDefaultProductModeAtom } from "@src/store/session/creatorDefaultProductModeAtom";
+import { sessionByIdAtom } from "@src/store/session/sessionAtom/atoms";
 import type { SlashItem } from "@src/types/extensions";
 import {
   isAgentSession,
@@ -36,6 +37,7 @@ import {
 
 import { buildBuiltinSlashItems } from "./builtinSlashItems";
 import { useSlashItemsCache } from "./useSlashItemsCache";
+import { useWorkItemQuickActions } from "./workItemQuickActions";
 
 interface UseSlashCommandOptions {
   composerInputRef: RefObject<ComposerInputRef | null>;
@@ -153,6 +155,7 @@ export function useSlashCommand(
   const queryRef = useRef("");
 
   const { t } = useTranslation("sessions");
+  const scopedSession = useAtomValue(sessionByIdAtom(sessionId ?? ""));
   const builtinSlashItems = useMemo<SlashItem[]>(
     () =>
       buildBuiltinSlashItems({
@@ -166,33 +169,53 @@ export function useSlashCommand(
   );
 
   const {
-    filteredItems,
-    loading: slashLoading,
+    filteredItems: discoveredItems,
+    loading: discoveredItemsLoading,
     prefetch,
   } = useSlashItemsCache({
     builtinItems: builtinSlashItems,
     workspacePaths,
   });
 
+  const closeSlashMenu = useCallback(() => {
+    setShowSlashMenu(false);
+    setSlashQuery("");
+    queryRef.current = "";
+  }, [setShowSlashMenu, setSlashQuery]);
+  const {
+    items: workItemQuickActionItems,
+    loading: workItemQuickActionsLoading,
+    prefetch: prefetchWorkItemQuickActions,
+    handleSelect: handleWorkItemQuickActionSelect,
+  } = useWorkItemQuickActions(
+    isInSession ? (scopedSession ?? null) : null,
+    closeSlashMenu
+  );
+  const filteredItems = useMemo(
+    () => [...workItemQuickActionItems, ...discoveredItems],
+    [discoveredItems, workItemQuickActionItems]
+  );
+  const slashLoading = discoveredItemsLoading || workItemQuickActionsLoading;
   const handleSlashCommand = useCallback(
     (query: string) => {
       queryRef.current = query;
       setSlashQuery(query);
       setShowSlashMenu(true);
       prefetch(query);
+      prefetchWorkItemQuickActions();
     },
-    [setShowSlashMenu, setSlashQuery, prefetch]
+    [setShowSlashMenu, setSlashQuery, prefetch, prefetchWorkItemQuickActions]
   );
 
   const handleSlashCommandClose = useCallback(() => {
-    setShowSlashMenu(false);
-    setSlashQuery("");
-    queryRef.current = "";
-  }, [setShowSlashMenu, setSlashQuery]);
+    closeSlashMenu();
+  }, [closeSlashMenu]);
 
   const handleSlashSelect = useCallback(
     (item: SlashItem) => {
       if (!composerInputRef.current) return;
+
+      if (handleWorkItemQuickActionSelect(item)) return;
 
       if (item.category === "skill") {
         const skillToken = `/${item.skillName ?? item.name}`;
@@ -237,7 +260,12 @@ export function useSlashCommand(
       setSlashQuery("");
       queryRef.current = "";
     },
-    [composerInputRef, setShowSlashMenu, setSlashQuery]
+    [
+      composerInputRef,
+      setShowSlashMenu,
+      setSlashQuery,
+      handleWorkItemQuickActionSelect,
+    ]
   );
 
   const handleModeSelect = useCallback(

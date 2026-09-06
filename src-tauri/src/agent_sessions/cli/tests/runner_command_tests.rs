@@ -19,6 +19,8 @@ struct TestCommandBuildOptions<'a> {
     mode: Option<&'a str>,
     repo_path: Option<&'a str>,
     additional_dirs: &'a [String],
+    mcp_config_path: Option<&'a str>,
+    codex_mcp_profile: Option<&'a str>,
 }
 
 impl<'a> TestCommandBuildOptions<'a> {
@@ -33,6 +35,8 @@ impl<'a> TestCommandBuildOptions<'a> {
             mode: None,
             repo_path: None,
             additional_dirs: &[],
+            mcp_config_path: None,
+            codex_mcp_profile: None,
         }
     }
 }
@@ -85,7 +89,63 @@ fn build_command_from_options(options: TestCommandBuildOptions<'_>) -> Vec<Strin
         mode: options.mode,
         repo_path: options.repo_path,
         additional_dirs: options.additional_dirs,
+        mcp_config_path: options.mcp_config_path,
+        codex_mcp_profile: options.codex_mcp_profile,
     })
+}
+
+#[test]
+fn build_claude_code_with_strict_mcp_config_preserves_resume() {
+    let cmd = build_command!(
+        ModelType::ClaudeCode,
+        task = "task",
+        mcp_config_path = Some("/tmp/mcp.json"),
+        resume_id = Some("claude-session-id"),
+    );
+    let flag_pos = cmd
+        .iter()
+        .position(|part| part == "--mcp-config")
+        .expect("--mcp-config flag");
+    assert_eq!(cmd[flag_pos + 1], "/tmp/mcp.json");
+    assert_eq!(cmd[flag_pos + 2], "--strict-mcp-config");
+    let resume_pos = cmd
+        .iter()
+        .position(|part| part == "--resume")
+        .expect("--resume flag");
+    assert_eq!(cmd[resume_pos + 1], "claude-session-id");
+    assert_eq!(cmd.last().unwrap(), "task", "task stays the trailing arg");
+}
+
+#[test]
+fn build_claude_code_without_mcp_config_omits_flag() {
+    let cmd = build_command!(ModelType::ClaudeCode, task = "task");
+    assert!(!cmd.contains(&"--mcp-config".to_string()));
+    assert!(!cmd.contains(&"--strict-mcp-config".to_string()));
+}
+
+#[test]
+fn build_codex_with_mcp_profile_before_task() {
+    let cmd = build_command!(
+        ModelType::Codex,
+        task = "task",
+        codex_mcp_profile = Some("orgii-mcp-random"),
+    );
+    let profile = cmd
+        .iter()
+        .position(|part| part == "--profile")
+        .expect("profile option");
+    assert_eq!(cmd[profile + 1], "orgii-mcp-random");
+    assert!(cmd.iter().all(|part| !part.contains("stdio-secret")));
+    assert_eq!(cmd.last().unwrap(), "task", "task stays the trailing arg");
+}
+
+#[test]
+fn build_codex_without_mcp_servers_has_no_mcp_overrides() {
+    let cmd = build_command!(ModelType::Codex, task = "task");
+    assert!(
+        cmd.iter().all(|part| !part.starts_with("mcp_servers.")),
+        "an empty resolved set must not materialize Codex MCP config"
+    );
 }
 
 #[test]
@@ -518,6 +578,8 @@ fn build_codex_app_server_argv_is_bare_subcommand() {
         mode: None,
         repo_path: Some("/workspace"),
         additional_dirs: &[],
+        mcp_config_path: None,
+        codex_mcp_profile: None,
     });
     // Task, resume id, cwd, sandbox and approval flags all travel over
     // JSON-RPC — none of them may leak into the argv.
@@ -539,6 +601,8 @@ fn build_codex_app_server_argv_keeps_gpt_5_6_max_overrides() {
         mode: None,
         repo_path: None,
         additional_dirs: &[],
+        mcp_config_path: None,
+        codex_mcp_profile: None,
     });
     assert_eq!(cmd[1], "app-server");
     assert!(cmd.contains(&"model_reasoning_effort=\"max\"".to_string()));
@@ -550,4 +614,25 @@ fn build_codex_app_server_argv_keeps_gpt_5_6_max_overrides() {
         codex_app_server_thread_model(Some("gpt-5.6-sol-max-fast")),
         Some("gpt-5.6-sol".to_string())
     );
+}
+
+#[test]
+fn build_codex_app_server_argv_keeps_mcp_profile_before_subcommand() {
+    let profile = app_server_profile(&ModelType::Codex, Some("app-server"));
+    let cmd = build_command_with_launch_profile(CliCommandBuildRequest {
+        agent: &ModelType::Codex,
+        launch_profile: &profile,
+        model: None,
+        task: "write tests",
+        resume_id: Some("thread-123"),
+        api_key: None,
+        endpoint: None,
+        mode: None,
+        repo_path: Some("/workspace"),
+        additional_dirs: &[],
+        mcp_config_path: None,
+        codex_mcp_profile: Some("orgii-mcp-random"),
+    });
+
+    assert_eq!(cmd[1..], ["--profile", "orgii-mcp-random", "app-server"]);
 }

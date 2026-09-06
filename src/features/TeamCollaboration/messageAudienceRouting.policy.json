@@ -1,0 +1,20 @@
+{
+  "team_chat": {
+    "defaultHumanScope": "channel",
+    "memberHumanScope": "members",
+    "allHumanScope": "channel",
+    "defaultAgentMode": "none",
+    "humanAgentMode": "none",
+    "explicitAgentMode": "none",
+    "explicitAgentWins": false
+  },
+  "work_item_comment": {
+    "defaultHumanScope": "none",
+    "memberHumanScope": "members",
+    "allHumanScope": "channel",
+    "defaultAgentMode": "assigned",
+    "humanAgentMode": "none",
+    "explicitAgentMode": "explicit",
+    "explicitAgentWins": true
+  }
+}

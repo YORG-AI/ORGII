@@ -227,6 +227,8 @@ export interface WorkItemData {
   frontmatter: WorkItemFrontmatter;
   body: string;
   filename: string;
+  /** Present on authoritative database reads; absent on file/import drafts. */
+  revision?: number;
 }
 
 /**
@@ -302,6 +304,7 @@ export interface EnrichedWorkItem {
   title: string;
   body: string;
   filename: string;
+  revision: number;
 
   status: string;
   priority: string;
@@ -344,6 +347,7 @@ export type RustKanbanStatus =
   | "planned"
   | "in_progress"
   | "in_review"
+  | "blocked"
   | "completed"
   | "cancelled"
   | "duplicate";
@@ -392,6 +396,7 @@ export interface StatusCounts {
   planned: number;
   inProgress: number;
   inReview: number;
+  blocked: number;
   completed: number;
   cancelled: number;
   duplicate: number;

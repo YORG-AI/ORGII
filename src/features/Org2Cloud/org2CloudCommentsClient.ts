@@ -43,6 +43,7 @@ export const ORG2_COMMENT_ERROR_CODES = [
   "ORG2_FORBIDDEN",
   "ORG2_REPLAY_NOT_AVAILABLE",
   "ORG2_QUOTA_EXCEEDED",
+  "ORG2_IDEMPOTENCY_CONFLICT",
   "ORG2_AUTH_REQUIRED",
   "ORG2_MEMBER_REQUIRED",
 ] as const;
@@ -284,6 +285,12 @@ export interface AddSessionCommentInput {
    * null keeps the comment counted on the source plane.
    */
   originSessionId?: string | null;
+  /** Stable retry key; identical retries return the same durable comment. */
+  clientMessageKey?: string;
+  /** Explicit edited-retry intent for compare-and-swap replacement. */
+  replaceExisting?: boolean;
+  expectedBody?: string;
+  expectedMentionedUserIds?: string[];
 }
 
 /**
@@ -319,6 +326,24 @@ export async function addSessionComment(
     body.p_mentioned_user_ids = mentionedUserIds;
   }
   let payload: unknown;
+  if (input.clientMessageKey) {
+    // Never fall back to an unkeyed write: a lost response would become a
+    // duplicate comment. The visible failed row remains retryable until the
+    // idempotent Cloud RPC is deployed.
+    payload = await callCommentRpc(
+      "cloud_add_session_comment_idempotent",
+      accessToken,
+      {
+        ...body,
+        p_client_message_key: input.clientMessageKey,
+        p_replace_existing: input.replaceExisting ?? false,
+        p_expected_body: input.expectedBody ?? null,
+        p_expected_mentioned_user_ids: input.expectedMentionedUserIds ?? null,
+        p_mentioned_user_ids: mentionedUserIds,
+      }
+    );
+    return AddCommentResultSchema.parse(payload).comment;
+  }
   try {
     payload = await callCommentRpc(
       mentionedUserIds.length > 0

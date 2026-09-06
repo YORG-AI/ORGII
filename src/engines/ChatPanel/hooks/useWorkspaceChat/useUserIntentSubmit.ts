@@ -194,11 +194,7 @@ export function useUserIntentSubmit({
           session?.agentExecMode
         );
 
-        if (clearUserInitiatedCancelOnQueue && explicitPostStopSubmit) {
-          closePostStopDispatchEpisode(sessionId);
-        }
-
-        enqueueMessage({
+        const queueResult = enqueueMessage({
           id: `queued-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           turnIntentId,
           sessionId,
@@ -211,6 +207,16 @@ export function useUserIntentSubmit({
           status: "queued",
           createdAt: new Date().toISOString(),
         });
+        if (queueResult !== "enqueued" && queueResult !== "duplicate") {
+          throw new Error(
+            queueResult === "message_too_large"
+              ? "Queued message is too large"
+              : "Message queue is full; send or remove a queued message first"
+          );
+        }
+        if (clearUserInitiatedCancelOnQueue && explicitPostStopSubmit) {
+          closePostStopDispatchEpisode(sessionId);
+        }
         if (explicitPostStopSubmit) {
           setQueueFlushRequest((requestId) => requestId + 1);
         }

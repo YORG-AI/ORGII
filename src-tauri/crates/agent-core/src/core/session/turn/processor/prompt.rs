@@ -22,10 +22,14 @@ use crate::core::session::types::{SystemPromptConfig, ToolSummary};
 fn render_orgtrack_cli_brief(
     product_mode: Option<&str>,
     project_slug: Option<&str>,
+    status_catalog: Option<&str>,
 ) -> Option<String> {
     if product_mode != Some("project") {
         return None;
     }
+    let status_section = status_catalog
+        .map(|catalog| format!("\n\n{catalog}"))
+        .unwrap_or_default();
     let scope_line = match project_slug {
         Some(slug) => format!("Your scope is injected (ORGII_SCOPE={slug}); omit --scope."),
         None => "No Project is required. This session uses the current organization's standalone Work Item scope; omit --scope. Work list/create route there automatically.".to_string(),
@@ -35,6 +39,7 @@ fn render_orgtrack_cli_brief(
          The work system is also reachable from your shell through the `org2-pm` CLI. \
          Use `--output json`; run `org2-pm --help` or `org2-pm <command> --help` for anything beyond the core set.\n\n\
          - `org2-pm work show <id>` / `org2-pm work list [--status <state>] [--ready]`\n\
+         - `org2-pm work timeline <id> [--since <iso>] [--tail <n>] [--activity-only|--comments-only]` — merged history and Discussion\n\
          - `org2-pm work create --title \"...\" [--body ...] [--parent <id>]`\n\
          - `org2-pm work update <id> [--title ...] [--body ...|--body-file <path>] [--expected-revision N]`\n\
          - `org2-pm work transition <id> --to <state> --reason \"...\"`\n\
@@ -55,8 +60,15 @@ fn render_orgtrack_cli_brief(
          - If blocked, run `org2-pm work transition <id> --to blocked --reason \"...\"` and post \
          one note explaining the blocker.\n\
          - Your harness's built-in planning tools (task lists, todos) are local scratch state — \
-         they do NOT update the work system. Only `org2-pm` writes count.",
-        scope_line
+         they do NOT update the work system. Only `org2-pm` writes count.\n\
+         - Status discipline: state changes go through `work transition --to <state>` \
+         (`work claim` for in_progress). Use a custom status key from the catalog below when the \
+         team defines one that matches the work's stage; never invent a status key.\n\
+         - Mention discipline: every note notifies the item's subscribers. When a Discussion \
+         comment wakes you, answer with ONE reply note (`--parent-id <comment-id>`); never reply \
+         to your own notes and never post a note just to acknowledge.{}",
+        scope_line,
+        status_section
     ))
 }
 
@@ -288,9 +300,19 @@ impl UnifiedMessageProcessor {
                     ) {
                         dynamic_sections.push(context);
                     }
+                    let status_catalog = if session.product_mode.as_deref() == Some("project") {
+                        tokio::task::block_in_place(|| {
+                            project_management::work_item_features::render_status_catalog(
+                                session.org_id.as_deref(),
+                            )
+                        })
+                    } else {
+                        None
+                    };
                     if let Some(brief) = render_orgtrack_cli_brief(
                         session.product_mode.as_deref(),
                         session.project_slug.as_deref(),
+                        status_catalog.as_deref(),
                     ) {
                         dynamic_sections.push(brief);
                     }
@@ -609,10 +631,26 @@ mod linked_work_item_context_tests {
     #[test]
     fn projectless_brief_says_project_is_optional() {
         let prompt =
-            render_orgtrack_cli_brief(Some("project"), None).expect("Project-mode CLI brief");
+            render_orgtrack_cli_brief(Some("project"), None, None).expect("Project-mode CLI brief");
 
         assert!(prompt.contains("No Project is required"));
         assert!(prompt.contains("route there automatically"));
         assert!(!prompt.contains("Pass --scope"));
+        assert!(prompt.contains("Status discipline"));
+        assert!(prompt.contains("Mention discipline"));
+        assert!(prompt.ends_with("never post a note just to acknowledge."));
+    }
+
+    #[test]
+    fn brief_appends_the_status_catalog_only_when_present() {
+        let without = render_orgtrack_cli_brief(Some("project"), Some("auth"), None)
+            .expect("Project-mode CLI brief");
+        let catalog = "Custom statuses defined by this organization:\n- in_progress: `qa` (QA)";
+        let with = render_orgtrack_cli_brief(Some("project"), Some("auth"), Some(catalog))
+            .expect("Project-mode CLI brief");
+
+        assert!(with.starts_with(&without));
+        assert!(with.ends_with(catalog));
+        assert!(render_orgtrack_cli_brief(Some("build"), Some("auth"), Some(catalog)).is_none());
     }
 }

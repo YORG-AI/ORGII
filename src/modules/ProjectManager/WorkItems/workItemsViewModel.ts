@@ -1,15 +1,17 @@
+import type { PropertyDefinition } from "@src/api/http/project";
 import {
   DEFAULT_KANBAN_COLUMNS,
   GITHUB_ISSUE_KANBAN_COLUMNS,
   type KanbanColumnConfig,
   type KanbanTask,
 } from "@src/features/KanbanBoard";
-import { UserCircleIcon } from "@src/icons";
+import { BookOpen01Icon, TagsIcon, UserCircleIcon } from "@src/icons";
 import type {
   StatusCounts,
   StatusFilterType,
 } from "@src/modules/ProjectManager/WorkItems/types";
 import {
+  ENTITY_COLORS,
   GITHUB_ISSUE_STATUS_OPTIONS,
   WORK_ITEM_STATUS_OPTIONS,
 } from "@src/modules/ProjectManager/config/manage";
@@ -21,6 +23,10 @@ import {
   type WorkItemStatus,
 } from "@src/types/core/workItem";
 
+import {
+  PROPERTY_FILTER_NONE_VALUE,
+  groupWorkItemsByProperty,
+} from "./propertyViewModel";
 import {
   FILTER_TO_STATUS,
   GITHUB_ISSUE_STATUS_FILTER_KEYS,
@@ -75,20 +81,25 @@ export function filterWorkItemsBySearchQuery<TWorkItem extends WorkItem>(
 
 export function filterWorkItemsByStatus<TWorkItem extends WorkItem>(
   workItems: TWorkItem[],
-  statusFilter: StatusFilterType
+  statusFilter: StatusFilterType,
+  resolveCategory?: (status: string) => string
 ): TWorkItem[] {
   const mappedStatus = FILTER_TO_STATUS[statusFilter];
   if (!mappedStatus) return workItems;
-  return workItems.filter(
-    (workItem) =>
-      !isDeletedWorkItem(workItem) &&
-      getWorkItemStatus(workItem) === mappedStatus
-  );
+  return workItems.filter((workItem) => {
+    if (isDeletedWorkItem(workItem)) return false;
+    const status = getWorkItemStatus(workItem);
+    return (
+      status === mappedStatus || resolveCategory?.(status) === mappedStatus
+    );
+  });
 }
 
 export function groupWorkItemsByStatus<TWorkItem extends WorkItem>(
   workItems: TWorkItem[],
-  options?: readonly DropdownOption[]
+  options?: readonly DropdownOption[],
+  extraOptions?: readonly DropdownOption[],
+  resolveCategory?: (status: string) => string
 ): WorkItemGroup<TWorkItem>[] {
   const activeItems = workItems.filter(
     (workItem) => !isDeletedWorkItem(workItem)
@@ -103,20 +114,35 @@ export function groupWorkItemsByStatus<TWorkItem extends WorkItem>(
       (option) => option.value === getWorkItemStatus(workItem)
     )
   );
-  const statusOptions =
+  const baseOptions =
     options ??
     (hasGitHubIssueStatuses
       ? hasWorkflowStatuses
         ? [...GITHUB_ISSUE_STATUS_OPTIONS, ...WORK_ITEM_STATUS_OPTIONS]
         : GITHUB_ISSUE_STATUS_OPTIONS
       : WORK_ITEM_STATUS_OPTIONS);
-  return statusOptions.map((option) => ({
+  const statusOptions = extraOptions?.length
+    ? [...baseOptions, ...extraOptions]
+    : baseOptions;
+  const groups = statusOptions.map((option) => ({
     status: option.value as WorkItemStatus,
     config: option,
     items: activeItems.filter(
       (workItem) => getWorkItemStatus(workItem) === option.value
     ),
   }));
+  if (!resolveCategory) return groups;
+
+  const selectableStatuses = new Set(
+    statusOptions.map((option) => option.value.toString())
+  );
+  for (const workItem of activeItems) {
+    const rawStatus = getWorkItemStatus(workItem);
+    if (selectableStatuses.has(rawStatus)) continue;
+    const category = resolveCategory(rawStatus);
+    groups.find((group) => group.status === category)?.items.push(workItem);
+  }
+  return groups;
 }
 
 export function getStatusFilterKeysForWorkItems(
@@ -258,9 +284,16 @@ export function groupWorkspaceWorkItemsForStatusFilter<
 
 export function groupWorkItemsForStatusFilter<TWorkItem extends WorkItem>(
   workItems: TWorkItem[],
-  statusFilter: StatusFilterType
+  statusFilter: StatusFilterType,
+  customStatusOptions?: readonly DropdownOption[],
+  resolveCategory?: (status: string) => string
 ): WorkItemGroup<TWorkItem>[] {
-  const groups = groupWorkItemsByStatus(workItems);
+  const groups = groupWorkItemsByStatus(
+    workItems,
+    undefined,
+    customStatusOptions,
+    resolveCategory
+  );
   if (statusFilter === "all") {
     const deletedItems = workItems.filter(isDeletedWorkItem);
     if (deletedItems.length === 0) return groups;
@@ -279,17 +312,63 @@ export function groupWorkItemsForStatusFilter<TWorkItem extends WorkItem>(
   }
 
   const mappedStatus = FILTER_TO_STATUS[statusFilter];
-  return groups.filter((group) => group.status === mappedStatus);
+  return groups.filter(
+    (group) =>
+      group.status === mappedStatus ||
+      (resolveCategory ? resolveCategory(group.status) === mappedStatus : false)
+  );
 }
 
 export const WORK_ITEMS_KANBAN_GROUP = {
   STATUS: "status",
   ASSIGNED_TO: "assigned_to",
   CREATED_BY: "created_by",
+  PROJECT: "project",
+  PROPERTY: "property",
 } as const;
 
 export type WorkItemsKanbanGroup =
   (typeof WORK_ITEMS_KANBAN_GROUP)[keyof typeof WORK_ITEMS_KANBAN_GROUP];
+
+export const NO_PROJECT_GROUP_KEY = "__no_project__";
+
+export const TABLE_GROUP_BY_PROJECT = "__project__";
+
+const PROPERTY_KANBAN_COLORS = Object.values(ENTITY_COLORS);
+
+export interface WorkItemProjectGroup<TWorkItem extends WorkItem = WorkItem> {
+  key: string;
+  label: string;
+  items: TWorkItem[];
+}
+
+export function groupWorkItemsByProject<TWorkItem extends WorkItem>(
+  workItems: readonly TWorkItem[],
+  noProjectLabel: string
+): WorkItemProjectGroup<TWorkItem>[] {
+  const groups = new Map<string, WorkItemProjectGroup<TWorkItem>>();
+  groups.set(NO_PROJECT_GROUP_KEY, {
+    key: NO_PROJECT_GROUP_KEY,
+    label: noProjectLabel,
+    items: [],
+  });
+  for (const workItem of workItems) {
+    const project = workItem.project;
+    if (!project) {
+      groups.get(NO_PROJECT_GROUP_KEY)?.items.push(workItem);
+      continue;
+    }
+    const key = `project:${project.id}`;
+    const group = groups.get(key) ?? { key, label: project.name, items: [] };
+    group.items.push(workItem);
+    groups.set(key, group);
+  }
+  return [...groups.values()].sort((left, right) => {
+    if (left.key === NO_PROJECT_GROUP_KEY) return 1;
+    if (right.key === NO_PROJECT_GROUP_KEY) return -1;
+    return left.label.localeCompare(right.label);
+  });
+}
 
 const UNASSIGNED_PERSON_COLUMN_ID = "person:unassigned" as const;
 
@@ -308,6 +387,12 @@ function getPersonColumnId(
   groupBy: WorkItemsKanbanGroup
 ): KanbanTask["status"] {
   return `person:${getPersonForGroup(workItem, groupBy)?.id || "unassigned"}`;
+}
+
+function getProjectColumnId(workItem: WorkItem): KanbanTask["status"] {
+  return (
+    workItem.project ? `project:${workItem.project.id}` : NO_PROJECT_GROUP_KEY
+  ) as KanbanTask["status"];
 }
 
 function pinColumnsFirst(
@@ -417,20 +502,121 @@ export function getPersonKanbanColumns(
   return pinColumnsFirst(columns, pinnedColumnIds);
 }
 
+export function getProjectKanbanColumns(
+  workItems: WorkItem[],
+  noProjectTitle: string,
+  pinnedColumnIds: readonly string[] = []
+): KanbanColumnConfig[] {
+  const activeItems = workItems.filter(
+    (workItem) => !isDeletedWorkItem(workItem)
+  );
+  const groups = groupWorkItemsByProject(activeItems, noProjectTitle);
+  const columns = groups.map((group) => {
+    const isNoProject = group.key === NO_PROJECT_GROUP_KEY;
+    const color = isNoProject
+      ? "var(--color-text-3)"
+      : group.items[0]?.project?.color || "var(--color-primary-6)";
+    return {
+      id: group.key as KanbanTask["status"],
+      title: group.label,
+      icon: BookOpen01Icon,
+      color,
+      bgColor: `color-mix(in srgb, ${color} 10%, transparent)`,
+      dotColor: color,
+      headerBgColor: `color-mix(in srgb, ${color} 8%, transparent)`,
+      showAddButton: false,
+    } satisfies KanbanColumnConfig;
+  });
+  return pinColumnsFirst(columns, pinnedColumnIds);
+}
+
+export function getPropertyKanbanColumns(
+  workItems: WorkItem[],
+  definition: PropertyDefinition,
+  valuesByItem: ReadonlyMap<string, ReadonlyMap<string, unknown>>,
+  members: readonly Person[],
+  noValueTitle: string
+): KanbanColumnConfig[] {
+  const activeItems = workItems.filter(
+    (workItem) => !isDeletedWorkItem(workItem)
+  );
+  const groups = groupWorkItemsByProperty(
+    activeItems,
+    definition,
+    valuesByItem,
+    members
+  );
+  return groups.map((group, index) => {
+    const isNoValue = group.key === PROPERTY_FILTER_NONE_VALUE;
+    const color = isNoValue
+      ? "var(--color-text-3)"
+      : PROPERTY_KANBAN_COLORS[index % PROPERTY_KANBAN_COLORS.length];
+    return {
+      id: `property:${group.key}` as KanbanTask["status"],
+      title: isNoValue ? noValueTitle : group.label,
+      icon: TagsIcon,
+      color,
+      bgColor: `color-mix(in srgb, ${color} 10%, transparent)`,
+      dotColor: color,
+      headerBgColor: `color-mix(in srgb, ${color} 8%, transparent)`,
+      showAddButton: false,
+    } satisfies KanbanColumnConfig;
+  });
+}
+
+export function workItemsToPropertyKanbanTasks(
+  workItems: WorkItem[],
+  definition: PropertyDefinition,
+  valuesByItem: ReadonlyMap<string, ReadonlyMap<string, unknown>>,
+  members: readonly Person[]
+): KanbanTask[] {
+  const activeItems = workItems.filter(
+    (workItem) => !isDeletedWorkItem(workItem)
+  );
+  const groups = groupWorkItemsByProperty(
+    activeItems,
+    definition,
+    valuesByItem,
+    members
+  );
+  return groups.flatMap((group) =>
+    group.items.map(
+      (workItem) =>
+        ({
+          id: workItem.session_id,
+          title: workItem.name,
+          description: workItem.spec,
+          status: `property:${group.key}` as KanbanTask["status"],
+          priority: workItem.priority as KanbanTask["priority"],
+          assignee: workItem.assignee?.name,
+          labels: workItem.labels,
+        }) satisfies KanbanTask
+    )
+  );
+}
+
 export function getWorkItemsKanbanColumns(
   workItems: WorkItem[],
   groupBy: WorkItemsKanbanGroup,
   unassignedTitle: string,
-  pinnedColumnIds: readonly string[] = []
+  pinnedColumnIds: readonly string[] = [],
+  noProjectTitle: string = unassignedTitle
 ): KanbanColumnConfig[] {
-  return groupBy === WORK_ITEMS_KANBAN_GROUP.STATUS
-    ? getStatusKanbanColumns(workItems)
-    : getPersonKanbanColumns(
-        workItems,
-        groupBy,
-        unassignedTitle,
-        pinnedColumnIds
-      );
+  if (groupBy === WORK_ITEMS_KANBAN_GROUP.STATUS) {
+    return getStatusKanbanColumns(workItems);
+  }
+  if (groupBy === WORK_ITEMS_KANBAN_GROUP.PROJECT) {
+    return getProjectKanbanColumns(workItems, noProjectTitle, pinnedColumnIds);
+  }
+  if (groupBy === WORK_ITEMS_KANBAN_GROUP.PROPERTY) {
+    return [];
+  }
+  return getPersonKanbanColumns(
+    workItems,
+    groupBy,
+    unassignedTitle,
+    pinnedColumnIds
+  );
 }
 
 export function workItemToKanbanTask(
@@ -444,7 +630,9 @@ export function workItemToKanbanTask(
     status:
       groupBy === WORK_ITEMS_KANBAN_GROUP.STATUS
         ? getWorkItemStatus(workItem)
-        : getPersonColumnId(workItem, groupBy),
+        : groupBy === WORK_ITEMS_KANBAN_GROUP.PROJECT
+          ? getProjectColumnId(workItem)
+          : getPersonColumnId(workItem, groupBy),
     priority: workItem.priority as KanbanTask["priority"],
     assignee: workItem.assignee?.name,
     labels: workItem.labels,
@@ -460,7 +648,10 @@ export function workItemsToKanbanTasks(
     .map((workItem) => workItemToKanbanTask(workItem, groupBy));
 }
 
-export function countWorkItemsByStatus(workItems: WorkItem[]): StatusCounts {
+export function countWorkItemsByStatus(
+  workItems: WorkItem[],
+  resolveCategory?: (status: string) => string
+): StatusCounts {
   const activeItems = workItems.filter(
     (workItem) => !isDeletedWorkItem(workItem)
   );
@@ -470,6 +661,7 @@ export function countWorkItemsByStatus(workItems: WorkItem[]): StatusCounts {
     todo: 0,
     inProgress: 0,
     inReview: 0,
+    blocked: 0,
     done: 0,
     cancelled: 0,
     duplicate: 0,
@@ -484,9 +676,13 @@ export function countWorkItemsByStatus(workItems: WorkItem[]): StatusCounts {
     if (key === "all") continue;
     const mappedStatus = FILTER_TO_STATUS[key];
     counts[key] = mappedStatus
-      ? activeItems.filter(
-          (workItem) => getWorkItemStatus(workItem) === mappedStatus
-        ).length
+      ? activeItems.filter((workItem) => {
+          const status = getWorkItemStatus(workItem);
+          return (
+            status === mappedStatus ||
+            resolveCategory?.(status) === mappedStatus
+          );
+        }).length
       : 0;
   }
 

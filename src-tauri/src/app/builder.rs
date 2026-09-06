@@ -40,7 +40,7 @@ pub(crate) fn run() {
         .unwrap_or_else(|err| {
             tracing::error!(error = %err, "error while building tauri application");
             std::process::exit(1);
-    });
+        });
     initial_webview_observation.commit();
     application.run(lifecycle::handle_run_event);
 }

@@ -13,6 +13,7 @@
 mod create;
 mod git_cmd;
 mod inspect;
+mod liveness;
 mod list;
 mod merge;
 mod paths;
@@ -29,6 +30,10 @@ pub use types::{
 
 pub use create::{create_linked_worktree, create_session_worktree};
 pub use inspect::{get_session_diff, session_worktree_state};
+pub use liveness::{
+    session_worktree_root_for_path, session_worktree_tmp_dir,
+    try_acquire_worktree_lock, WorktreeLockGuard, SESSION_WORKTREE_TMP_DIRNAME,
+};
 pub use list::{list_all_worktrees, list_session_worktrees, validate_existing_worktree};
 pub use merge::{commit_worktree_changes, merge_session_worktree};
 pub use remove::{
@@ -36,5 +41,6 @@ pub use remove::{
 };
 
 pub(crate) use paths::{repo_hash, session_branch_name, validate_session_id};
+pub(crate) use liveness::{ensure_worktree_excludes, worktree_lock_is_held};
 pub(crate) use porcelain::parse_worktree_list_porcelain;
 pub(crate) use setup_command::run_worktree_setup_command_with_timeout;

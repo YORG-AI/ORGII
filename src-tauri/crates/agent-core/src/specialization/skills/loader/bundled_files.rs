@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use super::helpers::{resolve_skill_dir, validate_relative_path};
 use crate::session::prompt::cache::PromptCacheInvalidationReason;
+use crate::skills::provenance::{is_internal_metadata, refresh_existing_consent};
 use crate::state::AgentAppState;
 
 // ============================================
@@ -105,6 +106,13 @@ pub async fn skills_write_files_batch(
                     error: Some(err),
                 };
             }
+            if is_internal_metadata(std::path::Path::new(&file.relative_path)) {
+                return BundledFileWriteResult {
+                    relative_path: file.relative_path,
+                    success: false,
+                    error: Some("Skill provenance/cache metadata is managed by ORGII".to_string()),
+                };
+            }
 
             let target = skill_dir.join(&file.relative_path);
 
@@ -134,6 +142,8 @@ pub async fn skills_write_files_batch(
         .collect();
 
     if results.iter().any(|result| result.success) {
+        refresh_existing_consent(&skill_dir)?;
+        super::scanner::SkillsLoader::invalidate_all_caches();
         app_state
             .invalidate_prompt_caches(PromptCacheInvalidationReason::SkillCatalogChanged)
             .await;

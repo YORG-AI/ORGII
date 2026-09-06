@@ -300,14 +300,15 @@ pub fn migrate_cron_schedules() -> Result<usize, String> {
 
             let config = fm.orchestrator_config.clone().unwrap_or_default();
             let routine = RoutineDefinition {
+                activations: Vec::new(),
                 id: String::new(),
                 name: format!("Recurring: {}", fm.title),
                 description: format!("Migrated from work item {} recurring schedule", fm.short_id),
                 enabled: true,
-                trigger: RoutineTrigger::Cron {
+                trigger: Some(RoutineTrigger::Cron {
                     cron,
                     timezone: "UTC".to_string(),
-                },
+                }),
                 run_template: RoutineRunTemplate {
                     prompt: fm.title.clone(),
                     target: RoutineRunTarget::AgentDefinition {
@@ -340,7 +341,9 @@ pub fn migrate_cron_schedules() -> Result<usize, String> {
                 updated_at: String::new(),
             };
 
-            if let Err(err) = io::upsert_routine(routine) {
+            if let Err(err) =
+                project_management::routine_service::legacy_bridge::upsert_definition(routine)
+            {
                 warn!(
                     "[scheduler] cron→routine migration failed for {}: {}",
                     fm.short_id, err

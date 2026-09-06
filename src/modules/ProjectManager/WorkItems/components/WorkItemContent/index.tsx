@@ -8,6 +8,7 @@ import TabPill from "@src/components/TabPill";
 import { useWorkItemImageInsert } from "@src/hooks/project";
 import { HugeiconsIcon, Pen01Icon, RepeatIcon } from "@src/icons";
 import { builtInAgentsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
+import { useEnsureStatusDefinitions } from "@src/modules/ProjectManager/WorkItems/hooks/useStatusDefinitions";
 import {
   ProjectContentEditor,
   type ProjectContentEditorRef,
@@ -30,6 +31,7 @@ import {
 } from "@src/modules/shared/layouts/blocks";
 import { WORK_ITEM_STATUS } from "@src/types/core/workItem";
 
+import RevisionConflictModal from "../RevisionConflictModal";
 import WorkItemContentStack from "../WorkItemContentStack";
 import WorkItemFlowHeader from "../WorkItemFlowHeader";
 import WorkItemSubItems, { useWorkItemFamily } from "../WorkItemSubItems";
@@ -43,6 +45,7 @@ import GitHubIssueComposer from "./GitHubIssueComposer";
 import HistoryTab from "./HistoryTab";
 import { LinkedSessionsList } from "./LinkedSessionsList";
 import OutputTab from "./OutputTab";
+import QuickActionsSection from "./QuickActionsSection";
 import WorkItemHandoffNotice from "./WorkItemHandoffNotice";
 import WorkItemRunUsageSummary from "./WorkItemRunUsageSummary";
 import { normalizeLegacyEscapedMarkdown } from "./descriptionMarkdown";
@@ -50,7 +53,10 @@ import { useGitHubIssueTimeline } from "./hooks/useGitHubIssueTimeline";
 import { useWorkItemContentState } from "./hooks/useWorkItemContentState";
 import { useWorkItemDescriptionEditing } from "./hooks/useWorkItemDescriptionEditing";
 import { useWorkItemHandoff } from "./hooks/useWorkItemHandoff";
-import { resolveWorkItemContentSectionPolicy } from "./presentation";
+import {
+  resolveCreationActivityKey,
+  resolveWorkItemContentSectionPolicy,
+} from "./presentation";
 import type { SessionTab, WorkItemContentProps } from "./types";
 
 const WorkItemContent: React.FC<WorkItemContentProps> = ({
@@ -89,6 +95,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     () => [...builtInAgents, ...availableAgents],
     [builtInAgents, availableAgents]
   );
+  useEnsureStatusDefinitions(orgId ?? "personal-org");
 
   const { handleImageInsert } = useWorkItemImageInsert({
     projectSlug: projectSlug ?? null,
@@ -125,6 +132,11 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     handleCommentSubmit,
     handleResolveDiscussionThread,
     handleReopenDiscussionThread,
+    handleEditDiscussionComment,
+    handleDeleteDiscussionComment,
+    commentRevisionConflict,
+    handleUseLatestComment,
+    handleKeepMineComment,
   } = useWorkItemContentState({
     workItem,
     onUpdateWorkItem,
@@ -136,6 +148,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     projectSlug,
     shortId,
     orgId,
+    onRefreshWorkflow,
   });
 
   const creatorName =
@@ -337,14 +350,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
                 />
               }
               actor={creatorName}
-              action={
-                isGitHubWorkItem
-                  ? t("common:git.issues.activity.opened", "opened this issue")
-                  : t(
-                      "workItems.activity.openedWorkItem",
-                      "opened this work item"
-                    )
-              }
+              action={t(resolveCreationActivityKey(isGitHubWorkItem))}
               timestamp={workItem.created_time}
             />
           }
@@ -458,9 +464,26 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         projectSlug={projectSlug}
         orgId={orgId}
         shortId={shortId ?? workItem.shortId}
+        members={teamMembers}
         editable={Boolean(onUpdateWorkItem)}
       />
     </ScrollTrailTarget>
+  ) : null;
+
+  const quickActionsSection = !isGitHubWorkItem ? (
+    <QuickActionsSection
+      orgId={orgId || "personal-org"}
+      projectSlug={projectSlug ?? null}
+      shortId={shortId ?? workItem.shortId ?? ""}
+      currentUser={currentUser}
+      agents={mentionAgents.map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+      }))}
+      agentOrgs={availableOrgs.map((org) => ({ id: org.id, name: org.name }))}
+      disabled={!onUpdateWorkItem}
+      onInvoked={onRefreshWorkflow}
+    />
   ) : null;
 
   const outputContent = (
@@ -497,6 +520,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       onReplyToComment={setReplyToCommentId}
       onResolveThread={handleResolveDiscussionThread}
       onReopenThread={handleReopenDiscussionThread}
+      onEditComment={handleEditDiscussionComment}
+      onDeleteComment={handleDeleteDiscussionComment}
       presentation={presentation}
       canComment={Boolean(onUpdateWorkItem)}
       triggerPreview={triggerPreview}
@@ -513,6 +538,24 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
           />
         ) : undefined
       }
+    />
+  );
+
+  const commentConflictModal = (
+    <RevisionConflictModal
+      conflict={
+        commentRevisionConflict
+          ? {
+              fieldLabel: t("workItems.revisionConflict.commentField"),
+              mine: commentRevisionConflict.mine,
+              latest: commentRevisionConflict.latest,
+              expectedRevision: commentRevisionConflict.expectedRevision,
+              actualRevision: commentRevisionConflict.actualRevision,
+            }
+          : null
+      }
+      onUseLatest={handleUseLatestComment}
+      onKeepMine={handleKeepMineComment}
     />
   );
 
@@ -597,77 +640,85 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       ) : undefined;
 
     return (
-      <WorkItemThreadLayout
-        path={headerPath}
-        properties={headerProperties}
-        flowHeader={resolvedFlowHeader}
-        alerts={githubTimelineAlert}
-        sidebar={propertiesRail}
-        floatingFooter={githubIssueComposer}
-      >
-        {activeThreadView === "overview" ? (
-          <>
-            {handoffNotice}
-            {descriptionSection}
-            {customPropertiesSection}
-            {subItemsSection}
-            {threadLowerSection}
-            {!isGitHubWorkItem ? (
-              <ScrollTrailTarget
-                label={t("workItems.activity.discussionTitle")}
-              >
-                <nav
-                  className="flex min-h-8 items-center justify-end"
-                  aria-label={t("workItems.activity.discussionTitle")}
-                  data-testid="work-item-thread-secondary-navigation"
+      <>
+        <WorkItemThreadLayout
+          path={headerPath}
+          properties={headerProperties}
+          flowHeader={resolvedFlowHeader}
+          alerts={githubTimelineAlert}
+          sidebar={propertiesRail}
+          floatingFooter={githubIssueComposer}
+        >
+          {activeThreadView === "overview" ? (
+            <>
+              {handoffNotice}
+              {descriptionSection}
+              {quickActionsSection}
+              {customPropertiesSection}
+              {subItemsSection}
+              {threadLowerSection}
+              {!isGitHubWorkItem ? (
+                <ScrollTrailTarget
+                  label={t("workItems.activity.discussionTitle")}
                 >
-                  <WorkItemThreadViewAction
-                    activeView="overview"
-                    onChange={(view) =>
-                      setThreadViewSelection({
-                        workItemId: workItem.session_id,
-                        view,
-                      })
-                    }
-                  />
-                </nav>
-              </ScrollTrailTarget>
-            ) : null}
-          </>
-        ) : (
-          historyContent
-        )}
-      </WorkItemThreadLayout>
+                  <nav
+                    className="flex min-h-8 items-center justify-end"
+                    aria-label={t("workItems.activity.discussionTitle")}
+                    data-testid="work-item-thread-secondary-navigation"
+                  >
+                    <WorkItemThreadViewAction
+                      activeView="overview"
+                      onChange={(view) =>
+                        setThreadViewSelection({
+                          workItemId: workItem.session_id,
+                          view,
+                        })
+                      }
+                    />
+                  </nav>
+                </ScrollTrailTarget>
+              ) : null}
+            </>
+          ) : (
+            historyContent
+          )}
+        </WorkItemThreadLayout>
+        {commentConflictModal}
+      </>
     );
   }
 
   return (
-    <DetailPanelContainer className="relative">
-      <WorkItemContentStack
-        pathContent={headerPath}
-        propertiesContent={headerProperties}
-        descriptionContent={
-          handoffNotice ? (
-            <div className="flex flex-col gap-4">
-              {handoffNotice}
-              {descriptionSection}
-            </div>
-          ) : (
-            descriptionSection
-          )
-        }
-        lowerContent={
-          <>
-            {customPropertiesSection}
-            {subItemsSection}
-            {sectionPolicy.showTabbedLowerSection
-              ? tabbedLowerSection
-              : threadLowerSection}
-          </>
-        }
-        scrollable
-      />
-    </DetailPanelContainer>
+    <>
+      <DetailPanelContainer className="relative">
+        <WorkItemContentStack
+          pathContent={headerPath}
+          propertiesContent={headerProperties}
+          descriptionContent={
+            handoffNotice ? (
+              <div className="flex flex-col gap-4">
+                {handoffNotice}
+                {descriptionSection}
+              </div>
+            ) : (
+              descriptionSection
+            )
+          }
+          lowerContent={
+            <>
+              {quickActionsSection}
+              {customPropertiesSection}
+              {subItemsSection}
+              {sectionPolicy.showTabbedLowerSection
+                ? tabbedLowerSection
+                : threadLowerSection}
+            </>
+          }
+          scrollable
+        />
+      </DetailPanelContainer>
+      {commentConflictModal}
+    </>
   );
 };
 

@@ -19,6 +19,7 @@ pub mod gateway_pipeline;
 pub mod goal_loop;
 pub mod housekeeper_compaction;
 pub mod launch;
+pub mod originator;
 pub mod overrides;
 pub mod persistence;
 pub mod plan_mode;

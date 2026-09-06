@@ -8,7 +8,10 @@ use tracing::{info, warn};
 
 use super::{is_remote, is_remote_auth_error, McpManager};
 use crate::specialization::mcp::client::McpClient;
-use crate::specialization::mcp::config::{locate_owning_config, McpConfigFile, McpServerConfig};
+use crate::specialization::mcp::config::{
+    locate_owning_config, redact_server_secrets_from_text, update_config_file, McpConfigFile,
+    McpServerConfig,
+};
 
 impl McpManager {
     /// Load config and connect to all enabled servers **in parallel**.
@@ -105,12 +108,13 @@ impl McpManager {
                     self.connection_errors.lock().await.remove(name);
                     None
                 } else {
-                    let msg = format!("Failed to connect to MCP server '{}': {}", name, err);
+                    let safe_error = redact_server_secrets_from_text(server_config, &err);
+                    let msg = format!("Failed to connect to MCP server '{}': {}", name, safe_error);
                     warn!("[mcp:manager] {}", msg);
                     self.connection_errors
                         .lock()
                         .await
-                        .insert(name.to_string(), err);
+                        .insert(name.to_string(), safe_error);
                     Some(msg)
                 }
             }
@@ -165,11 +169,12 @@ impl McpManager {
                     self.connection_errors.lock().await.remove(name);
                     Ok(())
                 } else {
+                    let safe_error = redact_server_secrets_from_text(config, &err);
                     self.connection_errors
                         .lock()
                         .await
-                        .insert(name.to_string(), err.clone());
-                    Err(err)
+                        .insert(name.to_string(), safe_error.clone());
+                    Err(safe_error)
                 }
             }
         }
@@ -254,7 +259,7 @@ impl McpManager {
         disabled: bool,
         workspace_path: Option<&Path>,
     ) -> Result<(), String> {
-        let (mut config_file, file_path) =
+        let (_config_file, file_path) =
             locate_owning_config(name, workspace_path)?.ok_or_else(|| {
                 format!(
                     "Server '{}' not found in global or workspace MCP config",
@@ -262,14 +267,20 @@ impl McpManager {
                 )
             })?;
 
-        if let Some(entry) = config_file.mcp_servers.get_mut(name) {
-            if entry.disabled == disabled {
-                return Ok(());
-            }
+        let changed = update_config_file(&file_path, |config_file| {
+            let entry = config_file.mcp_servers.get_mut(name).ok_or_else(|| {
+                format!(
+                    "Server '{}' no longer exists in its owning MCP config",
+                    name
+                )
+            })?;
+            let changed = entry.disabled != disabled;
             entry.disabled = disabled;
+            Ok(changed)
+        })?;
+        if !changed {
+            return Ok(());
         }
-
-        config_file.save_to(&file_path)?;
 
         if disabled {
             self.disconnect_server(name).await;

@@ -57,9 +57,11 @@ pub(crate) use atomic::update_standalone_work_item_partial_with_revisions;
 pub use atomic::{
     update_standalone_work_item_atomic, update_standalone_work_item_atomic_by,
     update_standalone_work_item_atomic_serviced, update_standalone_work_item_partial,
-    update_work_item_atomic, update_work_item_atomic_as, update_work_item_atomic_serviced,
+    update_standalone_work_item_partial_at_revision, update_work_item_atomic,
+    update_work_item_atomic_as, update_work_item_atomic_serviced,
     update_work_item_atomic_with_revisions, update_work_item_partial,
-    update_work_item_partial_with_revisions, AtomicServiceOptions,
+    update_work_item_partial_at_revision, update_work_item_partial_with_revisions,
+    AtomicServiceOptions,
 };
 pub use batch::{batch_delete_work_items, batch_update_work_items};
 pub(crate) use crud::purge_work_item;
@@ -73,7 +75,8 @@ pub use crud::{
     write_standalone_work_item, write_work_item,
 };
 pub(crate) use crud::{
-    allocate_short_id_in_tx, resolve_project_scope_in_tx, write_work_item_in_tx,
+    allocate_short_id_in_tx, allocate_standalone_short_id_in_tx, resolve_project_scope_in_tx,
+    write_work_item_in_tx,
 };
 pub use enrichment::{
     read_all_work_items_enriched, read_all_work_items_enriched_scoped,

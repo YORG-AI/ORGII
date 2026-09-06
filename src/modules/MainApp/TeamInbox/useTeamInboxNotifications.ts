@@ -218,6 +218,15 @@ export function notificationCopy(
     };
   }
 
+  if (item.kind !== "assigned_work_item") {
+    return {
+      title: t(`teamInbox.events.${item.payload.eventKind}`, {
+        defaultValue: item.payload.eventKind,
+      }),
+      body: compactNotificationBody(item.payload.summary || item.payload.title),
+    };
+  }
+
   const pendingHandoff =
     item.payload.handoff?.status === "pending" ? item.payload.handoff : null;
   const assignmentTitle = t("teamInbox.notifications.assignmentTitle");

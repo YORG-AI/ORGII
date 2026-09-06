@@ -83,6 +83,7 @@ const WORK_ITEM_STATUS_VALUES = new Set<WorkItemStatus>([
   "planned",
   "in_progress",
   "in_review",
+  "blocked",
   "completed",
   "cancelled",
   "duplicate",
@@ -437,6 +438,7 @@ function ProjectReplayContent({ view }: { view: ProjectReplayView }) {
             >
               {group.workItems.map((workItem) => (
                 <WorkItemRow
+                  statusOrgId={null}
                   key={workItem.session_id}
                   workItem={workItem}
                   isSelected={workItem.session_id === selectedWorkItemId}

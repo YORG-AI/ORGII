@@ -6,18 +6,23 @@
  */
 import {
   type CloudCommentResolution,
-  type CloudSessionComment,
   isOrg2CommentErrorCode,
 } from "./org2CloudCommentsClient";
 import type {
   CloudSessionCommentsEntry,
   CommentThread,
   GroupedCommentThreads,
+  SessionComment,
   SessionCommentsFetchDecision,
 } from "./org2CloudSessionCommentsAtom.types";
 
 const SESSION_COMMENTS_TTL_MS = 30_000;
 export const MAX_SESSION_COMMENT_CACHE_ENTRIES = 128;
+export const OPTIMISTIC_SESSION_COMMENT_ID_PREFIX = "local-comment-";
+
+export function isOptimisticSessionCommentId(id: string): boolean {
+  return id.startsWith(OPTIMISTIC_SESSION_COMMENT_ID_PREFIX);
+}
 
 /**
  * A transient listing failure (network blip, or the session row sitting in
@@ -73,10 +78,7 @@ export function writeSessionCommentsEntry(
 // Pure list transforms (unit-tested; no IO)
 // ---------------------------------------------------------------------------
 
-function compareComments(
-  left: CloudSessionComment,
-  right: CloudSessionComment
-): number {
+function compareComments(left: SessionComment, right: SessionComment): number {
   if (left.createdAt !== right.createdAt) {
     return left.createdAt < right.createdAt ? -1 : 1;
   }
@@ -86,9 +88,9 @@ function compareComments(
 
 /** Insert (or replace by id) keeping the server's (createdAt, id) order. */
 export function insertComment(
-  comments: readonly CloudSessionComment[],
-  comment: CloudSessionComment
-): CloudSessionComment[] {
+  comments: readonly SessionComment[],
+  comment: SessionComment
+): SessionComment[] {
   const next = comments.filter((existing) => existing.id !== comment.id);
   next.push(comment);
   next.sort(compareComments);
@@ -97,10 +99,10 @@ export function insertComment(
 
 /** Shallow-patch one comment by id (no-op when the id is unknown). */
 export function patchComment(
-  comments: readonly CloudSessionComment[],
+  comments: readonly SessionComment[],
   commentId: string,
-  patch: Partial<CloudSessionComment>
-): CloudSessionComment[] {
+  patch: Partial<SessionComment>
+): SessionComment[] {
   return comments.map((comment) =>
     comment.id === commentId ? { ...comment, ...patch } : comment
   );
@@ -118,7 +120,7 @@ export function sessionCommentsDeltaSince(
   return new Date(anchorMs - SESSION_COMMENTS_DELTA_OVERLAP_MS).toISOString();
 }
 
-function commentStampMs(comment: CloudSessionComment): number {
+function commentStampMs(comment: SessionComment): number {
   let latest = 0;
   for (const stamp of [
     comment.createdAt,
@@ -144,9 +146,9 @@ function commentStampMs(comment: CloudSessionComment): number {
  * (`mergeFullSessionComments`), which reconciles it.
  */
 export function mergeDeltaSessionComments(
-  existing: readonly CloudSessionComment[],
-  fetched: readonly CloudSessionComment[]
-): CloudSessionComment[] {
+  existing: readonly SessionComment[],
+  fetched: readonly SessionComment[]
+): SessionComment[] {
   let merged = [...existing];
   for (const comment of fetched) {
     const current = merged.find((candidate) => candidate.id === comment.id);
@@ -165,15 +167,17 @@ export function mergeDeltaSessionComments(
  * make it immortal.
  */
 export function mergeFullSessionComments(
-  existing: readonly CloudSessionComment[],
-  fetched: readonly CloudSessionComment[],
+  existing: readonly SessionComment[],
+  fetched: readonly SessionComment[],
   knownIdsAtStart: ReadonlySet<string>
-): CloudSessionComment[] {
+): SessionComment[] {
   const fetchedIds = new Set(fetched.map((comment) => comment.id));
   return existing
     .filter(
       (comment) =>
-        !fetchedIds.has(comment.id) && !knownIdsAtStart.has(comment.id)
+        !fetchedIds.has(comment.id) &&
+        (isOptimisticSessionCommentId(comment.id) ||
+          !knownIdsAtStart.has(comment.id))
     )
     .reduce((list, comment) => insertComment(list, comment), [...fetched]);
 }
@@ -223,7 +227,7 @@ export function shouldEvictSessionCommentsOnError(error: unknown): boolean {
 // Thread grouping (pure; unit-tested)
 // ---------------------------------------------------------------------------
 
-function isLiveComment(comment: CloudSessionComment): boolean {
+function isLiveComment(comment: SessionComment): boolean {
   return !comment.deletedAt;
 }
 
@@ -240,7 +244,7 @@ function isLiveComment(comment: CloudSessionComment): boolean {
  *   then classify as present (`byEventId`), never as orphans.
  */
 export function groupCommentThreads(
-  comments: readonly CloudSessionComment[],
+  comments: readonly SessionComment[],
   presentEventIds: ReadonlySet<string> | null
 ): GroupedCommentThreads {
   const ordered = [...comments].sort(compareComments);

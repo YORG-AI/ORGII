@@ -201,7 +201,8 @@ export function useProjectWorkItemsTabContentInteractions({
         entry.project.slug,
         entry.item.session_id,
         updates,
-        currentUser
+        currentUser,
+        entry.item.revision
       );
       if (!updated) return;
       const updatedItem = {

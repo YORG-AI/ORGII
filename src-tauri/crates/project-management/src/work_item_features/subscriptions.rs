@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use rusqlite::{params, Transaction, TransactionBehavior};
+use rusqlite::{params, OptionalExtension, Transaction, TransactionBehavior};
 
 use super::store::{iso8601, resolve_work_item};
 use super::{SubscriptionMutation, SubscriptionReason, WorkItemScope, WorkItemSubscription};
@@ -79,8 +79,9 @@ fn bootstrap_implicit_subscriptions(
             now,
         )?;
     }
+    let effective_status = super::statuses::effective_status_in(tx, &item.org_id, &item.status);
     if matches!(
-        item.status.trim().to_ascii_lowercase().as_str(),
+        effective_status.trim().to_ascii_lowercase().as_str(),
         "completed" | "closed" | "cancelled" | "canceled" | "duplicate"
     ) {
         tx.execute(
@@ -239,6 +240,21 @@ pub(super) struct CommentNotification<'a> {
     pub(super) now: i64,
 }
 
+fn recipient_muted_kind(
+    tx: &Transaction<'_>,
+    recipient_id: &str,
+    kind: &str,
+) -> Result<bool, String> {
+    tx.query_row(
+        "SELECT 1 FROM pm_inbox_prefs WHERE recipient_id = ?1 AND kind = ?2",
+        params![recipient_id, kind],
+        |_| Ok(true),
+    )
+    .optional()
+    .map(|found| found.unwrap_or(false))
+    .map_err(|err| format!("inbox prefs: {err}"))
+}
+
 fn upsert_inbox_event(tx: &Transaction<'_>, event: InboxEvent<'_>) -> Result<(), String> {
     let InboxEvent {
         scope_key,
@@ -250,6 +266,9 @@ fn upsert_inbox_event(tx: &Transaction<'_>, event: InboxEvent<'_>) -> Result<(),
         coalesce_key,
         now,
     } = event;
+    if recipient_muted_kind(tx, recipient_id, kind)? {
+        return Ok(());
+    }
     let raw = serde_json::to_string(payload)
         .map_err(|err| format!("inbox event payload serialization: {err}"))?;
     tx.execute(
@@ -259,6 +278,8 @@ fn upsert_inbox_event(tx: &Transaction<'_>, event: InboxEvent<'_>) -> Result<(),
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL)
          ON CONFLICT(recipient_id, coalesce_key) DO UPDATE SET
              id = excluded.id,
+             scope_key = excluded.scope_key,
+             work_item_id = excluded.work_item_id,
              kind = excluded.kind,
              actor_id = excluded.actor_id,
              payload_json = excluded.payload_json,
@@ -323,7 +344,7 @@ pub(super) fn notify_comment(
             "comment": content,
             "mentioned": true,
         });
-        let coalesce_key = format!("mention:{comment_id}:{recipient}");
+        let coalesce_key = format!("mention:{scope_key}:{work_item_id}:{comment_id}");
         upsert_inbox_event(
             tx,
             InboxEvent {
@@ -434,4 +455,205 @@ pub(crate) fn notify_run_terminal(run: &WorkItemRun) -> Result<(), String> {
     tx.commit()
         .map_err(|err| format!("work item inbox commit: {err}"))?;
     Ok(())
+}
+
+pub(crate) struct FieldChangeNotification<'a> {
+    pub scope_key: &'a str,
+    pub work_item_id: &'a str,
+    pub title: &'a str,
+    pub actor_id: Option<&'a str>,
+    pub status_change: Option<(&'a str, &'a str)>,
+    pub assignee_change: Option<(Option<&'a str>, Option<&'a str>)>,
+    pub priority_change: Option<(&'a str, &'a str)>,
+    pub dates_changed: bool,
+    pub now: i64,
+}
+
+fn unmuted_subscribers(
+    tx: &Transaction<'_>,
+    scope_key: &str,
+    work_item_id: &str,
+) -> Result<Vec<String>, String> {
+    let mut statement = tx
+        .prepare(
+            "SELECT subscriber_id FROM pm_work_item_subscriptions
+              WHERE scope_key = ?1 AND work_item_id = ?2 AND muted_at IS NULL",
+        )
+        .map_err(|err| format!("work item subscription: {err}"))?;
+    let subscribers = statement
+        .query_map(params![scope_key, work_item_id], |row| {
+            row.get::<_, String>(0)
+        })
+        .map_err(|err| format!("work item subscription: {err}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| format!("work item subscription: {err}"))?;
+    Ok(subscribers)
+}
+
+/// Inbox events for status / assignee / priority / date edits, written in
+/// the same transaction as the mutation. The generic coalesce key keeps
+/// one live row per item per recipient, so one edit emits ONE event whose
+/// kind names its most significant change and whose payload carries all of
+/// them — writing one event per field would just overwrite itself down to
+/// the last field. The actor never notifies themselves.
+pub(crate) fn notify_field_changes(
+    tx: &Transaction<'_>,
+    notification: FieldChangeNotification<'_>,
+) -> Result<(), String> {
+    let mut changes = serde_json::Map::new();
+    if let Some((from, to)) = notification.status_change {
+        changes.insert(
+            "status".to_string(),
+            serde_json::json!({ "from": from, "to": to }),
+        );
+    }
+    if let Some((from, to)) = notification.assignee_change {
+        changes.insert(
+            "assignee".to_string(),
+            serde_json::json!({ "from": from, "to": to }),
+        );
+    }
+    if let Some((from, to)) = notification.priority_change {
+        changes.insert(
+            "priority".to_string(),
+            serde_json::json!({ "from": from, "to": to }),
+        );
+    }
+    if notification.dates_changed {
+        changes.insert("dates".to_string(), serde_json::Value::Bool(true));
+    }
+    if changes.is_empty() {
+        return Ok(());
+    }
+    let kind = if notification.status_change.is_some() {
+        "status_changed"
+    } else if notification.assignee_change.is_some() {
+        "assignee_changed"
+    } else if notification.priority_change.is_some() {
+        "priority_changed"
+    } else {
+        "dates_changed"
+    };
+    let payload = serde_json::json!({
+        "title": notification.title,
+        "changes": serde_json::Value::Object(changes),
+    });
+    let subscribers = unmuted_subscribers(tx, notification.scope_key, notification.work_item_id)?;
+    let coalesce_key = format!(
+        "work-item:{}:{}",
+        notification.scope_key, notification.work_item_id
+    );
+    for recipient in subscribers {
+        if Some(recipient.as_str()) == notification.actor_id {
+            continue;
+        }
+        upsert_inbox_event(
+            tx,
+            InboxEvent {
+                scope_key: notification.scope_key,
+                work_item_id: notification.work_item_id,
+                recipient_id: &recipient,
+                kind,
+                actor_id: notification.actor_id,
+                payload: &payload,
+                coalesce_key: &coalesce_key,
+                now: notification.now,
+            },
+        )?;
+    }
+    Ok(())
+}
+
+pub(crate) struct ChildTerminalNotification<'a> {
+    pub scope_key: &'a str,
+    pub parent_short_id: &'a str,
+    pub child_short_id: &'a str,
+    pub child_title: &'a str,
+    pub status: &'a str,
+    pub actor_id: Option<&'a str>,
+    pub now: i64,
+}
+
+/// A child reaching a terminal status notifies the parent's subscribers.
+/// Keyed per child so two finishing children never coalesce away.
+pub(crate) fn notify_child_terminal(
+    tx: &Transaction<'_>,
+    notification: ChildTerminalNotification<'_>,
+) -> Result<(), String> {
+    let ChildTerminalNotification {
+        scope_key,
+        parent_short_id,
+        child_short_id,
+        child_title,
+        status,
+        actor_id,
+        now,
+    } = notification;
+    let subscribers = unmuted_subscribers(tx, scope_key, parent_short_id)?;
+    let payload = serde_json::json!({
+        "title": child_title,
+        "childShortId": child_short_id,
+        "status": status,
+    });
+    for recipient in subscribers {
+        if Some(recipient.as_str()) == actor_id {
+            continue;
+        }
+        let coalesce_key = format!("child:{scope_key}:{parent_short_id}:{child_short_id}");
+        upsert_inbox_event(
+            tx,
+            InboxEvent {
+                scope_key,
+                work_item_id: parent_short_id,
+                recipient_id: &recipient,
+                kind: "child_completed",
+                actor_id,
+                payload: &payload,
+                coalesce_key: &coalesce_key,
+                now,
+            },
+        )?;
+    }
+    Ok(())
+}
+
+/// Per-recipient inbox category mutes. `kind` matches the event kinds
+/// written above plus `mention` / `discussion_updated` / `run_failed`.
+pub(crate) fn list_muted_kinds(recipient_id: &str) -> Result<Vec<String>, String> {
+    let connection = conn()?;
+    let mut statement = connection
+        .prepare("SELECT kind FROM pm_inbox_prefs WHERE recipient_id = ?1 ORDER BY kind ASC")
+        .map_err(|err| format!("inbox prefs: {err}"))?;
+    let kinds = statement
+        .query_map(params![recipient_id], |row| row.get::<_, String>(0))
+        .map_err(|err| format!("inbox prefs: {err}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| format!("inbox prefs: {err}"))?;
+    Ok(kinds)
+}
+
+pub(crate) fn set_kind_muted(
+    recipient_id: &str,
+    kind: &str,
+    muted: bool,
+) -> Result<Vec<String>, String> {
+    let connection = conn()?;
+    if muted {
+        connection
+            .execute(
+                "INSERT INTO pm_inbox_prefs (recipient_id, kind, muted_at)
+                 VALUES (?1, ?2, ?3)
+                 ON CONFLICT(recipient_id, kind) DO UPDATE SET muted_at = excluded.muted_at",
+                params![recipient_id, kind, now_ms()],
+            )
+            .map_err(|err| format!("inbox prefs: {err}"))?;
+    } else {
+        connection
+            .execute(
+                "DELETE FROM pm_inbox_prefs WHERE recipient_id = ?1 AND kind = ?2",
+                params![recipient_id, kind],
+            )
+            .map_err(|err| format!("inbox prefs: {err}"))?;
+    }
+    list_muted_kinds(recipient_id)
 }

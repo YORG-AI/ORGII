@@ -28,6 +28,7 @@ function createMockStatusCounts(
     planned: 3,
     inProgress: 2,
     inReview: 1,
+    blocked: 0,
     completed: 1,
     cancelled: 1,
     duplicate: 0,
@@ -40,6 +41,7 @@ function createMockEnrichedWorkItem(
 ): EnrichedWorkItem {
   return {
     id: "uuid-test-001",
+    revision: 1,
     shortId: "WI-001",
     title: "Test Work Item",
     body: "Test description",
@@ -204,6 +206,7 @@ describe("RustKanbanTask Structure", () => {
     "planned",
     "in_progress",
     "in_review",
+    "blocked",
     "completed",
     "cancelled",
     "duplicate",
@@ -327,6 +330,7 @@ describe("StatusCounts Integrity", () => {
       counts.planned +
       counts.inProgress +
       counts.inReview +
+      counts.blocked +
       counts.completed +
       counts.cancelled;
 
@@ -353,6 +357,7 @@ describe("Edge Cases", () => {
         planned: 0,
         inProgress: 0,
         inReview: 0,
+        blocked: 0,
         completed: 0,
         cancelled: 0,
       }),

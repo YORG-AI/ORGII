@@ -18,6 +18,7 @@ export const PROJECTS_WORK_ITEM_GROUP_PREFIX = "projects-work-items:";
 export const WORK_ITEM_STATUS_ORDER: readonly WorkItemStatus[] = [
   "in_progress",
   "in_review",
+  "blocked",
   "planned",
   "backlog",
   "completed",

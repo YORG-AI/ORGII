@@ -10,14 +10,20 @@ import type { WorkItem } from "@src/types/core/workItem";
 
 import { useWorkItems } from "../../hooks/useWorkItems";
 import { isDeletedWorkItem } from "../../workItemsViewModel";
+import RevisionConflictModal from "../RevisionConflictModal";
 import WorkItemDetail from "../WorkItemDetail";
-import { getAdjacentWorkItemId, getWorkItemNavigationState } from "./model";
+import {
+  getAdjacentWorkItemId,
+  getWorkItemNavigationState,
+  resolveProjectScopedOrgId,
+} from "./model";
 import type { WorkItemDetailPageProps } from "./types";
 
 export function ProjectScopedWorkItemDetailPage({
   projectId,
   projectName,
   projectSlug,
+  orgId,
   workItemId,
   onClose,
   onOpenChatSession,
@@ -83,13 +89,16 @@ export function ProjectScopedWorkItemDetailPage({
   );
   const handleUpdateWorkItem = useCallback(
     (updates: Partial<WorkItem>) => {
-      if (updates.name !== undefined) {
-        onWorkItemNameUpdated?.(updates.name);
-      }
       handlers.handleUpdate(activeWorkItemId, updates);
     },
-    [activeWorkItemId, handlers, onWorkItemNameUpdated]
+    [activeWorkItemId, handlers]
   );
+
+  useEffect(() => {
+    if (workItem?.name !== undefined) {
+      onWorkItemNameUpdated?.(workItem.name);
+    }
+  }, [onWorkItemNameUpdated, workItem?.name]);
 
   useEffect(() => {
     if (workItemDeleted) onClose();
@@ -107,29 +116,51 @@ export function ProjectScopedWorkItemDetailPage({
   }
 
   return (
-    <WorkItemDetail
-      workItem={workItem}
-      onClose={onClose}
-      onNavigate={handleNavigate}
-      hasPrev={navigation.hasPrev}
-      hasNext={navigation.hasNext}
-      onUpdateWorkItem={handleUpdateWorkItem}
-      onDeleteWorkItem={handleDelete}
-      availableMembers={projectData.availableMembers}
-      availableProjects={projectData.availableProjects}
-      availableMilestones={projectData.availableMilestones}
-      availableLabels={projectData.availableLabels}
-      showTime
-      repoPath={activeWorkspaceRootPath || null}
-      projectSlug={projectData.project?.slug ?? null}
-      shortId={data.getShortId(workItem.session_id) ?? null}
-      onRefreshWorkItem={data.refresh}
-      onOpenSession={onOpenChatSession}
-      initialPendingUpdates={pendingUpdates as Partial<WorkItem> | undefined}
-      breadcrumbProjectName={projectName ?? undefined}
-      propertiesOpen={propertiesOpen}
-      onToggleProperties={() => setPropertiesOpen((current) => !current)}
-      publishHeaderToWorkstation={publishHeaderToWorkstation}
-    />
+    <>
+      <WorkItemDetail
+        workItem={workItem}
+        onClose={onClose}
+        onNavigate={handleNavigate}
+        hasPrev={navigation.hasPrev}
+        hasNext={navigation.hasNext}
+        onUpdateWorkItem={handleUpdateWorkItem}
+        onDeleteWorkItem={handleDelete}
+        availableMembers={projectData.availableMembers}
+        availableProjects={projectData.availableProjects}
+        availableMilestones={projectData.availableMilestones}
+        availableLabels={projectData.availableLabels}
+        showTime
+        repoPath={activeWorkspaceRootPath || null}
+        projectSlug={projectData.project?.slug ?? null}
+        orgId={resolveProjectScopedOrgId(projectData.project?.orgId, orgId)}
+        shortId={data.getShortId(workItem.session_id) ?? null}
+        onRefreshWorkItem={data.refresh}
+        onOpenSession={onOpenChatSession}
+        initialPendingUpdates={pendingUpdates as Partial<WorkItem> | undefined}
+        breadcrumbProjectName={projectName ?? undefined}
+        propertiesOpen={propertiesOpen}
+        onToggleProperties={() => setPropertiesOpen((current) => !current)}
+        publishHeaderToWorkstation={publishHeaderToWorkstation}
+      />
+      <RevisionConflictModal
+        conflict={
+          data.revisionConflict
+            ? {
+                fieldLabel: t(
+                  data.revisionConflict.field === "title"
+                    ? "workItems.revisionConflict.titleField"
+                    : "workItems.revisionConflict.descriptionField"
+                ),
+                mine: data.revisionConflict.mine,
+                latest: data.revisionConflict.latest,
+                expectedRevision: data.revisionConflict.expectedRevision,
+                actualRevision: data.revisionConflict.actualRevision,
+              }
+            : null
+        }
+        onUseLatest={data.useLatestRevisionConflict}
+        onKeepMine={data.keepMineRevisionConflict}
+      />
+    </>
   );
 }

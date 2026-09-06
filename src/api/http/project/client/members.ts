@@ -4,6 +4,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { cachedRead, invalidateCache } from "../cache";
+import { notifyProjectRosterChanged } from "../events";
 import type { MembersFile } from "../types";
 
 export async function readMembers(slug: string): Promise<MembersFile> {
@@ -21,5 +22,6 @@ export async function writeMembers(
     members,
   });
   invalidateCache(slug);
+  notifyProjectRosterChanged({ project_slug: slug, source: "members" });
   return result;
 }

@@ -18,6 +18,10 @@ use crate::routine_service::spec::{Activation, RoutineSpecFile};
 pub const ROUTINE_WEBHOOK_BASE_PATH: &str = "/routine/webhook";
 const MAX_PAYLOAD_BYTES: usize = 256 * 1024;
 const FAILURE_PAUSE_THRESHOLD: i64 = 5;
+/// A process can die after reserving a delivery but before publishing its
+/// final receipt. Provider retries may reclaim that reservation after this
+/// lease, while concurrent requests inside the lease still observe one owner.
+const PROCESSING_LEASE_MS: i64 = 5 * 60 * 1000;
 
 fn secret_hash(secret: &str) -> String {
     hex::encode(Sha256::digest(secret.as_bytes()))
@@ -249,12 +253,36 @@ fn record_delivery(
     })
 }
 
+fn update_delivery(
+    tx: &rusqlite::Transaction<'_>,
+    delivery_id: &str,
+    status: &str,
+    reason: Option<&str>,
+    routine_run_id: Option<&str>,
+    now: i64,
+) -> Result<RoutineWebhookDelivery, String> {
+    let changed = tx
+        .execute(
+            "UPDATE pm_routine_webhook_deliveries
+                SET status = ?2, reason = ?3, routine_run_id = ?4, updated_at = ?5
+              WHERE id = ?1",
+            params![delivery_id, status, reason, routine_run_id, now],
+        )
+        .map_err(|err| format!("routine webhook delivery: {err}"))?;
+    if changed != 1 {
+        return Err(format!(
+            "routine webhook delivery '{delivery_id}' disappeared while processing"
+        ));
+    }
+    read_delivery_in_connection(tx, delivery_id)
+}
+
 fn ingest_verified(
     routine_name: &str,
     provider: &str,
     event_kind: &str,
     idempotency_key: &str,
-    payload: serde_json::Value,
+    mut payload: serde_json::Value,
     replay_of: Option<&str>,
 ) -> Result<RoutineWebhookDelivery, String> {
     if provider.trim().is_empty()
@@ -267,20 +295,47 @@ fn ingest_verified(
     let tx = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|err| format!("routine webhook tx: {err}"))?;
+    let mut reclaimed_delivery_id = None;
     if replay_of.is_none() {
-        let duplicate: Option<String> = tx
+        let duplicate: Option<(String, String, i64, String)> = tx
             .query_row(
-                "SELECT id FROM pm_routine_webhook_deliveries
+                "SELECT id, status, updated_at, payload_json
+                   FROM pm_routine_webhook_deliveries
                   WHERE routine_name = ?1 AND idempotency_key = ?2",
                 params![routine_name, idempotency_key],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .optional()
             .map_err(|err| format!("routine webhook delivery: {err}"))?;
-        if let Some(delivery_id) = duplicate {
-            tx.commit()
-                .map_err(|err| format!("routine webhook commit: {err}"))?;
-            return read_delivery(&delivery_id);
+        if let Some((delivery_id, status, updated_at, payload_json)) = duplicate {
+            let now = now_ms();
+            if status != "processing" || updated_at > now - PROCESSING_LEASE_MS {
+                let delivery = read_delivery_in_connection(&tx, &delivery_id)?;
+                tx.commit()
+                    .map_err(|err| format!("routine webhook commit: {err}"))?;
+                return Ok(delivery);
+            }
+
+            // Re-run the exact originally admitted payload. A provider must
+            // not be able to reuse one delivery id to replace its contents.
+            payload = serde_json::from_str(&payload_json)
+                .map_err(|err| format!("routine webhook stored payload: {err}"))?;
+            let claimed = tx
+                .execute(
+                    "UPDATE pm_routine_webhook_deliveries
+                        SET updated_at = ?3, reason = 'reclaimed stale processing lease'
+                      WHERE routine_name = ?1 AND id = ?2 AND status = 'processing'
+                        AND updated_at <= ?4",
+                    params![routine_name, delivery_id, now, now - PROCESSING_LEASE_MS],
+                )
+                .map_err(|err| format!("routine webhook delivery reclaim: {err}"))?;
+            if claimed != 1 {
+                let delivery = read_delivery_in_connection(&tx, &delivery_id)?;
+                tx.commit()
+                    .map_err(|err| format!("routine webhook commit: {err}"))?;
+                return Ok(delivery);
+            }
+            reclaimed_delivery_id = Some(delivery_id);
         }
     }
     let row: Option<WebhookConfigRow> = tx
@@ -355,8 +410,19 @@ fn ingest_verified(
             .map_err(|err| format!("routine webhook commit: {err}"))?;
         return Ok(delivery);
     }
-    let Some(scope) = default_scope else {
-        let delivery = record_delivery(
+    let target = default_scope
+        .as_deref()
+        .map(crate::routine_service::RoutineInvocationTarget::from_binding)
+        .transpose()?
+        .unwrap_or_else(|| crate::routine_service::RoutineInvocationTarget::standalone(None));
+    let replay_reason = replay_of.map(|id| format!("replay of {id}"));
+    // Reserve the provider delivery before releasing the admission lock.
+    // Concurrent requests then read this same durable receipt instead of
+    // both invoking and racing on the unique delivery key afterward.
+    let reserved = if let Some(delivery_id) = reclaimed_delivery_id {
+        read_delivery_in_connection(&tx, &delivery_id)?
+    } else {
+        record_delivery(
             &tx,
             DeliveryRecord {
                 routine_name,
@@ -364,15 +430,12 @@ fn ingest_verified(
                 event_kind,
                 idempotency_key,
                 payload: &payload,
-                status: "rejected",
-                reason: Some("routine has no default project scope"),
+                status: "processing",
+                reason: replay_reason.as_deref(),
                 routine_run_id: None,
                 now,
             },
-        )?;
-        tx.commit()
-            .map_err(|err| format!("routine webhook commit: {err}"))?;
-        return Ok(delivery);
+        )?
     };
     tx.commit()
         .map_err(|err| format!("routine webhook pre-invoke commit: {err}"))?;
@@ -380,9 +443,9 @@ fn ingest_verified(
     let invoke_key = replay_of
         .map(|delivery_id| format!("webhook-replay:{delivery_id}:{idempotency_key}"))
         .unwrap_or_else(|| format!("webhook:{provider}:{idempotency_key}"));
-    match crate::routine_service::invoke(
+    match crate::routine_service::invoke_target(
         routine_name,
-        &scope,
+        &target,
         &scalar_inputs(&payload),
         None,
         Some(&invoke_key),
@@ -392,20 +455,13 @@ fn ingest_verified(
             let tx = connection
                 .transaction_with_behavior(TransactionBehavior::Immediate)
                 .map_err(|err| format!("routine webhook result tx: {err}"))?;
-            let replay_reason = replay_of.map(|id| format!("replay of {id}"));
-            let delivery = record_delivery(
+            let delivery = update_delivery(
                 &tx,
-                DeliveryRecord {
-                    routine_name,
-                    provider,
-                    event_kind,
-                    idempotency_key,
-                    payload: &payload,
-                    status: "accepted",
-                    reason: replay_reason.as_deref(),
-                    routine_run_id: Some(&run.run_id),
-                    now: now_ms(),
-                },
+                &reserved.id,
+                "accepted",
+                replay_reason.as_deref(),
+                Some(&run.run_id),
+                now_ms(),
             )?;
             tx.execute(
                 "UPDATE pm_routine_webhooks
@@ -441,20 +497,8 @@ fn ingest_verified(
                 params![routine_name, failures, FAILURE_PAUSE_THRESHOLD, failed_at],
             )
             .map_err(|err| format!("routine webhook store: {err}"))?;
-            let delivery = record_delivery(
-                &tx,
-                DeliveryRecord {
-                    routine_name,
-                    provider,
-                    event_kind,
-                    idempotency_key,
-                    payload: &payload,
-                    status: "failed",
-                    reason: Some(&error),
-                    routine_run_id: None,
-                    now: failed_at,
-                },
-            )?;
+            let delivery =
+                update_delivery(&tx, &reserved.id, "failed", Some(&error), None, failed_at)?;
             tx.commit()
                 .map_err(|err| format!("routine webhook failure commit: {err}"))?;
             Ok(delivery)
@@ -462,8 +506,10 @@ fn ingest_verified(
     }
 }
 
-fn read_delivery(delivery_id: &str) -> Result<RoutineWebhookDelivery, String> {
-    let connection = conn()?;
+fn read_delivery_in_connection(
+    connection: &rusqlite::Connection,
+    delivery_id: &str,
+) -> Result<RoutineWebhookDelivery, String> {
     connection
         .query_row(
             "SELECT id, routine_name, provider, event_kind, idempotency_key,
@@ -486,6 +532,11 @@ fn read_delivery(delivery_id: &str) -> Result<RoutineWebhookDelivery, String> {
             },
         )
         .map_err(|err| format!("routine webhook delivery: {err}"))
+}
+
+fn read_delivery(delivery_id: &str) -> Result<RoutineWebhookDelivery, String> {
+    let connection = conn()?;
+    read_delivery_in_connection(&connection, delivery_id)
 }
 
 pub fn list_deliveries(
@@ -614,5 +665,169 @@ pub async fn handle_http(
             (status, axum::Json(delivery)).into_response()
         }
         Err(error) => (StatusCode::BAD_REQUEST, error).into_response(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use test_helpers::test_env;
+
+    fn projectless_fixture() -> RoutineSpecFile {
+        let raw = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../docs/orgtrack-pm-protocol/fixtures/routine-spec.json"),
+        )
+        .expect("frozen fixture readable");
+        let mut file: RoutineSpecFile = serde_json::from_str(&raw).expect("fixture parses");
+        file.spec.activations.push(Activation::ProviderEvent {
+            provider: "github".to_string(),
+            event_kind: "pull_request".to_string(),
+            filter: None,
+            policies: Default::default(),
+        });
+        file
+    }
+
+    #[test]
+    fn projectless_delivery_invokes_an_org_scoped_root_work_graph() {
+        let _sandbox = test_env::sandbox();
+        let fixture = projectless_fixture();
+        crate::routine_service::apply(&fixture).expect("apply Routine");
+        install(&fixture.metadata.name).expect("install webhook");
+
+        let delivery = ingest_verified(
+            &fixture.metadata.name,
+            "github",
+            "pull_request",
+            "projectless-delivery",
+            json!({"inputs": {"requirement_id": "REQ-WEBHOOK"}}),
+            None,
+        )
+        .expect("ingest delivery");
+        assert_eq!(delivery.status, "accepted");
+
+        let run_id = delivery.routine_run_id.expect("routine run");
+        let status = crate::routine_service::run_status(&run_id).expect("run status");
+        assert_eq!(status["scopeId"], "org:personal-org");
+        let root_id = status["rootWorkItemId"].as_str().expect("root id");
+        crate::projects::io::read_standalone_work_item(None, root_id)
+            .expect("standalone root readable");
+    }
+
+    #[test]
+    fn concurrent_duplicate_delivery_returns_one_receipt_and_invokes_once() {
+        let _sandbox = test_env::sandbox();
+        let fixture = projectless_fixture();
+        crate::routine_service::apply(&fixture).expect("apply Routine");
+        install(&fixture.metadata.name).expect("install webhook");
+
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let handles = (0..2)
+            .map(|_| {
+                let barrier = std::sync::Arc::clone(&barrier);
+                let routine_name = fixture.metadata.name.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    ingest_verified(
+                        &routine_name,
+                        "github",
+                        "pull_request",
+                        "concurrent-delivery",
+                        json!({"inputs": {"requirement_id": "REQ-CONCURRENT"}}),
+                        None,
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
+        let deliveries = handles
+            .into_iter()
+            .map(|handle| handle.join().expect("delivery thread").expect("delivery"))
+            .collect::<Vec<_>>();
+
+        assert_eq!(deliveries[0].id, deliveries[1].id);
+        let final_delivery = read_delivery(&deliveries[0].id).expect("final receipt");
+        assert_eq!(final_delivery.status, "accepted");
+        let connection = conn().expect("conn");
+        let (delivery_count, run_count): (i64, i64) = (
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM pm_routine_webhook_deliveries
+                      WHERE routine_name = ?1 AND idempotency_key = 'concurrent-delivery'",
+                    params![fixture.metadata.name],
+                    |row| row.get(0),
+                )
+                .expect("delivery count"),
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM pm_routine_runs WHERE routine_name = ?1",
+                    params![fixture.metadata.name],
+                    |row| row.get(0),
+                )
+                .expect("run count"),
+        );
+        assert_eq!(delivery_count, 1);
+        assert_eq!(run_count, 1);
+    }
+
+    #[test]
+    fn stale_processing_delivery_is_reclaimed_with_the_original_payload() {
+        let _sandbox = test_env::sandbox();
+        let fixture = projectless_fixture();
+        crate::routine_service::apply(&fixture).expect("apply Routine");
+        install(&fixture.metadata.name).expect("install webhook");
+
+        let mut connection = conn().expect("conn");
+        let tx = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .expect("delivery tx");
+        let stale = record_delivery(
+            &tx,
+            DeliveryRecord {
+                routine_name: &fixture.metadata.name,
+                provider: "github",
+                event_kind: "pull_request",
+                idempotency_key: "crashed-delivery",
+                payload: &json!({"inputs": {"requirement_id": "REQ-ORIGINAL"}}),
+                status: "processing",
+                reason: None,
+                routine_run_id: None,
+                now: now_ms() - PROCESSING_LEASE_MS - 1,
+            },
+        )
+        .expect("stale reservation");
+        tx.commit().expect("commit stale reservation");
+
+        let recovered = ingest_verified(
+            &fixture.metadata.name,
+            "github",
+            "pull_request",
+            "crashed-delivery",
+            json!({"inputs": {"requirement_id": "REQ-REPLACEMENT"}}),
+            None,
+        )
+        .expect("reclaim stale delivery");
+
+        assert_eq!(recovered.id, stale.id);
+        assert_eq!(recovered.status, "accepted");
+        let connection = conn().expect("conn");
+        let stored_payload: String = connection
+            .query_row(
+                "SELECT payload_json FROM pm_routine_webhook_deliveries WHERE id = ?1",
+                params![stale.id],
+                |row| row.get(0),
+            )
+            .expect("stored payload");
+        assert!(stored_payload.contains("REQ-ORIGINAL"));
+        assert!(!stored_payload.contains("REQ-REPLACEMENT"));
+        let run_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM pm_routine_runs WHERE routine_name = ?1",
+                params![fixture.metadata.name],
+                |row| row.get(0),
+            )
+            .expect("run count");
+        assert_eq!(run_count, 1);
     }
 }

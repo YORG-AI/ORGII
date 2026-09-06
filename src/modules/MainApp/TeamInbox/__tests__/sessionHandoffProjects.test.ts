@@ -6,7 +6,7 @@ import {
   eligibleSessionHandoffProjects,
   handoffCloudOrgFromRoster,
   handoffProjectFromRoster,
-  teamInboxViewerMemberIds,
+  teamInboxViewerIdentityIds,
 } from "../sessionHandoffProjects";
 
 function project(slug: string, name: string, orgId = "org-1"): ProjectData {
@@ -49,6 +49,7 @@ describe("Session handoff project resolution", () => {
     );
 
     expect(resolved).toMatchObject({
+      orgId: "org-1",
       projectSlug: "alpha",
       sender: { id: "me-work", isCurrentUser: true },
       recipients: [
@@ -134,12 +135,18 @@ describe("Session handoff project resolution", () => {
     });
   });
 
-  it("queries assignments for the cloud account id and exact local aliases", () => {
+  it("queries events for cloud, local actor, git email, and member aliases", () => {
     expect(
-      teamInboxViewerMemberIds(
+      teamInboxViewerIdentityIds(
         new Set(["local-git-alias", "cloud-account-1"]),
+        ["local-actor-id", "dev@example.com", "  "],
         "cloud-account-1"
       )
-    ).toEqual(["cloud-account-1", "local-git-alias"]);
+    ).toEqual([
+      "cloud-account-1",
+      "dev@example.com",
+      "local-actor-id",
+      "local-git-alias",
+    ]);
   });
 });

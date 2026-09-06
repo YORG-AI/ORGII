@@ -8,6 +8,7 @@
 //! (key vault, settings, etc.), keep it inside that crate instead.
 
 pub mod json;
+pub mod runtime_errors;
 
 #[cfg(feature = "testing")]
 pub mod testing;

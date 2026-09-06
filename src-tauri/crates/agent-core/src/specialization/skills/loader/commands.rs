@@ -16,6 +16,7 @@ use crate::specialization::skills::builtin;
 use crate::core::definitions::store::AgentDefinitionsStore;
 use crate::core::definitions::AgentSkillsConfig;
 use crate::session::prompt::cache::PromptCacheInvalidationReason;
+use crate::skills::provenance::refresh_existing_consent;
 use crate::state::AgentAppState;
 
 /// Read the disabled-skills list from `AgentDefinition.skills_config.exclude`.
@@ -219,7 +220,7 @@ pub async fn skills_validate_name(
 }
 
 /// Pure name validation (no uniqueness check).
-pub(super) fn validate_skill_name(name: &str) -> Result<(), String> {
+pub(crate) fn validate_skill_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("Skill name cannot be empty".to_string());
     }
@@ -292,6 +293,7 @@ pub async fn skills_create(
 
     fs::write(&skill_file, &content).map_err(|err| format!("Failed to write SKILL.md: {}", err))?;
 
+    SkillsLoader::invalidate_all_caches();
     app_state
         .invalidate_prompt_caches(PromptCacheInvalidationReason::SkillCatalogChanged)
         .await;
@@ -326,6 +328,11 @@ pub async fn skills_update(
     validate_frontmatter_fields(&frontmatter)?;
 
     fs::write(&path, content).map_err(|err| format!("Failed to write SKILL.md: {}", err))?;
+    let skill_dir = path
+        .parent()
+        .ok_or_else(|| format!("Skill path has no parent directory: {skill_path}"))?;
+    refresh_existing_consent(skill_dir)?;
+    SkillsLoader::invalidate_all_caches();
     app_state
         .invalidate_prompt_caches(PromptCacheInvalidationReason::SkillCatalogChanged)
         .await;
@@ -406,6 +413,7 @@ pub async fn skills_move(
     }
 
     let new_skill_md = dest_dir.join("SKILL.md");
+    SkillsLoader::invalidate_all_caches();
     app_state
         .invalidate_prompt_caches(PromptCacheInvalidationReason::SkillCatalogChanged)
         .await;
@@ -477,4 +485,134 @@ mod tests {
         fs::remove_dir_all(&src).ok();
         fs::remove_dir_all(&dest).ok();
     }
+
+    #[test]
+    fn collect_org_skill_files_skips_non_utf8_attachment() {
+        let skill_dir = unique_tempdir("org-share-binary");
+        fs::write(skill_dir.join("SKILL.md"), b"# skill").unwrap();
+        fs::write(skill_dir.join("reference.md"), b"# reference notes").unwrap();
+        let non_utf8_bytes: Vec<u8> = vec![0x89, 0x50, 0x4e, 0x47, 0xff, 0xd8, 0xff, 0xe0];
+        fs::write(skill_dir.join("attachment.docx"), &non_utf8_bytes).unwrap();
+
+        let files = collect_org_skill_files(&skill_dir).expect("collection should not error");
+        let mut relative_paths: Vec<&str> = files
+            .iter()
+            .map(|file| file.relative_path.as_str())
+            .collect();
+        relative_paths.sort();
+
+        assert_eq!(relative_paths, vec!["reference.md"]);
+
+        fs::remove_dir_all(&skill_dir).ok();
+    }
+
+    #[test]
+    fn collect_org_skill_files_skips_non_utf8_bytes_with_unlisted_extension() {
+        let skill_dir = unique_tempdir("org-share-binary-fallback");
+        fs::write(skill_dir.join("SKILL.md"), b"# skill").unwrap();
+        fs::write(skill_dir.join("notes.txt"), b"plain text notes").unwrap();
+        let non_utf8_bytes: Vec<u8> = vec![0xff, 0xfe, 0x00, 0x01, 0x02, 0x80, 0x81];
+        fs::write(skill_dir.join("blob.dat"), &non_utf8_bytes).unwrap();
+
+        let files = collect_org_skill_files(&skill_dir).expect("collection should not error");
+        let mut relative_paths: Vec<&str> = files
+            .iter()
+            .map(|file| file.relative_path.as_str())
+            .collect();
+        relative_paths.sort();
+
+        assert_eq!(relative_paths, vec!["notes.txt"]);
+
+        fs::remove_dir_all(&skill_dir).ok();
+    }
+}
+
+/// Collect a skill's bundled files as `OrgSkillFile` entries, skipping
+/// attachments that are not valid UTF-8 text (binary extension match or a
+/// failed UTF-8 read) so a single non-text attachment does not fail the
+/// whole org share.
+fn collect_org_skill_files(
+    skill_dir: &std::path::Path,
+) -> Result<Vec<project_management::org_skills::OrgSkillFile>, String> {
+    let mut skipped_binary_files = Vec::new();
+    let files = super::helpers::collect_bundled_files(skill_dir)
+        .into_iter()
+        .filter_map(|relative_path| {
+            if super::helpers::is_binary_by_extension(&relative_path) {
+                skipped_binary_files.push(relative_path);
+                return None;
+            }
+            match std::fs::read_to_string(skill_dir.join(&relative_path)) {
+                Ok(content) => Some(Ok(project_management::org_skills::OrgSkillFile {
+                    relative_path,
+                    content,
+                })),
+                Err(err) if err.kind() == std::io::ErrorKind::InvalidData => {
+                    skipped_binary_files.push(relative_path);
+                    None
+                }
+                Err(err) => Some(Err(format!("Failed to read {relative_path}: {err}"))),
+            }
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    if !skipped_binary_files.is_empty() {
+        tracing::warn!(
+            skill_dir = %skill_dir.display(),
+            files = ?skipped_binary_files,
+            "skills_share_to_org: skipped non-UTF-8 bundled files"
+        );
+    }
+    Ok(files)
+}
+
+/// Snapshot a local skill (SKILL.md, bundled files, provenance sidecar)
+/// into the org-shared store, from which every member's materialization
+/// and the sync carrier flow. The store enforces the size cap.
+#[tauri::command]
+pub async fn skills_share_to_org(
+    skill_path: String,
+    org_id: String,
+    description: Option<String>,
+    shared_by: Option<String>,
+) -> Result<project_management::org_skills::OrgSkill, String> {
+    tokio::task::spawn_blocking(move || {
+        let path = std::path::PathBuf::from(&skill_path);
+        let skill_dir = if path.is_dir() {
+            path
+        } else {
+            path.parent()
+                .map(std::path::Path::to_path_buf)
+                .ok_or_else(|| format!("Invalid skill path: {skill_path}"))?
+        };
+        let name = skill_dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(str::to_string)
+            .ok_or_else(|| format!("Invalid skill directory: {skill_path}"))?;
+        let skill_md = std::fs::read_to_string(skill_dir.join("SKILL.md"))
+            .map_err(|err| format!("Failed to read SKILL.md: {err}"))?;
+        let files = collect_org_skill_files(&skill_dir)?;
+        let provenance = crate::specialization::skills::provenance::read_provenance(&skill_dir)?
+            .map(|record| serde_json::to_value(record).map_err(|err| err.to_string()))
+            .transpose()?;
+        let id = provenance
+            .as_ref()
+            .and_then(|value| value.get("id"))
+            .and_then(|value| value.as_str())
+            .map(str::to_string);
+        project_management::org_skills::share(
+            project_management::org_skills::ShareOrgSkillRequest {
+                org_id,
+                id,
+                name,
+                description: description.unwrap_or_default(),
+                skill_md,
+                files,
+                provenance,
+                shared_by,
+            },
+        )
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
 }

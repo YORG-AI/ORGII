@@ -67,7 +67,7 @@ export interface WorkItemContentProps {
   onOpenSession?: (sessionId: string, title?: string) => void;
   onOpenFileDiff?: (filePath: string) => void;
   onReviewAllFiles?: (filePaths: string[]) => void;
-  onRefreshWorkflow?: () => void;
+  onRefreshWorkflow?: () => void | Promise<void>;
   /**
    * Optional scope-aware handoff command. Embedded Team Inbox threads use
    * this for org-scoped Work Items that intentionally have no project slug.
@@ -154,6 +154,15 @@ export interface HistoryTabProps {
   onReplyToComment?: (commentId: string | null) => void;
   onResolveThread?: (threadId: string, conclusionCommentId?: string) => void;
   onReopenThread?: (threadId: string) => void;
+  onEditComment?: (
+    commentId: string,
+    content: string,
+    expectedRevision: number
+  ) => Promise<"saved" | "conflict" | "error">;
+  onDeleteComment?: (
+    commentId: string,
+    expectedRevision: number
+  ) => void | Promise<void>;
   presentation?: WorkItemContentPresentation;
   canComment?: boolean;
   threadNavigation?: ReactNode;

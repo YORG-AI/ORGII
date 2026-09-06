@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement } from "react";
+import { type ReactNode, act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import {
   afterAll,
@@ -51,9 +51,13 @@ vi.mock("@src/lib/dndKit", () => ({
   useWebViewSensors: () => [],
 }));
 
-vi.mock("./ComposerStackHeader", () => ({
-  default: () => null,
-}));
+vi.mock("./ComposerStackHeader", async () => {
+  const ReactModule = await import("react");
+  return {
+    default: ({ actions }: { actions?: ReactNode }) =>
+      ReactModule.createElement("div", null, actions),
+  };
+});
 
 vi.mock("./QueuedMessageItem", async () => {
   const ReactModule = await import("react");
@@ -123,6 +127,7 @@ describe("QueuedMessages edit seeding", () => {
         createElement(QueuedMessages, {
           messages: [msg],
           onCancel: vi.fn(),
+          onClear: vi.fn(),
           onSendNow: vi.fn(),
           onReorder: vi.fn(),
           onToggle: vi.fn(),
@@ -144,5 +149,28 @@ describe("QueuedMessages edit seeding", () => {
     });
     const seeded = setEditTargetSpy.mock.calls[0]?.[0]?.content as string;
     expect(seeded).not.toContain("[Canvas Creation Request]");
+  });
+
+  it("exposes one clear-all action for the visible queue", () => {
+    const onClear = vi.fn();
+    act(() =>
+      root.render(
+        createElement(QueuedMessages, {
+          messages: [queuedCanvasMessage()],
+          onCancel: vi.fn(),
+          onClear,
+          onSendNow: vi.fn(),
+          onReorder: vi.fn(),
+          onToggle: vi.fn(),
+        })
+      )
+    );
+
+    const clearButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="queued-messages-clear-all"]'
+    );
+    expect(clearButton).not.toBeNull();
+    act(() => clearButton?.click());
+    expect(onClear).toHaveBeenCalledOnce();
   });
 });

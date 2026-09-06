@@ -1,24 +1,14 @@
 //! Routine trigger scheduler.
 //!
-//! Background task that evaluates every enabled routine's trigger
-//! (`RoutineTrigger::Cron` / `RoutineTrigger::OneTime`) and fires it through
-//! the same path as the manual "Fire Now" command. The whole loop runs in the
-//! backend so routines work unattended — the frontend never participates.
-//!
-//! Catch-up: missed trigger times in `(last_evaluated_at, now]` (app was
-//! closed) are resolved per the routine's `catch_up_policy`. Every
-//! scheduler-originated fire carries an idempotency key
-//! `"{routine_id}:{scheduled_at}"` so a crash between fire-insert and
-//! watermark-update cannot double-fire after restart.
+//! One backend-owned loop evaluates portable `pm_routines` schedule
+//! activations. Legacy definitions remain UI control-plane mirrors, but the
+//! legacy scheduler pass is gone, so there is no parallel execution path.
 
 use chrono::{DateTime, Utc};
 use tracing::{info, warn};
 
-use project_management::projects::io;
 use project_management::projects::routine_schedule::{due_times, next_occurrence};
-use project_management::projects::types::{
-    RoutineCatchUpPolicy, RoutineDefinition, RoutineTrigger,
-};
+use project_management::projects::types::RoutineTrigger;
 
 const POLL_INTERVAL_SECS: u64 = 30;
 
@@ -41,25 +31,7 @@ pub async fn debug_run_once(app: &tauri::AppHandle) -> Result<(), String> {
 }
 
 async fn tick(app: &tauri::AppHandle, now: DateTime<Utc>) -> Result<(), String> {
-    let routines = match tokio::task::spawn_blocking(io::list_enabled_routines).await {
-        Ok(Ok(routines)) => routines,
-        Ok(Err(err)) => return Err(err),
-        Err(err) => return Err(format!("Task join error: {err}")),
-    };
-
-    for routine in routines {
-        if let Err(err) = evaluate_routine(app, &routine, now).await {
-            warn!(
-                "[routine-scheduler] evaluation of {} failed: {}",
-                routine.id, err
-            );
-        }
-    }
-
-    // Portable pass: pm_routines schedule activations fire through the
-    // canonical routine.invoke — the same entry manual CLI runs use.
-    // Converted legacy rows are disabled at conversion time, so a routine
-    // is only ever driven by ONE of the two passes.
+    let _ = app;
     if let Err(err) = portable_tick(now).await {
         warn!("[routine-scheduler] portable tick error: {}", err);
     }
@@ -73,18 +45,57 @@ async fn tick(app: &tauri::AppHandle, now: DateTime<Utc>) -> Result<(), String> 
 async fn portable_tick(now: DateTime<Utc>) -> Result<(), String> {
     use project_management::routine_service as routines;
 
-    let candidates = tokio::task::spawn_blocking(routines::scheduled_candidates)
-        .await
-        .map_err(|err| format!("Task join error: {err}"))??;
+    let queued = tokio::task::spawn_blocking(|| {
+        routines::queued_activations(routines::MAX_SCHEDULE_CANDIDATES_PER_TICK)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))??;
+    for queued in queued {
+        let event_id = queued.event_id.clone();
+        let routine_name = queued.routine_name.clone();
+        let result =
+            tokio::task::spawn_blocking(move || routines::promote_queued_activation(&queued))
+                .await
+                .map_err(|err| format!("Task join error: {err}"))?;
+        match result {
+            Ok(Some(run)) => {
+                info!(
+                    "[routine-scheduler] promoted queued routine {} as run {}",
+                    routine_name, run.run_id
+                );
+            }
+            Ok(None) => continue,
+            Err(error) => {
+                routines::finish_queued_activation(&event_id, Some(&error))?;
+                warn!(
+                    "[routine-scheduler] queued routine {} failed: {}",
+                    routine_name, error
+                );
+            }
+        }
+    }
 
+    let evaluate_before = now.timestamp_millis();
+    let candidates =
+        tokio::task::spawn_blocking(move || routines::scheduled_candidates(evaluate_before))
+            .await
+            .map_err(|err| format!("Task join error: {err}"))??;
+
+    let mut schedule_marks: std::collections::BTreeMap<String, Option<i64>> =
+        std::collections::BTreeMap::new();
     for candidate in candidates {
         let window_start = candidate
             .last_evaluated_at
             .and_then(DateTime::<Utc>::from_timestamp_millis)
             .unwrap_or_else(|| now - chrono::Duration::seconds(POLL_INTERVAL_SECS as i64));
-        let trigger = RoutineTrigger::Cron {
-            cron: candidate.cron.clone(),
-            timezone: candidate.timezone.clone(),
+        let trigger = match &candidate.trigger {
+            routines::ScheduledTrigger::Cron { cron, timezone } => RoutineTrigger::Cron {
+                cron: cron.clone(),
+                timezone: timezone.clone(),
+            },
+            routines::ScheduledTrigger::OneTime { at } => {
+                RoutineTrigger::OneTime { at: at.clone() }
+            }
         };
         let due = match due_times(&trigger, &window_start, &now) {
             Ok(due) => due,
@@ -97,179 +108,94 @@ async fn portable_tick(now: DateTime<Utc>) -> Result<(), String> {
             }
         };
 
-        if let Some(scheduled_at) = due.last() {
+        let mut activation_accepted = false;
+        for scheduled_at in
+            apply_catch_up_policy(&due, candidate.catch_up, candidate.max_catch_up_runs)
+        {
             let name = candidate.name.clone();
             let scheduled_millis = scheduled_at.timestamp_millis();
-            let policy = format!("{:?}", candidate.concurrency).to_lowercase();
-            let scope = candidate.default_scope.clone();
-            let fired: Result<(), String> = tokio::task::spawn_blocking(move || {
-                let active = routines::has_active_run(&name)?;
-                if active {
-                    // skip/coalesce suppress; queue also suppresses for
-                    // now (pending-run dequeue lands with the cancel
-                    // machinery) — always audited, never silent.
-                    routines::audit_suppressed_fire(&name, &policy, scheduled_millis)?;
-                    return Ok(());
-                }
-                let Some(scope) = scope else {
-                    routines::audit_suppressed_fire(&name, "no_scope_binding", scheduled_millis)?;
-                    return Ok(());
-                };
+            let target = candidate.target.clone();
+            let policy = candidate.concurrency;
+            let fired = tokio::task::spawn_blocking(move || {
                 let invoke_key = format!("{}:{}", name, scheduled_millis);
-                let run =
-                    routines::invoke(&name, &scope, &Default::default(), None, Some(&invoke_key))?;
-                info!(
-                    "[routine-scheduler] portable routine {} fired run {}",
-                    name, run.run_id
-                );
-                Ok(())
+                routines::request_activation(
+                    &name,
+                    &target,
+                    &Default::default(),
+                    &invoke_key,
+                    policy,
+                    scheduled_millis,
+                )
             })
             .await
             .map_err(|err| format!("Task join error: {err}"))?;
-            if let Err(err) = fired {
-                warn!(
+            match fired {
+                Ok(routines::RoutineActivationOutcome::Invoked(run)) => {
+                    activation_accepted = true;
+                    info!(
+                        "[routine-scheduler] portable routine {} fired run {}",
+                        candidate.name, run.run_id
+                    );
+                }
+                Ok(routines::RoutineActivationOutcome::Deferred(event)) => {
+                    activation_accepted = true;
+                    info!(
+                        "[routine-scheduler] portable routine {} activation {}",
+                        candidate.name, event.status
+                    );
+                }
+                Err(err) => warn!(
                     "[routine-scheduler] portable routine {} fire failed: {}",
                     candidate.name, err
-                );
+                ),
             }
         }
 
-        let next = next_occurrence(
-            &RoutineTrigger::Cron {
-                cron: candidate.cron.clone(),
-                timezone: candidate.timezone.clone(),
-            },
-            &now,
-        )
-        .ok()
-        .flatten();
-        let name = candidate.name.clone();
-        let _ = tokio::task::spawn_blocking(move || {
-            routines::mark_evaluated(
-                &name,
-                now.timestamp_millis(),
-                next.map(|at| at.timestamp_millis()),
-            )
+        let next = next_occurrence(&trigger, &now)
+            .ok()
+            .flatten()
+            .map(|at| at.timestamp_millis());
+        schedule_marks
+            .entry(candidate.name.clone())
+            .and_modify(|current| {
+                if let Some(next) = next {
+                    *current = Some(current.map_or(next, |current| current.min(next)));
+                }
+            })
+            .or_insert(next);
+        if matches!(
+            candidate.trigger,
+            routines::ScheduledTrigger::OneTime { .. }
+        ) && activation_accepted
+        {
+            routines::legacy_bridge::disable_one_time(&candidate.name)?;
+        }
+    }
+    for (name, next_fire_at) in schedule_marks {
+        tokio::task::spawn_blocking(move || {
+            routines::mark_evaluated(&name, now.timestamp_millis(), next_fire_at)
         })
-        .await;
+        .await
+        .map_err(|err| format!("Task join error: {err}"))??;
     }
     Ok(())
 }
 
-async fn evaluate_routine(
-    app: &tauri::AppHandle,
-    routine: &RoutineDefinition,
-    now: DateTime<Utc>,
-) -> Result<(), String> {
-    let window_start = watermark(routine, now);
-    let due = due_times(&routine.trigger, &window_start, &now)?;
-    let to_fire = apply_catch_up_policy(
-        &due,
-        &routine.output_policy.catch_up_policy,
-        routine.output_policy.max_catch_up_runs,
-        &now,
-    );
-
-    for scheduled_at in &to_fire {
-        fire(app, routine, scheduled_at).await;
-    }
-
-    if matches!(routine.trigger, RoutineTrigger::OneTime { .. }) && !due.is_empty() {
-        let routine_id = routine.id.clone();
-        tokio::task::spawn_blocking(move || io::disable_routine(&routine_id))
-            .await
-            .map_err(|err| format!("Task join error: {err}"))??;
-    }
-
-    let next_fire_at = match &routine.trigger {
-        RoutineTrigger::OneTime { .. } if !due.is_empty() => None,
-        trigger => next_occurrence(trigger, &now)?,
-    };
-    let routine_id = routine.id.clone();
-    tokio::task::spawn_blocking(move || {
-        io::update_routine_schedule_marks(
-            &routine_id,
-            now.timestamp_millis(),
-            next_fire_at.map(|at| at.timestamp_millis()),
-        )
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))??;
-
-    Ok(())
-}
-
-async fn fire(app: &tauri::AppHandle, routine: &RoutineDefinition, scheduled_at: &DateTime<Utc>) {
-    use tauri::Manager;
-    let state = app.state::<crate::state::AgentAppState>();
-    let org_store = app.state::<std::sync::Arc<crate::definitions::orgs::AgentOrgsStore>>();
-    let key = idempotency_key(&routine.id, scheduled_at);
-
-    info!(
-        "[routine-scheduler] firing routine {} (scheduled {})",
-        routine.id, scheduled_at
-    );
-    match crate::state::commands::routines::fire_routine_internal(
-        state.inner(),
-        org_store.inner(),
-        app,
-        routine,
-        Some(key),
-    )
-    .await
-    {
-        Ok(result) => info!(
-            "[routine-scheduler] routine {} fire {} → {:?}",
-            routine.id, result.fire.id, result.fire.status
-        ),
-        Err(err) => warn!(
-            "[routine-scheduler] routine {} fire failed: {}",
-            routine.id, err
-        ),
-    }
-}
-
-fn idempotency_key(routine_id: &str, scheduled_at: &DateTime<Utc>) -> String {
-    format!("{}:{}", routine_id, scheduled_at.to_rfc3339())
-}
-
-/// Evaluation window start: persisted watermark, or "now − poll interval"
-/// for routines that have never been evaluated (avoids replaying the entire
-/// cron history of a freshly created routine).
-fn watermark(routine: &RoutineDefinition, now: DateTime<Utc>) -> DateTime<Utc> {
-    routine
-        .last_evaluated_at
-        .as_deref()
-        .and_then(|raw| DateTime::parse_from_rfc3339(raw).ok())
-        .map(|parsed| parsed.with_timezone(&Utc))
-        .unwrap_or_else(|| now - chrono::Duration::seconds(POLL_INTERVAL_SECS as i64))
-}
-
-/// Reduce the due list according to the catch-up policy. The latest due time
-/// always fires; earlier (missed) ones are policy-dependent.
 fn apply_catch_up_policy(
     due: &[DateTime<Utc>],
-    policy: &RoutineCatchUpPolicy,
+    policy: project_management::routine_service::spec::CatchUpPolicy,
     max_catch_up_runs: u32,
-    now: &DateTime<Utc>,
 ) -> Vec<DateTime<Utc>> {
+    use project_management::routine_service::spec::CatchUpPolicy;
     if due.is_empty() {
         return Vec::new();
     }
     match policy {
-        RoutineCatchUpPolicy::SkipMissed => {
-            // Only the most recent tick fires; older missed ones are dropped.
+        CatchUpPolicy::None | CatchUpPolicy::FireOnce => {
             vec![*due.last().expect("due is non-empty")]
         }
-        RoutineCatchUpPolicy::RunOnce => {
-            // One catch-up run for the whole missed window, stamped with the
-            // latest due time.
-            let _ = now;
-            vec![*due.last().expect("due is non-empty")]
-        }
-        RoutineCatchUpPolicy::RunAllLimited => {
-            let limit = (max_catch_up_runs.max(1)) as usize;
-            let start = due.len().saturating_sub(limit);
+        CatchUpPolicy::RunAllLimited => {
+            let start = due.len().saturating_sub(max_catch_up_runs.max(1) as usize);
             due[start..].to_vec()
         }
     }
@@ -282,6 +208,52 @@ mod tests {
 
     fn at(y: i32, mo: u32, d: u32, h: u32, mi: u32) -> DateTime<Utc> {
         Utc.with_ymd_and_hms(y, mo, d, h, mi, 0).unwrap()
+    }
+
+    fn one_time_fixture(
+        name: &str,
+        at: DateTime<Utc>,
+    ) -> project_management::routine_service::spec::RoutineSpecFile {
+        let raw = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../docs/orgtrack-pm-protocol/fixtures/routine-spec.json"),
+        )
+        .expect("fixture");
+        let mut file: project_management::routine_service::spec::RoutineSpecFile =
+            serde_json::from_str(&raw).expect("parse fixture");
+        file.metadata.id = format!("routine-{name}");
+        file.metadata.name = name.to_string();
+        file.metadata.revision = None;
+        file.spec.inputs.clear();
+        file.spec.root_work.title = "One-time root".to_string();
+        file.spec.activations = vec![
+            project_management::routine_service::spec::Activation::OneTime {
+                at: at.to_rfc3339(),
+                policies: Default::default(),
+            },
+        ];
+        file
+    }
+
+    fn portable_enabled(name: &str) -> bool {
+        project_management::routine_service::list_routines()
+            .expect("list routines")
+            .into_iter()
+            .find(|routine| routine["name"] == name)
+            .and_then(|routine| routine["enabled"].as_bool())
+            .expect("routine enabled state")
+    }
+
+    fn portable_run_count() -> usize {
+        project_management::routine_service::list_runs(None, 100)
+            .expect("list runs")
+            .len()
+    }
+
+    fn init_project_schema() {
+        let connection = database::db::get_projects_connection().expect("projects connection");
+        project_management::projects::schema::init_project_tables(&connection)
+            .expect("project schema");
     }
 
     // ============================================
@@ -341,87 +313,138 @@ mod tests {
         assert!(due_times(&trigger, &now, &now).is_err());
     }
 
-    // ============================================
-    // due_times — one-time
-    // ============================================
-
     #[test]
-    fn one_time_future_not_due() {
-        let trigger = RoutineTrigger::OneTime {
-            at: "2099-01-01T00:00:00Z".to_string(),
-        };
-        let window_start = at(2026, 6, 10, 8, 0);
-        let now = at(2026, 6, 10, 10, 0);
-        assert!(due_times(&trigger, &window_start, &now).unwrap().is_empty());
-    }
+    fn catch_up_policies_preserve_collapse_and_bounded_replay() {
+        use project_management::routine_service::spec::CatchUpPolicy;
 
-    #[test]
-    fn one_time_in_window_is_due() {
-        let trigger = RoutineTrigger::OneTime {
-            at: "2026-06-10T09:00:00Z".to_string(),
-        };
-        let window_start = at(2026, 6, 10, 8, 0);
-        let now = at(2026, 6, 10, 10, 0);
-        let due = due_times(&trigger, &window_start, &now).unwrap();
-        assert_eq!(due, vec![at(2026, 6, 10, 9, 0)]);
-    }
-
-    #[test]
-    fn one_time_missed_before_window_is_still_due() {
-        let trigger = RoutineTrigger::OneTime {
-            at: "2026-06-01T09:00:00Z".to_string(),
-        };
-        let window_start = at(2026, 6, 10, 8, 0);
-        let now = at(2026, 6, 10, 10, 0);
-        let due = due_times(&trigger, &window_start, &now).unwrap();
-        assert_eq!(due.len(), 1);
-    }
-
-    // ============================================
-    // apply_catch_up_policy
-    // ============================================
-
-    #[test]
-    fn skip_missed_keeps_only_latest() {
         let due = vec![
             at(2026, 6, 8, 9, 0),
             at(2026, 6, 9, 9, 0),
             at(2026, 6, 10, 9, 0),
         ];
-        let now = at(2026, 6, 10, 12, 0);
-        let fired = apply_catch_up_policy(&due, &RoutineCatchUpPolicy::SkipMissed, 5, &now);
-        assert_eq!(fired, vec![at(2026, 6, 10, 9, 0)]);
+        assert_eq!(
+            apply_catch_up_policy(&due, CatchUpPolicy::None, 9),
+            vec![at(2026, 6, 10, 9, 0)]
+        );
+        assert_eq!(
+            apply_catch_up_policy(&due, CatchUpPolicy::FireOnce, 9),
+            vec![at(2026, 6, 10, 9, 0)]
+        );
+        assert_eq!(
+            apply_catch_up_policy(&due, CatchUpPolicy::RunAllLimited, 2),
+            vec![at(2026, 6, 9, 9, 0), at(2026, 6, 10, 9, 0)]
+        );
     }
 
-    #[test]
-    fn run_once_collapses_to_single_run() {
-        let due = vec![at(2026, 6, 8, 9, 0), at(2026, 6, 9, 9, 0)];
-        let now = at(2026, 6, 10, 12, 0);
-        let fired = apply_catch_up_policy(&due, &RoutineCatchUpPolicy::RunOnce, 5, &now);
-        assert_eq!(fired, vec![at(2026, 6, 9, 9, 0)]);
-    }
-
-    #[test]
-    fn run_all_limited_respects_max() {
-        let due = vec![
-            at(2026, 6, 7, 9, 0),
-            at(2026, 6, 8, 9, 0),
-            at(2026, 6, 9, 9, 0),
-            at(2026, 6, 10, 9, 0),
-        ];
-        let now = at(2026, 6, 10, 12, 0);
-        let fired = apply_catch_up_policy(&due, &RoutineCatchUpPolicy::RunAllLimited, 2, &now);
-        assert_eq!(fired, vec![at(2026, 6, 9, 9, 0), at(2026, 6, 10, 9, 0)]);
-    }
-
-    #[test]
-    fn empty_due_fires_nothing() {
+    #[tokio::test]
+    async fn portable_one_time_activation_runs_once_and_disables_itself() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        init_project_schema();
         let now = Utc::now();
-        assert!(apply_catch_up_policy(&[], &RoutineCatchUpPolicy::RunOnce, 1, &now).is_empty());
+        let file = one_time_fixture("portable-one-time", now - chrono::Duration::seconds(1));
+        project_management::routine_service::apply(&file).expect("apply one-time");
+
+        portable_tick(now).await.expect("first tick");
+        assert_eq!(portable_run_count(), 1);
+        assert!(
+            !portable_enabled(&file.metadata.name),
+            "accepted one-time activation becomes inert"
+        );
+
+        portable_tick(now + chrono::Duration::seconds(30))
+            .await
+            .expect("second tick");
+        assert_eq!(
+            portable_run_count(),
+            1,
+            "disabled one-time activation cannot refire"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_one_time_activation_stays_enabled_for_retry() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        init_project_schema();
+        let now = Utc::now();
+        let file = one_time_fixture("one-time-retry", now - chrono::Duration::seconds(1));
+        project_management::routine_service::apply(&file).expect("apply one-time");
+        project_management::routine_service::set_default_target(
+            &file.metadata.name,
+            &project_management::routine_service::RoutineInvocationTarget::ExistingProjectWork {
+                project_slug: "missing-project".to_string(),
+                root_work_item_id: "MISSING-0001".to_string(),
+            },
+        )
+        .expect("set failing target");
+
+        portable_tick(now)
+            .await
+            .expect("failed invocation is contained");
+        assert_eq!(portable_run_count(), 0);
+        assert!(
+            portable_enabled(&file.metadata.name),
+            "failed one-time activation remains retryable"
+        );
+    }
+
+    #[tokio::test]
+    async fn multiple_schedule_activations_persist_the_earliest_next_fire_once() {
+        use project_management::routine_service::spec::{Activation, ActivationPolicies};
+
+        let _sandbox = test_helpers::test_env::sandbox();
+        init_project_schema();
+        let now = at(2026, 8, 19, 10, 30);
+        let raw = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../docs/orgtrack-pm-protocol/fixtures/routine-spec.json"),
+        )
+        .expect("fixture");
+        let mut file: project_management::routine_service::spec::RoutineSpecFile =
+            serde_json::from_str(&raw).expect("parse fixture");
+        file.metadata.id = "routine-multi-schedule".to_string();
+        file.metadata.name = "multi-schedule".to_string();
+        file.metadata.revision = None;
+        file.spec.inputs.clear();
+        file.spec.root_work.title = "Multi-schedule root".to_string();
+        // The later activation intentionally comes last. The old per-candidate
+        // watermark writes would overwrite 10:31 with 11:00.
+        file.spec.activations = vec![
+            Activation::Schedule {
+                cron: "* * * * *".to_string(),
+                timezone: "UTC".to_string(),
+                policies: ActivationPolicies::default(),
+            },
+            Activation::Schedule {
+                cron: "0 * * * *".to_string(),
+                timezone: "UTC".to_string(),
+                policies: ActivationPolicies::default(),
+            },
+        ];
+        project_management::routine_service::apply(&file).expect("apply multi schedule");
+        project_management::routine_service::mark_evaluated(
+            &file.metadata.name,
+            now.timestamp_millis(),
+            None,
+        )
+        .expect("force due scan");
+
+        portable_tick(now).await.expect("multi schedule tick");
+        let connection = database::db::get_projects_connection().expect("projects connection");
+        let (last_evaluated_at, next_fire_at): (i64, i64) = connection
+            .query_row(
+                "SELECT last_evaluated_at, next_fire_at
+                   FROM pm_routines WHERE name = ?1",
+                rusqlite::params![file.metadata.name],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("schedule watermark");
+        assert_eq!(last_evaluated_at, now.timestamp_millis());
+        assert_eq!(next_fire_at, at(2026, 8, 19, 10, 31).timestamp_millis());
+        assert_eq!(portable_run_count(), 0);
     }
 
     // ============================================
-    // next_occurrence / idempotency
+    // next occurrence
     // ============================================
 
     #[test]
@@ -433,69 +456,5 @@ mod tests {
         let now = at(2026, 6, 10, 10, 0);
         let next = next_occurrence(&trigger, &now).unwrap().unwrap();
         assert_eq!(next, at(2026, 6, 11, 9, 0));
-    }
-
-    #[test]
-    fn next_occurrence_one_time_past_is_none() {
-        let trigger = RoutineTrigger::OneTime {
-            at: "2020-01-01T00:00:00Z".to_string(),
-        };
-        let now = Utc::now();
-        assert!(next_occurrence(&trigger, &now).unwrap().is_none());
-    }
-
-    #[test]
-    fn idempotency_key_is_stable_per_tick() {
-        let tick = at(2026, 6, 10, 9, 0);
-        assert_eq!(
-            idempotency_key("routine-1", &tick),
-            idempotency_key("routine-1", &tick)
-        );
-        assert_ne!(
-            idempotency_key("routine-1", &tick),
-            idempotency_key("routine-2", &tick)
-        );
-    }
-
-    #[test]
-    fn watermark_defaults_to_one_poll_interval() {
-        let routine = RoutineDefinition {
-            id: "r".into(),
-            name: "r".into(),
-            description: String::new(),
-            enabled: true,
-            trigger: RoutineTrigger::Cron {
-                cron: "* * * * *".into(),
-                timezone: "UTC".into(),
-            },
-            run_template: project_management::projects::types::RoutineRunTemplate {
-                prompt: String::new(),
-                target: project_management::projects::types::RoutineRunTarget::AgentDefinition {
-                    agent_definition_id: None,
-                },
-                resources: project_management::projects::types::RoutineResourceSelection {
-                    key_source: None,
-                    account_id: None,
-                    model: None,
-                    native_harness_type: None,
-                },
-                workspace: project_management::projects::types::RoutineWorkspaceTarget::None,
-                mode: None,
-                name: None,
-            },
-            output_policy: Default::default(),
-            last_evaluated_at: None,
-            next_fire_at: None,
-            last_fire_at: None,
-            last_fire_status: None,
-            last_fire_error: None,
-            last_fire_session_id: None,
-            last_fire_work_item_id: None,
-            created_at: String::new(),
-            updated_at: String::new(),
-        };
-        let now = Utc::now();
-        let mark = watermark(&routine, now);
-        assert_eq!(now - mark, chrono::Duration::seconds(30));
     }
 }

@@ -895,7 +895,10 @@
     "compactCommandDescription": "Summarize older context to free space. Optional: /compact <focus for the summary>",
     "canvasCommandDescription": "Create a new interactive Canvas. Optional: /canvas <what to build>",
     "canvasArgHint": "what to build",
-    "newCanvasAction": "New Canvas"
+    "newCanvasAction": "New Canvas",
+    "followUpSuggestions": {
+      "label": "Suggested next steps"
+    }
   },
   "listPanel": {
     "showingOf": "Showing {{filtered}} of {{total}}",
@@ -2661,7 +2664,8 @@
     "failedToInterrupt": "Failed to interrupt session",
     "failedToStop": "Failed to stop agent",
     "failedToCheckChanges": "Could not check file changes. Proceeding with revert.",
-    "insufficientBalance": "Insufficient balance for the hosted ORGII service. Top up at orgii.ai/wallet."
+    "insufficientBalance": "Insufficient balance for the hosted ORGII service. Top up at orgii.ai/wallet.",
+    "runQueuedBehindCheckout": "Queued: another run is using this checkout. It will start as soon as that run finishes."
   },
   "revertConfirm": {
     "title": "Unsaved file changes",

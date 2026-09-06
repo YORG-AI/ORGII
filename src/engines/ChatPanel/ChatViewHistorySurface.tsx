@@ -22,6 +22,10 @@ interface ChatViewHistorySurfaceProps {
   groupChatAgents: ReadonlyArray<{ sessionId: string }>;
   pipelineSessionId: string | null;
   handleGroupChatTapEvents: (sessionId: string, events: SessionEvent[]) => void;
+  retryFailedGroupChatMessage: (
+    rowId: number,
+    editedDisplayText?: string
+  ) => Promise<void>;
   agentMessageClampEligible: boolean;
   surfaceBgClass: string;
   position: "left" | "right";
@@ -53,6 +57,7 @@ export function ChatViewHistorySurface({
   groupChatAgents,
   pipelineSessionId,
   handleGroupChatTapEvents,
+  retryFailedGroupChatMessage,
   agentMessageClampEligible,
   surfaceBgClass,
   position,
@@ -83,6 +88,9 @@ export function ChatViewHistorySurface({
         enabled={groupChatViewActive}
         coordinatorSessionId={sessionId}
         orgMembers={agentOrgRunView?.members ?? []}
+        retryFailedMessage={(rowId, editedDisplayText) => {
+          void retryFailedGroupChatMessage(rowId, editedDisplayText);
+        }}
       >
         {groupChatViewActive && (
           <AgentOrgGroupChatLiveSessions

@@ -542,6 +542,9 @@ tauri-plugin-updater = "=2.9.0"
 
 [dev-dependencies]
 
+# Parse ephemeral Codex profile layers in runner security/compatibility tests.
+toml = "0.8"
+
 # `test-util` only for the test build: it is what lets a test drive Tokio's
 # clock (`#[tokio::test(start_paused = true)]`) rather than really sleeping out
 # a multi-second timeout. Deliberately absent from the production features.

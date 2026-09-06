@@ -2,9 +2,15 @@ import { useAtom } from "jotai";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { SubmitOverrideInput } from "@src/engines/ChatPanel/hooks/useInputArea/types";
+import {
+  type SubmitOverrideInput,
+  SubmitRetainedDeliveryError,
+  SubmitValidationError,
+} from "@src/engines/ChatPanel/hooks/useInputArea/types";
+import { resolveMessageAudience } from "@src/features/TeamCollaboration/messageAudienceRouting";
 
 import { useSessionCommentsContext } from "../SessionComments/SessionCommentsContext";
+import { SessionCommentDeliveryError } from "../org2CloudSessionCommentsAtom";
 import {
   type ConversationComposerMode,
   conversationComposerModeAtomFamily,
@@ -23,7 +29,7 @@ export function useConversationComposerMode(
 /** True when this composer can address a cloud discussion at all. */
 export function useConversationTeamChatAvailable(): boolean {
   const comments = useSessionCommentsContext();
-  return Boolean(comments?.target);
+  return Boolean(comments?.target && comments.viewerUserId);
 }
 
 /**
@@ -46,19 +52,36 @@ export function useConversationSubmitOverride(
       if (mode !== "team_chat" || !comments?.target) {
         return fallback ? fallback(input) : false;
       }
+      if (!comments.viewerUserId) {
+        throw new SubmitValidationError(t("common:errors.api.messages.signIn"));
+      }
       if (input.imageDataUrls?.length) {
-        throw new Error(t("conversation.imagesUnsupported"));
+        throw new SubmitValidationError(t("conversation.imagesUnsupported"));
       }
       const body = input.displayText.trim();
       if (!body) return true;
-      const mentionedUserIds = resolveTeamChatMentions(
-        body,
-        comments.mentionableMembers
+      const audience = resolveMessageAudience(
+        "team_chat",
+        resolveTeamChatMentions(body, comments.mentionableMembers).map(
+          (id) => ({
+            kind: "member" as const,
+            id,
+          })
+        )
       );
-      await comments.addComment({
-        body,
-        ...(mentionedUserIds.length > 0 ? { mentionedUserIds } : {}),
-      });
+      try {
+        await comments.addComment({
+          body,
+          ...(audience.human.scope === "members"
+            ? { mentionedUserIds: audience.human.memberIds }
+            : {}),
+        });
+      } catch (error) {
+        if (error instanceof SessionCommentDeliveryError) {
+          throw new SubmitRetainedDeliveryError(error);
+        }
+        throw error;
+      }
       return true;
     },
     [mode, comments, fallback, t]

@@ -454,6 +454,8 @@ async fn enqueue_routine_work_item_run(
             workspace_mode: routine_workspace_mode(&routine.run_template.workspace),
             agent_definition_id,
             agent_org_id,
+            skill_manifest: Vec::new(),
+            skill_manifest_digest: None,
         },
         input: serde_json::json!({
             "prompt": routine.run_template.prompt,

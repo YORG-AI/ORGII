@@ -279,6 +279,15 @@ fn apply_project(org_id: &str, entity: &CollabRemoteEntity) -> Result<bool, Stri
         return Ok(false);
     };
     let conn = io::conn()?;
+    crate::work_item_features::properties::validate_wire_definitions(org_id, &entity.payload)?;
+    crate::work_item_features::statuses::validate_wire_definitions(org_id, &entity.payload)?;
+    crate::work_item_features::saved_views::validate_wire_views(org_id, &entity.payload)?;
+    crate::work_item_features::quick_actions::validate_wire_actions(
+        &conn,
+        org_id,
+        &entity.payload,
+    )?;
+    crate::org_skills::validate_wire_skills(&conn, org_id, &entity.payload)?;
 
     let existing = conn
         .query_row(
@@ -472,6 +481,10 @@ fn apply_project(org_id: &str, entity: &CollabRemoteEntity) -> Result<bool, Stri
 
     let conn = io::conn()?;
     crate::work_item_features::properties::apply_wire_definitions(&conn, org_id, &entity.payload)?;
+    crate::work_item_features::statuses::apply_wire_definitions(&conn, org_id, &entity.payload)?;
+    crate::work_item_features::saved_views::apply_wire_views(&conn, org_id, &entity.payload)?;
+    crate::work_item_features::quick_actions::apply_wire_actions(&conn, org_id, &entity.payload)?;
+    crate::org_skills::apply_wire_skills(&conn, org_id, &entity.payload)?;
     store_remote_version(&conn, KIND_PROJECT, &project_id, entity.version)?;
     Ok(true)
 }
@@ -695,6 +708,15 @@ fn apply_work_item(org_id: &str, entity: &CollabRemoteEntity) -> Result<bool, St
         return Ok(false);
     };
     let conn = io::conn()?;
+    crate::work_item_features::properties::validate_wire_definitions(org_id, &entity.payload)?;
+    crate::work_item_features::statuses::validate_wire_definitions(org_id, &entity.payload)?;
+    crate::work_item_features::saved_views::validate_wire_views(org_id, &entity.payload)?;
+    crate::work_item_features::quick_actions::validate_wire_actions(
+        &conn,
+        org_id,
+        &entity.payload,
+    )?;
+    crate::org_skills::validate_wire_skills(&conn, org_id, &entity.payload)?;
 
     let existing = conn
         .query_row(
@@ -967,6 +989,10 @@ fn apply_work_item(org_id: &str, entity: &CollabRemoteEntity) -> Result<bool, St
         &work_item_id,
         &entity.payload,
     )?;
+    crate::work_item_features::statuses::apply_wire_definitions(&conn, org_id, &entity.payload)?;
+    crate::work_item_features::saved_views::apply_wire_views(&conn, org_id, &entity.payload)?;
+    crate::work_item_features::quick_actions::apply_wire_actions(&conn, org_id, &entity.payload)?;
+    crate::org_skills::apply_wire_skills(&conn, org_id, &entity.payload)?;
     store_remote_version(&conn, KIND_WORK_ITEM, &work_item_id, entity.version)?;
     Ok(true)
 }

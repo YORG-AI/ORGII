@@ -2,6 +2,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo } from "react";
 
 import {
+  clearQueuedMessagesAtom,
   dequeueMessageAtom,
   editMessageAtom,
   enqueueCountAtom,
@@ -33,6 +34,7 @@ export function useChatViewMessageQueue({
   );
   const enqueueCount = useAtomValue(enqueueCountAtom);
   const cancelQueuedMessage = useSetAtom(dequeueMessageAtom);
+  const clearQueuedMessages = useSetAtom(clearQueuedMessagesAtom);
   const editQueuedMessage = useSetAtom(editMessageAtom);
   const reorderQueue = useSetAtom(reorderQueueAtom);
   const forceSendQueuedMessage = useSetAtom(forceSendMessageAtom);
@@ -50,7 +52,7 @@ export function useChatViewMessageQueue({
 
   const handleCommitQueueEdit = useCallback(
     (messageId: string, content: string, imageDataUrls?: string[]) => {
-      editQueuedMessage({ messageId, content, imageDataUrls });
+      return editQueuedMessage({ messageId, content, imageDataUrls });
     },
     [editQueuedMessage]
   );
@@ -71,6 +73,10 @@ export function useChatViewMessageQueue({
     [messageQueue, reorderQueue, sessionMessageQueue]
   );
 
+  const handleClearSessionQueue = useCallback(() => {
+    clearQueuedMessages(sessionMessageQueue.map((message) => message.id));
+  }, [clearQueuedMessages, sessionMessageQueue]);
+
   const queueEditProps = useQueueEditMode({
     onCommit: handleCommitQueueEdit,
     onCommitSendNow: handleSendNow,
@@ -79,6 +85,7 @@ export function useChatViewMessageQueue({
   return {
     cancelQueuedMessage,
     enqueueCount,
+    handleClearSessionQueue,
     handleReorderSessionQueue,
     handleSendNow,
     queueEditProps,

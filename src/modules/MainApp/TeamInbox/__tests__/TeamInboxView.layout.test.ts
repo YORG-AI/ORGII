@@ -21,6 +21,7 @@ import type { WorkItem } from "@src/types/core/workItem";
 import type { ManagedPrItem } from "../../WorkManagement/githubManagedItemModel";
 import TeamInboxView from "../TeamInboxView";
 import type { AssignedWorkItem } from "../domain";
+import type { ListTeamInboxInput } from "../domain/types";
 import {
   INITIAL_TEAM_INBOX_VIEW_STATE,
   type TeamInboxViewState,
@@ -31,6 +32,7 @@ const splitViewProps = vi.hoisted(() => ({
 }));
 const componentProps = vi.hoisted(() => ({
   assignedDetail: null as Record<string, unknown> | null,
+  eventDetail: null as Record<string, unknown> | null,
   list: null as Record<string, unknown> | null,
   listRenderCount: 0,
   placeholder: null as Record<string, unknown> | null,
@@ -88,6 +90,10 @@ vi.mock("../components", () => ({
     return null;
   },
   CommentMentionDetail: () => null,
+  WorkItemEventDetail: (props: Record<string, unknown>) => {
+    componentProps.eventDetail = props;
+    return null;
+  },
   TeamInboxList: (props: Record<string, unknown>) => {
     componentProps.list = props;
     componentProps.listRenderCount += 1;
@@ -176,6 +182,7 @@ describe("TeamInboxView split layout", () => {
   beforeEach(() => {
     splitViewProps.current = null;
     componentProps.assignedDetail = null;
+    componentProps.eventDetail = null;
     componentProps.list = null;
     componentProps.listRenderCount = 0;
     componentProps.placeholder = null;
@@ -1162,6 +1169,185 @@ describe("TeamInboxView split layout", () => {
       resolveMarkRead?.();
       await Promise.resolve();
     });
+  });
+
+  it("archives an active row and removes it from the actionable list", async () => {
+    const archiveItem = vi.fn(async () => undefined);
+    const item = { ...partialLoadItem, readAt: "2026-08-05T00:01:00Z" };
+
+    await act(async () => {
+      root.render(
+        createElement(TeamInboxView, {
+          dataSource: {
+            listPage: async () => ({ items: [item], nextCursor: null }),
+            archiveItem,
+          },
+        })
+      );
+      await Promise.resolve();
+    });
+
+    act(() => {
+      const onSelectItem = componentProps.list?.onSelectItem as
+        | ((selected: AssignedWorkItem) => void)
+        | undefined;
+      onSelectItem?.(item);
+    });
+    expect(componentProps.assignedDetail?.onArchive).toBeTypeOf("function");
+
+    await act(async () => {
+      const onArchive = componentProps.assignedDetail?.onArchive as
+        | ((selected: AssignedWorkItem) => void)
+        | undefined;
+      onArchive?.(item);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(archiveItem).toHaveBeenCalledWith(item);
+    expect(componentProps.list?.items).toEqual([]);
+  });
+
+  it("loads archived rows on demand and restores them without retaining the row", async () => {
+    const listPage = vi.fn(async () => ({ items: [], nextCursor: null }));
+    const item = { ...partialLoadItem, readAt: "2026-08-05T00:01:00Z" };
+    const listArchivedPage = vi.fn(async () => ({
+      items: [item],
+      nextCursor: null,
+    }));
+    const unarchiveItem = vi.fn(async () => undefined);
+
+    await act(async () => {
+      root.render(
+        createElement(TeamInboxView, {
+          initialFilter: "archived",
+          dataSource: { listPage, listArchivedPage, unarchiveItem },
+        })
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(listPage).not.toHaveBeenCalled();
+    expect(listArchivedPage).toHaveBeenCalledOnce();
+    expect(componentProps.list?.filter).toBe("archived");
+    act(() => {
+      const onSelectItem = componentProps.list?.onSelectItem as
+        | ((selected: AssignedWorkItem) => void)
+        | undefined;
+      onSelectItem?.(item);
+    });
+    expect(componentProps.assignedDetail?.onUnarchive).toBeTypeOf("function");
+
+    await act(async () => {
+      const onUnarchive = componentProps.assignedDetail?.onUnarchive as
+        | ((selected: AssignedWorkItem) => void)
+        | undefined;
+      onUnarchive?.(item);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(unarchiveItem).toHaveBeenCalledWith(item);
+    expect(componentProps.list?.items).toEqual([]);
+  });
+
+  it("aborts an in-flight archived page request when the Inbox unmounts", async () => {
+    let requestSignal: AbortSignal | undefined;
+    const listArchivedPage = vi.fn(
+      ({ signal }: ListTeamInboxInput) =>
+        new Promise<never>(() => {
+          requestSignal = signal;
+        })
+    );
+
+    await act(async () => {
+      root.render(
+        createElement(TeamInboxView, {
+          initialFilter: "archived",
+          dataSource: {
+            listPage: async () => ({ items: [], nextCursor: null }),
+            listArchivedPage,
+          },
+        })
+      );
+      await Promise.resolve();
+    });
+
+    expect(listArchivedPage).toHaveBeenCalledOnce();
+    expect(requestSignal?.aborted).toBe(false);
+
+    act(() => root.unmount());
+    expect(requestSignal?.aborted).toBe(true);
+    root = createRoot(container);
+  });
+
+  it("loads mute preferences only on demand and applies one category", async () => {
+    const listMutedKinds = vi.fn(async () => ["run_failed" as const]);
+    const setKindMuted = vi.fn(async () => [
+      "run_failed" as const,
+      "child_completed" as const,
+    ]);
+
+    await act(async () => {
+      root.render(
+        createElement(TeamInboxView, {
+          dataSource: {
+            listPage: async () => ({ items: [], nextCursor: null }),
+            listMutedKinds,
+            setKindMuted,
+          },
+        })
+      );
+      await Promise.resolve();
+    });
+    expect(listMutedKinds).not.toHaveBeenCalled();
+
+    await act(async () => {
+      const onLoadMutePreferences = componentProps.list
+        ?.onLoadMutePreferences as (() => void) | undefined;
+      onLoadMutePreferences?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(listMutedKinds).toHaveBeenCalledOnce();
+    expect(componentProps.list?.mutedKinds).toEqual(["run_failed"]);
+
+    await act(async () => {
+      const onSetKindMuted = componentProps.list?.onSetKindMuted as
+        | ((kind: "child_completed", muted: boolean) => void)
+        | undefined;
+      onSetKindMuted?.("child_completed", true);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(setKindMuted).toHaveBeenCalledWith("child_completed", true);
+    expect(componentProps.list?.mutedKinds).toEqual([
+      "run_failed",
+      "child_completed",
+    ]);
+  });
+
+  it("disposes the data-source subscription when the Inbox unmounts", async () => {
+    const dispose = vi.fn();
+    const subscribe = vi.fn(() => dispose);
+
+    await act(async () => {
+      root.render(
+        createElement(TeamInboxView, {
+          dataSource: {
+            listPage: async () => ({ items: [], nextCursor: null }),
+            subscribe,
+          },
+        })
+      );
+      await Promise.resolve();
+    });
+    expect(subscribe).toHaveBeenCalledOnce();
+
+    act(() => root.unmount());
+    expect(dispose).toHaveBeenCalledOnce();
+    root = createRoot(container);
   });
 
   it("focuses and reads only the item explicitly requested by a notification", async () => {

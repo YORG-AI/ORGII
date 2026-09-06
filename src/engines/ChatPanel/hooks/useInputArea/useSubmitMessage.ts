@@ -43,6 +43,7 @@ import type {
   SubmitMessageOptions,
   SubmitOverrideInput,
 } from "./types";
+import { SubmitRetainedDeliveryError } from "./types";
 
 // Re-exported for existing consumers/tests; the implementation moved to the
 // shared outgoing-text transform module so every projection entry point uses
@@ -97,6 +98,27 @@ function lastSerializedPillLabel(rawLabel: string): string {
   return lastSpaceIdx >= 0 ? trimmed.slice(lastSpaceIdx + 1).trim() : trimmed;
 }
 
+export function resolveSubmitInput(
+  options: SubmitMessageOptions,
+  liveDisplayText: string,
+  liveHasImages: boolean
+): {
+  isExplicitAction: boolean;
+  displayText: string;
+  hasAttachedImages: boolean;
+} {
+  const isExplicitAction = options.source === "explicit-action";
+  return {
+    isExplicitAction,
+    displayText: isExplicitAction
+      ? (options.capturedText ?? "")
+      : liveDisplayText.trim().length > 0
+        ? liveDisplayText
+        : (options.capturedText ?? ""),
+    hasAttachedImages: !isExplicitAction && liveHasImages,
+  };
+}
+
 export function useSubmitMessage({
   refs,
   draftSessionId,
@@ -130,7 +152,6 @@ export function useSubmitMessage({
       }
 
       if (!refs.composerInputRef.current) return;
-
       // ── Compaction gate ──────────────────────────────────────────────────
       // While this session's durable transcript is being rewritten by a
       // manual compaction, hold new messages instead of dispatching them.
@@ -145,12 +166,15 @@ export function useSubmitMessage({
       }
 
       const liveDisplayText = refs.composerInputRef.current.getTextWithPills();
-      let displayText =
-        liveDisplayText.trim().length > 0
-          ? liveDisplayText
-          : (options.capturedText ?? "");
+      const resolvedInput = resolveSubmitInput(
+        options,
+        liveDisplayText,
+        imageAttachment.hasImages
+      );
+      const { isExplicitAction } = resolvedInput;
+      let { displayText } = resolvedInput;
       const hasText = displayText.trim().length > 0;
-      const hasAttachedImages = imageAttachment.hasImages;
+      const { hasAttachedImages } = resolvedInput;
 
       if (!hasText && !hasAttachedImages) return;
 
@@ -162,14 +186,17 @@ export function useSubmitMessage({
       if (enableAgentInterceptors && hasText && !hasAttachedImages) {
         const compactCommand = parseCompactSlashCommand(displayText);
         if (compactCommand) {
-          refs.composerInputRef.current.clear();
-          void flushDraft("").catch((err: unknown) => {
-            log.warn("[useSubmitMessage] flushDraft(compact) failed:", err);
-          });
+          if (!isExplicitAction) {
+            refs.composerInputRef.current.clear();
+            void flushDraft("").catch((err: unknown) => {
+              log.warn("[useSubmitMessage] flushDraft(compact) failed:", err);
+            });
+          }
           void runManualCompact(
             draftSessionId || null,
             compactCommand.instructions
           );
+          options.onSubmitted?.();
           return;
         }
       }
@@ -226,9 +253,11 @@ export function useSubmitMessage({
         expandSkillPills(displayText);
 
       // ── Context pill async loads ──────────────────────────────────────────
-      const { waitForPendingPills } =
-        await import("@src/util/contextPillContent");
-      await waitForPendingPills();
+      if (!isExplicitAction) {
+        const { waitForPendingPills } =
+          await import("@src/util/contextPillContent");
+        await waitForPendingPills();
+      }
 
       // ── Session pill ID injection ─────────────────────────────────────────
       // Session pills carry only the session ID (no transcript). Extract them
@@ -253,8 +282,9 @@ export function useSubmitMessage({
       }
 
       // ── Terminal/PR pill text collection ─────────────────────────────────
-      const terminalTexts =
-        refs.composerInputRef.current.getTerminalPillTexts();
+      const terminalTexts = isExplicitAction
+        ? {}
+        : refs.composerInputRef.current.getTerminalPillTexts();
       const terminalEntries = Object.entries(terminalTexts);
       const contextBlocks: string[] = [];
 
@@ -330,7 +360,9 @@ export function useSubmitMessage({
       });
       displayText = displayContent;
 
-      const imageDataUrls = imageAttachment.images.map((img) => img.dataUrl);
+      const imageDataUrls = isExplicitAction
+        ? []
+        : imageAttachment.images.map((img) => img.dataUrl);
       const submitKey = JSON.stringify({
         draftSessionId,
         displayText,
@@ -343,21 +375,28 @@ export function useSubmitMessage({
       let submitSucceeded = false;
       try {
         // ── Snapshot before optimistic clear ─────────────────────────────────
-        // Lets us restore the full composer state (text + images + cite-code)
-        // if the outgoing request fails, preventing silent data loss.
-        const editorSnapshot = refs.composerInputRef.current.getSnapshot();
-        const imagesSnapshot: ChatImageAttachment[] =
-          imageAttachment.images.slice();
+        // Captured only so a true pre-send validation failure can leave the
+        // composer untouched. Transport/provider failures remain visible on
+        // the failed transcript row and never repopulate this editor.
+        const editorSnapshot = isExplicitAction
+          ? null
+          : refs.composerInputRef.current.getSnapshot();
+        const imagesSnapshot: ChatImageAttachment[] = isExplicitAction
+          ? []
+          : imageAttachment.images.slice();
         const citeSnapshot: CiteCodeSnapshot | null = citeCode.isCiteCode
-          ? citeCode.captureCiteCode()
+          ? isExplicitAction
+            ? null
+            : citeCode.captureCiteCode()
           : null;
 
         // ── Optimistic clear ──────────────────────────────────────────────────
         const editorTextBeforeClear =
           refs.composerInputRef.current.getTextWithPills();
         const editorStillContainsSubmittedText =
-          editorTextBeforeClear === displayText ||
-          editorTextBeforeClear.trim() === displayText.trim();
+          !isExplicitAction &&
+          (editorTextBeforeClear === displayText ||
+            editorTextBeforeClear.trim() === displayText.trim());
         if (editorStillContainsSubmittedText) {
           refs.composerInputRef.current.clear();
           refs.setHasContent(false);
@@ -397,49 +436,52 @@ export function useSubmitMessage({
           }
           submitSucceeded = true;
         } catch (err) {
-          // ── Restore on failure ────────────────────────────────────────────
-          // Each restore branch is independent so one failure doesn't block others.
-          try {
+          // Until a transport has retained a visible failed row, the composer
+          // remains the only recoverable copy of the user's text, images and
+          // structured mention pills. Optimistic transports explicitly mark
+          // that ownership hand-off with SubmitRetainedDeliveryError.
+          if (!(err instanceof SubmitRetainedDeliveryError)) {
             const editor = refs.composerInputRef.current;
             if (editor && editorSnapshot) {
-              editor.setContent(editorSnapshot);
-              refs.setHasContent(true);
-              if (draftSessionId) {
-                const restoredText = editor.getTextWithPills();
-                void flushDraft(restoredText).catch((err: unknown) => {
-                  log.warn(
-                    "[useSubmitMessage] flushDraft(restore) failed:",
-                    err
+              try {
+                editor.setContent(editorSnapshot);
+                refs.setHasContent(true);
+                if (draftSessionId) {
+                  void flushDraft(editor.getTextWithPills()).catch(
+                    (restoreError: unknown) => {
+                      log.warn(
+                        "[useSubmitMessage] flushDraft(validation restore) failed:",
+                        restoreError
+                      );
+                    }
                   );
-                });
+                }
+              } catch (restoreError) {
+                log.warn(
+                  "[useSubmitMessage] editor restore failed:",
+                  restoreError
+                );
               }
             }
-          } catch (restoreErr) {
-            log.warn(
-              "[useSubmitMessage] failed to restore editor content:",
-              restoreErr
-            );
-          }
-
-          if (imagesSnapshot.length > 0) {
-            try {
-              imageAttachment.restoreImages(imagesSnapshot);
-            } catch (restoreErr) {
-              log.warn(
-                "[useSubmitMessage] failed to restore image attachments:",
-                restoreErr
-              );
+            if (imagesSnapshot.length > 0) {
+              try {
+                imageAttachment.restoreImages(imagesSnapshot);
+              } catch (restoreError) {
+                log.warn(
+                  "[useSubmitMessage] image restore failed:",
+                  restoreError
+                );
+              }
             }
-          }
-
-          if (citeSnapshot) {
-            try {
-              citeCode.restoreCiteCode(citeSnapshot);
-            } catch (restoreErr) {
-              log.warn(
-                "[useSubmitMessage] failed to restore cite-code state:",
-                restoreErr
-              );
+            if (citeSnapshot) {
+              try {
+                citeCode.restoreCiteCode(citeSnapshot);
+              } catch (restoreError) {
+                log.warn(
+                  "[useSubmitMessage] cite restore failed:",
+                  restoreError
+                );
+              }
             }
           }
 
@@ -454,7 +496,7 @@ export function useSubmitMessage({
       if (!submitSucceeded) return;
 
       // ── Post-send cleanup ─────────────────────────────────────────────────
-      if (draftSessionId && replyTargetEventId) {
+      if (!isExplicitAction && draftSessionId && replyTargetEventId) {
         void clearReplyTarget().catch((err: unknown) => {
           log.warn(
             "[useSubmitMessage] clearReplyTarget(post-send) failed:",
@@ -462,6 +504,7 @@ export function useSubmitMessage({
           );
         });
       }
+      options.onSubmitted?.();
     },
     [
       wpReadOnly,

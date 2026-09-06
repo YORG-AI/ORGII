@@ -28,6 +28,15 @@ static SKILL_SCAN_CACHE: LazyLock<Arc<SwrCache<SkillScanKey, Vec<SkillInfo>>>> =
     LazyLock::new(Arc::default);
 
 impl SkillsLoader {
+    /// Bypass the short UI/prompt cache for consent boundaries such as Run
+    /// enqueue and dispatch. Those paths must observe filesystem drift even
+    /// when it occurs inside the ordinary two-second catalog TTL.
+    pub(crate) fn list_skills_fresh(&self) -> Vec<SkillInfo> {
+        let mut skills = self.scan_skills_uncached();
+        self.apply_disabled_skills(&mut skills);
+        skills
+    }
+
     /// List all available skills.
     ///
     /// Applies `disabled_skills` filtering: disabled skills have `enabled = false`.

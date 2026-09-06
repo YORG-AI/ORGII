@@ -2211,7 +2211,10 @@
     "fireHistory": "Run history",
     "noFires": "No runs yet",
     "openSession": "Open session",
-    "openWorkItem": "Open work item"
+    "openWorkItem": "Open work item",
+    "fireError": "루틴을 시작할 수 없습니다: {{detail}}",
+    "provider": "제공자",
+    "eventKind": "이벤트"
   },
   "cursorPlugins": {
     "noPlugins": "설치된 Cursor 플러그인 없음",

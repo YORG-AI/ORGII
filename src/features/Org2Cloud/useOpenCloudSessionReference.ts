@@ -48,7 +48,26 @@ export type OpenCloudSessionReference = (
   options?: { autoReplay?: boolean }
 ) => boolean;
 
-export function useOpenCloudSessionReference(): OpenCloudSessionReference {
+export interface CloudConversationRootReference {
+  orgId: string;
+  rootSessionId: string;
+}
+
+export type OpenCloudConversationRoot = (
+  reference: CloudConversationRootReference
+) => boolean;
+
+interface CloudSessionOpenTarget {
+  orgId: string;
+  sessionId: string;
+  sidebarItemId?: string;
+}
+
+/** One admission + reveal owner for both exact rows and canonical roots. */
+function useOpenCloudSessionTarget(): (
+  target: CloudSessionOpenTarget,
+  options?: { autoReplay?: boolean }
+) => boolean {
   const store = useStore();
   const navigate = useNavigate();
   const requestSessionSidebarReveal = useSetAtom(
@@ -58,9 +77,9 @@ export function useOpenCloudSessionReference(): OpenCloudSessionReference {
   const setStationChatVisible = useSetAtom(activeStationChatVisibleAtom);
 
   return useCallback(
-    (reference, options) => {
+    (target, options) => {
       const admission = decideCloudReferenceAdmission({
-        orgId: reference.orgId,
+        orgId: target.orgId,
         signedIn: Boolean(store.get(org2CloudAuthAtom)),
         orgs: store.get(org2CloudOrgsAtom),
       });
@@ -80,12 +99,11 @@ export function useOpenCloudSessionReference(): OpenCloudSessionReference {
       }
 
       requestSessionSidebarReveal({
-        sessionId: reference.sourceSessionId,
-        sidebarItemId: buildCloudRemoteItemId(
-          reference.orgId,
-          cloudReferenceRowId(reference)
-        ),
-        cloudOrgId: reference.orgId,
+        sessionId: target.sessionId,
+        ...(target.sidebarItemId
+          ? { sidebarItemId: target.sidebarItemId }
+          : {}),
+        cloudOrgId: target.orgId,
         autoReplay: options?.autoReplay ?? false,
       });
       if (options?.autoReplay) {
@@ -107,5 +125,45 @@ export function useOpenCloudSessionReference(): OpenCloudSessionReference {
       setStationMode,
       store,
     ]
+  );
+}
+
+export function useOpenCloudSessionReference(): OpenCloudSessionReference {
+  const openTarget = useOpenCloudSessionTarget();
+  return useCallback(
+    (reference, options) =>
+      openTarget(
+        {
+          orgId: reference.orgId,
+          sessionId: reference.sourceSessionId,
+          sidebarItemId: buildCloudRemoteItemId(
+            reference.orgId,
+            cloudReferenceRowId(reference)
+          ),
+        },
+        options
+      ),
+    [openTarget]
+  );
+}
+
+/**
+ * Open the canonical Cloud conversation named by a Team Inbox mention.
+ * The sidebar owner resolves that root to the live replay row after its
+ * listing is ready, so callers never mistake a remote native UUID for a
+ * local session id.
+ */
+export function useOpenCloudConversationRoot(): OpenCloudConversationRoot {
+  const openTarget = useOpenCloudSessionTarget();
+  return useCallback(
+    (reference) =>
+      openTarget(
+        {
+          orgId: reference.orgId,
+          sessionId: reference.rootSessionId,
+        },
+        { autoReplay: true }
+      ),
+    [openTarget]
   );
 }

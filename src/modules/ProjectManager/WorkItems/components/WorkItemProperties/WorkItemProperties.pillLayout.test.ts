@@ -88,6 +88,7 @@ describe("WorkItemProperties pill layout", () => {
     act(() => {
       root.render(
         createElement(WorkItemProperties, {
+          statusOrgId: "personal-org",
           workItem,
           onUpdate: vi.fn(),
           fieldVariant: "pill",
@@ -108,6 +109,7 @@ describe("WorkItemProperties pill layout", () => {
     act(() => {
       root.render(
         createElement(WorkItemProperties, {
+          statusOrgId: "personal-org",
           workItem,
           onUpdate: vi.fn(),
           fieldVariant: "pill",
@@ -126,6 +128,7 @@ describe("WorkItemProperties pill layout", () => {
     act(() => {
       root.render(
         createElement(WorkItemProperties, {
+          statusOrgId: "personal-org",
           workItem,
           onUpdate: vi.fn(),
           fieldVariant: "pill",
@@ -153,6 +156,7 @@ describe("WorkItemProperties pill layout", () => {
     act(() => {
       root.render(
         createElement(WorkItemProperties, {
+          statusOrgId: "personal-org",
           workItem,
           onUpdate: vi.fn(),
           panelVariant: "workstation-trail",
@@ -179,6 +183,7 @@ describe("WorkItemProperties pill layout", () => {
     act(() => {
       root.render(
         createElement(WorkItemProperties, {
+          statusOrgId: "personal-org",
           workItem,
           onUpdate: vi.fn(),
         })

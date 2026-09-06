@@ -61,6 +61,7 @@ pub struct EnrichedWorkItem {
     pub title: String,
     pub body: String,
     pub filename: String,
+    pub revision: i64,
 
     // Status
     pub status: String,

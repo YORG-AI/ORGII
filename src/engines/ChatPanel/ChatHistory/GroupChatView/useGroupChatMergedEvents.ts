@@ -48,7 +48,12 @@ function inboxRowToGroupChatUserEvent(
     actionType: "raw",
     args: {
       recipientMemberId: row.targetMemberId,
+      groupChatInboxId: row.inboxId,
       deliveryResolution: row.deliveryResolution ?? null,
+      deliveryStatus: row.clientDeliveryStatus ?? "sent",
+      ...(row.clientDeliveryError
+        ? { deliveryError: row.clientDeliveryError }
+        : {}),
       agentOrgGroupChatMessage: true,
     },
     result: {
@@ -58,7 +63,12 @@ function inboxRowToGroupChatUserEvent(
     },
     source: "user",
     displayText: text,
-    displayStatus: "completed",
+    displayStatus:
+      row.clientDeliveryStatus === "pending"
+        ? "pending"
+        : row.clientDeliveryStatus === "failed"
+          ? "failed"
+          : "completed",
     displayVariant: "message",
     activityStatus: "agent",
     payloadRefs: [],

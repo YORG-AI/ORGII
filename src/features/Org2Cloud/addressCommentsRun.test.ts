@@ -122,6 +122,7 @@ describe("replyViaActiveAddressRun", () => {
       orgId: "org-1",
       cloudSessionId: "cloud-session-1",
       localSessionId: "local-1",
+      turnIntentId: "turn-1",
       validHeadIds: new Set(["c-1"]),
       replied: new Map(),
     };
@@ -136,6 +137,7 @@ describe("replyViaActiveAddressRun", () => {
         parentId: "c-1",
         body: "fixed",
         kind: "agent_report",
+        clientMessageKey: "agent-report:turn-1:c-1",
       });
       expect(
         await replyViaActiveAddressRun("c-1", "again", "local-1")
@@ -150,6 +152,7 @@ describe("replyViaActiveAddressRun", () => {
       orgId: "org-1",
       cloudSessionId: "local-1",
       localSessionId: "local-1",
+      turnIntentId: "turn-2",
       validHeadIds: new Set(["c-1"]),
       replied: new Map(),
     };

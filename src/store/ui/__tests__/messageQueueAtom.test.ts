@@ -3,8 +3,11 @@ import { createStore } from "jotai/vanilla";
 import type { LastModelSelection } from "@src/store/session/creatorDefaultModelAtom";
 
 import {
+  MAX_QUEUED_MESSAGES_PER_SESSION,
+  MAX_QUEUED_MESSAGE_CHARS,
   type QueueEditTarget,
   type QueuedMessage,
+  clearQueuedMessagesAtom,
   clearSessionQueueAtom,
   dequeueMessageAtom,
   editMessageAtom,
@@ -120,6 +123,40 @@ describe("messageQueueAtom", () => {
       store.set(enqueueMessageAtom, msg1);
       store.set(enqueueMessageAtom, msg2);
       expect(store.get(messageQueueAtom)).toEqual([msg1, msg2]);
+    });
+
+    it("rejects per-session overflow without incrementing the queue", () => {
+      for (let index = 0; index < MAX_QUEUED_MESSAGES_PER_SESSION; index++) {
+        expect(
+          store.set(
+            enqueueMessageAtom,
+            makeMessage({ id: `m${index}`, sessionId: "bounded-session" })
+          )
+        ).toBe("enqueued");
+      }
+
+      expect(
+        store.set(
+          enqueueMessageAtom,
+          makeMessage({ id: "overflow", sessionId: "bounded-session" })
+        )
+      ).toBe("session_limit");
+      expect(store.get(messageQueueAtom)).toHaveLength(
+        MAX_QUEUED_MESSAGES_PER_SESSION
+      );
+    });
+
+    it("rejects one oversized message at the producing boundary", () => {
+      const oversized = makeMessage({
+        id: "oversized",
+        content: "x".repeat(MAX_QUEUED_MESSAGE_CHARS + 1),
+        displayContent: "",
+      });
+
+      expect(store.set(enqueueMessageAtom, oversized)).toBe(
+        "message_too_large"
+      );
+      expect(store.get(messageQueueAtom)).toEqual([]);
     });
   });
 
@@ -314,6 +351,22 @@ describe("messageQueueAtom", () => {
     });
   });
 
+  describe("clearQueuedMessagesAtom", () => {
+    it("removes only the projected message ids", () => {
+      store.set(messageQueueAtom, [
+        makeMessage({ id: "m1", sessionId: "session-parent" }),
+        makeMessage({ id: "m2", sessionId: "session-member" }),
+        makeMessage({ id: "m3", sessionId: "session-unrelated" }),
+      ]);
+
+      store.set(clearQueuedMessagesAtom, ["m1", "m2"]);
+
+      expect(store.get(messageQueueAtom).map((message) => message.id)).toEqual([
+        "m3",
+      ]);
+    });
+  });
+
   // =============================================
   // editMessageAtom
   // =============================================
@@ -338,6 +391,19 @@ describe("messageQueueAtom", () => {
       const msg = store.get(messageQueueAtom)[0];
       expect(msg.content).toBe("updated");
       expect(msg.displayContent).toBe("updated");
+    });
+
+    it("keeps the original row when an edit exceeds the message bound", () => {
+      const original = makeMessage({ id: "m1" });
+      store.set(enqueueMessageAtom, original);
+
+      expect(
+        store.set(editMessageAtom, {
+          messageId: "m1",
+          content: "x".repeat(MAX_QUEUED_MESSAGE_CHARS + 1),
+        })
+      ).toBe(false);
+      expect(store.get(messageQueueAtom)).toEqual([original]);
     });
 
     it("updates imageDataUrls when provided", () => {

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@src/components/Button";
 import ComposerShell from "@src/components/ComposerShell";
 import PersonAvatar from "@src/components/PersonAvatar";
+import Textarea from "@src/components/Textarea";
 import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import {
@@ -12,6 +13,8 @@ import {
   Cancel01Icon,
   CheckmarkCircle01Icon,
   CornerUpLeftIcon,
+  Delete02Icon,
+  Edit02Icon,
   HugeiconsIcon,
   Notification01Icon,
   NotificationOff01Icon,
@@ -25,6 +28,7 @@ import MarkdownEditorModeSwitch from "@src/modules/shared/components/MarkdownTex
 import { ScrollTrailTarget } from "@src/modules/shared/layouts/blocks";
 import type { Person } from "@src/types/core/shared";
 import type { WorkItemComment } from "@src/types/core/workItem";
+import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
 import { WorkItemActivityTimeline } from "./WorkItemActivityTimeline";
 import WorkItemMentionPicker from "./WorkItemMentionPicker";
@@ -38,6 +42,15 @@ interface DiscussionThreadsProps {
   onReply?: (commentId: string | null) => void;
   onResolve?: (threadId: string, conclusionCommentId?: string) => void;
   onReopen?: (threadId: string) => void;
+  onEdit?: (
+    commentId: string,
+    content: string,
+    expectedRevision: number
+  ) => Promise<"saved" | "conflict" | "error">;
+  onDelete?: (
+    commentId: string,
+    expectedRevision: number
+  ) => void | Promise<void>;
 }
 
 function commentAuthor(
@@ -60,9 +73,30 @@ const DiscussionThreads: React.FC<DiscussionThreadsProps> = ({
   onReply,
   onResolve,
   onReopen,
+  onEdit,
+  onDelete,
 }) => {
   const { t } = useTranslation("projects");
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
   const roots = comments.filter((comment) => !comment.parent_id);
+
+  const handleDelete = async (comment: WorkItemComment) => {
+    const confirmed = await confirmDestructiveAction({
+      title: t("workItems.activity.deleteComment", {
+        defaultValue: "Delete comment",
+      }),
+      message: t("workItems.activity.deleteCommentConfirm", {
+        defaultValue:
+          "Delete this comment? Replies stay, the comment body is removed.",
+      }),
+      okLabel: t("common:actions.delete", { defaultValue: "Delete" }),
+      cancelLabel: t("common:actions.cancel", { defaultValue: "Cancel" }),
+    });
+    if (confirmed) {
+      await onDelete?.(comment.id, comment.revision ?? 0);
+    }
+  };
 
   return (
     <div
@@ -147,6 +181,11 @@ const DiscussionThreads: React.FC<DiscussionThreadsProps> = ({
             <div className="flex flex-col divide-y divide-border-1">
               {threadComments.map((comment, index) => {
                 const author = commentAuthor(comment, currentUser, teamMembers);
+                const isDeleted = Boolean(comment.deleted_at);
+                const isOwn =
+                  comment.author === currentUser.id &&
+                  !comment.agent_session_id;
+                const isEditing = editingCommentId === comment.id;
                 return (
                   <div
                     key={comment.id}
@@ -170,32 +209,137 @@ const DiscussionThreads: React.FC<DiscussionThreadsProps> = ({
                           })}
                         </span>
                       ) : null}
+                      {comment.edited_at && !isDeleted ? (
+                        <span className="text-xs text-text-4">
+                          {t("workItems.activity.edited", {
+                            defaultValue: "(edited)",
+                          })}
+                        </span>
+                      ) : null}
                       <time className="text-xs text-text-4">
                         {new Date(comment.created_at).toLocaleString()}
                       </time>
                     </div>
-                    <MarkdownContent body={comment.content} clamped={false} />
-                    {onReply ? (
-                      <div className="mt-2 flex justify-end">
-                        <Button
-                          variant="tertiary"
-                          appearance="ghost"
-                          size="mini"
-                          icon={
-                            <HugeiconsIcon
-                              icon={CornerUpLeftIcon}
-                              data-icon="corner-up-left"
-                              size={13}
-                              aria-hidden
-                            />
-                          }
-                          onClick={() => onReply(comment.id)}
-                          data-testid={`work-item-discussion-reply-${comment.id}`}
-                        >
-                          {t("workItems.activity.reply", {
-                            defaultValue: "Reply",
-                          })}
-                        </Button>
+                    {isDeleted ? (
+                      <p className="text-sm text-text-4 italic">
+                        {t("workItems.activity.commentDeleted", {
+                          defaultValue: "This comment was deleted.",
+                        })}
+                      </p>
+                    ) : isEditing ? (
+                      <div className="flex flex-col gap-2">
+                        <Textarea
+                          value={editDraft}
+                          onChange={(value) => setEditDraft(value)}
+                          size="small"
+                          autoFocus
+                          data-testid={`work-item-discussion-edit-input-${comment.id}`}
+                        />
+                        <div className="flex justify-end gap-1.5">
+                          <Button
+                            variant="tertiary"
+                            appearance="ghost"
+                            size="mini"
+                            onClick={() => setEditingCommentId(null)}
+                          >
+                            {t("common:actions.cancel", {
+                              defaultValue: "Cancel",
+                            })}
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="mini"
+                            disabled={!editDraft.trim()}
+                            onClick={() => {
+                              void onEdit?.(
+                                comment.id,
+                                editDraft,
+                                comment.revision ?? 0
+                              ).then((outcome) => {
+                                if (outcome !== "error") {
+                                  setEditingCommentId(null);
+                                }
+                              });
+                            }}
+                            data-testid={`work-item-discussion-edit-save-${comment.id}`}
+                          >
+                            {t("common:actions.save", {
+                              defaultValue: "Save",
+                            })}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <MarkdownContent body={comment.content} clamped={false} />
+                    )}
+                    {!isDeleted && !isEditing ? (
+                      <div className="mt-2 flex justify-end gap-1">
+                        {isOwn && onEdit ? (
+                          <Button
+                            variant="tertiary"
+                            appearance="ghost"
+                            size="mini"
+                            icon={
+                              <HugeiconsIcon
+                                icon={Edit02Icon}
+                                data-icon="pencil"
+                                size={13}
+                                aria-hidden
+                              />
+                            }
+                            onClick={() => {
+                              setEditingCommentId(comment.id);
+                              setEditDraft(comment.content);
+                            }}
+                            data-testid={`work-item-discussion-edit-${comment.id}`}
+                          >
+                            {t("common:actions.edit", {
+                              defaultValue: "Edit",
+                            })}
+                          </Button>
+                        ) : null}
+                        {isOwn && onDelete ? (
+                          <Button
+                            variant="tertiary"
+                            appearance="ghost"
+                            size="mini"
+                            icon={
+                              <HugeiconsIcon
+                                icon={Delete02Icon}
+                                data-icon="trash-2"
+                                size={13}
+                                aria-hidden
+                              />
+                            }
+                            onClick={() => void handleDelete(comment)}
+                            data-testid={`work-item-discussion-delete-${comment.id}`}
+                          >
+                            {t("common:actions.delete", {
+                              defaultValue: "Delete",
+                            })}
+                          </Button>
+                        ) : null}
+                        {onReply ? (
+                          <Button
+                            variant="tertiary"
+                            appearance="ghost"
+                            size="mini"
+                            icon={
+                              <HugeiconsIcon
+                                icon={CornerUpLeftIcon}
+                                data-icon="corner-up-left"
+                                size={13}
+                                aria-hidden
+                              />
+                            }
+                            onClick={() => onReply(comment.id)}
+                            data-testid={`work-item-discussion-reply-${comment.id}`}
+                          >
+                            {t("workItems.activity.reply", {
+                              defaultValue: "Reply",
+                            })}
+                          </Button>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -228,6 +372,8 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
   onReplyToComment,
   onResolveThread,
   onReopenThread,
+  onEditComment,
+  onDeleteComment,
   presentation = "default",
   canComment = true,
   threadNavigation,
@@ -297,6 +443,8 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
         onReply={onReplyToComment}
         onResolve={onResolveThread}
         onReopen={onReopenThread}
+        onEdit={onEditComment}
+        onDelete={onDeleteComment}
       />
     ) : null;
   const activityTimeline = (
@@ -317,6 +465,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
     assignee: "previewAssignee",
     assignee_start: "previewAssigneeStart",
     note_only: "previewNoteOnly",
+    member_thread: "previewMemberThread",
     no_linked_session: "previewNoSession",
   };
   const triggerPreviewChip =

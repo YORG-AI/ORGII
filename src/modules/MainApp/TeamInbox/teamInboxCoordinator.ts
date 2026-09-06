@@ -40,8 +40,19 @@ interface LocalPageResult {
   page: {
     items: TeamInboxItem[];
     nextCursor: TeamInboxCursor | null;
+    unreadCounts?: {
+      all: number;
+      mentions: number;
+      assigned: number;
+    };
   };
   unreadCount: number;
+}
+
+interface LocalUnreadCounts {
+  all: number;
+  mentions: number;
+  assigned: number;
 }
 
 export interface TeamInboxCoordinatorDependencies {
@@ -116,6 +127,8 @@ interface CoordinatorRuntime {
   mutationEpoch: number;
   mutationEpochByItem: Map<string, number>;
   invalidationQueued: boolean;
+  localUnreadCounts: LocalUnreadCounts;
+  cloudUnreadCount: number;
 }
 
 type Settled<T> = { ok: true; value: T } | { ok: false; error: unknown };
@@ -188,6 +201,7 @@ function mapMentionsToItems(
   return mentions.map((mention) => ({
     id: `cloud-comment:${activeCloudOrgId}:${mention.comment.id}`,
     kind: "comment_mention" as const,
+    source: "cloud" as const,
     occurredAt: mention.createdAt,
     readAt: mention.readAt,
     actor: {
@@ -196,6 +210,7 @@ function mapMentionsToItems(
     },
     target: {
       kind: "session_comment" as const,
+      orgId: activeCloudOrgId,
       sessionId: mention.session.id,
       sessionTitle: mention.session.title ?? mention.session.id,
       commentId: mention.comment.id,
@@ -210,7 +225,7 @@ function mapMentionsToItems(
   }));
 }
 
-function resolveTeamInboxMemberNames(
+export function resolveTeamInboxMemberNames(
   items: readonly TeamInboxItem[],
   members: readonly MemberEntry[]
 ): TeamInboxItem[] {
@@ -222,12 +237,29 @@ function resolveTeamInboxMemberNames(
       actorName && actorName !== item.actor.displayName
         ? { ...item.actor, displayName: actorName }
         : item.actor;
-    if (item.kind !== "assigned_work_item") {
+    if (item.kind === "comment_mention") {
       return nextActor === item.actor ? item : { ...item, actor: nextActor };
     }
-    const assigneeName = nameById.get(item.payload.assigneeMemberId);
+    if (item.kind === "assigned_work_item") {
+      const assigneeName = nameById.get(item.payload.assigneeMemberId);
+      if (
+        (!assigneeName || assigneeName === item.payload.assigneeName) &&
+        nextActor === item.actor
+      ) {
+        return item;
+      }
+      return {
+        ...item,
+        actor: nextActor,
+        payload: {
+          ...item.payload,
+          ...(assigneeName ? { assigneeName } : {}),
+        },
+      };
+    }
+    const recipientName = nameById.get(item.payload.recipientMemberId);
     if (
-      (!assigneeName || assigneeName === item.payload.assigneeName) &&
+      (!recipientName || recipientName === item.payload.recipientName) &&
       nextActor === item.actor
     ) {
       return item;
@@ -237,7 +269,7 @@ function resolveTeamInboxMemberNames(
       actor: nextActor,
       payload: {
         ...item.payload,
-        ...(assigneeName ? { assigneeName } : {}),
+        ...(recipientName ? { recipientName } : {}),
       },
     };
   });
@@ -267,7 +299,19 @@ function createRuntime(scopeKey: string): CoordinatorRuntime {
     mutationEpoch: 0,
     mutationEpochByItem: new Map(),
     invalidationQueued: false,
+    localUnreadCounts: { all: 0, mentions: 0, assigned: 0 },
+    cloudUnreadCount: 0,
   };
+}
+
+function localUnreadCounts(result: LocalPageResult): LocalUnreadCounts {
+  return (
+    result.page.unreadCounts ?? {
+      all: result.unreadCount,
+      mentions: 0,
+      assigned: result.unreadCount,
+    }
+  );
 }
 
 /**
@@ -412,10 +456,10 @@ export class TeamInboxCoordinator {
         const previous = store.get(teamInboxCacheAtom);
         const sameScope = previous.loadedForViewerKey === scope.key;
         const previousLocal = sameScope
-          ? previous.items.filter((item) => item.kind === "assigned_work_item")
+          ? previous.items.filter((item) => item.source !== "cloud")
           : [];
         const previousCloud = sameScope
-          ? previous.items.filter((item) => item.kind === "comment_mention")
+          ? previous.items.filter((item) => item.source === "cloud")
           : [];
         const failures = [
           ...(local.ok ? [] : [local.error]),
@@ -429,16 +473,14 @@ export class TeamInboxCoordinator {
               scope.activeCloudOrgId ?? ""
             )
           : previousCloud;
-        const localUnread = local.ok
-          ? local.value.unreadCount
-          : sameScope
-            ? previous.unreadCounts.assigned
-            : 0;
-        const cloudUnread = cloud.ok
-          ? cloud.value.unreadCount
-          : sameScope
-            ? previous.unreadCounts.mentions
-            : 0;
+        if (local.ok) {
+          runtime.localUnreadCounts = localUnreadCounts(local.value);
+        }
+        if (cloud.ok) {
+          runtime.cloudUnreadCount = cloud.value.unreadCount;
+        }
+        const localUnread = runtime.localUnreadCounts;
+        const cloudUnread = runtime.cloudUnreadCount;
 
         if (local.ok) runtime.localCursor = local.value.page.nextCursor;
         if (cloud.ok) runtime.cloudCursor = cloud.value.nextCursor ?? null;
@@ -453,7 +495,7 @@ export class TeamInboxCoordinator {
           runtime.localCursor = null;
           runtime.cloudCursor = null;
         }
-        const unreadCount = localUnread + cloudUnread;
+        const unreadCount = localUnread.all + cloudUnread;
         const issue = mergeIssues(
           issueForFailures(failures, requestedSourceCount),
           prerequisiteIssueForScope(scope)
@@ -465,8 +507,9 @@ export class TeamInboxCoordinator {
             itemsUnchanged &&
             current.unreadCount === unreadCount &&
             current.unreadCounts.all === unreadCount &&
-            current.unreadCounts.mentions === cloudUnread &&
-            current.unreadCounts.assigned === localUnread &&
+            current.unreadCounts.mentions ===
+              localUnread.mentions + cloudUnread &&
+            current.unreadCounts.assigned === localUnread.assigned &&
             !current.loading &&
             sameIssue(current.issue, issue) &&
             current.loadedForViewerKey === scope.key &&
@@ -478,8 +521,8 @@ export class TeamInboxCoordinator {
             unreadCount,
             unreadCounts: {
               all: unreadCount,
-              mentions: cloudUnread,
-              assigned: localUnread,
+              mentions: localUnread.mentions + cloudUnread,
+              assigned: localUnread.assigned,
             },
             loading: false,
             issue,
@@ -530,7 +573,7 @@ export class TeamInboxCoordinator {
             ok: true,
             value: {
               page: { items: [], nextCursor: null },
-              unreadCount: store.get(teamInboxCacheAtom).unreadCounts.assigned,
+              unreadCount: runtime.localUnreadCounts.all,
             },
           }),
       cloudCursor && scope.accessToken && scope.activeCloudOrgId
@@ -565,9 +608,11 @@ export class TeamInboxCoordinator {
         ];
         if (localCursor && local.ok) {
           runtime.localCursor = local.value.page.nextCursor;
+          runtime.localUnreadCounts = localUnreadCounts(local.value);
         }
         if (cloudCursor && cloud.ok) {
           runtime.cloudCursor = cloud.value.nextCursor ?? null;
+          runtime.cloudUnreadCount = cloud.value.unreadCount;
         }
         const appended = resolveTeamInboxMemberNames(
           [
@@ -587,18 +632,16 @@ export class TeamInboxCoordinator {
             runtime.localCursor = null;
             runtime.cloudCursor = null;
           }
-          const assigned = local.ok
-            ? local.value.unreadCount
-            : current.unreadCounts.assigned;
-          const mentions = cloud.ok
-            ? cloud.value.unreadCount
-            : current.unreadCounts.mentions;
+          const assigned = runtime.localUnreadCounts.assigned;
+          const mentions =
+            runtime.localUnreadCounts.mentions + runtime.cloudUnreadCount;
+          const all = runtime.localUnreadCounts.all + runtime.cloudUnreadCount;
           return {
             ...current,
             items,
-            unreadCount: assigned + mentions,
+            unreadCount: all,
             unreadCounts: {
-              all: assigned + mentions,
+              all,
               assigned,
               mentions,
             },
@@ -743,19 +786,21 @@ export class TeamInboxCoordinator {
   ): Promise<void> {
     const runtime = this.ensureScope(store, scope.key);
     return this.enqueueMutation(runtime, async () => {
-      const includeAssigned = filter === "all" || filter === "assigned";
-      const includeMentions = filter === "all" || filter === "mentions";
-      const before = store.get(teamInboxCacheAtom);
+      if (filter === "archived") return;
+      const includeCloudMentions = filter === "all" || filter === "mentions";
+      const localUnreadForFilter =
+        filter === "all"
+          ? runtime.localUnreadCounts.all
+          : filter === "mentions"
+            ? runtime.localUnreadCounts.mentions
+            : runtime.localUnreadCounts.assigned;
       const [local, cloud] = await Promise.all([
-        includeAssigned && before.unreadCounts.assigned > 0
+        localUnreadForFilter > 0
           ? settle(
-              this.dependencies.markAllLocalRead(
-                scope.viewerMemberIds,
-                "assigned"
-              )
+              this.dependencies.markAllLocalRead(scope.viewerMemberIds, filter)
             )
           : Promise.resolve<Settled<number>>({ ok: true, value: 0 }),
-        includeMentions && before.unreadCounts.mentions > 0
+        includeCloudMentions && runtime.cloudUnreadCount > 0
           ? scope.accessToken && scope.activeCloudOrgId
             ? settle(
                 this.dependencies.markAllMentionsRead(
@@ -782,27 +827,56 @@ export class TeamInboxCoordinator {
       const readAt = cloud.ok
         ? (cloud.value.readAt ?? this.dependencies.now())
         : this.dependencies.now();
+      if (local.ok) {
+        if (filter === "all") {
+          runtime.localUnreadCounts = { all: 0, mentions: 0, assigned: 0 };
+        } else if (filter === "mentions") {
+          runtime.localUnreadCounts = {
+            ...runtime.localUnreadCounts,
+            all: Math.max(
+              0,
+              runtime.localUnreadCounts.all - runtime.localUnreadCounts.mentions
+            ),
+            mentions: 0,
+          };
+        } else {
+          runtime.localUnreadCounts = {
+            ...runtime.localUnreadCounts,
+            all: Math.max(
+              0,
+              runtime.localUnreadCounts.all - runtime.localUnreadCounts.assigned
+            ),
+            assigned: 0,
+          };
+        }
+      }
+      if (includeCloudMentions && cloud.ok) {
+        runtime.cloudUnreadCount = cloud.value.unreadCount;
+      }
       store.set(teamInboxCacheAtom, (current) => {
-        const assigned =
-          includeAssigned && local.ok ? 0 : current.unreadCounts.assigned;
+        const assigned = runtime.localUnreadCounts.assigned;
         const mentions =
-          includeMentions && cloud.ok
-            ? cloud.value.unreadCount
-            : current.unreadCounts.mentions;
+          runtime.localUnreadCounts.mentions + runtime.cloudUnreadCount;
+        const all = runtime.localUnreadCounts.all + runtime.cloudUnreadCount;
         return {
           ...current,
           items: current.items.map((candidate) => {
             const shouldMark =
-              (includeAssigned &&
-                local.ok &&
-                candidate.kind === "assigned_work_item") ||
-              (includeMentions &&
+              (local.ok &&
+                candidate.source !== "cloud" &&
+                (filter === "all" ||
+                  (filter === "assigned" &&
+                    candidate.kind === "assigned_work_item") ||
+                  (filter === "mentions" &&
+                    candidate.kind === "comment_mention"))) ||
+              (includeCloudMentions &&
                 cloud.ok &&
+                candidate.source === "cloud" &&
                 candidate.kind === "comment_mention");
             return shouldMark ? { ...candidate, readAt } : candidate;
           }),
-          unreadCount: assigned + mentions,
-          unreadCounts: { all: assigned + mentions, assigned, mentions },
+          unreadCount: all,
+          unreadCounts: { all, assigned, mentions },
           revision: current.revision + 1,
         };
       });
@@ -822,36 +896,75 @@ export class TeamInboxCoordinator {
     itemKey: string,
     nextItem: TeamInboxItem | null
   ): void {
+    const previousSnapshot = store.get(teamInboxCacheAtom);
+    const previousSnapshotItem = previousSnapshot.items.find(
+      (candidate) => getTeamInboxItemKey(candidate) === itemKey
+    );
+    const unreadDelta =
+      Number(nextItem?.readAt === null) -
+      Number(previousSnapshotItem?.readAt === null);
+    const runtime = this.runtimeByStore.get(store);
+    if (runtime?.scopeKey === scopeKey && unreadDelta !== 0) {
+      const affectedItem = previousSnapshotItem ?? nextItem;
+      if (affectedItem?.source === "cloud") {
+        runtime.cloudUnreadCount = Math.max(
+          0,
+          runtime.cloudUnreadCount + unreadDelta
+        );
+      } else if (affectedItem) {
+        runtime.localUnreadCounts = {
+          all: Math.max(0, runtime.localUnreadCounts.all + unreadDelta),
+          mentions:
+            affectedItem.kind === "comment_mention"
+              ? Math.max(0, runtime.localUnreadCounts.mentions + unreadDelta)
+              : runtime.localUnreadCounts.mentions,
+          assigned:
+            affectedItem.kind === "assigned_work_item"
+              ? Math.max(0, runtime.localUnreadCounts.assigned + unreadDelta)
+              : runtime.localUnreadCounts.assigned,
+        };
+      }
+    }
     store.set(teamInboxCacheAtom, (current) => {
       if (current.loadedForViewerKey !== scopeKey) return current;
       const previousItem = current.items.find(
         (candidate) => getTeamInboxItemKey(candidate) === itemKey
       );
-      const nextItems = current.items.flatMap((candidate) =>
-        getTeamInboxItemKey(candidate) === itemKey
-          ? nextItem
-            ? [nextItem]
-            : []
-          : [candidate]
-      );
+      const nextItems = previousItem
+        ? current.items.flatMap((candidate) =>
+            getTeamInboxItemKey(candidate) === itemKey
+              ? nextItem
+                ? [nextItem]
+                : []
+              : [candidate]
+          )
+        : nextItem
+          ? [...current.items, nextItem]
+          : current.items;
       const previousUnread = previousItem?.readAt === null ? 1 : 0;
       const nextUnread = nextItem?.readAt === null ? 1 : 0;
       const unreadDelta = nextUnread - previousUnread;
-      const assigned =
-        previousItem?.kind === "assigned_work_item" ||
-        nextItem?.kind === "assigned_work_item"
+      const runtimeMatches = runtime?.scopeKey === scopeKey;
+      const assigned = runtimeMatches
+        ? runtime.localUnreadCounts.assigned
+        : previousItem?.kind === "assigned_work_item" ||
+            nextItem?.kind === "assigned_work_item"
           ? Math.max(0, current.unreadCounts.assigned + unreadDelta)
           : current.unreadCounts.assigned;
-      const mentions =
-        previousItem?.kind === "comment_mention" ||
-        nextItem?.kind === "comment_mention"
+      const mentions = runtimeMatches
+        ? runtime.localUnreadCounts.mentions + runtime.cloudUnreadCount
+        : previousItem?.kind === "comment_mention" ||
+            nextItem?.kind === "comment_mention"
           ? Math.max(0, current.unreadCounts.mentions + unreadDelta)
           : current.unreadCounts.mentions;
+      const all = runtimeMatches
+        ? runtime.localUnreadCounts.all + runtime.cloudUnreadCount
+        : Math.max(0, current.unreadCounts.all + unreadDelta);
       return {
         ...current,
         items: boundedItems(nextItems),
-        unreadCount: assigned + mentions,
-        unreadCounts: { all: assigned + mentions, assigned, mentions },
+        unreadCount: all,
+        unreadCounts: { all, assigned, mentions },
         revision: current.revision + 1,
       };
     });
@@ -887,6 +1000,31 @@ export class TeamInboxCoordinator {
     readAt: string | null,
     authoritativeMentionUnread?: number
   ): void {
+    const cachedCandidate = store
+      .get(teamInboxCacheAtom)
+      .items.find((item) => getTeamInboxItemKey(item) === itemKey);
+    const runtime = this.runtimeByStore.get(store);
+    if (cachedCandidate && runtime?.scopeKey === scopeKey) {
+      const delta =
+        Number(readAt === null) - Number(cachedCandidate.readAt === null);
+      if (cachedCandidate.source === "cloud") {
+        runtime.cloudUnreadCount =
+          authoritativeMentionUnread ??
+          Math.max(0, runtime.cloudUnreadCount + delta);
+      } else {
+        runtime.localUnreadCounts = {
+          all: Math.max(0, runtime.localUnreadCounts.all + delta),
+          mentions:
+            cachedCandidate.kind === "comment_mention"
+              ? Math.max(0, runtime.localUnreadCounts.mentions + delta)
+              : runtime.localUnreadCounts.mentions,
+          assigned:
+            cachedCandidate.kind === "assigned_work_item"
+              ? Math.max(0, runtime.localUnreadCounts.assigned + delta)
+              : runtime.localUnreadCounts.assigned,
+        };
+      }
+    }
     store.set(teamInboxCacheAtom, (current) => {
       if (current.loadedForViewerKey !== scopeKey) return current;
       const candidate = current.items.find(
@@ -896,22 +1034,30 @@ export class TeamInboxCoordinator {
       const wasUnread = candidate.readAt === null;
       const willBeUnread = readAt === null;
       const delta = Number(willBeUnread) - Number(wasUnread);
-      const assigned =
-        candidate.kind === "assigned_work_item"
+      const currentRuntime = this.runtimeByStore.get(store);
+      const runtimeMatches = currentRuntime?.scopeKey === scopeKey;
+      const assigned = runtimeMatches
+        ? currentRuntime.localUnreadCounts.assigned
+        : candidate.kind === "assigned_work_item"
           ? Math.max(0, current.unreadCounts.assigned + delta)
           : current.unreadCounts.assigned;
-      const mentions =
-        candidate.kind === "comment_mention"
+      const mentions = runtimeMatches
+        ? currentRuntime.localUnreadCounts.mentions +
+          currentRuntime.cloudUnreadCount
+        : candidate.kind === "comment_mention"
           ? (authoritativeMentionUnread ??
             Math.max(0, current.unreadCounts.mentions + delta))
           : current.unreadCounts.mentions;
+      const all = runtimeMatches
+        ? currentRuntime.localUnreadCounts.all + currentRuntime.cloudUnreadCount
+        : Math.max(0, current.unreadCounts.all + delta);
       return {
         ...current,
         items: current.items.map((item) =>
           getTeamInboxItemKey(item) === itemKey ? { ...item, readAt } : item
         ),
-        unreadCount: assigned + mentions,
-        unreadCounts: { all: assigned + mentions, assigned, mentions },
+        unreadCount: all,
+        unreadCounts: { all, assigned, mentions },
         revision: current.revision + 1,
       };
     });

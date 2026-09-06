@@ -7,6 +7,7 @@ use tracing::{debug, info, warn};
 
 use super::McpManager;
 use crate::specialization::mcp::client::McpClient;
+use crate::specialization::mcp::config::redact_server_secrets_from_text;
 
 impl McpManager {
     /// Spawn a background task that listens for server notifications and
@@ -64,9 +65,10 @@ impl McpManager {
                             .and_then(|p| p.get("uri"))
                             .and_then(|v| v.as_str())
                             .unwrap_or("<missing-uri>");
+                        let safe_uri = redact_server_secrets_from_text(client.config(), uri);
                         info!(
                             "[mcp:manager] Resource updated on '{}': {} — next read_resource call will return fresh data",
-                            server_name, uri
+                            server_name, safe_uri
                         );
                         counters.resources_updated.fetch_add(1, Ordering::SeqCst);
                     }
@@ -79,9 +81,10 @@ impl McpManager {
                         counters.prompts_list_changed.fetch_add(1, Ordering::SeqCst);
                     }
                     other => {
+                        let safe_method = redact_server_secrets_from_text(client.config(), other);
                         debug!(
                             "[mcp:manager] Unknown notification from '{}': {}",
-                            server_name, other
+                            server_name, safe_method
                         );
                         counters.unknown.fetch_add(1, Ordering::SeqCst);
                     }

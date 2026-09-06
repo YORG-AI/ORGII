@@ -1,5 +1,7 @@
 import type React from "react";
 
+import type { SessionFollowUpSuggestion } from "@src/api/services/sessionFollowUpSuggestions";
+
 import type { ScrollNavState } from "./ChatHistory";
 import type { InlineSection } from "./InputArea/components/CollapsedInlineRow";
 import type { FileChangesResult } from "./InputArea/components/compactFileChangesHelpers";
@@ -51,6 +53,7 @@ export interface ChatViewComposerSectionProps {
   processExpanded: boolean;
   queuedMessages: import("@src/store/ui/messageQueueAtom").QueuedMessage[];
   onCancelQueuedMessage: (messageId: string) => void;
+  onClearQueuedMessages: () => void;
   onSendQueuedMessageNow: (messageId: string) => void;
   onReorderQueuedMessages: (fromIndex: number, toIndex: number) => void;
   onToggleQueue: () => void;
@@ -72,4 +75,6 @@ export interface ChatViewComposerSectionProps {
   customMentionOptions: ReadonlyArray<CustomMentionOption>;
   queueEditProps: QueueEditInputAreaProps;
   disableStopWhenEmpty?: boolean;
+  followUpSuggestions: ReadonlyArray<SessionFollowUpSuggestion>;
+  onFollowUpSuggestionSent: () => void;
 }

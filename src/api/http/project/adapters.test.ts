@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { projectDataToUI, standaloneWorkItemDataToEnriched } from "./adapters";
+import {
+  normalizeWorkItemStatus,
+  projectDataToUI,
+  standaloneWorkItemDataToEnriched,
+  uiWorkItemToFrontmatter,
+  workItemCommentToEntry,
+} from "./adapters";
 import type {
   LinkedSession,
   ProjectData,
@@ -132,5 +138,70 @@ describe("projectDataToUI", () => {
 
     expect(project.syncAdapterId).toBe("github");
     expect(project).not.toHaveProperty("syncConnectionId");
+  });
+});
+
+describe("normalizeWorkItemStatus", () => {
+  it("preserves custom and blocked status identities", () => {
+    expect(normalizeWorkItemStatus("waiting_external")).toBe(
+      "waiting_external"
+    );
+    expect(normalizeWorkItemStatus("blocked")).toBe("blocked");
+  });
+
+  it("uses backlog only when no status exists", () => {
+    expect(normalizeWorkItemStatus(undefined)).toBe("backlog");
+  });
+});
+
+describe("workItemCommentToEntry", () => {
+  it("preserves the complete per-comment identity and revision payload", () => {
+    const comment = {
+      id: "comment-1",
+      author: "member-1",
+      content: "Updated body",
+      created_at: "2026-08-19T10:00:00.000Z",
+      revision: 3,
+      mentioned_user_ids: ["member-2"],
+      mentions: [{ kind: "member" as const, id: "member-2" }],
+      parent_id: "comment-parent",
+      thread_id: "thread-1",
+      resolved_at: "2026-08-19T10:05:00.000Z",
+      resolved_by: "member-3",
+      conclusion: true,
+      agent_session_id: "session-1",
+      edited_at: "2026-08-19T10:03:00.000Z",
+      deleted_at: "2026-08-19T10:06:00.000Z",
+    };
+
+    expect(workItemCommentToEntry(comment)).toEqual(comment);
+  });
+});
+
+describe("uiWorkItemToFrontmatter custom statuses", () => {
+  it("keeps a custom status key on the outbound frontmatter instead of dropping it", () => {
+    const frontmatter = uiWorkItemToFrontmatter(
+      {
+        session_id: "wi-1",
+        name: "Custom status item",
+        workItemStatus: "code-review" as never,
+        priority: "none",
+      } as never,
+      undefined as never
+    );
+    expect(frontmatter.status).toBe("code-review");
+  });
+
+  it("still maps built-in statuses through the file vocabulary", () => {
+    const frontmatter = uiWorkItemToFrontmatter(
+      {
+        session_id: "wi-2",
+        name: "Builtin status item",
+        workItemStatus: "in_progress",
+        priority: "none",
+      } as never,
+      undefined as never
+    );
+    expect(frontmatter.status).toBe("in_progress");
   });
 });

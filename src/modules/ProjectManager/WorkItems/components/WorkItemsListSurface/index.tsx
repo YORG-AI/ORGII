@@ -20,6 +20,7 @@ import WorkItemsCompactList from "../WorkItemsCompactList";
 import WorkItemsListContent from "../WorkItemsListContent";
 
 interface WorkItemsListSurfaceProps {
+  statusOrgId: string | null;
   groupedWorkItems: WorkItemGroup<WorkItemExtended>[];
   filteredWorkItems: WorkItemExtended[];
   selectedWorkItem: WorkItemExtended | null;
@@ -69,6 +70,7 @@ interface WorkItemsListSurfaceProps {
 const EMPTY_CHECKED_WORK_ITEM_IDS = new Set<string>();
 
 const WorkItemsListSurface: FC<WorkItemsListSurfaceProps> = ({
+  statusOrgId,
   groupedWorkItems,
   filteredWorkItems,
   selectedWorkItem,
@@ -109,6 +111,7 @@ const WorkItemsListSurface: FC<WorkItemsListSurfaceProps> = ({
   const { t } = useTranslation("common");
   const listContent = (
     <WorkItemsListContent
+      statusOrgId={statusOrgId}
       groupedWorkItems={groupedWorkItems}
       filteredWorkItems={filteredWorkItems}
       workItems={workItems}

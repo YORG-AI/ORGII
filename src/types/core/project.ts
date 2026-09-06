@@ -51,6 +51,7 @@ export interface StatusBreakdown {
   planned: number;
   in_progress: number;
   in_review: number;
+  blocked: number;
   completed: number;
   cancelled: number;
 }

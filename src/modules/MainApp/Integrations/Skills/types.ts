@@ -19,7 +19,7 @@ export interface SkillsHubDetailState {
   updates: SkillUpdateInfo[];
   updatesLoading: boolean;
   onCheckUpdates: () => void;
-  onUpdateSkill: (slug: string) => Promise<boolean>;
+  onUpdateSkill: (update: SkillUpdateInfo) => Promise<boolean>;
   updatingSlug: string | null;
   onRefreshInstalled: (
     workspacePaths?: string[],

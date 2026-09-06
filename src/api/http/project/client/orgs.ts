@@ -4,6 +4,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { cachedRead, invalidateCache } from "../cache";
+import { notifyProjectRosterChanged } from "../events";
 import type {
   ConfigureProjectOrgGitFolderSyncRequest,
   CreateProjectOrgRequest,
@@ -34,6 +35,7 @@ export async function deleteOrg(orgId: string): Promise<void> {
   await invoke("project_delete_org", { orgId });
   invalidateCache("__project_orgs__");
   invalidateCache("__projects__");
+  notifyProjectRosterChanged({ source: "project" });
 }
 
 export async function configureOrgGitFolderSync(
@@ -60,6 +62,9 @@ export async function syncOrgGitFolder(
   );
   invalidateCache("__project_orgs__");
   invalidateCache("__projects__");
+  if (result.projects_imported > 0) {
+    notifyProjectRosterChanged({ source: "project" });
+  }
   return result;
 }
 

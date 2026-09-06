@@ -2541,7 +2541,8 @@
     "failedToInterrupt": "中斷 Session 失敗",
     "failedToStop": "停止 Agent 失敗",
     "failedToCheckChanges": "無法檢查文件變更，將自動還原。",
-    "insufficientBalance": "ORGII 托管服務餘額不足，請前往 orgii.ai/wallet 儲值。"
+    "insufficientBalance": "ORGII 托管服務餘額不足，請前往 orgii.ai/wallet 儲值。",
+    "runQueuedBehindCheckout": "已排隊：另一個執行正在使用此檢出目錄，待其結束後將自動開始。"
   },
   "planning": {
     "agentTyping": "Agent 正在輸入...",

@@ -126,6 +126,31 @@ pub enum WorkItemRunTarget {
     },
 }
 
+/// Provenance copied into a Run without embedding credentials or a mutable
+/// filesystem path.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkItemRunSkillOrigin {
+    pub provider: String,
+    pub locator: String,
+}
+
+/// Consent snapshot for one skill effective when the Run was enqueued. This
+/// deliberately freezes identity and digests only; WorkItemRun is not a
+/// package-release or full-body pinning system.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkItemRunSkillManifestEntry {
+    pub id: String,
+    pub name: String,
+    pub source: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<WorkItemRunSkillOrigin>,
+    pub identity_digest: String,
+    pub content_digest: String,
+    pub schema_digest: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkItemRunTargetSnapshot {
@@ -162,6 +187,14 @@ pub struct WorkItemRunTargetSnapshot {
     pub workspace_mode: Option<WorkspaceExecutionMode>,
     pub agent_definition_id: Option<String>,
     pub agent_org_id: Option<String>,
+    /// Effective, available, explicitly consented skills after the resolved
+    /// agent include/exclude policy. Older Runs default to an empty manifest.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skill_manifest: Vec<WorkItemRunSkillManifestEntry>,
+    /// Aggregate digest also marks that the manifest was captured. `None`
+    /// distinguishes legacy Runs from a new Run whose effective set is empty.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill_manifest_digest: Option<String>,
 }
 
 impl WorkItemRunTargetSnapshot {
@@ -181,7 +214,28 @@ impl WorkItemRunTargetSnapshot {
             workspace_mode: None,
             agent_definition_id: None,
             agent_org_id: None,
+            skill_manifest: Vec::new(),
+            skill_manifest_digest: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod target_snapshot_tests {
+    use super::*;
+
+    #[test]
+    fn legacy_target_snapshot_defaults_skill_manifest_to_empty() {
+        let legacy = serde_json::json!({
+            "target": { "kind": "start_work_item", "accountId": null, "modelId": null },
+            "workItemRevision": 1,
+            "workspacePath": null,
+            "agentDefinitionId": null,
+            "agentOrgId": null
+        });
+        let snapshot: WorkItemRunTargetSnapshot = serde_json::from_value(legacy).unwrap();
+        assert!(snapshot.skill_manifest.is_empty());
+        assert!(snapshot.skill_manifest_digest.is_none());
     }
 }
 

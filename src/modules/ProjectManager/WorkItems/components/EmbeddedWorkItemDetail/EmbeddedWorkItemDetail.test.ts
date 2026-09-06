@@ -59,6 +59,7 @@ describe("EmbeddedWorkItemDetail", () => {
         onPendingChangesChange: vi.fn(),
         repoPath: null,
         projectSlug: null,
+        orgId: "org-1",
         shortId: null,
         onRefreshWorkItem: vi.fn(async () => undefined),
         breadcrumbProjectName: "Project",
@@ -79,6 +80,7 @@ describe("EmbeddedWorkItemDetail", () => {
     const markup = renderToStaticMarkup(
       createElement(EmbeddedWorkItemDetail, {
         workItem: null,
+        orgId: "org-1",
         onClose: vi.fn(),
         onNavigate: vi.fn(),
         hasPrev: false,

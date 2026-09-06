@@ -119,7 +119,11 @@ interface UseMcpAddWizardOptions {
     config: McpServerConfig,
     scope: McpConfigScope
   ) => Promise<void>;
-  onTest: (name: string, config: McpServerConfig) => Promise<McpTestResult>;
+  onTest: (
+    name: string,
+    config: McpServerConfig,
+    scope: McpConfigScope
+  ) => Promise<McpTestResult>;
   onCancel: () => void;
   editName?: string;
   editConfig?: McpServerConfig;
@@ -316,7 +320,7 @@ export function useMcpAddWizard({
     setTestResult(null);
     setError(null);
     try {
-      const result = await onTest(serverName, config);
+      const result = await onTest(serverName, config, scope);
       setTestResult(result);
     } catch (err) {
       setTestResult({
@@ -328,7 +332,7 @@ export function useMcpAddWizard({
     } finally {
       setTesting(false);
     }
-  }, [serverName, config, onTest, t]);
+  }, [serverName, config, scope, onTest, t]);
 
   const handleSave = useCallback(async () => {
     if (!serverName.trim()) {

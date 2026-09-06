@@ -31,6 +31,34 @@ pub fn notify_data_changed() {
     }
 }
 
+/// Payload of [`ROUTINE_CHANGED_EVENT`]: the editable Routine that changed,
+/// the fire (portable run or activation event) that changed it when the
+/// change came from execution, and the status the UI should read back.
+#[derive(Debug, Clone)]
+pub struct RoutineChangedEvent {
+    pub routine_id: String,
+    pub fire_id: Option<String>,
+    pub status: String,
+}
+
+static ROUTINE_CHANGED_NOTIFIER: OnceLock<Box<dyn Fn(RoutineChangedEvent) + Send + Sync>> =
+    OnceLock::new();
+
+/// App-level registration of the fine-grained routine notifier. First call wins.
+pub fn register_routine_changed_notifier(
+    notifier: Box<dyn Fn(RoutineChangedEvent) + Send + Sync>,
+) {
+    let _ = ROUTINE_CHANGED_NOTIFIER.set(notifier);
+}
+
+/// Fire after the routine mutation transaction commits, so the Routines page
+/// re-reads committed state. No-op before registration.
+pub(crate) fn notify_routine_changed(event: RoutineChangedEvent) {
+    if let Some(notifier) = ROUTINE_CHANGED_NOTIFIER.get() {
+        notifier(event);
+    }
+}
+
 /// A work item that just crossed into a terminal portable state
 /// (completed/failed/cancelled families) through the atomic RMW kernel.
 /// Carries enough scope to re-read the item without another query shape.

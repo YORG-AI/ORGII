@@ -266,14 +266,20 @@ pub async fn agent_org_send_group_chat_message(
     app_handle: tauri::AppHandle,
     state: tauri::State<'_, AgentAppState>,
     session_id: String,
+    message_id: Option<String>,
     target_member_id: Option<String>,
     content: String,
     display_text: Option<String>,
 ) -> Result<AgentOrgGroupChatMessageResponse, String> {
+    // Compatibility for an older renderer or E2E bridge running briefly
+    // against a newly restarted backend. New callers always supply the
+    // optimistic row id; an omitted id preserves the legacy one-shot send.
+    let message_id = message_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     agent_org_send_group_chat_message_impl_with_display(
         app_handle,
         &state,
         session_id,
+        message_id,
         target_member_id,
         content,
         display_text,
@@ -285,6 +291,7 @@ pub async fn agent_org_send_group_chat_message_impl(
     app_handle: tauri::AppHandle,
     state: &AgentAppState,
     session_id: String,
+    message_id: String,
     target_member_id: Option<String>,
     content: String,
 ) -> Result<AgentOrgGroupChatMessageResponse, String> {
@@ -292,6 +299,7 @@ pub async fn agent_org_send_group_chat_message_impl(
         app_handle,
         state,
         session_id,
+        message_id,
         target_member_id,
         content,
         None,
@@ -303,6 +311,7 @@ async fn agent_org_send_group_chat_message_impl_with_display(
     app_handle: tauri::AppHandle,
     state: &AgentAppState,
     session_id: String,
+    message_id: String,
     target_member_id: Option<String>,
     content: String,
     display_text: Option<String>,
@@ -311,6 +320,13 @@ async fn agent_org_send_group_chat_message_impl_with_display(
     if content.is_empty() {
         return Err("Agent Org group chat message content is required".to_string());
     }
+    let message_id = message_id.trim();
+    crate::coordination::agent_org_payload_limits::validate_required_text(
+        "message_id",
+        message_id,
+        crate::coordination::agent_org_payload_limits::MESSAGE_IDENTIFIER_MAX_CHARS,
+        crate::coordination::agent_org_payload_limits::MESSAGE_IDENTIFIER_MAX_BYTES,
+    )?;
 
     let view = agent_org_session_run_view_impl(state, &session_id)
         .await?
@@ -331,6 +347,7 @@ async fn agent_org_send_group_chat_message_impl_with_display(
     let durable_context = view.context.clone();
     let durable_target_agent_id = target.agent_id.clone();
     let durable_target_member_id = target.member_id.clone();
+    let durable_message_id = message_id.to_string();
     let durable_content = content.to_string();
     let durable_display_text = display_text
         .as_deref()
@@ -350,6 +367,7 @@ async fn agent_org_send_group_chat_message_impl_with_display(
             &durable_context,
             &durable_target_agent_id,
             &durable_target_member_id,
+            &durable_message_id,
             &durable_content,
             durable_display_text.as_deref(),
         )
@@ -397,19 +415,79 @@ async fn agent_org_send_group_chat_message_impl_with_display(
 /// Persist the user's Group Chat message and clear the target member's direct
 /// intervention as one state transition. The Run status is re-read inside the
 /// same IMMEDIATE transaction so a stale Run View can never write into a Run
-/// that became terminal before submission.
+/// that became terminal before submission. A committed `message_id` is also
+/// returned on retry before the terminal-state gate, so a lost IPC response
+/// cannot duplicate the durable Inbox row.
 pub(super) fn persist_group_chat_message(
     context: &AgentOrgRunContext,
     target_agent_id: &str,
     target_member_id: &str,
+    message_id: &str,
     content: &str,
     display_text: Option<&str>,
 ) -> Result<AgentInboxRecord, String> {
+    crate::coordination::agent_org_payload_limits::validate_required_text(
+        "message_id",
+        message_id,
+        crate::coordination::agent_org_payload_limits::MESSAGE_IDENTIFIER_MAX_CHARS,
+        crate::coordination::agent_org_payload_limits::MESSAGE_IDENTIFIER_MAX_BYTES,
+    )?;
     with_sessions_writer(|| -> Result<AgentInboxRecord, String> {
         let mut conn = get_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
+        let existing = tx
+            .query_row(
+                "SELECT id, recipient_agent_id, recipient_member_id,
+                        sender_agent_id, sender_member_id, org_run_id,
+                        payload_kind, payload_json, request_id, created_at,
+                        read_at, display_text
+                 FROM agent_inbox
+                 WHERE org_run_id=?1
+                   AND sender_agent_id=?2
+                   AND client_message_id=?3
+                 LIMIT 1",
+                params![&context.run_id, USER_SENDER_ID, message_id],
+                |row| {
+                    Ok((
+                        AgentInboxRecord {
+                            id: row.get(0)?,
+                            recipient_agent_id: row.get(1)?,
+                            recipient_member_id: row.get(2)?,
+                            sender_agent_id: row.get(3)?,
+                            sender_member_id: row.get(4)?,
+                            org_run_id: row.get(5)?,
+                            payload_kind: row.get(6)?,
+                            payload_json: row.get(7)?,
+                            request_id: row.get(8)?,
+                            created_at: row.get(9)?,
+                            read_at: row.get(10)?,
+                        },
+                        row.get::<_, Option<String>>(11)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|err| err.to_string())?;
+        if let Some((existing, existing_display_text)) = existing {
+            let same_message = matches!(
+                existing.decode_payload(),
+                Ok(AgentMessage::Plain { ref text, .. }) if text == content
+            );
+            if existing.recipient_agent_id != target_agent_id
+                || existing.recipient_member_id.as_deref() != Some(target_member_id)
+                || existing.payload_kind != "plain"
+                || !same_message
+                || existing_display_text.as_deref() != display_text
+            {
+                return Err(format!(
+                    "Agent Org group chat message id {message_id} was already used for a different durable message"
+                ));
+            }
+            tx.commit().map_err(|err| err.to_string())?;
+            return Ok(existing);
+        }
         let run_status: Option<String> = tx
             .query_row(
                 "SELECT status FROM agent_org_runs WHERE id=?1",
@@ -445,13 +523,13 @@ pub(super) fn persist_group_chat_message(
                 },
             },
         )?;
-        if let Some(display_text) = display_text {
-            tx.execute(
-                "UPDATE agent_inbox SET display_text=?1 WHERE id=?2",
-                params![display_text, row.id],
-            )
-            .map_err(|err| err.to_string())?;
-        }
+        tx.execute(
+            "UPDATE agent_inbox
+             SET display_text=?1, client_message_id=?2
+             WHERE id=?3",
+            params![display_text, message_id, row.id],
+        )
+        .map_err(|err| err.to_string())?;
         tx.execute(
             "UPDATE agent_member_interventions
              SET cleared_at=?3

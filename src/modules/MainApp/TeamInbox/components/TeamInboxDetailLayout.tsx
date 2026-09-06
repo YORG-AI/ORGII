@@ -24,6 +24,7 @@ export interface TeamInboxDetailLayoutProps {
   openLabel: string;
   openIcon: React.ReactNode;
   headerAuxiliaryAction?: DetailHeaderIconActionProps;
+  headerDispositionAction?: DetailHeaderIconActionProps;
   onMarkRead?: () => void;
   onMarkUnread?: () => void;
   onOpen?: () => void;
@@ -43,6 +44,7 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
   openLabel,
   openIcon,
   headerAuxiliaryAction,
+  headerDispositionAction,
   onMarkRead,
   onMarkUnread,
   onOpen,
@@ -91,6 +93,9 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
   const auxiliaryAction = headerAuxiliaryAction ? (
     <DetailHeaderIconAction {...headerAuxiliaryAction} />
   ) : null;
+  const dispositionAction = headerDispositionAction ? (
+    <DetailHeaderIconAction {...headerDispositionAction} />
+  ) : null;
   const resolvedHeaderContent = headerTabs ?? headerContent;
 
   return (
@@ -103,12 +108,16 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
         icon,
         children: resolvedHeaderContent,
         actions:
-          readAction || auxiliaryAction || headerOpenAction ? (
+          readAction ||
+          dispositionAction ||
+          auxiliaryAction ||
+          headerOpenAction ? (
             <div
               className="flex items-center gap-px"
               data-testid="team-inbox-detail-actions"
             >
               {readAction}
+              {dispositionAction}
               {auxiliaryAction}
               {headerOpenAction}
             </div>

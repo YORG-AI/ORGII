@@ -111,6 +111,49 @@ pub fn init_pm_service_tables(conn: &Connection) -> SqliteResult<()> {
             created_at  INTEGER NOT NULL,            -- unix ms
             updated_at  INTEGER NOT NULL
         );
+        -- Canonical Routine JSON renders schedule activations as the exact
+        -- token below. The partial index keeps the 30-second due scan away
+        -- from manual/provider-only rows while the service still parses and
+        -- validates every selected snapshot before execution.
+        DROP INDEX IF EXISTS idx_pm_routines_schedule_due;
+        DROP INDEX IF EXISTS idx_pm_routines_activation_due_v2;
+        CREATE INDEX IF NOT EXISTS idx_pm_routines_activation_due
+            ON pm_routines(enabled, next_fire_at, name)
+            WHERE instr(spec_json, '"type":"schedule"') > 0
+               OR instr(spec_json, '"type":"one_time"') > 0;
+
+        -- Durable concurrency outcomes. Queued rows survive restart and are
+        -- promoted idempotently once the active portable run settles.
+        CREATE TABLE IF NOT EXISTS pm_routine_activation_events (
+            id                 TEXT PRIMARY KEY,
+            routine_name       TEXT NOT NULL,
+            invoke_key         TEXT NOT NULL,
+            target_binding     TEXT NOT NULL,
+            inputs_json        TEXT NOT NULL,
+            status             TEXT NOT NULL,
+            coalesced_run_id   TEXT,
+            error              TEXT,
+            scheduled_at       INTEGER NOT NULL,
+            created_at         INTEGER NOT NULL,
+            updated_at         INTEGER NOT NULL,
+            UNIQUE(routine_name, invoke_key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_routine_activation_queue
+            ON pm_routine_activation_events(status, created_at, id);
+        CREATE INDEX IF NOT EXISTS idx_pm_routine_activation_history
+            ON pm_routine_activation_events(routine_name, created_at DESC);
+
+        -- Cross-process CAS for the short activation decision window. The
+        -- lease covers active-check through durable defer/invoke creation;
+        -- SQLite serializes claims and a crashed owner becomes recoverable.
+        CREATE TABLE IF NOT EXISTS pm_routine_activation_guards (
+            routine_name     TEXT PRIMARY KEY,
+            owner_token      TEXT NOT NULL,
+            lease_expires_at INTEGER NOT NULL,
+            created_at       INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_routine_activation_guard_expiry
+            ON pm_routine_activation_guards(lease_expires_at);
 
         CREATE TABLE IF NOT EXISTS pm_routine_runs (
             id               TEXT PRIMARY KEY,        -- run_<ulid-ish>
@@ -322,6 +365,82 @@ pub fn init_pm_service_tables(conn: &Connection) -> SqliteResult<()> {
         );
         CREATE INDEX IF NOT EXISTS idx_pm_work_item_property_values_item
             ON pm_work_item_property_values(scope_key, work_item_id);
+
+        CREATE TABLE IF NOT EXISTS pm_status_definitions (
+            id            TEXT PRIMARY KEY,
+            org_id        TEXT NOT NULL,
+            key           TEXT NOT NULL,
+            name          TEXT NOT NULL,
+            category      TEXT NOT NULL,
+            color         TEXT,
+            description   TEXT,
+            position      INTEGER NOT NULL DEFAULT 0,
+            archived_at   INTEGER,
+            created_at    INTEGER NOT NULL,
+            updated_at    INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_pm_status_definitions_key
+            ON pm_status_definitions(org_id, key);
+        CREATE INDEX IF NOT EXISTS idx_pm_status_definitions_org
+            ON pm_status_definitions(org_id, archived_at, position);
+
+        CREATE TABLE IF NOT EXISTS pm_saved_views (
+            id           TEXT PRIMARY KEY,
+            org_id       TEXT NOT NULL,
+            project_slug TEXT,
+            name         TEXT NOT NULL,
+            query_json   TEXT NOT NULL DEFAULT '{}',
+            display_json TEXT NOT NULL DEFAULT '{}',
+            position     INTEGER NOT NULL DEFAULT 0,
+            created_by   TEXT,
+            archived_at  INTEGER,
+            created_at   INTEGER NOT NULL,
+            updated_at   INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_saved_views_org
+            ON pm_saved_views(org_id, archived_at, position);
+
+        CREATE TABLE IF NOT EXISTS pm_quick_actions (
+            id           TEXT PRIMARY KEY,
+            org_id       TEXT NOT NULL,
+            name         TEXT NOT NULL,
+            description  TEXT NOT NULL DEFAULT '',
+            target_kind  TEXT NOT NULL,
+            target_id    TEXT NOT NULL,
+            prompt       TEXT NOT NULL,
+            use_count    INTEGER NOT NULL DEFAULT 0,
+            created_by   TEXT,
+            archived_at  INTEGER,
+            created_at   INTEGER NOT NULL,
+            updated_at   INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_pm_quick_actions_org
+            ON pm_quick_actions(org_id, archived_at, use_count DESC);
+
+        CREATE TABLE IF NOT EXISTS pm_inbox_prefs (
+            recipient_id TEXT NOT NULL,
+            kind         TEXT NOT NULL,
+            muted_at     INTEGER NOT NULL,
+            PRIMARY KEY (recipient_id, kind)
+        );
+
+        CREATE TABLE IF NOT EXISTS pm_org_skills (
+            id              TEXT PRIMARY KEY,
+            org_id          TEXT NOT NULL,
+            name            TEXT NOT NULL,
+            description     TEXT NOT NULL DEFAULT '',
+            skill_md        TEXT NOT NULL,
+            files_json      TEXT NOT NULL DEFAULT '[]',
+            provenance_json TEXT,
+            shared_by       TEXT,
+            archived_at     INTEGER,
+            created_at      INTEGER NOT NULL,
+            updated_at      INTEGER NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_pm_org_skills_name
+            ON pm_org_skills(org_id, name) WHERE archived_at IS NULL;
+        CREATE INDEX IF NOT EXISTS idx_pm_org_skills_org
+            ON pm_org_skills(org_id, archived_at);
         "#,
     )?;
     Ok(())
@@ -707,6 +826,7 @@ fn init_local_tables(conn: &Connection) -> SqliteResult<()> {
     ensure_collab_sync_columns(conn)?;
     ensure_workitems_allow_standalone_scope(conn)?;
     ensure_routine_definitions_durable_columns(conn)?;
+    super::io::backfill_routine_activations(conn)?;
     ensure_routine_fires_durable_columns(conn)?;
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_workitems_deleted_at ON workitems(deleted_at)",
@@ -919,7 +1039,14 @@ fn ensure_routine_definitions_durable_columns(conn: &Connection) -> SqliteResult
         "TEXT NOT NULL DEFAULT '{}'",
     )?;
     ensure_column(conn, "routine_definitions", "last_evaluated_at", "INTEGER")?;
-    ensure_column(conn, "routine_definitions", "next_fire_at", "INTEGER")
+    ensure_column(conn, "routine_definitions", "next_fire_at", "INTEGER")?;
+    ensure_column(conn, "routine_definitions", "archived_at", "INTEGER")?;
+    ensure_column(
+        conn,
+        "routine_definitions",
+        "activations_json",
+        "TEXT NOT NULL DEFAULT '[]'",
+    )
 }
 
 fn ensure_routine_fires_durable_columns(conn: &Connection) -> SqliteResult<()> {

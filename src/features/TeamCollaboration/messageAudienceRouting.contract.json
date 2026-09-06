@@ -1,0 +1,86 @@
+[
+  {
+    "name": "team chat defaults to the human channel",
+    "surface": "team_chat",
+    "targets": [],
+    "expected": {
+      "humanScope": "channel",
+      "memberIds": [],
+      "agentMode": "none"
+    }
+  },
+  {
+    "name": "team chat can address explicit members",
+    "surface": "team_chat",
+    "targets": [{ "kind": "member", "id": "member-2" }],
+    "expected": {
+      "humanScope": "members",
+      "memberIds": ["member-2"],
+      "agentMode": "none"
+    }
+  },
+  {
+    "name": "team chat never turns an injected agent target into execution",
+    "surface": "team_chat",
+    "targets": [{ "kind": "agent", "id": "builtin:sde" }],
+    "expected": {
+      "humanScope": "channel",
+      "memberIds": [],
+      "agentMode": "none"
+    }
+  },
+  {
+    "name": "plain Work Item comments default to the assigned Agent",
+    "surface": "work_item_comment",
+    "targets": [],
+    "expected": {
+      "humanScope": "none",
+      "memberIds": [],
+      "agentMode": "assigned"
+    }
+  },
+  {
+    "name": "Work Item member mentions replace the assigned Agent default",
+    "surface": "work_item_comment",
+    "targets": [{ "kind": "member", "id": "member-2" }],
+    "expected": {
+      "humanScope": "members",
+      "memberIds": ["member-2"],
+      "agentMode": "none"
+    }
+  },
+  {
+    "name": "Work Item all mentions are human channel audience",
+    "surface": "work_item_comment",
+    "targets": [{ "kind": "all" }],
+    "expected": {
+      "humanScope": "channel",
+      "memberIds": [],
+      "agentMode": "none"
+    }
+  },
+  {
+    "name": "Work Item agent mentions explicitly execute that Agent",
+    "surface": "work_item_comment",
+    "targets": [{ "kind": "agent", "id": "builtin:sde" }],
+    "expected": {
+      "humanScope": "none",
+      "memberIds": [],
+      "agentMode": "explicit"
+    }
+  },
+  {
+    "name": "mixed Work Item audiences notify humans and execute the explicit Agent",
+    "surface": "work_item_comment",
+    "targets": [
+      { "kind": "member", "id": "member-2" },
+      { "kind": "agent", "id": "builtin:sde" },
+      { "kind": "member", "id": "member-2" }
+    ],
+    "expected": {
+      "humanScope": "members",
+      "memberIds": ["member-2"],
+      "agentMode": "explicit"
+    }
+  }
+]

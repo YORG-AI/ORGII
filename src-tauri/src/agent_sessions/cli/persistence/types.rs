@@ -70,6 +70,9 @@ pub struct CodeSession {
     pub additional_directories: Option<Vec<String>>,
     pub parent_session_id: Option<String>,
     pub org_member_id: Option<String>,
+    /// Agent definition owning this run, when launched for a specific
+    /// agent; scopes MCP visibility to that agent's tool filters.
+    pub agent_definition_id: Option<String>,
     pub org_id: String,
     pub project_id: Option<String>,
     pub project_name: Option<String>,
@@ -136,6 +139,8 @@ pub struct CreateCodeSessionParams {
     pub additional_directories: Option<Vec<String>>,
     pub parent_session_id: Option<String>,
     pub org_member_id: Option<String>,
+    #[serde(default)]
+    pub agent_definition_id: Option<String>,
     pub org_id: Option<String>,
     pub project_id: Option<String>,
     pub project_name: Option<String>,

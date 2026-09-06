@@ -23,6 +23,7 @@ describe("WorkItemRow", () => {
     } as WorkItem;
     const markup = renderToStaticMarkup(
       createElement(WorkItemRow, {
+        statusOrgId: "personal-org",
         workItem,
         isSelected: false,
         onSelect: vi.fn(),

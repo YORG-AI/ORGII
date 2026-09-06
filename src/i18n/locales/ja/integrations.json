@@ -2214,7 +2214,10 @@
     "fireHistory": "Run history",
     "noFires": "No runs yet",
     "openSession": "Open session",
-    "openWorkItem": "Open work item"
+    "openWorkItem": "Open work item",
+    "fireError": "ルーチンを開始できませんでした: {{detail}}",
+    "provider": "プロバイダー",
+    "eventKind": "イベント"
   },
   "cursorPlugins": {
     "noPlugins": "Cursor プラグインはインストールされていません",

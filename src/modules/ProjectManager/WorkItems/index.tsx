@@ -10,8 +10,10 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
+import type { SavedView, SavedViewDisplay } from "@src/api/http/project";
 import { projectSyncApi } from "@src/api/http/project/sync";
 import { Placeholder } from "@src/components/Placeholder";
+import Select from "@src/components/Select";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
@@ -25,6 +27,7 @@ import { WorkManagementSearchInput } from "@src/modules/shared/components/WorkMa
 import SplitListFullscreenButton from "@src/modules/shared/layouts/SplitListFullscreenButton";
 import { reposAtom } from "@src/store/repo";
 import { syncDeepLinkAtom } from "@src/store/sync";
+import { userAtom } from "@src/store/user/userAtom";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 import {
   PROJECT_DETAIL_SURFACE_VIEW,
@@ -42,9 +45,17 @@ import {
   WorkItemsPageHeader,
   WorkItemsTabContent,
 } from "./components";
+import BatchPropertyDialog from "./components/BatchPropertyDialog";
+import BatchQuickFieldDialog from "./components/BatchQuickFieldDialog";
+import PropertyFilterControl from "./components/PropertyFilterControl";
+import RevisionConflictModal from "./components/RevisionConflictModal";
+import SavedViewsControl from "./components/SavedViewsControl";
+import type { WorkItemsTableSort } from "./components/WorkItemsTableView";
 import { getEffectiveWorkItemPrefix } from "./config";
 import { useBufferedProjectProperties } from "./hooks/useBufferedProjectProperties";
 import { useMultiSelect } from "./hooks/useMultiSelect";
+import { useEnsureStatusDefinitions } from "./hooks/useStatusDefinitions";
+import { useWorkItemPropertyView } from "./hooks/useWorkItemPropertyView";
 import { useWorkItems } from "./hooks/useWorkItems";
 import { useWorkItemsHeaderState } from "./hooks/useWorkItemsHeaderState";
 import { useWorkItemsSync } from "./hooks/useWorkItemsSync";
@@ -53,10 +64,16 @@ import {
   useWorkItemsTabBarState,
 } from "./hooks/useWorkItemsTabBarState";
 import {
+  type WorkItemPropertyFilter,
+  filterWorkItemsByProperty,
+  indexScopePropertyValues,
+} from "./propertyViewModel";
+import {
   type StatusFilterType,
   WORK_ITEMS_DEFAULT_STATUS,
   type WorkItemsViewTab,
 } from "./types";
+import type { BatchQuickField } from "./workItemPartialUpdate";
 import {
   WORK_ITEMS_KANBAN_GROUP,
   type WorkItemsKanbanGroup,
@@ -69,6 +86,7 @@ const WorkItemsSettings = React.lazy(
 
 const WORK_ITEMS_VIEW_TABS: readonly WorkItemsViewTab[] = [
   "List",
+  "Table",
   "Kanban",
   "Gantt",
   "Calendar",
@@ -186,6 +204,9 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
   const { canAdminister: canAdministerProjectOrg } =
     useProjectOrgCloudPermissions(isActive);
   const activeWorkspaceRootPath = useAtomValue(activeWorkspaceRootPathAtom);
+  const currentUser = useAtomValue(userAtom);
+  const savedViewPreferenceOwnerId =
+    currentUser.uuid?.trim() || currentUser.authing_id?.trim() || "local";
   const allRepos = useAtomValue(reposAtom);
   const availableRepos = useMemo<LinkedRepoOption[]>(
     () =>
@@ -294,6 +315,142 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
     },
     [confirmWorkItemDelete, data.workItems, handlers]
   );
+
+  const propertyOrgId = projectData.project?.orgId ?? "personal-org";
+  const propertyProjectSlug =
+    projectData.project?.slug ?? cachedProjectSlug ?? null;
+  const propertyScopeKey = JSON.stringify([propertyOrgId, propertyProjectSlug]);
+  const [propertyViewSettings, setPropertyViewSettings] = useState<{
+    scopeKey: string;
+    selectedPropertyId: string | null;
+    filter: WorkItemPropertyFilter | null;
+    groupBy: string | null;
+  }>(() => ({
+    scopeKey: propertyScopeKey,
+    selectedPropertyId: null,
+    filter: null,
+    groupBy: null,
+  }));
+  const propertySettingsMatchScope =
+    propertyViewSettings.scopeKey === propertyScopeKey;
+  const propertyFilterPropertyId = propertySettingsMatchScope
+    ? propertyViewSettings.selectedPropertyId
+    : null;
+  const propertyFilter = propertySettingsMatchScope
+    ? propertyViewSettings.filter
+    : null;
+  const propertyGroupBy = propertySettingsMatchScope
+    ? propertyViewSettings.groupBy
+    : null;
+  const handlePropertyFilterPropertyChange = useCallback(
+    (selectedPropertyId: string | null) => {
+      setPropertyViewSettings((current) => {
+        const currentFilter =
+          current.scopeKey === propertyScopeKey ? current.filter : null;
+        return {
+          scopeKey: propertyScopeKey,
+          selectedPropertyId,
+          filter:
+            currentFilter?.propertyId === selectedPropertyId
+              ? currentFilter
+              : null,
+          groupBy:
+            current.scopeKey === propertyScopeKey ? current.groupBy : null,
+        };
+      });
+    },
+    [propertyScopeKey]
+  );
+  const handlePropertyFilterChange = useCallback(
+    (filter: WorkItemPropertyFilter | null) => {
+      setPropertyViewSettings((current) => ({
+        scopeKey: propertyScopeKey,
+        selectedPropertyId:
+          filter?.propertyId ??
+          (current.scopeKey === propertyScopeKey
+            ? current.selectedPropertyId
+            : null),
+        filter,
+        groupBy: current.scopeKey === propertyScopeKey ? current.groupBy : null,
+      }));
+    },
+    [propertyScopeKey]
+  );
+  const handlePropertyGroupByChange = useCallback(
+    (groupBy: string | null) => {
+      setPropertyViewSettings((current) => ({
+        scopeKey: propertyScopeKey,
+        selectedPropertyId:
+          current.scopeKey === propertyScopeKey
+            ? current.selectedPropertyId
+            : null,
+        filter: current.scopeKey === propertyScopeKey ? current.filter : null,
+        groupBy,
+      }));
+    },
+    [propertyScopeKey]
+  );
+  const propertyView = useWorkItemPropertyView({
+    orgId: propertyOrgId,
+    projectSlug: propertyProjectSlug,
+    isActive,
+  });
+  const availablePropertyIds = useMemo(
+    () => new Set(propertyView.definitions.map((definition) => definition.id)),
+    [propertyView.definitions]
+  );
+  const applicablePropertyFilter =
+    propertyView.ready &&
+    propertyFilter &&
+    availablePropertyIds.has(propertyFilter.propertyId)
+      ? propertyFilter
+      : null;
+  const applicablePropertyGroupBy =
+    propertyView.ready &&
+    propertyGroupBy &&
+    availablePropertyIds.has(propertyGroupBy)
+      ? propertyGroupBy
+      : null;
+  const propertyValuesByItem = useMemo(
+    () => indexScopePropertyValues(propertyView.values),
+    [propertyView.values]
+  );
+  const propertyFilteredWorkItems = useMemo(
+    () =>
+      filterWorkItemsByProperty(
+        data.filteredWorkItems,
+        applicablePropertyFilter,
+        propertyValuesByItem
+      ),
+    [applicablePropertyFilter, data.filteredWorkItems, propertyValuesByItem]
+  );
+  const propertyFilteredIds = useMemo(
+    () => new Set(propertyFilteredWorkItems.map((item) => item.session_id)),
+    [propertyFilteredWorkItems]
+  );
+  const propertyGroupedWorkItems = useMemo(
+    () =>
+      data.groupedWorkItems.map((group) => ({
+        ...group,
+        items: group.items.filter((item) =>
+          propertyFilteredIds.has(item.session_id)
+        ),
+      })),
+    [data.groupedWorkItems, propertyFilteredIds]
+  );
+  const propertyKanbanTasks = useMemo(
+    () => data.kanbanTasks.filter((task) => propertyFilteredIds.has(task.id)),
+    [data.kanbanTasks, propertyFilteredIds]
+  );
+  const propertyGanttTasks = useMemo(
+    () => data.ganttTasks.filter((task) => propertyFilteredIds.has(task.id)),
+    [data.ganttTasks, propertyFilteredIds]
+  );
+  const propertyCalendarEvents = useMemo(
+    () =>
+      data.calendarEvents.filter((event) => propertyFilteredIds.has(event.id)),
+    [data.calendarEvents, propertyFilteredIds]
+  );
   const handleOpenWorkItem = useCallback(
     (workItemId: string) => {
       // A selection from the full-width List view must reveal its detail.
@@ -311,7 +468,7 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
     handleUnselectAll,
     handleBulkDelete,
   } = useMultiSelect({
-    filteredWorkItems: data.filteredWorkItems,
+    filteredWorkItems: propertyFilteredWorkItems,
     onDelete: handlers.handleDelete,
     projectSlug: projectData.project?.slug,
     getShortId: data.getShortId,
@@ -319,6 +476,13 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
     onBeforeDelete: () => confirmWorkItemDelete(),
   });
 
+  const selectedShortIds = useMemo(
+    () =>
+      Array.from(selectedIds)
+        .map((id) => data.getShortId(id))
+        .filter((shortId): shortId is string => Boolean(shortId)),
+    [data, selectedIds]
+  );
   const handleCollapseAll = useCallback(() => {
     setCollapseAllSignal((currentSignal) => currentSignal + 1);
   }, []);
@@ -453,6 +617,7 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
       onPendingChangesChange={setHasWorkItemPendingChanges}
       repoPath={resolvedRepoPath}
       projectSlug={resolvedProjectSlug}
+      orgId={propertyOrgId}
       shortId={selectedShortId}
       onRefreshWorkItem={data.refresh}
       onOpenSession={onOpenChatSession}
@@ -485,6 +650,14 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
     onSetUnsaved,
     onProjectNameUpdated,
   });
+
+  useEnsureStatusDefinitions(displayProject.orgId ?? "personal-org");
+
+  const [tableColumns, setTableColumns] = useState<string[] | null>(null);
+  const [tableSort, setTableSort] = useState<WorkItemsTableSort | null>(null);
+  const [batchPropertyOpen, setBatchPropertyOpen] = useState(false);
+  const [batchQuickField, setBatchQuickField] =
+    useState<BatchQuickField | null>(null);
 
   const overviewPropertiesPanel = (
     <OverviewPropertiesPanel
@@ -535,6 +708,7 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
       WORK_ITEMS_VIEW_TABS.map((tab) => ({
         key: tab,
         label: t(`workItems.tabs.${tab.toLowerCase()}`),
+        dataTestId: `work-items-view-tab-${tab.toLowerCase()}`,
       })),
     [t]
   );
@@ -552,8 +726,108 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
         key: WORK_ITEMS_KANBAN_GROUP.CREATED_BY,
         label: t("projects.groupBy.createdBy"),
       },
+      {
+        key: WORK_ITEMS_KANBAN_GROUP.PROJECT,
+        label: t("projects.groupBy.project"),
+      },
+      {
+        key: WORK_ITEMS_KANBAN_GROUP.PROPERTY,
+        label: t("projects.groupBy.property"),
+      },
     ],
     [t]
+  );
+
+  const handleApplySavedView = useCallback(
+    (view: SavedView, display: SavedViewDisplay) => {
+      const query = view.query ?? {};
+      if (typeof query.statusFilter === "string") {
+        state.setStatusFilter(query.statusFilter as StatusFilterType);
+      }
+      state.setSearchQuery(
+        typeof query.searchQuery === "string" ? query.searchQuery : ""
+      );
+      const nextPropertyFilter = query.propertyFilter;
+      const validPropertyFilter =
+        nextPropertyFilter &&
+        typeof nextPropertyFilter.propertyId === "string" &&
+        typeof nextPropertyFilter.valueToken === "string"
+          ? nextPropertyFilter
+          : null;
+      setPropertyViewSettings({
+        scopeKey: propertyScopeKey,
+        selectedPropertyId: validPropertyFilter?.propertyId ?? null,
+        filter: validPropertyFilter,
+        groupBy:
+          typeof display.propertyGroupBy === "string"
+            ? display.propertyGroupBy
+            : null,
+      });
+      handleHeaderTabChange(
+        typeof display.viewTab === "string" &&
+          (WORK_ITEMS_VIEW_TABS as readonly string[]).includes(display.viewTab)
+          ? (display.viewTab as WorkItemsViewTab)
+          : "List"
+      );
+      setKanbanGroupBy(
+        typeof display.kanbanGroupBy === "string"
+          ? (display.kanbanGroupBy as WorkItemsKanbanGroup)
+          : WORK_ITEMS_KANBAN_GROUP.STATUS
+      );
+      setTableColumns(
+        Array.isArray(display.tableColumns) ? display.tableColumns : null
+      );
+      setTableSort(
+        typeof display.sortBy === "string" &&
+          (display.sortDirection === "asc" || display.sortDirection === "desc")
+          ? {
+              sortBy: display.sortBy,
+              sortDirection: display.sortDirection,
+            }
+          : null
+      );
+    },
+    [handleHeaderTabChange, propertyScopeKey, state]
+  );
+
+  const savedViewsControl = useMemo(
+    () =>
+      isWorkItemsSurface ? (
+        <SavedViewsControl
+          orgId={displayProject.orgId ?? "personal-org"}
+          projectSlug={resolvedProjectSlug ?? null}
+          preferenceOwnerId={savedViewPreferenceOwnerId}
+          currentQuery={{
+            statusFilter: state.statusFilter,
+            searchQuery: state.searchQuery,
+            propertyFilter: applicablePropertyFilter ?? undefined,
+          }}
+          currentDisplay={{
+            viewTab: state.activeTab,
+            kanbanGroupBy,
+            tableColumns: tableColumns ?? undefined,
+            propertyGroupBy: applicablePropertyGroupBy ?? undefined,
+            sortBy: tableSort?.sortBy,
+            sortDirection: tableSort?.sortDirection,
+          }}
+          onApply={handleApplySavedView}
+        />
+      ) : null,
+    [
+      displayProject.orgId,
+      handleApplySavedView,
+      isWorkItemsSurface,
+      kanbanGroupBy,
+      applicablePropertyFilter,
+      applicablePropertyGroupBy,
+      resolvedProjectSlug,
+      savedViewPreferenceOwnerId,
+      state.activeTab,
+      state.searchQuery,
+      state.statusFilter,
+      tableColumns,
+      tableSort,
+    ]
   );
 
   const projectSurfaceControls = useMemo(
@@ -589,8 +863,48 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
                   fillWidth={false}
                   size="small"
                 />
+                {kanbanGroupBy === WORK_ITEMS_KANBAN_GROUP.PROPERTY && (
+                  <Select
+                    value={applicablePropertyGroupBy ?? undefined}
+                    options={propertyView.definitions.map((definition) => ({
+                      value: definition.id,
+                      label: definition.name,
+                    }))}
+                    onChange={(value) =>
+                      handlePropertyGroupByChange(String(value))
+                    }
+                    onClear={() => handlePropertyGroupByChange(null)}
+                    allowClear
+                    showSearch
+                    appearance="ghost"
+                    size="small"
+                    placeholder={t("workItems.table.groupByProperty", {
+                      defaultValue: "Group by property",
+                    })}
+                    ariaLabel={t("workItems.table.groupByProperty", {
+                      defaultValue: "Group by property",
+                    })}
+                    dataTestId="work-items-kanban-property-group"
+                  />
+                )}
               </>
             )}
+            {savedViewsControl}
+            <PropertyFilterControl
+              definitions={propertyView.definitions}
+              values={propertyView.values}
+              members={projectData.availableMembers}
+              selectedPropertyId={
+                propertyView.ready &&
+                propertyFilterPropertyId &&
+                availablePropertyIds.has(propertyFilterPropertyId)
+                  ? propertyFilterPropertyId
+                  : null
+              }
+              filter={applicablePropertyFilter}
+              onSelectedPropertyIdChange={handlePropertyFilterPropertyChange}
+              onFilterChange={handlePropertyFilterChange}
+            />
           </>
         )}
       </div>
@@ -602,7 +916,20 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
       isWorkItemsSurface,
       kanbanGroupBy,
       kanbanGroupTabs,
+      projectData.availableMembers,
+      applicablePropertyFilter,
+      applicablePropertyGroupBy,
+      availablePropertyIds,
+      handlePropertyFilterChange,
+      handlePropertyFilterPropertyChange,
+      handlePropertyGroupByChange,
+      propertyFilterPropertyId,
+      propertyView.definitions,
+      propertyView.ready,
+      propertyView.values,
+      savedViewsControl,
       state.activeTab,
+      t,
       workItemsViewTabs,
     ]
   );
@@ -667,6 +994,7 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
   const settingsContent = (
     <Suspense fallback={<Placeholder variant="loading" />}>
       <WorkItemsSettings
+        orgId={displayProject.orgId ?? "personal-org"}
         members={projectData.rawMembers}
         onUpdateMembers={projectData.updateMembers}
         labels={projectData.rawLabels}
@@ -738,9 +1066,18 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
       {/* Content Area */}
       <div className="min-h-0 flex-1 overflow-hidden">
         <WorkItemsTabContent
+          statusOrgId={propertyOrgId}
           activeTab={state.activeTab}
-          groupedWorkItems={data.groupedWorkItems}
-          filteredWorkItems={data.filteredWorkItems}
+          tableColumns={tableColumns}
+          onTableColumnsChange={setTableColumns}
+          tableSort={tableSort}
+          onTableSortChange={setTableSort}
+          tablePropertyDefinitions={propertyView.definitions}
+          tablePropertyValues={propertyView.values}
+          tablePropertyGroupBy={applicablePropertyGroupBy}
+          onTablePropertyGroupByChange={handlePropertyGroupByChange}
+          groupedWorkItems={propertyGroupedWorkItems}
+          filteredWorkItems={propertyFilteredWorkItems}
           selectedWorkItem={data.selectedWorkItem ?? null}
           selectedWorkItemId={state.selectedWorkItemId}
           workItems={data.workItems}
@@ -779,9 +1116,9 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
           onCalendarEventClick={(event) => handleOpenWorkItem(event.id)}
           kanbanGroupBy={kanbanGroupBy}
           pinnedKanbanColumnIds={pinnedKanbanColumnIds}
-          kanbanTasks={data.kanbanTasks}
-          ganttTasks={data.ganttTasks}
-          calendarEvents={data.calendarEvents}
+          kanbanTasks={propertyKanbanTasks}
+          ganttTasks={propertyGanttTasks}
+          calendarEvents={propertyCalendarEvents}
           listFullscreen={listFullscreen}
           listHeader={useSplitListHeader ? workItemsHeader : undefined}
           detailContent={detailContent}
@@ -798,11 +1135,61 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
 
       <MultiSelectBar
         selectedCount={selectedIds.size}
-        visibleItemCount={data.filteredWorkItems.length}
+        visibleItemCount={propertyFilteredWorkItems.length}
         deleting={bulkDeleting}
         onSelectAll={handleSelectAll}
         onUnselectAll={handleUnselectAll}
         onDelete={handleBulkDelete}
+        onSetProperty={() => setBatchPropertyOpen(true)}
+        onSetStatus={() => setBatchQuickField("status")}
+        onSetPriority={() => setBatchQuickField("priority")}
+        onSetAssignee={() => setBatchQuickField("assignee")}
+      />
+      <BatchPropertyDialog
+        open={batchPropertyOpen}
+        orgId={displayProject.orgId ?? "personal-org"}
+        projectSlug={resolvedProjectSlug ?? null}
+        shortIds={selectedShortIds}
+        members={projectData.availableMembers}
+        onClose={() => setBatchPropertyOpen(false)}
+        onApplied={() => {
+          handleUnselectAll();
+          data.refresh();
+          void propertyView.refresh();
+        }}
+      />
+      <BatchQuickFieldDialog
+        open={batchQuickField !== null}
+        field={batchQuickField ?? "status"}
+        orgId={displayProject.orgId ?? "personal-org"}
+        projectSlug={resolvedProjectSlug}
+        shortIds={selectedShortIds}
+        members={projectData.availableMembers}
+        onClose={() => setBatchQuickField(null)}
+        onApplied={() => {
+          handleUnselectAll();
+          data.refresh();
+          void propertyView.refresh();
+        }}
+      />
+      <RevisionConflictModal
+        conflict={
+          data.revisionConflict
+            ? {
+                fieldLabel: t(
+                  data.revisionConflict.field === "title"
+                    ? "workItems.revisionConflict.titleField"
+                    : "workItems.revisionConflict.descriptionField"
+                ),
+                mine: data.revisionConflict.mine,
+                latest: data.revisionConflict.latest,
+                expectedRevision: data.revisionConflict.expectedRevision,
+                actualRevision: data.revisionConflict.actualRevision,
+              }
+            : null
+        }
+        onUseLatest={data.useLatestRevisionConflict}
+        onKeepMine={data.keepMineRevisionConflict}
       />
     </div>
   );

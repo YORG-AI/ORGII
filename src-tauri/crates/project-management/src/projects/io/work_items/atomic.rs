@@ -29,7 +29,8 @@ pub use closure_api::{
 };
 pub(crate) use partial::update_standalone_work_item_partial_with_revisions;
 pub use partial::{
-    update_standalone_work_item_partial, update_work_item_partial,
+    update_standalone_work_item_partial, update_standalone_work_item_partial_at_revision,
+    update_work_item_partial, update_work_item_partial_at_revision,
     update_work_item_partial_with_revisions,
 };
 pub use scope::AtomicServiceOptions;

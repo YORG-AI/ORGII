@@ -96,6 +96,7 @@ export const WORK_ITEM_STATUS_COLOR: Record<
   planned: "gray",
   in_progress: "blue",
   in_review: "amber",
+  blocked: "red",
   completed: "green",
   cancelled: "slate",
   duplicate: "slate",

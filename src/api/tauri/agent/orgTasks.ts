@@ -259,6 +259,9 @@ export interface AgentOrgGroupChatHistoryRow {
   createdAt: string;
   readAt?: string | null;
   deliveryResolution?: "cancelled" | "superseded" | null;
+  /** Frontend-only status for an optimistic outgoing row. */
+  clientDeliveryStatus?: "pending" | "sent" | "failed";
+  clientDeliveryError?: string | null;
 }
 
 export interface AgentOrgGroupChatHistoryPage {
@@ -344,6 +347,7 @@ export async function returnAgentOrgSessionToWork(
 
 export async function sendAgentOrgGroupChatMessage(
   sessionId: string,
+  messageId: string,
   targetMemberId: string | null,
   content: string,
   displayText?: string
@@ -352,6 +356,7 @@ export async function sendAgentOrgGroupChatMessage(
     "agent_org_send_group_chat_message",
     {
       sessionId,
+      messageId,
       targetMemberId,
       content,
       displayText: displayText ?? null,

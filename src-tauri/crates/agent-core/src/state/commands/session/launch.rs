@@ -197,9 +197,25 @@ pub async fn session_launch_impl(
             },
         )?;
         let worker_id = format!("inline_session_{}", uuid::Uuid::new_v4().simple());
-        let lease = project_management::work_run_service::claim_dispatch_for_run(
+        let lease = match project_management::work_run_service::claim_dispatch_for_run(
             &run.id, &worker_id, 30_000,
-        )?;
+        ) {
+            Ok(lease) => lease,
+            Err(err)
+                if err.starts_with(project_management::work_run_service::error::PATH_LOCKED) =>
+            {
+                return Err(format!(
+                    "{}:{}:{}",
+                    project_management::work_run_service::error::RUN_QUEUED,
+                    run.id,
+                    run.target_snapshot
+                        .workspace_path
+                        .as_deref()
+                        .unwrap_or_default()
+                ));
+            }
+            Err(err) => return Err(err),
+        };
         params.durable_run_id = Some(run.id);
 
         let result = match params.category.as_str() {
@@ -470,6 +486,7 @@ async fn launch_cli_agent(
         additional_directories: extras,
         parent_session_id: params.parent_session_id,
         org_member_id: None,
+        agent_definition_id: params.agent_definition_id.clone(),
         org_id: org_id.clone(),
         project_id: project_id.clone(),
         project_name: project_name.clone(),

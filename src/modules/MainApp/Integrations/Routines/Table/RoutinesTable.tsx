@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { RoutineDefinition, RoutineFire } from "@src/api/http/project";
+import type {
+  RoutineActivation,
+  RoutineDefinition,
+  RoutineFire,
+} from "@src/api/http/project";
 import { projectApi } from "@src/api/http/project";
 import Message from "@src/components/Message";
 import SettingsTable, {
@@ -177,10 +181,32 @@ const RoutineFireHistory: React.FC<{ routine: RoutineDefinition }> = ({
   );
 };
 
+function getActivationLabel(activation: RoutineActivation): string {
+  switch (activation.type) {
+    case "schedule":
+      return `Cron: ${activation.cron} · ${activation.timezone}`;
+    case "one_time":
+      return `One-time: ${activation.at}`;
+    case "provider_event":
+      return `Event: ${activation.provider}/${activation.eventKind}`;
+    default:
+      return "Manual";
+  }
+}
+
 function getTriggerLabel(routine: RoutineDefinition): string {
-  if (routine.trigger.kind === "one_time")
-    return `One-time: ${routine.trigger.at}`;
-  return `Cron: ${routine.trigger.cron} · ${routine.trigger.timezone}`;
+  const activations = routine.activations ?? [];
+  if (activations.length === 0) {
+    const trigger = routine.trigger;
+    if (!trigger) return "Manual";
+    return trigger.kind === "one_time"
+      ? `One-time: ${trigger.at}`
+      : `Cron: ${trigger.cron} · ${trigger.timezone}`;
+  }
+  const label = getActivationLabel(activations[0]);
+  return activations.length > 1
+    ? `${label} (+${activations.length - 1})`
+    : label;
 }
 
 function getNextFireLabel(routine: RoutineDefinition): string | null {

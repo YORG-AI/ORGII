@@ -61,6 +61,7 @@ pub fn init_cli_agent_tables(conn: &Connection) -> SqliteResult<()> {
             project_slug TEXT,
             work_item_id TEXT,
             agent_role TEXT,
+            agent_definition_id TEXT,
             created_at     TEXT NOT NULL,
             updated_at     TEXT NOT NULL
         );
@@ -143,6 +144,11 @@ pub fn init_cli_agent_tables(conn: &Connection) -> SqliteResult<()> {
         .ok();
     conn.execute("ALTER TABLE code_sessions ADD COLUMN agent_role TEXT", [])
         .ok();
+    conn.execute(
+        "ALTER TABLE code_sessions ADD COLUMN agent_definition_id TEXT",
+        [],
+    )
+    .ok();
     // Product-mode axis (orgtrack/v1 §5.2) for CLI sessions: parity with
     // agent_sessions so external CLIs can enter Project mode.
     conn.execute("ALTER TABLE code_sessions ADD COLUMN product_mode TEXT", [])
