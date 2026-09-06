@@ -4,11 +4,19 @@ import { useTranslation } from "react-i18next";
 import { rpc } from "@src/api/tauri/rpc";
 import type { ConnectionHarness } from "@src/api/tauri/rpc/schemas/agentOrgs";
 import Button from "@src/components/Button";
+import Message from "@src/components/Message";
 import Select from "@src/components/Select";
 import {
+  SECTION_ACTION_GAP_CLASSES,
+  SECTION_CONTROL_STYLE,
+  SECTION_DESCRIPTION_CLASSES,
+  SECTION_VALUE_SMALL_MUTED_CLASSES,
+  SECTION_VALUE_SMALL_SECONDARY_CLASSES,
+  SECTION_VALUE_TEXT_CLASSES,
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
+import { HintWithInfo } from "@src/modules/shared/layouts/blocks/HintWithInfo";
 
 import {
   refreshHarnessConnections,
@@ -128,6 +136,19 @@ export default function HarnessConnectionEditor({
       }
     }
   };
+  const handleRefresh = async () => {
+    setMessage(null);
+    const result = await reload();
+    if (result.status === "updated") {
+      Message.success({ content: t("harnessConnections.refreshed") });
+    } else if (result.status === "failed") {
+      Message.error({
+        content: t("harnessConnections.refreshFailed", {
+          error: result.error,
+        }),
+      });
+    }
+  };
   const blocked =
     !view?.installed ||
     loading ||
@@ -136,13 +157,54 @@ export default function HarnessConnectionEditor({
     Boolean(choice.reason) ||
     !selectedModel ||
     Boolean(view?.config.conflict);
+  const currentLabel = (
+    <span className="flex items-center gap-1">
+      {t("harnessConnections.current")}
+      <HintWithInfo content={t("harnessConnections.scope")} position="right" />
+    </span>
+  );
+  const connectionLabel = (
+    <span className="flex items-center gap-1">
+      {t("harnessConnections.connection")}
+      {choice?.endpoint && (
+        <HintWithInfo content={choice.endpoint} position="right" />
+      )}
+    </span>
+  );
+  const routingLabel = (
+    <span className="flex items-center gap-1">
+      {t("harnessConnections.routing")}
+      <HintWithInfo
+        content={
+          <div className="flex max-w-[280px] flex-col gap-1">
+            <span>
+              {t(
+                routing === "direct"
+                  ? "harnessConnections.directHelp"
+                  : "harnessConnections.proxyHelp"
+              )}
+            </span>
+            {routing === "direct" && (
+              <span>{t("harnessConnections.credentialsNote")}</span>
+            )}
+          </div>
+        }
+        position="right"
+      />
+    </span>
+  );
+  const statusMessage =
+    message ??
+    (!loading && choice?.requiresTest && !receipt
+      ? t("harnessConnections.testRequired")
+      : null);
   return (
-    <SectionContainer title={agentName === "codex" ? "Codex" : "Claude Code"}>
-      <SectionRow
-        label={t("harnessConnections.current")}
-        description={t("harnessConnections.scope")}
-      >
-        <span>
+    <SectionContainer
+      title={agentName === "codex" ? "Codex" : "Claude Code"}
+      dataTestId={`harness-connection-${agentName}`}
+    >
+      <SectionRow label={currentLabel}>
+        <span className={SECTION_VALUE_TEXT_CLASSES}>
           {!view
             ? t("harnessConnections.loading")
             : view.config.mode === "default"
@@ -153,54 +215,74 @@ export default function HarnessConnectionEditor({
         </span>
       </SectionRow>
       {view && !view.installed && (
-        <p role="status" className="text-warning-6">
-          {t("harnessConnections.notInstalled")}
-        </p>
+        <SectionRow showHeader={false} className="py-2">
+          <p role="status" className={SECTION_DESCRIPTION_CLASSES}>
+            <span className="text-warning-6">
+              {t("harnessConnections.notInstalled")}
+            </span>
+          </p>
+        </SectionRow>
       )}
       {view?.config.conflict && (
-        <p role="alert" className="text-warning-6">
-          {t("harnessConnections.conflict")}
-        </p>
+        <SectionRow showHeader={false} className="py-2">
+          <p role="alert" className={SECTION_DESCRIPTION_CLASSES}>
+            <span className="text-warning-6">
+              {t("harnessConnections.conflict")}
+            </span>
+          </p>
+        </SectionRow>
       )}
       {error && (
-        <p role="alert" className="text-danger-6">
-          {error}
-        </p>
+        <SectionRow showHeader={false} className="py-2">
+          <p role="alert" className={SECTION_DESCRIPTION_CLASSES}>
+            <span className="text-danger-6">{error}</span>
+          </p>
+        </SectionRow>
       )}
-      <SectionRow label={t("harnessConnections.connection")}>
-        <Select
-          aria-label={t("harnessConnections.connection")}
-          value={selectedKey || undefined}
-          disabled={loading || busy !== null}
-          placeholder={t("harnessConnections.choose")}
-          options={(view?.choices ?? []).map((choice) => ({
-            value: choice.keyId,
-            label: choice.name,
-          }))}
-          onChange={(value) => {
-            setKeyId(String(value));
-            setModel(null);
-            setReceipt(null);
-            setMessage(null);
-          }}
-        />
-        <Button variant="secondary" onClick={onAdd} disabled={busy !== null}>
-          {t("harnessConnections.add")}
-        </Button>
+      <SectionRow label={connectionLabel}>
+        <div className={`${SECTION_ACTION_GAP_CLASSES} flex-wrap`}>
+          <Select
+            ariaLabel={t("harnessConnections.connection")}
+            value={selectedKey || undefined}
+            disabled={loading || busy !== null}
+            placeholder={t("harnessConnections.choose")}
+            style={SECTION_CONTROL_STYLE}
+            options={(view?.choices ?? []).map((choice) => ({
+              value: choice.keyId,
+              label: choice.name,
+            }))}
+            onChange={(value) => {
+              setKeyId(String(value));
+              setModel(null);
+              setReceipt(null);
+              setMessage(null);
+            }}
+          />
+          <Button variant="secondary" onClick={onAdd} disabled={busy !== null}>
+            {t("harnessConnections.add")}
+          </Button>
+        </div>
       </SectionRow>
       {choice?.reason && (
-        <p role="alert" className="text-warning-6">
-          {choice.reason}
-        </p>
+        <SectionRow showHeader={false} className="py-2">
+          <p role="alert" className={SECTION_DESCRIPTION_CLASSES}>
+            <span className="text-warning-6">{choice.reason}</span>
+          </p>
+        </SectionRow>
       )}
       {!loading && view?.choices.length === 0 && (
-        <p className="text-text-3">{t("harnessConnections.empty")}</p>
+        <SectionRow showHeader={false} className="py-2">
+          <p className={SECTION_VALUE_SMALL_MUTED_CLASSES}>
+            {t("harnessConnections.empty")}
+          </p>
+        </SectionRow>
       )}
       <SectionRow label={t("harnessConnections.model")}>
         <Select
-          aria-label={t("harnessConnections.model")}
+          ariaLabel={t("harnessConnections.model")}
           value={selectedModel || undefined}
           disabled={loading || busy !== null || !choice}
+          style={SECTION_CONTROL_STYLE}
           options={(choice?.models ?? []).map((value) => ({
             value,
             label: value,
@@ -212,17 +294,7 @@ export default function HarnessConnectionEditor({
           }}
         />
       </SectionRow>
-      {choice?.endpoint && (
-        <p className="break-all text-text-3">{choice.endpoint}</p>
-      )}
-      <SectionRow
-        label={t("harnessConnections.routing")}
-        description={t(
-          routing === "direct"
-            ? "harnessConnections.directHelp"
-            : "harnessConnections.proxyHelp"
-        )}
-      >
+      <SectionRow label={routingLabel}>
         <Button
           variant="secondary"
           onClick={() => setAdvanced(!advanced)}
@@ -234,9 +306,10 @@ export default function HarnessConnectionEditor({
       {advanced && (
         <SectionRow label={t("harnessConnections.routing")}>
           <Select
-            aria-label={t("harnessConnections.routing")}
+            ariaLabel={t("harnessConnections.routing")}
             value={routing}
             disabled={busy !== null}
+            style={SECTION_CONTROL_STYLE}
             options={[
               { value: "direct", label: t("harnessConnections.direct") },
               { value: "orgii_managed", label: t("harnessConnections.proxy") },
@@ -247,58 +320,73 @@ export default function HarnessConnectionEditor({
           />
         </SectionRow>
       )}
-      <p className="text-text-3">{t("harnessConnections.testHelp")}</p>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="secondary"
-          disabled={blocked}
-          loading={busy === "test"}
-          onClick={() => void act("test")}
-        >
-          {t("harnessConnections.test")}
-        </Button>
-        {busy === "test" && (
-          <Button variant="secondary" onClick={cancel}>
-            {t("harnessConnections.cancel")}
+      <SectionRow showHeader={false} className="py-2">
+        <div className={`${SECTION_ACTION_GAP_CLASSES} flex-wrap`}>
+          <div className={SECTION_ACTION_GAP_CLASSES}>
+            <Button
+              variant="secondary"
+              disabled={blocked}
+              loading={busy === "test"}
+              onClick={() => void act("test")}
+            >
+              {t("harnessConnections.test")}
+            </Button>
+            <HintWithInfo
+              content={
+                <div className="flex max-w-[280px] flex-col gap-1">
+                  <span>{t("harnessConnections.testHelp")}</span>
+                  <span>{t("harnessConnections.untested")}</span>
+                </div>
+              }
+              position="bottom"
+            />
+          </div>
+          {busy === "test" && (
+            <Button variant="secondary" onClick={cancel}>
+              {t("harnessConnections.cancel")}
+            </Button>
+          )}
+          <Button
+            disabled={blocked || (Boolean(choice?.requiresTest) && !receipt)}
+            loading={busy === "apply"}
+            onClick={() => void act("apply")}
+          >
+            {t("harnessConnections.apply")}
           </Button>
-        )}
-        <Button
-          disabled={blocked || (Boolean(choice?.requiresTest) && !receipt)}
-          loading={busy === "apply"}
-          onClick={() => void act("apply")}
-        >
-          {t("harnessConnections.apply")}
-        </Button>
-        <Button
-          variant="secondary"
-          disabled={
-            loading ||
-            busy !== null ||
-            !view ||
-            view.config.mode === "default" ||
-            view.config.conflict
-          }
-          onClick={() => void act("restore")}
-        >
-          {t("harnessConnections.restore")}
-        </Button>
-        <Button
-          variant="secondary"
-          disabled={busy !== null}
-          onClick={() => void reload()}
-        >
-          {t("harnessConnections.refresh")}
-        </Button>
-      </div>
-      <p role="status" aria-live="polite" className="text-text-2">
-        {message ??
-          (loading
-            ? t("harnessConnections.loading")
-            : choice?.requiresTest && !receipt
-              ? t("harnessConnections.testRequired")
-              : t("harnessConnections.untested"))}
-      </p>
-      <p className="text-text-3">{t("harnessConnections.credentialsNote")}</p>
+          <Button
+            variant="secondary"
+            disabled={
+              loading ||
+              busy !== null ||
+              !view ||
+              view.config.mode === "default" ||
+              view.config.conflict
+            }
+            onClick={() => void act("restore")}
+          >
+            {t("harnessConnections.restore")}
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={loading || busy !== null}
+            loading={loading}
+            onClick={() => void handleRefresh()}
+          >
+            {t("harnessConnections.refresh")}
+          </Button>
+        </div>
+      </SectionRow>
+      {statusMessage && (
+        <SectionRow showHeader={false} className="py-2">
+          <p
+            role="status"
+            aria-live="polite"
+            className={SECTION_VALUE_SMALL_SECONDARY_CLASSES}
+          >
+            {statusMessage}
+          </p>
+        </SectionRow>
+      )}
     </SectionContainer>
   );
 }

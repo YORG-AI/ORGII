@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   apply: vi.fn(),
   cancelTest: vi.fn(),
   restore: vi.fn(),
+  messageSuccess: vi.fn(),
+  messageError: vi.fn(),
 }));
 vi.mock("@src/api/tauri/rpc", () => ({
   rpc: {
@@ -35,23 +37,32 @@ vi.mock("@src/components/Button", () => ({
     variant?: string;
   }) => createElement("button", props, children),
 }));
+vi.mock("@src/components/Message", () => ({
+  default: {
+    success: mocks.messageSuccess,
+    error: mocks.messageError,
+  },
+}));
 vi.mock("@src/components/Select", () => ({
   default: ({
     options,
     value,
     onChange,
     placeholder,
+    ariaLabel,
     ...props
   }: {
     options: { value: string; label: string }[];
     value?: string;
     onChange: (value: string) => void;
     placeholder?: string;
+    ariaLabel?: string;
   }) =>
     createElement(
       "select",
       {
         ...props,
+        "aria-label": ariaLabel,
         value: value ?? "",
         onChange: (event: React.ChangeEvent<HTMLSelectElement>) =>
           onChange(event.target.value),
@@ -67,6 +78,12 @@ vi.mock("@src/components/Select", () => ({
     ),
 }));
 vi.mock("@src/modules/shared/layouts/SectionLayout", () => ({
+  SECTION_ACTION_GAP_CLASSES: "",
+  SECTION_CONTROL_STYLE: {},
+  SECTION_DESCRIPTION_CLASSES: "",
+  SECTION_VALUE_SMALL_MUTED_CLASSES: "",
+  SECTION_VALUE_SMALL_SECONDARY_CLASSES: "",
+  SECTION_VALUE_TEXT_CLASSES: "section-value-text",
   SectionContainer: ({ children }: { children: React.ReactNode }) =>
     createElement("section", null, children),
   SectionRow: ({
@@ -77,10 +94,14 @@ vi.mock("@src/modules/shared/layouts/SectionLayout", () => ({
     label: string;
   }) => createElement("div", null, label, children),
 }));
+vi.mock("@src/modules/shared/layouts/blocks/HintWithInfo", () => ({
+  HintWithInfo: ({ content }: { content: React.ReactNode }) =>
+    createElement("span", null, content),
+}));
 
 let container: HTMLDivElement;
 let root: Root;
-function view(conflict = false) {
+function view(conflict = false, requiresTest = true) {
   return {
     installed: true,
     config: {
@@ -97,7 +118,7 @@ function view(conflict = false) {
         name: "Work gateway",
         models: ["test-model", "other-model"],
         endpoint: "https://gateway.example/v1",
-        requiresTest: true,
+        requiresTest,
         reason: null,
       },
     ],
@@ -137,6 +158,20 @@ afterEach(async () => {
 });
 
 describe("HarnessConnectionEditor", () => {
+  it("renders the current setup with the settings value-text token", async () => {
+    await mount();
+    expect(container.querySelector(".section-value-text")?.textContent).toBe(
+      "Work gateway"
+    );
+  });
+
+  it("moves idle verification guidance into the info hint", async () => {
+    mocks.status.mockResolvedValue(view(false, false));
+    await mount();
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(container.textContent).toContain("harnessConnections.untested");
+  });
+
   it("requires a protocol test before applying a third-party connection and clears evidence on model change", async () => {
     await mount();
     expect(button("apply").disabled).toBe(true);
@@ -208,5 +243,31 @@ describe("HarnessConnectionEditor", () => {
     expect(mocks.status).toHaveBeenCalledTimes(1);
     await act(async () => refreshHarnessConnections());
     expect(mocks.status).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports explicit refresh through a message instead of the inline status row", async () => {
+    await mount();
+    await act(async () => {
+      button("refresh").click();
+      await Promise.resolve();
+    });
+    expect(mocks.messageSuccess).toHaveBeenCalledWith({
+      content: "harnessConnections.refreshed",
+    });
+    expect(container.textContent).not.toContain("harnessConnections.loading");
+  });
+
+  it("reports refresh failures through a message without rendering raw inline errors", async () => {
+    await mount();
+    mocks.status.mockRejectedValueOnce(new Error("refresh unavailable"));
+    await act(async () => {
+      button("refresh").click();
+      await Promise.resolve();
+    });
+    expect(mocks.messageError).toHaveBeenCalledWith({
+      content: "harnessConnections.refreshFailed",
+    });
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.textContent).not.toContain("refresh unavailable");
   });
 });

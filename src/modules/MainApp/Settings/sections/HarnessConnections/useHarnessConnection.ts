@@ -9,6 +9,12 @@ import type {
 // At most two in-flight reads. No retained response cache, timers or background scans.
 const reads = new Map<ConnectionHarness, Promise<HarnessConnectionView>>();
 const listeners = new Set<() => void>();
+
+export type HarnessConnectionReloadResult =
+  | { status: "updated" }
+  | { status: "stale" }
+  | { status: "failed"; error: string };
+
 export function refreshHarnessConnections() {
   reads.clear();
   listeners.forEach((listener) => listener());
@@ -30,20 +36,27 @@ export function useHarnessConnection(agentName: ConnectionHarness) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const generation = useRef(0);
-  const load = useCallback(async () => {
-    const current = ++generation.current;
-    setLoading(true);
-    try {
-      const next = await readHarnessConnection(agentName);
-      if (generation.current !== current) return;
-      setView(next);
-      setError(null);
-    } catch (error) {
-      if (generation.current === current) setError(String(error));
-    } finally {
-      if (generation.current === current) setLoading(false);
-    }
-  }, [agentName]);
+  const load = useCallback(
+    async (surfaceError = true): Promise<HarnessConnectionReloadResult> => {
+      const current = ++generation.current;
+      setLoading(true);
+      try {
+        const next = await readHarnessConnection(agentName);
+        if (generation.current !== current) return { status: "stale" };
+        setView(next);
+        setError(null);
+        return { status: "updated" };
+      } catch (error) {
+        if (generation.current !== current) return { status: "stale" };
+        const detail = String(error);
+        if (surfaceError) setError(detail);
+        return { status: "failed", error: detail };
+      } finally {
+        if (generation.current === current) setLoading(false);
+      }
+    },
+    [agentName]
+  );
   useEffect(() => {
     setView(null);
     void load();
@@ -62,5 +75,14 @@ export function useHarnessConnection(agentName: ConnectionHarness) {
       window.removeEventListener("focus", focus);
     };
   }, [load]);
-  return { view, error, loading, reload: load };
+  const reload = useCallback(() => {
+    setError(null);
+    return load(false);
+  }, [load]);
+  return {
+    view,
+    error,
+    loading,
+    reload,
+  };
 }

@@ -1,13 +1,10 @@
 # HarnessConnectionEditor UI audit
 
-| Line                              | Element                       | Verdict          | Reason                                                                               | Suggested change |
-| --------------------------------- | ----------------------------- | ---------------- | ------------------------------------------------------------------------------------ | ---------------- |
-| `HarnessConnectionEditor.tsx:140` | Settings layout               | keep with reason | Uses the existing SectionContainer and SectionRow layout primitives                  | None             |
-| `HarnessConnectionEditor.tsx:171` | Connection and model controls | keep with reason | Uses the shared Select component with translated accessible names                    | None             |
-| `HarnessConnectionEditor.tsx:251` | Action controls               | keep with reason | Shared Button variants and token spacing; wrapping avoids fixed-width overflow       | None             |
-| `HarnessConnectionEditor.tsx:161` | Feedback                      | keep with reason | Semantic alert text uses warning and danger theme tokens; no custom interactive HTML | None             |
-| `HarnessConnectionEditor.tsx:156` | Async status                  | keep with reason | Polite live region reports progress and completion without moving keyboard focus     | None             |
+| Line                              | Element                                | Verdict          | Reason                                                                                                                                                                      | Suggested change |
+| --------------------------------- | -------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `HarnessConnectionEditor.tsx:160` | Contextual labels and help affordances | keep with reason | Reuses the shared `HintWithInfo` component for secondary routing, endpoint, and verification guidance, while keeping the settings row labels concise.                       | None.            |
+| `HarnessConnectionEditor.tsx:218` | Inline state and validation messages   | keep with reason | Uses `SectionRow` and shared section-layout tokens so conditional feedback preserves the layout and semantic status/alert roles.                                            | None.            |
+| `HarnessConnectionEditor.tsx:323` | Connection actions                     | keep with reason | Uses the shared `Button` primitive and `SECTION_ACTION_GAP_CLASSES`; the nested action grouping is needed to pair verification with its help hint.                          | None.            |
+| `HarnessConnectionEditor.tsx:179` | Tooltip content width                  | keep with reason | The 280px cap prevents long credential and routing guidance from creating an unreadable tooltip; it is a local overlay constraint rather than a reusable page-layout token. | None.            |
 
-Verdict totals: **0 fix**, **5 keep with reason**, **0 abstract**.
-
-Dimensions D1–D5 inspected in the changed surface. No arbitrary colors, fixed pixel sizes, click-only controls, or new pattern repeated three times were found. Desktop visual verification was not performed because computer control was not authorized; this source audit is not screenshot evidence.
+Verdict totals: **0 fix**, **4 keep with reason**, **0 abstract**.
