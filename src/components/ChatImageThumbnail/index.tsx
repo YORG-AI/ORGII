@@ -17,7 +17,10 @@ import React, { memo, useCallback, useEffect, useState } from "react";
 
 import ImagePreviewOverlay from "@src/components/ImagePreviewOverlay";
 import { HugeiconsIcon, Image01Icon, ImageNotFound01Icon } from "@src/icons";
-import { uint8ArrayToDataUrl } from "@src/util/file/binaryUtils";
+import {
+  releaseImageUrl,
+  uint8ArrayToImageUrl,
+} from "@src/util/file/binaryUtils";
 import { imageRefToRustPath } from "@src/util/file/imageRefs";
 import { getImageMimeType } from "@src/util/file/previewTypes";
 
@@ -28,7 +31,7 @@ async function resolveImageSrc(ref: string): Promise<string> {
 
   const mimeType = getImageMimeType(filePath) ?? "image/png";
   const data = await readFile(filePath);
-  return uint8ArrayToDataUrl(data, mimeType);
+  return uint8ArrayToImageUrl(data, mimeType);
 }
 
 interface ChatImageThumbnailProps {
@@ -55,15 +58,23 @@ export const ChatImageThumbnail: React.FC<ChatImageThumbnailProps> = memo(
     useEffect(() => {
       if (isDataUrl) return;
       let cancelled = false;
+      // Object URL owned by this effect run; released on teardown.
+      let objectUrl: string | null = null;
       resolveImageSrc(imageRef)
         .then((src) => {
-          if (!cancelled) setAsyncSrc(src);
+          if (cancelled) {
+            releaseImageUrl(src);
+            return;
+          }
+          objectUrl = src;
+          setAsyncSrc(src);
         })
         .catch(() => {
           if (!cancelled) setLoadFailed(true);
         });
       return () => {
         cancelled = true;
+        releaseImageUrl(objectUrl);
       };
     }, [imageRef, isDataUrl]);
 

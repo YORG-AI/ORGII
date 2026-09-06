@@ -52,6 +52,35 @@ const reactActEnvironment = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
 };
 
+// jsdom has no object URLs; install deterministic ones so the tests can
+// assert that local images are served as Blob URLs and released again.
+const objectUrls = {
+  created: 0,
+  createObjectURL: vi.fn((_blob: Blob) => {
+    objectUrls.created += 1;
+    return `blob:mock-${objectUrls.created}`;
+  }),
+  revokeObjectURL: vi.fn(),
+};
+
+function installObjectUrls(): void {
+  Object.defineProperty(URL, "createObjectURL", {
+    value: objectUrls.createObjectURL,
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(URL, "revokeObjectURL", {
+    value: objectUrls.revokeObjectURL,
+    configurable: true,
+    writable: true,
+  });
+}
+
+function uninstallObjectUrls(): void {
+  Reflect.deleteProperty(URL, "createObjectURL");
+  Reflect.deleteProperty(URL, "revokeObjectURL");
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((next) => {
@@ -66,6 +95,7 @@ describe("MarkdownLocalImage", () => {
 
   beforeAll(() => {
     reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+    installObjectUrls();
   });
 
   beforeEach(() => {
@@ -81,6 +111,7 @@ describe("MarkdownLocalImage", () => {
   });
 
   afterAll(() => {
+    uninstallObjectUrls();
     Reflect.deleteProperty(reactActEnvironment, "IS_REACT_ACT_ENVIRONMENT");
   });
 
@@ -259,6 +290,40 @@ describe("MarkdownLocalImage", () => {
       second.resolve(new Uint8Array([2]));
       await second.promise;
     });
-    expect(container.querySelector("img")?.src).toContain("Ag==");
+    const shownSrc = container.querySelector("img")?.getAttribute("src");
+    expect(shownSrc).toMatch(/^blob:mock-\d+$/);
+    // The superseded first load resolved after teardown: its Blob is released
+    // instead of being leaked behind an image nobody shows.
+    const firstUrl = objectUrls.createObjectURL.mock.results[0]?.value;
+    expect(firstUrl).not.toBe(shownSrc);
+    expect(objectUrls.revokeObjectURL).toHaveBeenCalledWith(firstUrl);
+  });
+
+  it("serves local images as Blob URLs and releases them when the source changes", async () => {
+    mocks.readFile.mockResolvedValueOnce(new Uint8Array([1, 2, 3]));
+    objectUrls.revokeObjectURL.mockClear();
+
+    await act(async () => {
+      root.render(
+        createElement(MarkdownLocalImage, { src: "/repo/photo.png" })
+      );
+    });
+
+    const src = container.querySelector("img")?.getAttribute("src");
+    expect(src).toMatch(/^blob:mock-\d+$/);
+    const blob = objectUrls.createObjectURL.mock.calls.at(-1)?.[0];
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob?.type).toBe("image/png");
+    expect(objectUrls.revokeObjectURL).not.toHaveBeenCalled();
+
+    await act(async () => {
+      root.render(
+        createElement(MarkdownLocalImage, {
+          src: "https://example.com/remote.png",
+        })
+      );
+    });
+
+    expect(objectUrls.revokeObjectURL).toHaveBeenCalledWith(src);
   });
 });

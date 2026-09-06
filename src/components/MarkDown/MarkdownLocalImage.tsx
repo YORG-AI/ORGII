@@ -16,7 +16,10 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import ImagePreviewOverlay from "@src/components/ImagePreviewOverlay";
 import { HugeiconsIcon, Image01Icon, ImageNotFound01Icon } from "@src/icons";
-import { uint8ArrayToDataUrl } from "@src/util/file/binaryUtils";
+import {
+  releaseImageUrl,
+  uint8ArrayToImageUrl,
+} from "@src/util/file/binaryUtils";
 import { getImageMimeType } from "@src/util/file/previewTypes";
 import { openFileInEditor } from "@src/util/ui/openFileInEditor";
 import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
@@ -67,7 +70,7 @@ async function loadLocalImage(
   const absolutePath = await resolveLocalMarkdownPath(path, homeRelative);
   const mimeType = getImageMimeType(absolutePath) ?? "image/png";
   const data = await readFile(absolutePath);
-  return uint8ArrayToDataUrl(data, mimeType);
+  return uint8ArrayToImageUrl(data, mimeType);
 }
 
 function imageLabel(alt: string | undefined, path: string): string {
@@ -125,15 +128,21 @@ const MarkdownLocalImage: React.FC<MarkdownLocalImageProps> = memo(
     useEffect(() => {
       if (source.kind !== "local" || !localIsImage) return;
       let cancelled = false;
+      // Object URL owned by this effect run; released on teardown so the
+      // Blob does not outlive the image it backs.
+      let objectUrl: string | null = null;
       loadLocalImage(source.path, source.homeRelative === true)
-        .then((dataUrl) => {
-          if (!cancelled) {
-            setImageState((current) =>
-              current.sourceKey === sourceKey
-                ? { ...current, asyncSrc: dataUrl, failed: false }
-                : current
-            );
+        .then((imageUrl) => {
+          if (cancelled) {
+            releaseImageUrl(imageUrl);
+            return;
           }
+          objectUrl = imageUrl;
+          setImageState((current) =>
+            current.sourceKey === sourceKey
+              ? { ...current, asyncSrc: imageUrl, failed: false }
+              : current
+          );
         })
         .catch(() => {
           if (!cancelled) {
@@ -146,6 +155,7 @@ const MarkdownLocalImage: React.FC<MarkdownLocalImageProps> = memo(
         });
       return () => {
         cancelled = true;
+        releaseImageUrl(objectUrl);
       };
     }, [localIsImage, source, sourceKey]);
 

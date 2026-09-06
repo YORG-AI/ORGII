@@ -22,7 +22,10 @@ import React, {
 
 import { Placeholder } from "@src/components/Placeholder";
 import { createLogger } from "@src/hooks/logger";
-import { uint8ArrayToDataUrl } from "@src/util/file/binaryUtils";
+import {
+  releaseImageUrl,
+  uint8ArrayToImageUrl,
+} from "@src/util/file/binaryUtils";
 import { getFileExtensionLower, getFileName } from "@src/util/file/pathUtils";
 import { getImageMimeType } from "@src/util/file/previewTypes";
 
@@ -108,6 +111,8 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
   // Load image file
   useEffect(() => {
     let cancelled = false;
+    // Object URL owned by this load; released when the effect is torn down.
+    let objectUrl: string | null = null;
 
     async function loadImage() {
       setLoading(true);
@@ -127,14 +132,14 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
         // Get MIME type
         const mimeType = getImageMimeType(filePath) || "image/png";
 
-        // Convert to data URL
-        const dataUrl = uint8ArrayToDataUrl(data, mimeType);
+        // One Blob-backed URL; the bytes are not copied into a string.
+        objectUrl = uint8ArrayToImageUrl(data, mimeType);
 
         // Store file size
         setFileSize(data.byteLength);
 
         // Set image URL
-        setImageUrl(dataUrl);
+        setImageUrl(objectUrl);
       } catch (err) {
         if (cancelled) return;
         log.error("Failed to load image:", err);
@@ -147,6 +152,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
 
     return () => {
       cancelled = true;
+      releaseImageUrl(objectUrl);
     };
   }, [filePath]);
 
