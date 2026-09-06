@@ -69,6 +69,13 @@
     "changelog": "Changelog"
   },
   "sidebar": {
+    "sort": {
+      "dropToUnpin": "여기에 놓아 고정 해제",
+      "title": "채팅 정렬",
+      "priority": "우선순위",
+      "updated": "최근 업데이트",
+      "manual": "수동 순서"
+    },
     "tabs": {
       "workstation": "Workstation",
       "manage": "관리",
@@ -78,6 +85,7 @@
       "agentOrgs": "Agent & 팀"
     },
     "groupBy": {
+      "none": "그룹 없음",
       "title": "그룹",
       "byTime": "시간순",
       "byAgent": "Agent 별",

@@ -18,6 +18,16 @@ function makeSession(
 }
 
 describe("expandVisibleGroupsForSessions", () => {
+  it("reveals loaded rows in the flat list without changing pinned pagination", () => {
+    const counts = expandVisibleGroupsForSessions(
+      new Map(),
+      [makeSession("a"), makeSession("b", { pinned: true })],
+      "none",
+      5
+    );
+    expect(counts.get("sessions")).toBe(6);
+    expect(counts.get("pinned")).toBe(6);
+  });
   it("uses the configured group default before revealing newly loaded rows", () => {
     const next = expandVisibleGroupsForSessions(
       new Map(),

@@ -69,6 +69,13 @@
     "changelog": "Registro de cambios"
   },
   "sidebar": {
+    "sort": {
+      "dropToUnpin": "Suelta aquí para desfijar",
+      "title": "Ordenar chats por",
+      "priority": "Prioridad",
+      "updated": "Última actualización",
+      "manual": "Orden manual"
+    },
     "tabs": {
       "workstation": "Workstation",
       "manage": "Gestionar",
@@ -78,6 +85,7 @@
       "agentOrgs": "Agent y equipo"
     },
     "groupBy": {
+      "none": "Sin agrupar",
       "title": "Agrupar por",
       "byTime": "Por tiempo",
       "byAgent": "Por Agent",

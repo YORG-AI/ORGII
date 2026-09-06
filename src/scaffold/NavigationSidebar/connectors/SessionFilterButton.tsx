@@ -1,3 +1,4 @@
+import { useAtom } from "jotai";
 import React, {
   type FC,
   useCallback,
@@ -26,6 +27,7 @@ import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip"
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import {
   ArrowRight01Icon,
+  ArrowUpDownIcon,
   ArrowUpRight01Icon,
   FilterMailIcon,
   FolderInputIcon,
@@ -46,12 +48,16 @@ import HoverAnimatedIcon, {
   triggerIconAnimation,
 } from "../components/HoverAnimatedIcon";
 import {
+  SESSION_SORT_MODES,
+  sidebarSessionSortAtom,
+} from "./sidebarSessionOrder";
+import {
   GROUP_BY_MODES,
   SESSION_GROUP_VISIBLE_COUNTS,
   type SessionGroupVisibleCount,
 } from "./types";
 
-type SessionFilterSubmenu = "groupBy" | "visibleCount";
+type SessionFilterSubmenu = "groupBy" | "visibleCount" | "sort";
 
 interface SessionFilterButtonProps {
   groupByMode: string;
@@ -103,6 +109,8 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
     // Multi-choice settings live one level down, while every other row here
     // acts on the list immediately. Keeping their options out of the first
     // level keeps the actions readable and still shows each current value.
+    const [sortMode, setSortMode] = useAtom(sidebarSessionSortAtom);
+    const sortTriggerRef = useRef<HTMLDivElement | null>(null);
     const groupTriggerRef = useRef<HTMLDivElement | null>(null);
     const visibleCountTriggerRef = useRef<HTMLDivElement | null>(null);
     const submenuPanelRef = useRef<HTMLDivElement | null>(null);
@@ -190,7 +198,9 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
         const trigger =
           submenu === "groupBy"
             ? groupTriggerRef.current
-            : visibleCountTriggerRef.current;
+            : submenu === "sort"
+              ? sortTriggerRef.current
+              : visibleCountTriggerRef.current;
         if (trigger) openSubmenu(submenu, trigger);
       },
       [openSubmenu]
@@ -373,6 +383,33 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                   onClick={() => handleSubmenuTriggerClick("groupBy")}
                 >
                   {t("sidebar.groupBy.title")}
+                </DropdownItem>
+                <DropdownItem
+                  ref={sortTriggerRef}
+                  dataTestId="sidebar-sort-trigger"
+                  icon={
+                    <HugeiconsIcon
+                      icon={ArrowUpDownIcon}
+                      data-icon="arrow-up-down"
+                      size={DROPDOWN_ITEM.iconSize}
+                      strokeWidth={2}
+                    />
+                  }
+                  ariaHasPopup="menu"
+                  ariaExpanded={activeSubmenu === "sort"}
+                  onMouseEnter={() => handleSubmenuTriggerEnter("sort")}
+                  onClick={() => handleSubmenuTriggerClick("sort")}
+                  suffix={
+                    <span className="flex items-center gap-1 text-text-3">
+                      {t(`sidebar.sort.${sortMode}`)}
+                      <HugeiconsIcon
+                        icon={ArrowRight01Icon}
+                        size={DROPDOWN_ITEM.iconSize}
+                      />
+                    </span>
+                  }
+                >
+                  {t("sidebar.sort.title")}
                 </DropdownItem>
                 <DropdownItem
                   ref={visibleCountTriggerRef}
@@ -564,7 +601,9 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
               data-testid={
                 activeSubmenu === "groupBy"
                   ? "sidebar-group-by-submenu"
-                  : "sidebar-show-submenu"
+                  : activeSubmenu === "sort"
+                    ? "sidebar-sort-submenu"
+                    : "sidebar-show-submenu"
               }
               onPointerDown={handleSubmenuPointerDown}
               onMouseDown={handleSubmenuMouseDown}
@@ -581,16 +620,31 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                         {resolveGroupByLabel(mode)}
                       </DropdownItem>
                     ))
-                  : SESSION_GROUP_VISIBLE_COUNTS.map((count) => (
-                      <DropdownItem
-                        key={count}
-                        dataTestId={`sidebar-show-recent-${count}`}
-                        selected={count === groupVisibleCount}
-                        onClick={() => handleGroupVisibleCountSelect(count)}
-                      >
-                        {t(`sidebar.show.recent${count}`)}
-                      </DropdownItem>
-                    ))}
+                  : activeSubmenu === "sort"
+                    ? SESSION_SORT_MODES.map((mode) => (
+                        <DropdownItem
+                          key={mode}
+                          dataTestId={`sidebar-sort-${mode}`}
+                          selected={mode === sortMode}
+                          onClick={() => {
+                            setSortMode(mode);
+                            closeSubmenu();
+                            close();
+                          }}
+                        >
+                          {t(`sidebar.sort.${mode}`)}
+                        </DropdownItem>
+                      ))
+                    : SESSION_GROUP_VISIBLE_COUNTS.map((count) => (
+                        <DropdownItem
+                          key={count}
+                          dataTestId={`sidebar-show-recent-${count}`}
+                          selected={count === groupVisibleCount}
+                          onClick={() => handleGroupVisibleCountSelect(count)}
+                        >
+                          {t(`sidebar.show.recent${count}`)}
+                        </DropdownItem>
+                      ))}
               </div>
             </DropdownPanel>,
             document.body

@@ -23,9 +23,11 @@ import {
   sidebarIncludeExternalAtom,
 } from "../sidebarGroupByAtom";
 import {
-  buildRepoPathToName,
-  sortSessionsByActivity,
-} from "../workstationSidebarData";
+  sidebarSessionOrderAtom,
+  sidebarSessionSortAtom,
+  sortSidebarSessions,
+} from "../sidebarSessionOrder";
+import { buildRepoPathToName } from "../workstationSidebarData";
 import { resetScopedSectionPagination } from "./sectionPagination";
 import { useChatPanelTuiSidebarSessions } from "./sidebarMenuCollections";
 import { useSidebarSessionRefreshEffects } from "./sidebarSessionRefresh";
@@ -43,9 +45,16 @@ export function useWorkstationSidebarScopeAndPagination({
   useSidebarSessionRefreshEffects();
 
   const chatPanelTuiSessions = useChatPanelTuiSidebarSessions();
+  const sortMode = useAtomValue(sidebarSessionSortAtom);
+  const manualOrder = useAtomValue(sidebarSessionOrderAtom);
   const sortedSessions = useMemo(
-    () => sortSessionsByActivity([...chatPanelTuiSessions, ...sessions]),
-    [chatPanelTuiSessions, sessions]
+    () =>
+      sortSidebarSessions(
+        [...chatPanelTuiSessions, ...sessions],
+        sortMode,
+        manualOrder
+      ),
+    [chatPanelTuiSessions, sessions, sortMode, manualOrder]
   );
   const {
     activeCloudOrgId,

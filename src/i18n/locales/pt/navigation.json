@@ -69,6 +69,13 @@
     "changelog": "Changelog"
   },
   "sidebar": {
+    "sort": {
+      "dropToUnpin": "Solte aqui para desafixar",
+      "title": "Ordenar conversas por",
+      "priority": "Prioridade",
+      "updated": "Última atualização",
+      "manual": "Ordem manual"
+    },
     "tabs": {
       "workstation": "Workstation",
       "manage": "Gerenciar",
@@ -78,6 +85,7 @@
       "agentOrgs": "Agent e equipe"
     },
     "groupBy": {
+      "none": "Sem agrupamento",
       "title": "Agrupar por",
       "byTime": "Por Tempo",
       "byAgent": "Por Agent",

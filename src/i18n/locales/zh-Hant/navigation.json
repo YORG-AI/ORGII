@@ -70,6 +70,13 @@
     "changelog": "更新日誌"
   },
   "sidebar": {
+    "sort": {
+      "dropToUnpin": "拖到此處取消置頂",
+      "title": "對話排序",
+      "priority": "優先順序",
+      "updated": "最近更新",
+      "manual": "手動排序"
+    },
     "tabs": {
       "workstation": "工作站",
       "manage": "管理",
@@ -79,6 +86,7 @@
       "agentOrgs": "Agent & 團隊"
     },
     "groupBy": {
+      "none": "不分組",
       "title": "分組",
       "byTime": "按時間",
       "byAgent": "按 Agent",
