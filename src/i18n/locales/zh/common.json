@@ -2521,8 +2521,13 @@
     "thirdParty": "第三方"
   },
   "browserCookieImport": {
+    "safari": {
+      "needsFullDiskAccess": "需要“完全磁盘访问”权限",
+      "explain": "Safari 的 Cookie 保存在 macOS 保护的文件夹中。请在系统设置的“完全磁盘访问权限”中允许 ORG2，然后重新检查。",
+      "openSettings": "打开系统设置",
+      "checkAgain": "重新检查"
+    },
     "title": "从浏览器导入 Cookie",
-    "subtitle": "选择一个浏览器，将其已保存的登录状态导入内置浏览器。",
     "action": "从浏览器导入 Cookie",
     "scanning": "正在查找已安装的浏览器…",
     "reading": "正在从 {{browser}} 读取 Cookie…",
@@ -2551,6 +2556,7 @@
       "sso": "登录"
     },
     "errors": {
+      "openSettingsFailed": "无法打开系统设置",
       "listFailed": "找不到可导入的浏览器",
       "previewFailed": "无法从该浏览器读取 Cookie",
       "importFailed": "无法导入所选 Cookie"

@@ -20,6 +20,7 @@ import type {
   CookieSiteCategory,
   CookieSiteGroup,
 } from "@src/api/tauri/browserCookies";
+import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
 import { IconButton } from "@src/components/IconButton";
 import { InlineBanner } from "@src/components/InlineBanner";
@@ -29,6 +30,7 @@ import {
   CheckmarkCircle01Icon,
   HugeiconsIcon,
   type IconSvgElement,
+  InformationCircleIcon,
   InternetIcon,
   Key01Icon,
   Loading03Icon,
@@ -82,36 +84,47 @@ function Spinner() {
 const SourceRow = memo<{
   source: CookieImportSource;
   onSelect: (id: string) => void;
-}>(({ source, onSelect }) => (
-  <button
-    type="button"
-    onClick={() => onSelect(source.id)}
-    className="flex w-full items-center gap-3 rounded-lg border border-border-1 bg-fill-1 px-3 py-2.5 text-left transition-colors hover:bg-fill-2"
-  >
-    <HugeiconsIcon
-      icon={InternetIcon}
-      size={18}
-      className="shrink-0 text-text-2"
-      aria-hidden
-    />
-    <span className="min-w-0 flex-1">
-      <span className="block truncate text-sm text-text-1">
-        {source.browserLabel}
-      </span>
-      {source.profileLabel ? (
-        <span className="block truncate text-xs text-text-3">
-          {source.profileLabel}
+}>(({ source, onSelect }) => {
+  const { t } = useTranslation();
+  const blocked = source.unavailableReason !== null;
+  // A blocked source (Safari without Full Disk Access) explains itself on the
+  // second line and opens the hint instead of a preview.
+  const subtitle = blocked
+    ? t("browserCookieImport.safari.needsFullDiskAccess")
+    : source.profileLabel;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(source.id)}
+      className="flex w-full items-center gap-3 rounded-lg border border-border-1 bg-fill-1 px-3 py-2.5 text-left transition-colors hover:bg-fill-2"
+    >
+      <HugeiconsIcon
+        icon={InternetIcon}
+        size={18}
+        className="shrink-0 text-text-2"
+        aria-hidden
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm text-text-1">
+          {source.browserLabel}
         </span>
-      ) : null}
-    </span>
-    <HugeiconsIcon
-      icon={ArrowRight01Icon}
-      size={16}
-      className="shrink-0 text-text-3"
-      aria-hidden
-    />
-  </button>
-));
+        {subtitle ? (
+          <span
+            className={`block truncate text-xs ${blocked ? "text-warning-6" : "text-text-3"}`}
+          >
+            {subtitle}
+          </span>
+        ) : null}
+      </span>
+      <HugeiconsIcon
+        icon={blocked ? InformationCircleIcon : ArrowRight01Icon}
+        size={16}
+        className="shrink-0 text-text-3"
+        aria-hidden
+      />
+    </button>
+  );
+});
 SourceRow.displayName = "SourceRow";
 
 const SiteRow = memo<{
@@ -182,7 +195,6 @@ function SourcesStage({
   }
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-xs text-text-3">{t("browserCookieImport.subtitle")}</p>
       <div className="flex flex-col gap-2">
         {controller.sources.map((source) => (
           <SourceRow
@@ -192,6 +204,29 @@ function SourcesStage({
           />
         ))}
       </div>
+      {controller.unavailableSource ? (
+        <div className="flex flex-col gap-2 rounded-lg bg-fill-1 px-3 py-2.5">
+          <p className="text-xs text-text-2">
+            {t("browserCookieImport.safari.explain")}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="primary"
+              size="small"
+              onClick={controller.openFullDiskAccessSettings}
+            >
+              {t("browserCookieImport.safari.openSettings")}
+            </Button>
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={controller.refreshSources}
+            >
+              {t("browserCookieImport.safari.checkAgain")}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

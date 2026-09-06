@@ -17,6 +17,7 @@ import {
   type CookieImportSource,
   importBrowserCookies,
   listCookieImportSources,
+  openFullDiskAccessSettings as openFullDiskAccessSettingsPane,
   previewCookieImport,
 } from "@src/api/tauri/browserCookies";
 import Message from "@src/components/Message";
@@ -37,6 +38,9 @@ export interface ImportCookiesController {
   stage: ImportStage;
   sourcesLoading: boolean;
   sources: CookieImportSource[];
+  /** A source the user picked that cannot be read yet (e.g. Safari without
+   *  Full Disk Access); the picker explains what to do. */
+  unavailableSource: CookieImportSource | null;
   activeSource: CookieImportSource | null;
   previewLoading: boolean;
   preview: CookieImportPreview | null;
@@ -44,6 +48,9 @@ export interface ImportCookiesController {
   importing: boolean;
   result: CookieImportResult | null;
   selectSource: (sourceId: string) => void;
+  /** Re-scan sources, e.g. after the user granted Full Disk Access. */
+  refreshSources: () => void;
+  openFullDiskAccessSettings: () => void;
   toggleDomain: (domain: string) => void;
   setAllDomains: (selected: boolean) => void;
   runImport: () => void;
@@ -59,6 +66,10 @@ export function useImportCookiesController(
   const [sources, setSources] = useState<CookieImportSource[]>([]);
   // Starts true: the source scan begins on mount (see the effect below).
   const [sourcesLoading, setSourcesLoading] = useState(true);
+  // Bumped by refreshSources to re-run the scan.
+  const [scanGeneration, setScanGeneration] = useState(0);
+  const [unavailableSource, setUnavailableSource] =
+    useState<CookieImportSource | null>(null);
   const [activeSource, setActiveSource] = useState<CookieImportSource | null>(
     null
   );
@@ -74,8 +85,8 @@ export function useImportCookiesController(
   // user moved on to a different source.
   const requestRef = useRef(0);
 
-  // Discover sources once per mount. State updates happen only in the async
-  // continuations, never synchronously in the effect body.
+  // Discover sources on mount and on every refresh. State updates happen only
+  // in the async continuations, never synchronously in the effect body.
   useEffect(() => {
     let cancelled = false;
     listCookieImportSources()
@@ -96,13 +107,32 @@ export function useImportCookiesController(
       cancelled = true;
       requestRef.current += 1;
     };
+  }, [t, scanGeneration]);
+
+  const refreshSources = useCallback(() => {
+    setUnavailableSource(null);
+    setSourcesLoading(true);
+    setScanGeneration((generation) => generation + 1);
+  }, []);
+
+  const openFullDiskAccessSettings = useCallback(() => {
+    openFullDiskAccessSettingsPane().catch((error: unknown) => {
+      logger.error("failed to open Full Disk Access settings:", error);
+      Message.error(t("browserCookieImport.errors.openSettingsFailed"));
+    });
   }, [t]);
 
   const selectSource = useCallback(
     (sourceId: string) => {
       const source = sources.find((candidate) => candidate.id === sourceId);
       if (!source) return;
+      if (source.unavailableReason) {
+        // Stay on the picker and explain how to unblock it.
+        setUnavailableSource(source);
+        return;
+      }
       const token = ++requestRef.current;
+      setUnavailableSource(null);
       setActiveSource(source);
       setStage("preview");
       setPreview(null);
@@ -180,6 +210,7 @@ export function useImportCookiesController(
     stage,
     sourcesLoading,
     sources,
+    unavailableSource,
     activeSource,
     previewLoading,
     preview,
@@ -187,6 +218,8 @@ export function useImportCookiesController(
     importing,
     result,
     selectSource,
+    refreshSources,
+    openFullDiskAccessSettings,
     toggleDomain,
     setAllDomains,
     runImport,

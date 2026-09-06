@@ -9,10 +9,23 @@
  * Platform support mirrors the backend — macOS: Chromium family + Firefox;
  * Windows/Linux: Firefox only.
  */
+import { open as shellOpen } from "@tauri-apps/plugin-shell";
+
 import { invokeTauri } from "@src/util/platform/tauri/init";
 
 /** Browser engine family of a source. */
-export type CookieSourceKind = "chromium" | "firefox";
+export type CookieSourceKind = "chromium" | "firefox" | "safari";
+
+/**
+ * Why a discovered source cannot be read yet. Safari's store sits in a folder
+ * macOS gates behind Full Disk Access, so it is listed with this reason
+ * instead of being hidden.
+ */
+export type CookieSourceUnavailableReason = "needs_full_disk_access";
+
+/** macOS pane where the user grants the app Full Disk Access. */
+const FULL_DISK_ACCESS_SETTINGS_URL =
+  "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles";
 
 /**
  * Coarse site category used only to choose a default-checked state. Sites that
@@ -31,6 +44,8 @@ export interface CookieImportSource {
   browserLabel: string;
   /** Display name of the profile, e.g. `Personal · you@example.com`. */
   profileLabel: string | null;
+  /** Set when the source exists but cannot be read yet. */
+  unavailableReason: CookieSourceUnavailableReason | null;
 }
 
 /** One site (registrable domain) worth of cookies in a preview. */
@@ -59,6 +74,11 @@ export interface CookieImportResult {
   requestedDomains: number;
   importedCookies: number;
   skippedCookies: number;
+}
+
+/** Open the macOS Full Disk Access pane so the user can allow the app. */
+export function openFullDiskAccessSettings(): Promise<void> {
+  return shellOpen(FULL_DISK_ACCESS_SETTINGS_URL);
 }
 
 /** List importable browser profiles found on this machine. */

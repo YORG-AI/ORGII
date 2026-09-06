@@ -34,6 +34,7 @@ use classify::SiteCategory;
 pub mod chromium;
 pub mod classify;
 pub mod firefox;
+pub mod safari;
 pub mod sources;
 
 /// How many representative host names to keep per site for display.
@@ -53,6 +54,15 @@ const INSTALL_TIMEOUT_SECS: u64 = 20;
 pub enum CookieSourceKind {
     Chromium,
     Firefox,
+    Safari,
+}
+
+/// Why a discovered source cannot be read right now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SourceUnavailableReason {
+    /// The store sits in a folder macOS gates behind Full Disk Access.
+    NeedsFullDiskAccess,
 }
 
 /// One importable browser profile, as shown in the source picker.
@@ -68,6 +78,9 @@ pub struct CookieImportSource {
     pub browser_label: String,
     /// Display name of the profile, e.g. `Personal · you@example.com`.
     pub profile_label: Option<String>,
+    /// Set when the source exists but cannot be read yet (e.g. Safari without
+    /// Full Disk Access); the picker shows why instead of hiding it.
+    pub unavailable_reason: Option<SourceUnavailableReason>,
 }
 
 /// One site (registrable domain) worth of cookies in a preview.
@@ -154,6 +167,8 @@ pub enum CookieReadError {
     Keychain(String),
     /// The requested source is not supported on this platform.
     Unsupported(String),
+    /// The store is in a folder macOS gates behind Full Disk Access (Safari).
+    FullDiskAccess,
 }
 
 impl std::fmt::Display for CookieReadError {
@@ -165,6 +180,10 @@ impl std::fmt::Display for CookieReadError {
                 write!(formatter, "keychain access failed: {message}")
             }
             CookieReadError::Unsupported(message) => write!(formatter, "{message}"),
+            CookieReadError::FullDiskAccess => write!(
+                formatter,
+                "this browser's cookies are in a folder macOS protects; allow the app under Full Disk Access in System Settings"
+            ),
         }
     }
 }
@@ -225,6 +244,10 @@ fn read_source_cookies(
     match location.kind {
         CookieSourceKind::Firefox => Ok(ReadOutcome {
             cookies: firefox::read_cookies(&location.store_path)?,
+            undecryptable: 0,
+        }),
+        CookieSourceKind::Safari => Ok(ReadOutcome {
+            cookies: safari::read_cookies(&location.store_path)?,
             undecryptable: 0,
         }),
         CookieSourceKind::Chromium => {
@@ -322,6 +345,7 @@ pub async fn list_cookie_import_sources() -> Result<Vec<CookieImportSource>, Str
                 browser_id: location.browser_id,
                 browser_label: location.browser_label,
                 profile_label: location.profile_label,
+                unavailable_reason: location.unavailable_reason,
             })
             .collect()
     })

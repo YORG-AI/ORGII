@@ -7,7 +7,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::CookieSourceKind;
+use super::{CookieSourceKind, SourceUnavailableReason};
 
 /// One discovered, on-disk browser profile that can be imported from.
 #[derive(Debug, Clone)]
@@ -26,6 +26,8 @@ pub struct SourceLocation {
     pub store_path: PathBuf,
     /// macOS keychain (service, account) for Chromium value decryption.
     pub keychain: Option<(String, String)>,
+    /// Why the store cannot be read right now, if it exists but is blocked.
+    pub unavailable_reason: Option<SourceUnavailableReason>,
 }
 
 #[cfg(target_os = "macos")]
@@ -93,6 +95,8 @@ pub fn discover_sources() -> Vec<SourceLocation> {
     let mut sources = Vec::new();
     #[cfg(target_os = "macos")]
     discover_chromium_macos(&mut sources);
+    #[cfg(target_os = "macos")]
+    discover_safari_macos(&mut sources);
     discover_firefox(&mut sources);
     sources
 }
@@ -134,6 +138,7 @@ fn discover_chromium_macos(sources: &mut Vec<SourceLocation>) {
                     vendor.keychain_service.to_string(),
                     vendor.keychain_account.to_string(),
                 )),
+                unavailable_reason: None,
             });
         }
     }
@@ -258,7 +263,64 @@ fn discover_firefox(sources: &mut Vec<SourceLocation>) {
             profile_label: label,
             store_path,
             keychain: None,
+            unavailable_reason: None,
         });
+    }
+}
+
+/// Safari's persistent cookie store. The sandbox-container path is the
+/// modern location; `~/Library/Cookies` predates it. Both sit behind Full
+/// Disk Access, and without it macOS refuses even to list the folder — so a
+/// permission error means "Safari is here but blocked", not "no Safari".
+#[cfg(target_os = "macos")]
+fn discover_safari_macos(sources: &mut Vec<SourceLocation>) {
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+        return;
+    };
+    let candidates = [
+        home.join("Library/Containers/com.apple.Safari/Data/Library/Cookies"),
+        home.join("Library/Cookies"),
+    ];
+
+    let mut blocked = false;
+    for dir in &candidates {
+        match std::fs::read_dir(dir) {
+            Ok(_) => {
+                let store_path = dir.join("Cookies.binarycookies");
+                if store_path.is_file() {
+                    sources.push(safari_source(store_path, None));
+                    return;
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+                blocked = true;
+            }
+            Err(_) => {}
+        }
+    }
+
+    if blocked {
+        sources.push(safari_source(
+            candidates[0].join("Cookies.binarycookies"),
+            Some(SourceUnavailableReason::NeedsFullDiskAccess),
+        ));
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn safari_source(
+    store_path: PathBuf,
+    unavailable_reason: Option<SourceUnavailableReason>,
+) -> SourceLocation {
+    SourceLocation {
+        id: "safari".to_string(),
+        kind: CookieSourceKind::Safari,
+        browser_id: "safari".to_string(),
+        browser_label: "Safari".to_string(),
+        profile_label: None,
+        store_path,
+        keychain: None,
+        unavailable_reason,
     }
 }
 

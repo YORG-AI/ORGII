@@ -2450,8 +2450,13 @@
     "thirdParty": "第三方"
   },
   "browserCookieImport": {
+    "safari": {
+      "needsFullDiskAccess": "需要「完整磁碟取用權限」",
+      "explain": "Safari 的 Cookie 儲存在 macOS 保護的資料夾中。請在系統設定的「完整磁碟取用權限」中允許 ORG2，然後重新檢查。",
+      "openSettings": "打開系統設定",
+      "checkAgain": "重新檢查"
+    },
     "title": "從瀏覽器匯入 Cookie",
-    "subtitle": "選擇一個瀏覽器，將其已儲存的登入狀態匯入內建瀏覽器。",
     "action": "從瀏覽器匯入 Cookie",
     "scanning": "正在尋找已安裝的瀏覽器…",
     "reading": "正在從 {{browser}} 讀取 Cookie…",
@@ -2480,6 +2485,7 @@
       "sso": "登入"
     },
     "errors": {
+      "openSettingsFailed": "無法開啟系統設定",
       "listFailed": "找不到可匯入的瀏覽器",
       "previewFailed": "無法從該瀏覽器讀取 Cookie",
       "importFailed": "無法匯入所選 Cookie"

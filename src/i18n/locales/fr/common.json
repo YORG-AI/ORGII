@@ -2432,8 +2432,13 @@
     "thirdParty": "Tiers"
   },
   "browserCookieImport": {
+    "safari": {
+      "needsFullDiskAccess": "Needs Full Disk Access",
+      "explain": "Safari keeps its cookies in a folder macOS protects. Allow ORG2 under Full Disk Access in System Settings, then check again.",
+      "openSettings": "Open System Settings",
+      "checkAgain": "Check again"
+    },
     "title": "Import cookies from your browser",
-    "subtitle": "Choose a browser to bring its saved logins into the built-in browser.",
     "action": "Import cookies from browser",
     "scanning": "Looking for installed browsers…",
     "reading": "Reading cookies from {{browser}}…",
@@ -2462,6 +2467,7 @@
       "sso": "Sign-in"
     },
     "errors": {
+      "openSettingsFailed": "Couldn't open System Settings",
       "listFailed": "Couldn't find browsers to import from",
       "previewFailed": "Couldn't read cookies from that browser",
       "importFailed": "Couldn't import the selected cookies"

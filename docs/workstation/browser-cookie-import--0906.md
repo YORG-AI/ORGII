@@ -71,11 +71,25 @@ those are the newest few cookies at most.
 
 | Platform | Sources | Install |
 | --- | --- | --- |
-| macOS | Chrome, Edge, Brave, Arc, Vivaldi, Chromium, Firefox | `WKHTTPCookieStore` |
+| macOS | Chrome, Edge, Brave, Arc, Vivaldi, Chromium, Firefox, Safari | `WKHTTPCookieStore` |
 | Windows / Linux | Firefox only (Chromium's DPAPI / libsecret schemes are not implemented) | Not yet implemented — the import command returns an error |
 
-Safari's cookie store lives inside a TCC-protected container and is not
-offered.
+### Safari
+
+Safari's `Cookies.binarycookies` (`safari.rs`) is unencrypted but lives in the
+Safari sandbox container, which macOS gates behind **Full Disk Access**. Without
+it the OS refuses even to list the folder, so discovery treats a permission
+error as "Safari is here but blocked" and lists the source with
+`unavailableReason: "needs_full_disk_access"`. Picking it keeps the user on the
+picker with an explanation, an **Open System Settings** button (the
+`Privacy_AllFiles` pane, via the shell plugin's `open` like the other privacy
+deep links in the app) and **Check again**, which re-runs discovery. The
+format — big-endian page table, little-endian pages, NUL-terminated strings,
+Mac-absolute dates — is documented in the module and covered by fixture tests;
+`~/Library/HTTPStorages/*.binarycookies` files use the same format and are
+readable without Full Disk Access, so the parser can be checked against real
+bytes with the ignored `parses_real_file_from_env` test. Safari's per-profile
+cookie stores (Safari 17+) are not enumerated; only the main store is offered.
 
 ## Behaviour notes
 
