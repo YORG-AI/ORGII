@@ -255,6 +255,8 @@ export const StatusBarText: React.FC<StatusBarTextProps> = memo(
 StatusBarText.displayName = "StatusBarText";
 
 export interface StatusBarDividerProps {
+  /** Divider treatment. */
+  orientation?: "dot" | "vertical";
   /** Additional class name */
   className?: string;
 }
@@ -263,7 +265,16 @@ export interface StatusBarDividerProps {
  * Visual divider between status bar sections.
  */
 export const StatusBarDivider: React.FC<StatusBarDividerProps> = memo(
-  ({ className }) => {
+  ({ orientation = "dot", className }) => {
+    if (orientation === "vertical") {
+      return (
+        <span
+          aria-hidden
+          className={classNames("mx-1 h-3 w-px bg-border-2", className)}
+        />
+      );
+    }
+
     return <span className={classNames("text-text-3", className)}>·</span>;
   }
 );

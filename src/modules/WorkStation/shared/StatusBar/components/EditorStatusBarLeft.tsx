@@ -30,6 +30,7 @@ import GitSyncStatusMenu from "../GitSyncStatusMenu";
 import { PortsStatusMenu } from "../PortsStatusMenu";
 import {
   StatusBarButton,
+  StatusBarDivider,
   StatusBarLabel,
   StatusBarSegment,
 } from "../StatusBarBase";
@@ -309,6 +310,7 @@ export const EditorStatusBarLeft: React.FC<EditorStatusBarLeftProps> = ({
       </StatusBarButton>
     )}
 
+    <StatusBarDivider orientation="vertical" />
     <PortsStatusMenu />
 
     {showIndexingIndicator && (
