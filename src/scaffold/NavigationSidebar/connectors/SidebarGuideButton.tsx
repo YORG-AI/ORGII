@@ -22,6 +22,7 @@ import {
   HugeiconsIcon,
   RocketIcon,
 } from "@src/icons";
+import { SIDEBAR_TOOLTIP_HOVER_DELAY } from "@src/scaffold/NavigationSidebar/config";
 
 import {
   SIDEBAR_GUIDE_MILESTONE,
@@ -188,6 +189,7 @@ const SidebarGuideButton: FC<SidebarGuideButtonProps> = ({
       <ToolbarTooltip
         label={t("sidebar.guide.trigger")}
         position="top"
+        mouseEnterDelay={SIDEBAR_TOOLTIP_HOVER_DELAY}
         disabled={isOpen}
       >
         <div ref={triggerRef} className="inline-flex">

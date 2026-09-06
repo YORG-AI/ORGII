@@ -12,6 +12,7 @@ import { useLocation } from "react-router-dom";
 
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { NoDragRegion } from "@src/components/WindowChrome";
+import { CHROME_TOOLTIP_HOVER_DELAY } from "@src/config/tooltip";
 import { TAB_BAR_CONTROLS_ROW_TRAILING_PADDING_PX } from "@src/config/workstation/tokens";
 import CaptionBar from "@src/engines/Simulator/components/CaptionBar";
 import { useCurrentTurnLastAgentMessage } from "@src/engines/Simulator/hooks/useCurrentTurnLastAgentMessage";
@@ -181,6 +182,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
           <TabBarTrailingIconButton
             title={captionToggleLabel}
             shortcutId="toggle_captions"
+            tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
             active={captionEnabled}
             aria-pressed={captionEnabled}
             onClick={handleToggleCaption}
@@ -196,6 +198,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
             <TabBarTrailingIconButton
               title={chatPanelLabel}
               shortcutId="maximize_work_station"
+              tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
               onClick={handleToggleChatPanel}
             >
               <HugeiconsIcon
@@ -213,6 +216,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
             <TabBarTrailingIconButton
               title={chatPanelLabel}
               shortcutId="maximize_work_station"
+              tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
               onClick={handleToggleChatPanel}
             >
               {isChatPanelVisible ? (
@@ -236,6 +240,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
             <TabBarTrailingIconButton
               title={hideWorkstationLabel}
               shortcutId="maximize_chat"
+              tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
               onClick={handleToggleChatPanelMaximized}
             >
               {chatPanelPosition === "left" ? (

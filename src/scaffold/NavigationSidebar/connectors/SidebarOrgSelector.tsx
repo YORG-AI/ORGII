@@ -10,6 +10,7 @@ import {
   Login01Icon,
   Settings02Icon,
 } from "@src/icons";
+import { SIDEBAR_TOOLTIP_HOVER_DELAY } from "@src/scaffold/NavigationSidebar/config";
 
 interface SidebarOrgSelectorProps {
   value: string;
@@ -146,7 +147,7 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
         <ToolbarTooltip
           label={t("collaboration.switchOrg")}
           position="bottom"
-          mouseEnterDelay={1500}
+          mouseEnterDelay={SIDEBAR_TOOLTIP_HOVER_DELAY}
           disabled={menuOpen}
         >
           <div className="w-full min-w-0">
@@ -169,9 +170,11 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
               dropdownWidth={250}
               dropdownAlign="left"
               className="h-8 w-full"
-              selectorClassName={`h-8 px-2! [&_.select-arrow]:text-text-2! [&_.select-suffix]:ml-2 [&_.select-value]:flex-initial! [&_.select-value]:gap-3 [&_.select-value]:text-[13px] [&_.select-value]:font-semibold ${
-                menuOpen ? "bg-sidebar-selected!" : "hover:bg-sidebar-selected!"
-              }`}
+              selectorClassName={`h-8 px-2! [&_.select-arrow]:text-text-2! ${
+                menuOpen
+                  ? "[&_.select-arrow]:opacity-100 bg-sidebar-selected!"
+                  : "[&_.select-arrow]:opacity-0 group-hover/sidebar:[&_.select-arrow]:opacity-100 hover:[&_.select-arrow]:opacity-100 hover:bg-sidebar-selected!"
+              } [&_.select-suffix]:ml-2 [&_.select-value]:flex-initial! [&_.select-value]:gap-3 [&_.select-value]:text-[13px] [&_.select-value]:font-semibold`}
               dataTestId="sidebar-org-selector"
             />
           </div>

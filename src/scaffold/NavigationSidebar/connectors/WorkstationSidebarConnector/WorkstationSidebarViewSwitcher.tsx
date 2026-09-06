@@ -9,6 +9,7 @@ import {
   type IconSvgElement,
   ListTodoIcon,
 } from "@src/icons";
+import { SIDEBAR_TOOLTIP_HOVER_DELAY } from "@src/scaffold/NavigationSidebar/config";
 
 export type WorkstationSidebarViewKey = "channels" | "work-items" | "sessions";
 
@@ -85,7 +86,7 @@ export const WorkstationSidebarViewSwitcher: React.FC<WorkstationSidebarViewSwit
                 key={item.key}
                 content={item.label}
                 position="bottom"
-                mouseEnterDelay={1500}
+                mouseEnterDelay={SIDEBAR_TOOLTIP_HOVER_DELAY}
                 showArrow={false}
               >
                 <button

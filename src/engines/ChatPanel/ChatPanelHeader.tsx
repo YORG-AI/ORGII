@@ -7,6 +7,7 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import RegionNoticeButton from "@src/components/RegionNoticeButton";
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import Tooltip from "@src/components/Tooltip";
+import { CHROME_TOOLTIP_HOVER_DELAY } from "@src/config/tooltip";
 import type { DropdownEnginePosition } from "@src/hooks/dropdown";
 import { getCollapsedSidebarChromeOffset } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import { useWorkbenchRightEdgeReservation } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
@@ -189,7 +190,7 @@ export function ChatPanelHeader({
               <KeyboardShortcutTooltipContent label={tuiModeLabel} noShortcut />
             }
             position="bottom-end"
-            mouseEnterDelay={200}
+            mouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
             framedPanel
           >
             <span className="inline-flex">
@@ -283,6 +284,7 @@ export function ChatPanelHeader({
         }
         shortcutId={stationAvailable ? "maximize_chat" : undefined}
         tooltipPosition="bottom-end"
+        tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
         nativeTitle={false}
         onClick={stationAvailable ? handleChatFocusToggle : undefined}
         disabled={!stationAvailable}

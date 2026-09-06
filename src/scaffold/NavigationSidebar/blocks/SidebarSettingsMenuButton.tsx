@@ -47,6 +47,7 @@ import {
   Settings01Icon,
 } from "@src/icons";
 import { useAppearanceState } from "@src/modules/MainApp/Settings/sections/useAppearanceState";
+import { SIDEBAR_TOOLTIP_HOVER_DELAY } from "@src/scaffold/NavigationSidebar/config";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
@@ -287,6 +288,7 @@ const SidebarSettingsMenuButton: React.FC<SidebarSettingsMenuButtonProps> = ({
           label={t("sidebar.bottomBar.settings")}
           shortcut={openSettingsShortcut}
           position="top"
+          mouseEnterDelay={SIDEBAR_TOOLTIP_HOVER_DELAY}
           disabled={isOpen}
         >
           <div ref={triggerRef} className="inline-flex">

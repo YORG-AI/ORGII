@@ -69,6 +69,23 @@ describe("SidebarOrgSelector", () => {
     expect(markup).toContain("hover:bg-sidebar-selected!");
   });
 
+  it("keeps its chevron hidden until the sidebar or selector is active", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(SidebarOrgSelector, {
+        ...baseProps,
+        value: "personal",
+        options: [{ value: "personal", label: "Local profile" }],
+        loading: false,
+      })
+    );
+
+    expect(markup).toContain("[&amp;_.select-arrow]:opacity-0");
+    expect(markup).toContain(
+      "group-hover/sidebar:[&amp;_.select-arrow]:opacity-100"
+    );
+    expect(markup).toContain("hover:[&amp;_.select-arrow]:opacity-100");
+  });
+
   it("does not repeat the signed-in identity in the organization menu", () => {
     const markup = renderToStaticMarkup(
       React.createElement(SidebarOrgSelector, {

@@ -18,6 +18,7 @@ import Button from "@src/components/Button";
 import Message from "@src/components/Message";
 import Tooltip from "@src/components/Tooltip";
 import type { AvailableAgent } from "@src/config/cliAgents";
+import { CHROME_TOOLTIP_HOVER_DELAY } from "@src/config/tooltip";
 import type { ChatPanelCliTerminalLaunchOptions } from "@src/engines/ChatPanel/types";
 import { createLogger } from "@src/hooks/logger";
 import { HugeiconsIcon, SquareTerminalIcon } from "@src/icons";
@@ -197,7 +198,7 @@ const SessionContinueCliHeaderExtras: React.FC<
     <Tooltip
       content={tooltipContent}
       position="bottom-end"
-      mouseEnterDelay={200}
+      mouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
       framedPanel
     >
       <span className="inline-flex">

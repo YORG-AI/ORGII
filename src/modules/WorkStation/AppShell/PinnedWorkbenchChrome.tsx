@@ -13,6 +13,7 @@ import React, { memo, startTransition, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
+import { CHROME_TOOLTIP_HOVER_DELAY } from "@src/config/tooltip";
 import {
   PINNED_WORKBENCH_CHROME_CENTER_TOP,
   PINNED_WORKBENCH_CHROME_RIGHT_INSET,
@@ -80,6 +81,7 @@ const PinnedWorkbenchChromeComponent: React.FC = () => {
           : t("chat.restoreChatPanel")
       }
       shortcutId="maximize_work_station"
+      tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
       onClick={handleToggleChatPanel}
       data-testid="pinned-workbench-chrome-chat-visibility"
     >
@@ -117,6 +119,7 @@ const PinnedWorkbenchChromeComponent: React.FC = () => {
             : t("chat.workstationUnavailableForPage")
         }
         shortcutId={stationAvailable ? "maximize_chat" : undefined}
+        tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
         nativeTitle={false}
         onClick={stationAvailable ? handleShowWorkstation : undefined}
         disabled={!stationAvailable}
@@ -158,6 +161,7 @@ const PinnedWorkbenchChromeComponent: React.FC = () => {
       <TabBarTrailingIconButton
         title={t("chat.hideWorkstation")}
         shortcutId="maximize_chat"
+        tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
         onClick={handleMaximizeChat}
         className={chatPanelPosition === "left" ? "group" : undefined}
         data-testid="pinned-workbench-chrome-maximize-chat"

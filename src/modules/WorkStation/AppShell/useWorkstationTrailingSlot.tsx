@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
+import { CHROME_TOOLTIP_HOVER_DELAY } from "@src/config/tooltip";
 import { usePinnedWorkbenchChromeVisible } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
 import {
   ArrowExpand01Icon,
@@ -137,6 +138,7 @@ export function useWorkstationTrailingSlot({
         <TabBarTrailingIconButton
           title={chatPanelLabel}
           shortcutId="maximize_work_station"
+          tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
           onClick={handleToggleChatPanel}
         >
           {isChatPanelVisible ? (
@@ -163,6 +165,7 @@ export function useWorkstationTrailingSlot({
         <TabBarTrailingIconButton
           title={hideWorkstationLabel}
           shortcutId="maximize_chat"
+          tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
           onClick={handleToggleChatPanelMaximized}
           className={chatPanelPosition === "left" ? "group" : undefined}
         >
@@ -175,6 +178,7 @@ export function useWorkstationTrailingSlot({
         <TabBarTrailingIconButton
           title={chatPanelLabel}
           shortcutId="maximize_work_station"
+          tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
           onClick={handleToggleChatPanel}
         >
           <HugeiconsIcon
@@ -196,6 +200,7 @@ export function useWorkstationTrailingSlot({
       <TabBarTrailingIconButton
         title={maximizeSettingsLabel}
         shortcutId="maximize_chat"
+        tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
         onClick={handleToggleChatPanelMaximized}
       >
         <HugeiconsIcon

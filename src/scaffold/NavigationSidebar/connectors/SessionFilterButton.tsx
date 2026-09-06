@@ -39,6 +39,7 @@ import {
   TickDouble01Icon,
   ViewIcon,
 } from "@src/icons";
+import { SIDEBAR_TOOLTIP_HOVER_DELAY } from "@src/scaffold/NavigationSidebar/config";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import HoverAnimatedIcon, {
@@ -292,6 +293,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
         <ToolbarTooltip
           label={t("sidebar.groupBy.title")}
           position="top"
+          mouseEnterDelay={SIDEBAR_TOOLTIP_HOVER_DELAY}
           disabled={isOpen}
         >
           <div ref={triggerRef} className="inline-flex">

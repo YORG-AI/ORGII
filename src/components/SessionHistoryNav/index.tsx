@@ -35,6 +35,7 @@ export type SessionHistoryNavVariant = "sidebar" | "chat";
 export interface SessionHistoryNavProps {
   variant: SessionHistoryNavVariant;
   className?: string;
+  tooltipMouseEnterDelay?: number;
 }
 
 interface NavButtonProps {
@@ -45,6 +46,7 @@ interface NavButtonProps {
   disabled: boolean;
   onClick: () => void;
   testId: string;
+  tooltipMouseEnterDelay?: number;
 }
 
 const NavButton: React.FC<NavButtonProps> = ({
@@ -55,6 +57,7 @@ const NavButton: React.FC<NavButtonProps> = ({
   disabled,
   onClick,
   testId,
+  tooltipMouseEnterDelay,
 }) => {
   const glyph = <HugeiconsIcon icon={icon} size={16} strokeWidth={2} />;
   if (variant === "sidebar") {
@@ -62,6 +65,7 @@ const NavButton: React.FC<NavButtonProps> = ({
       <SidebarChromeIconButton
         title={label}
         shortcutId={shortcutId}
+        tooltipMouseEnterDelay={tooltipMouseEnterDelay}
         disabled={disabled}
         onClick={onClick}
         data-testid={testId}
@@ -75,6 +79,7 @@ const NavButton: React.FC<NavButtonProps> = ({
       title={label}
       shortcutId={shortcutId}
       tooltipPosition="bottom"
+      tooltipMouseEnterDelay={tooltipMouseEnterDelay}
       nativeTitle={false}
       disabled={disabled}
       onClick={onClick}
@@ -86,7 +91,7 @@ const NavButton: React.FC<NavButtonProps> = ({
 };
 
 export const SessionHistoryNav: React.FC<SessionHistoryNavProps> = memo(
-  ({ variant, className = "" }) => {
+  ({ variant, className = "", tooltipMouseEnterDelay }) => {
     const { t } = useTranslation("sessions");
     const canGoBack = useAtomValue(activeChatPanelTabCanGoBackAtom);
     const canGoForward = useAtomValue(activeChatPanelTabCanGoForwardAtom);
@@ -110,6 +115,7 @@ export const SessionHistoryNav: React.FC<SessionHistoryNavProps> = memo(
             goBack();
           }}
           testId="session-history-nav-back"
+          tooltipMouseEnterDelay={tooltipMouseEnterDelay}
         />
         <NavButton
           variant={variant}
@@ -121,6 +127,7 @@ export const SessionHistoryNav: React.FC<SessionHistoryNavProps> = memo(
             goForward();
           }}
           testId="session-history-nav-forward"
+          tooltipMouseEnterDelay={tooltipMouseEnterDelay}
         />
       </div>
     );

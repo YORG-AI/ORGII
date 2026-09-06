@@ -13,6 +13,7 @@ import {
 } from "@src/components/Dropdown/tokens";
 import { RecentTabsMenuSection } from "@src/components/RecentTabsMenuSection";
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
+import { CHROME_TOOLTIP_HOVER_DELAY } from "@src/config/tooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import {
   Add01Icon,
@@ -251,6 +252,7 @@ export function ChatPanelPlusMenu({
         <TabBarTrailingIconButton
           title={plusLabel}
           active={menuOpen}
+          tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
           tooltipDisabled
           nativeTitle={false}
         >

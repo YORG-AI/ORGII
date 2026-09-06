@@ -45,7 +45,7 @@ import {
 import { windowFullscreenAtom } from "@src/store/ui/uiAtom";
 import { popupNativeMenu } from "@src/util/platform/tauri/nativeMenuPopup";
 
-import { SIDEBAR_STYLE } from "./config";
+import { SIDEBAR_STYLE, SIDEBAR_TOOLTIP_HOVER_DELAY } from "./config";
 import { useForceVisibleSidebar } from "./contexts/ForceVisibleContext";
 import type { SidebarBaseProps } from "./types";
 
@@ -310,6 +310,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
                     i18next.t("navigation:sidebar.actions.addNew")
                   }
                   position="bottom"
+                  mouseEnterDelay={SIDEBAR_TOOLTIP_HOVER_DELAY}
                   showArrow={false}
                   framedPanel={!!addTooltipContent}
                 >

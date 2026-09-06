@@ -122,7 +122,7 @@ describe("WorkstationSidebarViewSwitcher", () => {
     expect(container.querySelector("[title]")).toBeNull();
     expect(
       Array.from(
-        container.querySelectorAll('[data-tooltip-enter-delay="1500"]')
+        container.querySelectorAll('[data-tooltip-enter-delay="1000"]')
       )
     ).toHaveLength(3);
     expect(

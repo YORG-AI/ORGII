@@ -11,6 +11,8 @@ import {
   useIsAppUpdateInstalling,
 } from "@src/scaffold/AppUpdater";
 
+import { SIDEBAR_TOOLTIP_HOVER_DELAY } from "../config";
+
 const SidebarUpdateButton: React.FC = React.memo(() => {
   const { t } = useTranslation("navigation");
   const update = useAvailableAppUpdate();
@@ -30,7 +32,7 @@ const SidebarUpdateButton: React.FC = React.memo(() => {
     <Tooltip
       content={<KeyboardShortcutTooltipContent label={label} />}
       position="top"
-      mouseEnterDelay={200}
+      mouseEnterDelay={SIDEBAR_TOOLTIP_HOVER_DELAY}
       framedPanel
     >
       <Button

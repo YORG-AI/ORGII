@@ -3,7 +3,11 @@
  *
  * Centralized configuration for sidebar styling and behavior.
  */
+import { CHROME_TOOLTIP_HOVER_DELAY } from "@src/config/tooltip";
 import { WINDOW_CHROME_TOKENS } from "@src/config/windowChromeTokens";
+
+/** Hover dwell time before showing a sidebar control tooltip. */
+export const SIDEBAR_TOOLTIP_HOVER_DELAY = CHROME_TOOLTIP_HOVER_DELAY;
 
 // ============================================
 // Style Configuration

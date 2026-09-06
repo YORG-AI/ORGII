@@ -28,6 +28,7 @@ import {
   LayoutAlignLeftIcon,
   PanelLeftIcon,
 } from "@src/icons";
+import { SIDEBAR_TOOLTIP_HOVER_DELAY } from "@src/scaffold/NavigationSidebar/config";
 import { hoverSidebarOpenAtom } from "@src/store/ui/hoverSidebarAtom";
 import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
 import { isMacOS } from "@src/util/platform/tauri";
@@ -81,6 +82,7 @@ const ChromeButton: React.FC<ChromeButtonProps> = ({
       <SidebarChromeIconButton
         title={label}
         shortcutId={shortcutId}
+        tooltipMouseEnterDelay={SIDEBAR_TOOLTIP_HOVER_DELAY}
         onClick={onClick}
         className="group/toggle"
         data-testid={testId}
@@ -94,6 +96,7 @@ const ChromeButton: React.FC<ChromeButtonProps> = ({
       title={label}
       shortcutId={shortcutId}
       tooltipPosition="bottom"
+      tooltipMouseEnterDelay={SIDEBAR_TOOLTIP_HOVER_DELAY}
       nativeTitle={false}
       onClick={onClick}
       className="group/toggle"
@@ -192,7 +195,10 @@ const PinnedSidebarChromeComponent: React.FC = () => {
       }
     >
       {toggle}
-      <SessionHistoryNav variant={variant} />
+      <SessionHistoryNav
+        variant={variant}
+        tooltipMouseEnterDelay={SIDEBAR_TOOLTIP_HOVER_DELAY}
+      />
     </div>
   );
 };
