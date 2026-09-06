@@ -83,6 +83,7 @@ pub(super) fn write_file_atomic(path: &Path, bytes: &[u8]) -> Result<(), String>
     let result = (|| {
         let mut file = create_staging_file(&tmp)
             .map_err(|err| format!("Failed to create {}: {err}", tmp.display()))?;
+        secure_staging_file(&tmp)?;
         use std::io::Write;
         file.write_all(bytes)
             .map_err(|err| format!("Failed to write {}: {err}", tmp.display()))?;
@@ -110,4 +111,43 @@ pub(super) fn write_sensitive_file_atomic(path: &Path, bytes: &[u8]) -> Result<(
         tracing::warn!(path = %path.display(), error = %err, "Failed to secure CLI config profile file");
     }
     Ok(())
+}
+
+fn secure_staging_file(path: &Path) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let mut whoami = std::process::Command::new("whoami");
+        app_platform::hide_console(&mut whoami);
+        let account = whoami
+            .output()
+            .map_err(|_| "Cannot resolve account for credential ACL")?;
+        if !account.status.success() {
+            return Err("Cannot resolve account for credential ACL".into());
+        }
+        let account =
+            String::from_utf8(account.stdout).map_err(|_| "Invalid account for credential ACL")?;
+        let account = account.trim();
+        if account.is_empty() {
+            return Err("Missing account for credential ACL".into());
+        }
+        let mut command = std::process::Command::new("icacls");
+        command
+            .arg(path)
+            .args(["/inheritance:r", "/grant:r", &format!("{account}:F")]);
+        app_platform::hide_console(&mut command);
+        if !command
+            .output()
+            .map_err(|_| "Cannot secure credential staging file")?
+            .status
+            .success()
+        {
+            return Err("Cannot secure credential staging file".into());
+        }
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        app_paths::set_sensitive_file_permissions(path)
+            .map_err(|_| "Cannot secure credential staging file".into())
+    }
 }

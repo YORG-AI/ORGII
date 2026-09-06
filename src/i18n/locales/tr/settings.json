@@ -41,7 +41,8 @@
     "projectUsage": "Project ve Kullanım",
     "agentMemory": "Agent Belleği",
     "agentOrg": "Agent Ekibi",
-    "collaboration": "İş birliği"
+    "collaboration": "İş birliği",
+    "harnessConnections": "Araç bağlantıları"
   },
   "coreSidebar": {
     "groups": {
@@ -1370,5 +1371,39 @@
       "cloud": "Bulut",
       "selfHosted": "Kendi kendine barındırılan"
     }
+  },
+  "harnessConnections": {
+    "description": "Her kodlama aracının kullanacağı bağlantıyı seçin",
+    "current": "Yapılandırılmış bağlantı",
+    "scope": "Bu cihazın CLI varsayılanına uygulanır; proje ayarları ve çalışan oturumlar öncelikli olabilir",
+    "original": "Özgün kurulum",
+    "missingKey": "Seçilen anahtar bulunamadı",
+    "connection": "Bağlantı",
+    "choose": "Kayıtlı bağlantı seçin",
+    "add": "Bağlantı ekle",
+    "empty": "API anahtarı ekleyin veya cc-switch üzerinden bağlantı içe aktarın",
+    "model": "Model",
+    "routing": "Bağlantı yolu",
+    "direct": "Doğrudan",
+    "proxy": "ORGII üzerinden",
+    "directHelp": "ORGII kapalıyken çalışır",
+    "proxyHelp": "ORGII açık kalmalıdır",
+    "advanced": "Gelişmiş",
+    "test": "Bağlantıyı test et",
+    "testHelp": "Araçları ve akışı denetlemek için sağlayıcıya iki küçük istek gönderir; kullanım ücreti alınabilir",
+    "testPassed": "Araç çağrısı, dönüşü ve akış doğrulandı; test sonucu 15 dakika sonra geçersiz olur",
+    "testRequired": "Uygulamadan önce bu üçüncü taraf uç noktasını ve modeli test edin",
+    "untested": "Yapılandırmayı kaydetmek çalışan bir oturumu doğrulamaz",
+    "cancel": "Testi iptal et",
+    "apply": "Bu bağlantıyı kullan",
+    "applied": "Yapılandırma kaydedildi — yeni bir araç oturumu başlatın",
+    "restore": "Özgün kurulumu geri yükle",
+    "restored": "Özgün kurulum geri yüklendi — yeni bir araç oturumu başlatın",
+    "refresh": "Yenile",
+    "loading": "Araç yapılandırması okunuyor…",
+    "conflict": "Yapılandırma ORGII dışında değiştirildi. Uygulamadan veya geri yüklemeden önce değişiklikleri inceleyin; üzerlerine yazılmayacak",
+    "credentialsNote": "Doğrudan mod, kimlik bilgilerini kısıtlı dosya erişimiyle CLI yapılandırmasına yazar; kasadan anahtar silmek dışa aktarılan kimlik bilgisini iptal etmez",
+    "import": "cc-switch üzerinden içe aktar",
+    "notInstalled": "Bağlantıyı test etmeden veya uygulamadan önce bu aracı yükleyin"
   }
 }

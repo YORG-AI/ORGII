@@ -41,7 +41,8 @@
     "projectUsage": "Projectと使用量",
     "agentMemory": "Agent メモリ",
     "agentOrg": "Agent チーム",
-    "collaboration": "コラボレーション"
+    "collaboration": "コラボレーション",
+    "harnessConnections": "ツールの接続"
   },
   "coreSidebar": {
     "groups": {
@@ -1370,5 +1371,39 @@
       "cloud": "クラウド",
       "selfHosted": "セルフホスト"
     }
+  },
+  "harnessConnections": {
+    "description": "各コーディングツールで使う接続を選択",
+    "current": "設定中の接続",
+    "scope": "この端末の CLI の既定設定に適用されます。プロジェクト設定や実行中のセッションが優先される場合があります",
+    "original": "元の設定",
+    "missingKey": "選択したキーが見つかりません",
+    "connection": "接続",
+    "choose": "保存済みの接続を選択",
+    "add": "接続を追加",
+    "empty": "API キーを追加するか、cc-switch から接続をインポート",
+    "model": "モデル",
+    "routing": "接続方式",
+    "direct": "直接接続",
+    "proxy": "ORGII 経由",
+    "directHelp": "ORGII を閉じても使用できます",
+    "proxyHelp": "ORGII を起動したままにする必要があります",
+    "advanced": "詳細設定",
+    "test": "接続をテスト",
+    "testHelp": "選択したプロバイダーに小さなリクエストを 2 回送り、ツール呼び出しとストリーミングを確認します。利用料金が発生する場合があります",
+    "testPassed": "ツール呼び出しの往復とストリーミングに成功しました。テスト結果の有効期限は 15 分です",
+    "testRequired": "適用前にこのサードパーティーのエンドポイントとモデルをテストしてください",
+    "untested": "設定の保存だけでは実行中のセッションは検証されません",
+    "cancel": "テストをキャンセル",
+    "apply": "この接続を使用",
+    "applied": "設定を保存しました。新しいツールセッションを開始してください",
+    "restore": "元の設定に戻す",
+    "restored": "元の設定に戻しました。新しいツールセッションを開始してください",
+    "refresh": "更新",
+    "loading": "ツールの設定を読み込み中…",
+    "conflict": "ORGII 外で設定が変更されました。適用または復元前に変更を確認してください。変更は上書きされません",
+    "credentialsNote": "直接接続ではアクセスを制限した CLI 設定に認証情報を書き込みます。保管庫のキーを削除しても、書き出した認証情報は失効しません",
+    "import": "cc-switch からインポート",
+    "notInstalled": "接続のテストや適用の前に、このツールをインストールしてください"
   }
 }

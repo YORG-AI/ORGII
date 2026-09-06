@@ -150,6 +150,10 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
     icon: SmartPhone,
   },
   update: { labelKey: "settings:sections.appUpdate", icon: Package },
+  "harness-connections": {
+    labelKey: "settings:sections.harnessConnections",
+    icon: Code,
+  },
   monitor: { labelKey: "settings:sections.monitor", icon: Activity },
 
   // work-station roots

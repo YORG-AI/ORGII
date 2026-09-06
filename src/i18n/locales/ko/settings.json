@@ -41,7 +41,8 @@
     "projectUsage": "Project 및 사용량",
     "agentMemory": "Agent 메모리",
     "agentOrg": "Agent 팀",
-    "collaboration": "협업"
+    "collaboration": "협업",
+    "harnessConnections": "도구 연결"
   },
   "coreSidebar": {
     "groups": {
@@ -1370,5 +1371,39 @@
       "cloud": "클라우드",
       "selfHosted": "자체 호스팅"
     }
+  },
+  "harnessConnections": {
+    "description": "각 코딩 도구에서 사용할 연결 선택",
+    "current": "현재 설정된 연결",
+    "scope": "이 컴퓨터의 CLI 기본 설정에 적용됩니다. 프로젝트 설정과 실행 중인 세션이 우선할 수 있습니다",
+    "original": "원래 설정",
+    "missingKey": "선택한 키가 없습니다",
+    "connection": "연결",
+    "choose": "저장된 연결 선택",
+    "add": "연결 추가",
+    "empty": "API 키를 추가하거나 cc-switch에서 연결을 가져오세요",
+    "model": "모델",
+    "routing": "연결 방식",
+    "direct": "직접 연결",
+    "proxy": "ORGII 경유",
+    "directHelp": "ORGII를 닫아도 사용할 수 있습니다",
+    "proxyHelp": "ORGII를 계속 실행해야 합니다",
+    "advanced": "고급",
+    "test": "연결 테스트",
+    "testHelp": "선택한 제공업체에 작은 요청 두 개를 보내 도구 호출과 스트리밍을 확인합니다. 사용 요금이 발생할 수 있습니다",
+    "testPassed": "도구 호출 왕복과 스트리밍 테스트를 통과했습니다. 테스트 결과는 15분 후 만료됩니다",
+    "testRequired": "적용하기 전에 이 타사 엔드포인트와 모델을 테스트하세요",
+    "untested": "설정을 저장해도 실행 중인 세션이 검증되지는 않습니다",
+    "cancel": "테스트 취소",
+    "apply": "이 연결 사용",
+    "applied": "설정을 저장했습니다. 새 도구 세션을 시작하세요",
+    "restore": "원래 설정 복원",
+    "restored": "원래 설정을 복원했습니다. 새 도구 세션을 시작하세요",
+    "refresh": "새로 고침",
+    "loading": "도구 설정 읽는 중…",
+    "conflict": "ORGII 외부에서 설정이 변경되었습니다. 적용하거나 복원하기 전에 변경 내용을 확인하세요. 변경 내용은 덮어쓰지 않습니다",
+    "credentialsNote": "직접 연결 모드는 접근이 제한된 CLI 설정에 자격 증명을 기록합니다. 저장소에서 키를 삭제해도 내보낸 자격 증명은 취소되지 않습니다",
+    "import": "cc-switch에서 가져오기",
+    "notInstalled": "연결을 테스트하거나 적용하기 전에 이 도구를 설치하세요"
   }
 }

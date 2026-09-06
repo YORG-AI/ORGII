@@ -41,7 +41,8 @@
     "projectUsage": "Project e Uso",
     "agentMemory": "Memória do Agent",
     "agentOrg": "Equipe Agent",
-    "collaboration": "Colaboração"
+    "collaboration": "Colaboração",
+    "harnessConnections": "Conexões de ferramentas"
   },
   "coreSidebar": {
     "groups": {
@@ -1370,5 +1371,39 @@
       "cloud": "Nuvem",
       "selfHosted": "Auto-hospedado"
     }
+  },
+  "harnessConnections": {
+    "description": "Escolha a conexão de cada ferramenta de programação",
+    "current": "Conexão configurada",
+    "scope": "Aplica-se ao padrão da CLI deste dispositivo; configurações do projeto e sessões em execução podem ter prioridade",
+    "original": "Configuração original",
+    "missingKey": "A chave selecionada não foi encontrada",
+    "connection": "Conexão",
+    "choose": "Escolher uma conexão salva",
+    "add": "Adicionar conexão",
+    "empty": "Adicione uma chave API ou importe uma conexão do cc-switch",
+    "model": "Modelo",
+    "routing": "Rota de conexão",
+    "direct": "Direta",
+    "proxy": "Pelo ORGII",
+    "directHelp": "Funciona com o ORGII fechado",
+    "proxyHelp": "Requer manter o ORGII aberto",
+    "advanced": "Avançado",
+    "test": "Testar conexão",
+    "testHelp": "Envia duas pequenas solicitações ao provedor para verificar ferramentas e streaming; podem ocorrer cobranças",
+    "testPassed": "Chamada de ferramenta com retorno e streaming verificados; o resultado expira em 15 minutos",
+    "testRequired": "Teste este endpoint e modelo de terceiros antes de aplicar",
+    "untested": "Salvar a configuração não verifica uma sessão em execução",
+    "cancel": "Cancelar teste",
+    "apply": "Usar esta conexão",
+    "applied": "Configuração salva: inicie uma nova sessão da ferramenta",
+    "restore": "Restaurar configuração original",
+    "restored": "Configuração original restaurada: inicie uma nova sessão da ferramenta",
+    "refresh": "Atualizar",
+    "loading": "Lendo configuração da ferramenta…",
+    "conflict": "A configuração mudou fora do ORGII. Revise as alterações antes de aplicar ou restaurar; elas não serão sobrescritas",
+    "credentialsNote": "O modo direto grava credenciais na configuração da CLI com acesso restrito; excluir uma chave do cofre não revoga a credencial exportada",
+    "import": "Importar do cc-switch",
+    "notInstalled": "Instale esta ferramenta antes de testar ou aplicar uma conexão"
   }
 }

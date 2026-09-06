@@ -134,8 +134,10 @@ pub(crate) fn start_backend_services(
     });
 
     // Start the local managed-config proxy used by supported CLI agents.
-    // It stays idle until a CLI points at 127.0.0.1:17888.
-    cli_managed_proxy::start_cli_managed_proxy_thread();
+    // Direct-only installations do not start a proxy listener.
+    if agent_cli::managed_config::has_active_managed_profiles() {
+        cli_managed_proxy::start_cli_managed_proxy_thread();
+    }
 
     // First launch defaults session-provenance capture on for supported
     // external agents. Later launches reconcile the platform hook

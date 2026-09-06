@@ -42,7 +42,8 @@
     "agentMemory": "Agent 记忆",
     "agentOrg": "Agent 团队",
     "collaboration": "协作",
-    "mobileRemote": "移动遥控"
+    "mobileRemote": "移动遥控",
+    "harnessConnections": "工具连接"
   },
   "coreSidebar": {
     "groups": {
@@ -1484,5 +1485,39 @@
       "cloud": "云端",
       "selfHosted": "自托管"
     }
+  },
+  "harnessConnections": {
+    "description": "选择各编程工具使用的连接",
+    "current": "当前配置的连接",
+    "scope": "适用于本机 CLI 默认配置；项目设置和运行中的会话可能覆盖此配置",
+    "original": "原始配置",
+    "missingKey": "所选密钥已不存在",
+    "connection": "连接",
+    "choose": "选择已保存的连接",
+    "add": "添加连接",
+    "empty": "添加 API 密钥或从 cc-switch 导入连接",
+    "model": "模型",
+    "routing": "连接方式",
+    "direct": "直连",
+    "proxy": "通过 ORGII",
+    "directHelp": "关闭 ORGII 后仍可使用",
+    "proxyHelp": "需要保持 ORGII 运行",
+    "advanced": "高级",
+    "test": "测试连接",
+    "testHelp": "向所选服务商发送两个小型请求，检查工具调用和流式响应；可能产生使用费用",
+    "testPassed": "工具调用往返和流式响应测试通过；测试凭证在 15 分钟后过期",
+    "testRequired": "应用前请测试此第三方端点和模型",
+    "untested": "保存配置不代表运行中的会话已验证",
+    "cancel": "取消测试",
+    "apply": "使用此连接",
+    "applied": "配置已保存，请新建工具会话以使用此配置",
+    "restore": "恢复原始配置",
+    "restored": "原始配置已恢复，请新建工具会话",
+    "refresh": "刷新",
+    "loading": "正在读取工具配置…",
+    "conflict": "配置已在 ORGII 外部更改。应用或恢复前请检查这些更改；系统不会覆盖它们",
+    "credentialsNote": "直连模式会将凭据写入访问受限的 CLI 配置文件；删除密钥库中的密钥不会撤销已导出的凭据",
+    "import": "从 cc-switch 导入",
+    "notInstalled": "请先安装此工具，再测试或应用连接"
   }
 }

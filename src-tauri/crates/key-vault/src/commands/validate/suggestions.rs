@@ -11,9 +11,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::auto_detect::{
-    auto_detect_key, probe_credential_suggestions, resolve_generic_secret,
-    resolves_via_detector, secret_fingerprint, CredentialSuggestion, DetectedKey,
-    SuggestionSourceKind,
+    auto_detect_key, probe_credential_suggestions, resolve_generic_secret, resolves_via_detector,
+    secret_fingerprint, CredentialSuggestion, DetectedKey, SuggestionSourceKind,
 };
 use crate::commands::validate::run_validate_key;
 use crate::commands::{save_key, KeyInfo, SaveKeyRequest};
@@ -183,24 +182,53 @@ async fn import_generic(
         )
     })?;
 
+    let imported = crate::auto_detect::suggestions::cc_switch_connection_metadata(selection)?;
+    if selection.source_kind == SuggestionSourceKind::CcSwitch {
+        if selection.fingerprint.as_deref() != Some(secret_fingerprint(&secret).as_str()) {
+            return Err("cc-switch credential changed; refresh the import list".into());
+        }
+        if let Some(existing) = KEY_SERVICE.list_keys().iter().find(|key| {
+            key.api_key.as_deref() == Some(secret.as_str())
+                && key.base_url == base_url
+                && key.model_type == *model_type
+        }) {
+            return crate::commands::get_key_by_id(existing.id.clone())
+                .await?
+                .ok_or("Imported connection disappeared".into());
+        }
+    }
+    // A configured cc-switch model can be imported offline. Actual endpoint
+    // compatibility is tested explicitly before this connection can be applied.
     // Same validators the manual wizard runs. CLI agents without a
     // validator (Amp, Devin, ...) are saved unvalidated: their vault entry
     // only feeds env injection at launch and needs no model list.
-    let models = match run_validate_key(
-        selection.agent_type.clone(),
-        secret.clone(),
-        base_url.clone(),
-        None,
-        None,
-        None,
-    )
-    .await
-    {
-        Ok(result) if result.valid => result.models_available,
-        Ok(result) => return Err(result.message),
-        Err(_) if model_type.is_cli_agent() => Vec::new(),
-        Err(err) => return Err(err),
+    let models = if let Some((model, _)) = &imported {
+        vec![model.clone()]
+    } else {
+        match run_validate_key(
+            selection.agent_type.clone(),
+            secret.clone(),
+            base_url.clone(),
+            None,
+            None,
+            None,
+        )
+        .await
+        {
+            Ok(result) if result.valid => result.models_available,
+            Ok(result) => return Err(result.message),
+            Err(_) if model_type.is_cli_agent() => Vec::new(),
+            Err(err) => return Err(err),
+        }
     };
+
+    if imported.is_some() {
+        let mut candidate = crate::key_store::ModelKey::new(model_type.clone());
+        candidate.api_key = Some(secret.clone());
+        candidate.base_url = base_url.clone();
+        candidate.available_models = models.clone();
+        crate::harness_connections::resolve(&selection.agent_type, &candidate, None)?;
+    }
 
     // cc-switch rows are labelled by profile name; everything else is best
     // identified by the variable / provider it came from, then the file.
@@ -216,7 +244,7 @@ async fn import_generic(
         api_key: Some(secret),
         session_token: None,
         base_url,
-        protocol: None,
+        protocol: imported.map(|(_, protocol)| protocol),
         env_vars: None,
         account_metadata: None,
         available_models: Some(models.clone()),

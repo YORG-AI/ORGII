@@ -42,7 +42,8 @@
     "agentMemory": "Agent Memory",
     "agentOrg": "Agent Team",
     "collaboration": "Collaboration",
-    "mobileRemote": "Mobile Remote"
+    "mobileRemote": "Mobile Remote",
+    "harnessConnections": "Harness connections"
   },
   "coreSidebar": {
     "groups": {
@@ -1484,5 +1485,39 @@
       "cloud": "Cloud",
       "selfHosted": "Self-hosted"
     }
+  },
+  "harnessConnections": {
+    "description": "Choose which connection each coding tool uses",
+    "current": "Configured connection",
+    "scope": "Applies to this machine’s CLI default; project settings and running sessions may override it",
+    "original": "Original setup",
+    "missingKey": "Selected key is missing",
+    "connection": "Connection",
+    "choose": "Choose a saved connection",
+    "add": "Add connection",
+    "empty": "Add an API key or import a connection from cc-switch",
+    "model": "Model",
+    "routing": "Routing",
+    "direct": "Direct",
+    "proxy": "Through ORGII",
+    "directHelp": "Works when ORGII is closed",
+    "proxyHelp": "Requires ORGII to stay open",
+    "advanced": "Advanced",
+    "test": "Test connection",
+    "testHelp": "Sends two small requests to the selected provider to check tools and streaming; usage charges may apply",
+    "testPassed": "Tool round trip and streaming passed; test evidence expires after 15 minutes",
+    "testRequired": "Test this third-party endpoint and model before applying",
+    "untested": "A saved configuration does not verify a running session",
+    "cancel": "Cancel test",
+    "apply": "Use this connection",
+    "applied": "Configuration saved — start a new harness session to use it",
+    "restore": "Restore original setup",
+    "restored": "Original setup restored — start a new harness session",
+    "refresh": "Refresh",
+    "loading": "Reading harness configuration…",
+    "conflict": "Configuration changed outside ORGII. Review those edits before applying or restoring; they will not be overwritten",
+    "credentialsNote": "Direct mode writes credentials to native CLI configuration with restricted file access; removing a vault key does not revoke that exported credential",
+    "import": "Import from cc-switch",
+    "notInstalled": "Install this harness before testing or applying a connection"
   }
 }

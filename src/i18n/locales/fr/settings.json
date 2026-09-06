@@ -41,7 +41,8 @@
     "projectUsage": "Project et utilisation",
     "agentMemory": "Mémoire de l'Agent",
     "agentOrg": "Équipe Agent",
-    "collaboration": "Collaboration"
+    "collaboration": "Collaboration",
+    "harnessConnections": "Connexions des outils"
   },
   "coreSidebar": {
     "groups": {
@@ -1370,5 +1371,39 @@
       "cloud": "Cloud",
       "selfHosted": "Auto-hébergé"
     }
+  },
+  "harnessConnections": {
+    "description": "Choisissez la connexion de chaque outil de programmation",
+    "current": "Connexion configurée",
+    "scope": "S’applique à la configuration CLI par défaut de cet appareil ; les paramètres du projet et les sessions en cours peuvent être prioritaires",
+    "original": "Configuration d’origine",
+    "missingKey": "La clé sélectionnée est introuvable",
+    "connection": "Connexion",
+    "choose": "Choisir une connexion enregistrée",
+    "add": "Ajouter une connexion",
+    "empty": "Ajoutez une clé API ou importez une connexion depuis cc-switch",
+    "model": "Modèle",
+    "routing": "Mode de connexion",
+    "direct": "Direct",
+    "proxy": "Via ORGII",
+    "directHelp": "Fonctionne lorsque ORGII est fermé",
+    "proxyHelp": "Nécessite de garder ORGII ouvert",
+    "advanced": "Avancé",
+    "test": "Tester la connexion",
+    "testHelp": "Envoie deux petites requêtes au fournisseur pour vérifier les outils et le streaming ; des frais peuvent s’appliquer",
+    "testPassed": "Aller-retour d’outil et streaming validés ; le résultat expire après 15 minutes",
+    "testRequired": "Testez ce point de terminaison tiers et ce modèle avant de les appliquer",
+    "untested": "Enregistrer la configuration ne vérifie pas une session en cours",
+    "cancel": "Annuler le test",
+    "apply": "Utiliser cette connexion",
+    "applied": "Configuration enregistrée : démarrez une nouvelle session de l’outil",
+    "restore": "Rétablir la configuration d’origine",
+    "restored": "Configuration d’origine rétablie : démarrez une nouvelle session de l’outil",
+    "refresh": "Actualiser",
+    "loading": "Lecture de la configuration de l’outil…",
+    "conflict": "La configuration a été modifiée en dehors d’ORGII. Vérifiez ces modifications avant d’appliquer ou de rétablir ; elles ne seront pas écrasées",
+    "credentialsNote": "Le mode direct écrit les identifiants dans la configuration CLI avec un accès restreint ; supprimer une clé du coffre ne révoque pas l’identifiant exporté",
+    "import": "Importer depuis cc-switch",
+    "notInstalled": "Installez cet outil avant de tester ou d’appliquer une connexion"
   }
 }

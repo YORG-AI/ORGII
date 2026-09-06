@@ -21,6 +21,10 @@ struct CliConfigTransactionTarget {
     target_path: String,
     rollback_path: String,
     target_existed: bool,
+    #[serde(default)]
+    expected_hash: Option<String>,
+    #[serde(default)]
+    original_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,6 +77,17 @@ fn rollback_transaction(journal: &CliConfigTransactionJournal) -> Result<(), Str
     let mut errors = Vec::new();
     for target in &journal.target_files {
         let target_path = PathBuf::from(&target.target_path);
+        let current = file_hash(&target_path)?;
+        if current == target.original_hash {
+            continue;
+        }
+        if current != target.expected_hash {
+            errors.push(format!(
+                "Configuration changed externally during recovery: {}",
+                target_path.display()
+            ));
+            continue;
+        }
         let result = if target.target_existed {
             let rollback_path = PathBuf::from(&target.rollback_path);
             std::fs::read(&rollback_path)
@@ -117,6 +132,7 @@ pub(super) fn begin_transaction(
     agent_name: &str,
     snapshots: &BTreeMap<String, TargetSnapshot>,
     final_manifest: &CliConfigProfileManifest,
+    mutations: &BTreeMap<String, TargetMutation>,
 ) -> Result<CliConfigTransactionJournal, String> {
     recover_pending_transaction_unlocked(agent_name)?;
     let rollback_dir = transaction_dir(agent_name).join("rollback");
@@ -142,6 +158,12 @@ pub(super) fn begin_transaction(
             target_path: snapshot.target_path.to_string_lossy().to_string(),
             rollback_path: rollback_path.to_string_lossy().to_string(),
             target_existed: snapshot.existed,
+            original_hash: snapshot.hash.clone(),
+            expected_hash: match mutations.get(&snapshot.id) {
+                Some(TargetMutation::Write(bytes)) => Some(sha256_bytes(bytes)),
+                Some(TargetMutation::Remove) => None,
+                None => snapshot.hash.clone(),
+            },
         });
     }
 
@@ -163,12 +185,15 @@ pub(super) fn execute_transaction(
     mutations: &BTreeMap<String, TargetMutation>,
     final_manifest: &CliConfigProfileManifest,
 ) -> Result<(), String> {
-    let journal = begin_transaction(agent_name, snapshots, final_manifest)?;
+    let journal = begin_transaction(agent_name, snapshots, final_manifest, mutations)?;
     let result = (|| {
         for (id, mutation) in mutations {
             let snapshot = snapshots
                 .get(id)
                 .ok_or_else(|| format!("Missing CLI config snapshot for target {id}"))?;
+            if file_hash(&snapshot.target_path)? != snapshot.hash {
+                return Err("CLI configuration changed before write; switch cancelled".into());
+            }
             match mutation {
                 TargetMutation::Write(bytes) => {
                     write_sensitive_file_atomic(&snapshot.target_path, bytes)?
@@ -180,6 +205,13 @@ pub(super) fn execute_transaction(
                         })?;
                     }
                 }
+            }
+        }
+        for target in &journal.target_files {
+            if file_hash(&PathBuf::from(&target.target_path))? != target.expected_hash {
+                return Err(
+                    "CLI configuration read-back did not match the applied connection".into(),
+                );
             }
         }
         write_manifest(final_manifest)

@@ -41,7 +41,8 @@
     "projectUsage": "Project i użycie",
     "agentMemory": "Pamięć Agent",
     "agentOrg": "Zespół Agent",
-    "collaboration": "Współpraca"
+    "collaboration": "Współpraca",
+    "harnessConnections": "Połączenia narzędzi"
   },
   "coreSidebar": {
     "groups": {
@@ -1373,5 +1374,39 @@
       "cloud": "Chmura",
       "selfHosted": "Hostowane samodzielnie"
     }
+  },
+  "harnessConnections": {
+    "description": "Wybierz połączenie dla każdego narzędzia programistycznego",
+    "current": "Skonfigurowane połączenie",
+    "scope": "Dotyczy domyślnej konfiguracji CLI na tym urządzeniu; ustawienia projektu i aktywne sesje mogą mieć pierwszeństwo",
+    "original": "Pierwotna konfiguracja",
+    "missingKey": "Brak wybranego klucza",
+    "connection": "Połączenie",
+    "choose": "Wybierz zapisane połączenie",
+    "add": "Dodaj połączenie",
+    "empty": "Dodaj klucz API lub zaimportuj połączenie z cc-switch",
+    "model": "Model",
+    "routing": "Sposób połączenia",
+    "direct": "Bezpośrednio",
+    "proxy": "Przez ORGII",
+    "directHelp": "Działa przy zamkniętym ORGII",
+    "proxyHelp": "Wymaga otwartego ORGII",
+    "advanced": "Zaawansowane",
+    "test": "Przetestuj połączenie",
+    "testHelp": "Wysyła dwa małe żądania do dostawcy, aby sprawdzić narzędzia i strumieniowanie; mogą zostać naliczone opłaty",
+    "testPassed": "Wywołanie narzędzia z odpowiedzią i strumieniowanie sprawdzone; wynik wygasa po 15 minutach",
+    "testRequired": "Przetestuj ten zewnętrzny endpoint i model przed zastosowaniem",
+    "untested": "Zapisanie konfiguracji nie weryfikuje aktywnej sesji",
+    "cancel": "Anuluj test",
+    "apply": "Użyj tego połączenia",
+    "applied": "Konfiguracja zapisana — rozpocznij nową sesję narzędzia",
+    "restore": "Przywróć pierwotną konfigurację",
+    "restored": "Pierwotna konfiguracja przywrócona — rozpocznij nową sesję narzędzia",
+    "refresh": "Odśwież",
+    "loading": "Odczytywanie konfiguracji narzędzia…",
+    "conflict": "Konfiguracja została zmieniona poza ORGII. Sprawdź zmiany przed zastosowaniem lub przywróceniem; nie zostaną nadpisane",
+    "credentialsNote": "Tryb bezpośredni zapisuje dane uwierzytelniające w konfiguracji CLI z ograniczonym dostępem; usunięcie klucza ze skarbca nie unieważnia wyeksportowanych danych",
+    "import": "Importuj z cc-switch",
+    "notInstalled": "Zainstaluj to narzędzie przed testowaniem lub zastosowaniem połączenia"
   }
 }
