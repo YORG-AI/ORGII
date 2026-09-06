@@ -94,4 +94,46 @@ describe("ProjectsPageHeader", () => {
       })
     );
   });
+
+  it("publishes My Station filters on the left and search with actions on the right", () => {
+    renderToStaticMarkup(
+      React.createElement(ProjectsPageHeader, {
+        title: "Projects",
+        breadcrumbSegments: [{ label: "Workspace" }, { label: "Projects" }],
+        leadingControls: React.createElement(
+          "button",
+          { "data-testid": "group-projects" },
+          "Status"
+        ),
+        trailingControls: React.createElement(
+          "span",
+          { "data-testid": "projects-search" },
+          "Search"
+        ),
+        onCollapseAll: vi.fn(),
+        publishToWorkstationHeader: true,
+        selfContainedWorkstationHeader: true,
+      })
+    );
+
+    const publishedSlots = publishWorkstationHeader.mock.lastCall?.[0].content;
+    expect(publishedSlots).toMatchObject({
+      shellLeadingChromeHidden: true,
+    });
+
+    const leftMarkup = renderToStaticMarkup(publishedSlots.content);
+    const rightMarkup = renderToStaticMarkup(publishedSlots.trailing);
+    expect(leftMarkup).toContain("Workspace");
+    expect(leftMarkup).toContain('data-testid="group-projects"');
+    expect(leftMarkup).not.toContain('data-testid="projects-search"');
+    expect(leftMarkup).not.toContain('data-icon="list-chevrons-down-up"');
+    expect(rightMarkup).toContain('data-testid="projects-search"');
+    expect(rightMarkup).toContain('data-icon="list-chevrons-down-up"');
+    expect(leftMarkup.indexOf("Workspace")).toBeLessThan(
+      leftMarkup.indexOf('data-testid="group-projects"')
+    );
+    expect(rightMarkup.indexOf('data-testid="projects-search"')).toBeLessThan(
+      rightMarkup.indexOf('data-icon="list-chevrons-down-up"')
+    );
+  });
 });

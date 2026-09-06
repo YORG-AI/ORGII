@@ -20,7 +20,7 @@ describe("WorkManagementSearchInput", () => {
     expect(markup).toContain('type="text"');
     expect(markup).toContain('value="open issue"');
     expect(markup).toContain('aria-label="Search work"');
-    expect(markup).toContain("w-64 max-w-[28vw]");
+    expect(markup).toContain("w-180");
     expect(markup).toContain('data-icon="x"');
     expect(markup).toContain('title="tooltips.closeEsc"');
   });
@@ -39,10 +39,10 @@ describe("WorkManagementSearchInput", () => {
       'class="min-w-0 flex-1" data-testid="split-work-search"'
     );
     expect(markup).toContain("w-full min-w-0");
-    expect(markup).not.toContain("w-64 max-w-[28vw]");
+    expect(markup).not.toContain("w-180");
   });
 
-  it("uses the ghost treatment until the search receives focus", () => {
+  it("reserves its border and uses fill-2 hover until focus", () => {
     const markup = renderToStaticMarkup(
       createElement(WorkManagementSearchInput, {
         value: "is:issue is:open",
@@ -50,7 +50,9 @@ describe("WorkManagementSearchInput", () => {
       })
     );
 
-    expect(markup).toContain("border-0!");
+    expect(markup).toContain("border-transparent!");
+    expect(markup).not.toContain("border-0!");
+    expect(markup).toContain("hover]:bg-fill-2!");
     expect(markup).toContain("focus-within:border-primary-6!");
     expect(markup).toContain("focus-within:bg-pane-input!");
   });

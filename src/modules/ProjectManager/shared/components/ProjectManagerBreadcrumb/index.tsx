@@ -16,6 +16,8 @@ export interface ProjectManagerBreadcrumbSegment {
 interface ProjectManagerBreadcrumbProps {
   segments: readonly ProjectManagerBreadcrumbSegment[];
   trailingNode?: React.ReactNode;
+  /** Size the breadcrumb to its contents so adjacent controls stay grouped. */
+  compact?: boolean;
 }
 
 const PROJECT_MANAGER_SINGLE_LEVEL_MAX_CHARACTERS = 40;
@@ -34,7 +36,7 @@ export function truncateProjectManagerHeaderLabel(
 
 export const ProjectManagerBreadcrumb: React.FC<
   ProjectManagerBreadcrumbProps
-> = ({ segments, trailingNode }) => {
+> = ({ segments, trailingNode, compact = false }) => {
   const visibleSegments = segments.filter((segment) => segment.label.trim());
   const breadcrumbIcon = visibleSegments.find((segment) => segment.icon)?.icon;
   const displaySegments = visibleSegments.map((segment, index) => {
@@ -63,13 +65,17 @@ export const ProjectManagerBreadcrumb: React.FC<
   if (!filePath && !trailingNode) return null;
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+    <div
+      className={`flex min-w-0 items-center gap-1.5 ${
+        compact ? "shrink-0" : "flex-1"
+      }`}
+    >
       {filePath && (
         <BreadcrumbFileHeader
           filePath={filePath}
           displaySegments={displaySegments}
           disableNavigation
-          className="flex-1!"
+          className={compact ? "flex-none!" : "flex-1!"}
         />
       )}
       {trailingNode && filePath && (

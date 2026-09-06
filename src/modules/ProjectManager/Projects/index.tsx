@@ -98,8 +98,8 @@ interface ProjectsPageProps {
   workStationTabId?: string;
   /** Host slot used by the global WorkstationTabHeader. */
   workstationHeaderHost?: "project" | "workManagement";
-  /** Disable the shell sidebar toggle when this page has no sidebar. */
-  sidebarToggleDisabled?: boolean;
+  /** Hide shell chrome and keep published controls together on the left. */
+  selfContainedWorkstationHeader?: boolean;
   /** Keep controls in a dedicated local 36px row below host chrome. */
   surfaceOwnedHeader?: boolean;
   /** Parent-owned context control leading the dedicated surface row. */
@@ -125,7 +125,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
   publishToWorkstationHeader = false,
   workStationTabId,
   workstationHeaderHost = "project",
-  sidebarToggleDisabled = false,
+  selfContainedWorkstationHeader = false,
   surfaceOwnedHeader = false,
   surfaceHeaderLeading,
   orgSurfaceControls,
@@ -625,7 +625,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
         surfaceOwnedHeader={surfaceOwnedHeader}
         surfaceHeaderLeading={surfaceHeaderLeading}
         workstationHeaderHost={workstationHeaderHost}
-        sidebarToggleDisabled={sidebarToggleDisabled}
+        selfContainedWorkstationHeader={selfContainedWorkstationHeader}
       />
 
       <div className="min-h-0 flex-1 overflow-hidden">

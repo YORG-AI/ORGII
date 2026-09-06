@@ -42,7 +42,7 @@ export interface WorkItemsPageHeaderProps {
   splitHeaderLeading?: React.ReactNode;
   publishToWorkstationHeader?: boolean;
   workstationHeaderHost?: WorkstationTabHeaderHost;
-  /** Disable the shell sidebar toggle when this page has no sidebar. */
-  sidebarToggleDisabled?: boolean;
+  /** Hide shell-owned leading chrome when this page has no sidebar. */
+  shellLeadingChromeHidden?: boolean;
   className?: string;
 }

@@ -80,7 +80,7 @@ export const ProjectWorkItemsTabContent: React.FC<
   breadcrumbSegments,
   workStationTabId,
   workstationHeaderHost = "project",
-  sidebarToggleDisabled = false,
+  shellLeadingChromeHidden = false,
   onOpenProjects,
   onCreateProject,
   onCreateWorkItem,
@@ -724,7 +724,7 @@ export const ProjectWorkItemsTabContent: React.FC<
       splitHeaderLeading={splitHeaderLeading}
       publishToWorkstationHeader={!!workStationTabId}
       workstationHeaderHost={workstationHeaderHost}
-      sidebarToggleDisabled={sidebarToggleDisabled}
+      shellLeadingChromeHidden={shellLeadingChromeHidden}
     />
   );
 

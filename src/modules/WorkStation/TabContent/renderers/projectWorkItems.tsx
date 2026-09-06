@@ -51,7 +51,7 @@ const ProjectWorkItemsTabRenderer: React.FC<UnifiedTabContentProps> = memo(
         onCreateProject={onCreateProject}
         onCreateWorkItem={() => onCreateWorkItem()}
         workStationTabId={tab.id}
-        sidebarToggleDisabled
+        shellLeadingChromeHidden
       />
     );
   }

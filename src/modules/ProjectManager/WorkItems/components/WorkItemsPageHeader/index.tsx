@@ -42,7 +42,7 @@ const WorkItemsPageHeader = ({
   splitHeaderLeading,
   publishToWorkstationHeader = false,
   workstationHeaderHost = "project",
-  sidebarToggleDisabled = false,
+  shellLeadingChromeHidden = false,
   className = "",
 }: WorkItemsPageHeaderProps) => {
   const { t } = useTranslation("projects");
@@ -108,7 +108,7 @@ const WorkItemsPageHeader = ({
     content: {
       content: headerContent,
       trailing: headerTrailing,
-      sidebarToggleDisabled,
+      shellLeadingChromeHidden,
       hidden: splitListHeader,
     },
     enabled: publishToWorkstationHeader,

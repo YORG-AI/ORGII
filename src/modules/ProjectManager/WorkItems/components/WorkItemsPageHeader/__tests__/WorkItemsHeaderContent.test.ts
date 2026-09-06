@@ -6,6 +6,12 @@ import { describe, expect, it, vi } from "vitest";
 import WorkItemsPageHeader from "..";
 import { WorkItemsHeaderContent } from "../WorkItemsHeaderContent";
 
+const publishWorkstationHeader = vi.hoisted(() => vi.fn());
+
+vi.mock("@src/hooks/tabHost/useWorkstationTabHeader", () => ({
+  usePublishWorkstationTabHeader: publishWorkstationHeader,
+}));
+
 vi.mock("@src/components/KeyboardShortcut/ToolbarTooltip", () => ({
   ToolbarTooltip: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -186,6 +192,39 @@ describe("WorkItemsHeaderContent", () => {
     expect(markup).toContain('data-icon="square-pen"');
     expect(markup).toContain("h-9");
     expect(markup).not.toContain("h-[40px]");
+  });
+
+  it("hides shell-owned leading chrome for My Station Work Items", () => {
+    renderToStaticMarkup(
+      React.createElement(WorkItemsPageHeader, {
+        projectName: "Work Items",
+        activeTab: "List",
+        statusCounts: {
+          all: 0,
+          backlog: 0,
+          todo: 0,
+          inProgress: 0,
+          inReview: 0,
+          done: 0,
+          cancelled: 0,
+          duplicate: 0,
+          open: 0,
+          closed: 0,
+        },
+        publishToWorkstationHeader: true,
+        shellLeadingChromeHidden: true,
+      })
+    );
+
+    expect(publishWorkstationHeader).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          shellLeadingChromeHidden: true,
+        }),
+        enabled: true,
+        host: "project",
+      })
+    );
   });
 
   it("renders tab-bar split controls as two left-list header rows", () => {

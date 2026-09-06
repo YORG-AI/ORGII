@@ -119,4 +119,19 @@ describe("ProjectManagerBreadcrumb", () => {
       'class="inline-flex h-6 shrink-0 items-center gap-2"'
     );
   });
+
+  it("sizes compact breadcrumbs to their controls instead of filling the row", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(ProjectManagerBreadcrumb, {
+        segments: [{ label: "Workspace" }, { label: "Projects" }],
+        trailingNode: React.createElement("button", null, "Filter"),
+        compact: true,
+      })
+    );
+
+    expect(markup).toContain(
+      'class="flex min-w-0 items-center gap-1.5 shrink-0"'
+    );
+    expect(markup).toContain("flex-none!");
+  });
 });
