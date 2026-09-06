@@ -269,6 +269,7 @@ const ActivitySimulator: React.FC = memo(() => {
               {hasActiveSubagents ? (
                 /* Split view: main agent (top) + subagent banner (bottom) */
                 <SubagentPipCard
+                  key={sessionId}
                   mainContent={<ActivitySimulatorGrid {...splitGridProps} />}
                   activeSessions={activeSubagents}
                   mainCursorMs={mainCursorMs}
