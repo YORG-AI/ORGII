@@ -18,7 +18,7 @@ import type {
   LearningsStatusReport,
   SettableLearningStatusValue,
 } from "@src/api/tauri/rpc/schemas/learning";
-import { learningsBrowserInitialFilterAtom } from "@src/store";
+import { learningsBrowserInitialFilterAtom } from "@src/store/ui/settingsPanelAtoms";
 
 export interface LearningsBrowserFilters {
   agentScope?: string;

@@ -5,8 +5,8 @@ import React, { memo, useMemo, useState } from "react";
 import Markdown from "@src/components/MarkDown";
 import { projectMarkdownSessionReferences } from "@src/components/MarkDown/sessionReferenceProjection";
 import { isThemeCssPathDark } from "@src/config/appearance/globalThemes";
-import { themesAtom } from "@src/store";
 import { chatAppearanceAtom } from "@src/store/config/configAtom";
+import { themesAtom } from "@src/store/ui/uiAtom";
 
 import TypewriterText from "../components/TypewriterText";
 

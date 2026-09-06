@@ -30,19 +30,19 @@ import { getSkinsForVariant } from "@src/config/appearance/skins/registry";
 import type { SkinVariant } from "@src/config/appearance/skins/types";
 import { buildSettingsPath } from "@src/config/mainAppPaths";
 import { useUndoStackWithRestore } from "@src/hooks/ui";
+import { updateSettingsBatchAtom } from "@src/store/settings/settingsAtom";
 import {
+  type BackgroundConfig,
   backgroundConfigPersistAtom,
+  sanitizePageOpacity,
+  sanitizeSidebarOpacity,
+} from "@src/store/ui/backgroundConfigAtom";
+import {
   darkSkinIdAtom,
   globalThemeIdAtom,
   lightSkinIdAtom,
   systemColorSchemeAtom,
-  updateSettingsBatchAtom,
-} from "@src/store";
-import {
-  type BackgroundConfig,
-  sanitizePageOpacity,
-  sanitizeSidebarOpacity,
-} from "@src/store/ui/backgroundConfigAtom";
+} from "@src/store/ui/uiAtom";
 import { swapThemeCss } from "@src/util/ui/theme/swapThemeCss";
 import { showThemeTransitionCover } from "@src/util/ui/theme/themeTransitionCover";
 
