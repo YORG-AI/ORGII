@@ -6,7 +6,13 @@
  * for grid cells. This intentionally keeps only the latest window per child
  * session so large subagent histories do not stay duplicated in React state.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import { type SessionEvent } from "@src/engines/SessionCore";
 import {
@@ -106,153 +112,163 @@ function extractSimulatorEvents(
   );
 }
 
+export interface SubagentHistoryLoad {
+  status: "loading" | "ready" | "error";
+  retry: () => void;
+}
+
+const INITIAL_LOAD_STATE: SubagentHistoryLoad = {
+  status: "loading",
+  retry: () => {},
+};
+
+function subscribeVisibility(listener: () => void) {
+  document.addEventListener("visibilitychange", listener);
+  return () => document.removeEventListener("visibilitychange", listener);
+}
+const isVisible = () => !document.hidden;
+
 export function useMultiSessionSimulatorEvents(
   subagentSessions: SubagentSession[]
-): SessionEventsMap {
+) {
   const [eventsMap, setEventsMap] = useState<SessionEventsMap>(EMPTY_MAP);
-  const loadedRef = useRef<Set<string>>(new Set());
-  const mapKeysRef = useRef<Set<string>>(new Set());
-  const lastEventsPerSessionRef = useRef<Map<string, SessionEvent[]>>(
+  const [statuses, setStatuses] = useState<Map<string, SubagentHistoryLoad>>(
     new Map()
   );
-  // Sessions that have received at least one DerivedSnapshot (full baseline).
-  const derivedSeenRef = useRef<Set<string>>(new Set());
-  // Sessions with an in-flight/completed full-snapshot hydration request,
-  // so repeated StreamingSnapshots don't trigger a getSnapshot stampede.
-  const hydrationRequestedRef = useRef<Set<string>>(new Set());
-
-  const applySnapshot = useCallback((sessionId: string, snapshot: Snapshot) => {
-    if (!isStreamingSnapshot(snapshot)) {
-      derivedSeenRef.current.add(sessionId);
-    }
-    const previousEvents = lastEventsPerSessionRef.current.get(sessionId) ?? [];
-    const events = extractSimulatorEvents(snapshot, previousEvents);
-    lastEventsPerSessionRef.current.set(sessionId, events);
-    mapKeysRef.current.add(sessionId);
-    setEventsMap((prev) => {
-      const next = new Map(prev);
-      next.set(sessionId, events);
-      return next;
-    });
-  }, []);
-
-  const handleSnapshot = useCallback(
-    (sessionId: string, snapshot: Snapshot) => {
-      if (
-        isStreamingSnapshot(snapshot) &&
-        !derivedSeenRef.current.has(sessionId) &&
-        !hydrationRequestedRef.current.has(sessionId)
-      ) {
-        // StreamingSnapshot before any DerivedSnapshot baseline: the
-        // streaming payload only carries a capped upsert window, so the grid
-        // would show a truncated history. Pull the full derived snapshot
-        // once; the per-session Set prevents duplicate fetches.
-        hydrationRequestedRef.current.add(sessionId);
-        void eventStoreProxy
-          .getSnapshot(sessionId)
-          .then((full) => {
-            if (full && !derivedSeenRef.current.has(sessionId)) {
-              applySnapshot(sessionId, full as Snapshot);
-            }
-          })
-          .catch((err) => {
-            hydrationRequestedRef.current.delete(sessionId);
-            log.warn(
-              "[multiSessionSimulator] full snapshot hydration failed",
-              sessionId,
-              err
-            );
-          });
-      }
-
-      applySnapshot(sessionId, snapshot);
-    },
-    [applySnapshot]
+  const eventsRef = useRef<SessionEventsMap>(new Map());
+  const retryRef = useRef<(id: string) => void>(() => {});
+  const retry = useCallback((id: string) => retryRef.current(id), []);
+  const visible = useSyncExternalStore(
+    subscribeVisibility,
+    isVisible,
+    () => true
+  );
+  const idsKey = JSON.stringify(
+    [...new Set(subagentSessions.map((sub) => sub.sessionId))].sort()
   );
 
   useEffect(() => {
-    if (subagentSessions.length === 0) {
-      loadedRef.current.clear();
-      lastEventsPerSessionRef.current.clear();
-      derivedSeenRef.current.clear();
-      hydrationRequestedRef.current.clear();
-      if (mapKeysRef.current.size > 0) {
-        mapKeysRef.current.clear();
-        queueMicrotask(() => setEventsMap(EMPTY_MAP));
-      }
-      return;
-    }
-
-    const sessionIds = new Set(subagentSessions.map((sub) => sub.sessionId));
+    const ids = JSON.parse(idsKey) as string[];
+    const membership = new Set(ids);
+    let disposed = false;
     const unsubs: Array<() => void> = [];
-
-    for (const sub of subagentSessions) {
-      const sid = sub.sessionId;
-
-      const unsub = eventStoreProxy.subscribeSession(sid, (snapshot) => {
-        handleSnapshot(sid, snapshot);
-      });
-      unsubs.push(unsub);
-
-      if (!loadedRef.current.has(sid)) {
-        loadedRef.current.add(sid);
-
-        const liveSnap = eventStoreProxy.getLatestSessionSnapshot(sid);
-        if (liveSnap) {
-          queueMicrotask(() => handleSnapshot(sid, liveSnap));
-        } else {
-          eventStoreProxy
-            .loadFromCache(sid)
-            .then(async (loadedCount) => {
-              if (loadedCount === 0) return;
-              const snap = await eventStoreProxy.getSnapshot(sid);
-              if (snap && sessionIds.has(sid)) {
-                handleSnapshot(sid, snap as Snapshot);
-              }
-            })
-            .catch((err) => {
-              // Allow a retry on the next effect run — without this delete the
-              // session would be permanently stuck with no events after a
-              // transient cache failure.
-              loadedRef.current.delete(sid);
-              log.warn("[multiSessionSimulator] cache load failed", sid, err);
-            });
-        }
-      }
-    }
-
-    const staleKeys: string[] = [];
-    for (const key of mapKeysRef.current) {
-      if (!sessionIds.has(key)) staleKeys.push(key);
-    }
-    if (staleKeys.length > 0) {
-      for (const key of staleKeys) {
-        mapKeysRef.current.delete(key);
-        lastEventsPerSessionRef.current.delete(key);
-      }
-      queueMicrotask(() => {
-        setEventsMap((prev) => {
-          const next = new Map(prev);
-          for (const key of staleKeys) next.delete(key);
-          return next;
-        });
-      });
-    }
-
-    for (const sid of loadedRef.current) {
-      if (!sessionIds.has(sid)) {
-        loadedRef.current.delete(sid);
-        lastEventsPerSessionRef.current.delete(sid);
-        derivedSeenRef.current.delete(sid);
-        hydrationRequestedRef.current.delete(sid);
-      }
-    }
-
-    return () => {
-      for (const unsub of unsubs) unsub();
+    const pending = new Set<string>();
+    const baseline = new Set<string>();
+    const failed = new Set<string>();
+    const fullReceivedDuringLoad = new Set<string>();
+    const duringLoad = new Map<string, SessionEvent[]>();
+    eventsRef.current = new Map(
+      [...eventsRef.current].filter(([id]) => membership.has(id))
+    );
+    const publish = () => {
+      if (!disposed) setEventsMap(new Map(eventsRef.current));
     };
-  }, [subagentSessions, handleSnapshot]);
-
-  if (subagentSessions.length === 0) return EMPTY_MAP;
-  return eventsMap;
+    const setStatus = (id: string, status: SubagentHistoryLoad["status"]) => {
+      if (disposed) return;
+      setStatuses((previous) => {
+        if (
+          previous.get(id)?.status === status &&
+          [...previous.keys()].every((key) => membership.has(key))
+        )
+          return previous;
+        return new Map(
+          [...previous].filter(([key]) => membership.has(key))
+        ).set(id, { status, retry: () => retry(id) });
+      });
+    };
+    const apply = (id: string, snapshot: Snapshot) => {
+      if (disposed) return;
+      if (!isStreamingSnapshot(snapshot)) baseline.add(id);
+      eventsRef.current.set(
+        id,
+        extractSimulatorEvents(snapshot, eventsRef.current.get(id) ?? [])
+      );
+      publish();
+    };
+    const load = async (id: string, fromCache: boolean) => {
+      if (disposed || !visible || pending.has(id)) return;
+      pending.add(id);
+      failed.delete(id);
+      duringLoad.set(id, []);
+      fullReceivedDuringLoad.delete(id);
+      setStatus(id, "loading");
+      try {
+        if (fromCache) await eventStoreProxy.loadFromCache(id);
+        if (disposed) return;
+        const snapshot = await eventStoreProxy.getSnapshot(id);
+        if (disposed) return;
+        if (!fullReceivedDuringLoad.has(id)) apply(id, snapshot);
+        const buffered = duringLoad.get(id) ?? [];
+        if (buffered.length) {
+          eventsRef.current.set(
+            id,
+            mergeEventUpserts(eventsRef.current.get(id) ?? [], buffered)
+          );
+          publish();
+        }
+        setStatus(id, "ready");
+      } catch (error) {
+        if (!disposed) {
+          failed.add(id);
+          setStatus(id, "error");
+          log.warn("Subagent history load failed", id, error);
+        }
+      } finally {
+        pending.delete(id);
+        duringLoad.delete(id);
+        fullReceivedDuringLoad.delete(id);
+      }
+    };
+    const onSnapshot = (id: string, snapshot: Snapshot) => {
+      if (disposed) return;
+      if (!isStreamingSnapshot(snapshot) && pending.has(id))
+        fullReceivedDuringLoad.add(id);
+      if (isStreamingSnapshot(snapshot) && pending.has(id)) {
+        duringLoad.set(
+          id,
+          mergeEventUpserts(
+            duringLoad.get(id) ?? [],
+            snapshot.simulatorEventUpserts ?? []
+          )
+        );
+      }
+      apply(id, snapshot);
+      if (baseline.has(id)) setStatus(id, "ready");
+      else if (!pending.has(id) && !failed.has(id)) void load(id, false);
+    };
+    retryRef.current = (id) => {
+      if (membership.has(id)) void load(id, true);
+    };
+    queueMicrotask(() => {
+      if (disposed) return;
+      publish();
+      setStatuses(
+        (previous) =>
+          new Map([...previous].filter(([id]) => membership.has(id)))
+      );
+      if (!visible) return;
+      for (const id of ids) {
+        unsubs.push(
+          eventStoreProxy.subscribeSession(id, (snapshot) =>
+            onSnapshot(id, snapshot)
+          )
+        );
+        const latest = eventStoreProxy.getLatestSessionSnapshot(id);
+        if (latest) onSnapshot(id, latest);
+        else void load(id, true);
+      }
+    });
+    return () => {
+      disposed = true;
+      unsubs.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [idsKey, visible, retry]);
+  const membership = new Set(subagentSessions.map((sub) => sub.sessionId));
+  return {
+    eventsMap: [...eventsMap.keys()].every((id) => membership.has(id))
+      ? eventsMap
+      : new Map([...eventsMap].filter(([id]) => membership.has(id))),
+    loadState: (id: string): SubagentHistoryLoad =>
+      statuses.get(id) ?? INITIAL_LOAD_STATE,
+  };
 }

@@ -49,7 +49,8 @@ const BackgroundTasksApp: React.FC<BackgroundTasksAppProps> = ({
   onClose,
   onMinimize,
 }) => {
-  const subagentEventsMap = useMultiSessionSimulatorEvents(activeSessions);
+  const { eventsMap: subagentEventsMap, loadState } =
+    useMultiSessionSimulatorEvents(activeSessions);
 
   const childEntries = useMemo(() => {
     return activeSessions.map((sub) => ({
@@ -108,6 +109,7 @@ const BackgroundTasksApp: React.FC<BackgroundTasksAppProps> = ({
               specs={[]}
               sessionType={entry.sessionType}
               threadId={entry.sessionId}
+              historyLoad={loadState(entry.sessionId)}
               independentReplay
               externalCursorMs={mainCursorMs}
               isSessionLive={entry.isSessionLive}

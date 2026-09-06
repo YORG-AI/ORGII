@@ -22,6 +22,7 @@ export interface TaskThread {
 // ============================================
 
 export interface GridCellProps {
+  historyLoad?: import("../hooks/useMultiSessionSimulatorEvents").SubagentHistoryLoad;
   index: number;
   color: string;
   title: string;

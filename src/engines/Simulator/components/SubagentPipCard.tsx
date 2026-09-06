@@ -140,7 +140,8 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
     () => activeSessions.slice(pageStartIndex, pageStartIndex + pageSize),
     [activeSessions, pageSize, pageStartIndex]
   );
-  const subagentEventsMap = useMultiSessionSimulatorEvents(visibleSessions);
+  const { eventsMap: subagentEventsMap, loadState } =
+    useMultiSessionSimulatorEvents(visibleSessions);
 
   // "Monitoring N" prefers clips still running at the cursor, but completed
   // imported/live child clips still count when they are the visible monitor
@@ -623,6 +624,7 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
                       specs={[]}
                       sessionType={entry.sessionType}
                       threadId={entry.sessionId}
+                      historyLoad={loadState(entry.sessionId)}
                       externalCursorMs={liveFollow ? null : mainCursorMs}
                       isHighlighted={isHighlighted}
                       isExpanded={isExpanded}
