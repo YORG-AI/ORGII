@@ -9,6 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -19,19 +20,37 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..", "..", "..");
 const tauriConfigPath = resolve(repoRoot, "src-tauri/tauri.conf.json");
 const compiledBinaryPath = resolve(repoRoot, "src-tauri/target/debug/org2");
+const require = createRequire(import.meta.url);
+const { createInstanceProfileFromIdeServerPort } = require(
+  resolve(repoRoot, "scripts/tauri/instance-profile.cjs")
+);
 
 const SECONDARY_WEBDRIVER_PORT = Number.parseInt(
   process.env.E2E_SECONDARY_WEBDRIVER_PORT ?? "4455",
   10
 );
+const PRIMARY_IDE_PORT = Number.parseInt(
+  process.env.E2E_IDE_SERVER_PORT ?? "13847",
+  10
+);
 const SECONDARY_IDE_PORT = Number.parseInt(
-  process.env.E2E_SECONDARY_IDE_SERVER_PORT ?? "24847",
+  process.env.E2E_SECONDARY_IDE_SERVER_PORT ?? String(PRIMARY_IDE_PORT + 1),
   10
 );
+const SECONDARY_INSTANCE_PROFILE =
+  createInstanceProfileFromIdeServerPort(SECONDARY_IDE_PORT);
 const SECONDARY_CLI_PROXY_PORT = Number.parseInt(
-  process.env.E2E_SECONDARY_CLI_PROXY_PORT ?? "28889",
+  process.env.E2E_SECONDARY_CLI_PROXY_PORT ??
+    String(SECONDARY_INSTANCE_PROFILE.cliProxyPort),
   10
 );
+
+if (SECONDARY_CLI_PROXY_PORT !== SECONDARY_INSTANCE_PROFILE.cliProxyPort) {
+  throw new Error(
+    `E2E_SECONDARY_CLI_PROXY_PORT=${SECONDARY_CLI_PROXY_PORT} does not match the embedded ` +
+      `instance${SECONDARY_INSTANCE_PROFILE.id} runtime profile (${SECONDARY_INSTANCE_PROFILE.cliProxyPort}).`
+  );
+}
 
 function writeJsonAtomically(path, value) {
   mkdirSync(dirname(path), { recursive: true });
@@ -158,8 +177,8 @@ function secondaryTauriConfig(originalConfig) {
   return `${JSON.stringify(
     {
       ...config,
-      productName: "ORG2 E2E Instance 2",
-      identifier: "org2ai.org2.e2e.instance2",
+      productName: SECONDARY_INSTANCE_PROFILE.productName,
+      identifier: SECONDARY_INSTANCE_PROFILE.identifier,
       build: {
         ...config.build,
         devUrl: `http://localhost:${frontendPort}`,
@@ -167,7 +186,9 @@ function secondaryTauriConfig(originalConfig) {
       plugins: {
         ...config.plugins,
         "deep-link": {
-          desktop: { schemes: ["yorgai-e2e-instance2", "orgii-e2e-instance2"] },
+          desktop: {
+            schemes: [...SECONDARY_INSTANCE_PROFILE.deepLinkSchemes],
+          },
         },
         updater: { ...config.plugins?.updater, active: false },
       },

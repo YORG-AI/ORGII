@@ -640,7 +640,6 @@ function summarizeChatState(state) {
     ),
     turnPhase: state.turnPhase,
     turnGeneration: state.turnGeneration,
-    queueFlushRequest: state.queueFlushRequest,
     isPendingCancel: state.isPendingCancel,
     userInitiatedCancel: state.userInitiatedCancel,
     isQueueEditing: state.isQueueEditing,

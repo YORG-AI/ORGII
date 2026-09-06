@@ -8,6 +8,7 @@ import {
   type CloudSessionDownloadProgress,
   cloudSessionDownloadProgressAtom,
 } from "./cloudSessionDownloadProgressAtom";
+import { org2CloudAuthAtom } from "./org2CloudAuthAtom";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -30,12 +31,22 @@ function renderProgress(
   overrides: Partial<CloudSessionDownloadProgress> = {}
 ): string {
   const store = createStore();
+  store.set(org2CloudAuthAtom, {
+    kind: "org2_cloud",
+    supabaseUrl: "https://cloud.example.test",
+    supabaseAnonKey: "anon",
+    userId: "user-1",
+    accessToken: "jwt-1",
+    refreshToken: "refresh-1",
+    expiresAt: 4_000_000_000,
+  });
   store.set(
     cloudSessionDownloadProgressAtom,
     new Map([
       [
         "session-1",
         {
+          authIdentityKey: "https://cloud.example.test|user-1",
           rowId: "row-1",
           orgId: "org-1",
           loadedEvents: 138,

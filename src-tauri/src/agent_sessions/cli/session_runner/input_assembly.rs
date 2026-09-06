@@ -1,15 +1,14 @@
-//! Prompt assembly for CLI sessions.
+//! Typed turn assembly for CLI sessions.
 //!
-//! Builds the effective user input sent to the agent: exec-mode bridge
-//! preamble, prior-conversation context bridge, attached-image references,
-//! and (for ACP agents without native rules-file sync) an inline skills
-//! injection. Extracted from `session::run_session` to keep the runner's
-//! orchestration readable.
+//! Keeps the user's visible message separate from provider-only context such
+//! as exec-mode, workspace, hook, IDE and prior-conversation bridges. Native
+//! transports can route those fields to their system/developer channel while
+//! legacy transports retain the historical merged-prompt behavior.
 
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
-use agent_core::session::AgentExecMode;
+use agent_core::session::{AgentExecMode, IdeContext};
 use key_vault::key_store::ModelType;
 use sha2::{Digest, Sha256};
 
@@ -25,6 +24,80 @@ type DeliveredContextDigests = HashMap<ProviderContextKey, ProviderContextDigest
 /// deliberately independent: each live harness re-delivers once.
 static DELIVERED_CONTEXT_DIGESTS: LazyLock<Mutex<DeliveredContextDigests>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// One CLI turn before provider-specific transport encoding.
+///
+/// `provider_context_prefix` / `provider_context_suffix` preserve the legacy
+/// merged prompt's ordering for transports that do not yet expose a native
+/// system/developer channel. Native transports consume `user_text` and
+/// `provider_context()` independently, so provider context never becomes a
+/// visible user message in their native transcript.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct CliTurnEnvelope {
+    user_text: String,
+    provider_context_prefix: Vec<String>,
+    provider_context_suffix: Vec<String>,
+}
+
+impl CliTurnEnvelope {
+    pub(super) fn new(user_text: impl Into<String>) -> Self {
+        Self {
+            user_text: user_text.into(),
+            provider_context_prefix: Vec::new(),
+            provider_context_suffix: Vec::new(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn from_parts(
+        user_text: impl Into<String>,
+        provider_context: impl Into<String>,
+    ) -> Self {
+        let mut turn = Self::new(user_text);
+        turn.prepend_provider_context(provider_context);
+        turn
+    }
+
+    pub(super) fn user_text(&self) -> &str {
+        &self.user_text
+    }
+
+    pub(super) fn prepend_provider_context(&mut self, context: impl Into<String>) {
+        let context = context.into();
+        if !context.trim().is_empty() {
+            self.provider_context_prefix.insert(0, context);
+        }
+    }
+
+    fn append_provider_context(&mut self, context: impl Into<String>) {
+        let context = context.into();
+        if !context.trim().is_empty() {
+            self.provider_context_suffix.push(context);
+        }
+    }
+
+    pub(super) fn provider_context(&self) -> Option<String> {
+        let context = self
+            .provider_context_prefix
+            .iter()
+            .chain(self.provider_context_suffix.iter())
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        (!context.is_empty()).then_some(context)
+    }
+
+    /// Compatibility encoding for providers without a native context channel.
+    pub(super) fn merged_for_legacy(&self) -> String {
+        let mut sections = Vec::with_capacity(
+            self.provider_context_prefix.len() + self.provider_context_suffix.len() + 1,
+        );
+        sections.extend(self.provider_context_prefix.iter().map(String::as_str));
+        sections.push(self.user_text.as_str());
+        sections.extend(self.provider_context_suffix.iter().map(String::as_str));
+        sections.join("\n\n")
+    }
+}
 
 fn should_deliver_context(
     session_id: &str,
@@ -141,13 +214,14 @@ fn project_mode_bridge(
     ))
 }
 
-/// Assemble the effective prompt from the raw user input plus the CLI-session
-/// preambles. `is_fresh_session` is true when there is no `cli_resume_id`
-/// (only a fresh conversation gets the prior-context bridge). `skills_enabled`
-/// / `disabled_skills` come from the resolved SDE skills config.
+/// Assemble the visible user turn and its provider-only context.
+/// `is_fresh_session` is true when there is no `cli_resume_id` (only a fresh
+/// conversation gets the prior-context bridge). `skills_enabled` /
+/// `disabled_skills` come from the resolved SDE skills config.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn build_effective_input(
+pub(super) fn build_turn_envelope(
     user_input: &str,
+    ide_context: Option<&IdeContext>,
     mode: Option<&str>,
     product_mode: Option<&str>,
     project_slug: Option<&str>,
@@ -161,22 +235,30 @@ pub(super) fn build_effective_input(
     skills_enabled: bool,
     disabled_skills: &[String],
     status_catalog: Option<&str>,
-) -> String {
-    let mut effective_input = user_input.to_string();
+) -> CliTurnEnvelope {
+    let mut turn = CliTurnEnvelope::new(user_input);
+
+    if let Some(ide_context) = ide_context {
+        let context =
+            agent_core::core::session::prompt::ide_context::format_ide_context(ide_context);
+        if !context.is_empty() {
+            turn.prepend_provider_context(format!("<ide_context>\n{}\n</ide_context>", context));
+        }
+    }
 
     if let Some(exec_mode_bridge) = cli_exec_mode_bridge(mode) {
-        effective_input = format!("{}\n\n{}", exec_mode_bridge, effective_input);
+        turn.prepend_provider_context(exec_mode_bridge);
     }
 
     if let Some(project_mode_bridge) =
         project_mode_bridge(product_mode, project_slug, work_item_id, status_catalog)
     {
-        effective_input = format!("{}\n\n{}", project_mode_bridge, effective_input);
+        turn.prepend_provider_context(project_mode_bridge);
     }
 
     if is_fresh_session {
         if let Some(context_bridge) = build_context_bridge(session_id) {
-            effective_input = format!("{}\n\n{}", context_bridge, effective_input);
+            turn.prepend_provider_context(context_bridge);
         }
     }
 
@@ -186,21 +268,24 @@ pub(super) fn build_effective_input(
             .enumerate()
             .map(|(idx, path)| format!("Image {}: {}", idx + 1, path))
             .collect();
-        effective_input = format!(
-            "{}\n\nIMPORTANT: The user attached {} image(s). You MUST read each image file below before responding. Use your read_file or view_image tool on these absolute paths:\n{}",
-            effective_input,
+        turn.append_provider_context(format!(
+            "IMPORTANT: The user attached {} image(s). You MUST read each image file below before responding. Use your read_file or view_image tool on these absolute paths:\n{}",
             image_paths.len(),
             refs.join("\n"),
-        );
+        ));
     }
 
     // Deliver one provider-neutral workspace contract to every CLI, even when
     // that provider also has a native rules file. Native discovery behavior
     // differs across versions and typically understands only one ecosystem
     // filename (for example CLAUDE.md *or* AGENTS.md); the shared envelope
-    // guarantees parity across providers. The digest gate sends unchanged
-    // context once per app process/provider conversation and re-sends it when
-    // rules or the progressive skill catalog change.
+    // guarantees parity across providers. Native context-channel transports
+    // re-send the complete current contract on every start/resume because
+    // their developer/system override is per launch and may replace the prior
+    // override. Legacy merged transports keep the digest gate to avoid paying
+    // for unchanged rules on every resumed turn.
+    let native_context_channel = matches!(agent, ModelType::ClaudeCode)
+        || (matches!(agent, ModelType::Codex) && use_codex_app_server);
     if let Some(path) = repo_path.and_then(|path| {
         let path = std::path::Path::new(path);
         path.is_dir().then_some(path)
@@ -210,9 +295,11 @@ pub(super) fn build_effective_input(
             skills_enabled,
             disabled_skills,
         )
-        .filter(|context| should_deliver_context(session_id, agent, context, is_fresh_session))
-        {
-            effective_input = format!("{}\n\n{}", context, effective_input);
+        .filter(|context| {
+            native_context_channel
+                || should_deliver_context(session_id, agent, context, is_fresh_session)
+        }) {
+            turn.prepend_provider_context(context);
         }
     }
 
@@ -229,18 +316,19 @@ pub(super) fn build_effective_input(
     if let Some(hook_prompt) = hook_executor
         .collect_prompt_hooks(agent_core::specialization::hooks::HookEvent::PrePromptBuild)
     {
-        effective_input = format!(
-            "<orgii_hook_context>\n{}\n</orgii_hook_context>\n\n{}",
-            hook_prompt, effective_input
-        );
+        turn.prepend_provider_context(format!(
+            "<orgii_hook_context>\n{}\n</orgii_hook_context>",
+            hook_prompt
+        ));
     }
 
-    effective_input
+    turn
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{build_effective_input, project_mode_bridge};
+    use super::{build_turn_envelope, project_mode_bridge};
+    use agent_core::session::IdeContext;
     use key_vault::key_store::ModelType;
 
     #[test]
@@ -324,8 +412,9 @@ mod tests {
 
         for provider in providers {
             assert!(provider.is_cli_agent());
-            let prompt = build_effective_input(
+            let turn = build_turn_envelope(
                 "do the task",
+                None,
                 Some("build"),
                 Some("build"),
                 None,
@@ -340,13 +429,15 @@ mod tests {
                 &[],
                 None,
             );
+            let context = turn.provider_context().expect("provider context");
+            assert_eq!(turn.user_text(), "do the task");
             assert!(
-                prompt.contains("PROVIDER_CONTEXT_SENTINEL"),
+                context.contains("PROVIDER_CONTEXT_SENTINEL"),
                 "{} missed workspace context",
                 provider.as_str()
             );
             assert!(
-                !prompt.contains("orgii_project_mode"),
+                !context.contains("orgii_project_mode"),
                 "{} received Project capabilities in ordinary Build",
                 provider.as_str()
             );
@@ -360,8 +451,9 @@ mod tests {
         std::fs::write(&agents_md, "CONTEXT_V1").expect("write v1");
 
         let build = || {
-            build_effective_input(
+            build_turn_envelope(
                 "do the task",
+                None,
                 Some("build"),
                 Some("build"),
                 None,
@@ -377,11 +469,17 @@ mod tests {
                 None,
             )
         };
-        assert!(build().contains("CONTEXT_V1"));
-        assert!(!build().contains("CONTEXT_V1"));
+        assert!(build()
+            .provider_context()
+            .is_some_and(|context| context.contains("CONTEXT_V1")));
+        assert!(!build()
+            .provider_context()
+            .is_some_and(|context| context.contains("CONTEXT_V1")));
 
         std::fs::write(&agents_md, "CONTEXT_V2").expect("write v2");
-        assert!(build().contains("CONTEXT_V2"));
+        assert!(build()
+            .provider_context()
+            .is_some_and(|context| context.contains("CONTEXT_V2")));
     }
 
     #[test]
@@ -389,8 +487,9 @@ mod tests {
         let workspace = tempfile::tempdir().expect("workspace");
         std::fs::write(workspace.path().join("AGENTS.md"), "FRESH_CONTEXT").expect("write context");
         let build = |is_fresh_session| {
-            build_effective_input(
+            build_turn_envelope(
                 "do the task",
+                None,
                 Some("build"),
                 Some("build"),
                 None,
@@ -406,8 +505,84 @@ mod tests {
                 None,
             )
         };
-        assert!(build(true).contains("FRESH_CONTEXT"));
-        assert!(!build(false).contains("FRESH_CONTEXT"));
-        assert!(build(true).contains("FRESH_CONTEXT"));
+        assert!(build(true)
+            .provider_context()
+            .is_some_and(|context| context.contains("FRESH_CONTEXT")));
+        assert!(!build(false)
+            .provider_context()
+            .is_some_and(|context| context.contains("FRESH_CONTEXT")));
+        assert!(build(true)
+            .provider_context()
+            .is_some_and(|context| context.contains("FRESH_CONTEXT")));
+    }
+
+    #[test]
+    fn visible_user_text_is_never_polluted_by_agent_context() {
+        let ide_context = IdeContext {
+            active_file: Some("src/main.rs".to_string()),
+            git_branch: Some("feature/native-context".to_string()),
+            ..IdeContext::default()
+        };
+        let turn = build_turn_envelope(
+            "Please inspect this exact message.",
+            Some(&ide_context),
+            Some("build"),
+            Some("build"),
+            None,
+            None,
+            "typed-envelope-session",
+            false,
+            &ModelType::ClaudeCode,
+            &[],
+            false,
+            None,
+            false,
+            &[],
+            None,
+        );
+
+        assert_eq!(turn.user_text(), "Please inspect this exact message.");
+        let context = turn.provider_context().expect("provider context");
+        assert!(context.contains("<orgii_cli_exec_mode_bridge>"));
+        assert!(context.contains("<ide_context>"));
+        assert!(!turn.user_text().contains("<orgii_"));
+        assert!(!turn.user_text().contains("<ide_context>"));
+        assert!(turn
+            .merged_for_legacy()
+            .ends_with("Please inspect this exact message."));
+    }
+
+    #[test]
+    fn native_context_channels_resend_current_workspace_context_on_resume() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        std::fs::write(workspace.path().join("AGENTS.md"), "NATIVE_CONTEXT")
+            .expect("write context");
+
+        for (agent, use_codex_app_server) in
+            [(ModelType::ClaudeCode, false), (ModelType::Codex, true)]
+        {
+            for _ in 0..2 {
+                let turn = build_turn_envelope(
+                    "resume",
+                    None,
+                    Some("build"),
+                    Some("build"),
+                    None,
+                    None,
+                    &format!("native-resume-{}", agent.as_str()),
+                    false,
+                    &agent,
+                    &[],
+                    use_codex_app_server,
+                    workspace.path().to_str(),
+                    false,
+                    &[],
+                    None,
+                );
+                assert!(turn
+                    .provider_context()
+                    .is_some_and(|context| context.contains("NATIVE_CONTEXT")));
+            }
+        }
     }
 }

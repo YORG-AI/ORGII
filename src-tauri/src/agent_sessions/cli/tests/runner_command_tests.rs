@@ -2,6 +2,7 @@ use super::command::{
     build_command_with_launch_profile, codex_app_server_thread_model, map_claude_model,
     map_claude_model_variant, CliCommandBuildRequest,
 };
+use super::input_assembly::CliTurnEnvelope;
 use super::launch_profiles::{
     bare_command_for_agent, default_args_for_mode, default_env_for_mode, defaults_for_agent,
     CliPermissionMode, ResolvedCliLaunchProfile,
@@ -13,6 +14,7 @@ struct TestCommandBuildOptions<'a> {
     agent: &'a ModelType,
     model: Option<&'a str>,
     task: &'a str,
+    provider_context: Option<&'a str>,
     resume_id: Option<&'a str>,
     api_key: Option<&'a str>,
     endpoint: Option<&'a str>,
@@ -29,6 +31,7 @@ impl<'a> TestCommandBuildOptions<'a> {
             agent,
             model: None,
             task,
+            provider_context: None,
             resume_id: None,
             api_key: None,
             endpoint: None,
@@ -77,12 +80,16 @@ fn build_command_from_options(options: TestCommandBuildOptions<'_>) -> Vec<Strin
         env: default_env_for_mode(defaults, CliPermissionMode::FullPermission),
         transport: None,
     };
+    let turn = options.provider_context.map_or_else(
+        || CliTurnEnvelope::new(options.task),
+        |context| CliTurnEnvelope::from_parts(options.task, context),
+    );
 
     build_command_with_launch_profile(CliCommandBuildRequest {
         agent: options.agent,
         launch_profile: &launch_profile,
         model: options.model,
-        task: options.task,
+        turn: &turn,
         resume_id: options.resume_id,
         api_key: options.api_key,
         endpoint: options.endpoint,
@@ -121,6 +128,34 @@ fn build_claude_code_without_mcp_config_omits_flag() {
     let cmd = build_command!(ModelType::ClaudeCode, task = "task");
     assert!(!cmd.contains(&"--mcp-config".to_string()));
     assert!(!cmd.contains(&"--strict-mcp-config".to_string()));
+}
+
+#[test]
+fn build_claude_code_routes_context_to_system_prompt_and_keeps_user_text_literal() {
+    let user_text = "Inspect this exact user message.";
+    let provider_context = concat!(
+        "<orgii_cli_exec_mode_bridge>build</orgii_cli_exec_mode_bridge>\n\n",
+        "<ide_context>focused file</ide_context>"
+    );
+    let cmd = build_command!(
+        ModelType::ClaudeCode,
+        task = user_text,
+        provider_context = Some(provider_context),
+        resume_id = Some("native-claude-uuid"),
+    );
+
+    let prompt_index = cmd.iter().position(|part| part == "-p").expect("-p");
+    assert_eq!(cmd[prompt_index + 1], user_text);
+    assert!(!cmd[prompt_index + 1].contains("<orgii_"));
+    assert!(!cmd[prompt_index + 1].contains("<ide_context>"));
+
+    let system_index = cmd
+        .iter()
+        .position(|part| part == "--append-system-prompt")
+        .expect("native Claude system context flag");
+    assert_eq!(cmd[system_index + 1], provider_context);
+    assert!(cmd[system_index + 1].contains("<orgii_cli_exec_mode_bridge>"));
+    assert!(cmd[system_index + 1].contains("<ide_context>"));
 }
 
 #[test]
@@ -547,7 +582,7 @@ fn app_server_profile(agent: &ModelType, transport: Option<&str>) -> ResolvedCli
 fn uses_codex_app_server_requires_codex_and_explicit_flag() {
     use super::launch_profiles::uses_codex_app_server;
 
-    // Default (no flag) stays on the shell-out path.
+    // Ordinary Codex turns retain the per-turn shell-out path.
     let default_profile = app_server_profile(&ModelType::Codex, None);
     assert!(!uses_codex_app_server(&ModelType::Codex, &default_profile));
 
@@ -555,7 +590,7 @@ fn uses_codex_app_server_requires_codex_and_explicit_flag() {
     let opted_in = app_server_profile(&ModelType::Codex, Some("app-server"));
     assert!(uses_codex_app_server(&ModelType::Codex, &opted_in));
 
-    // Unknown transport values are ignored.
+    // Unknown transport values stay off app-server.
     let unknown = app_server_profile(&ModelType::Codex, Some("websocket"));
     assert!(!uses_codex_app_server(&ModelType::Codex, &unknown));
 
@@ -567,11 +602,12 @@ fn uses_codex_app_server_requires_codex_and_explicit_flag() {
 #[test]
 fn build_codex_app_server_argv_is_bare_subcommand() {
     let profile = app_server_profile(&ModelType::Codex, Some("app-server"));
+    let turn = CliTurnEnvelope::new("fix the bug");
     let cmd = build_command_with_launch_profile(CliCommandBuildRequest {
         agent: &ModelType::Codex,
         launch_profile: &profile,
         model: None,
-        task: "fix the bug",
+        turn: &turn,
         resume_id: Some("thread-123"),
         api_key: None,
         endpoint: None,
@@ -588,13 +624,40 @@ fn build_codex_app_server_argv_is_bare_subcommand() {
 }
 
 #[test]
+fn build_codex_default_profile_uses_exec_argv() {
+    let profile = app_server_profile(&ModelType::Codex, None);
+    let turn = CliTurnEnvelope::new("native task travels over JSON-RPC");
+    let cmd = build_command_with_launch_profile(CliCommandBuildRequest {
+        agent: &ModelType::Codex,
+        launch_profile: &profile,
+        model: Some("gpt-5.5-high"),
+        turn: &turn,
+        resume_id: Some("thread-123"),
+        api_key: None,
+        endpoint: None,
+        mode: None,
+        repo_path: Some("/workspace"),
+        additional_dirs: &[],
+        mcp_config_path: None,
+        codex_mcp_profile: None,
+    });
+
+    assert_eq!(command_name(&cmd[0]), "codex");
+    assert_eq!(cmd[1], "exec");
+    assert!(cmd.contains(&"model_reasoning_effort=\"high\"".to_string()));
+    assert!(cmd.iter().any(|part| part.contains("native task")));
+    assert!(cmd.contains(&"thread-123".to_string()));
+}
+
+#[test]
 fn build_codex_app_server_argv_keeps_gpt_5_6_max_overrides() {
     let profile = app_server_profile(&ModelType::Codex, Some("app-server"));
+    let turn = CliTurnEnvelope::new("write tests");
     let cmd = build_command_with_launch_profile(CliCommandBuildRequest {
         agent: &ModelType::Codex,
         launch_profile: &profile,
         model: Some("gpt-5.6-sol-max-fast"),
-        task: "write tests",
+        turn: &turn,
         resume_id: None,
         api_key: None,
         endpoint: None,
@@ -617,13 +680,14 @@ fn build_codex_app_server_argv_keeps_gpt_5_6_max_overrides() {
 }
 
 #[test]
-fn build_codex_app_server_argv_keeps_mcp_profile_before_subcommand() {
+fn build_codex_app_server_argv_never_exposes_mcp_profile() {
     let profile = app_server_profile(&ModelType::Codex, Some("app-server"));
+    let turn = CliTurnEnvelope::new("write tests");
     let cmd = build_command_with_launch_profile(CliCommandBuildRequest {
         agent: &ModelType::Codex,
         launch_profile: &profile,
         model: None,
-        task: "write tests",
+        turn: &turn,
         resume_id: Some("thread-123"),
         api_key: None,
         endpoint: None,
@@ -634,5 +698,6 @@ fn build_codex_app_server_argv_keeps_mcp_profile_before_subcommand() {
         codex_mcp_profile: Some("orgii-mcp-random"),
     });
 
-    assert_eq!(cmd[1..], ["--profile", "orgii-mcp-random", "app-server"]);
+    assert_eq!(cmd[1..], ["app-server"]);
+    assert!(!cmd.contains(&"orgii-mcp-random".to_string()));
 }

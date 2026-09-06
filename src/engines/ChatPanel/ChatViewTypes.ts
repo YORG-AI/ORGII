@@ -3,7 +3,6 @@
  * sibling hooks/sub-components can reference them without importing the
  * full `ChatView` component.
  */
-import type { SessionContinuation } from "@src/store/session/sessionTabPlacementAtom";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 
 export interface ChatViewProps {
@@ -40,10 +39,4 @@ export interface ChatViewProps {
    * the IDE's current folders.
    */
   secondary?: boolean;
-  /**
-   * Retarget the owning tab after an immutable imported history is forked
-   * into a writable ORGII session. The callback must also claim/navigate the
-   * new session pipeline for its surface.
-   */
-  onSessionContinuation?: (continuation: SessionContinuation) => void;
 }

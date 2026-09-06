@@ -27,10 +27,6 @@ import {
 import { rpc } from "@src/api/tauri/rpc";
 import { ROUTES } from "@src/config/routes";
 import { getAdapterForSession } from "@src/engines/SessionCore/sync/types";
-import {
-  buildPendingForkHandoff,
-  markForkHandoffConsumed,
-} from "@src/features/TeamCollaboration/forkSession";
 import { createLogger } from "@src/hooks/logger";
 import { collectAdeContext } from "@src/services/context/collectors";
 import {
@@ -302,6 +298,7 @@ export const SessionService = {
       turnIntentId,
       turnIntentSource,
       directUserIntent,
+      allowNativeContextRecovery,
     } = params;
     // Gate ADE context on the session row's persisted repo so a session
     // on repo A doesn't ship repo B's editor / git / LSP state when the
@@ -320,38 +317,11 @@ export const SessionService = {
       );
     }
 
-    // Fork relay (design §16.11): the FIRST real message sent to a forked
-    // session carries a bounded digest of the inherited teammate history,
-    // because the agent's LLM context is rebuilt from `agent_messages` —
-    // which a fork starts without. `displayText` keeps the user's own words
-    // in the transcript; the marker is consumed only after the send
-    // succeeds, so a failed send retries with the handoff intact. No-op for
-    // every non-forked session (durable one-shot marker, armed at fork time).
-    let effectiveContent = content;
-    let effectiveDisplayText = displayText;
-    let forkHandoffArmed = false;
-    if (!isResume) {
-      try {
-        const forkHandoff = await buildPendingForkHandoff(sessionId, content);
-        if (forkHandoff) {
-          effectiveContent = forkHandoff.content;
-          effectiveDisplayText = displayText ?? forkHandoff.displayText;
-          forkHandoffArmed = true;
-        }
-      } catch (handoffError) {
-        // Handoff assembly must never block a send — the fork still works,
-        // just without inherited context on this turn.
-        logger.warn(
-          `Fork handoff assembly failed for ${sessionId}: ${String(handoffError)}`
-        );
-      }
-    }
-
     try {
       await adapter.sendMessage({
         sessionId,
-        content: effectiveContent,
-        displayText: effectiveDisplayText,
+        content,
+        displayText,
         model: model || undefined,
         accountId: accountId || undefined,
         mode: mode || undefined,
@@ -361,12 +331,10 @@ export const SessionService = {
         turnIntentId,
         turnIntentSource,
         directUserIntent,
+        allowNativeContextRecovery,
         adeContext,
         sessionRepoPath: sessionRow?.repoPath ?? null,
       });
-      if (forkHandoffArmed) {
-        markForkHandoffConsumed(sessionId);
-      }
       // Float the row to the top of "today" in the sidebar without
       // waiting for the next session list refresh. The backend will
       // emit its own fresh `updated_at` on the next `loadSessions`,

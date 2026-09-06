@@ -306,6 +306,7 @@ export function buildSessionFromLaunchResult(options: {
   agentExecMode: AgentExecMode;
   effectiveSource: SessionSource | null;
   isBackgroundLaunch: boolean;
+  launchAgentDefinitionId?: string;
   launchCliAgentType?: SessionLaunchResult["cliAgentType"];
   launchOrgContext?: Partial<SessionLaunchOrgContext>;
   result: SessionLaunchResult;
@@ -314,6 +315,7 @@ export function buildSessionFromLaunchResult(options: {
     agentExecMode,
     effectiveSource,
     isBackgroundLaunch,
+    launchAgentDefinitionId,
     launchCliAgentType,
     launchOrgContext,
     result,
@@ -335,6 +337,9 @@ export function buildSessionFromLaunchResult(options: {
       | typeof DISPATCH_CATEGORY.CLI_AGENT,
     model: result.model ?? undefined,
     cliAgentType: result.cliAgentType ?? launchCliAgentType ?? undefined,
+    ...(launchAgentDefinitionId
+      ? { agentDefinitionId: launchAgentDefinitionId }
+      : {}),
     agentExecMode,
     ...(result.agentOrgId
       ? { agentIconId: AGENT_ORG_ICON_ID, agentOrgId: result.agentOrgId }

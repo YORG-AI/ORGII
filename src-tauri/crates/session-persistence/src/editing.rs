@@ -203,6 +203,39 @@ pub fn delete_event(session_id: &str, event_id: &str) -> SqliteResult<bool> {
     })
 }
 
+/// Delete an exact event set in one transaction.
+///
+/// Callers that mirror a prefix removal in memory first resolve that prefix to
+/// stable IDs, then use this operation so a mid-batch SQLite failure cannot
+/// leave only part of the durable set deleted.
+pub fn delete_events_by_ids(session_id: &str, event_ids: &[String]) -> SqliteResult<usize> {
+    if event_ids.is_empty() {
+        return Ok(0);
+    }
+    let deleted = with_sessions_writer(|| {
+        let conn = get_connection()?;
+        let tx = begin_immediate(&conn)?;
+        let deleted = {
+            let mut statement =
+                tx.prepare_cached("DELETE FROM events WHERE session_id = ?1 AND id = ?2")?;
+            let mut deleted = 0usize;
+            for event_id in event_ids {
+                deleted += statement.execute(params![session_id, event_id])?;
+            }
+            deleted
+        };
+        if deleted > 0 {
+            update_session_metadata(&conn, session_id)?;
+        }
+        tx.commit()?;
+        Ok::<usize, rusqlite::Error>(deleted)
+    })?;
+    if deleted > 0 {
+        super::turn_index_debounce::schedule(session_id);
+    }
+    Ok(deleted)
+}
+
 /// Update an existing event by ID
 pub fn update_event(session_id: &str, event: &CachedEvent) -> SqliteResult<bool> {
     with_sessions_writer(|| {
@@ -276,4 +309,97 @@ pub fn clear_session_history(session_id: &str) -> SqliteResult<TruncateResult> {
         deleted_ids,
         deleted_sequences,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+    use crate::{get_session_metadata, init_session_tables, load_events, save_events, CachedEvent};
+
+    fn cached_event(session_id: &str, id: &str) -> CachedEvent {
+        CachedEvent {
+            id: id.to_string(),
+            session_id: session_id.to_string(),
+            event_type: "raw".to_string(),
+            function_name: Some("user_message".to_string()),
+            thread_id: None,
+            args_json: "{}".to_string(),
+            result_json: "{}".to_string(),
+            content: id.to_string(),
+            created_at: "2026-09-05T00:00:00Z".to_string(),
+            meta_json: None,
+            history_sequence: None,
+        }
+    }
+
+    #[test]
+    fn batch_delete_rolls_back_every_id_when_one_delete_fails() {
+        let _guard = crate::ORGII_HOME_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let previous_home = std::env::var_os("ORGII_HOME");
+        let root = std::env::temp_dir().join(format!(
+            "orgii-session-delete-batch-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create test home");
+        std::env::set_var("ORGII_HOME", &root);
+
+        let session_id = "atomic-prefix-delete";
+        let ids = vec!["prefix-a".to_string(), "prefix-b".to_string()];
+        let conn = get_connection().expect("open session database");
+        init_session_tables(&conn).expect("initialize session schema");
+        drop(conn);
+        save_events(
+            session_id,
+            &[
+                cached_event(session_id, &ids[0]),
+                cached_event(session_id, &ids[1]),
+                cached_event(session_id, "keep"),
+            ],
+        )
+        .expect("seed events");
+        let conn = get_connection().expect("reopen session database");
+        conn.execute_batch(
+            "CREATE TRIGGER abort_second_batch_delete
+             BEFORE DELETE ON events WHEN OLD.id = 'prefix-b'
+             BEGIN SELECT RAISE(ABORT, 'blocked delete'); END;",
+        )
+        .expect("install aborting delete trigger");
+        drop(conn);
+
+        assert!(delete_events_by_ids(session_id, &ids).is_err());
+        let remaining = load_events(session_id).expect("reload rolled-back events");
+        assert!(remaining.iter().any(|event| event.id == "prefix-a"));
+        assert!(remaining.iter().any(|event| event.id == "prefix-b"));
+        assert!(remaining.iter().any(|event| event.id == "keep"));
+
+        let conn = get_connection().expect("reopen session database after rollback");
+        conn.execute_batch("DROP TRIGGER abort_second_batch_delete")
+            .expect("remove aborting delete trigger");
+        drop(conn);
+        assert_eq!(
+            delete_events_by_ids(session_id, &ids).expect("retry atomic batch delete"),
+            2
+        );
+        let remaining = load_events(session_id).expect("reload successfully deleted events");
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].id, "keep");
+        assert_eq!(
+            get_session_metadata(session_id)
+                .expect("load session metadata")
+                .expect("session metadata exists")
+                .event_count,
+            1
+        );
+
+        match previous_home {
+            Some(value) => std::env::set_var("ORGII_HOME", value),
+            None => std::env::remove_var("ORGII_HOME"),
+        }
+        let _ = fs::remove_dir_all(root);
+    }
 }

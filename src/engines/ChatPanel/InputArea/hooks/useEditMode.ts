@@ -27,7 +27,11 @@ interface UseEditModeOptions {
   /** Initial text to pre-fill */
   initialContent?: string;
   /** Callback when edit is submitted */
-  onEditSubmit?: (text: string, imageDataUrls?: string[]) => void;
+  onEditSubmit?: (
+    text: string,
+    imageDataUrls?: string[],
+    composerSnapshot?: ComposerSnapshot
+  ) => void;
   /** Images newly attached while editing */
   attachedImageDataUrls?: string[];
   /**
@@ -46,6 +50,7 @@ interface UseEditModeOptions {
     setContent: (content: string | ComposerSnapshot) => void;
     getText: () => string;
     getTextWithPills: () => string;
+    getSnapshot: () => ComposerSnapshot;
     focus: () => void;
   } | null>;
 }
@@ -134,7 +139,8 @@ export function useEditMode({
       if (text) {
         onEditSubmit(
           text,
-          attachedImageDataUrls.length > 0 ? attachedImageDataUrls : undefined
+          attachedImageDataUrls.length > 0 ? attachedImageDataUrls : undefined,
+          composerInputRef.current.getSnapshot()
         );
         // The images are now part of the edited message — drop them from
         // the composer attachment atom so they aren't shown (or re-folded)

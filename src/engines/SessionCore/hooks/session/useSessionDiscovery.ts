@@ -22,7 +22,10 @@ import type {
 } from "@src/api/tauri/rpc/schemas/validation";
 import { loadSharedLocalKeys } from "@src/hooks/keyVault/sharedLocalKeyStore";
 import { createLogger } from "@src/hooks/logger";
-import { agentRegistryAtom } from "@src/store/session/agentRegistryAtom";
+import {
+  agentRegistryAtom,
+  agentRegistryDiscoveryStateAtom,
+} from "@src/store/session/agentRegistryAtom";
 
 const log = createLogger("useSessionDiscovery");
 
@@ -160,6 +163,9 @@ export function useSessionDiscovery(
   const mountedRef = useRef(true);
 
   const setAgentRegistry = useSetAtom(agentRegistryAtom);
+  const setAgentRegistryDiscoveryState = useSetAtom(
+    agentRegistryDiscoveryStateAtom
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -209,6 +215,10 @@ export function useSessionDiscovery(
     if (!mountedRef.current) return;
     setLoading(true);
     setError(null);
+    // Keep a previously usable registry usable during an explicit refresh.
+    setAgentRegistryDiscoveryState((current) =>
+      current === "ready" ? current : "loading"
+    );
 
     try {
       const [apiProviders, rawAgents, allKeys] = await Promise.all([
@@ -221,6 +231,7 @@ export function useSessionDiscovery(
 
       // Populate agentRegistryAtom so useAgentCompatibility stays current
       setAgentRegistry({ agents: rawAgents, apiProviders });
+      setAgentRegistryDiscoveryState("ready");
 
       const mappedProviders = buildProviderInfoList(apiProviders, allKeys);
       const mappedAgents = mapAgents(rawAgents);
@@ -235,11 +246,14 @@ export function useSessionDiscovery(
         err instanceof Error ? err.message : "Failed to load session data";
       log.error("[useSessionDiscovery] Refresh failed:", err);
       setError(errorMessage);
+      setAgentRegistryDiscoveryState((current) =>
+        current === "ready" ? current : "error"
+      );
       onError?.(err as Error);
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [onSuccess, onError, setAgentRegistry]);
+  }, [onSuccess, onError, setAgentRegistry, setAgentRegistryDiscoveryState]);
 
   // ============================================
   // Effects

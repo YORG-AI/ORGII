@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import { CONVERSATION_SENDER_ARG } from "@src/engines/SessionCore/conversations/conversationSenderMetadata";
+import { projectNativeConversationItems } from "@src/engines/SessionCore/conversations/nativeConversationMaterializer";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
-import type {
-  GroupedCommentThreads,
-  SessionComment,
-} from "../org2CloudSessionCommentsAtom.types";
-import { CONVERSATION_SENDER_ARG } from "./continuationEvents";
+import type { CloudSessionComment } from "../org2CloudCommentsClient";
+import type { GroupedCommentThreads } from "../org2CloudSessionCommentsAtom.types";
 import {
   SESSION_DISCUSSION_EVENT,
   buildDiscussionEvents,
@@ -14,7 +13,7 @@ import {
   mergeConversationEvents,
 } from "./discussionEvents";
 
-function comment(overrides: Partial<SessionComment>): SessionComment {
+function comment(overrides: Partial<CloudSessionComment>): CloudSessionComment {
   return {
     id: "c-1",
     authorUserId: "user-1",
@@ -22,7 +21,7 @@ function comment(overrides: Partial<SessionComment>): SessionComment {
     body: "looks good",
     createdAt: "2026-08-20T10:00:00Z",
     ...overrides,
-  } as SessionComment;
+  } as CloudSessionComment;
 }
 
 function transcriptEvent(overrides: Partial<SessionEvent>): SessionEvent {
@@ -91,7 +90,7 @@ describe("buildDiscussionEvents", () => {
 
     expect(rows).toHaveLength(2);
     expect(rows[0].uiCanonical).toBe(SESSION_DISCUSSION_EVENT);
-    expect(rows[0].source).toBe("system");
+    expect(rows[0].source).toBe("user");
     const top = discussionPayloadOf(rows[0]);
     expect(top?.anchorLocalEventId).toBe("local-evt-9");
     expect(top?.anchorExcerpt).toBe("please refactor the auth module");
@@ -138,16 +137,25 @@ describe("buildDiscussionEvents", () => {
       userId: "user-1",
       displayName: "Alice",
     });
+    expect(projectNativeConversationItems(rows)).toEqual([
+      expect.objectContaining({
+        kind: "message",
+        role: "user",
+        text: "looks good",
+      }),
+    ]);
   });
 
-  it("projects retained Team Chat delivery state into the native message", () => {
+  it("keeps a failed outgoing Team Chat message visible and retryable", () => {
     const rows = buildDiscussionEvents(
       grouped({
         sessionLevel: [
           {
             top: comment({
+              id: "local-comment-failed",
               clientDeliveryStatus: "failed",
-              clientDeliveryError: "offline",
+              clientDeliveryError: "network unavailable",
+              mentionedUserIds: ["user-2"],
             }),
             replies: [],
           },
@@ -156,11 +164,11 @@ describe("buildDiscussionEvents", () => {
       "session-1",
       new Map()
     );
+
     expect(rows[0].displayStatus).toBe("failed");
-    expect(discussionPayloadOf(rows[0])).toMatchObject({
-      deliveryStatus: "failed",
-      deliveryError: "offline",
-    });
+    expect(rows[0].result["deliveryStatus"]).toBe("failed");
+    expect(rows[0].result["deliveryError"]).toBe("network unavailable");
+    expect(discussionPayloadOf(rows[0])?.mentionedUserIds).toEqual(["user-2"]);
   });
 
   it("keeps the card renderer for anchored threads and agent reports", () => {

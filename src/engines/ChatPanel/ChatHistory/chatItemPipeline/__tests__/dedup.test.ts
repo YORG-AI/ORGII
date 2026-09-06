@@ -354,6 +354,27 @@ describe("buildDedupMaps — user message dedup", () => {
     expect(duplicateUserIds.has(persisted.id)).toBe(false);
   });
 
+  it("never collapses a failed optimistic row into the provider's copy of its prompt", () => {
+    const failed = makeUserMessage("Reply with the marker", {
+      id: "queued-user:queue-rejected:",
+      result: {
+        syntheticUserInput: true,
+        deliveryStatus: "failed",
+        deliveryError: "model not supported",
+        message: { content: "Reply with the marker" },
+      },
+    });
+    const landedCopy = makeUserMessage("Reply with the marker", {
+      id: "runlanded-user-rejected",
+      result: { message: { content: "Reply with the marker" } },
+    });
+
+    const { duplicateUserIds } = buildDedupMaps([failed, landedCopy]);
+
+    expect(duplicateUserIds.has(failed.id)).toBe(false);
+    expect(duplicateUserIds.has(landedCopy.id)).toBe(false);
+  });
+
   it("does not treat user-input-prefixed backend events as optimistic echoes", () => {
     const first = makeUserMessage("Repeat this", {
       id: "user-input-backend-1",

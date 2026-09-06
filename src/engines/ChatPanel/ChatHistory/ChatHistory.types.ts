@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
+import type { QueuedConversationDispatch } from "@src/engines/SessionCore/conversations/queuedConversationContract";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 
 export interface FollowAgentNavState {
@@ -91,6 +92,18 @@ export interface ChatHistoryProps {
   groupChatViewActive?: boolean;
   onGroupChatViewToggle?: (active: boolean) => void;
   mutationActionsDisabled?: boolean;
+  /** Re-admit a failed canonical Agent intent through its canonical queue. */
+  onFailedUserIntentRetry?: (input: {
+    displayText: string;
+    agentContent?: string;
+    imageDataUrls?: string[];
+    turnIntentId?: string;
+  }) => Promise<boolean>;
+  /**
+   * The canonical dispatch a retry of a held Agent row should carry: the
+   * current root and the runtime the picker shows now.
+   */
+  resolveFailedUserIntentDispatch?: () => QueuedConversationDispatch | null;
   /**
    * Session-scoped source for the planning footer. Session-scoped surfaces
    * should set `isLive` to false while showing a replay slice.

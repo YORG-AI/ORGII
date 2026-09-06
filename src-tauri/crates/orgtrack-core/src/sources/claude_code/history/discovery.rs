@@ -47,7 +47,15 @@ pub(super) fn discover_claude_code_history_records(
                 continue;
             };
             let (source_mtime_ms, source_size_bytes) =
-                imported_paths::file_metadata_signature(&path, "Claude")?;
+                match imported_paths::file_metadata_signature(&path, "Claude") {
+                    Ok(signature) => signature,
+                    // Files can disappear between directory enumeration and
+                    // metadata lookup, and old native-materialization runs
+                    // may leave a broken transcript symlink behind. Neither
+                    // makes the other Claude sessions unreadable.
+                    Err(_) if !path.exists() => continue,
+                    Err(error) => return Err(error),
+                };
             let subagent_title = claude_subagent_metadata_title(&path);
             if let Some(title) = subagent_title.as_ref() {
                 external_titles.insert(file_stem.clone(), title.clone());

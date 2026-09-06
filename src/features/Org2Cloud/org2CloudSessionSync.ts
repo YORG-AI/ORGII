@@ -184,6 +184,18 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncUpload {
     ) {
       return;
     }
+    const localExecutionRevision = await this.loadLocalExecutionRevision(
+      session.session_id
+    );
+    // The durable cursor predates continuation-child revision stamps. A root
+    // with children therefore needs one authoritative combined replay after
+    // every app start before it can be marked clean in memory.
+    if (
+      localExecutionRevision !== undefined &&
+      localExecutionRevision !== "[]"
+    ) {
+      return;
+    }
     let localContentRevision: number | undefined;
     if (!isImportedHistorySession(session.session_id)) {
       const durable = await eventStoreProxy.getPersistedEventRevision(
@@ -216,7 +228,8 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncUpload {
       session,
       this.eventActivityStamps.get(session.session_id) ?? 0,
       Date.now(),
-      localContentRevision
+      localContentRevision,
+      localExecutionRevision
     );
   }
 
@@ -311,7 +324,9 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncUpload {
     // event-store stamp, and defer metadata together with replay so a live CLI
     // turn does not produce one cloud upsert per scanner refresh.
     if (!this.isExternalHistorySettled(session)) return;
-    if (this.isEventPlaneClean(orgId, session)) {
+    const currentLocalExecutionRevision =
+      await this.loadLocalExecutionRevision(sessionId);
+    if (this.isEventPlaneClean(orgId, session, currentLocalExecutionRevision)) {
       await this.upsertMetadataIfChanged(
         auth,
         orgId,
@@ -323,15 +338,22 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncUpload {
     }
     const cursor = this.getCursor(orgId, sessionId);
     const prepared = await this.preparePushEventsForPass(sessionId, cursor);
-    const { stampAtRead, mode, baseEventCount, localContentRevision, events } =
-      prepared;
+    const {
+      stampAtRead,
+      mode,
+      baseEventCount,
+      localContentRevision,
+      localExecutionRevision,
+      events,
+    } = prepared;
     const markPreparedClean = () =>
       this.markEventPlaneClean(
         orgId,
         session,
         stampAtRead,
         Date.now(),
-        localContentRevision
+        localContentRevision,
+        localExecutionRevision
       );
     if (!cursor && events.length === 0) {
       await this.upsertMetadataIfChanged(

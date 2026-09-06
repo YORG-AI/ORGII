@@ -299,6 +299,45 @@ impl SessionMcpServers {
         entries
     }
 
+    /// In-memory config overrides for Codex app-server `thread/start` and
+    /// `thread/resume`. Unlike `-c` argv overrides, this JSON-RPC payload does
+    /// not expose MCP environment values or HTTP headers to process listings.
+    pub(super) fn codex_app_server_config(&self) -> Option<serde_json::Value> {
+        let mut servers = serde_json::Map::new();
+        for (name, server) in &self.servers {
+            let mut entry = serde_json::Map::new();
+            match server.transport_type {
+                McpTransportType::Stdio => {
+                    let Some(command) = trimmed(server.command.as_deref()) else {
+                        continue;
+                    };
+                    entry.insert("command".into(), serde_json::json!(command));
+                    if let Some(args) = server.args.as_ref().filter(|args| !args.is_empty()) {
+                        entry.insert("args".into(), serde_json::json!(args));
+                    }
+                    if let Some(cwd) = trimmed(server.cwd.as_deref()) {
+                        entry.insert("cwd".into(), serde_json::json!(cwd));
+                    }
+                    if let Some(env) = sorted_map(server.env.as_ref()) {
+                        entry.insert("env".into(), serde_json::json!(env));
+                    }
+                }
+                McpTransportType::StreamableHttp => {
+                    let Some(url) = trimmed(server.url.as_deref()) else {
+                        continue;
+                    };
+                    entry.insert("url".into(), serde_json::json!(url));
+                    if let Some(headers) = sorted_map(server.headers.as_ref()) {
+                        entry.insert("http_headers".into(), serde_json::json!(headers));
+                    }
+                }
+                McpTransportType::Sse => continue,
+            }
+            servers.insert(name.clone(), serde_json::Value::Object(entry));
+        }
+        (!servers.is_empty()).then(|| serde_json::json!({ "mcp_servers": servers }))
+    }
+
     /// Write a per-run `$CODEX_HOME/<name>.config.toml` layer and return the
     /// guard that owns cleanup. Only the random profile name is passed on the
     /// command line; the MCP values remain in this owner-only file.
@@ -885,6 +924,17 @@ mod tests {
             config_with(vec![("docs", docs), ("remote", remote)]),
             &HashSet::new(),
             &HashSet::new(),
+        );
+        let app_server_config = resolved
+            .codex_app_server_config()
+            .expect("non-empty app-server MCP config");
+        assert_eq!(
+            app_server_config["mcp_servers"]["docs"]["env"]["API_TOKEN"],
+            "stdio-secret"
+        );
+        assert_eq!(
+            app_server_config["mcp_servers"]["remote"]["http_headers"]["Authorization"],
+            "Bearer url-secret"
         );
         let temp_dir = tempfile::tempdir().expect("Codex profile root");
         let guard = resolved

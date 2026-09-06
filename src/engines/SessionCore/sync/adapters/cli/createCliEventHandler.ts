@@ -44,6 +44,7 @@ import type { AgentWSEvent, PermissionRequestEvent } from "../shared/types";
 import {
   isCliTerminalStatus,
   markObservedCliTerminalStatus,
+  trackCliEventPersistence,
 } from "./cliLifecycle";
 import { buildCliStreamingEvent } from "./streamingEvent";
 
@@ -108,7 +109,19 @@ export function createCliEventHandler(
 
   function reconcileTerminalEventsIfNeeded(): void {
     if (!observedTerminalStatus) return;
-    markObservedCliTerminalStatus(sessionId, observedTerminalStatus);
+    void markObservedCliTerminalStatus(sessionId, observedTerminalStatus);
+  }
+
+  /**
+   * Register the exact normalization + EventStore write with the CLI
+   * lifecycle barrier. The terminal status and background native reconcile
+   * may otherwise overtake this promise and snapshot an older transcript.
+   */
+  function persistObservedEvent(operation: Promise<unknown>): void {
+    trackCliEventPersistence(sessionId, operation);
+    void operation.then(reconcileTerminalEventsIfNeeded).catch((error) => {
+      log.warn("[CliAdapter] normalizeChunkRust failed:", error);
+    });
   }
 
   function asString(value: unknown): string | undefined {
@@ -221,13 +234,11 @@ export function createCliEventHandler(
         })
       );
     }
-    normalizeChunkRust(chunk, sessionId)
-      .then((event) => {
-        eventStoreProxy.upsert(event, sessionId);
-      })
-      .catch((error) => {
-        log.warn("[CliAdapter] normalizeChunkRust failed:", error);
-      });
+    persistObservedEvent(
+      normalizeChunkRust(chunk, sessionId).then((event) =>
+        eventStoreProxy.upsert(event, sessionId)
+      )
+    );
     return true;
   }
 
@@ -260,16 +271,18 @@ export function createCliEventHandler(
 
     const parsed = parsePartialToolArgs(nextBuffer.argsJson);
     const args = buildToolArgsFromParsed(parsed);
-    eventStoreProxy.upsert(
-      makeToolCallEvent(
-        `tool-call-${nextBuffer.toolCallId}`,
-        sessionId,
-        nextBuffer.toolName,
-        nextBuffer.toolCallId,
-        args,
-        true
-      ),
-      sessionId
+    persistObservedEvent(
+      eventStoreProxy.upsert(
+        makeToolCallEvent(
+          `tool-call-${nextBuffer.toolCallId}`,
+          sessionId,
+          nextBuffer.toolName,
+          nextBuffer.toolCallId,
+          args,
+          true
+        ),
+        sessionId
+      )
     );
   }
 
@@ -312,15 +325,17 @@ export function createCliEventHandler(
         msgStartedAt = chunk.created_at || new Date().toISOString();
       }
       msgContent = capStreamContent(mergeStreamingText(msgContent, deltaText));
-      eventStoreProxy.upsert(
-        buildCliStreamingEvent(
-          msgStreamId,
-          sessionId,
-          msgContent,
-          "message",
-          msgStartedAt
-        ),
-        sessionId
+      persistObservedEvent(
+        eventStoreProxy.upsert(
+          buildCliStreamingEvent(
+            msgStreamId,
+            sessionId,
+            msgContent,
+            "message",
+            msgStartedAt
+          ),
+          sessionId
+        )
       );
       return;
     }
@@ -339,15 +354,17 @@ export function createCliEventHandler(
       thinkContent = capStreamContent(
         mergeStreamingText(thinkContent, deltaText)
       );
-      eventStoreProxy.upsert(
-        buildCliStreamingEvent(
-          thinkStreamId,
-          sessionId,
-          thinkContent,
-          "thinking",
-          thinkStartedAt
-        ),
-        sessionId
+      persistObservedEvent(
+        eventStoreProxy.upsert(
+          buildCliStreamingEvent(
+            thinkStreamId,
+            sessionId,
+            thinkContent,
+            "thinking",
+            thinkStartedAt
+          ),
+          sessionId
+        )
       );
       return;
     }
@@ -355,51 +372,35 @@ export function createCliEventHandler(
     // Final message/thinking chunks replace any TS typewriter placeholder.
     if (isMessageType || isThinkingType) {
       const tempId = isMessageType ? msgStreamId : thinkStreamId;
-      const reconcileAfterFinalEvent = () => {
-        reconcileTerminalEventsIfNeeded();
-      };
-      normalizeChunkRust(chunk, sessionId)
-        .then((event) => {
+      const persistence = normalizeChunkRust(chunk, sessionId).then(
+        async (event) => {
           if (finalizedStreamEventIds.has(event.id)) return;
           if (tempId && tempId !== event.id) {
             if (isMessageType) clearMessageStream();
             else clearThinkingStream();
             rememberFinalizedStreamEvent(event.id);
-            eventStoreProxy
-              .replaceAndRemove(tempId, event, sessionId)
-              .then(reconcileAfterFinalEvent);
+            await eventStoreProxy.replaceAndRemove(tempId, event, sessionId);
             return;
           }
-          eventStoreProxy
-            .append([event], sessionId)
-            .then(reconcileAfterFinalEvent);
-        })
-        .catch((error) => {
-          log.warn("[CliAdapter] normalizeChunkRust failed:", error);
-        });
+          await eventStoreProxy.append([event], sessionId);
+        }
+      );
+      persistObservedEvent(persistence);
       return;
     }
 
-    normalizeChunkRust(chunk, sessionId)
-      .then((event) => {
-        if (actionType === "tool_call") {
-          for (const [index, buffer] of toolCallDeltaBuffers.entries()) {
-            if (buffer.toolCallId && buffer.toolCallId === event.callId) {
-              toolCallDeltaBuffers.delete(index);
-            }
+    const persistence = normalizeChunkRust(chunk, sessionId).then((event) => {
+      if (actionType === "tool_call") {
+        for (const [index, buffer] of toolCallDeltaBuffers.entries()) {
+          if (buffer.toolCallId && buffer.toolCallId === event.callId) {
+            toolCallDeltaBuffers.delete(index);
           }
-          eventStoreProxy
-            .upsert(event, sessionId)
-            .then(reconcileTerminalEventsIfNeeded);
-          return;
         }
-        eventStoreProxy
-          .append([event], sessionId)
-          .then(reconcileTerminalEventsIfNeeded);
-      })
-      .catch((error) => {
-        log.warn("[CliAdapter] normalizeChunkRust failed:", error);
-      });
+        return eventStoreProxy.upsert(event, sessionId);
+      }
+      return eventStoreProxy.append([event], sessionId);
+    });
+    persistObservedEvent(persistence);
   }
 
   function handleStreamingComplete(raw: RawSessionEvent): void {
@@ -417,34 +418,34 @@ export function createCliEventHandler(
     if (streamType === "message") {
       const tsTempId = msgStreamId;
       clearMessageStream();
-      const reconcileAfterCompleteMessage = () => {
-        reconcileTerminalEventsIfNeeded();
-      };
       if (tsTempId && tsTempId !== completeEvent.id) {
-        eventStoreProxy
-          .replaceAndRemove(tsTempId, completeEvent, sessionId)
-          .then(reconcileAfterCompleteMessage);
+        const persistence = eventStoreProxy.replaceAndRemove(
+          tsTempId,
+          completeEvent,
+          sessionId
+        );
+        persistObservedEvent(persistence);
       } else {
-        eventStoreProxy
-          .upsert(completeEvent, sessionId)
-          .then(reconcileAfterCompleteMessage);
+        const persistence = eventStoreProxy.upsert(completeEvent, sessionId);
+        persistObservedEvent(persistence);
       }
     } else if (streamType === "thinking") {
       const tsTempId = thinkStreamId;
       clearThinkingStream();
       if (tsTempId && tsTempId !== completeEvent.id) {
-        eventStoreProxy
-          .replaceAndRemove(tsTempId, completeEvent, sessionId)
-          .then(reconcileTerminalEventsIfNeeded);
+        const persistence = eventStoreProxy.replaceAndRemove(
+          tsTempId,
+          completeEvent,
+          sessionId
+        );
+        persistObservedEvent(persistence);
       } else {
-        eventStoreProxy
-          .upsert(completeEvent, sessionId)
-          .then(reconcileTerminalEventsIfNeeded);
+        const persistence = eventStoreProxy.upsert(completeEvent, sessionId);
+        persistObservedEvent(persistence);
       }
     } else {
-      eventStoreProxy
-        .upsert(completeEvent, sessionId)
-        .then(reconcileTerminalEventsIfNeeded);
+      const persistence = eventStoreProxy.upsert(completeEvent, sessionId);
+      persistObservedEvent(persistence);
     }
   }
 
@@ -458,9 +459,15 @@ export function createCliEventHandler(
       clearThinkingStream();
       clearToolCallDeltaBuffers();
       setStreamingMode(false);
-      markObservedCliTerminalStatus(sessionId, observedTerminalStatus);
       if (status === "cancelled") cancelled = true;
-      callbacks.onAgentComplete?.();
+      // Do not expose the runtime as switchable until visible partial message
+      // buffers and interrupted tool-call fences are durably terminalized.
+      // Otherwise a fast Stop -> runtime switch can read the old native fork
+      // before EventStore owns the interrupted suffix.
+      void markObservedCliTerminalStatus(
+        sessionId,
+        observedTerminalStatus
+      ).then(() => callbacks.onAgentComplete?.());
     }
 
     if (isSessionRuntimeExecuting(status)) {

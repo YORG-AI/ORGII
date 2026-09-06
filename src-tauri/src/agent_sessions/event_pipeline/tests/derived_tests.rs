@@ -150,6 +150,17 @@ fn test_chat_hides_failed_user_message() {
 }
 
 #[test]
+fn test_chat_shows_failed_user_delivery_for_retry() {
+    let mut event = make_user_message("u_delivery_failed");
+    event.display_status = EventDisplayStatus::Failed;
+    event.result = serde_json::json!({
+        "deliveryStatus": "failed",
+        "deliveryError": "backend unavailable",
+    });
+    assert!(is_visible_in_chat(&event));
+}
+
+#[test]
 fn test_chat_shows_completed_user_message() {
     let event = make_user_message("u_ok");
     assert!(is_visible_in_chat(&event));

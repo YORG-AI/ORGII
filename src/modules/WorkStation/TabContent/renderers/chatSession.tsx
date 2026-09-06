@@ -191,7 +191,6 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
             sessionId={sessionId}
             secondary
             displayMode={headerActions.displayMode}
-            onSessionContinuation={handleSessionContinuation}
             turnPaginationEnabled={headerActions.paginationEnabled}
           />
         </div>

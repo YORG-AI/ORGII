@@ -49,6 +49,7 @@ import {
 import {
   activeSessionIdAtom,
   sessionByIdAtom,
+  setSessionRuntimeStatusAtom,
   updateSessionStatus,
 } from "@src/store/session";
 import { notificationSettingsAtom } from "@src/store/ui/notificationAtom";
@@ -105,16 +106,41 @@ export function useNativeSessionStatusMonitor(options?: {
       "session-status-changed",
       (event) => {
         const { sessionId, status } = event.payload;
+        const cliStatus = toCliSessionStatus(status);
         const completedTurn = isSuccessfulNotificationTurnStatus(status);
         const session = isStoreInitialized()
           ? getInstrumentedStore().get(sessionByIdAtom(sessionId))
           : undefined;
+        let lifecycleAccepted = true;
         if (completedTurn) {
-          markTurnTerminal(sessionId, "completed");
+          lifecycleAccepted = markTurnTerminal(sessionId, "completed");
         } else if (isTerminalStatus(status)) {
-          markTurnTerminal(sessionId, toTurnTerminalStatus(status));
+          lifecycleAccepted = markTurnTerminal(
+            sessionId,
+            toTurnTerminalStatus(status)
+          );
         } else if (isSessionRuntimeExecuting(status)) {
-          markTurnRunning(sessionId);
+          lifecycleAccepted = markTurnRunning(sessionId);
+        }
+
+        // Finality and every presentation mirror move together. A late
+        // terminal/running event rejected by the generation-aware lifecycle
+        // must not still flip the footer, sidebar row, or notification state.
+        if (!lifecycleAccepted) return;
+
+        // This Tauri event is the durable, process-wide status edge emitted
+        // after Rust commits the session row. The per-session Channel normally
+        // updates the foreground runtime mirror through agent:turn_completed,
+        // but an IPC frame can be lost while the global event still arrives.
+        // Keep the composer/Stop-button mirror convergent as well; the scoped
+        // write atom drops background-session updates when another Session is
+        // visible, so this cannot bleed a terminal into the wrong tab.
+        if (isStoreInitialized()) {
+          getInstrumentedStore().set(setSessionRuntimeStatusAtom, {
+            sessionId,
+            status: cliStatus,
+            source: "sync",
+          });
         }
 
         const completedBoundary =
@@ -147,10 +173,7 @@ export function useNativeSessionStatusMonitor(options?: {
         // grouping, Kanban lanes and every terminal-status predicate. Narrow
         // it against the Rust enum mirror, then map it onto `SessionStatus`,
         // instead of laundering it through `as SessionStatus`.
-        updateSessionStatus(
-          sessionId,
-          toSessionListStatus(toCliSessionStatus(status))
-        );
+        updateSessionStatus(sessionId, toSessionListStatus(cliStatus));
       }
     );
 

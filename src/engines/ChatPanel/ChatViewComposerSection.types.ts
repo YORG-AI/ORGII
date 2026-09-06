@@ -34,6 +34,8 @@ interface GroupChatPendingMessageView {
 export interface ChatViewComposerSectionProps {
   sessionId: string;
   inputAreaSessionId: string;
+  /** Native execution episode controlled by Stop while the source stays visible. */
+  controlSessionId?: string | null;
   showMainComposer: boolean;
   composerRef: React.Ref<HTMLDivElement>;
   inputBoxRef?: React.Ref<HTMLDivElement>;

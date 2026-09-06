@@ -3294,6 +3294,97 @@ describe("Core chat rendering UI", () => {
     await assertOneHundredRoundSkeletonRemainsNavigable();
   });
 
+  it("keeps manual scroll position while the active assistant event streams", async function () {
+    if (!shouldRunScenario("streaming-manual-scroll-pin")) {
+      this.skip();
+      return;
+    }
+
+    const sessionId = `sdeagent-e2e-stream-scroll-${RUN_ID}`;
+    const events = Array.from({ length: 48 }, (_, index) => [
+      makeUserEvent(sessionId, 10_000 + index),
+      makeAssistantEvent(sessionId, 10_000 + index),
+    ]).flat();
+    const last = events.at(-1);
+    last.displayStatus = "running";
+    last.result = { ...last.result, status: "running" };
+    const seeded = await invokeE2E("seedChatEvents", sessionId, events, {
+      runtimeStatus: "running",
+    });
+    if (!seeded?.ok) {
+      throw new Error(
+        `stream-scroll initial seed failed: ${seeded?.error ?? "unknown"}`
+      );
+    }
+
+    await browser.waitUntil(
+      async () =>
+        execJS(`
+          const scroller = document.querySelector('[data-testid="chat-history-scroll-container"]');
+          if (!scroller || scroller.scrollHeight <= scroller.clientHeight * 2) return false;
+          scroller.scrollTop = 0;
+          scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+          return scroller.scrollTop === 0;
+        `),
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 100,
+        timeoutMsg: "stream-scroll transcript never exposed a scrollable history",
+      }
+    );
+    await browser.pause(250);
+
+    const streamedText = `STREAM_SCROLL_DELTA_${RUN_ID}`;
+    const streamedEvents = events.map((event, index) =>
+      index === events.length - 1
+        ? {
+            ...event,
+            displayText: `${event.displayText}\n${streamedText}`,
+            result: {
+              ...event.result,
+              content: `${event.displayText}\n${streamedText}`,
+              status: "running",
+            },
+          }
+        : event
+    );
+    const updated = await invokeE2E(
+      "seedChatEvents",
+      sessionId,
+      streamedEvents,
+      { runtimeStatus: "running" }
+    );
+    if (!updated?.ok) {
+      throw new Error(
+        `stream-scroll delta seed failed: ${updated?.error ?? "unknown"}`
+      );
+    }
+
+    await browser.waitUntil(
+      async () =>
+        execJS(`
+          const scroller = document.querySelector('[data-testid="chat-history-scroll-container"]');
+          const scrollButton = Array.from(document.querySelectorAll('button'))
+            .find((button) => /scroll to bottom/i.test(button.getAttribute('aria-label') || ''));
+          return Boolean(
+            scroller &&
+            scroller.scrollTop <= 10 &&
+            scrollButton
+          );
+        `),
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 100,
+        timeoutMsg:
+          "streaming output forced the manually-scrolled history back to the bottom",
+      }
+    );
+    const finalState = await invokeE2E("inspectChatState");
+    if (!finalState?.ok || !JSON.stringify(finalState).includes(streamedText)) {
+      throw new Error("stream-scroll delta never entered canonical chat state");
+    }
+  });
+
   it("lazily loads an imported Claude Code round body and auto-refetches it after a replace reload", async function () {
     if (!shouldRunScenario("claude-imported-lazy-replay")) {
       this.skip();

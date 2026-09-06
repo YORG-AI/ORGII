@@ -7,7 +7,8 @@ use std::collections::HashSet;
 
 use super::helpers::{
     is_authoritative_transcript_message, is_turn_placeholder, loaded_turn_ids_from_events,
-    placeholder_turn_id, reconcile_loaded_synthetic_transcript_placeholders, timeline_source_order,
+    placeholder_turn_id, reconcile_loaded_duplicate_user_turns,
+    reconcile_loaded_synthetic_transcript_placeholders, timeline_source_order,
 };
 use super::{
     active_shell_replays_for_session, capture_shell_replay_bookmarks, hydrate_shell_event_bounded,
@@ -43,6 +44,7 @@ impl EventStore {
         hydration_mode: HydrationMode,
     ) {
         reconcile_loaded_synthetic_transcript_placeholders(&mut events);
+        reconcile_loaded_duplicate_user_turns(&mut events);
         for event in &mut events {
             hydrate_shell_event_bounded(event);
         }
@@ -74,8 +76,12 @@ impl EventStore {
                 continue;
             }
             self.stamp_repo(&mut event);
+            if let Some(replaced) = self.reconcile_duplicate_user_turn(&mut event) {
+                changed |= replaced;
+                continue;
+            }
             if is_authoritative_transcript_message(&event) {
-                self.remove_matching_synthetic_transcript_placeholders(&event);
+                self.remove_matching_synthetic_transcript_placeholder(&mut event);
             }
             let event_id = event.id.clone();
             let idx = self.events.len();
@@ -136,6 +142,10 @@ impl EventStore {
                 capture_shell_replay_bookmarks(&mut event, active);
             } else {
                 hydrate_shell_event_bounded(&mut event);
+            }
+            if let Some(replaced) = self.reconcile_duplicate_user_turn(&mut event) {
+                changed |= replaced;
+                continue;
             }
             if event.action_type == "tool_result" {
                 if let Some(ref call_id) = event.call_id {
@@ -248,7 +258,7 @@ impl EventStore {
                 changed = true;
             } else {
                 if is_authoritative_transcript_message(&event) {
-                    self.remove_matching_synthetic_transcript_placeholders(&event);
+                    self.remove_matching_synthetic_transcript_placeholder(&mut event);
                 }
                 let event_id = event.id.clone();
                 let idx = self.events.len();

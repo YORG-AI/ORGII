@@ -1,16 +1,22 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { buildCloudSessionFetchClient } from "@src/features/Org2Cloud/org2CloudBackendAdapter";
 import { importRemoteSession } from "@src/features/TeamCollaboration/engine/collabSessionImport";
 import { createLogger } from "@src/hooks/logger";
 import { BoundedMap } from "@src/util/collections/BoundedMap";
 
-import { commitRefreshedAuth, org2CloudAuthAtom } from "../org2CloudAuthAtom";
+import {
+  commitRefreshedAuth,
+  org2CloudAuthAtom,
+  org2CloudAuthIdentityKey,
+} from "../org2CloudAuthAtom";
 import { ensureFreshSession } from "../org2CloudClient";
 import type { ConversationFamilyMember } from "./continuationEvents";
+import { conversationPlaneSignalAtom } from "./conversationPlaneAtom";
 
 const log = createLogger("ConversationFamilyLoader");
+const MAX_FAMILY_IMPORT_CONCURRENCY = 4;
 
 /**
  * Last import position attempted per family member, keyed by org + session.
@@ -47,51 +53,150 @@ export function useEnsureFamilyLoaded(
 ): void {
   const auth = useAtomValue(org2CloudAuthAtom);
   const setAuth = useSetAtom(org2CloudAuthAtom);
+  const authIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
+  const conversationPlaneSignals = useAtomValue(conversationPlaneSignalAtom);
+  const familyOrgId = family?.[0]?.row.orgId ?? null;
+  const recoverySignal = familyOrgId
+    ? (conversationPlaneSignals[familyOrgId] ?? 0)
+    : 0;
+  const failedImportRef = useRef(false);
+  const previousRecoverySignalRef = useRef({
+    orgId: familyOrgId,
+    value: recoverySignal,
+  });
+  const [failedImportRetryVersion, setFailedImportRetryVersion] = useState(0);
+
+  // A background failure must remain retryable, but retry only at an
+  // invalidation owned by the app-wide Cloud realtime boundary. Its global
+  // foreground recovery already bumps the same per-org signal, so transcript
+  // surfaces must not install their own browser listeners. `importRemoteSession`
+  // owns the actual per-source serialization and durable cursor/no-op decision.
+  useEffect(() => {
+    const previous = previousRecoverySignalRef.current;
+    previousRecoverySignalRef.current = {
+      orgId: familyOrgId,
+      value: recoverySignal,
+    };
+    if (
+      !failedImportRef.current ||
+      !familyOrgId ||
+      previous.orgId !== familyOrgId ||
+      previous.value === recoverySignal
+    ) {
+      return;
+    }
+    failedImportRef.current = false;
+    setFailedImportRetryVersion((version) => version + 1);
+  }, [familyOrgId, recoverySignal]);
 
   useEffect(() => {
-    if (!family || !auth) return;
-    for (const member of family) {
+    const requestAuth = auth;
+    if (!family || !requestAuth || !authIdentityKey) return;
+    const pending = family.filter((member) => {
       const bareSessionId = member.bareSessionId;
-      if (
-        bareSessionId === anchorBareSessionId ||
-        loadedBareSessionIds.has(bareSessionId)
-      ) {
-        continue;
-      }
       const row = member.row;
-      // Nothing fetchable: tombstoned, metadata-only (no events pushed), or
-      // the synthesized pseudo-row a fresh local fork gets before its push.
-      if (row.deletedAt || row.eventsEpoch === undefined || !row.eventsCount) {
-        continue;
+      if (
+        !(
+          bareSessionId !== anchorBareSessionId &&
+          !loadedBareSessionIds.has(bareSessionId) &&
+          !row.deletedAt &&
+          row.eventsEpoch !== undefined &&
+          Boolean(row.eventsCount) &&
+          row.id !== `local-${bareSessionId}`
+        )
+      ) {
+        return false;
       }
-      if (row.id === `local-${bareSessionId}`) continue;
-      const memberKey = `${row.orgId}:${bareSessionId}`;
+      const memberKey = `${authIdentityKey}:${row.orgId}:${bareSessionId}`;
       const position = `${row.eventsEpoch}:${row.eventsCount}`;
-      // `get` rather than `peek`: re-checking a member is what keeps it warm,
-      // so an actively followed conversation should not be the eviction victim.
-      if (attemptedImportPositions.get(memberKey) === position) continue;
-      attemptedImportPositions.set(memberKey, position);
-      void (async () => {
+      return attemptedImportPositions.get(memberKey) !== position;
+    });
+    let cancelled = false;
+    let cursor = 0;
+    const activeClaims = new Map<string, string>();
+    const releaseClaim = (memberKey: string, position: string) => {
+      // Cleanup may already have released this worker's claim and a newer
+      // effect may since have claimed the same position. A late completion
+      // from the cancelled worker must not delete that newer claim.
+      if (activeClaims.get(memberKey) !== position) return;
+      activeClaims.delete(memberKey);
+      if (attemptedImportPositions.peek(memberKey) === position) {
+        attemptedImportPositions.delete(memberKey);
+      }
+    };
+    const worker = async () => {
+      for (;;) {
+        if (cancelled) return;
+        const member = pending[cursor];
+        cursor += 1;
+        if (!member) return;
+        const bareSessionId = member.bareSessionId;
+        const row = member.row;
+        const memberKey = `${authIdentityKey}:${row.orgId}:${bareSessionId}`;
+        const position = `${row.eventsEpoch}:${row.eventsCount}`;
+        // Claim only work this worker is about to execute. Claiming the full
+        // filtered batch up front strands entries beyond the worker limit if
+        // the active workers stop early (for example, on auth refresh failure).
+        if (attemptedImportPositions.peek(memberKey) === position) continue;
+        attemptedImportPositions.set(memberKey, position);
+        activeClaims.set(memberKey, position);
         try {
-          const fresh = await ensureFreshSession(auth);
-          if (!fresh) return;
-          commitRefreshedAuth(setAuth, auth, fresh);
+          const fresh = await ensureFreshSession(requestAuth);
+          if (!fresh) {
+            releaseClaim(memberKey, position);
+            failedImportRef.current = true;
+            return;
+          }
+          if (
+            cancelled ||
+            org2CloudAuthIdentityKey(fresh) !== authIdentityKey
+          ) {
+            releaseClaim(memberKey, position);
+            return;
+          }
+          commitRefreshedAuth(setAuth, requestAuth, fresh);
           await importRemoteSession({
             client: buildCloudSessionFetchClient(fresh.accessToken),
             orgId: row.orgId,
             remoteSession: row,
-            sourceEndpointUrl: auth.supabaseUrl,
+            sourceEndpointUrl: requestAuth.supabaseUrl,
           });
+          if (cancelled) {
+            releaseClaim(memberKey, position);
+            return;
+          }
+          // A successful position remains in attemptedImportPositions; it is
+          // the no-op guard until the owner's replay position advances.
+          activeClaims.delete(memberKey);
         } catch (error) {
-          // Leave the recorded position: a broken member should not retry in
-          // a loop on every render. The next push (new epoch/count) no longer
-          // matches the stored value, so it is retried then.
+          releaseClaim(memberKey, position);
+          failedImportRef.current = true;
           log.warn(
             `background family import failed for ${bareSessionId}`,
             error
           );
         }
-      })();
-    }
-  }, [family, loadedBareSessionIds, anchorBareSessionId, auth, setAuth]);
+      }
+    };
+    void Promise.all(
+      Array.from(
+        { length: Math.min(MAX_FAMILY_IMPORT_CONCURRENCY, pending.length) },
+        worker
+      )
+    );
+    return () => {
+      cancelled = true;
+      for (const [memberKey, position] of activeClaims) {
+        releaseClaim(memberKey, position);
+      }
+    };
+  }, [
+    family,
+    loadedBareSessionIds,
+    anchorBareSessionId,
+    auth,
+    authIdentityKey,
+    failedImportRetryVersion,
+    setAuth,
+  ]);
 }

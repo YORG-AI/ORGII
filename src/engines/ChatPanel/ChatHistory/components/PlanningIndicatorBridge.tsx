@@ -12,7 +12,6 @@ import {
   type PlanningIndicatorState,
   usePlanningIndicator,
 } from "@src/engines/SessionCore/hooks/replay/usePlanningIndicator";
-import { useConversationRunnerScope } from "@src/features/Org2Cloud/SessionConversation/conversationRunnerScope";
 
 import ChatHistoryList from "./ChatHistoryList";
 
@@ -139,17 +138,12 @@ const PlanningIndicatorBridge: FC<PlanningIndicatorBridgeProps> = ({
   planningIndicatorScope,
   ...props
 }) => {
-  const runnerScope = useConversationRunnerScope();
-  const effectiveScope = runnerScope
-    ? { sessionId: runnerScope, isLive: true }
-    : planningIndicatorScope;
-
-  if (effectiveScope) {
+  if (planningIndicatorScope) {
     return (
       <ScopedPlanningIndicatorBridge
         {...props}
         planningIndicatorScope={planningIndicatorScope}
-        effectiveScope={effectiveScope}
+        effectiveScope={planningIndicatorScope}
       />
     );
   }

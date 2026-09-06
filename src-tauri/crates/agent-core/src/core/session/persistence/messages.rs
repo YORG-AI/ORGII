@@ -1,5 +1,7 @@
 //! Message persistence — insertion, loading, truncation, history building.
 
+use std::collections::{HashMap, HashSet};
+
 use chrono::Utc;
 use rusqlite::{params, OptionalExtension, Result as SqliteResult};
 use uuid::Uuid;
@@ -23,6 +25,48 @@ pub struct AgentOrgInboxTranscriptMaterialization {
     pub message_id: String,
     pub intent_id: String,
     pub content: String,
+}
+
+/// One provider-neutral history row used to seed or extend an Agent session.
+///
+/// Materialization identity is carried beside the content instead of being
+/// hidden inside provider-style JSON. This keeps LLM/tool payloads free of
+/// ORG2-only fields while preserving deterministic, retry-safe row ids.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MaterializedHistorySeed {
+    pub id: String,
+    pub created_at: String,
+    pub content: MaterializedHistoryContent,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MaterializedHistoryContent {
+    Message {
+        role: MaterializedHistoryRole,
+        text: String,
+        images: Vec<String>,
+    },
+    ToolCall {
+        call_id: String,
+        name: String,
+        arguments: String,
+    },
+    ToolResult {
+        call_id: String,
+        name: String,
+        output: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MaterializedHistoryRole {
+    User,
+    Assistant,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MaterializedHistoryReceipt {
+    pub row_count: usize,
 }
 
 /// Load the transcript batches already materialized for the supplied unread
@@ -545,6 +589,186 @@ fn compacted_history_rows(
     rows
 }
 
+fn materialized_history_rows(
+    session_id: &str,
+    seeds: &[MaterializedHistorySeed],
+) -> SqliteResult<Vec<shared::AgentMessageRow>> {
+    seeds
+        .iter()
+        .map(|seed| {
+            if seed.id.trim().is_empty() || seed.created_at.trim().is_empty() {
+                return Err(history_append_constraint(
+                    "materialized history requires a stable id and timestamp".to_string(),
+                ));
+            }
+            let mut row = match &seed.content {
+                MaterializedHistoryContent::Message { role, text, images } => {
+                    let role = match role {
+                        MaterializedHistoryRole::User => shared::message_role::USER,
+                        MaterializedHistoryRole::Assistant => shared::message_role::ASSISTANT,
+                    };
+                    let images = (!images.is_empty()).then(|| {
+                        serde_json::to_string(images)
+                            .expect("Vec<String> serialization is infallible")
+                    });
+                    message_row(session_id, role, text.clone(), images)
+                }
+                MaterializedHistoryContent::ToolCall {
+                    call_id,
+                    name,
+                    arguments,
+                } => {
+                    if call_id.trim().is_empty() || name.trim().is_empty() {
+                        return Err(history_append_constraint(
+                            "materialized tool call requires a call id and name".to_string(),
+                        ));
+                    }
+                    serde_json::from_str::<serde_json::Value>(arguments).map_err(|error| {
+                        history_append_constraint(format!(
+                            "materialized tool call {call_id} has invalid JSON arguments: {error}"
+                        ))
+                    })?;
+                    let mut row = message_row(
+                        session_id,
+                        shared::message_role::TOOL_CALL,
+                        format!("Tool call: {name}"),
+                        None,
+                    );
+                    row.tool_call_id = Some(call_id.clone());
+                    row.tool_name = Some(name.clone());
+                    row.tool_input = Some(arguments.clone());
+                    row
+                }
+                MaterializedHistoryContent::ToolResult {
+                    call_id,
+                    name,
+                    output,
+                } => {
+                    if call_id.trim().is_empty() || name.trim().is_empty() {
+                        return Err(history_append_constraint(
+                            "materialized tool result requires a call id and name".to_string(),
+                        ));
+                    }
+                    let mut row = message_row(
+                        session_id,
+                        shared::message_role::TOOL_RESULT,
+                        crate::utils::safe_truncate_chars_to_string(output, 2000),
+                        None,
+                    );
+                    row.tool_call_id = Some(call_id.clone());
+                    row.tool_name = Some(name.clone());
+                    row.tool_output = Some(output.clone());
+                    row
+                }
+            };
+            row.id = seed.id.clone();
+            row.created_at = seed.created_at.clone();
+            Ok(row)
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HistoryRowsValidation {
+    None,
+    MaterializedToolGraph,
+}
+
+fn apply_tool_graph_row(
+    role: &str,
+    call_id: Option<&str>,
+    tool_name: Option<&str>,
+    open_calls: &mut HashMap<String, String>,
+    completed_calls: &mut HashSet<String>,
+) -> SqliteResult<()> {
+    match role {
+        shared::message_role::TOOL_CALL => {
+            let call_id = call_id.ok_or_else(|| {
+                history_append_constraint("materialized tool call is missing call id".to_string())
+            })?;
+            let tool_name = tool_name.ok_or_else(|| {
+                history_append_constraint("materialized tool call is missing name".to_string())
+            })?;
+            if open_calls.contains_key(call_id) || completed_calls.contains(call_id) {
+                return Err(history_append_constraint(format!(
+                    "materialized history contains duplicate tool call id {call_id}"
+                )));
+            }
+            open_calls.insert(call_id.to_string(), tool_name.to_string());
+        }
+        shared::message_role::TOOL_RESULT => {
+            let call_id = call_id.ok_or_else(|| {
+                history_append_constraint("materialized tool result is missing call id".to_string())
+            })?;
+            let tool_name = tool_name.ok_or_else(|| {
+                history_append_constraint("materialized tool result is missing name".to_string())
+            })?;
+            let expected_name = open_calls.remove(call_id).ok_or_else(|| {
+                history_append_constraint(format!(
+                    "materialized tool result {call_id} has no prior unresolved tool call"
+                ))
+            })?;
+            if expected_name != tool_name {
+                return Err(history_append_constraint(format!(
+                    "materialized tool result {call_id} names {tool_name}, expected {expected_name}"
+                )));
+            }
+            completed_calls.insert(call_id.to_string());
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Validate the complete persisted-prefix + candidate-suffix tool graph while
+/// holding the same SQLite write transaction that appends the suffix. An open
+/// call at the end is valid partial-turn state; a later synchronization may
+/// close it with a result in its next suffix.
+fn validate_materialized_tool_graph(
+    tx: &rusqlite::Transaction<'_>,
+    session_id: &str,
+    include_persisted_prefix: bool,
+    rows: &[shared::AgentMessageRow],
+) -> SqliteResult<()> {
+    let mut open_calls = HashMap::new();
+    let mut completed_calls = HashSet::new();
+    if include_persisted_prefix {
+        let mut statement = tx.prepare(
+            "SELECT role, tool_call_id, tool_name
+             FROM agent_messages
+             WHERE session_id = ?1
+             ORDER BY sequence ASC",
+        )?;
+        let persisted = statement.query_map([session_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Option<String>>(1)?,
+                row.get::<_, Option<String>>(2)?,
+            ))
+        })?;
+        for row in persisted {
+            let (role, call_id, tool_name) = row?;
+            apply_tool_graph_row(
+                &role,
+                call_id.as_deref(),
+                tool_name.as_deref(),
+                &mut open_calls,
+                &mut completed_calls,
+            )?;
+        }
+    }
+    for row in rows {
+        apply_tool_graph_row(
+            &row.role,
+            row.tool_call_id.as_deref(),
+            row.tool_name.as_deref(),
+            &mut open_calls,
+            &mut completed_calls,
+        )?;
+    }
+    Ok(())
+}
+
 fn message_row(
     session_id: &str,
     role: &str,
@@ -570,6 +794,193 @@ fn message_row(
     }
 }
 
+fn history_append_constraint(message: String) -> rusqlite::Error {
+    rusqlite::Error::SqliteFailure(
+        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CONSTRAINT),
+        Some(message),
+    )
+}
+
+fn persisted_history_row_matches(
+    persisted: &shared::AgentMessageRow,
+    expected: &shared::AgentMessageRow,
+) -> bool {
+    persisted.session_id == expected.session_id
+        && persisted.role == expected.role
+        && persisted.content == expected.content
+        && persisted.tool_name == expected.tool_name
+        && persisted.tool_call_id == expected.tool_call_id
+        && persisted.tool_input == expected.tool_input
+        && persisted.tool_output == expected.tool_output
+        && persisted.model == expected.model
+        && persisted.created_at == expected.created_at
+        && persisted.images == expected.images
+        && match expected.compact_from_sequence {
+            Some(_) => {
+                persisted.compact_from_sequence == Some(persisted.sequence.saturating_add(1))
+            }
+            None => persisted.compact_from_sequence.is_none(),
+        }
+}
+
+fn persisted_history_row(
+    tx: &rusqlite::Transaction<'_>,
+    id: &str,
+) -> SqliteResult<Option<shared::AgentMessageRow>> {
+    tx.query_row(
+        "SELECT session_id, role, content, tool_name, tool_call_id,
+                tool_input, tool_output, model, sequence, created_at,
+                images, compact_from_sequence
+         FROM agent_messages WHERE id = ?1",
+        params![id],
+        |row| {
+            Ok(shared::AgentMessageRow {
+                id: id.to_string(),
+                session_id: row.get(0)?,
+                role: row.get(1)?,
+                content: row.get(2)?,
+                tool_name: row.get(3)?,
+                tool_call_id: row.get(4)?,
+                tool_input: row.get(5)?,
+                tool_output: row.get(6)?,
+                model: row.get(7)?,
+                sequence: row.get(8)?,
+                created_at: row.get(9)?,
+                images: row.get(10)?,
+                compact_from_sequence: row.get(11)?,
+                compact_tokens_before: None,
+                compact_tokens_after: None,
+            })
+        },
+    )
+    .optional()
+}
+
+fn persist_history_rows(
+    session_id: &str,
+    rows: &[shared::AgentMessageRow],
+    require_empty: bool,
+    validation: HistoryRowsValidation,
+) -> SqliteResult<()> {
+    with_sessions_writer(|| -> SqliteResult<()> {
+        let mut conn = get_connection()?;
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let next_sequence = if require_empty {
+            let existing: i64 = tx.query_row(
+                "SELECT COUNT(*) FROM agent_messages WHERE session_id = ?1",
+                [session_id],
+                |row| row.get(0),
+            )?;
+            if existing == 0 {
+                0
+            } else {
+                let mut exact_rows = 0usize;
+                for (offset, expected) in rows.iter().enumerate() {
+                    let Some(persisted) = persisted_history_row(&tx, &expected.id)? else {
+                        continue;
+                    };
+                    exact_rows += 1;
+                    if persisted.sequence != offset as i64
+                        || !persisted_history_row_matches(&persisted, expected)
+                    {
+                        return Err(history_append_constraint(format!(
+                            "seed_session_with_messages conflict: native row {} already exists with different content, ownership, or sequence",
+                            expected.id
+                        )));
+                    }
+                }
+                if exact_rows == rows.len() && existing as usize == rows.len() {
+                    // A previous seed committed the complete deterministic
+                    // native transcript but lost its response. The exact rows
+                    // are the durable receipt, so retry is a no-op.
+                    return tx.commit();
+                }
+                return Err(history_append_constraint(format!(
+                    "seed_session_with_messages conflict: {exact_rows} of {} expected native rows exist among {existing} session row(s); transcripts are immutable, refusing a mixed or unrelated seed",
+                    rows.len()
+                )));
+            }
+        } else {
+            let next_sequence = tx.query_row(
+                "SELECT COALESCE(MAX(sequence), -1) + 1 FROM agent_messages WHERE session_id = ?1",
+                [session_id],
+                |row| row.get(0),
+            )?;
+            let mut existing_count = 0usize;
+            let mut first_existing_sequence = None;
+            for (offset, expected) in rows.iter().enumerate() {
+                let persisted = persisted_history_row(&tx, &expected.id)?;
+                let Some(persisted) = persisted else {
+                    continue;
+                };
+                existing_count += 1;
+                let first_sequence = *first_existing_sequence.get_or_insert(persisted.sequence);
+                let expected_sequence = first_sequence.saturating_add(offset as i64);
+                if persisted.sequence != expected_sequence
+                    || !persisted_history_row_matches(&persisted, expected)
+                {
+                    let message = format!(
+                        "history append conflict: native row {} already exists with different content, ownership, or sequence",
+                        expected.id
+                    );
+                    return Err(history_append_constraint(message));
+                }
+            }
+            if existing_count == rows.len() {
+                // A previous attempt committed the entire deterministic
+                // suffix but lost its response. Treat the exact durable rows
+                // as the authoritative receipt and do not append them again.
+                return tx.commit();
+            }
+            if existing_count > 0 {
+                return Err(history_append_constraint(format!(
+                    "history append conflict: {existing_count} of {} native rows already exist; refusing a mixed suffix",
+                    rows.len()
+                )));
+            }
+            next_sequence
+        };
+
+        if validation == HistoryRowsValidation::MaterializedToolGraph {
+            validate_materialized_tool_graph(&tx, session_id, !require_empty, rows)?;
+        }
+
+        for (offset, row) in rows.iter().enumerate() {
+            let sequence = next_sequence + offset as i64;
+            let compact_from_sequence = row
+                .compact_from_sequence
+                .map(|_| sequence.saturating_add(1));
+            tx.execute(
+                "INSERT INTO agent_messages
+                 (id, session_id, role, content, tool_name, tool_call_id, tool_input, tool_output, model, sequence, created_at, images, compact_from_sequence)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                params![
+                    row.id,
+                    row.session_id,
+                    row.role,
+                    row.content,
+                    row.tool_name,
+                    row.tool_call_id,
+                    row.tool_input,
+                    row.tool_output,
+                    row.model,
+                    sequence,
+                    row.created_at,
+                    row.images,
+                    compact_from_sequence,
+                ],
+            )?;
+        }
+
+        let now = Utc::now().to_rfc3339();
+        tx.execute(
+            "UPDATE agent_sessions SET updated_at = ?2 WHERE session_id = ?1",
+            params![session_id, now],
+        )?;
+        tx.commit()
+    })
+}
+
 /// Replace a session's persisted transcript with a compacted LLM history view.
 ///
 /// **Seeding only.** This is the durable bootstrap used by compact-fork:
@@ -585,68 +996,47 @@ pub fn seed_session_with_messages(
     compacted_messages: &[serde_json::Value],
 ) -> SqliteResult<()> {
     let rows = compacted_history_rows(session_id, compacted_messages);
-    with_sessions_writer(|| -> SqliteResult<()> {
-        let conn = get_connection()?;
-        let now = Utc::now().to_rfc3339();
-        conn.execute_batch("BEGIN IMMEDIATE")?;
+    persist_history_rows(session_id, &rows, true, HistoryRowsValidation::None)
+}
 
-        let existing: i64 = match conn.query_row(
-            "SELECT COUNT(*) FROM agent_messages WHERE session_id = ?1",
-            [session_id],
-            |row| row.get(0),
-        ) {
-            Ok(count) => count,
-            Err(err) => {
-                let _ = conn.execute_batch("ROLLBACK");
-                return Err(err);
-            }
-        };
-        if existing > 0 {
-            let _ = conn.execute_batch("ROLLBACK");
-            return Err(rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CONSTRAINT),
-                Some(format!(
-                    "seed_session_with_messages refused: session {session_id} already has {existing} message row(s); transcripts are immutable — use append_compact_boundary"
-                )),
-            ));
-        }
+/// Seed a fresh Agent session from typed canonical history.
+///
+/// The returned row count is the durable materialization receipt. Exact
+/// retries are accepted by [`persist_history_rows`]; mixed or conflicting
+/// retries fail without appending a partial suffix.
+pub fn seed_session_with_materialized_history(
+    session_id: &str,
+    seeds: &[MaterializedHistorySeed],
+) -> SqliteResult<MaterializedHistoryReceipt> {
+    let rows = materialized_history_rows(session_id, seeds)?;
+    persist_history_rows(
+        session_id,
+        &rows,
+        true,
+        HistoryRowsValidation::MaterializedToolGraph,
+    )?;
+    Ok(MaterializedHistoryReceipt {
+        row_count: rows.len(),
+    })
+}
 
-        for (sequence, row) in rows.iter().enumerate() {
-            let result = conn.execute(
-                "INSERT INTO agent_messages
-                 (id, session_id, role, content, tool_name, tool_call_id, tool_input, tool_output, model, sequence, created_at, images)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-                params![
-                    row.id,
-                    row.session_id,
-                    row.role,
-                    row.content,
-                    row.tool_name,
-                    row.tool_call_id,
-                    row.tool_input,
-                    row.tool_output,
-                    row.model,
-                    sequence as i64,
-                    row.created_at,
-                    row.images,
-                ],
-            );
-            if let Err(err) = result {
-                let _ = conn.execute_batch("ROLLBACK");
-                return Err(err);
-            }
-        }
-
-        if let Err(err) = conn.execute(
-            "UPDATE agent_sessions SET updated_at = ?2 WHERE session_id = ?1",
-            params![session_id, now],
-        ) {
-            let _ = conn.execute_batch("ROLLBACK");
-            return Err(err);
-        }
-
-        conn.execute_batch("COMMIT")?;
-        Ok(())
+/// Append typed canonical history to an existing Agent session atomically.
+pub fn append_session_with_materialized_history(
+    session_id: &str,
+    seeds: &[MaterializedHistorySeed],
+) -> SqliteResult<MaterializedHistoryReceipt> {
+    if seeds.is_empty() {
+        return Ok(MaterializedHistoryReceipt { row_count: 0 });
+    }
+    let rows = materialized_history_rows(session_id, seeds)?;
+    persist_history_rows(
+        session_id,
+        &rows,
+        false,
+        HistoryRowsValidation::MaterializedToolGraph,
+    )?;
+    Ok(MaterializedHistoryReceipt {
+        row_count: rows.len(),
     })
 }
 
@@ -944,6 +1334,57 @@ mod tests {
     use database::db::get_connection;
     use test_helpers::test_env;
 
+    fn materialized_message(
+        id: &str,
+        created_at: &str,
+        role: MaterializedHistoryRole,
+        text: &str,
+    ) -> MaterializedHistorySeed {
+        MaterializedHistorySeed {
+            id: id.to_string(),
+            created_at: created_at.to_string(),
+            content: MaterializedHistoryContent::Message {
+                role,
+                text: text.to_string(),
+                images: Vec::new(),
+            },
+        }
+    }
+
+    fn materialized_tool_call(
+        id: &str,
+        created_at: &str,
+        call_id: &str,
+        name: &str,
+    ) -> MaterializedHistorySeed {
+        MaterializedHistorySeed {
+            id: id.to_string(),
+            created_at: created_at.to_string(),
+            content: MaterializedHistoryContent::ToolCall {
+                call_id: call_id.to_string(),
+                name: name.to_string(),
+                arguments: "{}".to_string(),
+            },
+        }
+    }
+
+    fn materialized_tool_result(
+        id: &str,
+        created_at: &str,
+        call_id: &str,
+        name: &str,
+    ) -> MaterializedHistorySeed {
+        MaterializedHistorySeed {
+            id: id.to_string(),
+            created_at: created_at.to_string(),
+            content: MaterializedHistoryContent::ToolResult {
+                call_id: call_id.to_string(),
+                name: name.to_string(),
+                output: "done".to_string(),
+            },
+        }
+    }
+
     fn seed_session_for_message_tests(session_id: &str) {
         let conn = get_connection().expect("get_connection in seed_session_for_message_tests");
         crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
@@ -1161,6 +1602,282 @@ mod tests {
         assert_eq!(history[0]["content"], compacted[0]["content"]);
         assert_eq!(history[1]["content"], "recent user");
         assert_eq!(history[2]["content"], "recent assistant");
+    }
+
+    #[test]
+    fn native_materialization_preserves_portable_message_identity() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "seed-native-identity-test";
+        seed_session_for_message_tests(session_id);
+        seed_session_with_materialized_history(
+            session_id,
+            &[materialized_message(
+                "org2-turn-v1.dHVybi0x.c291cmNlLTE.nonce",
+                "2026-08-29T00:00:00Z",
+                MaterializedHistoryRole::User,
+                "continue",
+            )],
+        )
+        .expect("seed native identity");
+
+        let rows = load_messages(session_id).expect("load native identity");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, "org2-turn-v1.dHVybi0x.c291cmNlLTE.nonce");
+        assert_eq!(rows[0].created_at, "2026-08-29T00:00:00Z");
+    }
+
+    #[test]
+    fn native_materialization_accepts_an_exact_fully_seeded_retry() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "seed-native-idempotent-retry-test";
+        seed_session_for_message_tests(session_id);
+        let transcript = [materialized_message(
+            "org2-native-v1.c291cmNlLTE.target",
+            "2026-08-29T00:00:00Z",
+            MaterializedHistoryRole::User,
+            "continue",
+        )];
+
+        seed_session_with_materialized_history(session_id, &transcript)
+            .expect("seed native transcript");
+        seed_session_with_materialized_history(session_id, &transcript)
+            .expect("retry exact native seed");
+
+        let rows = load_messages(session_id).expect("load native transcript");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, "org2-native-v1.c291cmNlLTE.target");
+        assert_eq!(rows[0].sequence, 0);
+    }
+
+    #[test]
+    fn typed_materialization_preserves_native_role_and_tool_order() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "append-native-history-test";
+        seed_session_for_message_tests(session_id);
+        seed_session_with_materialized_history(
+            session_id,
+            &[materialized_message(
+                "user-1",
+                "2026-08-30T00:00:00Z",
+                MaterializedHistoryRole::User,
+                "first",
+            )],
+        )
+        .expect("seed prefix");
+
+        append_session_with_materialized_history(
+            session_id,
+            &[
+                materialized_message(
+                    "assistant-1",
+                    "2026-08-30T00:00:01Z",
+                    MaterializedHistoryRole::Assistant,
+                    "answer",
+                ),
+                MaterializedHistorySeed {
+                    id: "tool-call-1".to_string(),
+                    created_at: "2026-08-30T00:00:02Z".to_string(),
+                    content: MaterializedHistoryContent::ToolCall {
+                        call_id: "call-1".to_string(),
+                        name: "read_file".to_string(),
+                        arguments: "{\"path\":\"README.md\"}".to_string(),
+                    },
+                },
+                MaterializedHistorySeed {
+                    id: "tool-result-1".to_string(),
+                    created_at: "2026-08-30T00:00:03Z".to_string(),
+                    content: MaterializedHistoryContent::ToolResult {
+                        call_id: "call-1".to_string(),
+                        name: "read_file".to_string(),
+                        output: "contents".to_string(),
+                    },
+                },
+            ],
+        )
+        .expect("append native suffix");
+
+        let history = load_llm_history(session_id).expect("load appended history");
+        assert_eq!(history.len(), 4);
+        assert_eq!(history[0]["content"], "first");
+        assert_eq!(history[1]["content"], "answer");
+        assert_eq!(history[2]["tool_calls"][0]["id"], "call-1");
+        assert_eq!(history[3]["tool_call_id"], "call-1");
+        let rows = load_messages(session_id).expect("load raw rows");
+        assert_eq!(
+            rows.iter().map(|row| row.sequence).collect::<Vec<_>>(),
+            vec![0, 1, 2, 3]
+        );
+    }
+
+    #[test]
+    fn typed_materialization_preserves_partial_call_then_closes_it_in_a_suffix() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "append-native-partial-tool-call-test";
+        seed_session_for_message_tests(session_id);
+        seed_session_with_materialized_history(
+            session_id,
+            &[materialized_tool_call(
+                "tool-call-1",
+                "2026-08-30T00:00:00Z",
+                "call-1",
+                "read_file",
+            )],
+        )
+        .expect("an unresolved call is valid partial-turn history");
+
+        append_session_with_materialized_history(
+            session_id,
+            &[materialized_tool_result(
+                "tool-result-1",
+                "2026-08-30T00:00:01Z",
+                "call-1",
+                "read_file",
+            )],
+        )
+        .expect("a later suffix may close the persisted unresolved call");
+
+        let rows = load_messages(session_id).expect("load partial call history");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].role, shared::message_role::TOOL_CALL);
+        assert_eq!(rows[1].role, shared::message_role::TOOL_RESULT);
+    }
+
+    #[test]
+    fn typed_materialization_rejects_orphan_and_mismatched_tool_results() {
+        let _sandbox = test_env::sandbox();
+        let orphan_session = "append-native-orphan-tool-result-test";
+        seed_session_for_message_tests(orphan_session);
+        let orphan = materialized_tool_result(
+            "tool-result-orphan",
+            "2026-08-30T00:00:00Z",
+            "missing-call",
+            "read_file",
+        );
+        assert!(seed_session_with_materialized_history(orphan_session, &[orphan]).is_err());
+        assert!(load_messages(orphan_session)
+            .expect("load rejected orphan history")
+            .is_empty());
+
+        let mismatch_session = "append-native-mismatched-tool-result-test";
+        seed_session_for_message_tests(mismatch_session);
+        seed_session_with_materialized_history(
+            mismatch_session,
+            &[materialized_tool_call(
+                "tool-call-1",
+                "2026-08-30T00:00:00Z",
+                "call-1",
+                "read_file",
+            )],
+        )
+        .expect("seed unresolved call");
+        let mismatch = materialized_tool_result(
+            "tool-result-1",
+            "2026-08-30T00:00:01Z",
+            "call-1",
+            "write_file",
+        );
+        assert!(append_session_with_materialized_history(mismatch_session, &[mismatch]).is_err());
+        assert_eq!(
+            load_messages(mismatch_session)
+                .expect("load history after name mismatch")
+                .len(),
+            1,
+            "the invalid suffix must be rejected atomically"
+        );
+    }
+
+    #[test]
+    fn typed_materialization_rejects_duplicate_tool_call_ids() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "append-native-duplicate-tool-call-test";
+        seed_session_for_message_tests(session_id);
+        let duplicate_calls = [
+            materialized_tool_call("tool-call-1", "2026-08-30T00:00:00Z", "call-1", "read_file"),
+            materialized_tool_call("tool-call-2", "2026-08-30T00:00:01Z", "call-1", "read_file"),
+        ];
+
+        assert!(seed_session_with_materialized_history(session_id, &duplicate_calls).is_err());
+        assert!(load_messages(session_id)
+            .expect("load rejected duplicate-call history")
+            .is_empty());
+    }
+
+    #[test]
+    fn typed_materialization_accepts_a_fully_applied_suffix_once() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "append-native-idempotent-suffix-test";
+        seed_session_for_message_tests(session_id);
+        let suffix = [materialized_message(
+            "org2-native-v1.c291cmNlLTE.target",
+            "2026-08-30T00:00:00Z",
+            MaterializedHistoryRole::Assistant,
+            "answer",
+        )];
+
+        append_session_with_materialized_history(session_id, &suffix)
+            .expect("append native suffix");
+        append_session_with_materialized_history(session_id, &suffix)
+            .expect("retry committed suffix");
+
+        let rows = load_messages(session_id).expect("load idempotent suffix");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, "org2-native-v1.c291cmNlLTE.target");
+        assert_eq!(rows[0].sequence, 0);
+    }
+
+    #[test]
+    fn typed_materialization_rejects_missing_identity_metadata() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "append-native-missing-identity-test";
+        seed_session_for_message_tests(session_id);
+        let missing_id = materialized_message(
+            "",
+            "2026-08-30T00:00:00Z",
+            MaterializedHistoryRole::User,
+            "first",
+        );
+
+        assert!(append_session_with_materialized_history(session_id, &[missing_id]).is_err());
+        assert!(load_messages(session_id)
+            .expect("load rows after rejected append")
+            .is_empty());
+    }
+
+    #[test]
+    fn typed_materialization_rejects_mixed_or_conflicting_suffixes() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "append-native-conflicting-suffix-test";
+        seed_session_for_message_tests(session_id);
+        let first = materialized_message(
+            "org2-native-v1.Zmlyc3Q.target",
+            "2026-08-30T00:00:00Z",
+            MaterializedHistoryRole::User,
+            "first",
+        );
+        append_session_with_materialized_history(session_id, std::slice::from_ref(&first))
+            .expect("append first native row");
+
+        let mixed = [
+            first.clone(),
+            materialized_message(
+                "org2-native-v1.c2Vjb25k.target",
+                "2026-08-30T00:00:01Z",
+                MaterializedHistoryRole::Assistant,
+                "second",
+            ),
+        ];
+        assert!(append_session_with_materialized_history(session_id, &mixed).is_err());
+
+        let conflict = [materialized_message(
+            "org2-native-v1.Zmlyc3Q.target",
+            "2026-08-30T00:00:00Z",
+            MaterializedHistoryRole::User,
+            "different",
+        )];
+        assert!(append_session_with_materialized_history(session_id, &conflict).is_err());
+        let rows = load_messages(session_id).expect("load rows after rejected suffixes");
+        assert_eq!(rows.len(), 1, "failed retries must not append partial rows");
+        assert_eq!(rows[0].content, "first");
     }
 
     #[test]

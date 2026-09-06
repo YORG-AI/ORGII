@@ -246,8 +246,14 @@ export function useAtMention(options: UseAtMentionOptions): AtMentionHandlers {
         return;
       }
 
+      const audiencePath = (() => {
+        const target = option.audienceTarget;
+        if (!target) return `member://${encodeURIComponent(option.id)}`;
+        if (target.kind === "all") return "audience://all";
+        return `${target.kind}://${encodeURIComponent(target.id)}`;
+      })();
       composerInputRef.current.insertFilePill(
-        `member://${option.id}`,
+        audiencePath,
         false,
         "member",
         option.label

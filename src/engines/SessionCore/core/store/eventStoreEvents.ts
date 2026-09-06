@@ -1,4 +1,7 @@
-import { isBackendUserMessageEvent } from "@src/engines/SessionCore/sync/utils/activityIds";
+import {
+  isBackendUserMessageEvent,
+  turnIntentIdOf,
+} from "@src/engines/SessionCore/sync/utils/activityIds";
 
 import type { SessionEvent } from "../types";
 
@@ -17,6 +20,7 @@ export function isRealUserEvent(event: SessionEvent): boolean {
 
 export interface SyntheticEvictionScope {
   matchingContents: string[];
+  matchingTurnIntentIds: string[];
   olderThan?: string;
 }
 
@@ -32,9 +36,12 @@ export function syntheticEvictionScopeForRealUserEvents(
   events: SessionEvent[]
 ): SyntheticEvictionScope | null {
   const contents = new Set<string>();
+  const turnIntentIds = new Set<string>();
   let olderThan: string | undefined;
   for (const event of events) {
     if (!isRealUserEvent(event)) continue;
+    const turnIntentId = turnIntentIdOf(event);
+    if (turnIntentId) turnIntentIds.add(turnIntentId);
     if (event.displayText) contents.add(event.displayText);
     const message = event.result?.message;
     if (
@@ -49,6 +56,11 @@ export function syntheticEvictionScopeForRealUserEvents(
       olderThan = event.createdAt;
     }
   }
-  if (contents.size === 0 && !olderThan) return null;
-  return { matchingContents: [...contents], olderThan };
+  if (contents.size === 0 && turnIntentIds.size === 0 && !olderThan)
+    return null;
+  return {
+    matchingContents: [...contents],
+    matchingTurnIntentIds: [...turnIntentIds],
+    olderThan,
+  };
 }

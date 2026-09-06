@@ -150,7 +150,7 @@ authors = ["you"]
 license = "AGPL-3.0-or-later"
 repository = ""
 edition = "2021"
-rust-version = "1.85.0"
+rust-version = "1.89.0"
 default-run = "org2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -201,7 +201,7 @@ tauri-plugin-notification = "2"
 tauri-plugin-webdriver-automation = { version = "0.1", optional = true }
 portable-pty = "0.9"
 tokio = { workspace = true }
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "v5"] }
 flate2 = "1"
 tar = "0.4"
 plist = "1"
@@ -525,6 +525,7 @@ tauri-plugin-single-instance = { version = "2.0.0", features = ["deep-link"] }
 windows = { version = "0.61", features = [
   "Win32_Foundation",
   "Win32_Graphics_Dwm",
+  "Win32_Storage_FileSystem",
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]

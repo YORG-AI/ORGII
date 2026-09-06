@@ -9,7 +9,6 @@ import type {
   CliSessionStatus,
 } from "@src/types/session/session";
 
-import { registerSessionTranscriptSource } from "../../nativeTranscriptReconcile";
 import type { PostLoadResult } from "../../types";
 
 const log = createLogger("CliAdapter");
@@ -42,6 +41,20 @@ export async function loadCliHistory(
   return events.map(convertResultImages);
 }
 
+/**
+ * Read the provider file set's opaque revision through the same Rust binding
+ * that owns CLI transcript replay. `undefined` means this is a legacy DB
+ * transcript; `null` means a native transcript is currently
+ * unbound/unavailable and must not be cached as a stable canonical snapshot.
+ */
+export async function loadCliTranscriptRevision(
+  sessionId: string
+): Promise<string | null | undefined> {
+  const result = await rpc.cli.transcriptRevision({ sessionId });
+  if (!result.native) return undefined;
+  return result.revision ?? null;
+}
+
 export async function postLoadCliSession(
   sessionId: string,
   signal: AbortSignal
@@ -53,7 +66,9 @@ export async function postLoadCliSession(
     })) as StoredSession | null;
     if (signal.aborted || !storedSession) return result;
 
-    registerSessionTranscriptSource(sessionId, storedSession.transcriptSource);
+    if (storedSession.transcriptSource) {
+      result.transcriptSource = storedSession.transcriptSource;
+    }
 
     if (typeof storedSession.totalTokens === "number") {
       result.contextTokens = storedSession.totalTokens;

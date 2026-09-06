@@ -1,102 +1,94 @@
-# Conversation Events Plane — the real fix for "it's just one session"
+# Canonical conversation continuation
 
-2026-08-21. User directive: chatting in a conversation must NOT be a fork —
-forks exist only behind the explicit Fork button. This design removes the
-fork machinery from implicit continuation entirely by giving conversations
-their own **multi-writer event plane** on the cloud, mirroring the proven
-session-comments wire.
+This document records the current continuation contract. A conversation is a
+single canonical event history that can be resumed by any supported native
+runtime. Switching runtime is not a fork and does not flatten history into a
+prompt.
 
-## Model
+## Authority and projection
 
-- A **conversation** is keyed by `(org_id, root_session_id)` — the family
-  root's bare session id. It OUTLIVES the root session row (retention
-  expiry of the oldest segment must never mute the conversation — observed
-  live 2026-08-21 with ORG2_RETENTION_EXPIRED).
-- The owner's own session transcript stays the base timeline (owner-only
-  push unchanged) — AND every owner turn is ALSO published to the plane
-  (user row at dispatch, agent tail at terminal, one turnId) under the
-  local event ids, so the plane carries every turn of the conversation and
-  its seq is the one total order. Clients fold plane rows onto their local
-  twins (owner transcript, imported replay copies) by turn-intent id for
-  user rows and by source event id for the rest; pre-plane history keeps
-  the timestamp merge.
-- Any other member's turn runs on THEIR machine (sender-runs/sender-pays)
-  in a **local runner session** that is: created empty (external-history
-  fork pattern — context injected, never copied), per-session sync OFF
-  (never pushed as a session row), invisible in every session list.
-- On turn completion the runner's new events are pushed to
-  `cloud_conversation_events` with the author's identity; every client
-  merges `owner transcript + conversation plane + discussion` into ONE
-  stream (the merge/attribution/rendering pipeline from the fork-stitching
-  work is reused verbatim — turn-plane events are normalized SessionEvents
-  with a `conversationSender` stamp).
-- Context continuity: EVERY send (owner included) prefixes the agent
-  content with a rendered delta of conversation events the executing
-  session has not yet seen (per-runner cursor). Display text stays the
-  user's words; the delta rides agentContent (the projection contract from
-  the external-history fork path).
+- `SessionEvent[]` is the provider-neutral authority for roles, completed tool
+  call/result pairs, images, compaction summaries, delivery state and sender
+  provenance.
+- Codex and Claude Code histories are projections of that authority into each
+  provider's native role/tool transcript format.
+- A target provider receives the complete verified canonical prefix as native
+  messages. The new user turn is delivered once through the provider's normal
+  send path.
+- Provider-private reasoning and policy are not portable. Interrupted turns
+  retain the accepted user event, completed assistant output and closed tool
+  pairs; unresolved tool calls are not projected into another provider.
+- Round-trip parsing must reproduce the same portable semantic items before a
+  materialization can be used.
 
-## Cloud (migration 0024_conversation_events.sql)
+## Identity and runtime switching
 
-- Table `cloud_conversation_events(id, org_id, root_session_id,
-author_user_id, turn_id, seq, event jsonb, created_at)`.
-  - `seq` server-assigned per conversation under
-    `pg_advisory_xact_lock(hash(org_id, root_session_id))` (0015 pattern).
-  - Event cap 64KB each, ≤200 events per push call; oversized payloads are
-    truncated client-side before push with a marker.
-  - No FK to cloud_sessions: the plane outlives the root row.
-- Counters table `cloud_conversations(org_id, root_session_id, event_count,
-prompt_count, last_event_at)` maintained under the same lock — feeds
-  listing badges without count(\*) scans.
-- RPCs (definer, RPC-only posture, org-membership asserted; visibility
-  honors the root session's access ladder WHILE the row exists, falls back
-  to org-wide once it ages out; read-time retention on event created_at —
-  soft, Slack model):
-  - `cloud_push_conversation_events(p_org_id, p_root_session_id, p_turn_id,
-p_events jsonb[])` → `{firstSeq, lastSeq}`; batch-append so live
-    streaming of a running turn is a client cadence choice, not a schema
-    change.
-  - `cloud_list_conversation_events(p_org_id, p_root_session_id,
-p_after_seq, p_limit)` → ordered rows + authors.
-- Signal: new kind `conversationEvents` via `nudge_org_signal` (dedicated
-  trigger fn, 0015 precedent) + client presence-channel broadcast
-  (comments-bus pattern) for sub-second delivery.
-- `cloud_list_org_sessions`: additive per-row `conversationEventCount` /
-  `conversationPromptCount` (joined from the counters table by
-  root_session_id == sourceSessionId).
-- `get_cloud_capabilities()` gains `conversationEvents: true` — the client
-  feature gate; pre-plane backends keep the fork-wire fallback.
-- GDPR: export includes authored events; account deletion removes them
-  (cloud_session_comments precedent for personal content). Both functions
-  recreated from their LATEST bodies (delete: 0016, export: 0003) with
-  additive blocks.
+- A canonical root identifies the conversation independently of any execution
+  episode.
+- Each compatible runtime/account/workspace binding may keep its own native
+  UUID. Switching `Codex -> Claude Code -> Codex` synchronizes only the missing
+  canonical suffix and reuses the earlier Codex UUID when it is still valid.
+- The normal New Session runtime/model selectors choose the next target. No
+  continuation-only workspace dialog or model registry exists.
+- Native transcripts and the provider application catalog are published as one
+  lifecycle. A native-format JSONL file alone is not advertised as visible in
+  Codex or Claude Desktop.
 
-## Client (ORGII)
+## Delivery and concurrency
 
-1. Protocol: `org2CloudConversationEventsClient` + per-conversation atom
-   (after_seq cursor, LWW merge), realtime bump on the `conversationEvents`
-   signal kind + broadcast bus.
-2. Read: ConversationStreamProvider merges plane events (author-stamped)
-   after the base segments; dedup by turn against optimistic local copies.
-3. Write: `conversation runner` — registry `rootSessionId → runner session`
-   (per device); created via the continuation setup flow (setup memory
-   applies, so no dialog after the first time anywhere in the org repo
-   scope); per-session sync forced OFF; hidden from session lists.
-   Turn watch = event-marker based (never bare terminal status — the
-   stale-reply race), then push the turn's events.
-4. Send routing (capability-gated): implicit sends in any conversation
-   surface go to the runner+plane; the fork-before-send and tip-follow
-   paths remain ONLY as the fallback for pre-plane backends. The explicit
-   Fork button keeps real forking (a deliberate branch = a new
-   conversation).
-5. Unread: family badge adds conversationPromptCount to the aggregate;
-   seen watermark unchanged (counts ride the same ratchet).
+- `messageQueueAtom` is the only durable client dispatcher for ordinary sends,
+  imported histories, My Sessions and Team Sessions.
+- A queued row owns one stable `turnIntentId` across optimistic display,
+  provider acceptance, restart recovery and Cloud publication.
+- The existing queue FSM owns queued/preparing/accepted state, retry deadlines,
+  Stop/Send Now behavior and follow-up ordering. Continuation code does not add
+  a second wake counter, queue, footer FSM or scroll/follow implementation.
+- A Web Lock only prevents two webviews on the same app instance from mutating
+  one canonical root concurrently. For a backend that advertises
+  `conversationTurnCoordination`, Cloud additionally admits Agent-directed
+  turns into a per-canonical-root FIFO and lets the author's device claim only
+  the head. The claim lease is renewed while the local provider run proceeds.
+- A `claimed` turn whose lease expires before provider acceptance may be
+  reclaimed. Immediately before provider dispatch, the owner marks the turn
+  `accepted`; accepted ownership cannot move to another device. A renewal
+  failure after that point therefore fails closed instead of causing a second
+  provider run, and the accepting device must recover publication/finalization.
+- Backends without the capability keep the existing idempotent event push/list
+  workflow. The client does not call coordination RPCs or add a fallback
+  dispatcher, poller, or watcher.
+- Failed outgoing messages remain visible with their original body, images and
+  mentions and can be retried or edited. Pre-send validation failures leave the
+  composer unchanged.
 
-## Explicitly deferred
+## Team Sessions and Team Chat
 
-- Live streaming of in-flight turns to OTHER clients (plane supports it;
-  client pushes at turn completion in v1). The sender's own surface overlays
-  the runner's live events and scopes the working indicator to the runner.
-- Migrating Team chat (comments) onto the same plane.
-- Backfilling legacy fork families into planes (they keep the stitched
-  read path indefinitely).
+- Cloud stores the shared canonical event plane and assigns a monotonic
+  per-conversation sequence under the existing advisory lock.
+- Push idempotency is `(org, root, turnIntentId, event.id)`. The Cloud never
+  receives a user's provider key and does not execute a native runtime.
+- Human Team Chat comments are canonical user-role events with structured
+  sender provenance. `@member` and `@all` determine human notification audience;
+  they do not create a second transcript.
+- Agent reports remain non-portable system cards.
+- The event plane remains multi-writer for durable transcript publication.
+  Capability-gated turn coordination orders Agent execution per root without
+  turning Cloud into an execution host; Team Chat remains outside that claim
+  lifecycle.
+
+## Context exhaustion
+
+- Compaction is triggered only after the provider reports context exhaustion.
+- If the accepted attempt has no replay-unsafe tool or assistant side effects,
+  the provider may use its native compact/rollover capability.
+- Otherwise ORG2 creates a fresh native episode from the structured canonical
+  role/tool list and retries the accepted user turn once. It never works around
+  exhaustion by embedding the transcript in one user prompt.
+- The new native UUID remains attached to the same canonical root.
+
+## Surface adapters
+
+- My Session, imported history and Team Session surfaces provide only root
+  identity, event loading/publication and target selection.
+- Work Item comments may trigger this mechanism in the future, but Work Item
+  code must remain a thin adapter and cannot own continuation, queue or provider
+  materialization semantics.

@@ -4,6 +4,7 @@ import {
   fetchWithTransportRetry,
   fetchWithTransportRetryAndTimeout,
   isFetchTransportError,
+  isRetryableCloudRequestError,
   runCloudRequestWithTimeout,
 } from "./org2CloudFetchRetry";
 
@@ -169,5 +170,34 @@ describe("isFetchTransportError", () => {
     expect(isFetchTransportError(new Error("Load failed"))).toBe(false);
     expect(isFetchTransportError("Load failed")).toBe(false);
     expect(isFetchTransportError(null)).toBe(false);
+  });
+});
+
+describe("isRetryableCloudRequestError", () => {
+  it("keeps only ambiguous transport, timeout, and 5xx failures retryable", () => {
+    expect(isRetryableCloudRequestError(new TypeError("Load failed"))).toBe(
+      true
+    );
+    expect(
+      isRetryableCloudRequestError(
+        new DOMException("Cloud request timed out.", "TimeoutError")
+      )
+    ).toBe(true);
+    expect(isRetryableCloudRequestError({ status: 503 })).toBe(true);
+    expect(
+      isRetryableCloudRequestError({
+        status: null,
+        recoveryPending: true,
+      })
+    ).toBe(true);
+  });
+
+  it("treats deterministic 4xx and client validation failures as terminal", () => {
+    expect(isRetryableCloudRequestError({ status: 400 })).toBe(false);
+    expect(isRetryableCloudRequestError({ status: 401 })).toBe(false);
+    expect(isRetryableCloudRequestError({ status: 404 })).toBe(false);
+    expect(isRetryableCloudRequestError(new Error("ORG2_VALIDATION"))).toBe(
+      false
+    );
   });
 });

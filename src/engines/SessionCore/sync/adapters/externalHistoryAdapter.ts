@@ -173,10 +173,35 @@ async function loadExternalHistory(
   return signal.aborted ? [] : events;
 }
 
+async function loadAuthoritativeExternalHistory(
+  sessionId: string,
+  signal: AbortSignal
+): Promise<SessionEvent[]> {
+  const source = getImportedHistorySourceBySessionId(sessionId);
+  if (!source) {
+    throw new Error(
+      `No imported-history source is registered for ${sessionId}`
+    );
+  }
+  if (signal.aborted) return [];
+
+  // Do not reuse the UI preview cache here. Native continuation and migration
+  // require every durable role/tool event, including the prefix intentionally
+  // omitted by a large transcript's initial viewport window.
+  const chunks = await source.loadFullTranscriptChunks(sessionId);
+  if (signal.aborted || !Array.isArray(chunks) || chunks.length === 0) {
+    return [];
+  }
+  const events = await processChunksRust(chunks, sessionId);
+  return signal.aborted ? [] : events;
+}
+
 export const externalHistoryAdapter: ExternalHistorySessionAdapter = {
   category: "external_history",
 
   loadHistory: loadExternalHistory,
+
+  loadAuthoritativeHistory: loadAuthoritativeExternalHistory,
 
   loadHistoryFromObservedSignature: (sessionId, signal, observedSignature) =>
     loadExternalHistory(sessionId, signal, observedSignature),

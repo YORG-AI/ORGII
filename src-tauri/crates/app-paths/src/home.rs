@@ -20,6 +20,21 @@ pub fn external_history_home_dir() -> PathBuf {
     external_history_home_override().unwrap_or_else(home_dir)
 }
 
+/// User-home root where newly materialized provider-native transcripts live.
+///
+/// Production shares the ordinary external-history home so continuations are
+/// visible in the provider's native app. Tests may separate bounded discovery
+/// from publication with `ORGII_NATIVE_TRANSCRIPT_HOME`.
+pub fn native_transcript_home_dir() -> PathBuf {
+    native_transcript_home_override().unwrap_or_else(external_history_home_dir)
+}
+
+fn native_transcript_home_override() -> Option<PathBuf> {
+    std::env::var_os("ORGII_NATIVE_TRANSCRIPT_HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+}
+
 fn external_history_home_override() -> Option<PathBuf> {
     std::env::var_os("ORGII_EXTERNAL_HISTORY_HOME")
         .filter(|value| !value.is_empty())
@@ -185,6 +200,31 @@ mod tests {
         assert_eq!(
             external_history_xdg_config_dir(),
             Some(PathBuf::from("/home/tester/.config")),
+        );
+    }
+
+    #[test]
+    fn native_transcript_home_defaults_to_external_history_home() {
+        let _lock = env_lock();
+        let _native = EnvVarGuard::unset("ORGII_NATIVE_TRANSCRIPT_HOME");
+        let _external = EnvVarGuard::set("ORGII_EXTERNAL_HISTORY_HOME", "/tmp/orgii-discovery");
+
+        assert_eq!(
+            native_transcript_home_dir(),
+            PathBuf::from("/tmp/orgii-discovery")
+        );
+    }
+
+    #[test]
+    fn native_transcript_home_can_be_separate_from_discovery() {
+        let _lock = env_lock();
+        let _external = EnvVarGuard::set("ORGII_EXTERNAL_HISTORY_HOME", "/tmp/orgii-discovery");
+        let _native = EnvVarGuard::set("ORGII_NATIVE_TRANSCRIPT_HOME", "/Users/tester");
+
+        assert_eq!(native_transcript_home_dir(), PathBuf::from("/Users/tester"));
+        assert_eq!(
+            external_history_home_dir(),
+            PathBuf::from("/tmp/orgii-discovery")
         );
     }
 

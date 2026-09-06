@@ -663,7 +663,6 @@ export interface E2EHelpers {
       isPendingCancel: boolean;
       isQueueEditing: boolean;
       userInitiatedCancel: boolean;
-      queueFlushRequest: number;
       queuedMessages: Array<{ id: string; sessionId: string; content: string }>;
       runtimeError: string | null;
       rawEvents: Array<{

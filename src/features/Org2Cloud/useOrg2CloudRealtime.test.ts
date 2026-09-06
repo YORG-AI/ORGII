@@ -8,6 +8,7 @@ import { activeSessionIdAtom } from "@src/store/session/viewAtom";
 import { chatPanelSelectedCloudOrgAtom } from "@src/store/ui/chatPanelAtom";
 import { type SmokeRoot, createSmokeRoot } from "@src/test/reactSmokeHarness";
 
+import { conversationPlaneSignalAtom } from "./SessionConversation/conversationPlaneAtom";
 import { org2CloudAuthAtom } from "./org2CloudAuthAtom";
 import {
   type Org2CloudOrg,
@@ -20,6 +21,7 @@ import type {
   Org2CloudRealtimeConnection,
   Org2CloudSubscribeOptions,
 } from "./org2CloudRealtimeClient";
+import { REALTIME_SIGNAL_COALESCE_MS } from "./org2CloudRealtimeSignalCoalescer";
 import { useOrg2CloudRealtime } from "./useOrg2CloudRealtime";
 
 const mocks = vi.hoisted(() => ({
@@ -377,5 +379,43 @@ describe("useOrg2CloudRealtime lifecycle", () => {
     expect(connection.dispose).toHaveBeenCalledOnce();
     expect(connection.presences[0]?.handle.leave).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(baselineTimerCount);
+  });
+
+  it("invalidates the canonical conversation plane on every visible subscribed edge", async () => {
+    await mount();
+    const connection = connections[0]!;
+    const signalSubscription = subscription(
+      connection,
+      "org_change_signals",
+      "org_id=eq.org-a"
+    );
+    const before = store.get(conversationPlaneSignalAtom)["org-a"] ?? 0;
+
+    act(() => signalSubscription.options.onStatus?.(true));
+    const afterFull = store.get(conversationPlaneSignalAtom)["org-a"] ?? 0;
+    expect(afterFull).toBe(before + 1);
+
+    act(() => signalSubscription.options.onStatus?.(true));
+    expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(afterFull + 1);
+  });
+
+  it("owns short foreground recovery once and coalesces duplicate browser edges", async () => {
+    const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    await mount();
+    const before = store.get(conversationPlaneSignalAtom)["org-a"] ?? 0;
+
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(before + 1);
+
+    act(() => {
+      vi.advanceTimersByTime(REALTIME_SIGNAL_COALESCE_MS);
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(before + 2);
+    hasFocus.mockRestore();
   });
 });

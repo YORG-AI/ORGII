@@ -33,6 +33,9 @@ export interface AgentOption {
   isOrg: boolean;
   /** Credential accounts represented by the selector's availability count. */
   availableKeys?: KeyVaultAccount[];
+  /** Keep capability-gated runtimes visible without allowing a lossy launch. */
+  disabled?: boolean;
+  disabledLabel?: string;
   rightContent?: React.ReactNode;
 }
 
@@ -49,6 +52,11 @@ export interface DispatchCategoryPaletteProps extends BasePaletteProps {
   hideOrgs?: boolean;
   /** Omit CLI agents from contexts that only support Rust-native sessions. */
   hideCliAgents?: boolean;
+  /**
+   * Capability gate for contextual execution paths. Installed CLI rows remain
+   * visible, but runtimes outside this set are disabled instead of disappearing.
+   */
+  allowedCliAgentTypes?: readonly CliAgentType[];
   /**
    * When true only CLI agent entries are shown. Used by CLI-only picker surfaces.
    */

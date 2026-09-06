@@ -25,11 +25,19 @@ const message = makeChatItem(
 const headers = [message];
 const interactionRef = { current: 0 };
 
-function Header({ paginated }: { paginated: boolean }) {
+function Header({
+  paginated,
+  groupHeaders = headers,
+  onFailedUserIntentEdit,
+}: {
+  paginated: boolean;
+  groupHeaders?: typeof headers;
+  onFailedUserIntentEdit?: () => void;
+}) {
   const renderHeader = useGroupHeaderRenderer({
     displaySourceGroupIndices: [0],
     sourceGroupCount: 1,
-    displayGroupHeaders: headers,
+    displayGroupHeaders: groupHeaders,
     displayGroupMeta: [],
     displayGroupCount: 1,
     turnPaginationEnabled: paginated,
@@ -38,6 +46,7 @@ function Header({ paginated }: { paginated: boolean }) {
     defaultTurnCollapsed: false,
     turnCollapseInteractionAtRef: interactionRef,
     onEditSubmit: undefined,
+    onFailedUserIntentEdit,
     onRestoreCheckpoint: undefined,
   });
   return renderHeader(0);
@@ -152,5 +161,70 @@ describe("continuous chat user-message previews", () => {
 
     act(() => root.render(null));
     expect(disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Retry and edit actions on a rehydrated failed user turn", () => {
+    const retry = vi.fn();
+    const failed = makeChatItem(
+      makeSessionEvent({
+        id: "queued-user:restart:",
+        source: "user",
+        actionType: "raw",
+        functionName: "user_message",
+        displayText: "retry after restart",
+        displayVariant: "message",
+        displayStatus: "failed",
+        result: {
+          syntheticUserInput: true,
+          deliveryStatus: "failed",
+          deliveryError: "provider unavailable",
+          turnIntentId: "turn-restart",
+          message: { role: "user", content: "retry after restart" },
+        },
+      })
+    );
+
+    act(() =>
+      root.render(
+        createElement(Header, {
+          paginated: false,
+          groupHeaders: [failed],
+          onFailedUserIntentEdit: retry,
+        })
+      )
+    );
+
+    const retryButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="chat-message-delivery-retry"]'
+    );
+    const editButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="chat-message-user-edit-button"]'
+    );
+    expect(retryButton).not.toBeNull();
+    expect(editButton).not.toBeNull();
+    act(() => retryButton!.click());
+    expect(retry).toHaveBeenCalledWith(
+      failed,
+      "retry after restart",
+      undefined
+    );
+  });
+
+  it("does not enable mutation actions for accepted read-only history", () => {
+    act(() =>
+      root.render(
+        createElement(Header, {
+          paginated: false,
+          onFailedUserIntentEdit: vi.fn(),
+        })
+      )
+    );
+
+    expect(
+      container.querySelector('[data-testid="chat-message-delivery-retry"]')
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="chat-message-user-edit-button"]')
+    ).toBeNull();
   });
 });

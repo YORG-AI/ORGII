@@ -12,6 +12,12 @@ import type { Session } from "@src/store/session/sessionAtom/types";
 import { sha256Hex } from "../collabSyncUtils";
 import { namespaceCopyEventId } from "../copyEventId";
 
+const IMPORTED_SESSION_ID_PREFIX = "imported-session-";
+
+export function isImportedSessionId(sessionId: string): boolean {
+  return sessionId.startsWith(IMPORTED_SESSION_ID_PREFIX);
+}
+
 /**
  * Deterministic local session id for a teammate-session import, derived from
  * (endpoint, orgId, sourceSessionId). A FAILED import (durable cache write returned 0)
@@ -27,7 +33,7 @@ export async function deriveImportedSessionId(
   const digest = await sha256Hex(
     `${normalizeSourceEndpointUrl(sourceEndpointUrl)}:${orgId}:${sourceSessionId}`
   );
-  return `imported-session-${digest.slice(0, 32)}`;
+  return `${IMPORTED_SESSION_ID_PREFIX}${digest.slice(0, 32)}`;
 }
 
 export function normalizeSourceEndpointUrl(value: string): string {
@@ -46,15 +52,32 @@ export function rewriteEventsForImportedSnapshot(
   events: SessionEvent[],
   localSessionId: string
 ): SessionEvent[] {
-  return events.map((event) => ({
-    ...event,
-    id: namespaceCopyEventId(localSessionId, event.id),
-    chunk_id:
-      event.chunk_id == null
-        ? event.chunk_id
-        : namespaceCopyEventId(localSessionId, event.chunk_id),
-    sessionId: localSessionId,
-  }));
+  return events.map((event) => {
+    // Older cloud snapshots and lightweight exporters did not always emit
+    // the two renderer-only fields below. Normalize them at the shared import
+    // boundary so every Cloud plane (Team Session, personal sync, a future
+    // provider import) reaches the same durable canonical schema before the
+    // SQLite RPC validates it.
+    const activityStatus =
+      event.activityStatus === "agent" ||
+      event.activityStatus === "pending" ||
+      event.activityStatus === "processed"
+        ? event.activityStatus
+        : event.source === "user"
+          ? "processed"
+          : "agent";
+
+    return {
+      ...event,
+      id: namespaceCopyEventId(localSessionId, event.id),
+      chunk_id:
+        event.chunk_id == null
+          ? null
+          : namespaceCopyEventId(localSessionId, event.chunk_id),
+      sessionId: localSessionId,
+      activityStatus,
+    };
+  });
 }
 
 /** Legacy (pre-M3) shape: import provenance JSON-encoded in error_message. */

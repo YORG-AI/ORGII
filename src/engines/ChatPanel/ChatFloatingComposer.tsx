@@ -70,6 +70,7 @@ interface ChatFloatingComposerProps {
   chatPanelPosition: "left" | "right";
   sessionId: string;
   inputAreaSessionId: string;
+  controlSessionId?: string | null;
   currentPlanApproval: PendingPlanApproval | null | undefined;
   shouldShowCurrentPlanSurface: boolean;
   currentPlanSurfaceState: Parameters<typeof CreatePlanCard>[0]["surfaceState"];
@@ -124,6 +125,7 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
     chatPanelPosition,
     sessionId,
     inputAreaSessionId,
+    controlSessionId,
     currentPlanApproval,
     shouldShowCurrentPlanSurface,
     currentPlanSurfaceState,
@@ -334,6 +336,7 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
             omitChatHeader
             chatPanelPosition={chatPanelPosition}
             sessionId={inputAreaSessionId}
+            controlSessionId={controlSessionId}
             onSubmitOverride={onSubmitOverride}
             customMentionOptions={customMentionOptions}
             topRowPills={

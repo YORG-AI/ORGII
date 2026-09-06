@@ -195,14 +195,21 @@ export class Org2CloudSessionSyncState {
     return now - changedAt >= EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS;
   }
 
-  protected isEventPlaneClean(orgId: string, session: Session): boolean {
+  protected isEventPlaneClean(
+    orgId: string,
+    session: Session,
+    localExecutionRevision?: string | null
+  ): boolean {
     const clean = this.cleanEventPlanes.get(session.session_id)?.get(orgId);
     if (!clean) return false;
     // EventStore notifications clear this stamp immediately; the durable
     // session version is the backstop for writes missed while the renderer
     // was suspended. A verified unchanged version stays clean for the app
     // lifetime instead of forcing a full-history reread every ten minutes.
-    return clean.sourceUpdatedAt === session.updated_at;
+    return (
+      clean.sourceUpdatedAt === session.updated_at &&
+      clean.localExecutionRevision === localExecutionRevision
+    );
   }
 
   protected markEventPlaneClean(
@@ -210,10 +217,15 @@ export class Org2CloudSessionSyncState {
     session: Session,
     stampAtRead: number,
     verifiedAt = Date.now(),
-    localContentRevision?: number
+    localContentRevision?: number,
+    localExecutionRevision?: string | null
   ): void {
     const sessionId = session.session_id;
     if ((this.eventActivityStamps.get(sessionId) ?? 0) !== stampAtRead) return;
+    // A child was created or updated while the canonical replay was being
+    // read. The upload is still safe, but it is not a clean-plane proof; the
+    // next activity pass must take another authoritative snapshot.
+    if (localExecutionRevision === null) return;
     let byOrg = this.cleanEventPlanes.get(sessionId);
     if (!byOrg) {
       byOrg = new Map();
@@ -222,6 +234,9 @@ export class Org2CloudSessionSyncState {
     byOrg.set(orgId, {
       verifiedAt,
       sourceUpdatedAt: session.updated_at,
+      ...(localExecutionRevision !== undefined
+        ? { localExecutionRevision }
+        : {}),
     });
     const cursor = this.getCursor(orgId, sessionId);
     if (!cursor) return;

@@ -122,11 +122,14 @@ export function shouldRestoreStoppedUserMessage(options: {
 }
 
 interface UseSessionActionsOptions {
-  getSessionId: () => string | null;
+  getControlSessionId: () => string | null;
+  getQueueSessionId: () => string | null;
+  restoreStoppedMessage: boolean;
 }
 
 export function useSessionActions(options: UseSessionActionsOptions) {
-  const { getSessionId } = options;
+  const { getControlSessionId, getQueueSessionId, restoreStoppedMessage } =
+    options;
   const { t } = useTranslation("sessions");
   const store = useStore();
   const setPendingCancel = useSetAtom(isPendingCancelAtom);
@@ -138,7 +141,7 @@ export function useSessionActions(options: UseSessionActionsOptions) {
   }, []);
 
   const resumeSession = useCallback(async () => {
-    const sessionId = getSessionId();
+    const sessionId = getControlSessionId();
     if (!sessionId) {
       Message.error(t("errors.noSessionIdFound"));
       return;
@@ -160,7 +163,7 @@ export function useSessionActions(options: UseSessionActionsOptions) {
       failOptimisticTurn(sessionId);
       Message.error(t("errors.failedToResume"));
     }
-  }, [getSessionId, t]);
+  }, [getControlSessionId, t]);
 
   /**
    * Interrupt the current turn (user Stop).
@@ -168,29 +171,34 @@ export function useSessionActions(options: UseSessionActionsOptions) {
    * Send Now interrupts are NOT routed here — the queue dispatcher issues its
    * own "force-send" timeline boundary.
    *
-   * Stop is an O(1) timeline boundary: it updates local runtime state, restores
-   * the click-time prompt to the composer, and signals Rust cancellation. It
-   * must not read/repair DB history or scan/mutate the EventStore.
+   * Stop is an O(1) timeline boundary: it updates local runtime state and
+   * signals Rust cancellation. Ordinary sessions may restore an unrendered
+   * click-time prompt; canonical conversations already own a durable user row,
+   * so their hidden execution episode must never restore a duplicate prompt.
+   * The boundary must not read/repair DB history or scan/mutate the EventStore.
    */
   const interruptSession = useCallback(async () => {
-    const sessionId = getSessionId();
+    const sessionId = getControlSessionId();
     if (!sessionId) {
       log.error("[useSessionActions] No session ID found for interrupt");
       return;
     }
 
-    beginStopBoundary(sessionId);
+    const queueSessionId = getQueueSessionId() ?? sessionId;
+    beginStopBoundary(sessionId, { queueSessionId });
     setSessionRolledBack(false);
 
     const pendingSyntheticEvent = store.get(pendingSyntheticEventAtom);
-    const currentUserMessage = resolveRestorableUserMessage({
-      lastUserMessage: store.get(lastUserMessageAtom),
-      pendingDisplayText:
-        pendingSyntheticEvent?.source === "user"
-          ? pendingSyntheticEvent.displayText
-          : undefined,
-      pendingImages: pendingSyntheticEvent?.result?.images,
-    });
+    const currentUserMessage = restoreStoppedMessage
+      ? resolveRestorableUserMessage({
+          lastUserMessage: store.get(lastUserMessageAtom),
+          pendingDisplayText:
+            pendingSyntheticEvent?.source === "user"
+              ? pendingSyntheticEvent.displayText
+              : undefined,
+          pendingImages: pendingSyntheticEvent?.result?.images,
+        })
+      : null;
 
     const restorableMessage = currentUserMessage;
     if (
@@ -237,6 +245,7 @@ export function useSessionActions(options: UseSessionActionsOptions) {
       }, 10_000);
 
       await cancelTurnForTimelineBoundary(sessionId, "stop", {
+        queueSessionId,
         onError: (msg: string) => {
           Message.error(t(msg));
           setPendingCancel(false);
@@ -252,7 +261,9 @@ export function useSessionActions(options: UseSessionActionsOptions) {
       });
     })();
   }, [
-    getSessionId,
+    getControlSessionId,
+    getQueueSessionId,
+    restoreStoppedMessage,
     setPendingCancel,
     setRestoreToInput,
     setSessionRolledBack,

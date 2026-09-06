@@ -19,7 +19,10 @@ import type { UseChatHistoryStateReturn } from "../hooks/useChatHistoryState";
 import type { useChatNavigationController } from "../hooks/useChatNavigationController";
 import type { UseChatSearchReturn } from "../hooks/useChatSearch";
 import type { useChatViewportController } from "../hooks/useChatViewportController";
-import { useGroupHeaderRenderer } from "../hooks/useGroupHeaderRenderer";
+import {
+  isRetryableFailedUserIntentHeader,
+  useGroupHeaderRenderer,
+} from "../hooks/useGroupHeaderRenderer";
 import type { useReloadSession } from "../hooks/useReloadSession";
 import ChatHistoryEmptyState from "./ChatHistoryEmptyState";
 import ChatPinnedHeaderLayer from "./ChatPinnedHeaderLayer";
@@ -233,6 +236,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
     defaultTurnCollapsed,
     turnCollapseInteractionAtRef,
     onEditSubmit: mutationActionsDisabled ? undefined : handleEditUserMessage,
+    onFailedUserIntentEdit: handleEditUserMessage,
     onRestoreCheckpoint: mutationActionsDisabled
       ? undefined
       : handleHeaderRestoreCheckpoint,
@@ -314,7 +318,10 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
       defaultTurnCollapsed={defaultTurnCollapsed}
       turnCollapseInteractionAtRef={turnCollapseInteractionAtRef}
       onEditSubmit={
-        mutationActionsDisabled ? undefined : handlePinnedEditSubmit
+        mutationActionsDisabled &&
+        !isRetryableFailedUserIntentHeader(activePinnedHeader)
+          ? undefined
+          : handlePinnedEditSubmit
       }
       onRestoreCheckpoint={
         mutationActionsDisabled ? undefined : handleHeaderRestoreCheckpoint

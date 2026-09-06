@@ -101,6 +101,46 @@ fn cached_event_normalizes_legacy_string_args() {
 }
 
 #[test]
+fn cached_event_repairs_legacy_image_only_raw_user_metadata() {
+    let images = ["data:image/png;base64,QUJD", "data:image/webp;base64,REVG"];
+    let cached = session_persistence::CachedEvent {
+        id: "claudecode-user-107".to_string(),
+        session_id: "imported-session-legacy-image-user".to_string(),
+        event_type: "raw".to_string(),
+        function_name: Some("user".to_string()),
+        thread_id: None,
+        args_json: "{}".to_string(),
+        result_json: serde_json::json!({
+            "images": images,
+            "message": { "content": "", "role": "user" },
+            "type": "user"
+        })
+        .to_string(),
+        content: "Activity".to_string(),
+        created_at: "2026-08-21T00:00:00.000Z".to_string(),
+        meta_json: Some(
+            serde_json::json!({
+                "source": "assistant",
+                "displayText": "Activity",
+                "displayStatus": "completed",
+                "displayVariant": "tool_call",
+                "activityStatus": "agent",
+                "uiCanonical": "user"
+            })
+            .to_string(),
+        ),
+        history_sequence: Some(107),
+    };
+
+    let event = cached_event_to_session_event(&cached);
+
+    assert_eq!(event.source, EventSource::User);
+    assert_eq!(event.display_variant, EventDisplayVariant::Message);
+    assert_eq!(event.display_text, "");
+    assert_eq!(event.result["images"], serde_json::json!(images));
+}
+
+#[test]
 fn rust_authoritative_ids_do_not_match() {
     assert!(!is_ts_placeholder_id(
         "stream-msg-sdeagent-a91612f3-4f94-4fac-a0c2-f6e85f0c1f63-1"

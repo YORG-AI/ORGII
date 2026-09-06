@@ -32,13 +32,11 @@ import {
   CREATOR_BOTTOM_DOCK_PADDING_CLASS,
   CREATOR_MIDDLE_POSITION_STYLE,
 } from "@src/modules/shared/layouts/blocks";
-import {
-  type AgentSelection,
-  DispatchCategoryPalette,
-} from "@src/scaffold/GlobalSpotlight/palettes/DispatchCategoryPalette";
-import { DispatchCategoryDropdown } from "@src/scaffold/GlobalSpotlight/palettes/DispatchCategoryPalette/DispatchCategoryDropdown";
+import type { AgentSelection } from "@src/scaffold/GlobalSpotlight/palettes/DispatchCategoryPalette";
+import { DispatchCategoryPicker } from "@src/scaffold/GlobalSpotlight/palettes/DispatchCategoryPalette/DispatchCategoryPicker";
 import { PresenceMenuButton } from "@src/scaffold/NavigationSidebar/blocks/SidebarBottomBar";
 import type { CreatorRepoChromePosition } from "@src/store/session";
+import type { ModelPickerStyle } from "@src/store/ui/chatPanel/displayPrefsAtoms";
 
 import { EditorArea, SessionInfoLine } from "../../components";
 import RepoChromeRow from "./RepoChromeRow";
@@ -63,7 +61,7 @@ interface CategoryPickerProps {
   currentCategory: DispatchCategory;
   currentCliAgentType?: CliAgentType;
   includeHumanSession: boolean;
-  modelPickerStyle: string;
+  modelPickerStyle: ModelPickerStyle;
   onClose: () => void;
   onSelect: (selection: AgentSelection) => void;
 }
@@ -646,34 +644,18 @@ const SessionCreatorChatPanelView: React.FC<
         />
       )}
 
-      {categoryPickerProps.modelPickerStyle === "dropdown" ? (
-        <DispatchCategoryDropdown
-          includeHumanSession={categoryPickerProps.includeHumanSession}
-          isOpen={isCategorySelectorOpen}
-          onClose={categoryPickerProps.onClose}
-          onSelect={categoryPickerProps.onSelect}
-          currentCategory={categoryPickerProps.currentCategory}
-          currentAgentDefinitionId={
-            categoryPickerProps.currentAgentDefinitionId
-          }
-          currentAgentOrgId={categoryPickerProps.currentAgentOrgId}
-          currentCliAgentType={categoryPickerProps.currentCliAgentType}
-          anchorRef={categoryPickerProps.anchorRef}
-        />
-      ) : (
-        <DispatchCategoryPalette
-          includeHumanSession={categoryPickerProps.includeHumanSession}
-          isOpen={isCategorySelectorOpen}
-          onClose={categoryPickerProps.onClose}
-          onSelect={categoryPickerProps.onSelect}
-          currentCategory={categoryPickerProps.currentCategory}
-          currentAgentDefinitionId={
-            categoryPickerProps.currentAgentDefinitionId
-          }
-          currentAgentOrgId={categoryPickerProps.currentAgentOrgId}
-          currentCliAgentType={categoryPickerProps.currentCliAgentType}
-        />
-      )}
+      <DispatchCategoryPicker
+        style={categoryPickerProps.modelPickerStyle}
+        includeHumanSession={categoryPickerProps.includeHumanSession}
+        isOpen={isCategorySelectorOpen}
+        onClose={categoryPickerProps.onClose}
+        onSelect={categoryPickerProps.onSelect}
+        currentCategory={categoryPickerProps.currentCategory}
+        currentAgentDefinitionId={categoryPickerProps.currentAgentDefinitionId}
+        currentAgentOrgId={categoryPickerProps.currentAgentOrgId}
+        currentCliAgentType={categoryPickerProps.currentCliAgentType}
+        anchorRef={categoryPickerProps.anchorRef}
+      />
 
       {screenPickerProps && <ScreenPickerModal {...screenPickerProps} />}
     </div>

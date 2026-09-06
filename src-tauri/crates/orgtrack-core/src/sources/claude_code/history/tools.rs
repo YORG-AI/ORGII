@@ -134,7 +134,12 @@ fn normalize_claude_tool_call(raw_name: &str, args: Value) -> (String, Value) {
             imported_history::FUNCTION_EDIT_FILE.to_string(),
             normalize_edit_args(raw_name, args),
         ),
-        _ => (raw_name.to_string(), args),
+        _ => (
+            core_types::cli_alias::resolve_cli_alias(raw_name)
+                .map(|(storage_name, _)| storage_name.to_string())
+                .unwrap_or_else(|| raw_name.to_lowercase()),
+            args,
+        ),
     }
 }
 

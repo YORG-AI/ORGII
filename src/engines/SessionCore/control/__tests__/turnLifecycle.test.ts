@@ -12,6 +12,7 @@ import {
   markTurnRunning,
   markTurnTerminal,
   resetTurnLifecycleForTests,
+  restoreTurnWorkingAfterInterruptFailure,
 } from "../turnLifecycle";
 
 const SESSION = "session-1";
@@ -164,6 +165,33 @@ describe("turnLifecycle", () => {
     markTurnRunning(SESSION);
     beginTurnStopping(SESSION);
     vi.advanceTimersByTime(10_000);
+    expect(getTurnPhase(SESSION)).toBe("idle");
+  });
+
+  it("restores the same running generation when the interrupt transport fails", () => {
+    beginTurnDispatch(SESSION);
+    markTurnRunning(SESSION);
+    const generation = getTurnGeneration(SESSION);
+    beginTurnStopping(SESSION);
+
+    restoreTurnWorkingAfterInterruptFailure(SESSION, { generation });
+
+    expect(getTurnPhase(SESSION)).toBe("working");
+    vi.advanceTimersByTime(10_000);
+    expect(getTurnPhase(SESSION)).toBe("working");
+  });
+
+  it("does not revive an idle or newer turn after a stale interrupt failure", () => {
+    beginTurnDispatch(SESSION);
+    markTurnRunning(SESSION);
+    const staleGeneration = getTurnGeneration(SESSION);
+    beginTurnStopping(SESSION);
+    forceTurnIdle(SESSION);
+
+    restoreTurnWorkingAfterInterruptFailure(SESSION, {
+      generation: staleGeneration,
+    });
+
     expect(getTurnPhase(SESSION)).toBe("idle");
   });
 

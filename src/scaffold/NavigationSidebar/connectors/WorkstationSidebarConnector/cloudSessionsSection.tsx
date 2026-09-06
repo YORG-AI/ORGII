@@ -34,7 +34,6 @@ import { useTranslation } from "react-i18next";
 import { deleteSession as deleteLocalSession } from "@src/api/tauri/agent";
 import { deleteOrgtrackCollaborationSession } from "@src/api/tauri/lineage";
 import Message from "@src/components/Message";
-import { collectConversationRunnerSessionIds } from "@src/features/Org2Cloud/SessionConversation/conversationTurnRunner";
 import {
   hiddenRemoteSessionKey,
   readHiddenRemoteSessionIds,
@@ -250,10 +249,6 @@ export function useCloudSessionsSection({
       rows,
       selfUserId
     )) {
-      excluded.add(sessionId);
-    }
-    // One-shot conversation runners are execution plumbing, never sessions.
-    for (const sessionId of collectConversationRunnerSessionIds()) {
       excluded.add(sessionId);
     }
     return excluded;

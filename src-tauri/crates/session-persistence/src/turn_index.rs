@@ -13,6 +13,7 @@ use super::crud::normalize_session_sequences;
 
 const USER_MESSAGE_FUNCTION: &str = "user_message";
 const IMPORTED_USER_MESSAGE_FUNCTION: &str = "user";
+const CANONICAL_USER_INPUT_FUNCTION: &str = "user_input";
 const TURN_STATUS_PENDING: &str = "pending";
 const TURN_STATUS_COMPLETED: &str = "completed";
 const TURN_STATUS_FAILED: &str = "failed";
@@ -30,7 +31,10 @@ const TURN_STATUS_FAILED: &str = "failed";
 /// v11: treat the normalized imported-history `user` function as the same
 /// turn boundary as the native `user_message` function.
 /// v12: materialize the canonical `turn_intent_id` carried by the user row.
-const TURN_INDEX_VERSION: i64 = 12;
+/// v13: treat provider-native canonical `user_input` events as the same turn
+/// boundary. These are emitted by the shared role/tool transcript adapter and
+/// can arrive through Team Session, personal Cloud sync, or runtime migration.
+const TURN_INDEX_VERSION: i64 = 13;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -159,7 +163,9 @@ fn turn_intent_id_for_row(row: &IndexEventRow) -> Option<String> {
 fn is_user_message(row: &IndexEventRow) -> bool {
     matches!(
         row.function_name.as_deref(),
-        Some(USER_MESSAGE_FUNCTION | IMPORTED_USER_MESSAGE_FUNCTION)
+        Some(
+            USER_MESSAGE_FUNCTION | IMPORTED_USER_MESSAGE_FUNCTION | CANONICAL_USER_INPUT_FUNCTION
+        )
     ) && !is_synthetic_user_input(row)
 }
 
@@ -253,7 +259,7 @@ fn load_existing_user_event_keys(
     let mut stmt = conn.prepare_cached(
         "SELECT id, content, result_json
          FROM events
-         WHERE session_id = ?1 AND function_name IN ('user_message', 'user')
+         WHERE session_id = ?1 AND function_name IN ('user_message', 'user', 'user_input')
          ORDER BY COALESCE(history_sequence, rowid) ASC, created_at ASC, id ASC",
     )?;
     let mut ids = std::collections::HashSet::new();
@@ -283,6 +289,7 @@ fn load_existing_user_event_keys(
         let preview = content
             .strip_prefix("user_message ")
             .or_else(|| content.strip_prefix("user "))
+            .or_else(|| content.strip_prefix("user_input "))
             .unwrap_or(&content)
             .to_string();
         *content_counts
@@ -1012,6 +1019,25 @@ mod tests {
 
         assert_eq!(drafts.len(), 1);
         assert_eq!(drafts[0].turn_id, "imported-user");
+        assert_eq!(drafts[0].body_event_count, 1);
+    }
+
+    #[test]
+    fn provider_native_user_input_starts_turn() {
+        let rows = vec![
+            row(
+                "canonical-user-input",
+                Some(CANONICAL_USER_INPUT_FUNCTION),
+                "{}",
+                1,
+            ),
+            row("assistant-event", Some("assistant_message"), "{}", 2),
+        ];
+
+        let drafts = build_turn_drafts(&rows, &StaleIntentIds::new());
+
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(drafts[0].turn_id, "canonical-user-input");
         assert_eq!(drafts[0].body_event_count, 1);
     }
 

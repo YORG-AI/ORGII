@@ -270,6 +270,83 @@ fn old_process_resume_id_does_not_overwrite_current_account_column() {
 }
 
 #[test]
+fn staged_native_binding_is_recoverable_but_not_yet_published() {
+    let _sandbox = test_env::sandbox();
+    let session_id = "cli-resume-staged-binding";
+    create_test_session(session_id, "account-a");
+
+    assert!(
+        stage_cli_session_id_for_account(session_id, Some("account-a"), "native-a-staged")
+            .expect("stage native materialization")
+    );
+    assert_eq!(
+        get_cli_session_id_for_account(session_id, Some("account-a"))
+            .expect("load staged binding")
+            .as_deref(),
+        Some("native-a-staged")
+    );
+    assert!(
+        native_transcript_ids_newest_first(session_id, "claude_code")
+            .expect("load unpublished ledger")
+            .is_empty(),
+        "an unpublished materialization must not become durable transcript history"
+    );
+
+    assert!(
+        update_cli_session_id_for_account(session_id, Some("account-a"), "native-a-staged")
+            .expect("publish staged materialization")
+    );
+    assert_eq!(
+        native_transcript_ids_newest_first(session_id, "claude_code")
+            .expect("load published ledger"),
+        vec!["native-a-staged"]
+    );
+}
+
+#[test]
+fn abandoning_one_staged_binding_preserves_other_account_resume_state() {
+    let _sandbox = test_env::sandbox();
+    let session_id = "cli-resume-targeted-stage-abort";
+    create_test_session(session_id, "account-a");
+    update_cli_session_id_for_account(session_id, Some("account-a"), "native-a-published")
+        .expect("publish account A binding");
+    update_model_and_account(session_id, Some("claude-sonnet-4-6"), Some("account-b"))
+        .expect("switch to account B");
+    stage_cli_session_id_for_account(session_id, Some("account-b"), "native-b-staged")
+        .expect("stage account B binding");
+
+    assert!(clear_staged_cli_session_id_for_account(
+        session_id,
+        Some("account-b"),
+        "native-b-staged"
+    )
+    .expect("abort account B stage"));
+    assert_eq!(
+        get_cli_session_id_for_account(session_id, Some("account-b"))
+            .expect("load account B binding"),
+        None
+    );
+    assert_eq!(
+        get_cli_session_id_for_account(session_id, Some("account-a"))
+            .expect("load account A binding")
+            .as_deref(),
+        Some("native-a-published")
+    );
+    assert_eq!(
+        native_transcript_ids_newest_first(session_id, "claude_code")
+            .expect("load published ledger"),
+        vec!["native-a-published"]
+    );
+    assert_eq!(
+        get_session(session_id)
+            .expect("load session")
+            .expect("session exists")
+            .cli_session_id,
+        None
+    );
+}
+
+#[test]
 fn clearing_cli_resume_state_removes_all_account_scoped_resume_state() {
     let _sandbox = test_env::sandbox();
     let session_id = "cli-resume-clear-primitive";
@@ -444,5 +521,80 @@ fn late_resume_id_write_after_delete_does_not_create_orphan_state() {
         get_cli_session_id_for_account(session_id, Some("account-a"))
             .expect("load account A mapped id"),
         None
+    );
+}
+
+#[test]
+fn native_catalog_receipt_uses_revision_cas_and_pending_only_reads() {
+    let _sandbox = test_env::sandbox();
+    let dirty_session_id = "cli-native-catalog-dirty";
+    let clean_session_id = "cli-native-catalog-clean";
+    create_test_session(dirty_session_id, "account-a");
+    create_test_session(clean_session_id, "account-a");
+    update_cli_session_id_for_account(dirty_session_id, Some("account-a"), "native-dirty")
+        .expect("publish dirty binding");
+    update_cli_session_id_for_account(clean_session_id, Some("account-a"), "native-clean")
+        .expect("publish clean binding");
+
+    let first = request_native_catalog_refresh(dirty_session_id, Some("account-a"), "native-dirty")
+        .expect("request first catalog revision")
+        .expect("binding still exists");
+    let second =
+        request_native_catalog_refresh(dirty_session_id, Some("account-a"), "native-dirty")
+            .expect("request second catalog revision")
+            .expect("binding still exists");
+    assert_eq!(first.requested_revision, 1);
+    assert_eq!(second.requested_revision, 2);
+
+    assert!(
+        !acknowledge_native_catalog_refresh(&first).expect("reject stale catalog receipt"),
+        "an older worker must not clear a newer terminal request"
+    );
+    let pending = pending_native_catalog_refreshes(8).expect("load dirty receipts");
+    assert_eq!(
+        pending.len(),
+        1,
+        "clean bindings must not enter startup repair"
+    );
+    assert_eq!(pending[0].receipt, second);
+    assert_eq!(pending[0].source, "claude_code");
+
+    assert!(acknowledge_native_catalog_refresh(&second).expect("ack current revision"));
+    assert!(pending_native_catalog_refreshes(8)
+        .expect("reload dirty receipts")
+        .is_empty());
+    assert!(
+        !acknowledge_native_catalog_refresh(&second).expect("repeat acknowledgement"),
+        "acknowledgement is idempotent"
+    );
+}
+
+#[test]
+fn replacing_native_binding_resets_catalog_revisions() {
+    let _sandbox = test_env::sandbox();
+    let session_id = "cli-native-catalog-binding-replaced";
+    create_test_session(session_id, "account-a");
+    update_cli_session_id_for_account(session_id, Some("account-a"), "native-old")
+        .expect("publish old binding");
+    request_native_catalog_refresh(session_id, Some("account-a"), "native-old")
+        .expect("request old binding refresh")
+        .expect("old binding exists");
+
+    update_cli_session_id_for_account(session_id, Some("account-a"), "native-new")
+        .expect("replace native binding");
+    assert!(pending_native_catalog_refreshes(8)
+        .expect("load pending after binding replacement")
+        .is_empty());
+    assert!(
+        request_native_catalog_refresh(session_id, Some("account-a"), "native-old")
+            .expect("request stale native id")
+            .is_none()
+    );
+    assert_eq!(
+        request_native_catalog_refresh(session_id, Some("account-a"), "native-new")
+            .expect("request new native id")
+            .expect("new binding exists")
+            .requested_revision,
+        1
     );
 }

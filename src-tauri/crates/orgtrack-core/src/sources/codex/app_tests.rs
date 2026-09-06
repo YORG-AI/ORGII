@@ -202,6 +202,50 @@ fn parses_codex_jsonl_into_replay_chunks() {
 }
 
 #[test]
+fn deduplicates_native_assistant_context_and_visible_event_mirror() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-native-mirror-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-native-mirror.jsonl");
+    let content = r#"{"timestamp":"2026-08-26T06:00:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"hello","images":[],"local_images":[],"text_elements":[]}}
+{"timestamp":"2026-08-26T06:00:01.000Z","type":"response_item","payload":{"type":"message","id":"a1","role":"assistant","content":[{"type":"output_text","text":"one answer"}]}}
+{"timestamp":"2026-08-26T06:00:01.001Z","type":"event_msg","payload":{"type":"agent_message","message":"one answer","phase":"final_answer","memory_citation":null}}
+{"timestamp":"2026-08-26T06:00:02.000Z","type":"event_msg","payload":{"type":"user_message","message":"continue","images":[],"local_images":[],"text_elements":[]}}
+{"timestamp":"2026-08-26T06:00:03.000Z","type":"event_msg","payload":{"type":"agent_message","message":"two answer","phase":"final_answer","memory_citation":null}}
+{"timestamp":"2026-08-26T06:00:03.001Z","type":"response_item","payload":{"type":"message","id":"a2","role":"assistant","content":[{"type":"output_text","text":"two answer"}]}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let chunks = load_codex_app_from_path("codexapp-native-mirror", &path).expect("parse");
+    let assistant = chunks
+        .iter()
+        .filter(|chunk| chunk.function == imported_history::FUNCTION_ASSISTANT)
+        .collect::<Vec<_>>();
+    assert_eq!(assistant.len(), 2);
+    assert_eq!(
+        assistant[0]
+            .result
+            .get("observation")
+            .or_else(|| assistant[0].result.get("content"))
+            .and_then(Value::as_str),
+        Some("one answer")
+    );
+    assert_eq!(
+        assistant[1]
+            .result
+            .get("observation")
+            .or_else(|| assistant[1].result.get("content"))
+            .and_then(Value::as_str),
+        Some("two answer")
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
 fn parses_paginated_codex_user_items_without_model_context_duplicates() {
     let temp_dir = std::env::temp_dir().join(format!(
         "orgii-codex-paginated-history-test-{}",
@@ -1321,6 +1365,58 @@ fn codex_write_stdin_polls_merge_into_originating_exec_command() {
 }
 
 #[test]
+fn codex_background_command_partial_output_is_an_interrupted_result() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-background-partial-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-background-partial.jsonl");
+    let content = [
+        json!({
+            "timestamp": "2026-07-18T01:00:00Z",
+            "type": "response_item",
+            "payload": {
+                "type": "custom_tool_call",
+                "name": "exec",
+                "call_id": "call_shell",
+                "input": r#"const r = await tools.exec_command({cmd:"cargo test",workdir:"/tmp/project",yield_time_ms:10000,max_output_tokens:3000}); text(r)"#,
+            }
+        }),
+        json!({
+            "timestamp": "2026-07-18T01:00:10Z",
+            "type": "response_item",
+            "payload": {
+                "type": "custom_tool_call_output",
+                "call_id": "call_shell",
+                "output": [
+                    { "type": "input_text", "text": "Script running with session ID 82118\n" },
+                    { "type": "input_text", "text": r#"{"session_id":82118,"output":"Compiling\n"}"# },
+                ],
+            }
+        }),
+    ]
+    .into_iter()
+    .map(|line| line.to_string())
+    .collect::<Vec<_>>()
+    .join("\n");
+    std::fs::write(&path, content).expect("write fixture");
+
+    let chunks = load_codex_app_from_path("codexapp-background-partial", &path).expect("parse");
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(
+        chunks[0].function,
+        imported_history::FUNCTION_RUN_COMMAND_LINE
+    );
+    assert_eq!(chunks[0].result["status"], "interrupted");
+    assert_eq!(chunks[0].result["interrupted"], true);
+    assert_eq!(chunks[0].result["output"], "Compiling\n");
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
 fn codex_write_stdin_cell_wait_still_merges_into_originating_command() {
     let temp_dir = std::env::temp_dir().join(format!(
         "orgii-codex-write-stdin-cell-test-{}",
@@ -1602,6 +1698,58 @@ fn codex_desktop_exec_unwraps_web_search_query() {
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0].canonical_name, "web_search");
     assert_eq!(calls[0].args["query"], "Codex app event format");
+}
+
+#[test]
+fn codex_native_canonical_tool_args_are_not_normalized_twice() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-materialized-tool-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-materialized-tool.jsonl");
+    let canonical_args = json!({
+        "action": "search",
+        "query": "Codex app event format",
+        "queries": [],
+        "url": "",
+        "pattern": "",
+        "payload": {"search_query": [{"q": "Codex app event format"}]}
+    });
+    let payload = json!({
+        "type": "function_call",
+        "id": "tool-item-1",
+        "name": "web_search",
+        "arguments": canonical_args.to_string(),
+        "call_id": "call_materialized_web",
+    });
+    let output = json!({
+        "type": "function_call_output",
+        "call_id": "call_materialized_web",
+        "output": "search result",
+    });
+    std::fs::write(
+        &path,
+        format!(
+            "{}\n{}\n",
+            json!({"timestamp": "2026-08-26T00:00:01Z", "type": "response_item", "payload": payload}),
+            json!({"timestamp": "2026-08-26T00:00:02Z", "type": "response_item", "payload": output})
+        ),
+    )
+    .expect("write materialized canonical tool fixture");
+
+    let chunks = load_codex_app_from_path("codexapp-materialized-tool", &path)
+        .expect("parse materialized canonical tool call");
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].function, "web_search");
+    assert_eq!(chunks[0].args["action"], canonical_args["action"]);
+    assert_eq!(chunks[0].args["query"], canonical_args["query"]);
+    assert_eq!(chunks[0].args["payload"], canonical_args["payload"]);
+    assert_eq!(chunks[0].args["__orgiiSourceEventId"], "tool-item-1");
+    assert_eq!(chunks[0].result["output"], "search result");
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
 }
 
 #[test]
@@ -2434,6 +2582,19 @@ fn strips_orgii_exec_mode_bridge_from_codex_user_text() {
         legacy_user_message_text_from_payload(&prefixed_payload).as_deref(),
         Some("fix the login bug")
     );
+}
+
+#[test]
+fn strips_orgii_provider_context_from_codex_user_text() {
+    let wrapped = "<orgii_provider_context>\nworkspace instructions\n</orgii_provider_context>\n\n<orgii_cli_exec_mode_bridge>\nbuild mode\n</orgii_cli_exec_mode_bridge>\n\n<ide_context>\nopen file: src/app.ts\n</ide_context>\n\ncontinue the shared session";
+    assert_eq!(
+        strip_orgii_exec_mode_bridge(wrapped),
+        "continue the shared session"
+    );
+
+    let provider_only =
+        "<orgii_provider_context>\nworkspace instructions\n</orgii_provider_context>";
+    assert_eq!(strip_orgii_exec_mode_bridge(provider_only), "");
 }
 
 #[test]

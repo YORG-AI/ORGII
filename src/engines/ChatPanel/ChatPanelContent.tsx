@@ -1,6 +1,5 @@
 import React from "react";
 
-import type { SessionContinuation } from "@src/store/session/sessionTabPlacementAtom";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 
 import SessionContentView from "./SessionContentView";
@@ -9,7 +8,6 @@ import type { SessionViewMode } from "./hooks/useSessionViewMode";
 interface ChatPanelContentProps {
   currentSessionId: string | null;
   emptyChatContent: React.ReactNode;
-  onSessionContinuation: (continuation: SessionContinuation) => void;
   displayMode: ChatHistoryDisplayMode;
   paginationEnabled: boolean;
   position: "left" | "right";
@@ -33,7 +31,6 @@ interface ChatPanelContentProps {
 export function ChatPanelContent({
   currentSessionId,
   emptyChatContent,
-  onSessionContinuation,
   displayMode,
   paginationEnabled,
   position,
@@ -62,7 +59,6 @@ export function ChatPanelContent({
               turnPaginationEnabled={paginationEnabled}
               position={position}
               chromeTopInset={chromeTopInset}
-              onSessionContinuation={onSessionContinuation}
             />
           </div>
           {/* Mounted only while active. Each alternate view windows its own

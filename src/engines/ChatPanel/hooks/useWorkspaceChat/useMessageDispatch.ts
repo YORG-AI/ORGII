@@ -6,28 +6,15 @@
  * has its own dispatcher; this hook gathers React dependencies and
  * delegates to the correct one.
  */
-import { useSetAtom } from "jotai";
 import { useCallback } from "react";
 
 import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
 import { resolveSessionAgentExecMode } from "@src/config/sessionCreatorConfig";
 import {
-  beginOptimisticTurn,
-  failOptimisticTurn,
-} from "@src/engines/SessionCore/control/optimisticTurnStatus";
-import {
-  beginTurnDispatch,
-  confirmTurnRunning,
-  markTurnTerminal,
-} from "@src/engines/SessionCore/control/turnLifecycle";
-import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
-import { SessionService } from "@src/engines/SessionCore/services/SessionService";
-import { createSyntheticUserEvent } from "@src/engines/SessionCore/sync/adapters/shared";
-import { markSessionActive } from "@src/store/session";
-import {
-  lastUserMessageAtom,
-  setSessionRuntimeStatusAtom,
-} from "@src/store/session/cliSessionStatusAtom";
+  type DispatchUserIntentResult,
+  dispatchUserIntent,
+} from "@src/engines/SessionCore/services/userIntentDispatch";
+import type { SessionRuntimeStatusSource } from "@src/store/session/cliSessionStatusAtom";
 import {
   type LastModelSelection,
   creatorDefaultModelSelectionAtom,
@@ -36,49 +23,34 @@ import { sessionMapAtom } from "@src/store/session/sessionAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 import { resolveModelForMessage } from "@src/util/session/resolveModelForMessage";
 import { selectionFromSession } from "@src/util/session/selectionFromSession";
-import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
+
+export interface MessageDispatchInput {
+  sessionId: string;
+  content: string;
+  visibleText: string;
+  imageDataUrls?: string[];
+  modelSelectionOverride?: LastModelSelection;
+  displayText?: string;
+  clientMessageId?: string;
+  turnIntentId: string;
+  runtimeStatusSource?: SessionRuntimeStatusSource;
+  beforeAppend?: () => void | Promise<void>;
+}
 
 export function useMessageDispatch() {
-  const setSessionRuntimeStatus = useSetAtom(setSessionRuntimeStatusAtom);
-  const setLastUserMessage = useSetAtom(lastUserMessageAtom);
-
-  const addUserMessage = useCallback(
-    async (
-      sessionId: string,
-      content: string,
-      imageDataUrls?: string[],
-      turnIntentId?: string
-    ): Promise<string> => {
-      const userEvent = createSyntheticUserEvent(sessionId, content, {
-        imageDataUrls,
-        turnIntentId,
-      });
-      await eventStoreProxy.append([userEvent], sessionId);
-
-      // Capture the exact text/images the user sent so the cancel-restore
-      // path (Scenario A: cancel before any assistant output) can put it
-      // back into the input box.
-      setLastUserMessage({
-        sessionId,
-        displayContent: content,
-        imageDataUrls,
-      });
-      return userEvent.id;
-    },
-    [setLastUserMessage]
-  );
-
   const dispatchMessageBySessionType = useCallback(
-    async (
-      sessionId: string,
-      content: string,
-      imageDataUrls?: string[],
-      modelSelectionOverride?: LastModelSelection,
-      displayText?: string,
-      clientMessageId?: string,
-      turnIntentId?: string,
-      reservedDispatchGeneration?: number
-    ): Promise<void> => {
+    async ({
+      sessionId,
+      content,
+      visibleText,
+      imageDataUrls,
+      modelSelectionOverride,
+      displayText,
+      clientMessageId,
+      turnIntentId,
+      runtimeStatusSource = "dispatch",
+      beforeAppend,
+    }: MessageDispatchInput): Promise<DispatchUserIntentResult> => {
       // Read directly from the store at call time to avoid stale-closure
       // race: if the user changes the mode pill and immediately sends a
       // message in the same React render batch, useAtomValue subscriptions
@@ -99,64 +71,27 @@ export function useMessageDispatch() {
       );
       const { model, accountId } = resolveModelForMessage(lastModelSelection);
 
-      // Synchronous turn reserve: every dispatch funnels through here, so the
-      // FSM observes the session as busy before the first await. A concurrent
-      // submit therefore queues instead of double-dispatching.
-      const dispatchGeneration =
-        reservedDispatchGeneration ?? beginTurnDispatch(sessionId);
-
-      beginOptimisticTurn(sessionId);
-
-      try {
-        await SessionService.sendMessage({
-          sessionId,
+      return dispatchUserIntent({
+        sessionId,
+        visibleText,
+        imageDataUrls,
+        runtimeStatusSource,
+        beforeAppend,
+        send: {
           content,
           displayText,
           model,
           accountId,
           mode: agentExecMode,
-          imageDataUrls,
           clientMessageId,
           turnIntentId,
           turnIntentSource: "user_submit",
           directUserIntent: true,
-        });
-        // Backend accepted the message — the turn is running even if the
-        // provider's running ack has not been observed yet.
-        confirmTurnRunning(sessionId);
-        // Bump the row's `updated_at` to "now" so the sidebar /
-        // Kanban "recent activity" views float this session to the
-        // top immediately. The backend's authoritative timestamp
-        // lands on the next session list refresh and overwrites
-        // this — see `markSessionActive` doc for the policy.
-        markSessionActive(sessionId);
-        if (isCursorIdeSession(sessionId)) {
-          // Cursor IDE sessions have no turn lifecycle (the CDP stream has no
-          // terminal event) — close the turn right after a successful handoff.
-          setSessionRuntimeStatus({
-            sessionId,
-            status: "idle",
-            source: "dispatch",
-          });
-          markTurnTerminal(sessionId, "completed", {
-            generation: dispatchGeneration,
-          });
-        }
-      } catch (err) {
-        // IPC failed before Rust even received the message — reset so the UI
-        // does not stay stuck in the optimistic "running" state.
-        failOptimisticTurn(sessionId);
-        markTurnTerminal(sessionId, "failed", {
-          generation: dispatchGeneration,
-        });
-        throw err;
-      }
+        },
+      });
     },
-    [setSessionRuntimeStatus]
+    []
   );
 
-  return {
-    addUserMessage,
-    dispatchMessageBySessionType,
-  };
+  return { dispatchMessageBySessionType };
 }

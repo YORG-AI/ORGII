@@ -20,3 +20,4 @@ pub mod external_cli_adapter;
 pub mod follow_up_suggestions;
 pub mod human;
 pub mod session_directory;
+pub mod turn_intents;

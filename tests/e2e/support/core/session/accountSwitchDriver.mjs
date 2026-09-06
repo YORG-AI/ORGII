@@ -714,7 +714,7 @@ async function configureRenderedCreator({
   );
 }
 
-async function sendFromRenderedComposer(prompt, label) {
+export async function sendFromRenderedComposer(prompt, label) {
   const inputSelector = '[data-testid="chat-input"] [contenteditable="true"]';
   await browser.waitUntil(async () => execJS(js.exists(inputSelector)), {
     timeout: MOUNT_TIMEOUT_MS,
@@ -763,7 +763,7 @@ async function waitForActiveSession(label) {
   ).sessionId;
 }
 
-async function waitForComposerIdle(label, expectedAssistantText = null) {
+export async function waitForComposerIdle(label, expectedAssistantText = null) {
   await browser.waitUntil(
     async () => {
       const state = await execJS(js.sendState);
@@ -844,11 +844,34 @@ function sessionModelMatchesAny(actualModel, expectedModels) {
   );
 }
 
+async function readConversationTargetPill() {
+  return execJS(`
+    const target = document.querySelector('[data-testid="chat-model-target"]');
+    return target
+      ? {
+          accountId: target.getAttribute("data-account-id"),
+          modelId: target.getAttribute("data-model-id"),
+          text: target.textContent,
+        }
+      : null;
+  `);
+}
+
 async function isSessionPatchedTo(accountId, expectedModels, label) {
   const state = unwrap(
     await invokeE2E("inspectChatState"),
     `${label}-inspectChatState`
   );
+  if (
+    !state.activeSession ||
+    state.activeSession.category === "external_history"
+  ) {
+    const pill = await readConversationTargetPill();
+    return (
+      pill?.accountId === accountId &&
+      sessionModelMatchesAny(pill?.modelId, expectedModels)
+    );
+  }
   return (
     state.activeSession?.accountId === accountId &&
     sessionModelMatchesAny(state.activeSession?.model, expectedModels)
@@ -919,7 +942,7 @@ async function assertCliPersistedAccount(sessionId, expectedAccountId, label) {
   );
 }
 
-async function switchAccountThroughRenderedPicker(
+export async function switchAccountThroughRenderedPicker(
   followupAccount,
   model,
   label
@@ -960,7 +983,10 @@ async function switchAccountThroughRenderedPicker(
     );
   }
 
-  const modelClicked = await clickLastVisibleNative(modelSelector);
+  const exactModelSelector = `[data-spotlight-model-section="all"][data-spotlight-model-id="${model}"]`;
+  const modelClicked = (await execJS(js.exists(exactModelSelector)))
+    ? await clickLastVisibleNative(exactModelSelector)
+    : await clickLastVisibleNative(modelSelector);
   if (modelClicked?.status !== "clicked") {
     throw new Error(
       `${label} model option click failed for model=${model}: ${JSON.stringify(modelClicked)} dump=${JSON.stringify(await execJS(js.pageDump))}`
@@ -971,11 +997,12 @@ async function switchAccountThroughRenderedPicker(
   );
 
   const modelGroupIds = parseModelIdList(modelClicked.groupModelIds);
-  const allowedSwitchModels = getAllowedSwitchModels(
-    followupAccount,
-    model,
-    modelGroupIds
-  );
+  const allowedSwitchModels = [
+    ...new Set([
+      ...getAllowedSwitchModels(followupAccount, model, modelGroupIds),
+      ...(modelClicked.modelId ? [String(modelClicked.modelId)] : []),
+    ]),
+  ];
 
   if (
     await isSessionPatchedTo(followupAccount.id, allowedSwitchModels, label)
@@ -993,6 +1020,7 @@ async function switchAccountThroughRenderedPicker(
   });
 
   let sourceClicked = null;
+  let firstClickedSource = null;
   const sourceClickStrategies = [
     clickLastVisibleNative,
     clickLastVisibleReactPath,
@@ -1011,6 +1039,7 @@ async function switchAccountThroughRenderedPicker(
         continue;
       }
       if (sourceClicked?.status !== "clicked") continue;
+      firstClickedSource ??= sourceClicked;
       if (
         await isSessionPatchedTo(followupAccount.id, allowedSwitchModels, label)
       ) {
@@ -1023,7 +1052,43 @@ async function switchAccountThroughRenderedPicker(
     await browser.pause(500);
   }
   throw new Error(
-    `${label} source option click did not patch session; sourceClicked=${JSON.stringify(sourceClicked)} state=${JSON.stringify(await invokeE2E("inspectChatState"))}; dump=${JSON.stringify(await execJS(js.pageDump))}`
+    `${label} source option click did not patch session; sourceClicked=${JSON.stringify(firstClickedSource ?? sourceClicked)} pill=${JSON.stringify(await readConversationTargetPill())} state=${JSON.stringify(await invokeE2E("inspectChatState"))}; dump=${JSON.stringify(await execJS(js.pageDump))}`
+  );
+}
+
+/** Select a continuation runtime through the rendered New Session palette. */
+export async function switchRuntimeThroughRenderedPicker(cliAgentType, label) {
+  const trigger = '[data-testid="chat-runtime-pill"]';
+  const option = `[data-testid="session-creator-agent-option-cli-${cliAgentType}"]`;
+  await browser.waitUntil(async () => execJS(js.exists(trigger)), {
+    timeout: MOUNT_TIMEOUT_MS,
+    timeoutMsg: `${label} runtime pill never mounted`,
+  });
+  if ((await clickLastVisibleNative(trigger))?.status !== "clicked") {
+    throw new Error(`${label} runtime pill was not clickable`);
+  }
+  await browser.waitUntil(async () => execJS(js.exists(option)), {
+    timeout: MOUNT_TIMEOUT_MS,
+    timeoutMsg: `${label} runtime option ${cliAgentType} never appeared`,
+  });
+  if ((await clickLastVisibleNative(option))?.status !== "clicked") {
+    throw new Error(
+      `${label} runtime option ${cliAgentType} was not clickable`
+    );
+  }
+  const expected =
+    cliAgentType === CLAUDE_CODE_AGENT_TYPE ? "Claude Code" : "Codex";
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+      return Array.from(document.querySelectorAll('[data-testid="chat-runtime-pill"]'))
+        .filter((node) => node.getClientRects().length > 0)
+        .some((node) => ((node.textContent || '') + (node.getAttribute('aria-label') || '')).includes(${JSON.stringify(expected)}));
+    `),
+    {
+      timeout: 20_000,
+      timeoutMsg: `${label} runtime did not become ${expected}`,
+    }
   );
 }
 

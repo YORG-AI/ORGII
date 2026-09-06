@@ -406,6 +406,23 @@ pub fn resolve_cli_binary_command(id: CliBinaryId) -> String {
     resolve_cli_binary(id).command
 }
 
+/// Resolve a CLI command after checking caller-owned, higher-priority paths.
+///
+/// Product-specific callers own which paths are preferred (for example an
+/// executable bundled inside a native desktop App). This shared resolver
+/// remains the single owner of executable validation and of the ordinary
+/// PATH/login-shell/known-location fallback chain.
+pub fn resolve_cli_binary_command_preferring(
+    id: CliBinaryId,
+    preferred_paths: impl IntoIterator<Item = PathBuf>,
+) -> String {
+    preferred_paths
+        .into_iter()
+        .find(|path| is_executable_file(path))
+        .map(|path| path.to_string_lossy().to_string())
+        .unwrap_or_else(|| resolve_cli_binary_command(id))
+}
+
 /// Best-effort `<resolved CLI> --version` probe.
 ///
 /// Callers own the cache policy. This function resolves no credentials and
@@ -802,6 +819,27 @@ mod tests {
         assert_eq!(resolution.command, binary.to_string_lossy());
         assert_eq!(resolution.source, CliBinaryResolutionSource::ProcessPath);
         assert!(resolution.installed());
+    }
+
+    #[test]
+    fn preferred_paths_reuse_executable_validation_before_normal_resolution() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let non_executable = temp_dir.path().join("old-codex");
+        let executable = temp_dir.path().join("app-bundled-codex");
+        fs::write(&non_executable, "not executable").unwrap();
+        make_executable(&executable);
+
+        assert_eq!(
+            resolve_cli_binary_command_preferring(
+                CliBinaryId::Codex,
+                [
+                    temp_dir.path().join("missing"),
+                    non_executable,
+                    executable.clone(),
+                ],
+            ),
+            executable.to_string_lossy()
+        );
     }
 
     #[test]

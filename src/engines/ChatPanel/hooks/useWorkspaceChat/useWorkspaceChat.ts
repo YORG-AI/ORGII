@@ -34,10 +34,41 @@ const log = createLogger("useWorkspaceChat");
 interface UseWorkspaceChatOptions {
   sessionId?: string;
   sessionScope?: "active" | "none";
+  /** Native execution episode controlled by Stop/Resume; submits stay canonical. */
+  controlSessionId?: string | null;
+}
+
+export function resolveWorkspaceChatControlSessionId(
+  controlSessionId: string | null | undefined,
+  messageSessionId: string | null
+): string | null {
+  return controlSessionId ?? messageSessionId;
+}
+
+export function shouldRestoreWorkspaceStoppedMessage(
+  controlSessionId: string | null | undefined
+): boolean {
+  return controlSessionId == null;
+}
+
+export function resolveWorkspaceChatEffectiveSessionId(
+  controlSessionId: string | null | undefined,
+  isSessionless: boolean,
+  resolvedSessionId: string | null | undefined,
+  coreSessionId: string | null | undefined
+): string | null {
+  return (
+    controlSessionId ??
+    (isSessionless ? null : resolvedSessionId || coreSessionId || null)
+  );
 }
 
 const useWorkspaceChat = (options: UseWorkspaceChatOptions = {}) => {
-  const { sessionId: propSessionId, sessionScope = "active" } = options;
+  const {
+    sessionId: propSessionId,
+    sessionScope = "active",
+    controlSessionId,
+  } = options;
   const { t } = useTranslation("sessions");
   const [searchParams] = useSearchParams();
 
@@ -92,6 +123,11 @@ const useWorkspaceChat = (options: UseWorkspaceChatOptions = {}) => {
     activeSessionId,
     workstationActiveSessionId,
   ]);
+  const getControlSessionId = useCallback(
+    (): string | null =>
+      resolveWorkspaceChatControlSessionId(controlSessionId, getSessionId()),
+    [controlSessionId, getSessionId]
+  );
 
   // ============================================
   // Sub-hooks
@@ -99,7 +135,12 @@ const useWorkspaceChat = (options: UseWorkspaceChatOptions = {}) => {
   const submitUserIntent = useUserIntentSubmit({ getSessionId });
 
   const { resumeSession, interruptSession, stopSession } = useSessionActions({
-    getSessionId,
+    getControlSessionId,
+    getQueueSessionId: getSessionId,
+    // A canonical user row is already durable in the conversation plane.
+    // Restoring it into the hidden native episode would create a duplicate.
+    restoreStoppedMessage:
+      shouldRestoreWorkspaceStoppedMessage(controlSessionId),
   });
 
   // ============================================
@@ -139,7 +180,6 @@ const useWorkspaceChat = (options: UseWorkspaceChatOptions = {}) => {
           source: "dispatch",
           applyStopSubmitGuards: true,
           dedupeDirectSubmit: true,
-          clearUserInitiatedCancelOnQueue: true,
           onQueued: () => setSessChatInput(""),
           onBeforeDirectDispatch: () => setSessChatInput(""),
         });
@@ -185,9 +225,15 @@ const useWorkspaceChat = (options: UseWorkspaceChatOptions = {}) => {
   // ============================================
   // Derived State
   // ============================================
-  const effectiveSessionId = isSessionless
-    ? null
-    : resolvedSessionId || coreSessionId;
+  // Sessionless composers intentionally have no implicit message target, but
+  // an explicitly mounted control target (for example SideChat) still owns
+  // Stop/Resume. Do not discard that explicit scope with the message scope.
+  const effectiveSessionId = resolveWorkspaceChatEffectiveSessionId(
+    controlSessionId,
+    isSessionless,
+    resolvedSessionId,
+    coreSessionId
+  );
 
   const canStopAgent = useMemo(
     () =>

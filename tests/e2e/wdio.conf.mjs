@@ -9,6 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +17,10 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..");
 const appBinary = resolve(repoRoot, "src-tauri/target/debug/org2");
+const require = createRequire(import.meta.url);
+const { createInstanceProfileFromIdeServerPort } = require(
+  resolve(repoRoot, "scripts/tauri/instance-profile.cjs")
+);
 
 // Load tests/e2e/.env so specs can read OPENAI_API_KEY etc. via process.env.
 // Quiet failure is fine — the .env is optional; without it, tests fall back to
@@ -76,6 +81,20 @@ const ideServerPort = Number.parseInt(
   process.env.E2E_IDE_SERVER_PORT ?? "13847",
   10
 );
+const isolatedInstanceProfile = isolatedRun
+  ? createInstanceProfileFromIdeServerPort(ideServerPort)
+  : null;
+const isolatedCliProxyPort = isolatedInstanceProfile?.cliProxyPort ?? null;
+if (
+  isolatedRun &&
+  process.env.ORGII_CLI_PROXY_PORT &&
+  Number.parseInt(process.env.ORGII_CLI_PROXY_PORT, 10) !== isolatedCliProxyPort
+) {
+  throw new Error(
+    `ORGII_CLI_PROXY_PORT=${process.env.ORGII_CLI_PROXY_PORT} does not match the isolated ` +
+      `instance${isolatedInstanceProfile.id} profile (${isolatedCliProxyPort}).`
+  );
+}
 const TAURI_DEV_URL_PORT = 1998;
 const frontendPort = Number.parseInt(
   process.env.E2E_FRONTEND_PORT ?? String(TAURI_DEV_URL_PORT),
@@ -287,6 +306,30 @@ const externalHistoryHome =
   mkdtempSync(join(tmpdir(), "orgii-e2e-external-history-"));
 process.env.ORGII_EXTERNAL_HISTORY_HOME = externalHistoryHome;
 
+// A native-App visibility run is allowed to publish into the real provider
+// profile, but it must opt in explicitly. Without this guard the materializer
+// inherits the isolated discovery root; Claude Desktop can still retain a
+// catalog row for that UUID after the temp root is deleted, leaving a visible
+// session that opens as "Session not found on disk".
+if (process.env.E2E_NATIVE_PROVIDER_SWITCH_LIVE === "1") {
+  const configuredNativeHome = process.env.ORGII_NATIVE_TRANSCRIPT_HOME?.trim();
+  const officialNativeHome = resolve(
+    process.env.E2E_NATIVE_PROVIDER_SWITCH_OFFICIAL_HOME?.trim() ?? homedir()
+  );
+  if (!configuredNativeHome) {
+    throw new Error(
+      "E2E_NATIVE_PROVIDER_SWITCH_LIVE=1 requires ORGII_NATIVE_TRANSCRIPT_HOME " +
+        `to point at the official provider home (${officialNativeHome}).`
+    );
+  }
+  if (resolve(configuredNativeHome) !== officialNativeHome) {
+    throw new Error(
+      "Native provider App proof cannot use an isolated publication root: " +
+        `expected ${officialNativeHome}, got ${resolve(configuredNativeHome)}.`
+    );
+  }
+}
+
 // Claude Code imported-history fixture consumed by the
 // "claude-imported-lazy-replay" scenario in chat-rendering-ui.spec.mjs. It
 // must exist on disk before the app process launches so the app's own
@@ -378,12 +421,20 @@ function ensureClaudeCodeImportFixtureTranscript() {
 }
 
 process.env.ORGII_IDE_SERVER_PORT = String(ideServerPort);
+if (isolatedCliProxyPort !== null) {
+  process.env.ORGII_CLI_PROXY_PORT = String(isolatedCliProxyPort);
+}
 process.env.E2E_BASE_URL =
   process.env.E2E_BASE_URL ?? `http://127.0.0.1:${ideServerPort}`;
 ensureE2EWorkspaceRepo();
 ensureClaudeCodeImportFixtureTranscript();
 
-const WDIO_PRE_FLIGHT_PORTS = [webDriverPort, frontendPort, ideServerPort];
+const WDIO_PRE_FLIGHT_PORTS = [
+  webDriverPort,
+  frontendPort,
+  ideServerPort,
+  ...(isolatedCliProxyPort === null ? [] : [isolatedCliProxyPort]),
+];
 const WDIO_PRE_FLIGHT_PROCESS_PATTERNS = [
   "tauri-wd",
   "src-tauri/target/debug/org2",
@@ -684,17 +735,36 @@ function startFrontendServer() {
   waitForPort(frontendPort, 60_000);
 }
 
-function withTauriDevUrlForFrontendPort(callback) {
-  if (frontendPort === TAURI_DEV_URL_PORT) return callback();
+function withManagedTauriConfig(callback) {
+  if (frontendPort === TAURI_DEV_URL_PORT && !isolatedRun) return callback();
   const originalConfig = readFileSync(tauriConfigPath, "utf8");
   const config = JSON.parse(originalConfig);
   const patchedConfig = JSON.stringify(
     {
       ...config,
+      ...(isolatedRun
+        ? {
+            productName: isolatedInstanceProfile.productName,
+            identifier: isolatedInstanceProfile.identifier,
+          }
+        : {}),
       build: {
         ...config.build,
         devUrl: `http://localhost:${frontendPort}`,
       },
+      ...(isolatedRun
+        ? {
+            plugins: {
+              ...config.plugins,
+              "deep-link": {
+                desktop: {
+                  schemes: [...isolatedInstanceProfile.deepLinkSchemes],
+                },
+              },
+              updater: { ...config.plugins?.updater, active: false },
+            },
+          }
+        : {}),
     },
     null,
     2
@@ -708,7 +778,7 @@ function withTauriDevUrlForFrontendPort(callback) {
 }
 
 function buildWebDriverApp() {
-  withTauriDevUrlForFrontendPort(() => {
+  withManagedTauriConfig(() => {
     execFileSync(
       "cargo",
       [

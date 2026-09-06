@@ -45,6 +45,8 @@ import { SESSION_TARGET_KIND } from "@src/store/session/creatorStateAtom";
 import { invokeTauri } from "@src/util/platform/tauri/init";
 
 import type { SpotlightItem } from "../../types";
+import { cliAgentCapabilityDisabled } from "./cliAgentCapability";
+import { credentialedAccounts } from "./credentialedAccounts";
 import { createHumanSessionOption } from "./humanSessionOption";
 import type { AgentOption, AgentSelection } from "./types";
 
@@ -58,6 +60,7 @@ interface UseDispatchCategoryOptionsArgs {
   isOpen: boolean;
   hideOrgs: boolean;
   hideCliAgents?: boolean;
+  allowedCliAgentTypes?: readonly CliAgentType[];
   /** When true, only CLI agent entries are included (Rust-native agents and orgs are hidden). */
   cliOnly?: boolean;
   includeHumanSession?: boolean;
@@ -82,20 +85,21 @@ interface UseDispatchCategoryOptionsResult {
 function buildCredentialBadge(
   compatibleAccounts: KeyVaultAccount[]
 ): React.ReactNode {
-  const totalCount = compatibleAccounts.length;
+  const availableAccounts = credentialedAccounts(compatibleAccounts);
+  const totalCount = availableAccounts.length;
   const dotColor = totalCount > 0 ? "bg-success-6" : "bg-danger-6";
   const textColor = totalCount > 0 ? "text-text-2" : "text-text-3";
 
   const uniquePlanTypes = [
     ...new Set(
-      compatibleAccounts
+      availableAccounts
         .filter((acc) => !isApiKeyProvider(acc.modelType))
         .map((acc) => acc.modelType)
     ),
   ];
   const uniqueKeyTypes = [
     ...new Set(
-      compatibleAccounts
+      availableAccounts
         .filter((acc) => isApiKeyProvider(acc.modelType))
         .map((acc) => acc.modelType)
     ),
@@ -131,6 +135,7 @@ export function useDispatchCategoryOptions(
     isOpen,
     hideOrgs,
     hideCliAgents = false,
+    allowedCliAgentTypes,
     cliOnly = false,
     includeHumanSession = false,
     currentCategory,
@@ -208,7 +213,7 @@ export function useDispatchCategoryOptions(
   }, [cliAgentList, setAgentRegistry]);
 
   const rustCompatibleAccounts = useMemo(
-    () => getRustCompatibleAccounts(registry, accounts),
+    () => credentialedAccounts(getRustCompatibleAccounts(registry, accounts)),
     [registry, accounts]
   );
 
@@ -217,7 +222,8 @@ export function useDispatchCategoryOptions(
     return accounts.filter(
       (acc) =>
         acc.status === "ready" &&
-        (acc.hasKey ?? true) &&
+        acc.enabled &&
+        acc.hasKey &&
         !compatibleSet.has(acc.id)
     );
   }, [accounts, rustCompatibleAccounts]);
@@ -255,12 +261,14 @@ export function useDispatchCategoryOptions(
       const parsed = CliAgentTypeSchema.safeParse(agent.name);
       if (!parsed.success) return [];
       const agentType = parsed.data;
-      // CLI agents only show plan (subscription) accounts in the badge.
-      const compatibleAccounts = getCliCompatibleAccounts(
-        registry,
+      const disabled = cliAgentCapabilityDisabled(
         agentType,
-        accounts
-      ).filter((acc) => !isApiKeyProvider(acc.modelType));
+        allowedCliAgentTypes
+      );
+      // CLI agents only show plan (subscription) accounts in the badge.
+      const compatibleAccounts = credentialedAccounts(
+        getCliCompatibleAccounts(registry, agentType, accounts)
+      ).filter((account) => !isApiKeyProvider(account.modelType));
       return [
         {
           id: `cli:${agent.name}`,
@@ -273,11 +281,13 @@ export function useDispatchCategoryOptions(
           isCli: true,
           isOrg: false,
           availableKeys: compatibleAccounts,
+          disabled,
+          disabledLabel: disabled ? tCommon("status.notSupported") : undefined,
           rightContent: buildCredentialBadge(compatibleAccounts),
         },
       ];
     });
-  }, [installedCliAgents, accounts, registry]);
+  }, [allowedCliAgentTypes, installedCliAgents, accounts, registry, tCommon]);
 
   const customAgentOptions = useMemo((): AgentOption[] => {
     const rustBadge = buildCredentialBadge(rustCompatibleAccounts);
@@ -472,6 +482,8 @@ export function useDispatchCategoryOptions(
               ? getCliTransportLabel(option.cliAgentType)
               : undefined,
           availableKeys: option.availableKeys,
+          disabled: option.disabled,
+          tagLabel: option.disabledLabel,
           rightContent: option.rightContent,
           testId: option.isOrg
             ? `session-creator-agent-option-org-${option.agentOrgId}`
@@ -484,6 +496,7 @@ export function useDispatchCategoryOptions(
                   : undefined,
         },
         action: () => {
+          if (option.disabled) return;
           recordRecentAgentSelection({
             category: option.category,
             targetKind: option.targetKind,

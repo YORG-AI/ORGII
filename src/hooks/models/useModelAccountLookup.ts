@@ -80,9 +80,11 @@ export function buildAccountLookup(
  * useKeyVault call.
  */
 export function useModelAccountLookup() {
-  const { accounts } = useKeyVault({ autoLoad: true });
+  const { accounts, loading, hasLoaded, error } = useKeyVault({
+    autoLoad: true,
+  });
 
   const accountLookup = useMemo(() => buildAccountLookup(accounts), [accounts]);
 
-  return { accountLookup, accounts };
+  return { accountLookup, accounts, loading, hasLoaded, error };
 }

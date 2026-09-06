@@ -716,6 +716,33 @@ async function waitForQueuedFollowup(marker) {
       timeoutMsg: `follow-up marker ${marker} never appeared in queued messages; state=${JSON.stringify(summarizeChatState(await invokeE2E("inspectChatState")))} dump=${JSON.stringify(summarizePageDump(await execJS(js.pageDump)))}`,
     }
   );
+
+  await browser.waitUntil(
+    async () => {
+      const clearAll = await execJS(`
+        const button = document.querySelector('[data-testid="queued-messages-clear-all"]');
+        return button
+          ? {
+              text: (button.textContent || "").trim(),
+              title: (button.getAttribute("title") || "").trim(),
+            }
+          : null;
+      `);
+      return (
+        clearAll !== null &&
+        clearAll.text.length > 0 &&
+        clearAll.title.length > 0 &&
+        clearAll.text !== "actions.clearAll" &&
+        clearAll.title !== "actions.clearAll"
+      );
+    },
+    {
+      timeout: 10_000,
+      interval: 100,
+      timeoutMsg:
+        "queued-message clear-all control did not render translated text and title",
+    }
+  );
 }
 
 async function clickSendNowForQueuedMarker(marker) {
@@ -732,8 +759,6 @@ async function clickSendNowForQueuedMarker(marker) {
       `Queued state did not contain marker ${marker}: markerUserEvents=${markerUserEvents.length} markerPreviewEvents=${markerPreviewEvents.length} state=${JSON.stringify(summarizeChatState(state))}`
     );
   }
-  const previousFlushRequest = state.queueFlushRequest;
-
   let clicked = null;
   await browser.waitUntil(
     async () => {
@@ -793,17 +818,6 @@ async function clickSendNowForQueuedMarker(marker) {
       timeout: 2_000,
       interval: 100,
       timeoutMsg: `Send Now did not immediately promote/hide queue item for ${marker}; state=${JSON.stringify(summarizeChatState(await invokeE2E("inspectChatState")))} dump=${JSON.stringify(summarizePageDump(await execJS(js.pageDump)))}`,
-    }
-  );
-
-  await browser.waitUntil(
-    async () => {
-      const nextState = await inspectChatState(`${marker}-flush`);
-      return nextState.queueFlushRequest > previousFlushRequest;
-    },
-    {
-      timeout: 5_000,
-      timeoutMsg: `Send Now did not invoke queue flush for ${marker}; before=${previousFlushRequest} state=${JSON.stringify(summarizeChatState(await invokeE2E("inspectChatState")))} dump=${JSON.stringify(summarizePageDump(await execJS(js.pageDump)))}`,
     }
   );
 

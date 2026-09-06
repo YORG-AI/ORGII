@@ -12,13 +12,11 @@ import ChatHistory from "./ChatHistory";
 import type { ChatHistoryProps } from "./ChatHistory/ChatHistory.types";
 import { GroupChatProvider } from "./ChatHistory/GroupChatView/GroupChatContext";
 import { AgentEventsTap } from "./ChatHistory/GroupChatView/useGroupChatMergedEvents";
-import { ConversationStreamProvider } from "./ConversationStreamProvider";
 import AgentOrgOverviewPanel from "./InputArea/components/AgentOrgOverviewPanel";
 
 interface ChatViewHistorySurfaceProps {
   sessionId: string;
   groupChatViewActive: boolean;
-  groupChatMergedEvents: SessionEvent[];
   groupChatAgents: ReadonlyArray<{ sessionId: string }>;
   pipelineSessionId: string | null;
   handleGroupChatTapEvents: (sessionId: string, events: SessionEvent[]) => void;
@@ -48,12 +46,18 @@ interface ChatViewHistorySurfaceProps {
     ChatHistoryProps["onGroupChatViewToggle"]
   >;
   isReadOnlySurface: boolean;
+  onFailedUserIntentRetry: NonNullable<
+    ChatHistoryProps["onFailedUserIntentRetry"]
+  >;
+  resolveFailedUserIntentDispatch: NonNullable<
+    ChatHistoryProps["resolveFailedUserIntentDispatch"]
+  >;
+  planningIndicatorScope: ChatHistoryProps["planningIndicatorScope"];
 }
 
 export function ChatViewHistorySurface({
   sessionId,
   groupChatViewActive,
-  groupChatMergedEvents,
   groupChatAgents,
   pipelineSessionId,
   handleGroupChatTapEvents,
@@ -78,75 +82,75 @@ export function ChatViewHistorySurface({
   groupChatViewAvailable,
   handleGroupChatViewToggle,
   isReadOnlySurface,
+  onFailedUserIntentRetry,
+  resolveFailedUserIntentDispatch,
+  planningIndicatorScope,
 }: ChatViewHistorySurfaceProps) {
   return (
-    <ConversationStreamProvider
-      sessionId={sessionId}
-      overrideEvents={groupChatViewActive ? groupChatMergedEvents : undefined}
+    <GroupChatProvider
+      enabled={groupChatViewActive}
+      coordinatorSessionId={sessionId}
+      orgMembers={agentOrgRunView?.members ?? []}
+      retryFailedMessage={(rowId, editedDisplayText) => {
+        void retryFailedGroupChatMessage(rowId, editedDisplayText);
+      }}
     >
-      <GroupChatProvider
-        enabled={groupChatViewActive}
-        coordinatorSessionId={sessionId}
-        orgMembers={agentOrgRunView?.members ?? []}
-        retryFailedMessage={(rowId, editedDisplayText) => {
-          void retryFailedGroupChatMessage(rowId, editedDisplayText);
-        }}
-      >
-        {groupChatViewActive && (
-          <AgentOrgGroupChatLiveSessions
-            enabled={groupChatViewActive}
-            excludeSessionId={pipelineSessionId}
-            members={agentOrgRunView?.members ?? []}
-          />
-        )}
-        {groupChatViewActive &&
-          groupChatAgents
-            .filter(
-              (agent) =>
-                !agent.sessionId.startsWith("agent-org-member-pending:")
-            )
-            .map((agent) => (
-              <AgentEventsTap
-                key={agent.sessionId}
-                sessionId={agent.sessionId}
-                onEvents={handleGroupChatTapEvents}
+      {groupChatViewActive && (
+        <AgentOrgGroupChatLiveSessions
+          enabled={groupChatViewActive}
+          excludeSessionId={pipelineSessionId}
+          members={agentOrgRunView?.members ?? []}
+        />
+      )}
+      {groupChatViewActive &&
+        groupChatAgents
+          .filter(
+            (agent) => !agent.sessionId.startsWith("agent-org-member-pending:")
+          )
+          .map((agent) => (
+            <AgentEventsTap
+              key={agent.sessionId}
+              sessionId={agent.sessionId}
+              onEvents={handleGroupChatTapEvents}
+            />
+          ))}
+      <AgentMessageClampProvider value={agentMessageClampEligible}>
+        <ChatHistory
+          surfaceBgClass={surfaceBgClass}
+          chatPanelPosition={position}
+          agentOrgCurrentMemberName={currentAgentOrgMember?.name ?? null}
+          agentOrgCurrentMemberId={currentAgentOrgMember?.memberId ?? null}
+          agentOrgMembers={agentOrgRunView?.members ?? []}
+          mutationActionsDisabled={isReadOnlySurface}
+          agentOrgOverviewPanel={
+            agentOrgRunView || agentOrgRunViewError ? (
+              <AgentOrgOverviewPanel
+                view={agentOrgRunView}
+                error={agentOrgRunViewError}
+                currentSessionId={sessionId}
+                onRefresh={refreshAgentOrgRunView}
               />
-            ))}
-        <AgentMessageClampProvider value={agentMessageClampEligible}>
-          <ChatHistory
-            surfaceBgClass={surfaceBgClass}
-            chatPanelPosition={position}
-            agentOrgCurrentMemberName={currentAgentOrgMember?.name ?? null}
-            agentOrgCurrentMemberId={currentAgentOrgMember?.memberId ?? null}
-            agentOrgMembers={agentOrgRunView?.members ?? []}
-            mutationActionsDisabled={isReadOnlySurface}
-            agentOrgOverviewPanel={
-              agentOrgRunView || agentOrgRunViewError ? (
-                <AgentOrgOverviewPanel
-                  view={agentOrgRunView}
-                  error={agentOrgRunViewError}
-                  currentSessionId={sessionId}
-                  onRefresh={refreshAgentOrgRunView}
-                />
-              ) : null
-            }
-            onAgentOrgMemberSelect={handleAgentOrgMemberSessionJump}
-            onAgentOrgRunViewRefresh={refreshAgentOrgRunView}
-            onScrollNavChange={handleScrollNavChange}
-            followAgentNav={followAgentNav}
-            browserAddToConversationNav={browserAddToConversationNav}
-            displayMode={displayMode}
-            turnPaginationEnabled={turnPaginationEnabled}
-            paginationTrailingSlot={paginationTrailingSlot}
-            pinnedHeaderPortalHost={pinnedHeaderHost}
-            chromeTopInset={chromeTopInset}
-            bottomInset={historyBottomInset}
-            groupChatViewAvailable={groupChatViewAvailable}
-            groupChatViewActive={groupChatViewActive}
-            onGroupChatViewToggle={handleGroupChatViewToggle}
-          />
-        </AgentMessageClampProvider>
-      </GroupChatProvider>
-    </ConversationStreamProvider>
+            ) : null
+          }
+          onAgentOrgMemberSelect={handleAgentOrgMemberSessionJump}
+          onAgentOrgRunViewRefresh={refreshAgentOrgRunView}
+          onScrollNavChange={handleScrollNavChange}
+          followAgentNav={followAgentNav}
+          browserAddToConversationNav={browserAddToConversationNav}
+          displayMode={displayMode}
+          turnPaginationEnabled={turnPaginationEnabled}
+          paginationTrailingSlot={paginationTrailingSlot}
+          pinnedHeaderPortalHost={pinnedHeaderHost}
+          chromeTopInset={chromeTopInset}
+          bottomInset={historyBottomInset}
+          groupChatViewAvailable={groupChatViewAvailable}
+          groupChatViewActive={groupChatViewActive}
+          onGroupChatViewToggle={handleGroupChatViewToggle}
+          onFailedUserIntentRetry={onFailedUserIntentRetry}
+          resolveFailedUserIntentDispatch={resolveFailedUserIntentDispatch}
+          planningIndicatorScope={planningIndicatorScope}
+        />
+      </AgentMessageClampProvider>
+    </GroupChatProvider>
   );
 }

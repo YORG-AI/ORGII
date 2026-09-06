@@ -12,6 +12,7 @@ import { CLI_AGENT } from "@src/api/types/keys";
 import {
   type AgentRegistry,
   agentRegistryAtom,
+  agentRegistryDiscoveryStateAtom,
 } from "@src/store/session/agentRegistryAtom";
 
 // ============ PURE FUNCTIONS ============
@@ -158,5 +159,6 @@ export function isSourceCompatibleWithAgent(
  */
 export function useAgentCompatibility() {
   const registry = useAtomValue(agentRegistryAtom);
-  return { registry };
+  const discoveryState = useAtomValue(agentRegistryDiscoveryStateAtom);
+  return { registry, discoveryState };
 }

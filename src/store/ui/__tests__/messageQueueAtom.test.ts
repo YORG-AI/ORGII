@@ -13,8 +13,9 @@ import {
   editMessageAtom,
   enqueueMessageAtom,
   forceSendMessageAtom,
-  holdSessionQueueForStopAtom,
   messageQueueAtom,
+  messageQueueHandoffIdsAtom,
+  parkSessionQueuedMessagesAfterStopAtom,
   queueEditTargetAtom,
   queueEditingAtom,
   reorderQueueAtom,
@@ -99,8 +100,8 @@ describe("messageQueueAtom", () => {
         content: "same",
         displayContent: "same display",
       });
-      store.set(enqueueMessageAtom, msg1);
-      store.set(enqueueMessageAtom, msg2);
+      expect(store.set(enqueueMessageAtom, msg1)).toBe("enqueued");
+      expect(store.set(enqueueMessageAtom, msg2)).toBe("duplicate");
       expect(store.get(messageQueueAtom)).toEqual([msg1]);
     });
 
@@ -120,8 +121,8 @@ describe("messageQueueAtom", () => {
         content: "same",
         displayContent: "same display",
       });
-      store.set(enqueueMessageAtom, msg1);
-      store.set(enqueueMessageAtom, msg2);
+      expect(store.set(enqueueMessageAtom, msg1)).toBe("enqueued");
+      expect(store.set(enqueueMessageAtom, msg2)).toBe("enqueued");
       expect(store.get(messageQueueAtom)).toEqual([msg1, msg2]);
     });
 
@@ -165,6 +166,24 @@ describe("messageQueueAtom", () => {
   // =============================================
 
   describe("dequeueMessageAtom", () => {
+    it("freezes queue mutations while ownership is being handed off", () => {
+      const message = makeMessage({ id: "m1" });
+      store.set(enqueueMessageAtom, message);
+      store.set(messageQueueHandoffIdsAtom, new Set([message.id]));
+
+      store.set(forceSendMessageAtom, message.id);
+      expect(
+        store.set(editMessageAtom, {
+          messageId: message.id,
+          content: "edited too late",
+        })
+      ).toBe(false);
+      store.set(dequeueMessageAtom, message.id);
+      store.set(clearQueuedMessagesAtom, [message.id]);
+
+      expect(store.get(messageQueueAtom)).toEqual([message]);
+    });
+
     it("removes message by ID", () => {
       store.set(enqueueMessageAtom, makeMessage({ id: "m1" }));
       store.set(enqueueMessageAtom, makeMessage({ id: "m2" }));
@@ -214,6 +233,53 @@ describe("messageQueueAtom", () => {
       });
     });
 
+    it("clears a held delivery failure when the user explicitly retries", () => {
+      store.set(
+        enqueueMessageAtom,
+        makeMessage({
+          id: "m1",
+          requiresExplicitDispatch: true,
+          deliveryError: "provider unavailable",
+        })
+      );
+
+      store.set(forceSendMessageAtom, "m1");
+
+      expect(store.get(messageQueueAtom)[0]).toMatchObject({
+        priority: "now",
+        requiresExplicitDispatch: false,
+      });
+      expect(store.get(messageQueueAtom)[0].deliveryError).toBeUndefined();
+    });
+
+    it("keeps an edited retry intent instead of minting it twice", () => {
+      store.set(
+        enqueueMessageAtom,
+        makeMessage({
+          id: "m1",
+          requiresExplicitDispatch: true,
+          deliveryError: "provider unavailable",
+        })
+      );
+      store.set(editMessageAtom, {
+        messageId: "m1",
+        content: "@VantaNode retry with attachment",
+        imageDataUrls: ["data:image/png;base64,retry"],
+        turnIntentId: "terminal-retry-intent",
+      });
+
+      store.set(forceSendMessageAtom, "m1");
+
+      expect(store.get(messageQueueAtom)[0]).toMatchObject({
+        id: "m1",
+        turnIntentId: "terminal-retry-intent",
+        displayContent: "@VantaNode retry with attachment",
+        imageDataUrls: ["data:image/png;base64,retry"],
+        priority: "now",
+        requiresExplicitDispatch: false,
+      });
+    });
+
     it("is idempotent", () => {
       store.set(enqueueMessageAtom, makeMessage({ id: "m1" }));
 
@@ -254,10 +320,10 @@ describe("messageQueueAtom", () => {
   });
 
   // =============================================
-  // holdSessionQueueForStopAtom
+  // parkSessionQueuedMessagesAfterStopAtom
   // =============================================
 
-  describe("holdSessionQueueForStopAtom", () => {
+  describe("parkSessionQueuedMessagesAfterStopAtom", () => {
     it("parks every queued message of the session", () => {
       store.set(enqueueMessageAtom, makeMessage({ id: "m1" }));
       store.set(enqueueMessageAtom, makeMessage({ id: "m2" }));
@@ -266,7 +332,7 @@ describe("messageQueueAtom", () => {
         makeMessage({ id: "m3", sessionId: "session-2" })
       );
 
-      store.set(holdSessionQueueForStopAtom, "session-1");
+      store.set(parkSessionQueuedMessagesAfterStopAtom, "session-1");
 
       const queue = store.get(messageQueueAtom);
       expect(queue.find((m) => m.id === "m1")?.requiresExplicitDispatch).toBe(
@@ -282,7 +348,7 @@ describe("messageQueueAtom", () => {
 
     it("Send Now lifts the hold afterwards", () => {
       store.set(enqueueMessageAtom, makeMessage({ id: "m1" }));
-      store.set(holdSessionQueueForStopAtom, "session-1");
+      store.set(parkSessionQueuedMessagesAfterStopAtom, "session-1");
 
       store.set(forceSendMessageAtom, "m1");
 

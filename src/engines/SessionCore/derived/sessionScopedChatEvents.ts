@@ -50,6 +50,7 @@ import type { SessionEvent } from "../core/types";
 import { ensureCursorIdeEventsInStore } from "../sync/adapters/cursorIdeAdapter";
 import {
   appendLiveAssistantEvent,
+  appendQueuedUserEvents,
   filterQueuedSyntheticUserEvents,
 } from "./chatEvents";
 import { areChatTranscriptsStructurallyEqual } from "./chatTranscriptStructure";
@@ -186,7 +187,11 @@ function deriveFamilyChatEvents(
   return appendLiveAssistantEvent(
     derivePlanDisplayEvents(
       filterQueuedSyntheticUserEvents(
-        extractSessionChatEvents(snapshot),
+        appendQueuedUserEvents(
+          extractSessionChatEvents(snapshot),
+          sessionId,
+          queuedMessages
+        ),
         queuedMessages as QueuedMessage[]
       )
     ),

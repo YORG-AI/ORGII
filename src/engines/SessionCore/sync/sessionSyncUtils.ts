@@ -10,9 +10,11 @@
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import {
+  getSessionMetadata,
   loadEvents,
   loadInitialTurnWindow,
 } from "@src/engines/SessionCore/storage/cacheAdapter";
+import { isSyntheticUserInputEvent } from "@src/engines/SessionCore/sync/utils/activityIds";
 import { createLogger } from "@src/hooks/logger";
 import type {
   CliSessionStatus,
@@ -137,6 +139,54 @@ export async function loadOwnSessionInitialEvents(
   return window.events;
 }
 
+/**
+ * Provider-native history cannot contain a user turn rejected before native
+ * acceptance. EventStore persists that one terminal delivery projection so
+ * Retry/Edit remains visible after restart; merge only those rows back into
+ * the UI history. Pending dispatch still belongs to the durable queue and
+ * accepted turns still belong to the provider transcript.
+ */
+export function mergeFailedUserDeliveryProjection(
+  history: readonly SessionEvent[],
+  projected: readonly SessionEvent[]
+): SessionEvent[] {
+  const historyIds = new Set(history.map((event) => event.id));
+  const failed = projected.filter(
+    (event) =>
+      !historyIds.has(event.id) &&
+      isSyntheticUserInputEvent(event) &&
+      event.result?.deliveryStatus === "failed" &&
+      typeof event.result?.turnIntentId === "string" &&
+      event.result.turnIntentId.length > 0
+  );
+  if (failed.length === 0) return history as SessionEvent[];
+
+  const merged = [...history];
+  for (const event of failed) {
+    const insertAt = merged.findIndex(
+      (candidate) => candidate.createdAt > event.createdAt
+    );
+    if (insertAt < 0) merged.push(event);
+    else merged.splice(insertAt, 0, event);
+  }
+  return merged;
+}
+
+async function loadFailedUserDeliveryProjection(
+  sessionId: string
+): Promise<SessionEvent[]> {
+  // Avoid cache_load_session_events' provider fallback when no SQLite rows
+  // exist; a large native transcript must be parsed exactly once per load.
+  const metadata = await getSessionMetadata(sessionId);
+  if (!metadata || metadata.eventCount === 0) return [];
+  const cached = await loadEvents(sessionId);
+  return cached.filter(
+    (event) =>
+      isSyntheticUserInputEvent(event) &&
+      event.result?.deliveryStatus === "failed"
+  );
+}
+
 export async function loadPersistedHistory(
   adapter: SessionAdapter,
   sessionId: string,
@@ -144,12 +194,26 @@ export async function loadPersistedHistory(
 ): Promise<SessionEvent[]> {
   if (adapter.category === "agent") {
     const events = await loadOwnSessionInitialEvents(sessionId);
-    if (events.length > 0 || signal.aborted) {
-      return events;
+    if (signal.aborted) return [];
+    const history =
+      events.length > 0 ? events : await adapter.loadHistory(sessionId, signal);
+    if (signal.aborted || !isCollaborationImportedSession(sessionId)) {
+      return history;
     }
-    return adapter.loadHistory(sessionId, signal);
+    // Collaboration replays use the agent/cache adapter, but their bounded
+    // turn window intentionally omits synthetic delivery rows because those
+    // are not provider turns. Reattach the durable failed-send sidecar just
+    // like native CLI history so Retry/Edit survives an app restart.
+    const failedProjection = await loadFailedUserDeliveryProjection(sessionId);
+    return signal.aborted
+      ? []
+      : mergeFailedUserDeliveryProjection(history, failedProjection);
   }
-  return adapter.loadHistory(sessionId, signal);
+  const history = await adapter.loadHistory(sessionId, signal);
+  if (signal.aborted || adapter.category !== "cli") return history;
+  const failedProjection = await loadFailedUserDeliveryProjection(sessionId);
+  if (signal.aborted) return [];
+  return mergeFailedUserDeliveryProjection(history, failedProjection);
 }
 
 export async function hydrateSessionStoreBeforeDisplay(

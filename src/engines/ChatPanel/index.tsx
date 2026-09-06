@@ -469,7 +469,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         currentSessionId={currentSessionId ?? null}
         displayMode={displayMode}
         emptyChatContent={emptyChatContent}
-        onSessionContinuation={handleSessionContinuation}
         paginationEnabled={paginationEnabled}
         position={position}
         showPanelContent={contentState.showPanelContent}

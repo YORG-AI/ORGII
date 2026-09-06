@@ -1,26 +1,50 @@
-/**
- * Native-transcript reconcile contract.
- *
- * For CLI agents whose own store is the transcript of record, the in-memory
- * turn events are throwaway. This module decides when the canonical parse
- * replaces them. The invariants: only registered "native" sessions reconcile,
- * a reconcile is never scheduled twice concurrently, a stale session never
- * dispatches, and the retry only re-dispatches when the parse actually grew.
- *
- * Timers are the only thing faked — every code path under test is real.
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
 import {
-  isNativeTranscriptSession,
-  registerSessionTranscriptSource,
+  reconcileNativeTranscript,
+  recoverNativeTranscriptAfterMismatch,
   scheduleNativeTranscriptReconcile,
 } from "../nativeTranscriptReconcile";
 
-const SETTLE_MS = 600;
-const RETRY_MS = 2000;
+const mocks = vi.hoisted(() => ({
+  loadAuthoritative: vi.fn(),
+  getPersisted: vi.fn(),
+  set: vi.fn(),
+  setStreaming: vi.fn(),
+  cliStatus: vi.fn(),
+  closeTerminalEvents: vi.fn(),
+}));
+
+vi.mock("@src/api/tauri/rpc", () => ({
+  rpc: { cli: { status: mocks.cliStatus } },
+}));
+
+vi.mock("../adapters/cli/cliLifecycle", () => ({
+  closeObservedCliTerminalEvents: mocks.closeTerminalEvents,
+  isCliTerminalStatus: (status: string | undefined) =>
+    [
+      "completed",
+      "failed",
+      "error",
+      "cancelled",
+      "abandoned",
+      "timeout",
+    ].includes(status ?? ""),
+}));
+
+vi.mock("../authoritativeSessionEvents", () => ({
+  loadAuthoritativeSessionEvents: mocks.loadAuthoritative,
+}));
+
+vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
+  eventStoreProxy: {
+    getPersistedEvents: mocks.getPersisted,
+    set: mocks.set,
+    setStreaming: mocks.setStreaming,
+  },
+}));
 
 function makeEvent(id: string, sessionId: string): SessionEvent {
   return {
@@ -41,247 +65,194 @@ function makeEvent(id: string, sessionId: string): SessionEvent {
   };
 }
 
-interface Harness {
-  loadCalls: number;
-  loads: SessionEvent[][];
-  dispatches: Array<{
-    sessionId: string;
-    events: SessionEvent[];
-    replace?: boolean;
-  }>;
-  live: boolean;
-  deps: Parameters<typeof scheduleNativeTranscriptReconcile>[1];
+function historySequence(sequence: SessionEvent[][]): void {
+  let call = 0;
+  mocks.loadAuthoritative.mockImplementation(async () => ({
+    events: sequence[Math.min(call++, sequence.length - 1)] ?? [],
+    source: "cli_history",
+  }));
 }
 
-function makeHarness(
-  sessionId: string,
-  historyByCall: Array<SessionEvent[] | Error>
-): Harness {
-  const harness: Harness = {
-    loadCalls: 0,
-    loads: [],
-    dispatches: [],
-    live: true,
-    deps: {
-      loadHistory: async () => {
-        const next =
-          historyByCall[Math.min(harness.loadCalls, historyByCall.length - 1)];
-        harness.loadCalls += 1;
-        if (next instanceof Error) throw next;
-        harness.loads.push(next);
-        return next;
-      },
-      dispatchLoadSession: (payload) => {
-        harness.dispatches.push(payload);
-      },
-      isSessionLive: (id) => harness.live && id === sessionId,
-    },
-  };
-  return harness;
-}
-
-describe("native transcript source registry", () => {
-  it("only marks a session native for the literal `native` source", () => {
-    registerSessionTranscriptSource("s-native", "native");
-    registerSessionTranscriptSource("s-chunks", "chunks");
-
-    expect(isNativeTranscriptSession("s-native")).toBe(true);
-    expect(isNativeTranscriptSession("s-chunks")).toBe(false);
-    expect(isNativeTranscriptSession("s-never-registered")).toBe(false);
-  });
-
-  it("ignores an undefined source instead of clearing a known one", () => {
-    registerSessionTranscriptSource("s-keep", "native");
-    registerSessionTranscriptSource("s-keep", undefined);
-
-    expect(isNativeTranscriptSession("s-keep")).toBe(true);
-  });
-
-  it("ignores an empty-string source", () => {
-    registerSessionTranscriptSource("s-empty", "");
-
-    expect(isNativeTranscriptSession("s-empty")).toBe(false);
-  });
-});
-
-describe("scheduleNativeTranscriptReconcile", () => {
+describe("single-owner native transcript reconcile", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.clearAllMocks();
+    mocks.cliStatus.mockResolvedValue({ transcriptSource: "native" });
+    mocks.closeTerminalEvents.mockResolvedValue(undefined);
+    mocks.getPersisted.mockResolvedValue([]);
+    mocks.set.mockResolvedValue(undefined);
+    mocks.setStreaming.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it("does nothing for a session that is not native-transcript", async () => {
-    const sessionId = "s-legacy";
-    registerSessionTranscriptSource(sessionId, "chunks");
-    const harness = makeHarness(sessionId, [[makeEvent("a", sessionId)]]);
-
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    await vi.advanceTimersByTimeAsync(SETTLE_MS + RETRY_MS + 10);
-
-    expect(harness.loadCalls).toBe(0);
-    expect(harness.dispatches).toEqual([]);
+  it("does not schedule a non-native Session", async () => {
+    const sessionId = "reconcile-legacy";
+    mocks.cliStatus.mockResolvedValue({ transcriptSource: "chunks" });
+    historySequence([[makeEvent("a", sessionId)]]);
+    scheduleNativeTranscriptReconcile(sessionId);
+    await vi.waitFor(() => expect(mocks.cliStatus).toHaveBeenCalledOnce());
+    expect(mocks.loadAuthoritative).not.toHaveBeenCalled();
+    expect(mocks.set).not.toHaveBeenCalled();
   });
 
-  it("replaces the on-screen events once the settle delay elapses", async () => {
-    const sessionId = "s-replace";
-    registerSessionTranscriptSource(sessionId, "native");
-    const events = [makeEvent("u1", sessionId), makeEvent("a1", sessionId)];
-    const harness = makeHarness(sessionId, [events]);
-
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    expect(harness.loadCalls).toBe(0);
-
-    await vi.advanceTimersByTimeAsync(SETTLE_MS);
-
-    expect(harness.dispatches).toEqual([{ sessionId, events, replace: true }]);
-  });
-
-  it("re-dispatches on retry only when the parse grew", async () => {
-    const sessionId = "s-grew";
-    registerSessionTranscriptSource(sessionId, "native");
-    const first = [makeEvent("a", sessionId)];
-    const second = [makeEvent("a", sessionId), makeEvent("b", sessionId)];
-    const harness = makeHarness(sessionId, [first, second]);
-
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    await vi.advanceTimersByTimeAsync(SETTLE_MS + RETRY_MS);
-
-    expect(harness.loadCalls).toBe(2);
-    expect(harness.dispatches).toEqual([
-      { sessionId, events: first, replace: true },
-      { sessionId, events: second, replace: true },
-    ]);
-  });
-
-  it("does not re-dispatch when the retry parse is the same size", async () => {
-    const sessionId = "s-same";
-    registerSessionTranscriptSource(sessionId, "native");
+  it("publishes the provider transcript and closes streaming", async () => {
+    const sessionId = "reconcile-publish";
     const events = [makeEvent("a", sessionId)];
-    const harness = makeHarness(sessionId, [events, events]);
+    historySequence([events]);
 
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    await vi.advanceTimersByTimeAsync(SETTLE_MS + RETRY_MS);
-
-    expect(harness.loadCalls).toBe(2);
-    expect(harness.dispatches).toHaveLength(1);
+    await expect(reconcileNativeTranscript(sessionId)).resolves.toEqual(events);
+    expect(mocks.loadAuthoritative).toHaveBeenCalledTimes(1);
+    expect(mocks.getPersisted).not.toHaveBeenCalled();
+    expect(mocks.set).toHaveBeenCalledWith(events, sessionId);
+    expect(mocks.setStreaming).toHaveBeenCalledWith(false, sessionId);
   });
 
-  it("does not dispatch an empty parse, but still retries", async () => {
-    const sessionId = "s-empty-first";
-    registerSessionTranscriptSource(sessionId, "native");
-    const late = [makeEvent("late", sessionId)];
-    const harness = makeHarness(sessionId, [[], late]);
+  it("clears a stale projection when the authoritative transcript is empty", async () => {
+    const sessionId = "reconcile-authoritative-empty";
+    historySequence([[]]);
 
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    await vi.advanceTimersByTimeAsync(SETTLE_MS + RETRY_MS);
-
-    expect(harness.dispatches).toEqual([
-      { sessionId, events: late, replace: true },
-    ]);
+    await expect(reconcileNativeTranscript(sessionId)).resolves.toEqual([]);
+    expect(mocks.loadAuthoritative).toHaveBeenCalledTimes(1);
+    expect(mocks.set).toHaveBeenCalledWith([], sessionId);
+    expect(mocks.setStreaming).toHaveBeenCalledWith(false, sessionId);
   });
 
-  it("coalesces concurrent schedules for the same session", async () => {
-    const sessionId = "s-dedupe";
-    registerSessionTranscriptSource(sessionId, "native");
+  it("does not treat an unavailable authoritative loader as an empty transcript", async () => {
+    const sessionId = "reconcile-loader-unavailable";
+    mocks.loadAuthoritative.mockRejectedValueOnce(
+      new Error("authoritative reader unavailable")
+    );
+
+    await expect(reconcileNativeTranscript(sessionId)).rejects.toThrow(
+      "authoritative reader unavailable"
+    );
+    expect(mocks.set).not.toHaveBeenCalled();
+    expect(mocks.setStreaming).not.toHaveBeenCalled();
+  });
+
+  it("retries only after an explicit semantic mismatch and stops when recovered", async () => {
+    vi.useFakeTimers();
+    const sessionId = "reconcile-late-flush";
+    const first = [makeEvent("a", sessionId)];
+    const grown = [...first, makeEvent("late", sessionId)];
+    historySequence([grown]);
+
+    const resultPromise = recoverNativeTranscriptAfterMismatch(
+      sessionId,
+      first,
+      (events) => events.length === grown.length
+    );
+    expect(mocks.loadAuthoritative).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(249);
+    expect(mocks.loadAuthoritative).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(resultPromise).resolves.toEqual(grown);
+    expect(mocks.loadAuthoritative).toHaveBeenCalledTimes(1);
+    expect(mocks.set).toHaveBeenCalledTimes(1);
+    expect(mocks.set).toHaveBeenLastCalledWith(grown, sessionId);
+  });
+
+  it("bounds mismatch recovery when the native transcript never catches up", async () => {
+    vi.useFakeTimers();
+    const sessionId = "reconcile-still-missing";
+    const events = [makeEvent("before", sessionId)];
+    historySequence([events]);
+
+    const resultPromise = recoverNativeTranscriptAfterMismatch(
+      sessionId,
+      events,
+      () => false
+    );
+    await vi.advanceTimersByTimeAsync(1_000);
+    await expect(resultPromise).resolves.toEqual(events);
+    expect(mocks.loadAuthoritative).toHaveBeenCalledTimes(2);
+    expect(mocks.set).toHaveBeenCalledTimes(2);
+  });
+
+  it("coalesces foreground and background callers into one reconcile", async () => {
+    const sessionId = "reconcile-coalesced";
     const events = [makeEvent("a", sessionId)];
-    const harness = makeHarness(sessionId, [events, events]);
+    historySequence([events]);
 
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    await vi.advanceTimersByTimeAsync(SETTLE_MS + RETRY_MS);
-
-    expect(harness.loadCalls).toBe(2);
-    expect(harness.dispatches).toHaveLength(1);
+    const first = reconcileNativeTranscript(sessionId);
+    const second = reconcileNativeTranscript(sessionId);
+    scheduleNativeTranscriptReconcile(sessionId);
+    expect(second).toBe(first);
+    await first;
+    expect(mocks.loadAuthoritative).toHaveBeenCalledTimes(1);
+    expect(mocks.set).toHaveBeenCalledTimes(1);
   });
 
-  it("releases the pending slot so a later turn can reconcile again", async () => {
-    const sessionId = "s-reschedule";
-    registerSessionTranscriptSource(sessionId, "native");
-    const first = [makeEvent("a", sessionId)];
-    const harness = makeHarness(sessionId, [first]);
+  it("upgrades an in-flight job to preserve an interrupted partial suffix", async () => {
+    const sessionId = "reconcile-interrupted";
+    const native = [makeEvent("native", sessionId)];
+    const partial = makeEvent("partial", sessionId);
+    mocks.cliStatus.mockResolvedValue({
+      transcriptSource: "native",
+      status: "cancelled",
+    });
+    historySequence([native]);
+    mocks.getPersisted.mockResolvedValue([...native, partial]);
 
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    await vi.advanceTimersByTimeAsync(SETTLE_MS + RETRY_MS);
-    const callsAfterFirst = harness.loadCalls;
-
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    await vi.advanceTimersByTimeAsync(SETTLE_MS + RETRY_MS);
-
-    expect(harness.loadCalls).toBeGreaterThan(callsAfterFirst);
+    const first = reconcileNativeTranscript(sessionId);
+    const joined = reconcileNativeTranscript(sessionId, {
+      preserveInterruptedSuffix: true,
+    });
+    expect(joined).toBe(first);
+    await expect(first).resolves.toEqual([...native, partial]);
+    expect(mocks.getPersisted).toHaveBeenCalledWith(sessionId);
+    expect(mocks.set).toHaveBeenCalledWith([...native, partial], sessionId);
+    expect(mocks.closeTerminalEvents).toHaveBeenCalledWith(
+      sessionId,
+      "cancelled"
+    );
+    expect(mocks.closeTerminalEvents.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.getPersisted.mock.invocationCallOrder[0]
+    );
   });
 
-  it("drops the reconcile entirely when the session is no longer on screen", async () => {
-    const sessionId = "s-stale";
-    registerSessionTranscriptSource(sessionId, "native");
-    const harness = makeHarness(sessionId, [[makeEvent("a", sessionId)]]);
-    harness.live = false;
+  it("keeps a durable failed user delivery across terminal native reconcile", async () => {
+    const sessionId = "reconcile-failed-delivery";
+    const native = [makeEvent("native", sessionId)];
+    const failed = {
+      ...makeEvent("queued-user:q1:", sessionId),
+      functionName: "user_message",
+      actionType: "raw",
+      source: "user",
+      displayText: "retry me",
+      displayStatus: "failed",
+      result: {
+        syntheticUserInput: true,
+        deliveryStatus: "failed",
+        deliveryError: "provider unavailable",
+        turnIntentId: "turn-failed",
+        message: { role: "user", content: "retry me" },
+      },
+    } as SessionEvent;
+    historySequence([native]);
+    mocks.getPersisted.mockResolvedValue([failed]);
 
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    await vi.advanceTimersByTimeAsync(SETTLE_MS + RETRY_MS);
-
-    expect(harness.loadCalls).toBe(0);
-    expect(harness.dispatches).toEqual([]);
+    await expect(
+      reconcileNativeTranscript(sessionId, {
+        preserveInterruptedSuffix: true,
+      })
+    ).resolves.toEqual([...native, failed]);
+    expect(mocks.set).toHaveBeenCalledWith([...native, failed], sessionId);
   });
 
-  it("drops the dispatch when the session goes stale during the read", async () => {
-    const sessionId = "s-stale-mid";
-    registerSessionTranscriptSource(sessionId, "native");
-    const harness = makeHarness(sessionId, [[makeEvent("a", sessionId)]]);
-    const originalLoad = harness.deps.loadHistory;
-    harness.deps.loadHistory = async (id: string) => {
-      const events = await originalLoad(id);
-      harness.live = false;
-      return events;
-    };
+  it("releases a failed job so a later terminal can retry", async () => {
+    const sessionId = "reconcile-retry-after-error";
+    mocks.loadAuthoritative.mockRejectedValueOnce(new Error("store locked"));
 
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    await vi.advanceTimersByTimeAsync(SETTLE_MS + RETRY_MS);
+    const failed = reconcileNativeTranscript(sessionId);
+    const failureAssertion = expect(failed).rejects.toThrow("store locked");
+    await failureAssertion;
 
-    expect(harness.loadCalls).toBe(1);
-    expect(harness.dispatches).toEqual([]);
-  });
-
-  it("skips the retry read entirely once the session leaves the screen", async () => {
-    const sessionId = "s-stale-before-retry";
-    registerSessionTranscriptSource(sessionId, "native");
-    const first = [makeEvent("a", sessionId)];
-    const harness = makeHarness(sessionId, [first, first]);
-
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    await vi.advanceTimersByTimeAsync(SETTLE_MS);
-    expect(harness.dispatches).toHaveLength(1);
-
-    harness.live = false;
-    await vi.advanceTimersByTimeAsync(RETRY_MS);
-
-    expect(harness.loadCalls).toBe(1);
-    expect(harness.dispatches).toHaveLength(1);
-  });
-
-  it("swallows a failing history read and frees the pending slot", async () => {
-    const sessionId = "s-throws";
-    registerSessionTranscriptSource(sessionId, "native");
-    const recovered = [makeEvent("a", sessionId)];
-    const harness = makeHarness(sessionId, [
-      new Error("native store locked"),
-      recovered,
-    ]);
-
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    await vi.advanceTimersByTimeAsync(SETTLE_MS + RETRY_MS);
-
-    expect(harness.dispatches).toEqual([]);
-
-    // The slot was released, so the next terminal status can retry.
-    scheduleNativeTranscriptReconcile(sessionId, harness.deps);
-    await vi.advanceTimersByTimeAsync(SETTLE_MS);
-
-    expect(harness.dispatches).toEqual([
-      { sessionId, events: recovered, replace: true },
-    ]);
+    const recovered = [makeEvent("recovered", sessionId)];
+    historySequence([recovered]);
+    const retry = reconcileNativeTranscript(sessionId);
+    await expect(retry).resolves.toEqual(recovered);
   });
 });

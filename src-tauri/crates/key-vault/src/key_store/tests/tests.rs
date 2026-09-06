@@ -862,6 +862,21 @@ fn test_claude_code_official_oauth_env_drops_stale_relay_base_url() {
         "ANTHROPIC_BASE_URL".to_string(),
         "https://relay.example.com/v1".to_string(),
     );
+    claude_key.env_vars.insert(
+        "ANTHROPIC_API_KEY".to_string(),
+        "stale-atlas-key".to_string(),
+    );
+    claude_key
+        .env_vars
+        .insert("ANTHROPIC_MODEL".to_string(), "zai-org/glm-5.2".to_string());
+    claude_key.env_vars.insert(
+        "ANTHROPIC_DEFAULT_OPUS_MODEL".to_string(),
+        "zai-org/glm-5.2".to_string(),
+    );
+    claude_key.env_vars.insert(
+        "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS".to_string(),
+        "1".to_string(),
+    );
     let key_id = claude_key.id.clone();
     service.save_key(claude_key).unwrap();
 
@@ -871,6 +886,10 @@ fn test_claude_code_official_oauth_env_drops_stale_relay_base_url() {
         Some("sk-ant-oat01-abc"),
     );
     assert!(!env.contains_key("ANTHROPIC_BASE_URL"));
+    assert!(!env.contains_key("ANTHROPIC_API_KEY"));
+    assert!(!env.contains_key("ANTHROPIC_MODEL"));
+    assert!(!env.contains_key("ANTHROPIC_DEFAULT_OPUS_MODEL"));
+    assert!(!env.contains_key("CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS"));
 }
 
 #[test]
@@ -1507,6 +1526,13 @@ fn test_cross_type_exact_match_takes_priority() {
 
     let mut claude_key = ModelKey::new(ModelType::ClaudeCode);
     claude_key.api_key = Some("sk-ant-native".to_string());
+    claude_key.env_vars.insert(
+        "ANTHROPIC_AUTH_TOKEN".to_string(),
+        "stale-oauth".to_string(),
+    );
+    claude_key
+        .env_vars
+        .insert("ANTHROPIC_MODEL".to_string(), "zai-org/glm-5.2".to_string());
     let claude_id = claude_key.id.clone();
     service.save_key(claude_key).unwrap();
 
@@ -1515,6 +1541,8 @@ fn test_cross_type_exact_match_takes_priority() {
         env.get("ANTHROPIC_API_KEY").map(|v| v.as_str()),
         Some("sk-ant-native"),
     );
+    assert!(!env.contains_key("ANTHROPIC_AUTH_TOKEN"));
+    assert!(!env.contains_key("ANTHROPIC_MODEL"));
 }
 
 #[test]

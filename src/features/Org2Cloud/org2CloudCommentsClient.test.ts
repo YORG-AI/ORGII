@@ -198,13 +198,20 @@ describe("addSessionComment", () => {
   });
 
   it("uses the retry-safe RPC when a stable client message key is present", async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({ comment: WIRE_COMMENT }));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        comment: {
+          ...WIRE_COMMENT,
+          mentionedUserIds: ["user-2"],
+        },
+      })
+    );
 
     await addSessionComment("jwt-1", {
       orgId: "org-1",
       sessionId: "sess-1",
       body: "Please review",
-      clientMessageKey: "agent-report:turn-1:c-1",
+      clientMessageKey: "optimistic-comment-1",
       mentionedUserIds: ["user-2", "user-2"],
     });
 
@@ -212,27 +219,48 @@ describe("addSessionComment", () => {
       `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/rest/v1/rpc/cloud_add_session_comment_idempotent`
     );
     expect(lastBody()).toMatchObject({
-      p_client_message_key: "agent-report:turn-1:c-1",
+      p_client_message_key: "optimistic-comment-1",
       p_replace_existing: false,
       p_mentioned_user_ids: ["user-2"],
     });
   });
 
-  it("maps a mismatched retry key into a coded conflict", async () => {
+  it("fails closed when the retry-safe RPC has not deployed", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ message: "ORG2_IDEMPOTENCY_CONFLICT" }, 400)
+      jsonResponse({ message: "Could not find the function" }, 404)
     );
 
-    const error = await addSessionComment("jwt-1", {
+    await expect(
+      addSessionComment("jwt-1", {
+        orgId: "org-1",
+        sessionId: "sess-1",
+        body: "hello",
+        clientMessageKey: "optimistic-comment-1",
+      })
+    ).rejects.toThrow("Could not find the function");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks an edited retry explicitly without changing its stable key", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ comment: WIRE_COMMENT }));
+
+    await addSessionComment("jwt-1", {
       orgId: "org-1",
       sessionId: "sess-1",
-      body: "changed payload",
-      clientMessageKey: "agent-report:turn-1:c-1",
-    }).catch((caught: unknown) => caught);
+      body: "edited body",
+      clientMessageKey: "optimistic-comment-1",
+      replaceExisting: true,
+      expectedBody: "original body",
+      expectedMentionedUserIds: ["user-2"],
+    });
 
-    expect(isOrg2CommentErrorCode(error, "ORG2_IDEMPOTENCY_CONFLICT")).toBe(
-      true
-    );
+    expect(lastBody()).toMatchObject({
+      p_client_message_key: "optimistic-comment-1",
+      p_replace_existing: true,
+      p_expected_body: "original body",
+      p_expected_mentioned_user_ids: ["user-2"],
+    });
   });
 
   it("sends JWT bearer + Content-Profile", async () => {
@@ -278,6 +306,21 @@ describe("addSessionComment", () => {
       body: "hi",
     }).catch((caught: unknown) => caught);
     expect(isOrg2CommentErrorCode(error, "ORG2_QUOTA_EXCEEDED")).toBe(true);
+  });
+
+  it("maps a mismatched retry key into a coded conflict", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ message: "ORG2_IDEMPOTENCY_CONFLICT" }, 400)
+    );
+    const error = await addSessionComment("jwt-1", {
+      orgId: "org-1",
+      sessionId: "sess-1",
+      body: "changed payload",
+      clientMessageKey: "optimistic-comment-1",
+    }).catch((caught: unknown) => caught);
+    expect(isOrg2CommentErrorCode(error, "ORG2_IDEMPOTENCY_CONFLICT")).toBe(
+      true
+    );
   });
 });
 

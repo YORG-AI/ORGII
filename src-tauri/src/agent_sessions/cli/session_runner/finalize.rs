@@ -1,10 +1,11 @@
 //! Post-run finalization for CLI sessions.
 //!
 //! Everything after the spawn/stdout loop returns: compute the final session
-//! status, extract a user-facing error message from stderr, persist status,
-//! clear live-status, requeue Agent Org member turns, broadcast the terminal
-//! event, commit worktree changes, fetch Cursor usage, and tear down the MITM
-//! proxy / proxy token / synced skill files. Extracted from
+//! status, extract a user-facing error message from stderr, flush and publish
+//! provider-native history, persist status, clear live-status, requeue Agent
+//! Org member turns, broadcast the terminal event, commit worktree changes,
+//! fetch Cursor usage, and tear down the MITM proxy / proxy token / synced
+//! skill files. Extracted from
 //! `session::run_session`.
 
 use std::collections::{HashSet, VecDeque};
@@ -334,7 +335,7 @@ pub(super) async fn finalize_session_run(
     })
     .await;
 
-    let raw_final_status = if cli_plan_approval_gate_reached {
+    let mut raw_final_status = if cli_plan_approval_gate_reached {
         SessionStatus::Completed
     } else if use_codex_app_server {
         // exit_code is meaningless here — we kill the long-lived server
@@ -355,27 +356,64 @@ pub(super) async fn finalize_session_run(
     } else {
         SessionStatus::Failed
     };
-    if raw_final_status == SessionStatus::Failed {
-        super::input_assembly::forget_session_context(session_id);
-    }
-
+    // A CLI that exhausted its context can exit 0 while its result frame
+    // reports `terminal_reason: prompt_too_long`. Demote the false success
+    // so the run records the overflow and the next wake starts fresh.
+    raw_final_status = if raw_final_status == SessionStatus::Completed
+        && terminal_error_message
+            .as_deref()
+            .is_some_and(app_utils::runtime_errors::is_context_exhausted_message)
+    {
+        SessionStatus::Failed
+    } else {
+        raw_final_status
+    };
     // CLI member sessions inside an Agent Org run must land on `Idle` after each
     // successful turn so they remain available for the next coordinator dispatch.
     // `Completed` is terminal (is_terminal() == true) and would cause
     // `reconcile_run_finality` to prematurely end the run.
     let is_org_member = session.org_member_id.is_some();
-    let final_status = if raw_final_status == SessionStatus::Completed && is_org_member {
+    let mut final_status = if raw_final_status == SessionStatus::Completed && is_org_member {
         SessionStatus::Idle
     } else {
         raw_final_status
     };
 
-    let error_message: Option<String> = if final_status == SessionStatus::Failed {
+    let mut error_message: Option<String> = if final_status == SessionStatus::Failed {
         let buf = stderr_lines.lock().await;
         resolve_cli_failure_message(terminal_oauth_error.clone(), terminal_error_message, &buf)
     } else {
         None
     };
+    // Native providers write the selected profile directly. Flushing final
+    // deltas is the only terminal persistence boundary.
+    flush_and_broadcast(session_id).await;
+
+    // Converge the provider-written file before publishing the terminal
+    // lifecycle. Consumers may start the next runtime as soon as that durable
+    // status is visible, so the exact native transcript/alias must already be
+    // authoritative. Only the best-effort App catalog refresh is deferred.
+    if let Err(error) =
+        super::super::native_materializer::converge_bound_native_transcript_and_schedule_catalog(
+            session_id,
+        )
+        .await
+    {
+        let convergence_error =
+            format!("Provider-native transcript could not be finalized safely: {error}");
+        tracing::error!(
+            session_id,
+            error = %error,
+            "failing terminal lifecycle because provider-native transcript did not converge"
+        );
+        raw_final_status = SessionStatus::Failed;
+        final_status = SessionStatus::Failed;
+        error_message = Some(convergence_error);
+    }
+
+    if raw_final_status == SessionStatus::Failed {
+        super::input_assembly::forget_session_context(session_id);
+    }
 
     super::harness_hooks::finish_turn(
         session_id,
@@ -519,9 +557,6 @@ pub(super) async fn finalize_session_run(
         };
         agent_core::lifecycle::finalize_agent_org_member_turn(None, session_id, &outcome);
     }
-
-    // Flush any pending streaming deltas before signaling session end
-    flush_and_broadcast(session_id).await;
 
     let mut status_msg = serde_json::json!({
         "type": "code_session.status_changed",

@@ -8,7 +8,7 @@
 //! - `spawn_retry`          — transient subprocess-spawn retry helpers
 //! - `skills_resolve`       — built-in SDE agent skills-config resolution
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::process::Stdio;
 use std::sync::Arc;
 
@@ -17,7 +17,7 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 
 use crate::api::websocket_handler;
-use agent_core::session::AgentExecMode;
+use agent_core::session::{AgentExecMode, IdeContext};
 use key_vault::key_store::{KeyService, ModelType, KEY_SERVICE};
 
 use super::super::launch_profile_store::resolve_cli_launch_profile;
@@ -26,7 +26,7 @@ use super::super::types::KeySource;
 use super::command::{
     build_command_with_launch_profile, launch_profile_env, CliCommandBuildRequest,
 };
-use super::helpers::{emit_chunk, persist_attached_images, strip_ide_context};
+use super::helpers::{emit_chunk, persist_attached_images};
 use super::oauth_setup::{
     is_cli_oauth_retry_eligible, refresh_cli_oauth_for_retry, sanitize_cli_oauth_env_for_child,
 };
@@ -45,6 +45,44 @@ const MAX_OVERLOAD_RETRIES: u32 = 3;
 const OVERLOAD_RETRY_BASE_DELAY_SECS: u64 = 2;
 
 const MAX_STDERR_LINES: usize = 20;
+
+/// Routing/auth variables owned by an explicit Claude account selection.
+/// `tokio::process::Command` inherits the desktop process environment, so a
+/// variable that is absent from the newly selected account must be explicitly
+/// removed or a prior shell/launcher setting can silently reroute the child.
+const CLAUDE_ACCOUNT_ENV_KEYS: &[&str] = &[
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS",
+    "DISABLE_INTERLEAVED_THINKING",
+    "CLAUDE_CONFIG_DIR",
+];
+
+fn merge_launch_profile_environment(
+    agent: &ModelType,
+    has_explicit_account: bool,
+    selected_environment: &mut HashMap<String, String>,
+    profile_environment: HashMap<String, String>,
+) {
+    for (key, value) in profile_environment {
+        // A stored launch profile is a runtime default, never a credential or
+        // routing authority. In particular, after selecting a Claude account,
+        // absent account-owned keys must remain absent so apply_child_environment
+        // can remove stale ambient Atlas/Anthropic routing.
+        if has_explicit_account
+            && matches!(agent, ModelType::ClaudeCode)
+            && CLAUDE_ACCOUNT_ENV_KEYS.contains(&key.as_str())
+        {
+            continue;
+        }
+        selected_environment.entry(key).or_insert(value);
+    }
+}
 
 /// How long to keep waiting for the stderr reader once the child is gone. A
 /// CLI that hands its stderr to a surviving grandchild keeps the pipe open
@@ -78,6 +116,25 @@ fn environment_key_is_sensitive(key: &str) -> bool {
     ]
     .iter()
     .any(|marker| key.contains(marker))
+}
+
+fn apply_child_environment(
+    command: &mut Command,
+    agent: &ModelType,
+    has_explicit_account: bool,
+    env_vars: &HashMap<String, String>,
+) {
+    // An ambient Claude launch intentionally inherits the user's shell/CLI
+    // profile. Once the composer selects an ORGII account, however, that
+    // account is the complete routing source and absent keys must stay absent.
+    if has_explicit_account && matches!(agent, ModelType::ClaudeCode) {
+        for key in CLAUDE_ACCOUNT_ENV_KEYS {
+            if !env_vars.contains_key(*key) {
+                command.env_remove(key);
+            }
+        }
+    }
+    command.envs(env_vars);
 }
 
 fn redacted_command_parts(cmd_parts: &[String]) -> Vec<String> {
@@ -278,6 +335,39 @@ fn resolve_session_model(
     }
 }
 
+/// Claude Code accepts provider-specific model ids (for example Atlas Cloud's
+/// `zai-org/glm-5.1`) through its Anthropic-compatible environment, not the
+/// CLI's `--model` validator. `KeyService::get_env_for_agent` supplies a safe
+/// account-level fallback, but the session's explicit model selection must win
+/// whenever one is present.
+fn apply_claude_cross_type_session_model(
+    agent: &ModelType,
+    key_model_type: Option<&ModelType>,
+    session_model: Option<&str>,
+    env_vars: &mut HashMap<String, String>,
+) {
+    let is_cross_type_key = key_model_type.is_some_and(|key_type| key_type != agent);
+    if !matches!(agent, ModelType::ClaudeCode) || !is_cross_type_key {
+        return;
+    }
+
+    let Some(model) = session_model
+        .map(str::trim)
+        .filter(|model| !model.is_empty())
+    else {
+        return;
+    };
+
+    for key in [
+        "ANTHROPIC_MODEL",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    ] {
+        env_vars.insert(key.to_string(), model.to_string());
+    }
+}
+
 fn resolve_cli_effective_mode(
     product_mode: Option<&str>,
     requested_mode: Option<&str>,
@@ -293,6 +383,17 @@ fn resolve_cli_effective_mode(
     }
 }
 
+fn scope_codex_transport_to_turn(
+    agent: &ModelType,
+    launch_profile: &mut super::launch_profiles::ResolvedCliLaunchProfile,
+    native_continuation_episode: bool,
+) {
+    if matches!(agent, ModelType::Codex) {
+        launch_profile.transport = native_continuation_episode
+            .then(|| super::launch_profiles::CLI_TRANSPORT_APP_SERVER.to_string());
+    }
+}
+
 /// Run a code session: spawn CLI, parse stdout, broadcast events.
 ///
 /// This is spawned as a background Tokio task.
@@ -305,6 +406,36 @@ pub async fn run_session(
     mode: Option<&str>,
     images: Option<Vec<String>>,
     turn_intent_id: Option<&str>,
+    allow_native_context_recovery: bool,
+) -> Result<(), String> {
+    run_session_with_ide_context(
+        session_id,
+        user_input,
+        None,
+        cli_resume_id,
+        mode,
+        images,
+        turn_intent_id,
+        allow_native_context_recovery,
+    )
+    .await
+}
+
+/// Run a CLI turn while preserving the IDE snapshot as provider-only context.
+///
+/// The public `run_session` wrapper remains for non-UI callers that do not
+/// carry IDE state. UI run/message commands use this path so the snapshot can
+/// be encoded in a native system/developer channel instead of the user row.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn run_session_with_ide_context(
+    session_id: String,
+    user_input: String,
+    ide_context: Option<IdeContext>,
+    cli_resume_id: Option<String>,
+    mode: Option<&str>,
+    images: Option<Vec<String>>,
+    turn_intent_id: Option<&str>,
+    allow_native_context_recovery: bool,
 ) -> Result<(), String> {
     let session = persistence::get_session(&session_id)
         .map_err(|e| format!("DB error: {}", e))?
@@ -448,10 +579,14 @@ pub async fn run_session(
 
     let run_started_at = chrono::Utc::now();
 
-    // Resolved early: the experimental codex app-server transport gate
+    // Resolved early: the codex app-server transport gate
     // changes prompt assembly (images travel as native localImage inputs)
     // as well as argv and the stdout-processing branch below.
-    let launch_profile = resolve_cli_launch_profile(&agent)?;
+    let mut launch_profile = resolve_cli_launch_profile(&agent)?;
+    // Ordinary Codex sessions keep the established `codex exec --json`
+    // transport. A canonical/native continuation episode opts into app-server
+    // for this turn only, without mutating the user's saved launch profile.
+    scope_codex_transport_to_turn(&agent, &mut launch_profile, allow_native_context_recovery);
     let use_codex_app_server =
         super::launch_profiles::uses_codex_app_server(&agent, &launch_profile);
 
@@ -472,8 +607,9 @@ pub async fn run_session(
     } else {
         None
     };
-    let mut effective_input = super::input_assembly::build_effective_input(
+    let mut turn = super::input_assembly::build_turn_envelope(
         &user_input,
+        ide_context.as_ref(),
         Some(effective_mode_str),
         session.product_mode.as_deref(),
         session.project_slug.as_deref(),
@@ -489,10 +625,10 @@ pub async fn run_session(
         status_catalog.as_deref(),
     );
     if let Some(context) = lifecycle_hook_context {
-        effective_input = format!(
-            "<orgii_hook_context event=\"session_start\">\n{}\n</orgii_hook_context>\n\n{}",
-            context, effective_input
-        );
+        turn.prepend_provider_context(format!(
+            "<orgii_hook_context event=\"session_start\">\n{}\n</orgii_hook_context>",
+            context
+        ));
     }
 
     // Build CLI command
@@ -533,7 +669,7 @@ pub async fn run_session(
     // random owner-only profile layer and pass only the non-secret profile
     // name in argv. The guard stays alive through every transport retry and
     // finalization, then removes the profile on return/cancellation.
-    let codex_mcp_profile = if matches!(agent, ModelType::Codex) {
+    let codex_mcp_profile = if matches!(agent, ModelType::Codex) && !use_codex_app_server {
         let codex_home =
             super::env_setup::codex_home_for_session(&session, account_id, &session_id)?;
         session_mcp
@@ -544,6 +680,11 @@ pub async fn run_session(
     } else {
         None
     };
+    let codex_app_server_config = if matches!(agent, ModelType::Codex) && use_codex_app_server {
+        session_mcp.codex_app_server_config()
+    } else {
+        None
+    };
     let acp_mcp_servers = session_mcp.acp_servers();
     let stderr_mcp_servers = Arc::new(session_mcp);
 
@@ -551,7 +692,7 @@ pub async fn run_session(
         agent: &agent,
         launch_profile: &launch_profile,
         model: model.as_deref(),
-        task: &effective_input,
+        turn: &turn,
         resume_id: cli_resume_id.as_deref(),
         api_key: api_key_for_cli,
         endpoint: endpoint_for_cli,
@@ -607,7 +748,19 @@ pub async fn run_session(
         KEY_SERVICE.get_env_for_agent(&agent, account_id)
     };
 
-    env_vars.extend(launch_profile_env(&launch_profile));
+    apply_claude_cross_type_session_model(
+        &agent,
+        key_model_type.as_ref(),
+        session.model.as_deref(),
+        &mut env_vars,
+    );
+
+    merge_launch_profile_environment(
+        &agent,
+        account_id.is_some(),
+        &mut env_vars,
+        launch_profile_env(&launch_profile),
+    );
 
     // Inherited by the CLI child and, transitively, by its hook subprocesses:
     // lets live-status hook posts attribute directly to this managed session
@@ -628,8 +781,9 @@ pub async fn run_session(
         env_vars.insert("CURSOR_CLI_COMPAT".to_string(), "1".to_string());
     }
 
-    // Store user input (without IDE context)
-    let display_input = strip_ide_context(&user_input);
+    // Store only the literal user-authored input. IDE and other provider
+    // context live in the typed turn envelope and never enter this row.
+    let display_input = user_input.clone();
     {
         let conn = session_persistence::get_connection().map_err(|e| format!("DB: {}", e))?;
         conn.execute(
@@ -784,9 +938,14 @@ pub async fn run_session(
         let mut attempt_stderr = CliStderrCollector::new();
         stderr_lines = attempt_stderr.lines();
         let mut spawn_cmd = Command::new(program);
+        spawn_cmd.args(args);
+        apply_child_environment(
+            &mut spawn_cmd,
+            &agent,
+            session.key_source == KeySource::HostedKey || account_id.is_some(),
+            &env_vars,
+        );
         spawn_cmd
-            .args(args)
-            .envs(&env_vars)
             .current_dir(working_dir)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -855,11 +1014,13 @@ pub async fn run_session(
                 session_id.clone(),
                 account_id,
                 oauth_retry_eligible,
-                effective_input.clone(),
+                turn.user_text().to_string(),
+                turn.provider_context(),
                 working_dir,
                 cli_resume_id.clone(),
                 model.as_deref(),
                 &launch_profile,
+                codex_app_server_config.clone(),
                 image_paths.clone(),
                 session_timeout,
                 pre_message_snapshot_id.clone(),
@@ -868,6 +1029,7 @@ pub async fn run_session(
                 &mut sequence,
                 codex_app_server_turn_ok,
                 &mut attempt_stderr,
+                allow_native_context_recovery,
             )
             .await?;
             exit_code = outcome.exit_code;
@@ -881,7 +1043,7 @@ pub async fn run_session(
             let outcome = transport_acp::run_acp_branch(
                 child,
                 session_id.clone(),
-                effective_input.clone(),
+                turn.merged_for_legacy(),
                 working_dir,
                 cli_resume_id.clone(),
                 agent.clone(),

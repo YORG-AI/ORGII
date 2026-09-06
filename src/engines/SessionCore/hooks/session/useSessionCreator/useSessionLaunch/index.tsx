@@ -254,6 +254,7 @@ export function useSessionLaunch(
           agentExecMode,
           effectiveSource,
           isBackgroundLaunch,
+          launchAgentDefinitionId: launchParams.agentDefinitionId,
           launchCliAgentType: launchParams.platform,
           launchOrgContext: resolvedWorkItemContext ?? undefined,
           result,

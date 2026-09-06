@@ -39,6 +39,39 @@ describe("external history loading", () => {
     forgetTranscriptSignature("codexapp-large");
   });
 
+  it("loads every native chunk for authoritative continuation without using the UI preview", async () => {
+    const previewChunks = vi.fn().mockResolvedValue([chunk()]);
+    const fullChunks = [
+      chunk(),
+      { ...chunk(), chunk_id: "chunk-2", function: "assistant_message" },
+      { ...chunk(), chunk_id: "chunk-3", function: "tool_result" },
+    ];
+    const loadFullTranscriptChunks = vi.fn().mockResolvedValue(fullChunks);
+    const events = [{ id: "event-1" }, { id: "event-2" }];
+    mocks.getSource.mockReturnValue({
+      loadPreviewChunks: previewChunks,
+      loadFullTranscriptChunks,
+    });
+    mocks.processChunks.mockResolvedValue(events);
+
+    await expect(
+      externalHistoryAdapter.loadAuthoritativeHistory!(
+        "claudecodeapp-large",
+        new AbortController().signal
+      )
+    ).resolves.toEqual(events);
+
+    expect(loadFullTranscriptChunks).toHaveBeenCalledOnce();
+    expect(loadFullTranscriptChunks).toHaveBeenCalledWith(
+      "claudecodeapp-large"
+    );
+    expect(previewChunks).not.toHaveBeenCalled();
+    expect(mocks.processChunks).toHaveBeenCalledWith(
+      fullChunks,
+      "claudecodeapp-large"
+    );
+  });
+
   it("shares one parse across overlapping initial and refresh loads", async () => {
     let resolveChunks: ((chunks: ActivityChunk[]) => void) | undefined;
     const loadPreviewChunks = vi.fn(

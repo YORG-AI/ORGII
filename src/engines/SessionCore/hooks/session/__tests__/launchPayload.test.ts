@@ -56,6 +56,27 @@ describe("launchPayload", () => {
     expect(session.cliAgentType).toBe("opencode");
   });
 
+  it("persists the selected agent definition on the optimistic session row", () => {
+    const session = buildSessionFromLaunchResult({
+      agentExecMode: "build",
+      effectiveSource: null,
+      isBackgroundLaunch: false,
+      launchAgentDefinitionId: "builtin:sde",
+      result: {
+        sessionId: "sdeagent-1",
+        category: DISPATCH_CATEGORY.RUST_AGENT,
+        name: "SDE session",
+        status: "running",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        userInput: "hello",
+        background: false,
+        model: "gpt-5.5",
+      },
+    });
+
+    expect(session.agentDefinitionId).toBe("builtin:sde");
+  });
+
   it("falls back to the launch platform for the optimistic CLI session row", () => {
     const session = buildSessionFromLaunchResult({
       agentExecMode: "build",

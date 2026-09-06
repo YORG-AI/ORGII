@@ -57,11 +57,7 @@ describe("Team Chat composer delivery ownership", () => {
 
   it("marks transport failures as retained so the editor is not restored", async () => {
     mocks.addComment.mockRejectedValueOnce(
-      new SessionCommentDeliveryError(
-        "local-comment-1",
-        { body: "hello" },
-        new Error("offline")
-      )
+      new SessionCommentDeliveryError("local-comment-1", new Error("offline"))
     );
     root = createSmokeRoot();
     await root.render(
@@ -97,7 +93,7 @@ describe("Team Chat composer delivery ownership", () => {
     ).rejects.toBe(error);
   });
 
-  it("rejects before inserting an anonymous unretryable row", async () => {
+  it("never enters team chat for a signed-out viewer, so no anonymous row is inserted", async () => {
     mocks.viewerUserId = null;
     root = createSmokeRoot();
     await root.render(
@@ -111,6 +107,63 @@ describe("Team Chat composer delivery ownership", () => {
 
     await expect(
       api.submit({ displayText: "hello", agentContent: "hello" })
+    ).resolves.toBe(false);
+    expect(mocks.addComment).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsupported attachment before any row is inserted", async () => {
+    root = createSmokeRoot();
+    await root.render(
+      createElement(Harness, {
+        onReady: (value) => {
+          api = value;
+        },
+      })
+    );
+    await act(async () => api.setMode("team_chat"));
+
+    await expect(
+      api.submit({
+        displayText: "hello",
+        agentContent: "hello",
+        imageDataUrls: ["data:image/png;base64,AAA"],
+      })
+    ).rejects.toBeInstanceOf(SubmitValidationError);
+    expect(mocks.addComment).not.toHaveBeenCalled();
+  });
+
+  it("rejects a stale Agent pill instead of silently sending it as Team Chat", async () => {
+    root = createSmokeRoot();
+    await root.render(
+      createElement(Harness, {
+        onReady: (value) => {
+          api = value;
+        },
+      })
+    );
+    await act(async () => api.setMode("team_chat"));
+
+    await expect(
+      api.submit({
+        displayText: "@Reviewer please review",
+        agentContent: "@Reviewer please review",
+        composerSnapshot: {
+          parts: [
+            {
+              kind: "pill",
+              attrs: {
+                filePath: "agent://reviewer",
+                fileName: "Reviewer",
+                isFolder: false,
+                iconType: "member",
+                lineStart: null,
+                lineEnd: null,
+              },
+            },
+            { kind: "text", text: " please review" },
+          ],
+        },
+      })
     ).rejects.toBeInstanceOf(SubmitValidationError);
     expect(mocks.addComment).not.toHaveBeenCalled();
   });

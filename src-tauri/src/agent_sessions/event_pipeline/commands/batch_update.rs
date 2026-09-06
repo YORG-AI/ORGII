@@ -53,7 +53,28 @@ pub async fn es_remove_by_id_prefix(
     prefix: String,
 ) -> Result<usize, String> {
     let sid = state.resolve_session_id(session_id)?;
-    let removed = state.with_store_mut(&sid, |store| store.remove_by_id_prefix(&prefix));
+    let removed_ids = state
+        .with_store_opt(&sid, |store| {
+            store
+                .events()
+                .iter()
+                .filter(|event| event.id.starts_with(&prefix))
+                .map(|event| event.id.clone())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if !removed_ids.is_empty() {
+        let persist_sid = sid.clone();
+        let persisted_ids = removed_ids.clone();
+        tokio::task::spawn_blocking(move || {
+            session_persistence::delete_events_by_ids(&persist_sid, &persisted_ids)
+                .map(|_| ())
+                .map_err(|err| err.to_string())
+        })
+        .await
+        .map_err(|err| format!("es_remove_by_id_prefix worker failed: {err}"))??;
+    }
+    let removed = state.with_store_mut(&sid, |store| store.remove_by_ids(&removed_ids));
     if removed > 0 {
         schedule_notify(&app, &state, &sid);
     }
@@ -61,24 +82,30 @@ pub async fn es_remove_by_id_prefix(
 }
 
 /// Remove frontend-injected user placeholders after the backend user turn arrives.
-/// `matching_contents` + `older_than` scope removal to placeholders that are
-/// echoed by one of those messages or predate the newest real user turn;
-/// omitted, every placeholder in the session is removed.
+/// Intent-bearing placeholders are removed only by their matching durable
+/// turn id. Legacy placeholders use `matching_contents` + `older_than`.
+/// Omit the whole scope to remove every placeholder in the session.
 #[tauri::command]
 pub async fn es_remove_synthetic_user_inputs(
     app: AppHandle,
     state: State<'_, EventStoreState>,
     session_id: Option<String>,
     matching_contents: Option<Vec<String>>,
+    matching_turn_intent_ids: Option<Vec<String>>,
     older_than: Option<String>,
 ) -> Result<usize, String> {
     let sid = state.resolve_session_id(session_id)?;
     let removed = state.with_store_mut(&sid, |store| {
-        store.remove_synthetic_user_inputs(
-            matching_contents
-                .as_deref()
-                .map(|contents| (contents, older_than.as_deref())),
-        )
+        let is_scoped = matching_contents.is_some()
+            || matching_turn_intent_ids.is_some()
+            || older_than.is_some();
+        store.remove_synthetic_user_inputs(is_scoped.then(|| {
+            (
+                matching_contents.as_deref().unwrap_or_default(),
+                matching_turn_intent_ids.as_deref().unwrap_or_default(),
+                older_than.as_deref(),
+            )
+        }))
     });
     if removed > 0 {
         schedule_notify(&app, &state, &sid);

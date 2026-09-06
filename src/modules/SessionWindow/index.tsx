@@ -48,6 +48,7 @@ import { useEventStoreBridge } from "@src/engines/SessionCore/core/store/useEven
 import GlobalPlanningIndicatorBridgeSync from "@src/engines/SessionCore/hooks/replay/GlobalPlanningIndicatorBridgeSync";
 import { useQueueDispatch } from "@src/engines/SessionCore/hooks/session/useQueueDispatch";
 import SessionSyncProvider from "@src/engines/SessionCore/sync/SessionSyncProvider";
+import { dispatchQueuedCanonicalConversation } from "@src/features/ConversationContinuation/canonicalConversationDispatcher";
 import SessionViewersIndicator from "@src/features/Org2Cloud/SessionViewersIndicator";
 import { useNativeSessionStatusMonitor } from "@src/hooks/session/useNativeSessionStatusMonitor";
 import { getPrimaryPaneBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
@@ -76,7 +77,7 @@ const MACOS_TRAFFIC_LIGHTS_INSET_PX = 84;
  *  while native notification delivery stays main-window-owned. */
 const SessionWindowBridges: React.FC = () => {
   useEventStoreBridge();
-  useQueueDispatch();
+  useQueueDispatch(dispatchQueuedCanonicalConversation);
   useNativeSessionStatusMonitor({ notifications: false });
   return <GlobalPlanningIndicatorBridgeSync />;
 };
@@ -262,7 +263,6 @@ const SessionWindowContent: React.FC<{ sessionId: string }> = memo(
           <SessionContentView
             sessionId={sessionId}
             displayMode={headerActions.displayMode}
-            onSessionContinuation={handleSessionContinuation}
             turnPaginationEnabled={headerActions.paginationEnabled}
           />
         </div>

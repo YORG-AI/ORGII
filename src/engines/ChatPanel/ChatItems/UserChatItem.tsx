@@ -1,4 +1,3 @@
-import { useAtomValue } from "jotai";
 import React, {
   type FC,
   type MouseEvent,
@@ -13,24 +12,20 @@ import { useTranslation } from "react-i18next";
 
 import { CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS } from "@src/components/ChatBubble";
 import ClampedContent from "@src/components/ClampedContent";
+import type { ComposerSnapshot } from "@src/components/ComposerInput";
 import ExpandOverlay from "@src/components/ExpandOverlay";
 import PersonAvatar from "@src/components/PersonAvatar";
 import { REPO_SETUP_PROMPT_MARKER } from "@src/config/repoSetupMarker";
 import type { OptimizedChatItem } from "@src/engines/ChatPanel/ChatHistory/chatItemPipeline/types";
+import { conversationSenderStampOf } from "@src/engines/SessionCore/conversations/conversationSenderMetadata";
 import { useSessionCommentsContext } from "@src/features/Org2Cloud/SessionComments/SessionCommentsContext";
-import type { ConversationSenderStamp } from "@src/features/Org2Cloud/SessionConversation/continuationEvents";
-import { CONVERSATION_SENDER_ARG } from "@src/features/Org2Cloud/SessionConversation/continuationEvents";
 import { discussionPayloadOf } from "@src/features/Org2Cloud/SessionConversation/discussionEvents";
-import { resolveTeamChatMentions } from "@src/features/Org2Cloud/SessionConversation/teamChatMentions";
-import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import {
   ClipboardCheckIcon,
-  Edit03Icon,
   File01Icon,
   HugeiconsIcon,
   Image01Icon,
   PencilEdit01Icon,
-  RotateLeft01Icon,
   SparklesIcon,
   Undo02Icon,
 } from "@src/icons";
@@ -43,26 +38,15 @@ import UserMessageContent, {
 import InputArea from "../InputArea";
 import { stripExpandedPillContent } from "../InputArea/utils/pillContentParser";
 import SessionIdentityIcon from "../components/SessionIdentityIcon";
+import { useConversationSenderResolution } from "./ConversationSenderMetadataContext";
 import { useParentAgentSender } from "./ParentAgentSenderContext";
 import RawPromptToggle from "./RawPromptToggle";
-import { useSharedConversationSender } from "./SharedConversationSenderContext";
 import { normalizeUserMessageText } from "./normalizeUserMessageText";
 import { wasSubmittedByViewer } from "./parentAgentSender";
 import { describeModelLabel } from "./rawPromptModelLabel";
 import { resolveRawUserPrompt } from "./rawUserPrompt";
+import { useUserMessageDeliveryActions } from "./useUserMessageDeliveryActions";
 import { resolveUserMessageSide } from "./userMessageSide";
-
-function readConversationSenderStamp(
-  event: { args?: Record<string, unknown> } | undefined
-): ConversationSenderStamp | null {
-  const raw = event?.args?.[CONVERSATION_SENDER_ARG];
-  if (!raw || typeof raw !== "object") return null;
-  const stamp = raw as Partial<ConversationSenderStamp>;
-  return typeof stamp.userId === "string" &&
-    typeof stamp.displayName === "string"
-    ? (stamp as ConversationSenderStamp)
-    : null;
-}
 
 const USER_MSG_MAX_LINES = 3;
 const USER_MSG_MAX_CHARS = 120;
@@ -204,8 +188,6 @@ const UserChatItem = ({
   onRestoreCheckpoint,
 }: UserChatItemProps) => {
   const { t } = useTranslation("sessions");
-  const sharedConversationSender = useSharedConversationSender();
-  const viewerCloudUserId = useAtomValue(org2CloudAuthAtom)?.userId ?? null;
   const [isEditing, setIsEditing] = useState(false);
 
   const [isExpanded, setIsExpanded] = useState(false);
@@ -225,7 +207,7 @@ const UserChatItem = ({
     [messageTimestamp]
   );
   const modelLabel = useMemo(() => describeModelLabel(modelId), [modelId]);
-  const discussion = event ? discussionPayloadOf(event) : null;
+  const senderResolution = useConversationSenderResolution(event);
   // Who wrote this turn. In a session an agent started, a `user` turn is the
   // parent's dispatch rather than the reader's own message, so the row is
   // attributed to the parent session — same identity icon the header shows.
@@ -235,8 +217,9 @@ const UserChatItem = ({
   // the org roster so the `@name` text renders as a member pill.
   const comments = useSessionCommentsContext();
   const mentionableMembers = comments?.mentionableMembers;
-  const mentionedUserIds = discussion?.mentionedUserIds;
-  const mentions = useMemo((): UserMessageMention[] | undefined => {
+  const discussionPayload = event ? discussionPayloadOf(event) : null;
+  const mentionedUserIds = discussionPayload?.mentionedUserIds;
+  const mentions: UserMessageMention[] | undefined = (() => {
     if (!mentionedUserIds?.length) return undefined;
     const resolved: UserMessageMention[] = [];
     for (const userId of mentionedUserIds) {
@@ -247,7 +230,7 @@ const UserChatItem = ({
       if (displayName) resolved.push({ userId, displayName });
     }
     return resolved.length > 0 ? resolved : undefined;
-  }, [mentionedUserIds, mentionableMembers]);
+  })();
   const editedText = event?.displayText
     ? stripExpandedPillContent(String(event.displayText))
     : "";
@@ -267,6 +250,23 @@ const UserChatItem = ({
     if (!Array.isArray(images) || images.length === 0) return undefined;
     return images.filter((image): image is string => typeof image === "string");
   }, [activityResult]);
+  const deliveryStatus = (() => {
+    const raw = activityResult?.result?.deliveryStatus;
+    if (raw === "pending" || raw === "sent" || raw === "failed") {
+      return raw;
+    }
+    if (event?.displayStatus === "pending") return "pending";
+    if (event?.displayStatus === "failed") return "failed";
+    return null;
+  })();
+  const deliveryError =
+    typeof activityResult?.result?.deliveryError === "string"
+      ? activityResult.result.deliveryError
+      : null;
+  const deliveryActions = useUserMessageDeliveryActions({
+    event,
+    deliveryStatus,
+  });
 
   const fullContent = useMemo(() => {
     // When display_text is present on the event it is the pill-format string
@@ -299,6 +299,12 @@ const UserChatItem = ({
 
   // Extract images from activity result for display in chat history.
   const messageImages = isAgentOrgInboxTranscript ? undefined : activityImages;
+  const retryDelivery = discussionPayload
+    ? deliveryActions.retry
+    : (deliveryActions.retry ??
+      (onEditSubmit
+        ? () => onEditSubmit(editedText || fullContent, messageImages)
+        : null));
 
   const needsTruncation = useMemo(() => {
     if (!compactPreview) return false;
@@ -343,15 +349,6 @@ const UserChatItem = ({
     setIsEditing(true);
   }, [messageImages]);
 
-  const failedLocalDiscussion = Boolean(
-    discussion?.deliveryStatus === "failed" &&
-    discussion.authorUserId === viewerCloudUserId
-  );
-  const retryFailedDiscussion = useCallback(() => {
-    if (!comments || !discussion || !failedLocalDiscussion) return;
-    void comments.retryComment(discussion.commentId).catch(() => undefined);
-  }, [comments, discussion, failedLocalDiscussion]);
-
   const handleEditCancel = useCallback(() => {
     setIsEditing(false);
   }, []);
@@ -361,18 +358,19 @@ const UserChatItem = ({
   }, []);
 
   const handleEditSubmitInternal = useCallback(
-    (newText: string, addedImageDataUrls?: string[]) => {
-      setIsEditing(false);
-      if (failedLocalDiscussion && discussion && comments) {
-        const mentionedUserIds = resolveTeamChatMentions(
-          newText,
-          comments.mentionableMembers
-        );
-        void comments
-          .retryComment(discussion.commentId, newText, mentionedUserIds)
-          .catch(() => undefined);
+    (
+      newText: string,
+      addedImageDataUrls?: string[],
+      composerSnapshot?: ComposerSnapshot
+    ) => {
+      const retryEdit = deliveryActions.editAndRetry;
+      if (retryEdit) {
+        void retryEdit(newText, composerSnapshot).then((accepted) => {
+          if (accepted) setIsEditing(false);
+        });
         return;
       }
+      setIsEditing(false);
       const rustImages = [
         ...((editImageList && editImageList.length > 0
           ? editImageList.map(imageRefToRustPath)
@@ -381,7 +379,7 @@ const UserChatItem = ({
       ];
       onEditSubmit?.(newText, rustImages.length > 0 ? rustImages : undefined);
     },
-    [comments, discussion, editImageList, failedLocalDiscussion, onEditSubmit]
+    [deliveryActions, editImageList, onEditSubmit]
   );
 
   // Edit mode
@@ -406,12 +404,13 @@ const UserChatItem = ({
   const planApprovedEdited =
     isPlanApproved && fullContent.startsWith("[Plan approved (edited)");
   const isEditableDisplay = Boolean(
-    (onEditSubmit || failedLocalDiscussion) &&
+    (onEditSubmit || deliveryActions.canEditFailed) &&
+    deliveryStatus !== "pending" &&
     !isRepoSetup &&
     !isAgentOrgInboxTranscript &&
     !isPlanApproved &&
-    (!event?.args?.["sessionDiscussion"] || failedLocalDiscussion) &&
-    !readConversationSenderStamp(event)
+    (!event?.args?.["sessionDiscussion"] || deliveryStatus === "failed") &&
+    (!conversationSenderStampOf(event) || deliveryActions.canEditFailed)
   );
   const hasDisplayContent = Boolean(
     fullContent.trim() ||
@@ -423,15 +422,12 @@ const UserChatItem = ({
   if (!hasDisplayContent) return null;
 
   const displayNeedsTruncation = needsTruncation;
-  const senderStamp = readConversationSenderStamp(event);
-  const stampIsViewer = Boolean(
-    senderStamp && viewerCloudUserId && senderStamp.userId === viewerCloudUserId
-  );
-  const ownerSide = senderStamp
-    ? stampIsViewer
+  const ownerSide =
+    senderResolution.relationship === "viewer"
       ? "right"
-      : "left"
-    : resolveUserMessageSide(event);
+      : senderResolution.relationship === "other"
+        ? "left"
+        : resolveUserMessageSide(event);
   // Only turns that would otherwise read as the viewer's own are reattributed
   // — a teammate's shared message already names its own sender and keeps it —
   // and only those the viewer did not actually submit. Someone can open a
@@ -446,9 +442,7 @@ const UserChatItem = ({
   const senderName = isParentAgentMessage
     ? parentAgentSender?.parentSession?.name?.trim() ||
       t("chat.parentAgentSender")
-    : senderStamp?.displayName.trim() ||
-      sharedConversationSender?.displayName.trim() ||
-      "Shared user";
+    : senderResolution.identity?.displayName?.trim() || null;
 
   const containerClass = `${DISPLAY_CONTAINER_BASE} ${isEditableDisplay ? "cursor-pointer outline-none" : ""}`;
   const messageContent = (
@@ -460,35 +454,6 @@ const UserChatItem = ({
   );
 
   // Display mode
-  const discussionDeliveryActions = failedLocalDiscussion ? (
-    <>
-      <button
-        type="button"
-        data-testid="team-chat-retry-button"
-        title={t("common:actions.retry")}
-        className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} hover:text-danger-7 text-danger-6`}
-        onClick={(event) => {
-          event.stopPropagation();
-          retryFailedDiscussion();
-        }}
-      >
-        <HugeiconsIcon icon={RotateLeft01Icon} size={14} strokeWidth={1.75} />
-      </button>
-      <button
-        type="button"
-        data-testid="team-chat-edit-button"
-        title={t("input.editingSentMessage")}
-        className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} hover:text-danger-7 text-danger-6`}
-        onClick={(event) => {
-          event.stopPropagation();
-          handleEditClick();
-        }}
-      >
-        <HugeiconsIcon icon={PencilEdit01Icon} size={14} strokeWidth={1.75} />
-      </button>
-    </>
-  ) : null;
-  const effectiveToolbarActions = toolbarActions ?? discussionDeliveryActions;
   const display = (
     <>
       <div
@@ -592,98 +557,134 @@ const UserChatItem = ({
               )}
             </>
           )}
-          {discussion?.deliveryStatus === "pending" && (
-            <span className="text-[11px] text-text-3">
-              {t("common:status.sending")}
-            </span>
-          )}
-          {discussion?.deliveryStatus === "failed" && (
-            <span className="text-[11px] text-danger-6">
-              {discussion.deliveryError ||
-                t("chat.failedToSendMessage", "Failed to send message")}
-            </span>
-          )}
         </div>
       </div>
-      {(rawPrompt.trim() || isEditableDisplay || effectiveToolbarActions) && (
+      {(rawPrompt.trim() ||
+        isEditableDisplay ||
+        toolbarActions ||
+        deliveryStatus === "pending" ||
+        deliveryStatus === "failed") && (
         <div className="relative mt-1 flex min-h-6 items-center px-1 text-[11px] leading-none text-text-3">
-          <div
-            className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-1 group-hover/msg:opacity-100 focus-within:opacity-100 ${
-              isRawPromptOpen || failedLocalDiscussion
-                ? "opacity-100"
-                : "opacity-0"
-            } ${isRemoteSharedMessage ? "left-full ml-1" : "right-full mr-1"}`}
-          >
-            {(timestampLabel || modelLabel) && (
-              <span className="inline-flex items-center gap-1 text-[11px] whitespace-nowrap text-text-3">
-                {timestampLabel && messageTimestamp && (
-                  <time
-                    dateTime={messageTimestamp}
-                    data-testid="chat-message-timestamp"
-                  >
-                    {timestampLabel}
-                  </time>
-                )}
-                {timestampLabel && modelLabel && (
-                  <span aria-hidden="true">·</span>
-                )}
-                {modelLabel && (
+          {(rawPrompt.trim() ||
+            isEditableDisplay ||
+            toolbarActions ||
+            timestampLabel ||
+            modelLabel) && (
+            <div
+              className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-1 group-hover/msg:opacity-100 focus-within:opacity-100 ${
+                isRawPromptOpen || deliveryActions.canEditFailed
+                  ? "opacity-100"
+                  : "opacity-0"
+              } ${isRemoteSharedMessage ? "left-full ml-1" : "right-full mr-1"}`}
+            >
+              {(timestampLabel || modelLabel) && (
+                <span className="inline-flex items-center gap-1 text-[11px] whitespace-nowrap text-text-3">
+                  {timestampLabel && messageTimestamp && (
+                    <time
+                      dateTime={messageTimestamp}
+                      data-testid="chat-message-timestamp"
+                    >
+                      {timestampLabel}
+                    </time>
+                  )}
+                  {timestampLabel && modelLabel && (
+                    <span aria-hidden="true">·</span>
+                  )}
+                  {modelLabel && (
+                    <span
+                      data-testid="chat-message-model"
+                      title={modelId ?? undefined}
+                    >
+                      {modelLabel.name}
+                      {modelLabel.variant ? ` · ${modelLabel.variant}` : ""}
+                    </span>
+                  )}
+                </span>
+              )}
+              {rawPrompt.trim() && event?.sessionId && (
+                <RawPromptToggle
+                  rawText={rawPrompt}
+                  sessionId={event.sessionId}
+                  onOpenChange={setIsRawPromptOpen}
+                />
+              )}
+              {isEditableDisplay && onRestoreCheckpoint && (
+                <button
+                  type="button"
+                  data-testid="chat-message-restore-checkpoint"
+                  title={t("chat.restoreCheckpoint", "Restore checkpoint")}
+                  className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} text-text-3 hover:text-danger-6`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRestoreCheckpoint();
+                  }}
+                >
+                  <HugeiconsIcon
+                    icon={Undo02Icon}
+                    data-icon="undo-2"
+                    size={15}
+                    strokeWidth={1.75}
+                  />
+                </button>
+              )}
+              {isEditableDisplay && (
+                <button
+                  type="button"
+                  data-testid="chat-message-user-edit-button"
+                  className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} text-text-3 hover:text-text-1`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditClick();
+                  }}
+                >
+                  <HugeiconsIcon
+                    icon={PencilEdit01Icon}
+                    data-icon="pencil-line"
+                    size={14}
+                    strokeWidth={1.75}
+                  />
+                </button>
+              )}
+              {toolbarActions}
+            </div>
+          )}
+          {(deliveryStatus === "pending" || deliveryStatus === "failed") && (
+            <span className="flex items-center gap-1.5">
+              {deliveryStatus === "pending" && (
+                <span data-testid="chat-message-delivery-pending">
+                  {t("common:status.sending")}
+                </span>
+              )}
+              {deliveryStatus === "failed" && (
+                <>
                   <span
-                    data-testid="chat-message-model"
-                    title={modelId ?? undefined}
+                    className="text-danger-6"
+                    data-testid="chat-message-delivery-failed"
+                    title={deliveryError ?? undefined}
                   >
-                    {modelLabel.name}
-                    {modelLabel.variant ? ` · ${modelLabel.variant}` : ""}
+                    {t("chat.failedToSendMessage")}
+                    {deliveryError &&
+                    deliveryError !== t("chat.failedToSendMessage")
+                      ? `: ${deliveryError}`
+                      : null}
                   </span>
-                )}
-              </span>
-            )}
-            {rawPrompt.trim() && event?.sessionId && (
-              <RawPromptToggle
-                rawText={rawPrompt}
-                sessionId={event.sessionId}
-                onOpenChange={setIsRawPromptOpen}
-              />
-            )}
-            {isEditableDisplay && onRestoreCheckpoint && (
-              <button
-                type="button"
-                data-testid="chat-message-restore-checkpoint"
-                title={t("chat.restoreCheckpoint", "Restore checkpoint")}
-                className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} text-text-3 hover:text-danger-6`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRestoreCheckpoint();
-                }}
-              >
-                <HugeiconsIcon
-                  icon={Undo02Icon}
-                  data-icon="undo-2"
-                  size={15}
-                  strokeWidth={1.75}
-                />
-              </button>
-            )}
-            {isEditableDisplay && (
-              <button
-                type="button"
-                data-testid="chat-message-user-edit-button"
-                className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} text-text-3 hover:text-text-1`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleEditClick();
-                }}
-              >
-                <HugeiconsIcon
-                  icon={Edit03Icon}
-                  data-icon="edit-03"
-                  size={14}
-                  strokeWidth={1.75}
-                />
-              </button>
-            )}
-            {effectiveToolbarActions}
-          </div>
+                  {retryDelivery && (
+                    <button
+                      type="button"
+                      className="font-medium text-danger-6 hover:underline"
+                      data-testid="chat-message-delivery-retry"
+                      onClick={(clickEvent) => {
+                        clickEvent.stopPropagation();
+                        retryDelivery();
+                      }}
+                    >
+                      {t("common:actions.retry", "Retry")}
+                    </button>
+                  )}
+                </>
+              )}
+            </span>
+          )}
         </div>
       )}
     </>
@@ -696,7 +697,7 @@ const UserChatItem = ({
       }`}
       data-message-side={messageSide}
     >
-      {isRemoteSharedMessage ? (
+      {isRemoteSharedMessage && senderName ? (
         <div className="flex max-w-full items-start gap-2.5">
           <span
             className="mt-0.5 shrink-0"
@@ -722,7 +723,7 @@ const UserChatItem = ({
               <PersonAvatar
                 size={24}
                 name={senderName}
-                src={sharedConversationSender?.avatarUrl}
+                src={senderResolution.identity?.avatarUrl}
               />
             )}
           </span>

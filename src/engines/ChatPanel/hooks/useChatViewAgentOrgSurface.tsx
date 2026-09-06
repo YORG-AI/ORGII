@@ -14,28 +14,24 @@ import { useAtomValue } from "jotai";
 import { useMemo } from "react";
 
 import { GroupChatPausedBanner } from "@src/engines/ChatPanel/components/ChatStatusBanners";
+import type { ConversationRootLocator } from "@src/engines/SessionCore/conversations/conversationTypes";
 import { activeSessionIdAtom } from "@src/store/session";
-import type { Session } from "@src/store/session";
 
 import { ChatViewGroupChatHistoryAction } from "../ChatViewGroupChatHistoryAction";
-import type { ChatViewProps } from "../ChatViewTypes";
 import { useAgentOrgIntervention } from "../InputArea/components/useAgentOrgIntervention";
 import { useAgentOrgMemberSessionJump } from "../InputArea/components/useAgentOrgMemberSessionJump";
 import { useAgentOrgRunView } from "../InputArea/components/useAgentOrgRunView";
 import { useAgentOrgGroupChatController } from "./useAgentOrgGroupChatController";
 import { useChatViewMessageQueue } from "./useChatViewMessageQueue";
-import { useImportedSessionSubmitOverride } from "./useImportedSessionSubmitOverride";
 
 export function useChatViewAgentOrgSurface({
   sessionId,
-  currentSession,
-  onSessionContinuation,
   showCurrentPlanSurface,
+  conversationRoot,
 }: {
   sessionId: string;
-  currentSession: Session | undefined;
-  onSessionContinuation: ChatViewProps["onSessionContinuation"];
   showCurrentPlanSurface: boolean;
+  conversationRoot: ConversationRootLocator | null;
 }) {
   const {
     view: agentOrgRunView,
@@ -100,16 +96,9 @@ export function useChatViewAgentOrgSurface({
   const handleAgentOrgMemberSessionJump =
     useAgentOrgMemberSessionJump(sessionId);
 
-  const handleMainComposerSubmitOverride = useImportedSessionSubmitOverride({
-    sessionId,
-    currentSession,
-    onFallbackSubmit: handleGroupChatSubmitOverride,
-    onSessionContinuation,
-  });
-
   const {
     cancelQueuedMessage,
-    enqueueCount,
+    queueTailKey,
     handleClearSessionQueue,
     handleReorderSessionQueue,
     handleSendNow,
@@ -118,6 +107,7 @@ export function useChatViewAgentOrgSurface({
   } = useChatViewMessageQueue({
     pipelineSessionId,
     queueSessionId,
+    conversationRoot,
   });
 
   const groupChatPausedBottomContent = groupChatRunPaused ? (
@@ -182,10 +172,10 @@ export function useChatViewAgentOrgSurface({
     groupChatPendingMessage,
     handleGroupChatViewToggle,
     handleAgentOrgMemberSessionJump,
-    handleMainComposerSubmitOverride,
+    handleMainComposerSubmitOverride: handleGroupChatSubmitOverride,
     retryFailedGroupChatMessage,
     cancelQueuedMessage,
-    enqueueCount,
+    queueTailKey,
     handleClearSessionQueue,
     handleReorderSessionQueue,
     handleSendNow,

@@ -44,8 +44,23 @@ describe("cloud download control atoms", () => {
     store.set(setCloudDownloadPendingPlayAtom, {
       localSessionId: "imported-session-abc",
       entry: {
+        authIdentityKey: "https://cloud.example.test|user-1",
         rowId: "row-1",
         orgId: "org-1",
+        sourceSession: {
+          id: "row-1",
+          orgId: "org-1",
+          ownerMemberId: "member-1",
+          ownerUserId: "user-1",
+          ownerDisplayName: "Ada",
+          ownerIdentityKind: "human",
+          sourceSessionId: "session-1",
+          title: "Shared session",
+          eventsEpoch: 1,
+          eventsFrozenSeq: 4,
+          eventsCount: 8,
+          eventsTailHash: "tail",
+        },
         iconId: "codex",
         pendingEvents: 4450,
         etaMs: 17_000,

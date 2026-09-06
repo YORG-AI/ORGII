@@ -22,6 +22,7 @@ export async function sendCliMessage(input: AdapterSendInput): Promise<void> {
     imageDataUrls,
     adeContext,
     directUserIntent,
+    allowNativeContextRecovery,
   } = input;
   const turnIntentId = input.turnIntentId ?? newMessageId();
   const clientMessageId = input.clientMessageId ?? newMessageId();
@@ -38,6 +39,9 @@ export async function sendCliMessage(input: AdapterSendInput): Promise<void> {
         ? { images: imageDataUrls }
         : {}),
       ...(adeContext ? { ideContext: adeContext } : {}),
+      ...(allowNativeContextRecovery
+        ? { allowNativeContextRecovery: true }
+        : {}),
     },
   });
 

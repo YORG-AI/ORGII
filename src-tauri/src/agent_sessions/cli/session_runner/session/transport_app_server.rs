@@ -1,7 +1,7 @@
 //! Codex app-server transport: long-lived JSON-RPC turn over stdio.
 //!
-//! Experimental; gated by the launch-profile transport="app-server" setting
-//! (see `super::super::launch_profiles::uses_codex_app_server`).
+//! Native continuation episodes opt into this transport explicitly. Ordinary
+//! Codex sessions retain the established per-turn `codex exec --json` path.
 
 use tokio::process::Child;
 
@@ -23,17 +23,23 @@ pub(super) struct AppServerOutcome {
     pub(super) terminal_error_message: Option<String>,
 }
 
+fn is_successful_turn_status(status: &str) -> bool {
+    status == "completed"
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn run_codex_app_server_branch(
     mut child: Child,
     session_id: String,
     account_id: Option<&str>,
     oauth_retry_eligible: bool,
-    effective_input: String,
+    user_input: String,
+    developer_instructions: Option<String>,
     working_dir: &str,
     cli_resume_id: Option<String>,
     model: Option<&str>,
     launch_profile: &ResolvedCliLaunchProfile,
+    config: Option<serde_json::Value>,
     image_paths: Vec<String>,
     session_timeout: tokio::time::Duration,
     pre_message_snapshot_id: Option<String>,
@@ -42,9 +48,10 @@ pub(super) async fn run_codex_app_server_branch(
     sequence: &mut i64,
     mut codex_app_server_turn_ok: bool,
     attempt_stderr: &mut super::CliStderrCollector,
+    allow_native_context_recovery: bool,
 ) -> Result<AppServerOutcome, String> {
     // ── Codex app-server: long-lived JSON-RPC over stdio ──
-    // (experimental; gate = launch-profile transport="app-server").
+    // The resolved launch profile may explicitly select the legacy exec path.
     // Same CODEX_HOME / auth env as the exec shell-out — the spawn
     // above already carries env_vars.
     use crate::agent_sessions::cli::parsers::codex_app_server;
@@ -56,14 +63,17 @@ pub(super) async fn run_codex_app_server_branch(
 
     let turn = codex_app_server::CodexAppServerTurn {
         session_id: session_id.clone(),
-        task: effective_input.clone(),
+        user_input,
+        developer_instructions,
         working_dir: working_dir.to_string(),
         resume_thread_id: cli_resume_id.clone(),
         model: super::super::command::codex_app_server_thread_model(model),
         permission_mode: launch_profile.permission_mode,
+        config,
         image_paths: image_paths.clone(),
+        allow_native_context_recovery,
     };
-    let app_server_handle = tokio::spawn(async move {
+    let mut app_server_handle = tokio::spawn(async move {
         codex_app_server::run_app_server_turn(stdin, stdout, turn, chunk_tx).await
     });
 
@@ -85,14 +95,14 @@ pub(super) async fn run_codex_app_server_branch(
             if is_cli_chunk_replay_unsafe(&chunk) {
                 replay_unsafe_output_seen = true;
             }
-            // Bind the rollout-compatible thread id as soon as the
-            // session_start chunk carries it (mirrors the parser
-            // early-binding in the exec branch below): native
-            // transcript replay, managed-mirror dedup, and
-            // live-status attribution all key on it, and a crash
-            // mid-turn must not orphan the rollout.
-            if cli_session_id_out.is_none() {
-                if let Some(ref tid) = chunk.thread_id {
+            // Bind the rollout-compatible thread id as soon as a lifecycle
+            // chunk carries it (mirrors the parser early-binding in the exec
+            // branch below). Context recovery may natively fork the thread
+            // inside this same transport turn, so a DIFFERENT id must replace
+            // the initial binding immediately; otherwise an instant follow-up
+            // can resume the overflowing source UUID and compact again.
+            if let Some(ref tid) = chunk.thread_id {
+                if cli_session_id_out.as_deref() != Some(tid.as_str()) {
                     cli_session_id_out = Some(tid.clone());
                     if let Err(err) =
                         persistence::update_cli_session_id_for_account(&session_id, account_id, tid)
@@ -119,12 +129,28 @@ pub(super) async fn run_codex_app_server_branch(
         }
     })
     .await;
-    let timed_out = timeout_result.is_err();
+    let mut timed_out = timeout_result.is_err();
+    if timed_out {
+        app_server_handle.abort();
+        terminal_error_message = Some("Codex app-server turn timed out".to_string());
+    }
 
-    match app_server_handle.await {
-        Ok(Ok(result)) => {
+    // The chunk channel normally closes only after the protocol task exits,
+    // but a leaked sender or stuck cleanup must not turn the four-hour turn
+    // deadline into an unbounded JoinHandle wait.
+    let join_result =
+        tokio::time::timeout(tokio::time::Duration::from_secs(5), &mut app_server_handle).await;
+    if join_result.is_err() {
+        timed_out = true;
+        codex_app_server_turn_ok = false;
+        terminal_error_message = Some("Codex app-server shutdown timed out".to_string());
+        app_server_handle.abort();
+    }
+
+    match join_result {
+        Ok(Ok(Ok(result))) if !timed_out => {
             cli_session_id_out = Some(result.thread_id);
-            codex_app_server_turn_ok = result.turn_status != "failed";
+            codex_app_server_turn_ok = is_successful_turn_status(&result.turn_status);
             if let Some(ref usage) = result.usage {
                 let round_model = usage.model.as_deref().or(model);
                 if let Err(err) = session_persistence::token_usage::insert_token_usage_record(
@@ -147,7 +173,7 @@ pub(super) async fn run_codex_app_server_branch(
                 }
             }
         }
-        Ok(Err(err)) if !timed_out => {
+        Ok(Ok(Err(err))) if !timed_out => {
             if oauth_retry_eligible
                 && !replay_unsafe_output_seen
                 && is_cli_oauth_failure_message(&err)
@@ -159,7 +185,7 @@ pub(super) async fn run_codex_app_server_branch(
                     Some(super::super::super::parsers::canonicalize_cli_error_message(&err));
             }
         }
-        Err(join_err) => {
+        Ok(Err(join_err)) if !timed_out => {
             tracing::error!("[CodeSession] app-server task panicked: {}", join_err);
             terminal_error_message = Some(format!("Codex app-server task failed: {join_err}"));
         }
@@ -205,4 +231,17 @@ pub(super) async fn run_codex_app_server_branch(
         retryable_oauth_message,
         terminal_error_message,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_successful_turn_status;
+
+    #[test]
+    fn only_completed_app_server_turns_succeed() {
+        assert!(is_successful_turn_status("completed"));
+        assert!(!is_successful_turn_status("failed"));
+        assert!(!is_successful_turn_status("interrupted"));
+        assert!(!is_successful_turn_status("cancelled"));
+    }
 }

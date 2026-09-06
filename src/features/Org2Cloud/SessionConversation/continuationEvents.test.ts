@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import { CONVERSATION_SENDER_ARG } from "@src/engines/SessionCore/conversations/conversationSenderMetadata";
+import { NATIVE_SOURCE_EVENT_ID_ARG } from "@src/engines/SessionCore/conversations/nativeConversationMaterializer";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 
 import {
-  CONVERSATION_SENDER_ARG,
   resolveConversationFamily,
   stitchConversationSegments,
 } from "./continuationEvents";
@@ -206,6 +207,60 @@ describe("stitchConversationSegments", () => {
       userId: "u-b",
       displayName: "Bob",
     });
+  });
+
+  it("drops a renumbered native copy by its preserved global source identity", () => {
+    const sourceId = "orgii_evt_0c2481a309205d2abd70fd14234cf0f5";
+    const rootReply = {
+      ...evt("codex-asst-97", "2026-08-20T09:00:00Z"),
+      sessionId: "native-root",
+      args: { [NATIVE_SOURCE_EVENT_ID_ARG]: sourceId },
+    };
+    const inheritedReply = {
+      ...evt("claude-renumbered-14", "2026-08-20T09:00:00Z"),
+      sessionId: "native-fork",
+      args: { [NATIVE_SOURCE_EVENT_ID_ARG]: sourceId },
+    };
+    const forkReply = {
+      ...evt("claude-new-15", "2026-08-20T10:05:00Z"),
+      sessionId: "native-fork",
+      args: {
+        [NATIVE_SOURCE_EVENT_ID_ARG]:
+          "orgii_evt_11111111111111111111111111111111",
+      },
+    };
+
+    const stitched = stitchConversationSegments(
+      family,
+      "root-1",
+      [rootReply],
+      new Map([["fork-b", [inheritedReply, forkReply]]])
+    );
+
+    expect(stitched).toEqual([rootReply, forkReply]);
+  });
+
+  it("drops a renumbered native copy inside the same loaded segment", () => {
+    const sourceId = "orgii_evt_0c2481a309205d2abd70fd14234cf0f5";
+    const original = {
+      ...evt("codex-asst-97", "2026-08-20T09:00:00Z"),
+      sessionId: "native-root",
+      args: { [NATIVE_SOURCE_EVENT_ID_ARG]: sourceId },
+    };
+    const replay = {
+      ...evt("codex-renumbered-101", "2026-08-20T09:00:00Z"),
+      sessionId: "native-root",
+      args: { [NATIVE_SOURCE_EVENT_ID_ARG]: sourceId },
+    };
+
+    const stitched = stitchConversationSegments(
+      family,
+      "root-1",
+      [original, replay],
+      new Map()
+    );
+
+    expect(stitched).toEqual([original]);
   });
 
   it("keeps inherited copies when the root segment is not loaded", () => {

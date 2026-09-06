@@ -5,6 +5,7 @@ use crate::agent_sessions::cli::parsers::codex::CodexParser;
 use crate::agent_sessions::cli::parsers::cursor::CursorParser;
 use crate::agent_sessions::cli::parsers::plain_text::PlainTextParser;
 use crate::agent_sessions::cli::parsers::CliAgentParser;
+use crate::agent_sessions::cli::session_runner::input_assembly::CliTurnEnvelope;
 use crate::agent_sessions::cli::session_runner::launch_profiles::{
     defaults_for_agent, static_args_to_vec, uses_codex_app_server, ResolvedCliLaunchProfile,
 };
@@ -15,7 +16,7 @@ pub(super) struct CliCommandBuildRequest<'a> {
     pub agent: &'a ModelType,
     pub launch_profile: &'a ResolvedCliLaunchProfile,
     pub model: Option<&'a str>,
-    pub task: &'a str,
+    pub turn: &'a CliTurnEnvelope,
     pub resume_id: Option<&'a str>,
     pub api_key: Option<&'a str>,
     pub endpoint: Option<&'a str>,
@@ -33,7 +34,7 @@ pub(super) fn build_command_with_launch_profile(
         agent,
         launch_profile,
         model,
-        task,
+        turn,
         resume_id,
         api_key,
         endpoint,
@@ -59,13 +60,8 @@ pub(super) fn build_command_with_launch_profile(
     // travel over JSON-RPC (`thread/start` / `turn/start` params) instead.
     if uses_codex_app_server(agent, launch_profile) {
         let mut cmd = vec![launch_profile.command.clone()];
-        // `app-server` does not expose `--profile` itself, but Codex's global
-        // option does. Keep it before the subcommand so the per-run MCP layer
-        // is loaded without putting its secret-bearing values in argv.
-        if let Some(profile) = codex_mcp_profile {
-            cmd.push("--profile".into());
-            cmd.push(profile.into());
-        }
+        // app-server rejects `--profile`; per-run MCP config travels in the
+        // thread JSON-RPC params so secrets never appear in argv.
         cmd.push("app-server".into());
         if let Some(m) = model {
             let codex_model = map_codex_model_variant(m);
@@ -117,7 +113,7 @@ pub(super) fn build_command_with_launch_profile(
                 cmd.push(ws.into());
             }
             cmd.push("-p".into());
-            cmd.push(task.into());
+            cmd.push(turn.merged_for_legacy());
             cmd
         }
         ModelType::ClaudeCode => {
@@ -151,8 +147,15 @@ pub(super) fn build_command_with_launch_profile(
                 cmd.push("--add-dir".into());
                 cmd.push(dir.clone());
             }
+            if let Some(provider_context) = turn.provider_context() {
+                // Claude Code appends this to its native system prompt. Keep
+                // `-p` reserved for the literal user-authored message so the
+                // provider JSONL and Claude app render the correct user row.
+                cmd.push("--append-system-prompt".into());
+                cmd.push(provider_context);
+            }
             cmd.push("-p".into());
-            cmd.push(task.into());
+            cmd.push(turn.user_text().into());
             cmd
         }
         ModelType::Codex => {
@@ -186,7 +189,7 @@ pub(super) fn build_command_with_launch_profile(
                 cmd.push("--add-dir".into());
                 cmd.push(dir.clone());
             }
-            cmd.push(task.into());
+            cmd.push(turn.merged_for_legacy());
             cmd
         }
         ModelType::Copilot => {
@@ -201,8 +204,6 @@ pub(super) fn build_command_with_launch_profile(
             }
             cmd
         }
-        // ACP agents: the task, cwd, and resume id all travel over JSON-RPC
-        // (`session/new` / `session/prompt`), never on the argv.
         ModelType::Kiro | ModelType::OpenCode | ModelType::DeepseekHarness => cmd,
         ModelType::Antigravity => {
             if let Some(rid) = resume_id {
@@ -221,7 +222,7 @@ pub(super) fn build_command_with_launch_profile(
                 cmd.push(dir.clone());
             }
             cmd.push("--print".into());
-            cmd.push(task.into());
+            cmd.push(turn.merged_for_legacy());
             cmd
         }
         ModelType::KimiCli
@@ -247,8 +248,9 @@ pub(super) fn build_command_with_launch_profile(
         | ModelType::Pi
         | ModelType::QoderCli
         | ModelType::TraeCli => {
-            if !task.is_empty() {
-                cmd.push(task.into());
+            let merged_task = turn.merged_for_legacy();
+            if !merged_task.is_empty() {
+                cmd.push(merged_task);
             }
             cmd
         }
@@ -419,17 +421,18 @@ fn strip_cli_date_suffix(model: &str) -> &str {
 
 /// Create the appropriate parser for a CLI agent type.
 ///
-/// ACP agents (Copilot, Kiro, OpenCode, DeepSeek Harness) use bidirectional
-/// JSON-RPC instead of CliAgentParser. API key providers are not CLI agents
-/// and should never reach this function.
+/// Copilot uses ACP (bidirectional JSON-RPC) instead of CliAgentParser.
+/// API key providers are not CLI agents and should never reach this function.
 pub(super) fn create_parser(agent: &ModelType, session_id: &str) -> Box<dyn CliAgentParser> {
     match agent {
         ModelType::CursorCli => Box::new(CursorParser::new(session_id)),
         ModelType::ClaudeCode => Box::new(ClaudeCodeParser::new(session_id)),
         ModelType::Codex => Box::new(CodexParser::new(session_id)),
-        ModelType::Antigravity => Box::new(PlainTextParser::new(session_id)),
+        ModelType::Antigravity | ModelType::DeepseekHarness => {
+            Box::new(PlainTextParser::new(session_id))
+        }
         other => panic!(
-            "ModelType::{:?} does not use CliAgentParser (Copilot/Kiro/OpenCode/DeepseekHarness use ACP; API providers are not CLI agents)",
+            "ModelType::{:?} does not use CliAgentParser (Copilot/Kiro/OpenCode use ACP; API providers are not CLI agents)",
             other
         ),
     }

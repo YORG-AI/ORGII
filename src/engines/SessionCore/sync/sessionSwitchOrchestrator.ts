@@ -17,6 +17,8 @@ import { reconcileInFlightHistory } from "./sessionSyncReconcile";
 import {
   type SessionLoadStateActions,
   applyPostLoadResult,
+  capturePostLoadLifecycleSnapshot,
+  isPostLoadRunStatusSuperseded,
 } from "./sessionSyncStateHelpers";
 import type { SessionSyncRefs } from "./sessionSyncTypes";
 import {
@@ -123,6 +125,7 @@ async function handleCacheHit(
 
   actions.setLoadStatus("loading");
 
+  const postLoadLifecycle = capturePostLoadLifecycleSnapshot(sessionId);
   const postResult = adapter.postLoad
     ? await adapter.postLoad(sessionId, abortController.signal)
     : null;
@@ -133,7 +136,13 @@ async function handleCacheHit(
   // follow-up turn — treating that window as not-in-flight lets a stale
   // history replace wipe the just-sent message.
   const cacheHitInFlight =
-    isInFlightRunStatus(postResult?.runStatus) || isTurnActive(sessionId);
+    (!isPostLoadRunStatusSuperseded(
+      sessionId,
+      postResult?.runStatus,
+      postLoadLifecycle
+    ) &&
+      isInFlightRunStatus(postResult?.runStatus)) ||
+    isTurnActive(sessionId);
   let displayEvents = await eventStoreProxy.getEvents(sessionId);
   if (abortController.signal.aborted) return;
 
@@ -197,7 +206,9 @@ async function handleCacheHit(
   ) {
     reconcileInFlightHistory(sessionId, adapter, refs, actions);
   }
-  applyPostLoadResult(sessionId, postResult, actions);
+  applyPostLoadResult(sessionId, postResult, actions, {
+    lifecycleSnapshot: postLoadLifecycle,
+  });
 }
 
 async function handleCursorIdeCacheHit(
@@ -253,13 +264,20 @@ async function handleCacheMiss(
 
   actions.setLoadStatus("loading");
 
+  const postLoadLifecycle = capturePostLoadLifecycleSnapshot(sessionId);
   const missPostResult = adapter.postLoad
     ? await adapter.postLoad(sessionId, abortController.signal)
     : null;
   if (abortController.signal.aborted) return;
 
   const missInFlight =
-    isInFlightRunStatus(missPostResult?.runStatus) || isTurnActive(sessionId);
+    (!isPostLoadRunStatusSuperseded(
+      sessionId,
+      missPostResult?.runStatus,
+      postLoadLifecycle
+    ) &&
+      isInFlightRunStatus(missPostResult?.runStatus)) ||
+    isTurnActive(sessionId);
   const events = !missInFlight
     ? await loadPersistedHistory(adapter, sessionId, abortController.signal)
     : await adapter.loadHistory(sessionId, abortController.signal);
@@ -280,7 +298,9 @@ async function handleCacheMiss(
     reconcileInFlightHistory(sessionId, adapter, refs, actions);
   }
 
-  applyPostLoadResult(sessionId, missPostResult, actions);
+  applyPostLoadResult(sessionId, missPostResult, actions, {
+    lifecycleSnapshot: postLoadLifecycle,
+  });
 
   rehydratePendingPlanApproval(
     sessionId,

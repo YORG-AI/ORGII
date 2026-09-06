@@ -12,6 +12,12 @@ use git::worktree;
 /// the CLI agent with the resume flag, continuing the previous conversation.
 #[tauri::command]
 pub async fn cli_agent_resume(session_id: String) -> Result<(), String> {
+    // Resume owns the same short lifecycle boundary as create/follow-up. It
+    // checks for a live runner before waiting for provider identity, preserving
+    // the global invariant that no control holder waits on an active
+    // finalizer's identity guard.
+    let control_lock = session_runner::session_control_lock(&session_id).await;
+    let _control_guard = control_lock.lock_owned().await;
     // Load session to get the original user_input, current stage, and CLI session ID
     let session = tokio::task::spawn_blocking({
         let sid = session_id.clone();
@@ -81,18 +87,26 @@ pub async fn cli_agent_resume(session_id: String) -> Result<(), String> {
     // Stop any stale per-session proxy from a previous run
     integrations::proxy::server::stop_session_proxy(&session_id).await;
 
+    // Resume participates in the same provider-identity boundary as a normal
+    // turn so runtime/account patches cannot retarget the active UUID.
+    let identity_guard = session_runner::session_identity_lock(&session_id)
+        .await
+        .lock_owned()
+        .await;
     // Accept the resumed turn exactly like the create path: session + intent go
     // Running together and the frontend gets a `running` event carrying the
     // intent, so the terminal event below can be attributed to this turn.
     let turn_intent_id = super::run::new_turn_intent_id();
     let accept_session_id = session_id.clone();
     let accept_turn_intent_id = turn_intent_id.clone();
-    tokio::task::spawn_blocking(move || {
+    let accept_result = tokio::task::spawn_blocking(move || {
         persistence::accept_cli_resume_turn(&accept_session_id, &accept_turn_intent_id)
             .map_err(|err| format!("failed to accept CLI resume turn lifecycle: {err}"))
     })
     .await
-    .map_err(|err| format!("Task error: {err}"))??;
+    .map_err(|err| format!("Task error: {err}"))
+    .and_then(|result| result);
+    accept_result?;
     let mut running_msg = serde_json::json!({
         "type": "code_session.status_changed",
         "session_id": session_id,
@@ -106,6 +120,7 @@ pub async fn cli_agent_resume(session_id: String) -> Result<(), String> {
     let runner_turn_intent_id = turn_intent_id.clone();
 
     let handle = tokio::spawn(async move {
+        let _identity_guard = identity_guard;
         if let Err(e) = session_runner::run_session(
             sid.clone(),
             input,
@@ -113,6 +128,7 @@ pub async fn cli_agent_resume(session_id: String) -> Result<(), String> {
             None,
             None,
             Some(&runner_turn_intent_id),
+            false,
         )
         .await
         {
@@ -184,8 +200,14 @@ pub async fn cli_agent_resume(session_id: String) -> Result<(), String> {
 /// cleans up the persistent Cursor config directory, and removes any worktree.
 #[tauri::command]
 pub async fn cli_agent_delete(session_id: String) -> Result<bool, String> {
+    let control_lock = session_runner::session_control_lock(&session_id).await;
+    let _control_guard = control_lock.lock_owned().await;
     // Kill the agent process, Tokio task, and per-session proxy
     session_runner::kill_running_agent(&session_id).await;
+    let _identity_guard = session_runner::session_identity_lock(&session_id)
+        .await
+        .lock_owned()
+        .await;
 
     // Release proxy token BEFORE deleting the DB row — after deletion,
     // release_proxy_token_for_session can't find the session to read the token.
