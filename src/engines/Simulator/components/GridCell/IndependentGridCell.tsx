@@ -18,6 +18,7 @@ import { useAtomValue } from "jotai";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import Button from "@src/components/Button";
 import ReplayProgressBar from "@src/components/ReplayProgressBar";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { REPLAY_CONFIG } from "@src/config/workspace/replayConfig";
@@ -56,7 +57,6 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
   const { t } = useTranslation("sessions");
   const focusedCellId = useAtomValue(focusedSubagentCellAtom);
   const isFocused = Boolean(threadId && focusedCellId === threadId);
-  const [isHeaderHovered, setIsHeaderHovered] = useState(false);
 
   // Merge tool call/result pairs once per events-array change, not per cursor
   // tick. SubagentEventPane now expects pre-merged events.
@@ -159,11 +159,7 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
     >
       <div className="flex h-full w-full flex-col overflow-hidden">
         {/* ── Header ── */}
-        <div
-          className="group/header relative flex h-9 shrink-0 cursor-default items-center gap-1.5 bg-fill-2 pr-1.5 pl-3 transition-all duration-200"
-          onMouseEnter={() => setIsHeaderHovered(true)}
-          onMouseLeave={() => setIsHeaderHovered(false)}
-        >
+        <div className="group/header relative flex h-9 shrink-0 cursor-default items-center gap-1.5 bg-fill-2 pr-1.5 pl-3 transition-all duration-200">
           {/* Task title (bold) · subtitle (regular) · current app icon. */}
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             <span
@@ -190,24 +186,21 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
             )}
           </div>
 
-          {/* Right-side action buttons — fade in on header hover.
-              `will-change: opacity` keeps the compositor layer pinned across
-              the transition so icons don't snap to integer pixels when the
-              layer is destroyed at opacity:1. `invisible` + `pointer-events-none`
-              ensure the buttons are truly inert while hidden. */}
-          <div
-            className={`flex items-center gap-1 transition-opacity duration-150 will-change-[opacity] ${
-              isHeaderHovered
-                ? "opacity-100"
-                : "pointer-events-none invisible opacity-0"
-            }`}
-          >
+          {/* Controls remain discoverable for pointer and keyboard users. */}
+          <div className="flex items-center gap-1">
             {/* Expand / collapse */}
             {onExpand && (
-              <button
-                type="button"
+              <Button
+                htmlType="button"
+                variant="tertiary"
+                size="small"
+                iconOnly
                 onClick={onExpand}
-                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-text-2 ${SURFACE_TOKENS.iconButtonHover} hover:text-text-1`}
+                aria-label={
+                  isExpanded
+                    ? t("simulator.gridCell.collapse")
+                    : t("simulator.gridCell.expand")
+                }
                 title={
                   isExpanded
                     ? t("simulator.gridCell.collapse")
@@ -229,19 +222,12 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
                     strokeWidth={2}
                   />
                 )}
-              </button>
+              </Button>
             )}
           </div>
 
-          {/* Pinned-content hover popover. Renders the subagent's plan-todo
-              summary (we suppress the in-history pinned bar so the cell's
-              chat viewport stays clean). Anchored to the header so it
-              floats above the chat surface on hover. */}
           {threadId && (
-            <SubagentPinnedPreviewPopover
-              sessionId={threadId}
-              open={isHeaderHovered}
-            />
+            <SubagentPinnedPreviewPopover key={threadId} sessionId={threadId} />
           )}
         </div>
 
