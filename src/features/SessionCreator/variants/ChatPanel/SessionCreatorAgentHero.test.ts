@@ -44,6 +44,23 @@ describe("SessionCreatorAgentHero", () => {
     expect(markup).not.toContain("truncate");
   });
 
+  it("keeps the hero pill on its own compositor layer", () => {
+    const markup = renderToStaticMarkup(
+      createElement(SessionCreatorAgentHero, {
+        name: "SDE Agent",
+        description: "Software development agent",
+        avatarIcon: createElement("span", null, "SDE"),
+        question: "What do you want to build with",
+        questionSuffix: "?",
+        onClick: vi.fn(),
+      })
+    );
+
+    // The launchpad block is positioned on a fractional device pixel, so a
+    // `transition-colors` repaint would otherwise re-round the avatar glyph.
+    expect(markup).toContain("transform-gpu");
+  });
+
   it("does not underline the Launchpad agent name on hover", () => {
     const markup = renderToStaticMarkup(
       createElement(SessionCreatorAgentHero, {

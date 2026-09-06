@@ -61,7 +61,11 @@ const SessionCreatorAgentHero = memo(
                 ariaLabel={name}
                 ariaExpanded={active}
                 dataTestId="session-creator-agent-selector"
-                className="flex! min-h-0! bg-transparent! p-2! text-[18px]! leading-relaxed! font-normal! tracking-tight! text-text-1! sm:text-[20px]!"
+                // `transform-gpu` for the same reason the action cards below
+                // carry it: the hero sits inside the launchpad block, which is
+                // positioned on a fractional device pixel, so a bare
+                // `transition-colors` repaint re-rounds the avatar glyph.
+                className="flex! min-h-0! transform-gpu bg-transparent! p-2! text-[18px]! leading-relaxed! font-normal! tracking-tight! text-text-1! sm:text-[20px]!"
                 labelClassName={`whitespace-normal! wrap-break-word! text-[18px]! font-bold! leading-relaxed! tracking-tight! sm:text-[20px]! ${
                   danger
                     ? "text-primary-6!"

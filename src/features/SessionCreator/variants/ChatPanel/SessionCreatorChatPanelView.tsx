@@ -448,7 +448,15 @@ const SessionCreatorChatPanelView: React.FC<
   );
   const launchpadMiddleContent = isLaunchpadLayout ? (
     <div
-      className="session-creator-chat-panel-launchpad-middle absolute inset-x-0 flex -translate-y-1/2 flex-col items-center gap-2"
+      // `top` resolves to a percentage of the pane height and `-translate-y-1/2`
+      // subtracts half of a text-driven box height, so this block almost always
+      // lands on a fractional device pixel (measured 325.43px / 108.5px tall on
+      // a 904px viewport). Everything inside — the hero pill and every action
+      // card icon — then rasterizes off the pixel grid, and any repaint that
+      // re-layers the subtree re-rounds it, which reads as the icons shaking.
+      // `transform-gpu` pins the block to its own compositor layer so the
+      // fractional offset is snapped once instead of on every hover.
+      className="session-creator-chat-panel-launchpad-middle absolute inset-x-0 flex -translate-y-1/2 transform-gpu flex-col items-center gap-2"
       style={CREATOR_MIDDLE_POSITION_STYLE}
     >
       {/* Multi-runner owns the whole middle slot: with N runners listed below

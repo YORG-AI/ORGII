@@ -64,7 +64,7 @@ export const LaunchpadActionCard = forwardRef<
         {...buttonProps}
         ref={ref}
         type="button"
-        className={`group flex min-h-[68px] w-full flex-col items-start justify-between rounded-lg border bg-transparent px-2.5 py-2 text-left shadow-xs transition-colors focus-visible:border-primary-6 focus-visible:outline-none ${ACTION_CARD_TONE_CLASS[action.tone]}`}
+        className={`group flex min-h-[68px] w-full transform-gpu flex-col items-start justify-between rounded-lg border bg-transparent px-2.5 py-2 text-left shadow-xs transition-colors focus-visible:border-primary-6 focus-visible:outline-none ${ACTION_CARD_TONE_CLASS[action.tone]}`}
         onClick={action.onClick}
         data-testid={dataTestId ?? `chat-panel-start-page-${action.id}`}
       >
@@ -85,7 +85,7 @@ export const LaunchpadActionCard = forwardRef<
       {...buttonProps}
       ref={ref}
       type="button"
-      className={`group inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-left transition-colors focus-visible:border-primary-6 focus-visible:outline-none ${ACTION_TONE_CLASS[action.tone]}`}
+      className={`group inline-flex max-w-full min-w-0 transform-gpu items-center gap-1.5 rounded-full border px-3 py-1.5 text-left transition-colors focus-visible:border-primary-6 focus-visible:outline-none ${ACTION_TONE_CLASS[action.tone]}`}
       onClick={action.onClick}
       data-testid={dataTestId ?? `chat-panel-start-page-${action.id}`}
     >
@@ -267,7 +267,13 @@ export function LaunchpadActionGrid({
           </div>
         ) : (
           <div
-            className={`absolute top-full z-10 pt-1 opacity-0 transition-opacity group-focus-within/launchpad-actions:opacity-100 group-hover/launchpad-actions:opacity-100 ${collapseControlAlignmentClass}`}
+            // The fade is driven by hover on the whole group, so entering any
+            // card animates opacity here. Without `will-change: opacity` the
+            // compositor layer is created and destroyed on every hover in and
+            // out, which re-rounds the sibling cards' sub-pixel positions and
+            // makes all of their icons twitch at once. Same treatment as the
+            // Simulator grid-cell header actions.
+            className={`absolute top-full z-10 pt-1 opacity-0 transition-opacity will-change-[opacity] group-focus-within/launchpad-actions:opacity-100 group-hover/launchpad-actions:opacity-100 ${collapseControlAlignmentClass}`}
             data-launchpad-action-grid-standard-control
             data-testid="launchpad-action-grid-collapse-zone"
           >

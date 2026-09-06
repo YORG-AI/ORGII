@@ -118,6 +118,53 @@ describe("LaunchpadActionGrid", () => {
     ).not.toBeNull();
   });
 
+  it("pins compositor layers so hover repaints cannot re-round icon pixels", () => {
+    act(() => {
+      root.render(
+        createElement(
+          LaunchpadActionGrid,
+          {
+            collapsible: true,
+            controlAlignment: "center",
+            presentation: "card",
+          },
+          createElement(LaunchpadActionCard, {
+            action,
+            presentation: "card",
+          })
+        )
+      );
+    });
+
+    // The launchpad block is positioned on a fractional device pixel, so a
+    // compositor layer that is created and destroyed on hover re-rounds every
+    // icon inside it. Both layers must stay pinned.
+    const collapseZone = container.querySelector<HTMLElement>(
+      '[data-testid="launchpad-action-grid-collapse-zone"]'
+    );
+    expect(collapseZone?.className).toContain("transition-opacity");
+    expect(collapseZone?.className).toContain("will-change-[opacity]");
+
+    const card = container.querySelector<HTMLElement>(
+      '[data-testid="chat-panel-start-page-test-action"]'
+    );
+    expect(card?.className).toContain("transition-colors");
+    expect(card?.className).toContain("transform-gpu");
+  });
+
+  it("keeps the pill presentation on its own compositor layer", () => {
+    act(() => {
+      root.render(
+        createElement(LaunchpadActionCard, { action, presentation: "pill" })
+      );
+    });
+
+    const pill = container.querySelector<HTMLElement>(
+      '[data-testid="chat-panel-start-page-test-action"]'
+    );
+    expect(pill?.className).toContain("transform-gpu");
+  });
+
   it("reuses the icon disclosure control for the compact card state", () => {
     act(() => {
       root.render(
