@@ -23,6 +23,12 @@ export interface FileNode {
   isSymlink?: boolean;
   /** Whether this file is ignored by .gitignore */
   isIgnored?: boolean;
+  /**
+   * Descendant directories that were expanded when this collapsed directory's
+   * loaded children were dropped by the pruner. Consumed (and cleared) the
+   * next time the directory is expanded, so the user gets the same view back.
+   */
+  retainedExpandedPaths?: string[];
 }
 
 export interface FileSearchResult {

@@ -18,10 +18,17 @@ import {
 } from "@src/store/workstation/codeEditor/file";
 
 import {
+  COLLAPSED_SUBTREE_RETENTION_MS,
+  COLLAPSED_SUBTREE_SWEEP_MS,
+  MAX_RETAINED_TREE_NODES,
+  collectExpandedPaths,
+  countTreeNodes,
   ensureGitignoreChecker,
   findNodeInTree,
   loadDirectoryContents,
+  loadDirectorySubtree,
   mergeTreeReloadingExpanded,
+  pruneCollapsedSubtree,
   updateTreeChildren,
   updateTreeExpansion,
 } from "./helpers";
@@ -61,6 +68,82 @@ export function useFileTree(
   useEffect(() => {
     fileTreeRef.current = fileTree;
   }, [fileTree]);
+
+  // ============================================
+  // Collapsed-subtree pruning
+  // ============================================
+  //
+  // Collapsing only flips `expanded`; the loaded children stay so that
+  // re-opening a folder is instant. Without a bound the tree grows with every
+  // directory ever browsed. Collapsed directories are timestamped here and a
+  // sweep drops their children once they have been closed for
+  // COLLAPSED_SUBTREE_RETENTION_MS (immediately when the tree exceeds
+  // MAX_RETAINED_TREE_NODES), remembering which descendants were expanded so
+  // the next expansion restores the same view from a fresh directory read.
+  const collapsedAtRef = useRef<Map<string, number>>(new Map());
+
+  const pruneCollapsedPaths = useCallback(
+    (paths: string[]) => {
+      if (paths.length === 0) return;
+      for (const path of paths) {
+        collapsedAtRef.current.delete(path);
+      }
+      setFileTree((prev) => {
+        let next = prev;
+        for (const path of paths) {
+          next = pruneCollapsedSubtree(next, path);
+        }
+        return next;
+      });
+    },
+    [setFileTree]
+  );
+
+  const sweepCollapsedSubtrees = useCallback(
+    (force: boolean) => {
+      const collapsedAt = collapsedAtRef.current;
+      if (collapsedAt.size === 0) return;
+      const now = Date.now();
+      const expired: string[] = [];
+      for (const [path, at] of collapsedAt) {
+        const node = findNodeInTree(fileTreeRef.current, path);
+        if (!node || node.type !== "directory" || node.expanded) {
+          collapsedAt.delete(path);
+          continue;
+        }
+        if (!node.children || node.children.length === 0) {
+          collapsedAt.delete(path);
+          continue;
+        }
+        if (force || now - at >= COLLAPSED_SUBTREE_RETENTION_MS) {
+          expired.push(path);
+        }
+      }
+      pruneCollapsedPaths(expired);
+    },
+    [pruneCollapsedPaths]
+  );
+
+  const noteCollapsed = useCallback(
+    (paths: string[]) => {
+      const now = Date.now();
+      for (const path of paths) {
+        collapsedAtRef.current.set(path, now);
+      }
+      if (countTreeNodes(fileTreeRef.current) > MAX_RETAINED_TREE_NODES) {
+        sweepCollapsedSubtrees(true);
+      }
+    },
+    [sweepCollapsedSubtrees]
+  );
+
+  useEffect(() => {
+    const timer = setInterval(
+      () => sweepCollapsedSubtrees(false),
+      COLLAPSED_SUBTREE_SWEEP_MS
+    );
+    return () => clearInterval(timer);
+  }, [sweepCollapsedSubtrees]);
 
   // ============================================
   // Load file tree
@@ -106,13 +189,21 @@ export function useFileTree(
       // If already expanded, just collapse
       if (node.expanded) {
         setFileTree((prev) => updateTreeExpansion(prev, path, false));
+        noteCollapsed([path]);
         return;
       }
 
-      // If not loaded yet, load children
+      collapsedAtRef.current.delete(path);
+
+      // If not loaded yet (or pruned), load children — restoring whatever
+      // descendants were expanded before the subtree was dropped.
       if (!node.children || node.children.length === 0) {
         try {
-          const children = await loadDirectoryContents(path, false, repoPath);
+          const children = await loadDirectorySubtree(
+            path,
+            repoPath,
+            node.retainedExpandedPaths
+          );
           setFileTree((prev) => updateTreeChildren(prev, path, children));
         } catch (err) {
           log.error("[useCodeEditor] Error loading directory:", {
@@ -125,7 +216,7 @@ export function useFileTree(
         setFileTree((prev) => updateTreeExpansion(prev, path, true));
       }
     },
-    [repoPath, setFileTree]
+    [repoPath, setFileTree, noteCollapsed]
   );
 
   // ============================================
@@ -141,8 +232,10 @@ export function useFileTree(
       }));
     };
 
+    const wereExpanded = collectExpandedPaths(fileTreeRef.current);
     setFileTree((prev) => collapseNodes(prev));
-  }, [setFileTree]);
+    noteCollapsed(wereExpanded);
+  }, [setFileTree, noteCollapsed]);
 
   // ============================================
   // Reveal file in tree
@@ -191,12 +284,13 @@ export function useFileTree(
 
         if (!dirNode.expanded) {
           treeChanged = true;
+          collapsedAtRef.current.delete(dirPath);
           if (!dirNode.children || dirNode.children.length === 0) {
             try {
-              const children = await loadDirectoryContents(
+              const children = await loadDirectorySubtree(
                 dirPath,
-                false,
-                repoPath
+                repoPath,
+                dirNode.retainedExpandedPaths
               );
               localTree = updateTreeChildren(localTree, dirPath, children);
             } catch (err) {
