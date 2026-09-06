@@ -8,7 +8,11 @@
  * - "current" = latest generation
  * - "older"   = previous generation
  */
-import { isModelVariantSuffixToken } from "./modelVariants";
+import {
+  extractGptModelTier,
+  isModelVariantSuffixToken,
+  stripCursorHostedModelPrefix,
+} from "./modelNameGrammar";
 
 export interface ModelGroup {
   label: string;
@@ -53,32 +57,6 @@ interface ParsedGroup {
   sortVersion: number;
 }
 
-/** Longest-first so codex-max wins over codex. */
-const GPT_TIER_PREFIXES = [
-  "codex-max",
-  "codex-mini",
-  "nano",
-  "mini",
-  "codex",
-  "astra",
-  "sol",
-  "terra",
-  "luna",
-] as const;
-
-function extractGptTier(rest: string): string | undefined {
-  for (const tier of GPT_TIER_PREFIXES) {
-    if (rest === tier || rest.startsWith(`${tier}-`)) {
-      return tier;
-    }
-  }
-  return undefined;
-}
-
-export function extractGptModelTier(rest: string): string | undefined {
-  return extractGptTier(rest);
-}
-
 function formatGptTierLabel(tier: string): string {
   return tier
     .split("-")
@@ -87,32 +65,6 @@ function formatGptTierLabel(tier: string): string {
 }
 
 const CURSOR_TIER_MODELS = new Set(["default", "auto", "premium"]);
-
-export const CURSOR_HOSTED_MODEL_PREFIX = "cursor-";
-
-/** Strip KeyVault's `cursor-` hosted prefix before family/variant parsing. */
-export function stripCursorHostedModelPrefix(modelName: string): {
-  isCursorHosted: boolean;
-  coreModelName: string;
-} {
-  const lower = modelName.toLowerCase();
-  if (lower.startsWith(CURSOR_HOSTED_MODEL_PREFIX)) {
-    return {
-      isCursorHosted: true,
-      coreModelName: modelName.slice(CURSOR_HOSTED_MODEL_PREFIX.length),
-    };
-  }
-  return { isCursorHosted: false, coreModelName: modelName };
-}
-
-export function withCursorHostedModelPrefix(
-  coreModelName: string,
-  isCursorHosted: boolean
-): string {
-  return isCursorHosted
-    ? `${CURSOR_HOSTED_MODEL_PREFIX}${coreModelName}`
-    : coreModelName;
-}
 
 function formatCursorTierLabel(modelName: string): string {
   return modelName.charAt(0).toUpperCase() + modelName.slice(1);
@@ -245,7 +197,7 @@ function parseModelGroup(modelName: string): ParsedGroup {
             sortVersion: versionStringToSortVersion(versionMatch[1]),
           };
         }
-        const tier = extractGptTier(rest);
+        const tier = extractGptModelTier(rest);
         const distinctTokens = tier
           ? rest
               .slice(tier.length)
