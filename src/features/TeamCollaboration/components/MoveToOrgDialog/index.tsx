@@ -11,14 +11,18 @@
  * disabled with the reason. v1 lists managed cloud orgs; self-hosted orgs
  * join in the next cut (the tag atom + engine already share one namespace).
  */
-import Modal from "@/src/scaffold/ModalSystem";
+import Modal, { MODAL_SELECT_Z_INDEX } from "@/src/scaffold/ModalSystem";
 import { useAtom, useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
 import Message from "@src/components/Message";
+import Tooltip from "@src/components/Tooltip";
 import { createLogger } from "@src/hooks/logger";
+import { HugeiconsIcon, InformationCircleIcon } from "@src/icons";
+import { PANEL_HEADER_TOKENS } from "@src/modules/shared/layouts/blocks/PanelHeader";
 import { DEFAULT_SESSION_ORG_ID } from "@src/store/session";
 import type { Session } from "@src/store/session/sessionAtom/types";
 
@@ -190,19 +194,46 @@ const MoveToOrgDialog: React.FC<MoveToOrgDialogProps> = ({
   return (
     <Modal
       visible={session !== null}
-      title={t("cloud.moveToOrg.title")}
+      title={
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 font-medium text-text-1">
+            {t("cloud.moveToOrg.title")}
+          </span>
+          <span aria-hidden="true" className="shrink-0 text-text-3">
+            ·
+          </span>
+          <span className="min-w-0 truncate text-text-3">
+            {session?.name || session?.user_input || session?.session_id}
+          </span>
+        </div>
+      }
+      headerActions={
+        <Tooltip
+          content={t("cloud.moveToOrg.hint")}
+          position="bottom"
+          style={{ zIndex: MODAL_SELECT_Z_INDEX }}
+        >
+          <Button
+            {...PANEL_HEADER_TOKENS.actionButton}
+            aria-label={t("common:windowChrome.menus.help")}
+            htmlType="button"
+            icon={
+              <HugeiconsIcon
+                icon={InformationCircleIcon}
+                data-icon="info"
+                size={PANEL_HEADER_TOKENS.buttonIconSize}
+                strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
+              />
+            }
+          />
+        </Tooltip>
+      }
       onCancel={onClose}
       footer={null}
       width={460}
     >
       {session ? (
         <div className="flex flex-col gap-3">
-          <div className="text-[12px] text-text-3">
-            {session.name || session.user_input || session.session_id}
-          </div>
-          <div className="text-[11px] text-text-3">
-            {t("cloud.moveToOrg.hint")}
-          </div>
           <div
             className="flex items-center gap-2 rounded-lg border border-border-2 bg-bg-2 px-3 py-2"
             data-testid="session-move-org-option-personal"

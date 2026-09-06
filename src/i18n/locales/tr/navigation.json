@@ -568,7 +568,7 @@
     },
     "moveToOrg": {
       "menuItem": "Org tags…",
-      "title": "Org tags for this session",
+      "title": "Etiketler",
       "hint": "Bu oturumu paylaşmak için bir veya daha fazla organizasyonu işaretleyin — aynı anda hem Personal'da hem de birden çok organizasyonda olabilir. Normal bir yerel oturum olarak kalır; bu yalnızca oralarda görünür olmasını sağlar. Yalnızca repo kapsamı bu oturumun deposunu kapsayan organizasyonlar seçilebilir.",
       "noOrgs": "No cloud orgs yet — sign in to ORG2 Cloud to create or join one.",
       "cloudBadge": "Cloud",

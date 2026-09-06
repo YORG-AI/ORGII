@@ -570,7 +570,7 @@
     },
     "moveToOrg": {
       "menuItem": "Org tags…",
-      "title": "Org tags for this session",
+      "title": "Etiquetas",
       "hint": "Marque uma ou mais organizações para compartilhar esta sessão — ela pode estar em Personal e em várias organizações ao mesmo tempo. Continua sendo uma sessão local normal; isso apenas a torna visível nesses lugares. Só é possível selecionar organizações cujo escopo de repositórios cobre o repositório desta sessão.",
       "noOrgs": "No cloud orgs yet — sign in to ORG2 Cloud to create or join one.",
       "cloudBadge": "Cloud",
