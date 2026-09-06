@@ -22,6 +22,7 @@ describe("settingsNavigation", () => {
         items: [
           "general",
           "appearance",
+          "myRoles",
           "editor",
           "mobile-remote",
           "monitor",
@@ -33,7 +34,6 @@ describe("settingsNavigation", () => {
         items: [
           "agent-orgs",
           "models",
-          "myRoles",
           "rulesMemoryEvolution",
           "security",
           "routines",
@@ -65,6 +65,12 @@ describe("settingsNavigation", () => {
       path: "/orgii/app/settings/app/general",
       groupId: "app",
       dataTestId: "settings-core-item-general",
+    });
+    expect(items.find((item) => item.id === "myRoles")).toMatchObject({
+      label: "settings:general.profile",
+      path: "/orgii/app/settings/integrations/my-roles",
+      groupId: "app",
+      dataTestId: "settings-core-item-myRoles",
     });
     expect(items.find((item) => item.id === "agent-orgs")).toMatchObject({
       label: "navigation:labels.agentOrgs",

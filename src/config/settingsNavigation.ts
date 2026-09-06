@@ -52,10 +52,14 @@ function asSettingsSectionSegment(id: string): SettingsSectionSegment {
   return id as SettingsSectionSegment;
 }
 
-const APP_SECTION_ITEM_IDS = getSettingsSectionsByTab("app")
-  .map((section) => asSettingsSectionSegment(section.id))
-  // Security is an app section, but product navigation places it in Core.
-  .filter((id) => id !== SECURITY_ITEM_ID);
+const APP_SECTION_ITEM_IDS: readonly SettingsNavigationItemId[] =
+  getSettingsSectionsByTab("app")
+    .map((section) => asSettingsSectionSegment(section.id))
+    // Security is an app section, but product navigation places it in Core.
+    .filter((id) => id !== SECURITY_ITEM_ID)
+    // Profile is backed by the My Roles integration destination, but belongs
+    // with the user-facing app settings rather than the Core group.
+    .flatMap((id) => (id === "appearance" ? [id, "myRoles"] : [id]));
 
 /**
  * Canonical ordering and grouping for every Settings navigation surface.
@@ -77,7 +81,6 @@ const SETTINGS_NAVIGATION_GROUP_DEFINITIONS: readonly SettingsNavigationGroupDef
       itemIds: [
         AGENT_ORGS_SETTINGS_NAVIGATION_ID,
         "models",
-        "myRoles",
         "rulesMemoryEvolution",
         SECURITY_ITEM_ID,
         "routines",
@@ -105,9 +108,11 @@ function buildSettingsNavigationItem(
   const labelKey =
     id === AGENT_ORGS_SETTINGS_NAVIGATION_ID
       ? "navigation:labels.agentOrgs"
-      : groupId === "app"
-        ? getSegmentLabelKey(registrySegment)
-        : `settings:coreSidebar.items.${id}`;
+      : id === "myRoles" && groupId === "app"
+        ? "settings:general.profile"
+        : groupId === "app"
+          ? getSegmentLabelKey(registrySegment)
+          : `settings:coreSidebar.items.${id}`;
   const icon =
     id === AGENT_ORGS_SETTINGS_NAVIGATION_ID
       ? Infinity01Icon
