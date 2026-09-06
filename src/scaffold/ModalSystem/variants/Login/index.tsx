@@ -13,7 +13,7 @@ import {
 import { SERVICE_AUTH_STORAGE_KEYS } from "@src/config/serviceAuth";
 import { createLogger } from "@src/hooks/logger";
 import { HugeiconsIcon, SparklesIcon } from "@src/icons";
-import { loginModalFixAtom, loginModalVisibleAtom } from "@src/store";
+import { loginModalFixAtom, loginModalVisibleAtom } from "@src/store/ui/uiAtom";
 import { userAtom } from "@src/store/user";
 import type { IUserInfo } from "@src/types/core/user";
 import { isTauriDesktop } from "@src/util/platform/tauri";

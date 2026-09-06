@@ -44,6 +44,7 @@ import Message from "@src/components/Message";
 import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import Switch from "@src/components/Switch";
+import type { TimezoneOption } from "@src/config/timezone";
 import CloudEndpointCard from "@src/features/Org2Cloud/CloudEndpointCard";
 import { Org2CloudLoginRows } from "@src/features/Org2Cloud/Org2CloudSection";
 import { useTimezoneSelect } from "@src/hooks/geo";
@@ -65,7 +66,6 @@ import {
   useAppBuildProvenance,
 } from "@src/scaffold/AppUpdater";
 import { formatAppBuildRevision } from "@src/scaffold/AppUpdater/buildProvenance";
-import { type TimezoneOption, timezoneAtom } from "@src/store";
 import { chatAppearancePersistAtom } from "@src/store/config/configAtom";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { preventSleepWhileRunningAtom } from "@src/store/platform/preventSleepAtom";
@@ -76,6 +76,7 @@ import {
 } from "@src/store/platform/updateChannelAtom";
 import { voiceInputEnabledAtom } from "@src/store/platform/voiceInputAtom";
 import { languageAtom } from "@src/store/ui/languageAtom";
+import { timezoneAtom } from "@src/store/ui/timezoneAtom";
 import { copyText } from "@src/util/data/clipboard";
 
 export const GENERAL_TAB_KEYS = {

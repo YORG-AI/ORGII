@@ -8,7 +8,7 @@
 import { useAtom } from "jotai";
 import React, { Suspense } from "react";
 
-import { spotlightOpenAtom } from "@src/store";
+import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
 
 const GlobalSpotlight = React.lazy(() =>
   import("@/src/scaffold/GlobalSpotlight").then((module) => ({

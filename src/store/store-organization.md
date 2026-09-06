@@ -65,12 +65,11 @@ src/store/
 ├── agent/                     # OS agent + AI control panel
 ├── platform/                  # Dev mode toggle, system dependency scan cache
 ├── ui/                        # Pure UI state
-├── workstation/                # Workstation apps
-│   ├── tabs/                  # Shared tab system
-│   ├── codeEditor/           # Code Editor app (includes outputIntegration/)
-│   ├── database/              # Database app
-│   └── browser/               # Browser app (includes browser automation atoms)
-└── index.ts                   # Main barrel export
+└── workstation/               # Workstation apps
+    ├── tabs/                  # Shared tab system
+    ├── codeEditor/            # Code Editor app (includes outputIntegration/)
+    ├── database/              # Database app
+    └── browser/               # Browser app (includes browser automation atoms)
 
 # Colocated store (single-module usage):
 src/features/DevJourney/store/           # Dev Journey map state
@@ -243,10 +242,13 @@ import { terminalSessionsAtom } from "@src/store/workstation/codeEditor/terminal
 import { workstationLayoutAtom } from "@src/store/workstation/tabs";
 ```
 
-### From Main Barrel
+### Import the owning module
+
+The root store barrel has been removed. Import atoms from the module that defines them; use a focused domain entry only when it provides a deliberate public boundary.
 
 ```typescript
-import { sidebarCollapsedAtom, userAtom } from "@src/store";
+import { updateSettingsBatchAtom } from "@src/store/settings/settingsAtom";
+import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
 ```
 
 ## Migration Notes

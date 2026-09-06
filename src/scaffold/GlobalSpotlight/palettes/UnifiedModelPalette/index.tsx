@@ -25,9 +25,9 @@ import React, {
 import { useFilteredItems } from "@src/hooks/search";
 import { useRefreshSpin } from "@src/hooks/ui";
 import { GripIcon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
-import { spotlightOpenAtom } from "@src/store";
 import { agentNameAtom } from "@src/store/session/creatorStateAtom";
 import { spotlightModelKeyFirstAtom } from "@src/store/ui/spotlightModelKeyFirstAtom";
+import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
 
 import {
   ManageKeysFooterAction,

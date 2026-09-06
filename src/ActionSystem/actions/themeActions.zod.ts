@@ -9,7 +9,7 @@ import {
   getGlobalTheme,
   resolveGlobalThemePreference,
 } from "@src/config/appearance/globalThemes";
-import { updateSettingsBatchAtom } from "@src/store";
+import { updateSettingsBatchAtom } from "@src/store/settings/settingsAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 import { swapThemeCss } from "@src/util/ui/theme/swapThemeCss";
 import { showThemeTransitionCover } from "@src/util/ui/theme/themeTransitionCover";

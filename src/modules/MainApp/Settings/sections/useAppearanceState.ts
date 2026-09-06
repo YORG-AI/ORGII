@@ -28,6 +28,7 @@ import {
   supportsBothVariants,
 } from "@src/config/appearance/skins/registry";
 import type { SkinVariant } from "@src/config/appearance/skins/types";
+import { updateSettingsBatchAtom } from "@src/store/settings/settingsAtom";
 import {
   UI_SCALE_CONFIG,
   activeSkinIdAtom,
@@ -44,8 +45,7 @@ import {
   systemColorSchemeAtom,
   translucentSidebarAtom,
   uiScaleAtom,
-  updateSettingsBatchAtom,
-} from "@src/store";
+} from "@src/store/ui/uiAtom";
 import { swapThemeCss } from "@src/util/ui/theme/swapThemeCss";
 import { showThemeTransitionCover } from "@src/util/ui/theme/themeTransitionCover";
 
