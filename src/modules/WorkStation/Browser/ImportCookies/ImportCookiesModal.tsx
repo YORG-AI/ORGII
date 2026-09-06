@@ -6,9 +6,11 @@
  * cookies for (money / mail / SSO unchecked by default), and import the chosen
  * ones. Mirrors the built-in-browser "import cookies" affordance.
  *
- * The footer is the design-system Modal's own: the source picker has none (a
- * row click advances), the checklist gets "Import N sites" / Cancel with a
- * Back action in the header, and the summary gets a lone "Done".
+ * Footers are the design-system blocks: the source picker has none (a row
+ * click advances, the header X closes); the checklist uses `PanelFooter` — the
+ * same block Modal renders by default — with Select all and the selection
+ * summary in its `left` slot and Cancel / "Import N sites" on the right; the
+ * summary uses Modal's own `onOk` / `okText` for a lone "Done".
  */
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,7 +27,6 @@ import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
   CheckmarkCircle01Icon,
-  CloudDownloadIcon,
   HugeiconsIcon,
   type IconSvgElement,
   InternetIcon,
@@ -34,6 +35,7 @@ import {
   Mail01Icon,
   Shield01Icon,
 } from "@src/icons";
+import PanelFooter from "@src/modules/shared/layouts/blocks/PanelFooter";
 import Modal from "@src/scaffold/ModalSystem";
 
 import { selectAllState, selectedCookieCount } from "./importCookiesSelection";
@@ -52,7 +54,7 @@ interface ImportCookiesModalProps {
   onImported?: () => void;
 }
 
-type ModalProps = React.ComponentProps<typeof Modal>;
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 const CAUTION_BADGE: Record<
   Exclude<CookieSiteCategory, "general">,
@@ -150,7 +152,7 @@ function SourcesStage({
   t,
 }: {
   controller: ImportCookiesController;
-  t: (key: string) => string;
+  t: Translate;
 }) {
   if (controller.sourcesLoading) {
     return (
@@ -199,10 +201,9 @@ function PreviewStage({
   t,
 }: {
   controller: ImportCookiesController;
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: Translate;
 }) {
   const sites = controller.preview?.sites ?? [];
-  const selectAll = selectAllState(sites, controller.selectedDomains);
 
   if (controller.previewLoading) {
     return (
@@ -230,24 +231,6 @@ function PreviewStage({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2 px-2">
-        <Checkbox
-          checked={selectAll === "all"}
-          indeterminate={selectAll === "some"}
-          onCheckedChange={(checked) => controller.setAllDomains(checked)}
-        >
-          <span className="text-xs text-text-2">
-            {t("browserCookieImport.selectAll")}
-          </span>
-        </Checkbox>
-        <span className="text-xs text-text-3">
-          {t("browserCookieImport.selectedSummary", {
-            sites: controller.selectedDomains.size,
-            cookies: selectedCookieCount(sites, controller.selectedDomains),
-          })}
-        </span>
-      </div>
-
       {controller.preview?.warning ? (
         <InlineBanner tone="warning">{controller.preview.warning}</InlineBanner>
       ) : null}
@@ -275,7 +258,7 @@ function DoneStage({
   t,
 }: {
   controller: ImportCookiesController;
-  t: (key: string, options?: Record<string, unknown>) => string;
+  t: Translate;
 }) {
   return (
     <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
@@ -301,37 +284,71 @@ function DoneStage({
   );
 }
 
+/** Checklist footer: Select all + summary on the left, Cancel / Import right. */
+function PreviewFooter({
+  controller,
+  onClose,
+  t,
+}: {
+  controller: ImportCookiesController;
+  onClose: () => void;
+  t: Translate;
+}) {
+  const { previewLoading, importing, selectedDomains } = controller;
+  const sites = controller.preview?.sites ?? [];
+  const selectAll = selectAllState(sites, selectedDomains);
+
+  const selection =
+    !previewLoading && sites.length > 0 ? (
+      <>
+        <Checkbox
+          checked={selectAll === "all"}
+          indeterminate={selectAll === "some"}
+          disabled={importing}
+          onCheckedChange={(checked) => controller.setAllDomains(checked)}
+        >
+          <span className="text-xs text-text-2">
+            {t("browserCookieImport.selectAll")}
+          </span>
+        </Checkbox>
+        <span className="truncate text-xs text-text-3">
+          {t("browserCookieImport.selectedSummary", {
+            sites: selectedDomains.size,
+            cookies: selectedCookieCount(sites, selectedDomains),
+          })}
+        </span>
+      </>
+    ) : undefined;
+
+  return (
+    <PanelFooter
+      left={selection}
+      secondaryActions={[
+        {
+          label: t("actions.cancel"),
+          onClick: onClose,
+          disabled: importing,
+        },
+      ]}
+      primaryAction={{
+        label: t("browserCookieImport.importAction", {
+          count: selectedDomains.size,
+        }),
+        onClick: controller.runImport,
+        disabled: previewLoading || importing || selectedDomains.size === 0,
+        loading: importing,
+      }}
+    />
+  );
+}
+
 export const ImportCookiesModal: React.FC<ImportCookiesModalProps> = ({
   onClose,
   onImported,
 }) => {
   const { t } = useTranslation();
   const controller = useImportCookiesController(onImported);
-  const { stage, previewLoading, importing, selectedDomains } = controller;
-
-  // Footer through Modal's own props. The source picker has no footer at all
-  // (`onOk` unset): clicking a row advances, and the header X closes.
-  let footerProps: Pick<
-    ModalProps,
-    "onOk" | "okText" | "okButtonProps" | "cancelText" | "cancelButtonProps"
-  > = {};
-  if (stage === "preview") {
-    footerProps = {
-      onOk: controller.runImport,
-      okText: t("browserCookieImport.importAction", {
-        count: selectedDomains.size,
-      }),
-      okButtonProps: {
-        disabled: previewLoading || selectedDomains.size === 0,
-        loading: importing,
-      },
-      cancelText: t("actions.cancel"),
-      cancelButtonProps: { disabled: importing },
-    };
-  } else if (stage === "done") {
-    // An empty cancelText hides the secondary button: "Done" stands alone.
-    footerProps = { onOk: onClose, okText: t("actions.done"), cancelText: "" };
-  }
+  const { stage, importing } = controller;
 
   const backAction =
     stage === "preview" && !importing ? (
@@ -344,21 +361,28 @@ export const ImportCookiesModal: React.FC<ImportCookiesModalProps> = ({
       </IconButton>
     ) : undefined;
 
+  // Summary stage: Modal's own footer with a lone "Done" (empty cancelText
+  // hides the secondary button). Other stages leave these unset.
+  const doneFooterProps =
+    stage === "done"
+      ? { onOk: onClose, okText: t("actions.done"), cancelText: "" }
+      : {};
+
   return (
     <Modal
       visible
       onClose={onClose}
-      title={
-        <span className="flex items-center gap-2">
-          <HugeiconsIcon icon={CloudDownloadIcon} size={18} aria-hidden />
-          {t("browserCookieImport.title")}
-        </span>
-      }
+      title={t("browserCookieImport.title")}
       width={520}
       headerActions={backAction}
       maskClosable={!importing}
       escToExit={!importing}
-      {...footerProps}
+      footer={
+        stage === "preview" ? (
+          <PreviewFooter controller={controller} onClose={onClose} t={t} />
+        ) : undefined
+      }
+      {...doneFooterProps}
     >
       <div className="min-h-[200px]">
         {stage === "sources" ? (
