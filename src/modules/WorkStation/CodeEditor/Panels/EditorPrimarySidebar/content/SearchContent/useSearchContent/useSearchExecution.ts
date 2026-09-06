@@ -17,6 +17,7 @@ import {
 } from "@src/api/tauri/search";
 import { createLogger } from "@src/hooks/logger";
 import { useDebouncedCallback } from "@src/hooks/perf/useDebouncedCallback";
+import { shareSearchLineContext } from "@src/store/workstation/codeEditor/search";
 import type {
   SearchOptions as StoreSearchOptions,
   SearchResultFile as StoreSearchResultFile,
@@ -278,7 +279,7 @@ export function useSearchExecution(
       const hasMoreResults =
         filteredResults.length > SEARCH_CONSTANTS.BATCH_SIZE;
 
-      setResults(firstBatchFiles);
+      setResults(shareSearchLineContext(firstBatchFiles));
       setHasMore(hasMoreResults);
 
       // Calculate actual totals from all results (not just first batch)
