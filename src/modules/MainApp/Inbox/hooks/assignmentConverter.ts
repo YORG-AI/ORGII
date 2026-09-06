@@ -11,9 +11,8 @@
  * 4. Matching changes are converted to InboxMessages and upserted
  */
 import type { MemberEntry } from "@src/api/http/project";
+import type { InboxMessage, MessagePriority } from "@src/api/types/inbox";
 import type { AssignmentChange } from "@src/modules/ProjectManager/WorkItems/types";
-
-import type { InboxMessage, MessagePriority } from "../types";
 
 /** Map work item priority to inbox message priority. Falls back to "medium". */
 function toMessagePriority(wiPriority: string): MessagePriority {

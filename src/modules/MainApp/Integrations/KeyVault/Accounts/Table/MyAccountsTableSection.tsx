@@ -14,10 +14,10 @@ import Switch from "@src/components/Switch";
 import { MODEL_TABLE_SWITCH_SIZE } from "@src/config/modelTable";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import { Add01Icon, Delete02Icon, HugeiconsIcon, Pen01Icon } from "@src/icons";
+import { KEY_VAULT_STATUS_DOT } from "@src/modules/shared/keyVault/statusColors";
 import { groupModels } from "@src/util/modelGrouping";
 
 import { EnabledFractionText } from "../../../shared/EnabledFractionText";
-import { KEY_VAULT_STATUS_DOT } from "../../statusColors";
 import AccountInlineExpandedCard, {
   ACCOUNT_INLINE_TAB,
   type AccountInlineTab,

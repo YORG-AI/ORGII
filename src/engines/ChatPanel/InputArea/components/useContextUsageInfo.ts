@@ -9,7 +9,7 @@ import {
   sessionContextTokensAtom,
   sessionContextUsageAtom,
 } from "@src/store/session/cliSessionStatusAtom";
-import { getModelInfo } from "@src/util/modelInfo";
+import { getModelInfo } from "@src/types/model/info";
 
 export interface ContextUsageInfo {
   percentage: number;
