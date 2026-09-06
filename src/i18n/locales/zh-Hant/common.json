@@ -845,7 +845,7 @@
     "openInEditorTab": "在編輯器標籤中打開",
     "openFile": "打開文件",
     "openNativeDevTools": "打開原生瀏覽器開發者工具",
-    "captureScreenshot": "截取當前頁面並添加到聊天輸入",
+    "captureScreenshot": "截圖",
     "enableInspectMode": "檢查元素",
     "disableInspectMode": "退出檢查 (Esc)",
     "killTerminal": "終止終端",

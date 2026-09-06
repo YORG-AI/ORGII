@@ -832,7 +832,7 @@
     "openInEditorTab": "Mở trong tab trình soạn thảo",
     "openFile": "Mở tệp",
     "openNativeDevTools": "Mở DevTools gốc của trình duyệt",
-    "captureScreenshot": "Chụp trang và đính kèm vào chat",
+    "captureScreenshot": "Ảnh chụp màn hình",
     "enableInspectMode": "Kiểm tra phần tử",
     "disableInspectMode": "Thoát kiểm tra (Esc)",
     "killTerminal": "Kết thúc terminal",

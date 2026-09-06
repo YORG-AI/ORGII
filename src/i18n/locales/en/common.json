@@ -733,7 +733,7 @@
     "openInEditorTab": "Open in editor tab",
     "openFile": "Open File",
     "openNativeDevTools": "Open native browser DevTools",
-    "captureScreenshot": "Capture page as image and attach to chat",
+    "captureScreenshot": "Screenshot",
     "enableInspectMode": "Inspect element",
     "disableInspectMode": "Exit inspector (Esc)",
     "killTerminal": "Kill Terminal",

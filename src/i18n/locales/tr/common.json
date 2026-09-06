@@ -834,7 +834,7 @@
     "openInEditorTab": "Düzenleyici sekmesinde aç",
     "openFile": "Dosyayı aç",
     "openNativeDevTools": "Yerel tarayıcı DevTools'u aç",
-    "captureScreenshot": "Sayfayı görüntü olarak yakala ve sohbete ekle",
+    "captureScreenshot": "Ekran görüntüsü",
     "enableInspectMode": "Öğeyi incele",
     "disableInspectMode": "İncelemeyi kapat (Esc)",
     "killTerminal": "Terminali sonlandır",

@@ -838,7 +838,7 @@
     "openInEditorTab": "Открыть во вкладке редактора",
     "openFile": "Открыть файл",
     "openNativeDevTools": "Открыть нативные DevTools браузера",
-    "captureScreenshot": "Сделать снимок страницы и прикрепить к чату",
+    "captureScreenshot": "Скриншот",
     "enableInspectMode": "Исследовать элемент",
     "disableInspectMode": "Выйти из инспектора (Esc)",
     "killTerminal": "Завершить терминал",

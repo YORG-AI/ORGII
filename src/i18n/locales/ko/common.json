@@ -832,7 +832,7 @@
     "openInEditorTab": "편집기 탭에서 열기",
     "openFile": "파일 열기",
     "openNativeDevTools": "네이티브 브라우저 개발자 도구 열기",
-    "captureScreenshot": "페이지를 캡처하여 채팅에 첨부",
+    "captureScreenshot": "스크린샷",
     "enableInspectMode": "요소 검사",
     "disableInspectMode": "검사 종료 (Esc)",
     "killTerminal": "터미널 종료",

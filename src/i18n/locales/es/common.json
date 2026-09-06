@@ -834,7 +834,7 @@
     "openInEditorTab": "Abrir en pestaña del editor",
     "openFile": "Abrir archivo",
     "openNativeDevTools": "Abrir DevTools nativas del navegador",
-    "captureScreenshot": "Capturar la página y adjuntarla al chat",
+    "captureScreenshot": "Captura de pantalla",
     "enableInspectMode": "Inspeccionar elemento",
     "disableInspectMode": "Salir del inspector (Esc)",
     "killTerminal": "Terminar terminal",

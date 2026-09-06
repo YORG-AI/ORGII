@@ -838,7 +838,7 @@
     "openInEditorTab": "Otwórz w karcie edytora",
     "openFile": "Otwórz plik",
     "openNativeDevTools": "Otwórz natywne DevTools przeglądarki",
-    "captureScreenshot": "Zrób zrzut strony i dołącz do czatu",
+    "captureScreenshot": "Zrzut ekranu",
     "enableInspectMode": "Inspekcja elementu",
     "disableInspectMode": "Zakończ inspekcję (Esc)",
     "killTerminal": "Zabij Shell",

@@ -720,7 +720,7 @@
     "openInEditorTab": "在编辑器标签中打开",
     "openFile": "打开文件",
     "openNativeDevTools": "打开原生浏览器开发者工具",
-    "captureScreenshot": "截取当前页面并添加到聊天输入",
+    "captureScreenshot": "截图",
     "enableInspectMode": "检查元素",
     "disableInspectMode": "退出检查 (Esc)",
     "killTerminal": "终止终端",

@@ -832,7 +832,7 @@
     "openInEditorTab": "エディタタブで開く",
     "openFile": "ファイルを開く",
     "openNativeDevTools": "ネイティブブラウザの開発者ツールを開く",
-    "captureScreenshot": "ページをスクリーンショットしてチャットに添付",
+    "captureScreenshot": "スクリーンショット",
     "enableInspectMode": "要素を検証",
     "disableInspectMode": "検証を終了 (Esc)",
     "killTerminal": "Terminal を終了",
