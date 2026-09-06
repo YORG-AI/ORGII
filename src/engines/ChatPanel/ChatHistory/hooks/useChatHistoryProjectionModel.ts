@@ -2,6 +2,7 @@ import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef } from "react";
 
 import type { CursorIdeTurnSummary } from "@src/api/tauri/externalHistory";
+import { useChatCollapseState } from "@src/engines/ChatPanel/ChatCollapseScope";
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { addressRunActiveAtom } from "@src/features/Org2Cloud/addressCommentsRun";
@@ -9,10 +10,6 @@ import {
   estimateRuntimeValueBytes,
   registerChatRenderedTreeMemoryEntry,
 } from "@src/hooks/perf/runtimeMemoryStats";
-import {
-  collapseAllCommandAtom,
-  turnCollapseOverrideAtom,
-} from "@src/store/ui/collapseStateAtom";
 import { selectedExecutionThreadAtom } from "@src/store/ui/sessionPaginationAtom";
 import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 
@@ -68,6 +65,8 @@ export function useChatHistoryProjectionModel({
   sessionLoadStatus,
   turnPaginationEnabled,
 }: UseChatHistoryProjectionModelOptions) {
+  const { collapseAllCommandAtom, turnCollapseOverrideAtom } =
+    useChatCollapseState();
   const memoryStatsKeyRef = useRef(Symbol("chat-rendered-tree-memory"));
   const memoryStatsSourceRef = useRef<{
     activeId: string | null;

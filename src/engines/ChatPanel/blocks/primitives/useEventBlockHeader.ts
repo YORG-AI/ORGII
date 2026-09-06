@@ -10,11 +10,7 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useContext, useEffect, useState } from "react";
 
-import {
-  collapseAllCommandAtom,
-  collapseStateAtom,
-  setCollapseStateAtom,
-} from "@src/store/ui/collapseStateAtom";
+import { useChatCollapseState } from "@src/engines/ChatPanel/ChatCollapseScope";
 
 import { NestedBlockContext } from "./nestedBlockContext";
 
@@ -75,6 +71,8 @@ export function useEventBlockHeader(
     preserveDefaultOnExpand = false,
   } = options;
 
+  const { collapseAllCommandAtom, collapseStateAtom, setCollapseStateAtom } =
+    useChatCollapseState();
   const isNested = useContext(NestedBlockContext);
 
   const collapseMap = useAtomValue(collapseStateAtom);
