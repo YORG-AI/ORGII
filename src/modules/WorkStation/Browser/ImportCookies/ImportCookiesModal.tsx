@@ -299,9 +299,18 @@ function PreviewStage({
   }
 
   if (sites.length === 0) {
+    // A profile whose every cookie failed to decrypt has no sites either;
+    // the warning is the only thing that tells those two cases apart.
     return (
-      <div className="py-10 text-center text-sm text-text-3">
-        {t("browserCookieImport.noSites")}
+      <div className="flex flex-col gap-2">
+        {controller.preview?.warning ? (
+          <InlineBanner tone="warning">
+            {controller.preview.warning}
+          </InlineBanner>
+        ) : null}
+        <div className="py-10 text-center text-sm text-text-3">
+          {t("browserCookieImport.noSites")}
+        </div>
       </div>
     );
   }
@@ -335,7 +344,7 @@ function PreviewStage({
           ))
         ) : (
           <div className="py-6 text-center text-sm text-text-3">
-            {t("actions.noResults", { defaultValue: "No matching sites" })}
+            {t("browserCookieImport.noMatchingSites")}
           </div>
         )}
       </div>
