@@ -24,25 +24,28 @@ export {
 
 export {
   defineAppActionRegistration,
-  defineZodAction,
   extractAppActionRegistrations,
   isAppZodActionRegistration,
-  zodActionRegistry,
+  type AppZodActionRegistration,
+  type WorkStationActionContext,
+  type WorkStationZodActionRegistration,
+  type ZodActionRegistration,
+} from "./schema/actionRegistration";
+
+export {
+  defineZodAction,
   zodActionToGUIControlManifestAction,
   zodActionToLLMTool,
-  ZodActionRegistry,
   type ActionCategory,
   type ActionExecutor,
   type ActionLayer,
   type ActionMeta,
   type ActionParams,
   type ActionResult,
-  type AppZodActionRegistration,
   type GUIControlManifest,
   type GUIControlManifestAction,
   type LLMToolDefinition,
-  type WorkStationActionContext,
-  type WorkStationZodActionRegistration,
   type ZodAction,
-  type ZodActionRegistration,
-} from "./schema";
+} from "./schema/defineZodAction";
+
+export { zodActionRegistry, ZodActionRegistry } from "./schema/zodRegistry";
