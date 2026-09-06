@@ -10,13 +10,13 @@
  * The result `kind` tells us how to render: "html" in a div, "pdf" in an iframe.
  */
 import { invoke } from "@tauri-apps/api/core";
-import { readFile } from "@tauri-apps/plugin-fs";
 import React, { useEffect, useMemo, useState } from "react";
 
 import { Placeholder } from "@src/components/Placeholder";
 import { getFileName } from "@src/util/file/pathUtils";
 
 import "../DocxPreview/index.scss";
+import { useStreamedFileSource } from "../useStreamedFileSource";
 
 // ============================================
 // Types
@@ -32,6 +32,13 @@ interface PagesPreviewProps {
   className?: string;
 }
 
+/** Outcome of converting one document; matched to the current `filePath`. */
+interface ConversionState {
+  path: string;
+  kind: "html" | "pdf" | "error";
+  data: string;
+}
+
 // ============================================
 // Main Component
 // ============================================
@@ -40,10 +47,7 @@ export const PagesPreview: React.FC<PagesPreviewProps> = ({
   filePath,
   className = "",
 }) => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [htmlContent, setHtmlContent] = useState<string | null>(null);
-  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [conversion, setConversion] = useState<ConversionState | null>(null);
 
   const fileName = useMemo(() => getFileName(filePath), [filePath]);
 
@@ -51,35 +55,44 @@ export const PagesPreview: React.FC<PagesPreviewProps> = ({
     let cancelled = false;
 
     invoke<PagesPreviewResult>("convert_pages_to_html", { filePath })
-      .then(async (result) => {
+      .then((result) => {
         if (cancelled) return;
-
-        if (result.kind === "pdf") {
-          const pdfBytes = await readFile(result.data);
-          if (cancelled) return;
-          const blob = new Blob([pdfBytes], { type: "application/pdf" });
-          setPdfBlobUrl(URL.createObjectURL(blob));
-        } else {
-          setHtmlContent(result.data);
-        }
-        setLoading(false);
+        setConversion({ path: filePath, kind: result.kind, data: result.data });
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(
-          typeof err === "string" ? err : "Failed to load Pages document"
-        );
-        setLoading(false);
+        setConversion({
+          path: filePath,
+          kind: "error",
+          data: typeof err === "string" ? err : "Failed to load Pages document",
+        });
       });
 
     return () => {
       cancelled = true;
-      setPdfBlobUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
     };
   }, [filePath]);
+
+  // A result for a previous document is not this document's result.
+  const current = conversion?.path === filePath ? conversion : null;
+  const converting = current === null;
+  const convertError = current?.kind === "error" ? current.data : null;
+  const htmlContent = current?.kind === "html" ? current.data : null;
+  // Path of the PDF the Rust side exported; streamed like any other PDF.
+  const pdfPath = current?.kind === "pdf" ? current.data : null;
+
+  const {
+    src: pdfSrc,
+    loading: pdfLoading,
+    error: pdfError,
+  } = useStreamedFileSource({
+    filePath: pdfPath,
+    mimeType: "application/pdf",
+    probe: true,
+  });
+
+  const loading = converting || (pdfPath !== null && pdfLoading);
+  const error = convertError ?? pdfError;
 
   if (error) {
     return (
@@ -105,9 +118,9 @@ export const PagesPreview: React.FC<PagesPreviewProps> = ({
         />
       )}
 
-      {pdfBlobUrl && (
+      {pdfSrc && (
         <iframe
-          src={pdfBlobUrl}
+          src={pdfSrc}
           title={fileName}
           className="h-full w-full border-none"
         />

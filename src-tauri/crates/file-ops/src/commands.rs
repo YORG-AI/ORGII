@@ -878,3 +878,38 @@ fn build_tree_level(
 
     Ok(result)
 }
+
+// ============================================
+// Preview asset scope
+// ============================================
+
+/// Validate a path the frontend wants to stream through the asset protocol:
+/// it must exist and be a regular file. Returns the canonical path, which is
+/// what the scope is widened for and what `convertFileSrc` must receive.
+pub fn validate_preview_asset_path(file_path: &str) -> Result<std::path::PathBuf, String> {
+    let path = std::path::Path::new(file_path);
+    let metadata =
+        std::fs::metadata(path).map_err(|err| format!("Cannot preview {}: {}", file_path, err))?;
+    if !metadata.is_file() {
+        return Err(format!("Cannot preview {}: not a regular file", file_path));
+    }
+    std::fs::canonicalize(path).map_err(|err| format!("Cannot resolve {}: {}", file_path, err))
+}
+
+/// Allow the asset protocol to serve one file the user opened in a preview.
+///
+/// `<video>` and the PDF viewer can then stream the file straight from disk
+/// (the asset handler answers HTTP range requests) instead of the frontend
+/// reading the whole file into a Blob. The scope is widened per file, never
+/// per directory: only files the user explicitly opened become reachable
+/// through `asset://`, and the fs plugin could already read all of them.
+#[tauri::command]
+pub fn allow_preview_asset(app: tauri::AppHandle, file_path: String) -> Result<String, String> {
+    use tauri::Manager;
+
+    let canonical = validate_preview_asset_path(&file_path)?;
+    app.asset_protocol_scope()
+        .allow_file(&canonical)
+        .map_err(|err| format!("Cannot allow preview of {}: {}", file_path, err))?;
+    Ok(canonical.to_string_lossy().into_owned())
+}

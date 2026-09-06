@@ -2,29 +2,22 @@
  * VideoPreview Component
  *
  * Displays video files using the native browser <video> element.
- * Uses readFile + a blob URL (same approach as ImagePreview) so the file
- * is served from memory rather than via convertFileSrc / asset protocol,
- * which has a restricted scope in tauri.conf.json and requires extra CSP
- * headers. The FS plugin already has home-recursive read access.
+ * The source is streamed from disk through the asset protocol (the Rust
+ * side widens the scope for exactly this file), so the webview holds no
+ * copy of the video; if that fails the element falls back to a Blob URL.
  *
  * Layout mirrors ImagePreview: scrollable viewport + fixed PreviewBottomBar.
  *
  * Supported formats: mp4, webm, mov, avi, mkv, ogv
  */
-import { readFile } from "@tauri-apps/plugin-fs";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 
 import { Placeholder } from "@src/components/Placeholder";
 import { getFileName } from "@src/util/file/pathUtils";
 import { getVideoMimeType } from "@src/util/file/previewTypes";
 
 import { PreviewBottomBar, formatFileSize } from "../PreviewBottomBar";
+import { useStreamedFileSource } from "../useStreamedFileSource";
 
 // ============================================
 // Types
@@ -66,11 +59,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
   className = "",
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [metadata, setMetadata] = useState<VideoMetadata | null>(null);
-  const [fileSize, setFileSize] = useState<number | null>(null);
 
   const fileName = useMemo(() => getFileName(filePath), [filePath]);
   const mimeType = useMemo(
@@ -78,40 +67,13 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
     [filePath]
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    let objectUrl: string | null = null;
-
-    async function loadVideo() {
-      setLoading(true);
-      setError(null);
-      setBlobUrl(null);
-      setMetadata(null);
-      setFileSize(null);
-
-      try {
-        const data = await readFile(filePath);
-        if (cancelled) return;
-
-        setFileSize(data.byteLength);
-        const blob = new Blob([data], { type: mimeType });
-        objectUrl = URL.createObjectURL(blob);
-        setBlobUrl(objectUrl);
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load video");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    loadVideo();
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [filePath, mimeType]);
+  const {
+    src: videoSrc,
+    fileSize,
+    loading,
+    error,
+    onSourceError,
+  } = useStreamedFileSource({ filePath, mimeType });
 
   const handleLoadedMetadata = useCallback(() => {
     const video = videoRef.current;
@@ -122,6 +84,11 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
       height: video.videoHeight,
     });
   }, []);
+
+  const handleSourceError = useCallback(() => {
+    setMetadata(null);
+    onSourceError();
+  }, [onSourceError]);
 
   if (error) {
     return (
@@ -164,13 +131,14 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
             fillParentHeight
           />
         )}
-        {blobUrl && (
+        {videoSrc && (
           <video
             ref={videoRef}
-            key={blobUrl}
-            src={blobUrl}
+            key={videoSrc}
+            src={videoSrc}
             controls
             onLoadedMetadata={handleLoadedMetadata}
+            onError={handleSourceError}
             style={{
               maxWidth: "100%",
               maxHeight: "100%",
