@@ -51,6 +51,7 @@ const mocks = vi.hoisted(() => ({
   restoreTurnWorkingAfterInterruptFailure: vi.fn(),
   sendMessage: vi.fn(),
   updateById: vi.fn(),
+  upsert: vi.fn(),
 }));
 
 vi.mock("@src/api/tauri/agent", () => ({
@@ -94,6 +95,7 @@ vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
     append: mocks.append,
     getPersistedEvents: mocks.getPersistedEvents,
     updateById: mocks.updateById,
+    upsert: mocks.upsert,
   },
 }));
 
@@ -408,6 +410,7 @@ describe("useQueueDispatch Agent Org intervention", () => {
     mocks.restoreTurnWorkingAfterInterruptFailure.mockReset();
     mocks.sendMessage.mockReset().mockResolvedValue(undefined);
     mocks.updateById.mockReset().mockResolvedValue(true);
+    mocks.upsert.mockReset().mockResolvedValue(undefined);
     store = createStore();
     store.set(messageDeliveryRecordsAtom, []);
     root = createSmokeRoot();
@@ -970,6 +973,129 @@ describe("useQueueDispatch Agent Org intervention", () => {
       SESSION_ID
     );
   });
+
+  it("restores a reconciled-away failed row before retiring its accepted owner", async () => {
+    mocks.updateById.mockImplementation(async (_id, patch) =>
+      patch.result?.deliveryOwnerRetired ? false : true
+    );
+    let finishProjection!: () => void;
+    mocks.upsert.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishProjection = resolve;
+        })
+    );
+    mocks.dispatchCanonicalConversation.mockImplementationOnce(
+      async (_store, message, callbacks) => {
+        await callbacks.onAccepted(`runner-${message.id}`);
+        throw new QueuedConversationRecoveryBlockedError("terminal verdict");
+      }
+    );
+    const message = makeCanonicalMessage("canonical-retirement-upsert");
+    await mountWithMessages([message]);
+    await vi.waitFor(() => expect(mocks.upsert).toHaveBeenCalledOnce());
+    expect(store.get(activeMessageDeliveriesAtom)).toEqual([
+      expect.objectContaining({ id: message.id, status: "accepted" }),
+    ]);
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: `queued-user:${message.id}:`,
+        result: expect.objectContaining({
+          turnIntentId: message.turnIntentId,
+          deliveryStatus: "failed",
+          deliveryOwnerRetired: true,
+        }),
+      }),
+      SESSION_ID
+    );
+    finishProjection();
+    await vi.waitFor(() =>
+      expect(store.get(activeMessageDeliveriesAtom)).toEqual([])
+    );
+    expect(mocks.dispatchCanonicalConversation).toHaveBeenCalledOnce();
+    expect(store.get(messageQueueAtom)).toEqual([]);
+  });
+
+  it.each(["missing row", "persistence rejection"])(
+    "retains accepted ownership until retirement is projected after %s",
+    async (failure) => {
+      let projectionAvailable = false;
+      mocks.upsert.mockImplementation(async () => {
+        if (!projectionAvailable)
+          throw new Error("projection repair unavailable");
+      });
+      mocks.updateById.mockImplementation(async (_id, patch) => {
+        if (patch.result?.deliveryOwnerRetired && !projectionAvailable) {
+          if (failure === "persistence rejection") {
+            throw new Error("EventStore unavailable");
+          }
+          return false;
+        }
+        return true;
+      });
+      mocks.dispatchCanonicalConversation.mockImplementation(
+        async (_store, message, callbacks) => {
+          if (message.status !== "accepted") {
+            await callbacks.onAccepted(`runner-${message.id}`);
+          }
+          throw new QueuedConversationRecoveryBlockedError(
+            "accepted runner diverged from canonical transcript"
+          );
+        }
+      );
+      const message = {
+        ...makeCanonicalMessage("canonical-retirement-recovery"),
+        displayContent: "@VantaNode keep this message",
+        imageDataUrls: ["data:image/png;base64,preserved"],
+      };
+      await mountWithMessages([message]);
+
+      await vi.waitFor(() =>
+        expect(store.get(activeMessageDeliveriesAtom)).toEqual([
+          expect.objectContaining({
+            id: message.id,
+            turnIntentId: message.turnIntentId,
+            status: "accepted",
+            retryAttempt: 1,
+            displayContent: message.displayContent,
+            imageDataUrls: message.imageDataUrls,
+          }),
+        ])
+      );
+      expect(store.get(messageQueueAtom)).toEqual([]);
+      expect(mocks.dispatchCanonicalConversation).toHaveBeenCalledOnce();
+
+      // The same existing recovery owner wakes after projection is available;
+      // it must not mint or resend a different provider intent.
+      projectionAvailable = true;
+      store.set(messageDeliveryRecordsAtom, (records) =>
+        records.map((record) => ({ ...record, retryAt: undefined }))
+      );
+      store.set(turnLifecycleSignalAtom, (value) => value + 1);
+      await vi.waitFor(() =>
+        expect(store.get(activeMessageDeliveriesAtom)).toEqual([])
+      );
+      expect(mocks.dispatchCanonicalConversation).toHaveBeenCalledTimes(2);
+      expect(mocks.dispatchCanonicalConversation.mock.calls[1][1]).toEqual(
+        expect.objectContaining({
+          id: message.id,
+          turnIntentId: message.turnIntentId,
+          status: "accepted",
+        })
+      );
+      expect(mocks.updateById).toHaveBeenLastCalledWith(
+        `queued-user:${message.id}:`,
+        expect.objectContaining({
+          displayText: message.displayContent,
+          result: expect.objectContaining({
+            deliveryStatus: "failed",
+            deliveryOwnerRetired: true,
+          }),
+        }),
+        SESSION_ID
+      );
+    }
+  );
 
   it("never returns an accepted execution when a late identity check blocks", async () => {
     mocks.dispatchCanonicalConversation.mockImplementationOnce(

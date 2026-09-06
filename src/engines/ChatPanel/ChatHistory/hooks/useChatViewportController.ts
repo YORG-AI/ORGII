@@ -29,6 +29,7 @@ interface UseChatViewportControllerOptions {
   displayTotalFlatItems: number;
   followAgentNav: FollowAgentNavState;
   isPendingCancelRef: UseChatEmptyStateReturn["isPendingCancelRef"];
+  latestGroupIsLocalSubmit: boolean;
   onScrollNavChange?: (state: ScrollNavState) => void;
   planningIndicatorCount: 0 | 1;
   sessionLoadStatus: UseChatHistoryStateReturn["sessionLoadStatus"];
@@ -57,6 +58,7 @@ export function useChatViewportController({
   displayTotalFlatItems,
   followAgentNav,
   isPendingCancelRef,
+  latestGroupIsLocalSubmit,
   onScrollNavChange,
   planningIndicatorCount,
   sessionLoadStatus,
@@ -227,6 +229,7 @@ export function useChatViewportController({
     isPendingCancelRef,
     isContentOverflowingRef,
     optimizedChatHistoryLength: activeProjectionHistoryLength,
+    latestGroupIsLocalSubmit,
     pinLastGroupRef,
     manualScrollAtRef,
     programmaticScrollAtRef,

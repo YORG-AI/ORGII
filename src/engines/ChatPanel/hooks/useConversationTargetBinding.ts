@@ -203,6 +203,19 @@ export function resolveConversationExecutionTargetHydration(
   };
 }
 
+/** Select the current native-session owner only after target hydration settles. */
+export function resolveConversationAppOpenSessionId(params: {
+  viewerSessionId: string | null | undefined;
+  executionTargets: readonly LocalConversationExecutionTargetSnapshot[];
+  loading: boolean;
+  failed: boolean;
+}): string | null {
+  if (params.loading || params.failed) return null;
+  return (
+    params.executionTargets[0]?.sessionId ?? params.viewerSessionId ?? null
+  );
+}
+
 /** Recover the provider/runtime target recorded by an existing native Session. */
 function localConversationTargetFromSession(
   session: Pick<
@@ -663,6 +676,12 @@ export function useConversationTargetBinding(
       source
         ? {
             root: source.root,
+            appOpenSessionId: resolveConversationAppOpenSessionId({
+              viewerSessionId: sessionId,
+              executionTargets,
+              loading: executionTargetHydrationLoading,
+              failed: executionTargetHydrationFailed,
+            }),
             cloudTarget,
             selection: presentation?.selection ?? null,
             runtimeSelection,
@@ -677,10 +696,14 @@ export function useConversationTargetBinding(
       applyModelPick,
       applyRuntimePick,
       cloudTarget,
+      executionTargetHydrationFailed,
+      executionTargetHydrationLoading,
+      executionTargets,
       nativeCliTargets,
       presentation,
       readiness,
       runtimeSelection,
+      sessionId,
       source,
       target,
     ]

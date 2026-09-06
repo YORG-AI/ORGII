@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { QueuedConversationRecoveryPendingError } from "@src/engines/SessionCore/conversations/queuedConversationContract";
+import {
+  QueuedConversationBlockedError,
+  QueuedConversationRecoveryPendingError,
+} from "@src/engines/SessionCore/conversations/queuedConversationContract";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { optimisticQueueUserEventId } from "@src/engines/SessionCore/services/userIntentDispatch";
 
@@ -202,6 +205,8 @@ describe("local conversation execution tail", () => {
         sessionId: "cliagent-codex-child",
         createdAt: "2026-09-04T05:01:00Z",
         updatedAt: "2026-09-04T05:02:00Z",
+        status: "completed",
+        isTerminal: true,
       },
     ]);
     mocks.loadCliRevision
@@ -247,12 +252,14 @@ describe("local conversation execution tail", () => {
     ).resolves.toMatchObject({ childRevision: null });
   });
 
-  it("treats a child whose native revision cannot be read as stable", async () => {
+  it("keeps a running child with an unavailable native transcript pending", async () => {
     mocks.invokeTauri.mockResolvedValue([
       {
         sessionId: "cliagent-legacy-cursor-child",
         createdAt: "2026-09-04T05:01:00Z",
         updatedAt: "2026-09-04T05:02:00Z",
+        status: "running",
+        isTerminal: false,
       },
     ]);
     mocks.loadCliRevision.mockResolvedValue(null);
@@ -267,7 +274,41 @@ describe("local conversation execution tail", () => {
         authorityScope: [],
         conversationId: "root-1",
       })
-    ).resolves.toMatchObject({ childRevision: expect.any(String) });
+    ).resolves.toMatchObject({ childRevision: null });
+    await expect(
+      loadLocalCanonicalConversationTimeline({
+        authority: "local-session",
+        authorityScope: [],
+        conversationId: "root-1",
+      })
+    ).rejects.toBeInstanceOf(QueuedConversationRecoveryPendingError);
+  });
+
+  it("blocks a settled child whose native transcript is unavailable until manual retry", async () => {
+    mocks.invokeTauri.mockResolvedValue([
+      {
+        sessionId: "cliagent-codex-settled-child",
+        createdAt: "2026-09-04T05:01:00Z",
+        updatedAt: "2026-09-04T05:02:00Z",
+        status: "completed",
+        isTerminal: true,
+      },
+    ]);
+    mocks.loadCliRevision
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue("native-restored");
+    mocks.loadCanonical.mockResolvedValue({
+      source: "native_store",
+      events: [event("event", "2026-09-04T05:02:00Z", "assistant", "body")],
+    });
+
+    await expect(
+      loadLocalCanonicalConversationTimeline({
+        authority: "local-session",
+        authorityScope: [],
+        conversationId: "root-1",
+      })
+    ).rejects.toBeInstanceOf(QueuedConversationBlockedError);
     await expect(
       loadLocalCanonicalConversationTimeline({
         authority: "local-session",
@@ -275,6 +316,31 @@ describe("local conversation execution tail", () => {
         conversationId: "root-1",
       })
     ).resolves.toEqual([expect.objectContaining({ displayText: "body" })]);
+  });
+
+  it("blocks an idle child whose native transcript is unavailable", async () => {
+    mocks.invokeTauri.mockResolvedValue([
+      {
+        sessionId: "cliagent-member-idle-child",
+        createdAt: "2026-09-04T05:01:00Z",
+        updatedAt: "2026-09-04T05:02:00Z",
+        status: "idle",
+        isTerminal: false,
+      },
+    ]);
+    mocks.loadCliRevision.mockResolvedValue(null);
+    mocks.loadCanonical.mockResolvedValue({
+      source: "native_store",
+      events: [],
+    });
+
+    await expect(
+      loadLocalCanonicalConversationTimeline({
+        authority: "local-session",
+        authorityScope: [],
+        conversationId: "root-1",
+      })
+    ).rejects.toBeInstanceOf(QueuedConversationBlockedError);
   });
 
   it("immediately rereads an unstable canonical timeline once", async () => {
@@ -545,6 +611,14 @@ describe("local conversation execution tail", () => {
       "user",
       "Reply exactly CU_CHILD_HYDRATION_RETEST_20260905_OK"
     );
+    newestOptimistic.result = { turnIntentId: "hydration-retest" };
+    const newestLanded = event(
+      "claude-u3",
+      "2026-09-04T22:06:46.246Z",
+      "user",
+      "Reply exactly CU_CHILD_HYDRATION_RETEST_20260905_OK"
+    );
+    newestLanded.result = { turnIntentId: "hydration-retest" };
     const childEvents = [
       ...rootNative.map((item) => ({
         ...item,
@@ -563,12 +637,7 @@ describe("local conversation execution tail", () => {
         "assistant",
         "CU_UI_CHILD_REFRESH_FIXED_20260905_OK"
       ),
-      event(
-        "claude-u3",
-        "2026-09-04T22:06:46.246Z",
-        "user",
-        "Reply exactly CU_CHILD_HYDRATION_RETEST_20260905_OK"
-      ),
+      newestLanded,
       event(
         "claude-a3",
         "2026-09-04T22:06:52.068Z",
@@ -768,12 +837,14 @@ describe("local conversation execution tail", () => {
       "user",
       "Reply with exactly MARKER"
     );
+    pending.result = { turnIntentId: "intent-1" };
     const otherPending = event(
       optimisticQueueUserEventId("intent-2"),
       "2026-09-04T05:59:00Z",
       "user",
       "another queued message"
     );
+    otherPending.result = { turnIntentId: "intent-2" };
     const history = event("hist-1", "2026-08-31T10:34:04Z", "user", "old");
     const landedUser = event(
       "runlanded-user-1",
@@ -781,6 +852,7 @@ describe("local conversation execution tail", () => {
       "user",
       "Reply with exactly MARKER "
     );
+    landedUser.result = { turnIntentId: "intent-1" };
     expect(pending.id).toBe("queued-user:intent-1:");
     expect(
       suppressLandedQueuedUserRows(
@@ -793,7 +865,7 @@ describe("local conversation execution tail", () => {
     );
   });
 
-  it("collapses a run of identical unanswered prompts into the answered copy", () => {
+  it("collapses repeated projections of the same identified retry only", () => {
     const first = event("u-try-1", "2026-09-06T04:39:28Z", "user", "Reply now");
     const second = event(
       "u-try-2",
@@ -804,11 +876,35 @@ describe("local conversation execution tail", () => {
     const third = event("u-try-3", "2026-09-06T05:39:00Z", "user", "Reply now");
     const reply = event("a-final", "2026-09-06T05:39:15Z", "assistant", "done");
     const later = event("u-again", "2026-09-06T05:40:00Z", "user", "Reply now");
+    for (const retry of [first, second, third]) {
+      retry.result = { turnIntentId: "retry-intent" };
+    }
+    later.result = { turnIntentId: "later-intent" };
     expect(
       collapseRetriedPromptCopies([first, second, third, reply, later]).map(
         (candidate) => candidate.id
       )
     ).toEqual(["u-try-3", "a-final", "u-again"]);
+  });
+
+  it("keeps equal text from distinct intents and attachments", () => {
+    const first = event("u-first", "2026-09-06T05:39:00Z", "user", "same");
+    first.result = {
+      turnIntentId: "intent-first",
+      images: ["data:image/png;base64,first"],
+    };
+    const second = event("u-second", "2026-09-06T05:39:01Z", "user", "same");
+    second.result = {
+      turnIntentId: "intent-second",
+      images: ["data:image/png;base64,second"],
+    };
+    const legacy = event("u-legacy", "2026-09-06T05:39:02Z", "user", "same");
+
+    expect(
+      collapseRetriedPromptCopies([first, second, legacy]).map(
+        (candidate) => candidate.id
+      )
+    ).toEqual(["u-first", "u-second", "u-legacy"]);
   });
 
   it("keeps a failed optimistic row and drops the child's landed copy of it", () => {
@@ -832,6 +928,7 @@ describe("local conversation execution tail", () => {
       "user",
       "Reply with exactly REJECTED"
     );
+    landedUser.result = { turnIntentId: "turn-failed" };
     const landedOther = event(
       "runlanded-assistant-1",
       "2026-09-06T04:39:21Z",
@@ -844,12 +941,14 @@ describe("local conversation execution tail", () => {
       "user",
       "Reply with exactly REJECTED"
     );
+    landedRetryCopy.result = { turnIntentId: "turn-failed" };
     const landedEarlierSamePrompt = event(
       "runlanded-user-earlier",
       "2026-09-06T04:10:00Z",
       "user",
       "Reply with exactly REJECTED"
     );
+    landedEarlierSamePrompt.result = { turnIntentId: "turn-earlier" };
     expect(
       suppressLandedQueuedUserRows([failed], [landedUser]).map(
         (candidate) => candidate.id
@@ -868,6 +967,55 @@ describe("local conversation execution tail", () => {
     ).toEqual(["runlanded-user-rejected"]);
   });
 
+  it("does not hide a later answered turn that repeats failed text", () => {
+    const failed = {
+      ...event(
+        optimisticQueueUserEventId("failed-row"),
+        "2026-09-06T04:39:19Z",
+        "user",
+        "same prompt"
+      ),
+      displayStatus: "failed" as const,
+      result: { deliveryStatus: "failed", turnIntentId: "failed-intent" },
+    };
+    const failedEcho = event(
+      "failed-echo",
+      "2026-09-06T04:39:20Z",
+      "user",
+      "same prompt"
+    );
+    failedEcho.result = { turnIntentId: "failed-intent" };
+    const later = event(
+      "later-user",
+      "2026-09-06T04:40:00Z",
+      "user",
+      "same prompt"
+    );
+    later.result = {
+      turnIntentId: "answered-intent",
+      images: ["data:image/png;base64,later"],
+    };
+    const answer = event(
+      "later-answer",
+      "2026-09-06T04:40:01Z",
+      "assistant",
+      "answered"
+    );
+    const legacyWithoutIdentity = event(
+      "legacy-user",
+      "2026-09-06T04:40:02Z",
+      "user",
+      "same prompt"
+    );
+
+    expect(
+      suppressLandedRowsOfFailedQueuedTurns(
+        [failed],
+        [failedEcho, later, answer, legacyWithoutIdentity]
+      ).map((candidate) => candidate.id)
+    ).toEqual(["later-user", "later-answer", "legacy-user"]);
+  });
+
   it("suppresses only one matching optimistic row for repeated prompt text", () => {
     const first = event(
       optimisticQueueUserEventId("repeat-1"),
@@ -875,22 +1023,55 @@ describe("local conversation execution tail", () => {
       "user",
       "same prompt"
     );
+    first.result = { turnIntentId: "repeat-1" };
     const second = event(
       optimisticQueueUserEventId("repeat-2"),
       "2026-09-04T05:59:00Z",
       "user",
       "same prompt"
     );
+    second.result = { turnIntentId: "repeat-2" };
     const landed = event(
       "runlanded-repeat-2",
       "2026-09-04T05:59:01Z",
       "user",
       "same prompt"
     );
+    landed.result = { turnIntentId: "repeat-2" };
     expect(
       suppressLandedQueuedUserRows([first, second], [landed]).map(
         (candidate) => candidate.id
       )
     ).toEqual([first.id]);
+  });
+
+  it("keeps optimistic rows when equal landed text has no matching identity", () => {
+    const pending = event(
+      optimisticQueueUserEventId("pending-intent"),
+      "2026-09-04T05:58:37Z",
+      "user",
+      "same prompt"
+    );
+    pending.result = { turnIntentId: "pending-intent" };
+    const differentTurn = event(
+      "runlanded-different-turn",
+      "2026-09-04T05:58:38Z",
+      "user",
+      "same prompt"
+    );
+    differentTurn.result = { turnIntentId: "different-intent" };
+    const legacyWithoutIdentity = event(
+      "runlanded-legacy",
+      "2026-09-04T05:58:39Z",
+      "user",
+      "same prompt"
+    );
+
+    expect(
+      suppressLandedQueuedUserRows(
+        [pending],
+        [differentTurn, legacyWithoutIdentity]
+      ).map((candidate) => candidate.id)
+    ).toEqual([pending.id]);
   });
 });

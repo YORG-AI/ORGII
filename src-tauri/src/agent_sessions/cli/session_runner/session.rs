@@ -1030,6 +1030,7 @@ pub(crate) async fn run_session_with_ide_context(
                 codex_app_server_turn_ok,
                 &mut attempt_stderr,
                 allow_native_context_recovery,
+                turn_intent_id,
             )
             .await?;
             exit_code = outcome.exit_code;
@@ -1056,6 +1057,7 @@ pub(crate) async fn run_session_with_ide_context(
                 cli_session_id_out,
                 &mut sequence,
                 &env_vars,
+                turn_intent_id,
             )
             .await?;
             exit_code = outcome.exit_code;
@@ -1079,6 +1081,7 @@ pub(crate) async fn run_session_with_ide_context(
                 cli_session_id_out,
                 &mut sequence,
                 &mut attempt_stderr,
+                turn_intent_id,
             )
             .await;
             exit_code = outcome.exit_code;
@@ -1146,7 +1149,7 @@ pub(crate) async fn run_session_with_ide_context(
                     terminal_message,
                 );
                 terminal_error_message = Some(terminal_message);
-                emit_chunk(&chunk, &session_id, &mut sequence).await;
+                emit_chunk(&chunk, &session_id, &mut sequence, turn_intent_id).await;
                 break;
             }
             let delay_secs = OVERLOAD_RETRY_BASE_DELAY_SECS * (1u64 << overload_retry_count);

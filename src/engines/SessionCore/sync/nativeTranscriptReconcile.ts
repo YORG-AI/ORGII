@@ -10,7 +10,13 @@
  * race this owner with a second replace/merge pipeline.
  */
 import { rpc } from "@src/api/tauri/rpc";
-import { mergeInterruptedConversationProjection } from "@src/engines/SessionCore/conversations/nativeConversationMaterializer";
+import {
+  mergeInterruptedConversationProjection,
+  nativeConversationItemsAreProviderPortablePrefix,
+  nativeSourceEventId,
+  projectNativeConversationItems,
+  sourceEventIdOfNativeItem,
+} from "@src/engines/SessionCore/conversations/nativeConversationMaterializer";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import {
@@ -46,21 +52,98 @@ function delay(ms: number): Promise<void> {
 
 function mergeProjection(
   nativeEvents: readonly SessionEvent[],
-  projectedEvents: readonly SessionEvent[]
+  projectedEvents: readonly SessionEvent[],
+  preserveInterruptedSuffix: boolean
 ): SessionEvent[] {
   const interrupted =
-    projectedEvents.length > 0
+    preserveInterruptedSuffix && projectedEvents.length > 0
       ? mergeInterruptedConversationProjection(nativeEvents, projectedEvents)
       : [...nativeEvents];
-  return mergeFailedUserDeliveryProjection(interrupted, projectedEvents);
+  return mergeFailedUserDeliveryProjection(
+    preserveAcceptedTurnIdentity(interrupted, projectedEvents),
+    projectedEvents
+  );
+}
+
+/**
+ * Native files do not know ORG2's accepted intent. Transfer only that metadata
+ * across the ordinary projection replacement, after proving the entire
+ * pre-turn history and accepted user message still match in order. Matching
+ * one prompt by text is insufficient: consecutive identical prompts are valid.
+ * Provider content remains authoritative; no streamed body is retained here.
+ */
+function preserveAcceptedTurnIdentity(
+  nativeEvents: readonly SessionEvent[],
+  projectedEvents: readonly SessionEvent[]
+): SessionEvent[] {
+  // Identity belongs to the full audit log, not the compacted effective model
+  // context. Ignore compaction control rows only for this comparison so a
+  // compact in the current turn cannot erase its accepted user boundary.
+  const fullLog = (events: readonly SessionEvent[]) =>
+    events.filter(
+      (event) =>
+        event.actionType !== "context_compacted" &&
+        event.functionName !== "context_compacted"
+    );
+  const projectedItems = projectNativeConversationItems(
+    fullLog(projectedEvents)
+  );
+  let anchor = -1;
+  for (let index = projectedItems.length - 1; index >= 0; index -= 1) {
+    const item = projectedItems[index];
+    if (item.kind === "message" && item.role === "user" && item.turnId) {
+      anchor = index;
+      break;
+    }
+  }
+  if (anchor < 0) return nativeEvents as SessionEvent[];
+  const accepted = projectedItems[anchor];
+  if (accepted.kind !== "message" || !accepted.turnId) {
+    return nativeEvents as SessionEvent[];
+  }
+  const nativeItems = projectNativeConversationItems(fullLog(nativeEvents));
+  if (
+    !nativeConversationItemsAreProviderPortablePrefix(
+      projectedItems.slice(0, anchor + 1),
+      nativeItems
+    )
+  ) {
+    return nativeEvents as SessionEvent[];
+  }
+  const acceptedSourceId = sourceEventIdOfNativeItem(nativeItems[anchor]);
+  const userIndex = nativeEvents.findIndex(
+    (event) => nativeSourceEventId(event) === acceptedSourceId
+  );
+  if (
+    userIndex < 0 ||
+    (nativeEvents[userIndex].result?.turnIntentId &&
+      nativeEvents[userIndex].result?.turnIntentId !== accepted.turnId)
+  ) {
+    return nativeEvents as SessionEvent[];
+  }
+  const nextUser = nativeEvents.findIndex(
+    (event, index) => index > userIndex && event.source === "user"
+  );
+  return nativeEvents.map((event, index) =>
+    index >= userIndex &&
+    (nextUser < 0 || index < nextUser) &&
+    !event.result?.turnIntentId
+      ? { ...event, result: { ...event.result, turnIntentId: accepted.turnId } }
+      : event
+  );
 }
 
 async function publishNativeProjection(
   sessionId: string,
   nativeEvents: readonly SessionEvent[],
-  projectedEvents: readonly SessionEvent[]
+  projectedEvents: readonly SessionEvent[],
+  preserveInterruptedSuffix: boolean
 ): Promise<SessionEvent[]> {
-  const events = mergeProjection(nativeEvents, projectedEvents);
+  const events = mergeProjection(
+    nativeEvents,
+    projectedEvents,
+    preserveInterruptedSuffix
+  );
   // An authoritative empty transcript is still an authoritative replacement.
   // Skipping the write here would leave stale streamed/projected rows visible
   // after the provider history was cleared or reset.
@@ -98,14 +181,16 @@ async function runReconcile(
   );
   let preserveApplied = false;
   const publishCurrentProjection = async (): Promise<SessionEvent[]> => {
-    const projectedEvents = job.preserveInterruptedSuffix
-      ? await eventStoreProxy.getPersistedEvents(sessionId).catch(() => [])
-      : [];
+    // Accepted intent metadata and failed delivery rows belong to ORG2 even
+    // on success. Read them before replacement; a failed read must not erase
+    // the retry owner or make current output disappear while Cloud publishes.
+    const projectedEvents = await eventStoreProxy.getPersistedEvents(sessionId);
     preserveApplied = job.preserveInterruptedSuffix;
     return await publishNativeProjection(
       sessionId,
       nativeEvents,
-      projectedEvents
+      projectedEvents,
+      job.preserveInterruptedSuffix
     );
   };
 

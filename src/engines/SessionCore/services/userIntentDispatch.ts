@@ -24,6 +24,10 @@ import { SessionService } from "@src/engines/SessionCore/services/SessionService
 import { deliverOptimisticOutgoing } from "@src/engines/SessionCore/services/optimisticOutgoingDelivery";
 import type { SessionSendMessageParams } from "@src/engines/SessionCore/services/types";
 import { createSyntheticUserEvent } from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
+import {
+  isSyntheticUserInputEvent,
+  turnIntentIdOf,
+} from "@src/engines/SessionCore/sync/utils/activityIds";
 import { createLogger } from "@src/hooks/logger";
 import { markSessionActive } from "@src/store/session";
 import {
@@ -183,10 +187,21 @@ export function isOptimisticQueueUserEventId(eventId: string): boolean {
   );
 }
 
+export interface OptimisticUserDeliveryOptions {
+  /**
+   * The durable delivery owner was retired after a terminal provider/Cloud
+   * verdict. The failed row is then the only remaining owner of the intent,
+   * so an explicit retry must mint a fresh submission instead of waiting for
+   * a queue row that will never return.
+   */
+  ownerRetired?: boolean;
+}
+
 function optimisticQueueUserEvent(
   params: OptimisticUserDeliveryProjectionParams,
   status: "pending" | "sent" | "failed",
-  error?: unknown
+  error?: unknown,
+  options?: OptimisticUserDeliveryOptions
 ): SessionEvent {
   const reason =
     status === "failed"
@@ -204,6 +219,7 @@ function optimisticQueueUserEvent(
     deliveryStatus: status,
     deliveryError: reason,
     queueMessageId: params.queueMessageId,
+    ...(options?.ownerRetired ? { deliveryOwnerRetired: true } : {}),
   });
 }
 
@@ -224,10 +240,11 @@ export async function appendOptimisticQueueUserDelivery(
 export async function setOptimisticQueueUserDelivery(
   params: OptimisticUserDeliveryProjectionParams,
   status: "pending" | "sent" | "failed",
-  error?: unknown
+  error?: unknown,
+  options?: OptimisticUserDeliveryOptions
 ): Promise<boolean> {
-  const event = optimisticQueueUserEvent(params, status, error);
-  return eventStoreProxy.updateById(
+  const event = optimisticQueueUserEvent(params, status, error, options);
+  const updated = await eventStoreProxy.updateById(
     event.id,
     {
       // Retry/edit-resend keeps the stable queue-owned row id. Patch the
@@ -240,6 +257,16 @@ export async function setOptimisticQueueUserDelivery(
     },
     params.sessionId
   );
+  if (!updated && status === "failed" && options?.ownerRetired) {
+    // A terminal native reconciliation may have replaced the optimistic id.
+    // The caller still owns the durable accepted delivery and its complete
+    // payload. Restore that SAME projection before retiring the delivery;
+    // otherwise Retry has neither a visible failure nor a durable owner.
+    // Upsert is idempotent if another projection restored it concurrently.
+    await eventStoreProxy.upsert(event, params.sessionId);
+    return true;
+  }
+  return updated;
 }
 
 /** Remove only an admission attempt that never entered the durable queue. */
@@ -267,11 +294,30 @@ async function setUserIntentDelivery(
     { displayStatus: next.displayStatus, result: next.result },
     preparation.sessionId
   );
-  if (!updated) {
-    throw new Error(
-      `optimistic user event ${next.id} is missing from ${preparation.sessionId}`
+  if (updated) return;
+
+  // Rust Agent can publish its authoritative user row between transport
+  // acceptance and this sent-state projection. EventStore intentionally
+  // replaces the optimistic row while preserving the durable turn intent, so
+  // the old synthetic id is no longer patchable. Treat only that exact
+  // accepted replacement as settled; failed delivery must retain its visible
+  // failure owner and an unrelated user row is not evidence for this turn.
+  if (status === "sent") {
+    // Read the resident EventStore that just rejected the old id. The SQLite
+    // cache is write-batched and can legitimately lag this replacement.
+    const events = await eventStoreProxy.getEvents(preparation.sessionId);
+    const authoritativeUserSettled = events.some(
+      (event) =>
+        event.source === "user" &&
+        !isSyntheticUserInputEvent(event) &&
+        turnIntentIdOf(event) === preparation.turnIntentId
     );
+    if (authoritativeUserSettled) return;
   }
+
+  throw new Error(
+    `optimistic user event ${next.id} is missing from ${preparation.sessionId}`
+  );
 }
 
 /**

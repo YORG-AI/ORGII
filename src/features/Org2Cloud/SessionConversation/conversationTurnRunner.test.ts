@@ -5,6 +5,7 @@ import {
   QueuedConversationRecoveryPendingError,
   QueuedConversationTurnClosedError,
 } from "@src/engines/SessionCore/conversations/queuedConversationContract";
+import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { Org2CloudConversationError } from "@src/features/Org2Cloud/org2CloudConversationEventsClient";
 
 import {
@@ -126,6 +127,65 @@ describe("runConversationTurn", () => {
     expect(mocks.continueLocalConversation).toHaveBeenCalledWith(
       expect.objectContaining({ root: executionRoot })
     );
+  });
+
+  it("scopes provider-positional tail ids to the durable turn before publishing", async () => {
+    // A native rollout restarts positional ids, so `codex-asst-182` from this
+    // turn must never be shadowed by an earlier turn's `codex-asst-182` that
+    // already lives on the Cloud plane.
+    const publishTail = vi.fn().mockResolvedValue(undefined);
+    const positional = {
+      id: "codex-asst-182",
+      chunk_id: "codex-asst-182",
+      sessionId: "cliagent-reused",
+      createdAt: "2026-09-07T00:00:00.000Z",
+      functionName: "assistant",
+      uiCanonical: "agent_message",
+      actionType: "assistant",
+      args: {},
+      result: { content: "I'll inspect the requested files first." },
+      source: "assistant",
+      displayText: "I'll inspect the requested files first.",
+      displayStatus: "completed",
+      displayVariant: "message",
+      activityStatus: "agent",
+      payloadRefs: [],
+    } as unknown as SessionEvent;
+    mocks.continueLocalConversation.mockResolvedValueOnce({
+      sessionId: "cliagent-reused",
+      terminalStatus: "completed",
+      agentTail: [positional],
+    });
+
+    await runConversationTurn({
+      root: {
+        authority: "org2-cloud",
+        authorityScope: ["https://cloud.example", "org-1"],
+        conversationId: "shared-root",
+      },
+      conversationTitle: "Shared conversation",
+      displayText: "continue",
+      timeline: [],
+      target: {
+        cliAgentType: "codex",
+        accountId: "acct-codex",
+        model: "gpt-5.6-sol",
+      },
+      turnIntentId: "turn-scoped",
+      publishTail,
+    });
+
+    const [, published] = publishTail.mock.calls[0] ?? [];
+    expect(published).toEqual([
+      expect.objectContaining({
+        id: "convturn-turn-scoped-codex-asst-182",
+        chunk_id: "convturn-turn-scoped-codex-asst-182",
+        displayText: "I'll inspect the requested files first.",
+      }),
+    ]);
+    expect(projectNativeConversationItems(published)).toEqual([
+      expect.objectContaining({ kind: "message", role: "assistant" }),
+    ]);
   });
 
   it("publishes a non-portable transcript error when execution fails after the user row", async () => {

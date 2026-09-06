@@ -231,11 +231,15 @@ function makeChunk(overrides: Partial<ActivityChunk>): ActivityChunk {
   };
 }
 
-function activityEvent(chunk: ActivityChunk): RawSessionEvent {
+function activityEvent(
+  chunk: ActivityChunk,
+  turnIntentId?: string
+): RawSessionEvent {
   return {
     type: "code_session.activity",
     session_id: SESSION_ID,
     chunk: chunk as unknown as Record<string, unknown>,
+    ...(turnIntentId ? { turn_intent_id: turnIntentId } : {}),
   };
 }
 
@@ -389,6 +393,31 @@ describe("createCliEventHandler ingestion boundary", () => {
       expect(eventsFor().map((event) => event.id)).toEqual(["chunk-future"]);
     });
 
+    it("keeps opaque provider results unchanged when attributing a turn", async () => {
+      rustBridge.normalizeChunkRust.mockImplementation(
+        async (chunk: ActivityChunk, sessionId: string) => ({
+          ...normalizeLikeRust(chunk, sessionId),
+          result: chunk.result,
+        })
+      );
+      const results: unknown[] = [null, "opaque", ["opaque"]];
+      for (const [index, result] of results.entries()) {
+        handler.handleEvent(
+          activityEvent(
+            makeChunk({
+              chunk_id: `opaque-${index}`,
+              action_type: "provider_event",
+              result: result as ActivityChunk["result"],
+            }),
+            "turn-opaque"
+          )
+        );
+      }
+      await flush();
+
+      expect(eventsFor().map((event) => event.result)).toEqual(results);
+    });
+
     it("logs the failure and stores nothing when the normalize RPC rejects", async () => {
       // The previous shape of this test only wrapped the dispatch in
       // `expect(...).not.toThrow()`. That can never fail: the rejection lives
@@ -428,6 +457,39 @@ describe("createCliEventHandler ingestion boundary", () => {
   // -------------------------------------------------------------------------
 
   describe("assistant / thinking streaming", () => {
+    it("attributes live message and thinking projections to the runner turn", async () => {
+      handler.handleEvent(
+        activityEvent(
+          makeChunk({
+            chunk_id: "intent-message",
+            action_type: "assistant_delta",
+            result: { content: "answering", is_delta: true },
+          }),
+          "turn-live"
+        )
+      );
+      handler.handleEvent(
+        activityEvent(
+          makeChunk({
+            chunk_id: "intent-thinking",
+            action_type: "llm_thinking_delta",
+            result: { thought: "reasoning", is_delta: true },
+          }),
+          "turn-live"
+        )
+      );
+      await flush();
+
+      expect(eventsFor()).toHaveLength(2);
+      expect(
+        eventsFor().map((event) =>
+          typeof event.result === "object" && event.result !== null
+            ? Reflect.get(event.result, "turnIntentId")
+            : undefined
+        )
+      ).toEqual(["turn-live", "turn-live"]);
+    });
+
     it("accumulates message deltas under one stable stream id", async () => {
       handler.handleEvent(
         activityEvent(
@@ -890,7 +952,8 @@ describe("createCliEventHandler ingestion boundary", () => {
           makeChunk({
             action_type: "assistant_delta",
             result: { content: "partial", is_delta: true },
-          })
+          }),
+          "turn-live"
         )
       );
       await flush();
@@ -900,6 +963,12 @@ describe("createCliEventHandler ingestion boundary", () => {
       await flush();
 
       expect(eventsFor().map((event) => event.id)).toEqual([completeEvent.id]);
+      const completedResult = eventsFor()[0].result;
+      expect(
+        typeof completedResult === "object" && completedResult !== null
+          ? Reflect.get(completedResult, "turnIntentId")
+          : undefined
+      ).toBe("turn-live");
     });
 
     it("suppresses a late final activity chunk that repeats a completed id", async () => {
@@ -1029,7 +1098,8 @@ describe("createCliEventHandler ingestion boundary", () => {
   describe("tool_call_delta accumulation", () => {
     function toolDelta(
       result: Record<string, unknown>,
-      chunkId = `td-${Math.random()}`
+      chunkId = `td-${Math.random()}`,
+      turnIntentId?: string
     ): RawSessionEvent {
       return activityEvent(
         makeChunk({
@@ -1037,7 +1107,8 @@ describe("createCliEventHandler ingestion boundary", () => {
           action_type: "tool_call_delta",
           function: "tool_call",
           result,
-        })
+        }),
+        turnIntentId
       );
     }
 
@@ -1088,6 +1159,29 @@ describe("createCliEventHandler ingestion boundary", () => {
         functionName: "write_file",
         args: { file_path: "/tmp/b.txt" },
       });
+    });
+
+    it("attributes a partial tool projection to the runner turn", async () => {
+      handler.handleEvent(
+        toolDelta(
+          {
+            index: 0,
+            tool_call_id: "call-intent",
+            tool_name: "read_file",
+            arguments_delta: '{"path":"README.md"}',
+          },
+          "tool-intent",
+          "turn-live"
+        )
+      );
+      await flush();
+
+      const toolResult = eventsFor()[0].result;
+      expect(
+        typeof toolResult === "object" && toolResult !== null
+          ? Reflect.get(toolResult, "turnIntentId")
+          : undefined
+      ).toBe("turn-live");
     });
 
     it("keeps concurrent tool calls on separate buffers keyed by index", async () => {

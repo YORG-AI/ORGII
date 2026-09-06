@@ -12,6 +12,7 @@ import {
   conversationEventsForPush,
   decodeConversationEventChunks,
   listConversationEvents,
+  pushConversationEvents,
 } from "./org2CloudConversationEventsClient";
 
 function event(displayText: string): SessionEvent {
@@ -240,5 +241,54 @@ describe("conversation event wire validation", () => {
     await expect(list()).rejects.toThrow(
       "unparseable cloud_list_conversation_events payload"
     );
+  });
+
+  it("bounds a conversation RPC whose fetch never settles", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() => new Promise(() => {}))
+      );
+      const outcome = pushConversationEvents(
+        "token",
+        {
+          orgId: "org-1",
+          rootSessionId: "session-1",
+          turnId: "turn-1",
+          events: [event("hello")],
+        },
+        { supabaseUrl: "https://cloud.invalid", anonKey: "anon" }
+      ).catch((error: unknown) => error);
+
+      await vi.advanceTimersByTimeAsync(15_000);
+
+      await expect(outcome).resolves.toMatchObject({ name: "TimeoutError" });
+      const signal = vi.mocked(fetch).mock.calls[0]?.[1]?.signal;
+      expect(signal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bounds response-body decoding under the same RPC deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => ({
+          ok: true,
+          status: 200,
+          text: () => new Promise<string>(() => {}),
+        }))
+      );
+      const outcome = list().catch((error: unknown) => error);
+
+      await vi.advanceTimersByTimeAsync(15_000);
+
+      await expect(outcome).resolves.toMatchObject({ name: "TimeoutError" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

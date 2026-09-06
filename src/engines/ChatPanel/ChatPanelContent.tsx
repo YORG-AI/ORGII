@@ -3,10 +3,12 @@ import React from "react";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 
 import SessionContentView from "./SessionContentView";
+import type { ConversationTargetBinding } from "./conversationTargetSelection";
 import type { SessionViewMode } from "./hooks/useSessionViewMode";
 
 interface ChatPanelContentProps {
   currentSessionId: string | null;
+  conversationTargetBinding?: ConversationTargetBinding | null;
   emptyChatContent: React.ReactNode;
   displayMode: ChatHistoryDisplayMode;
   paginationEnabled: boolean;
@@ -30,6 +32,7 @@ interface ChatPanelContentProps {
  */
 export function ChatPanelContent({
   currentSessionId,
+  conversationTargetBinding,
   emptyChatContent,
   displayMode,
   paginationEnabled,
@@ -55,6 +58,7 @@ export function ChatPanelContent({
           >
             <SessionContentView
               sessionId={currentSessionId}
+              conversationTargetBinding={conversationTargetBinding}
               displayMode={displayMode}
               turnPaginationEnabled={paginationEnabled}
               position={position}

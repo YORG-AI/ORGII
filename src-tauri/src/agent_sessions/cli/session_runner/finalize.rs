@@ -387,7 +387,7 @@ pub(super) async fn finalize_session_run(
     };
     // Native providers write the selected profile directly. Flushing final
     // deltas is the only terminal persistence boundary.
-    flush_and_broadcast(session_id).await;
+    flush_and_broadcast(session_id, turn_intent_id).await;
 
     // Converge the provider-written file before publishing the terminal
     // lifecycle. Consumers may start the next runtime as soon as that durable

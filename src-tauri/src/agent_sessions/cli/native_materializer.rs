@@ -24,9 +24,11 @@ use sha2::{Digest, Sha256};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
+#[cfg(test)]
+use super::native_ir::native_item_semantically_equal;
 pub use super::native_ir::NativeConversationItem;
 use super::native_ir::{
-    native_item_semantically_equal, native_items_from_agent_history, native_items_from_chunks,
+    native_items_from_agent_history, native_items_from_chunks, provider_portable_append_suffix,
     validate_items, MAX_ITEMS,
 };
 use super::native_store::{
@@ -225,24 +227,18 @@ fn authoritative_native_items(session_id: &str) -> Result<Vec<NativeConversation
     }
 }
 
-fn authoritative_prefix_len(
+fn authoritative_append_suffix(
     session_id: &str,
     complete: &[NativeConversationItem],
-) -> Result<usize, String> {
+) -> Result<Vec<NativeConversationItem>, String> {
     let authoritative = authoritative_native_items(session_id)?;
-    if authoritative.len() > complete.len()
-        || !authoritative
-            .iter()
-            .zip(complete)
-            .all(|(left, right)| native_item_semantically_equal(left, right))
-    {
-        return Err(format!(
-            "provider-native transcript is not a semantic prefix of the canonical conversation: native={} canonical={}",
+    provider_portable_append_suffix(&authoritative, complete).map_err(|reason| {
+        format!(
+            "provider-native transcript is not a semantic prefix of the canonical conversation: native={} canonical={} ({reason})",
             authoritative.len(),
             complete.len()
-        ));
-    }
-    Ok(authoritative.len())
+        )
+    })
 }
 
 fn atomic_jsonl(path: &Path, records: &[Value]) -> Result<(), String> {
@@ -707,10 +703,10 @@ fn registered_codex_native_paths(
 /// reader. Materialization, however, must prove its write synchronously before
 /// the provider process starts. Requiring a global history scan here makes a
 /// single continuation depend on every unrelated native transcript on disk.
-fn materialized_cli_transcript_path(
+fn materialized_cli_transcript_paths(
     session: &persistence::CodeSession,
     native_id: &str,
-) -> Result<Option<(String, PathBuf)>, String> {
+) -> Result<Option<(String, NativeTranscriptPaths)>, String> {
     let agent = session.cli_agent_type.as_deref().unwrap_or_default();
     let account_id = session
         .account_id
@@ -735,10 +731,35 @@ fn materialized_cli_transcript_path(
         }
         _ => return Ok(None),
     };
+    Ok(Some((agent.to_string(), paths)))
+}
+
+fn materialized_cli_transcript_path(
+    session: &persistence::CodeSession,
+    native_id: &str,
+) -> Result<Option<(String, PathBuf)>, String> {
+    let Some((agent, paths)) = materialized_cli_transcript_paths(session, native_id)? else {
+        return Ok(None);
+    };
     let Some(path) = preferred_materialized_transcript_path(&paths)? else {
         return Ok(None);
     };
-    Ok(Some((agent.to_string(), path.to_path_buf())))
+    Ok(Some((agent, path.to_path_buf())))
+}
+
+/// Resolve only the transcript path the vendor's native App owns.
+///
+/// The isolated runner alias is valid for ORG2 resume/replay, but cannot make
+/// an official App deep link open successfully. App-open availability must
+/// therefore require this exact native-store copy.
+pub(crate) fn native_app_transcript_path(
+    session: &persistence::CodeSession,
+    native_id: &str,
+) -> Result<Option<PathBuf>, String> {
+    let Some((_agent, paths)) = materialized_cli_transcript_paths(session, native_id)? else {
+        return Ok(None);
+    };
+    Ok(paths.native_path.is_file().then_some(paths.native_path))
 }
 
 pub(super) fn load_materialized_cli_transcript(
@@ -823,6 +844,17 @@ fn first_user_title(items: &[NativeConversationItem]) -> String {
         .filter(|value| !value.is_empty())
         .unwrap_or("Imported conversation");
     title.chars().take(120).collect()
+}
+
+fn claude_session_title(
+    session: &persistence::CodeSession,
+    items: &[NativeConversationItem],
+) -> String {
+    if session.name.trim().is_empty() {
+        first_user_title(items)
+    } else {
+        session.name.trim().chars().take(120).collect()
+    }
 }
 
 fn validate_claude_project_index(index_path: &Path, index: &Value) -> Result<(), String> {
@@ -1232,11 +1264,7 @@ fn publish_claude_desktop_session_at_path(
         )
     })?;
     let (file_mtime, _) = transcript_modified_metadata(native_path)?;
-    let title = if session.name.trim().is_empty() {
-        first_user_title(items)
-    } else {
-        session.name.trim().chars().take(120).collect()
-    };
+    let title = claude_session_title(session, items);
     let is_new = previous.is_none();
     object
         .entry("sessionId".to_string())
@@ -1603,6 +1631,25 @@ fn claude_resume_checkpoint(
     })
 }
 
+fn claude_custom_title(native_id: &str, title: &str) -> Value {
+    json!({
+        "type": "custom-title",
+        "customTitle": title,
+        "sessionId": native_id,
+    })
+}
+
+fn claude_materialization_records(
+    native_id: &str,
+    cwd: &Path,
+    items: &[NativeConversationItem],
+    title: &str,
+) -> Result<Vec<Value>, String> {
+    let mut records = claude_records_with_resume_checkpoint(native_id, cwd, items)?;
+    records.insert(0, claude_custom_title(native_id, title));
+    Ok(records)
+}
+
 fn claude_records_with_resume_checkpoint(
     native_id: &str,
     cwd: &Path,
@@ -1729,16 +1776,19 @@ fn inspect_claude_suffix_application(
     }
 }
 
-fn ensure_claude_resume_checkpoint(
+fn ensure_claude_native_metadata(
     path: &Path,
     native_id: &str,
     complete_items: &[NativeConversationItem],
+    title: &str,
 ) -> Result<(), String> {
     let file = fs::File::open(path)
         .map_err(|error| format!("open Claude native transcript {}: {error}", path.display()))?;
     let mut last_message_uuid: Option<String> = None;
     let mut last_message_is_orgii = false;
     let mut last_checkpoint_leaf: Option<String> = None;
+    let mut has_custom_title = false;
+    let mut has_orgii_record = false;
     for (line_index, line) in BufReader::new(file).lines().enumerate() {
         let line = line.map_err(|error| {
             format!(
@@ -1757,6 +1807,11 @@ fn ensure_claude_resume_checkpoint(
                 line_index + 1
             )
         })?;
+        has_custom_title |= record["type"] == "custom-title"
+            && record["customTitle"]
+                .as_str()
+                .is_some_and(|value| !value.trim().is_empty());
+        has_orgii_record |= record["entrypoint"].as_str() == Some("orgii");
         if record["type"] == "last-prompt" {
             last_checkpoint_leaf = record["leafUuid"].as_str().map(str::to_string);
         } else if let Some(uuid) = record["uuid"]
@@ -1767,20 +1822,23 @@ fn ensure_claude_resume_checkpoint(
             last_message_is_orgii = record["entrypoint"].as_str() == Some("orgii");
         }
     }
-    let Some(leaf_uuid) = last_message_uuid else {
-        return Ok(());
-    };
-    if !last_message_is_orgii || last_checkpoint_leaf.as_deref() == Some(leaf_uuid.as_str()) {
+    let mut metadata = Vec::with_capacity(2);
+    if has_orgii_record && !has_custom_title && !title.trim().is_empty() {
+        metadata.push(claude_custom_title(native_id, title));
+    }
+    if let Some(leaf_uuid) = last_message_uuid.filter(|_| last_message_is_orgii) {
+        if last_checkpoint_leaf.as_deref() != Some(leaf_uuid.as_str()) {
+            metadata.push(claude_resume_checkpoint(
+                native_id,
+                &leaf_uuid,
+                complete_items,
+            ));
+        }
+    }
+    if metadata.is_empty() {
         return Ok(());
     }
-    append_suffix_atomically(
-        path,
-        &serialize_jsonl(&[claude_resume_checkpoint(
-            native_id,
-            &leaf_uuid,
-            complete_items,
-        )])?,
-    )
+    append_suffix_atomically(path, &serialize_jsonl(&metadata)?)
 }
 
 /// Codex exit codes for a tool output ORG2 injects. A `function_call_output`
@@ -2050,6 +2108,7 @@ fn materialize_cli(
         "claude_code" => {
             let native_id = Uuid::new_v4().to_string();
             let paths = claude_native_paths(account_id, &cwd, &native_id);
+            let title = claude_session_title(&session, items);
             let bound =
                 persistence::stage_cli_session_id_for_account(session_id, account_id, &native_id)
                     .map_err(|err| format!("record pending Claude materialization: {err}"))?;
@@ -2061,7 +2120,7 @@ fn materialize_cli(
             let _transcript_guard = lock_claude_transcript(&paths.native_path)?;
             if let Err(error) = write_native_store_jsonl(
                 &paths,
-                &claude_records_with_resume_checkpoint(&native_id, &cwd, items)?,
+                &claude_materialization_records(&native_id, &cwd, items, &title)?,
             ) {
                 let _ = remove_file_if_present(&paths.runner_path);
                 let _ = remove_file_if_present(&paths.native_path);
@@ -2283,7 +2342,8 @@ fn synchronize_cli(
                     append_suffix_atomically(&paths.native_path, &payload)?;
                 }
             }
-            ensure_claude_resume_checkpoint(&paths.native_path, &native_id, complete_items)?;
+            let title = claude_session_title(&session, complete_items);
+            ensure_claude_native_metadata(&paths.native_path, &native_id, complete_items, &title)?;
             publish_claude_project_index(
                 &cwd,
                 &native_id,
@@ -2843,8 +2903,8 @@ fn synchronize_native_conversation_blocking(
             }
         }
     }
-    let prefix_item_count = authoritative_prefix_len(session_id, complete_items)?;
-    if prefix_item_count == complete_items.len() {
+    let append_items = authoritative_append_suffix(session_id, complete_items)?;
+    if append_items.is_empty() {
         if session_id.starts_with(core_types::session::CLI_SESSION_PREFIX) {
             return synchronize_cli(session_id, complete_items, &[]);
         }
@@ -2853,11 +2913,10 @@ fn synchronize_native_conversation_blocking(
             item_count: complete_items.len(),
         });
     }
-    let append_items = &complete_items[prefix_item_count..];
     if session_id.starts_with(core_types::session::CLI_SESSION_PREFIX) {
-        synchronize_cli(session_id, complete_items, append_items)
+        synchronize_cli(session_id, complete_items, &append_items)
     } else {
-        synchronize_native_agent(session_id, complete_items, append_items)
+        synchronize_native_agent(session_id, complete_items, &append_items)
     }
 }
 
@@ -3246,10 +3305,10 @@ mod tests {
         atomic_jsonl(&path, &records).expect("write rows without checkpoint");
         let _guard = lock_claude_transcript(&path).expect("lock transcript");
 
-        ensure_claude_resume_checkpoint(&path, native_id, &items)
+        ensure_claude_native_metadata(&path, native_id, &items, "")
             .expect("repair missing checkpoint");
         let once = fs::read_to_string(&path).expect("read repaired transcript");
-        ensure_claude_resume_checkpoint(&path, native_id, &items)
+        ensure_claude_native_metadata(&path, native_id, &items, "")
             .expect("repeat checkpoint repair");
         let twice = fs::read_to_string(&path).expect("read idempotent transcript");
 
@@ -3261,6 +3320,127 @@ mod tests {
         assert_eq!(
             checkpoint["leafUuid"],
             records.last().expect("message record")["uuid"]
+        );
+    }
+
+    #[test]
+    fn claude_materialization_title_is_native_metadata_not_a_conversation_item() {
+        let sandbox = test_env::sandbox();
+        let path = sandbox.path().join("materialized-title.jsonl");
+        let native_id = "12345678-1111-4222-8333-aaaaaaaaaaaa";
+        let items = vec![
+            message("title-user", "user", "inspect the repository"),
+            message("title-assistant", "assistant", "I will inspect it."),
+        ];
+        let records = claude_materialization_records(
+            native_id,
+            Path::new("/repo"),
+            &items,
+            "Canonical conversation title",
+        )
+        .expect("render titled Claude materialization");
+
+        assert_eq!(records[0]["type"], "custom-title");
+        assert_eq!(records[0]["customTitle"], "Canonical conversation title");
+        assert_eq!(records[0]["sessionId"], native_id);
+        assert_eq!(
+            records
+                .iter()
+                .filter(|record| record["type"] == "custom-title")
+                .count(),
+            1
+        );
+
+        atomic_jsonl(&path, &records).expect("write titled Claude transcript");
+        let chunks =
+            orgtrack_core::sources::claude_code::history::load_claude_code_history_from_path(
+                native_id, &path,
+            )
+            .expect("read titled Claude transcript");
+        let round_tripped = native_items_from_chunks(&chunks);
+        assert_eq!(round_tripped.len(), items.len());
+        assert!(items
+            .iter()
+            .zip(&round_tripped)
+            .all(|(left, right)| native_item_semantically_equal(left, right)));
+    }
+
+    #[test]
+    fn missing_claude_custom_title_is_repaired_once_for_orgii_materialization() {
+        let sandbox = test_env::sandbox();
+        let path = sandbox.path().join("missing-title.jsonl");
+        let native_id = "22345678-1111-4222-8333-aaaaaaaaaaaa";
+        let items = vec![message("title-user", "user", "continue")];
+        let records = claude_records_with_resume_checkpoint(native_id, Path::new("/repo"), &items)
+            .expect("serialize untitled Claude materialization");
+        atomic_jsonl(&path, &records).expect("write untitled Claude materialization");
+        let _guard = lock_claude_transcript(&path).expect("lock transcript");
+
+        ensure_claude_native_metadata(&path, native_id, &items, "Canonical title")
+            .expect("repair missing title");
+        let once = fs::read_to_string(&path).expect("read repaired transcript");
+        ensure_claude_native_metadata(&path, native_id, &items, "Canonical title")
+            .expect("repeat title repair");
+        let twice = fs::read_to_string(&path).expect("read idempotent transcript");
+
+        assert_eq!(once, twice);
+        let custom_titles = once
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).expect("decode Claude record"))
+            .filter(|record| record["type"] == "custom-title")
+            .collect::<Vec<_>>();
+        assert_eq!(custom_titles.len(), 1);
+        assert_eq!(custom_titles[0]["customTitle"], "Canonical title");
+        assert_eq!(custom_titles[0]["sessionId"], native_id);
+    }
+
+    #[test]
+    fn claude_metadata_repair_does_not_title_unmanaged_native_transcript() {
+        let sandbox = test_env::sandbox();
+        let path = sandbox.path().join("provider-owned.jsonl");
+        let native_id = "32345678-1111-4222-8333-aaaaaaaaaaaa";
+        let items = vec![message("provider-user", "user", "provider-owned")];
+        let mut records = claude_records(native_id, Path::new("/repo"), &items)
+            .expect("serialize provider transcript fixture");
+        for record in &mut records {
+            record
+                .as_object_mut()
+                .expect("Claude record object")
+                .remove("entrypoint");
+        }
+        atomic_jsonl(&path, &records).expect("write provider-owned transcript");
+        let before = fs::read(&path).expect("read provider-owned transcript");
+        let _guard = lock_claude_transcript(&path).expect("lock transcript");
+
+        ensure_claude_native_metadata(&path, native_id, &items, "Must not be applied")
+            .expect("inspect provider-owned transcript");
+
+        assert_eq!(
+            fs::read(&path).expect("read untouched provider transcript"),
+            before
+        );
+    }
+
+    #[test]
+    fn claude_metadata_repair_preserves_existing_custom_title() {
+        let sandbox = test_env::sandbox();
+        let path = sandbox.path().join("existing-title.jsonl");
+        let native_id = "42345678-1111-4222-8333-aaaaaaaaaaaa";
+        let items = vec![message("existing-title-user", "user", "continue")];
+        let mut records =
+            claude_records_with_resume_checkpoint(native_id, Path::new("/repo"), &items)
+                .expect("serialize titled Claude materialization");
+        records.insert(0, claude_custom_title(native_id, "Existing title"));
+        atomic_jsonl(&path, &records).expect("write titled Claude materialization");
+        let before = fs::read(&path).expect("read titled transcript");
+        let _guard = lock_claude_transcript(&path).expect("lock transcript");
+
+        ensure_claude_native_metadata(&path, native_id, &items, "Replacement title")
+            .expect("inspect existing title");
+
+        assert_eq!(
+            fs::read(&path).expect("read preserved titled transcript"),
+            before
         );
     }
 

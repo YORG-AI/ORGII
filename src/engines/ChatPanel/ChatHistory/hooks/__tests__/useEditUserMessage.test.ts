@@ -591,6 +591,43 @@ describe("useEditUserMessage resend projection", () => {
     expect(updateByIdSpy).not.toHaveBeenCalled();
   });
 
+  it("retries a retired failed delivery as a fresh intent", async () => {
+    messageQueueHydrated.current = true;
+    const failed = {
+      event: {
+        id: "queued-user:queue-retired:",
+        source: "user",
+        displayText: "retry after the owner retired",
+        displayStatus: "failed",
+        result: {
+          syntheticUserInput: true,
+          deliveryStatus: "failed",
+          deliveryOwnerRetired: true,
+          queueMessageId: "queue-retired",
+          turnIntentId: "turn-intent-retired",
+        },
+      },
+      chunk_id: "queued-user:queue-retired:",
+    } as unknown as OptimizedChatItem;
+
+    await act(async () => {
+      await editUserMessage?.(failed, "retry after the owner retired");
+    });
+
+    expect(refreshMessageDeliveriesSpy).toHaveBeenCalledOnce();
+    expect(submitUserIntentSpy).toHaveBeenCalledOnce();
+    expect(submitUserIntentSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        displayContent: "retry after the owner retired",
+        turnIntentId: "turn-intent-retired",
+      })
+    );
+    expect(removeByIdPrefixSpy).toHaveBeenCalledWith(
+      "queued-user:queue-retired:",
+      expect.any(String)
+    );
+  });
+
   it("edits a hydrated failed queue row and patches its existing bubble", async () => {
     queuedDeliveries.current = [
       {

@@ -75,6 +75,7 @@ pub(super) async fn emit_chunk(
     chunk: &core_types::activity::ActivityChunk,
     session_id: &str,
     sequence: &mut i64,
+    turn_intent_id: Option<&str>,
 ) {
     let action_type = chunk.action_type.as_str();
     let is_delta = action_type.contains("delta")
@@ -99,16 +100,22 @@ pub(super) async fn emit_chunk(
     // on the async runner; only chunks that may touch SQLite, the event cache,
     // or filesystem side effects cross onto the blocking pool.
     if is_delta && !delta_requires_flush {
-        emit_chunk_blocking(chunk, session_id, sequence);
+        emit_chunk_blocking(chunk, session_id, sequence, turn_intent_id);
         return;
     }
 
     let owned_chunk = chunk.clone();
     let owned_session_id = session_id.to_string();
+    let owned_turn_intent_id = turn_intent_id.map(str::to_string);
     let initial_sequence = *sequence;
     match tokio::task::spawn_blocking(move || {
         let mut next_sequence = initial_sequence;
-        emit_chunk_blocking(&owned_chunk, &owned_session_id, &mut next_sequence);
+        emit_chunk_blocking(
+            &owned_chunk,
+            &owned_session_id,
+            &mut next_sequence,
+            owned_turn_intent_id.as_deref(),
+        );
         next_sequence
     })
     .await
@@ -122,6 +129,7 @@ fn emit_chunk_blocking(
     chunk: &core_types::activity::ActivityChunk,
     session_id: &str,
     sequence: &mut i64,
+    turn_intent_id: Option<&str>,
 ) {
     let action_type = chunk.action_type.as_str();
 
@@ -154,7 +162,7 @@ fn emit_chunk_blocking(
                     .filter(|v| !v.is_empty())
                     .is_some();
             if has_tool_identity {
-                flush_and_broadcast_blocking(session_id);
+                flush_and_broadcast_blocking(session_id, turn_intent_id);
             }
         }
 
@@ -174,12 +182,7 @@ fn emit_chunk_blocking(
         }
 
         // Still broadcast the raw delta for the frontend typewriter effect
-        let ws_msg = serde_json::json!({
-            "type": "code_session.activity",
-            "session_id": session_id,
-            "chunk": chunk,
-        });
-        websocket_handler::broadcast(ws_msg.to_string());
+        broadcast_activity_chunk(session_id, chunk, turn_intent_id);
         return;
     }
 
@@ -189,7 +192,8 @@ fn emit_chunk_blocking(
         // Completion chunk: flush the matching stream from the buffer and
         // broadcast the Rust-accumulated SessionEvent.
         if is_message_type {
-            if let Some(event) = CLI_STREAMING_BUFFER.complete_message(session_id) {
+            if let Some(mut event) = CLI_STREAMING_BUFFER.complete_message(session_id) {
+                preserve_turn_intent(&mut event, turn_intent_id);
                 persist_and_broadcast_streaming_complete(
                     session_id,
                     "message",
@@ -197,7 +201,8 @@ fn emit_chunk_blocking(
                     Some(sequence),
                 );
             }
-        } else if let Some(event) = CLI_STREAMING_BUFFER.complete_thinking(session_id) {
+        } else if let Some(mut event) = CLI_STREAMING_BUFFER.complete_thinking(session_id) {
+            preserve_turn_intent(&mut event, turn_intent_id);
             persist_and_broadcast_streaming_complete(
                 session_id,
                 "thinking",
@@ -208,7 +213,7 @@ fn emit_chunk_blocking(
     } else {
         // Non-streaming chunk (tool_call, user_message, etc.): flush any
         // pending streams before appending, same as UnifiedEventHandler.
-        flush_and_broadcast_blocking(session_id);
+        flush_and_broadcast_blocking(session_id, turn_intent_id);
     }
 
     // Persist non-delta chunks to DB (legacy mode). Native-transcript
@@ -232,12 +237,56 @@ fn emit_chunk_blocking(
 
     // Broadcast the original chunk as well (non-delta chunks like tool_call
     // are still consumed by the frontend via code_session.activity)
-    let ws_msg = serde_json::json!({
+    broadcast_activity_chunk(session_id, chunk, turn_intent_id);
+}
+
+/// Attach the existing runner intent to the wire envelope, not the provider
+/// chunk. Provider `result` payloads are intentionally opaque and may be a
+/// scalar, array, or null; wrapping or replacing them would corrupt native
+/// tool/message semantics.
+fn broadcast_activity_chunk(
+    session_id: &str,
+    chunk: &core_types::activity::ActivityChunk,
+    turn_intent_id: Option<&str>,
+) {
+    websocket_handler::broadcast(
+        activity_chunk_message(session_id, chunk, turn_intent_id).to_string(),
+    );
+}
+
+fn activity_chunk_message(
+    session_id: &str,
+    chunk: &core_types::activity::ActivityChunk,
+    turn_intent_id: Option<&str>,
+) -> serde_json::Value {
+    let mut message = serde_json::json!({
         "type": "code_session.activity",
         "session_id": session_id,
         "chunk": chunk,
     });
-    websocket_handler::broadcast(ws_msg.to_string());
+    if let Some(turn_intent_id) = turn_intent_id.filter(|value| !value.is_empty()) {
+        message["turn_intent_id"] = serde_json::Value::String(turn_intent_id.to_string());
+    }
+    message
+}
+
+/// Streaming-buffer events are ORG2-owned normalized projections, so their
+/// ordinary object result can carry the same intent identity durably. Refuse
+/// to reshape an unexpected opaque result.
+fn preserve_turn_intent(
+    event: &mut crate::agent_sessions::event_pipeline::types::SessionEvent,
+    turn_intent_id: Option<&str>,
+) {
+    let Some(turn_intent_id) = turn_intent_id.filter(|value| !value.is_empty()) else {
+        return;
+    };
+    let Some(result) = event.result.as_object_mut() else {
+        return;
+    };
+    result.insert(
+        "turnIntentId".to_string(),
+        serde_json::Value::String(turn_intent_id.to_string()),
+    );
 }
 
 /// Broadcast `agent:streaming_complete` for a flushed stream.
@@ -317,9 +366,11 @@ fn persist_streaming_complete_chunk(
 }
 
 /// Flush all pending CLI streams and broadcast completion events.
-fn flush_and_broadcast_blocking(session_id: &str) {
+fn flush_and_broadcast_blocking(session_id: &str, turn_intent_id: Option<&str>) {
     let mut sequence = next_chunk_sequence(session_id);
-    for event in crate::agent_sessions::event_pipeline::streaming::cli_flush_session(session_id) {
+    for mut event in crate::agent_sessions::event_pipeline::streaming::cli_flush_session(session_id)
+    {
+        preserve_turn_intent(&mut event, turn_intent_id);
         let stream_type = if event.action_type == "assistant" {
             "message"
         } else {
@@ -334,10 +385,11 @@ fn flush_and_broadcast_blocking(session_id: &str) {
     }
 }
 
-pub(super) async fn flush_and_broadcast(session_id: &str) {
+pub(super) async fn flush_and_broadcast(session_id: &str, turn_intent_id: Option<&str>) {
     let owned_session_id = session_id.to_string();
+    let owned_turn_intent_id = turn_intent_id.map(str::to_string);
     if let Err(err) = tokio::task::spawn_blocking(move || {
-        flush_and_broadcast_blocking(&owned_session_id);
+        flush_and_broadcast_blocking(&owned_session_id, owned_turn_intent_id.as_deref());
     })
     .await
     {
@@ -346,7 +398,7 @@ pub(super) async fn flush_and_broadcast(session_id: &str) {
 }
 
 pub async fn flush_cli_streams_for_session(session_id: &str) {
-    flush_and_broadcast(session_id).await;
+    flush_and_broadcast(session_id, None).await;
 }
 
 /// Drop hook-derived live status for a finished managed session. The
@@ -570,6 +622,55 @@ pub(super) async fn persist_attached_images(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn streaming_event() -> crate::agent_sessions::event_pipeline::types::SessionEvent {
+        let buffer = agent_core::foundation::streaming::StreamingBuffer::new(5_000);
+        buffer.append_message_delta("intent-test", "hello");
+        buffer
+            .complete_message("intent-test")
+            .expect("streaming event")
+    }
+
+    #[test]
+    fn activity_wire_identity_does_not_mutate_opaque_provider_result() {
+        for result in [
+            serde_json::Value::Null,
+            serde_json::json!("opaque"),
+            serde_json::json!(["opaque"]),
+        ] {
+            let chunk = core_types::activity::ActivityChunk::new(
+                "intent-test",
+                "provider_event",
+                "provider_event",
+            )
+            .with_result(result.clone());
+            let message = activity_chunk_message("intent-test", &chunk, Some("turn-1"));
+
+            assert_eq!(message["turn_intent_id"], "turn-1");
+            assert_eq!(message["chunk"]["result"], result);
+            assert_eq!(chunk.result, result);
+        }
+    }
+
+    #[test]
+    fn streaming_identity_preserves_non_object_result_shapes() {
+        for result in [
+            serde_json::Value::Null,
+            serde_json::json!("opaque"),
+            serde_json::json!(["opaque"]),
+        ] {
+            let mut event = streaming_event();
+            event.result = result.clone();
+
+            preserve_turn_intent(&mut event, Some("turn-1"));
+
+            assert_eq!(event.result, result);
+        }
+
+        let mut event = streaming_event();
+        preserve_turn_intent(&mut event, Some("turn-1"));
+        assert_eq!(event.result["turnIntentId"], "turn-1");
+    }
 
     #[test]
     fn cli_file_edit_detection_covers_display_and_storage_names() {

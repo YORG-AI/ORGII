@@ -634,9 +634,54 @@ function deferred<T>() {
 }
 
 describe("SessionHeaderActionsMenu native app action", () => {
+  it("opens the newest executed provider episode from a canonical viewer", async () => {
+    mocks.appOpenPlan.mockResolvedValue(appPlan("Claude"));
+    await act(async () =>
+      render({
+        currentSessionId: "imported-session-canonical",
+        appOpenSessionId: "cliagent-current-episode",
+      })
+    );
+
+    expect(mocks.appOpenPlan).toHaveBeenCalledWith("cliagent-current-episode");
+    await act(async () => element("session-open-in-app-menu-item").click());
+    expect(mocks.openInApp).toHaveBeenCalledWith("cliagent-current-episode");
+  });
+
+  it("does not fall back to an older imported provider when the newest episode has no native binding", async () => {
+    mocks.appOpenPlan.mockResolvedValue(null);
+    await act(async () =>
+      render({
+        currentSessionId: "claudecodeapp-older-provider",
+        appOpenSessionId: "agent-current-episode",
+      })
+    );
+
+    expect(mocks.appOpenPlan).toHaveBeenCalledWith("agent-current-episode");
+    expect(
+      document.querySelector('[data-testid="session-open-in-app-menu-item"]')
+    ).toBeNull();
+  });
+
+  it("does not fall back to an imported source before a canonical root has executed", async () => {
+    await act(async () =>
+      render({
+        currentSessionId: "claudecodeapp-source",
+        appOpenSessionId: null,
+      })
+    );
+
+    expect(mocks.appOpenPlan).not.toHaveBeenCalled();
+    expect(
+      document.querySelector('[data-testid="session-open-in-app-menu-item"]')
+    ).toBeNull();
+  });
+
   it.each([
     ["claudecodeapp-session-a", "Claude", "claude", "claude"],
     ["codexapp-session-a", "Codex", "codex", "openai"],
+    ["cliagent-managed-claude", "Claude", "claude", "claude"],
+    ["cliagent-managed-codex", "Codex", "codex", "openai"],
   ])(
     "shows %s as a direct row between separators with its brand and up-right arrow",
     async (sessionId, app, iconId, brand) => {
@@ -700,17 +745,12 @@ describe("SessionHeaderActionsMenu native app action", () => {
     }
   );
 
-  it.each([
-    null,
-    "session-a",
-    "cursoride-a",
-    "cursorcliapp-a",
-    "opencodeapp-a",
-  ])(
-    "does no native-app work for unsupported session %s",
+  it.each(["session-a", "cursoride-a", "cursorcliapp-a", "opencodeapp-a"])(
+    "keeps unsupported session %s hidden when the backend returns no plan",
     async (sessionId) => {
       await act(async () => render({ currentSessionId: sessionId }));
-      expect(mocks.appOpenPlan).not.toHaveBeenCalled();
+      expect(mocks.appOpenPlan).toHaveBeenCalledOnce();
+      expect(mocks.appOpenPlan).toHaveBeenCalledWith(sessionId);
       expect(
         document.querySelector('[data-testid="session-open-in-app-menu-item"]')
       ).toBeNull();
@@ -718,12 +758,21 @@ describe("SessionHeaderActionsMenu native app action", () => {
     }
   );
 
+  it("does no native-app work without a selected session", async () => {
+    await act(async () => render({ currentSessionId: null }));
+    expect(mocks.appOpenPlan).not.toHaveBeenCalled();
+    expect(
+      document.querySelector('[data-testid="session-open-in-app-menu-item"]')
+    ).toBeNull();
+    expect(document.querySelectorAll('[role="separator"]')).toHaveLength(0);
+  });
+
   it("loads only when the menu opens, and keeps the row absent while the plan is pending", async () => {
     const pending = deferred<ExternalHistoryAppOpenPlan>();
     mocks.appOpenPlan.mockReturnValueOnce(pending.promise);
     await act(async () =>
       render({
-        currentSessionId: "claudecodeapp-a",
+        currentSessionId: "cliagent-managed-claude",
         isHeaderActionsOpen: false,
       })
     );
@@ -731,7 +780,7 @@ describe("SessionHeaderActionsMenu native app action", () => {
 
     await act(async () => render({ isHeaderActionsOpen: true }));
     expect(mocks.appOpenPlan).toHaveBeenCalledOnce();
-    expect(mocks.appOpenPlan).toHaveBeenCalledWith("claudecodeapp-a");
+    expect(mocks.appOpenPlan).toHaveBeenCalledWith("cliagent-managed-claude");
     expect(
       document.querySelector('[data-testid="session-open-in-app-menu-item"]')
     ).toBeNull();

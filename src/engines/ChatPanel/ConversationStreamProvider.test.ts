@@ -5,7 +5,10 @@ import {
   type ConversationRootLocator,
   conversationRootKey,
 } from "@src/engines/SessionCore/conversations/conversationTypes";
-import { NATIVE_SOURCE_EVENT_ID_ARG } from "@src/engines/SessionCore/conversations/nativeConversationMaterializer";
+import {
+  NATIVE_SOURCE_EVENT_ID_ARG,
+  nativeSourceEventId,
+} from "@src/engines/SessionCore/conversations/nativeConversationMaterializer";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { isVisibleInChat } from "@src/engines/SessionCore/ingestion/visibilityFilters";
 import { buildConversationRunnerOverlay } from "@src/features/Org2Cloud/SessionConversation/conversationRunnerOverlay";
@@ -21,6 +24,7 @@ import {
   resolveConversationRunnerBindings,
   selectConversationActiveRunners,
   shouldHydrateLocalExecutionSnapshot,
+  shouldIngestConversationRunnerLiveEvents,
 } from "./ConversationStreamProvider";
 
 function deferred<T>() {
@@ -112,6 +116,26 @@ describe("resolveConversationRunnerBindings", () => {
       controlSessionId: null,
       planningIndicatorScope: null,
     });
+  });
+});
+
+describe("shouldIngestConversationRunnerLiveEvents", () => {
+  it("mounts the hidden runner ingestion edge for a canonical root", () => {
+    expect(
+      shouldIngestConversationRunnerLiveEvents(
+        "cliagent-hidden",
+        "imported-session-root"
+      )
+    ).toBe(true);
+  });
+
+  it("leaves a visible runner to the primary SessionSync owner", () => {
+    expect(
+      shouldIngestConversationRunnerLiveEvents(
+        "cliagent-visible",
+        "cliagent-visible"
+      )
+    ).toBe(false);
   });
 });
 
@@ -283,12 +307,19 @@ describe("local execution-child hydration lifecycle", () => {
             ...historical,
             id: "materialized-historical",
             chunk_id: "materialized-historical",
-            args: { [NATIVE_SOURCE_EVENT_ID_ARG]: historical.id },
+            args: {
+              [NATIVE_SOURCE_EVENT_ID_ARG]: nativeSourceEventId(historical),
+            },
           },
-          currentAssistant,
+          {
+            ...currentAssistant,
+            result: {
+              ...currentAssistant.result,
+              turnIntentId: "turn-local-turn",
+            },
+          },
         ],
-        "local-root",
-        [historical]
+        "local-root"
       ).map((event) => [event.id, event.displayText])
     ).toEqual([["runlive-current-assistant", "working"]]);
   });

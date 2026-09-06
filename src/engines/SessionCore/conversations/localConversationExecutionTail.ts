@@ -1,5 +1,8 @@
 import { loadCanonicalConversationEvents } from "@src/engines/SessionCore/conversations/canonicalConversationEvents";
-import { QueuedConversationRecoveryPendingError } from "@src/engines/SessionCore/conversations/queuedConversationContract";
+import {
+  QueuedConversationBlockedError,
+  QueuedConversationRecoveryPendingError,
+} from "@src/engines/SessionCore/conversations/queuedConversationContract";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { isOptimisticQueueUserEventId } from "@src/engines/SessionCore/services/userIntentDispatch";
 import { loadCliTranscriptRevision } from "@src/engines/SessionCore/sync/adapters/cli/cliHistory";
@@ -25,6 +28,10 @@ export interface LocalExecutionChild {
   created_at: string;
   /** Existing session catalog revision; used to refresh a reused native child. */
   updated_at?: string;
+  /** Raw catalog status; `idle` is quiescent but intentionally non-terminal. */
+  status?: string;
+  /** Authoritative `SessionStatus::is_terminal()` projection from Rust. */
+  is_terminal?: boolean;
 }
 
 export interface LocalExecutionSegment {
@@ -51,6 +58,8 @@ interface LocalExecutionChildRow {
   sessionId: string;
   createdAt?: string;
   updatedAt?: string;
+  status?: string;
+  isTerminal?: boolean;
 }
 
 export function resolveLocalExecutionChildren(
@@ -91,7 +100,7 @@ export async function loadLocalExecutionChildren(
       parentSessionId: conversationExecutionParentId(root),
     }
   );
-  return resolveLocalExecutionChildren(
+  const resolved = resolveLocalExecutionChildren(
     children,
     new Map(children.map((child) => [child.sessionId, child.createdAt])),
     new Map(
@@ -101,6 +110,17 @@ export async function loadLocalExecutionChildren(
       ])
     )
   );
+  const rowsById = new Map(children.map((child) => [child.sessionId, child]));
+  return resolved.map((child) => {
+    const row = rowsById.get(child.session_id);
+    return {
+      ...child,
+      ...(typeof row?.status === "string" ? { status: row.status } : {}),
+      ...(typeof row?.isTerminal === "boolean"
+        ? { is_terminal: row.isTerminal }
+        : {}),
+    };
+  });
 }
 
 function localExecutionChildrenRevision(
@@ -122,16 +142,15 @@ function localExecutionChildrenRevision(
   );
 }
 
-const UNREADABLE_NATIVE_REVISION = "native-revision:unavailable";
-
 async function loadLocalExecutionChildNativeRevision(
   sessionId: string
-): Promise<string | undefined> {
+): Promise<string | null | undefined> {
   if (!isCliSession(sessionId)) return undefined;
-  const revision = await loadCliTranscriptRevision(sessionId);
-  return (
-    revision ?? (revision === null ? UNREADABLE_NATIVE_REVISION : undefined)
-  );
+  // `undefined` is the legitimate legacy/chunks case, whose DB timestamps are
+  // the durable revision. `null` means a native transcript exists in principle
+  // but cannot currently be read; preserve that distinction so the snapshot
+  // owner fails closed instead of certifying a hollow provider replay.
+  return loadCliTranscriptRevision(sessionId);
 }
 
 async function loadLocalExecutionChildrenState(
@@ -157,6 +176,20 @@ async function loadLocalExecutionChildrenState(
     nativeRevisions,
     revision: localExecutionChildrenRevision(children, nativeRevisions),
   };
+}
+
+function isQuiescentExecutionChild(child: LocalExecutionChild): boolean {
+  return child.is_terminal === true || child.status === "idle";
+}
+
+function unavailableQuiescentNativeChild(
+  state: Awaited<ReturnType<typeof loadLocalExecutionChildrenState>>
+): LocalExecutionChild | undefined {
+  return state.children.find(
+    (child) =>
+      isQuiescentExecutionChild(child) &&
+      state.nativeRevisions.get(child.session_id) === null
+  );
 }
 
 export async function loadLocalExecutionChildrenRevision(
@@ -308,6 +341,12 @@ export async function loadLocalCanonicalConversationSnapshot(
     loadCanonicalConversationEvents(root.conversationId),
     loadLocalExecutionChildrenState(root),
   ]);
+  const unavailableChild = unavailableQuiescentNativeChild(initialState);
+  if (unavailableChild) {
+    throw new QueuedConversationBlockedError(
+      `Native history for finished execution ${unavailableChild.session_id} is unavailable. Restore the provider transcript, then retry this message.`
+    );
+  }
   const segments = await Promise.all(
     initialState.children.map(async (child) => {
       const events = await loadLocalExecutionChildEvents(child.session_id);
@@ -393,12 +432,11 @@ export function projectVerifiedLocalExecutionTail(
 }
 
 /**
- * A provider records the prompt before it can reject the turn, and every
- * retry records it again, so a turn that was answered on its third attempt
- * leaves two identical, unanswered user rows directly ahead of the answered
- * one in the provider's transcript. They are the same message retried, not
- * three messages: keep only the last copy of a run of identical prompts that
- * nothing answered in between.
+ * Collapse repeated projections only when their durable turn/message identity
+ * proves they are the same user submission. Equal text is not identity: users
+ * may intentionally send the same words in consecutive turns or attach
+ * different images. Legacy/provider rows without identity therefore remain
+ * visible rather than risking silent transcript loss.
  */
 export function collapseRetriedPromptCopies(
   tail: readonly SessionEvent[]
@@ -406,12 +444,16 @@ export function collapseRetriedPromptCopies(
   const kept: SessionEvent[] = [];
   for (const event of tail) {
     const previous = kept[kept.length - 1];
+    const previousIdentity = previous
+      ? logicalUserMessageIdentity(previous)
+      : null;
+    const eventIdentity = logicalUserMessageIdentity(event);
     if (
       previous &&
       previous.source === "user" &&
       event.source === "user" &&
-      (previous.displayText ?? "").trim() !== "" &&
-      (previous.displayText ?? "").trim() === (event.displayText ?? "").trim()
+      previousIdentity !== null &&
+      previousIdentity === eventIdentity
     ) {
       kept[kept.length - 1] = event;
       continue;
@@ -419,6 +461,22 @@ export function collapseRetriedPromptCopies(
     kept.push(event);
   }
   return kept;
+}
+
+/** Mirror EventStore's logical user-turn identity at the read-side boundary. */
+function logicalUserMessageIdentity(event: SessionEvent): string | null {
+  if (event.source !== "user") return null;
+  const turnIntentId = turnIntentIdOf(event);
+  if (turnIntentId) return `intent:${turnIntentId}`;
+  const messageId = (event.result as Record<string, unknown> | undefined)
+    ?.messageId;
+  if (typeof messageId === "string" && messageId.length > 0) {
+    return `message:${messageId}`;
+  }
+  if (event.functionName === "user_input" && event.id) {
+    return `message:${event.id}`;
+  }
+  return null;
 }
 
 function isFailedOptimisticQueueUserRow(event: SessionEvent): boolean {
@@ -442,40 +500,15 @@ export function suppressLandedRowsOfFailedQueuedTurns(
 ): SessionEvent[] {
   const failed = anchorEvents.filter(isFailedOptimisticQueueUserRow);
   if (failed.length === 0 || tails.length === 0) return [...tails];
-  const failedIntents = new Set(
+  const failedIdentities = new Set(
     failed
-      .map((event) => turnIntentIdOf(event))
-      .filter((id): id is string => Boolean(id))
+      .map(logicalUserMessageIdentity)
+      .filter((identity): identity is string => identity !== null)
   );
-  // Every retry of a failed row records the prompt again in the child, so
-  // all landed copies from the row's own lifetime onward belong to it; an
-  // identical prompt from an earlier answered turn keeps its landed row.
-  const failedByText = new Map<string, number>();
-  for (const event of failed) {
-    const text = (event.displayText ?? "").trim();
-    if (!text) continue;
-    const startedAt = Date.parse(event.createdAt ?? "");
-    const current = failedByText.get(text);
-    failedByText.set(
-      text,
-      current === undefined
-        ? startedAt
-        : Math.min(current, Number.isFinite(startedAt) ? startedAt : current)
-    );
-  }
   return tails.filter((landed) => {
     if (landed.source !== "user") return true;
-    const turnIntentId = turnIntentIdOf(landed);
-    if (turnIntentId) return !failedIntents.has(turnIntentId);
-    const text = (landed.displayText ?? "").trim();
-    const startedAt = text ? failedByText.get(text) : undefined;
-    if (startedAt === undefined) return true;
-    const landedAt = Date.parse(landed.createdAt ?? "");
-    return (
-      Number.isFinite(startedAt) &&
-      Number.isFinite(landedAt) &&
-      landedAt < startedAt
-    );
+    const identity = logicalUserMessageIdentity(landed);
+    return identity === null || !failedIdentities.has(identity);
   });
 }
 
@@ -492,40 +525,22 @@ export function suppressLandedQueuedUserRows(
   );
   if (optimistic.length === 0) return [...anchorEvents];
 
-  const suppressedIds = new Set<string>();
-  for (const landed of tails) {
-    if (landed.source !== "user") continue;
-    const turnIntentId = turnIntentIdOf(landed);
-    let matched = turnIntentId
-      ? optimistic.find(
-          (candidate) =>
-            !suppressedIds.has(candidate.id) &&
-            turnIntentIdOf(candidate) === turnIntentId
-        )
-      : undefined;
-    if (!matched) {
-      const landedText = (landed.displayText ?? "").trim();
-      if (!landedText) continue;
-      const landedAt = Date.parse(landed.createdAt ?? "");
-      const candidates = optimistic.filter(
-        (candidate) =>
-          !suppressedIds.has(candidate.id) &&
-          (candidate.displayText ?? "").trim() === landedText
-      );
-      matched = candidates
-        .filter((candidate) => {
-          const candidateAt = Date.parse(candidate.createdAt ?? "");
-          return (
-            !Number.isFinite(landedAt) ||
-            !Number.isFinite(candidateAt) ||
-            candidateAt <= landedAt
-          );
-        })
-        .at(-1);
-    }
-    if (matched) suppressedIds.add(matched.id);
-  }
-  return anchorEvents.filter((event) => !suppressedIds.has(event.id));
+  // The accepted queue row and the EventStore projection of its provider echo
+  // share the same durable turn/message identity. Never fall back to text or
+  // timestamp proximity: a later intentional repeat (possibly with different
+  // attachments) is a distinct turn. Legacy rows without identity stay
+  // visible; a harmless duplicate is preferable to deleting real history.
+  const landedIdentities = new Set(
+    tails
+      .map(logicalUserMessageIdentity)
+      .filter((identity): identity is string => identity !== null)
+  );
+  const optimisticIds = new Set(optimistic.map((event) => event.id));
+  return anchorEvents.filter((event) => {
+    if (!optimisticIds.has(event.id)) return true;
+    const identity = logicalUserMessageIdentity(event);
+    return identity === null || !landedIdentities.has(identity);
+  });
 }
 
 export async function loadLocalExecutionChildEvents(

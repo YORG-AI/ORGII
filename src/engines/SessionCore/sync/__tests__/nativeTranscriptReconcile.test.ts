@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { selectConversationRunnerTail } from "@src/features/Org2Cloud/SessionConversation/conversationRunnerOverlay";
 
 import {
   reconcileNativeTranscript,
@@ -104,7 +105,7 @@ describe("single-owner native transcript reconcile", () => {
 
     await expect(reconcileNativeTranscript(sessionId)).resolves.toEqual(events);
     expect(mocks.loadAuthoritative).toHaveBeenCalledTimes(1);
-    expect(mocks.getPersisted).not.toHaveBeenCalled();
+    expect(mocks.getPersisted).toHaveBeenCalledWith(sessionId);
     expect(mocks.set).toHaveBeenCalledWith(events, sessionId);
     expect(mocks.setStreaming).toHaveBeenCalledWith(false, sessionId);
   });
@@ -234,12 +235,132 @@ describe("single-owner native transcript reconcile", () => {
     historySequence([native]);
     mocks.getPersisted.mockResolvedValue([failed]);
 
-    await expect(
-      reconcileNativeTranscript(sessionId, {
-        preserveInterruptedSuffix: true,
-      })
-    ).resolves.toEqual([...native, failed]);
+    await expect(reconcileNativeTranscript(sessionId)).resolves.toEqual([
+      ...native,
+      failed,
+    ]);
     expect(mocks.set).toHaveBeenCalledWith([...native, failed], sessionId);
+  });
+
+  it("keeps the exact accepted turn visible when native terminal rows replace live ids", async () => {
+    const sessionId = "reconcile-terminal-overlay";
+    const user = (id: string, turnIntentId?: string): SessionEvent => ({
+      ...makeEvent(id, sessionId),
+      source: "user",
+      functionName: "user_message",
+      uiCanonical: "user_message",
+      displayText: "repeat",
+      result: {
+        message: { role: "user", content: "repeat" },
+        ...(turnIntentId ? { turnIntentId } : {}),
+      },
+    });
+    const oldUser = user("native-old-user");
+    const oldAnswer = makeEvent("old-answer", sessionId);
+    const tool = (id: string, callId: string): SessionEvent => ({
+      ...makeEvent(id, sessionId),
+      functionName: "read_file",
+      uiCanonical: "tool_call",
+      actionType: "tool_call",
+      callId,
+      args: { path: "/repo/README.md" },
+      result: { status: "completed", output: "file contents" },
+      displayVariant: "tool_call",
+    });
+    const nativeUser = user("native-new-user");
+    const compact = {
+      ...makeEvent("compact", sessionId),
+      functionName: "context_compacted",
+      actionType: "context_compacted",
+    };
+    const final = makeEvent("native-final", sessionId);
+    const following = user("native-following-user");
+    const otherAnswer = makeEvent("other-answer", sessionId);
+    const native = [
+      oldUser,
+      oldAnswer,
+      tool("native-tool", "provider_alias"),
+      nativeUser,
+      compact,
+      final,
+      following,
+      otherAnswer,
+    ];
+    historySequence([native]);
+    mocks.getPersisted.mockResolvedValue([
+      oldUser,
+      oldAnswer,
+      tool("projected-tool", "old_call_id"),
+      user("optimistic-current", "intent-current"),
+      {
+        ...makeEvent("live-final", sessionId),
+        result: { turnIntentId: "intent-current" },
+      },
+      {
+        ...user("queued-next", "intent-next"),
+        displayStatus: "pending",
+        result: {
+          ...user("queued-next", "intent-next").result,
+          deliveryStatus: "pending",
+        },
+      },
+    ]);
+    const settled = await reconcileNativeTranscript(sessionId);
+    expect(settled[0].result?.turnIntentId).toBeUndefined();
+    expect(settled[2].result?.turnIntentId).toBeUndefined();
+    expect(settled[3].result?.turnIntentId).toBe("intent-current");
+    expect(settled[5].displayText).toBe("native-final");
+    expect(settled[6].result?.turnIntentId).toBeUndefined();
+    expect(
+      selectConversationRunnerTail(
+        {
+          runnerSessionId: sessionId,
+          turnId: "intent-current",
+          eventStartIndex: 2,
+        },
+        settled
+      ).map((event) => event.id)
+    ).toEqual(["compact", "native-final"]);
+    expect(mocks.set).toHaveBeenCalledWith(settled, sessionId);
+  });
+
+  it("does not move intent identity onto equal text after a divergent native prefix", async () => {
+    const sessionId = "reconcile-divergent-prefix";
+    const user = {
+      ...makeEvent("user", sessionId),
+      source: "user",
+      result: {
+        turnIntentId: "current",
+        message: { role: "user", content: "repeat" },
+      },
+    } as SessionEvent;
+    const nativeUser = {
+      ...user,
+      result: { message: { role: "user", content: "repeat" } },
+    };
+    const native = [
+      makeEvent("different-history", sessionId),
+      nativeUser,
+      makeEvent("answer", sessionId),
+    ];
+    historySequence([native]);
+    mocks.getPersisted.mockResolvedValue([
+      makeEvent("old-history", sessionId),
+      user,
+    ]);
+    await expect(reconcileNativeTranscript(sessionId)).resolves.toEqual(native);
+  });
+
+  it("does not erase delivery metadata when the projection read fails", async () => {
+    const sessionId = "reconcile-projection-unavailable";
+    historySequence([[makeEvent("native", sessionId)]]);
+    mocks.getPersisted.mockRejectedValueOnce(
+      new Error("projection unavailable")
+    );
+    await expect(reconcileNativeTranscript(sessionId)).rejects.toThrow(
+      "projection unavailable"
+    );
+    expect(mocks.set).not.toHaveBeenCalled();
   });
 
   it("releases a failed job so a later terminal can retry", async () => {

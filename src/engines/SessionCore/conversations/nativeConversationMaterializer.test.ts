@@ -418,6 +418,27 @@ describe("native conversation materialization", () => {
     expect(
       nativeConversationItemsAreProviderPortablePrefix(expected, collapsedCalls)
     ).toBe(false);
+
+    const interrupted = structuredClone(expected);
+    const providerRoundTrip = structuredClone(expected);
+    if (
+      interrupted[1]?.kind === "tool_result" &&
+      providerRoundTrip[1]?.kind === "tool_result"
+    ) {
+      interrupted[1].isError = true;
+      interrupted[1].interrupted = true;
+      providerRoundTrip[1].isError = true;
+      providerRoundTrip[1].interrupted = false;
+    }
+    expect(nativeConversationItemsEqual(interrupted, providerRoundTrip)).toBe(
+      false
+    );
+    expect(
+      nativeConversationItemsAreProviderPortablePrefix(
+        interrupted,
+        providerRoundTrip
+      )
+    ).toBe(true);
   });
 
   it("compares JSON tool arguments semantically rather than by object key order", () => {
@@ -428,6 +449,21 @@ describe("native conversation materialization", () => {
         '{"nested":{"first":1,"second":2},"path":"/repo/README.md"}';
     }
     expect(nativeConversationItemsEqual(left, right)).toBe(true);
+  });
+
+  it("does not alias malformed tool arguments to a valid tagged JSON value", () => {
+    const valid = projectNativeConversationItems([tool()]);
+    const malformed = structuredClone(valid);
+    if (valid[0]?.kind === "tool_call") {
+      valid[0].arguments = '["raw","{broken"]';
+    }
+    if (malformed[0]?.kind === "tool_call") {
+      malformed[0].arguments = "{broken";
+    }
+
+    expect(
+      nativeConversationItemsAreProviderPortablePrefix(valid, malformed)
+    ).toBe(false);
   });
 
   it("rebuilds the provider's effective context from its latest compact boundary", () => {
@@ -590,6 +626,29 @@ describe("native conversation materialization", () => {
     ]);
   });
 
+  it("does not treat a reused provider-positional id from an earlier rollout as an echo", () => {
+    // Every native rollout of one execution child restarts at `codex-asst-0`,
+    // so a later turn's first commentary can share `codex-asst-182` with an
+    // unrelated row of the previous rollout. Only an explicit global identity
+    // or the copied-prefix semantics may collapse a candidate.
+    const earlierRollout = message(
+      "codex-asst-182",
+      "assistant",
+      "Examined exactly: SessionService.ts"
+    );
+    const laterRollout = message(
+      "codex-asst-182",
+      "assistant",
+      "I'll inspect the requested files first."
+    );
+
+    expect(
+      removeKnownNativeConversationEchoes([earlierRollout], [laterRollout]).map(
+        (event) => event.id
+      )
+    ).toEqual(["codex-asst-182"]);
+  });
+
   it("keeps a genuine repeated item after the copied-prefix window closes", () => {
     const historical = message("historical", "assistant", "same answer");
     const novel = message("novel", "assistant", "new answer");
@@ -719,6 +778,28 @@ describe("native conversation materialization", () => {
         completeItems: projectNativeConversationItems(timeline),
       }
     );
+  });
+
+  it("accepts a synchronized provider transcript with rewritten tool ids", async () => {
+    const canonical = tool();
+    const provider = { ...tool(), callId: "provider-call-a" } as SessionEvent;
+    mocks.invokeTauri.mockResolvedValue({
+      nativeSessionId: "native-1",
+      itemCount: 2,
+    });
+    mocks.loadEvents.mockResolvedValue({
+      events: [provider],
+      source: "native_store",
+    });
+
+    await expect(
+      synchronizeNativeConversation({
+        sessionId: "cliagent-target",
+        timeline: [canonical],
+      })
+    ).resolves.toMatchObject({
+      receipt: { nativeSessionId: "native-1", itemCount: 2 },
+    });
   });
 
   it("fails closed when the provider reader does not round-trip the write", async () => {

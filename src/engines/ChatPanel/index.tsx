@@ -81,6 +81,7 @@ import { useChatPanelNavigationActions } from "./hooks/useChatPanelNavigationAct
 import { useChatPanelResize } from "./hooks/useChatPanelResize";
 import { useChatPanelSessionModals } from "./hooks/useChatPanelSessionModals";
 import { useChatPanelTabsController } from "./hooks/useChatPanelTabsController";
+import { useConversationTargetBinding } from "./hooks/useConversationTargetBinding";
 import { usePanelTitle } from "./hooks/usePanelTitle";
 import { useSessionSwipeNavigation } from "./hooks/useSessionSwipeNavigation";
 import { useSessionViewMode } from "./hooks/useSessionViewMode";
@@ -106,6 +107,9 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const shouldOffsetHeaderForCollapsedSidebar =
       useShouldOffsetChatPanelHeader({ position, useExternalWidth });
     const { currentSessionId, currentSession, panelTitle } = usePanelTitle();
+    const conversationTargetBinding = useConversationTargetBinding(
+      currentSessionId ?? null
+    );
     const activeSession = currentSession ?? undefined;
     const humanSessionActive =
       currentSession?.category === "human_session" ||
@@ -377,6 +381,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         chatPanelPosition={position}
         copyEventJsonLabel={copyEventJsonLabel}
         currentSessionId={currentSessionId ?? null}
+        appOpenSessionId={conversationTargetBinding?.appOpenSessionId ?? null}
         displayMode={displayMode}
         eventsLength={eventCount}
         handleChatFocusToggle={handleChatFocusToggle}
@@ -467,6 +472,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const chatColumn = (
       <ChatPanelContent
         currentSessionId={currentSessionId ?? null}
+        conversationTargetBinding={conversationTargetBinding}
         displayMode={displayMode}
         emptyChatContent={emptyChatContent}
         paginationEnabled={paginationEnabled}

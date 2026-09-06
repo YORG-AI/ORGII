@@ -3322,6 +3322,7 @@ describe("Core chat rendering UI", () => {
         execJS(`
           const scroller = document.querySelector('[data-testid="chat-history-scroll-container"]');
           if (!scroller || scroller.scrollHeight <= scroller.clientHeight * 2) return false;
+          scroller.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, bubbles: true }));
           scroller.scrollTop = 0;
           scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
           return scroller.scrollTop === 0;

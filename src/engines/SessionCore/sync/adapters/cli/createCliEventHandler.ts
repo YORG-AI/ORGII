@@ -64,9 +64,11 @@ export function createCliEventHandler(
   let msgContent = "";
   let msgStreamId = "";
   let msgStartedAt = "";
+  let msgTurnIntentId: string | undefined;
   let thinkContent = "";
   let thinkStreamId = "";
   let thinkStartedAt = "";
+  let thinkTurnIntentId: string | undefined;
   let observedTerminalStatus: CliSessionStatus | undefined;
   const finalizedStreamEventIds = new Set<string>();
   const toolCallDeltaBuffers = new Map<
@@ -85,12 +87,14 @@ export function createCliEventHandler(
     msgContent = "";
     msgStreamId = "";
     msgStartedAt = "";
+    msgTurnIntentId = undefined;
   }
 
   function clearThinkingStream(): void {
     thinkContent = "";
     thinkStreamId = "";
     thinkStartedAt = "";
+    thinkTurnIntentId = undefined;
   }
 
   function clearToolCallDeltaBuffers(): void {
@@ -126,6 +130,25 @@ export function createCliEventHandler(
 
   function asString(value: unknown): string | undefined {
     return typeof value === "string" && value.length > 0 ? value : undefined;
+  }
+
+  /** Preserve an exact runner identity without reshaping opaque provider data. */
+  function withTurnIntentId(
+    event: SessionEvent,
+    turnIntentId: string | undefined
+  ): SessionEvent {
+    if (
+      !turnIntentId ||
+      !event.result ||
+      typeof event.result !== "object" ||
+      Array.isArray(event.result)
+    ) {
+      return event;
+    }
+    return {
+      ...event,
+      result: { ...event.result, turnIntentId },
+    };
   }
 
   function getStore() {
@@ -207,7 +230,10 @@ export function createCliEventHandler(
    * malformed-frame edge. Only the card is skipped now; the transcript row
    * is written either way, and the skip is logged.
    */
-  function handlePlanApprovalActivity(chunk: ActivityChunk): boolean {
+  function handlePlanApprovalActivity(
+    chunk: ActivityChunk,
+    turnIntentId: string | undefined
+  ): boolean {
     if (chunk.action_type !== "plan_approval") return false;
     const args = chunk.args ?? {};
     const planPath = asString(args.planPath);
@@ -236,13 +262,16 @@ export function createCliEventHandler(
     }
     persistObservedEvent(
       normalizeChunkRust(chunk, sessionId).then((event) =>
-        eventStoreProxy.upsert(event, sessionId)
+        eventStoreProxy.upsert(withTurnIntentId(event, turnIntentId), sessionId)
       )
     );
     return true;
   }
 
-  function handleToolCallDeltaActivity(chunk: ActivityChunk): void {
+  function handleToolCallDeltaActivity(
+    chunk: ActivityChunk,
+    turnIntentId: string | undefined
+  ): void {
     setStreamingMode(true);
     const indexValue = chunk.result?.index;
     const index = typeof indexValue === "number" ? indexValue : 0;
@@ -273,20 +302,26 @@ export function createCliEventHandler(
     const args = buildToolArgsFromParsed(parsed);
     persistObservedEvent(
       eventStoreProxy.upsert(
-        makeToolCallEvent(
-          `tool-call-${nextBuffer.toolCallId}`,
-          sessionId,
-          nextBuffer.toolName,
-          nextBuffer.toolCallId,
-          args,
-          true
+        withTurnIntentId(
+          makeToolCallEvent(
+            `tool-call-${nextBuffer.toolCallId}`,
+            sessionId,
+            nextBuffer.toolName,
+            nextBuffer.toolCallId,
+            args,
+            true
+          ),
+          turnIntentId
         ),
         sessionId
       )
     );
   }
 
-  function handleActivity(chunk: ActivityChunk): void {
+  function handleActivity(
+    chunk: ActivityChunk,
+    turnIntentId: string | undefined
+  ): void {
     if (
       chunk.function === "user_message" &&
       (chunk.action_type === "raw" || chunk.action_type === "raw_event")
@@ -299,7 +334,7 @@ export function createCliEventHandler(
     const isDelta = chunk.result?.is_delta === true;
     const actionType = chunk.action_type;
 
-    if (handlePlanApprovalActivity(chunk)) return;
+    if (handlePlanApprovalActivity(chunk, turnIntentId)) return;
 
     const isMessageType =
       actionType === "assistant" ||
@@ -310,7 +345,7 @@ export function createCliEventHandler(
       actionType === "llm_thinking" || actionType === "llm_thinking_delta";
 
     if (actionType === "tool_call_delta") {
-      handleToolCallDeltaActivity(chunk);
+      handleToolCallDeltaActivity(chunk, turnIntentId);
       return;
     }
 
@@ -324,15 +359,19 @@ export function createCliEventHandler(
         msgStreamId = createStreamMessageId(sessionId);
         msgStartedAt = chunk.created_at || new Date().toISOString();
       }
+      msgTurnIntentId ??= turnIntentId;
       msgContent = capStreamContent(mergeStreamingText(msgContent, deltaText));
       persistObservedEvent(
         eventStoreProxy.upsert(
-          buildCliStreamingEvent(
-            msgStreamId,
-            sessionId,
-            msgContent,
-            "message",
-            msgStartedAt
+          withTurnIntentId(
+            buildCliStreamingEvent(
+              msgStreamId,
+              sessionId,
+              msgContent,
+              "message",
+              msgStartedAt
+            ),
+            msgTurnIntentId
           ),
           sessionId
         )
@@ -351,17 +390,21 @@ export function createCliEventHandler(
         thinkStreamId = createStreamThinkingId(sessionId);
         thinkStartedAt = chunk.created_at || new Date().toISOString();
       }
+      thinkTurnIntentId ??= turnIntentId;
       thinkContent = capStreamContent(
         mergeStreamingText(thinkContent, deltaText)
       );
       persistObservedEvent(
         eventStoreProxy.upsert(
-          buildCliStreamingEvent(
-            thinkStreamId,
-            sessionId,
-            thinkContent,
-            "thinking",
-            thinkStartedAt
+          withTurnIntentId(
+            buildCliStreamingEvent(
+              thinkStreamId,
+              sessionId,
+              thinkContent,
+              "thinking",
+              thinkStartedAt
+            ),
+            thinkTurnIntentId
           ),
           sessionId
         )
@@ -374,6 +417,7 @@ export function createCliEventHandler(
       const tempId = isMessageType ? msgStreamId : thinkStreamId;
       const persistence = normalizeChunkRust(chunk, sessionId).then(
         async (event) => {
+          event = withTurnIntentId(event, turnIntentId);
           if (finalizedStreamEventIds.has(event.id)) return;
           if (tempId && tempId !== event.id) {
             if (isMessageType) clearMessageStream();
@@ -390,6 +434,7 @@ export function createCliEventHandler(
     }
 
     const persistence = normalizeChunkRust(chunk, sessionId).then((event) => {
+      event = withTurnIntentId(event, turnIntentId);
       if (actionType === "tool_call") {
         for (const [index, buffer] of toolCallDeltaBuffers.entries()) {
           if (buffer.toolCallId && buffer.toolCallId === event.callId) {
@@ -417,30 +462,34 @@ export function createCliEventHandler(
 
     if (streamType === "message") {
       const tsTempId = msgStreamId;
+      const turnIntentId = msgTurnIntentId;
       clearMessageStream();
+      const attributedEvent = withTurnIntentId(completeEvent, turnIntentId);
       if (tsTempId && tsTempId !== completeEvent.id) {
         const persistence = eventStoreProxy.replaceAndRemove(
           tsTempId,
-          completeEvent,
+          attributedEvent,
           sessionId
         );
         persistObservedEvent(persistence);
       } else {
-        const persistence = eventStoreProxy.upsert(completeEvent, sessionId);
+        const persistence = eventStoreProxy.upsert(attributedEvent, sessionId);
         persistObservedEvent(persistence);
       }
     } else if (streamType === "thinking") {
       const tsTempId = thinkStreamId;
+      const turnIntentId = thinkTurnIntentId;
       clearThinkingStream();
+      const attributedEvent = withTurnIntentId(completeEvent, turnIntentId);
       if (tsTempId && tsTempId !== completeEvent.id) {
         const persistence = eventStoreProxy.replaceAndRemove(
           tsTempId,
-          completeEvent,
+          attributedEvent,
           sessionId
         );
         persistObservedEvent(persistence);
       } else {
-        const persistence = eventStoreProxy.upsert(completeEvent, sessionId);
+        const persistence = eventStoreProxy.upsert(attributedEvent, sessionId);
         persistObservedEvent(persistence);
       }
     } else {
@@ -514,7 +563,10 @@ export function createCliEventHandler(
       } else if (raw.type === "agent:plan_approval_archived") {
         handlePlanApprovalArchivedBroadcast(raw);
       } else if (raw.type === "code_session.activity" && raw.chunk) {
-        handleActivity(raw.chunk as unknown as ActivityChunk);
+        handleActivity(
+          raw.chunk as unknown as ActivityChunk,
+          asString(raw.turn_intent_id) ?? asString(raw.turnIntentId)
+        );
       } else if (raw.type === "agent:streaming_complete") {
         handleStreamingComplete(raw);
       } else if (raw.type === "code_session.status_changed") {

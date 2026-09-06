@@ -6,6 +6,7 @@ import {
   conversationSourceFromImportedHistory,
   latestConversationExecution,
   mergeConversationExecutionTargets,
+  resolveConversationAppOpenSessionId,
   resolveConversationExecutionTargetHydration,
   resolveNativeConversationCliTargets,
   writableConversationWorkspacePath,
@@ -182,6 +183,51 @@ describe("conversation target binding source", () => {
         []
       )
     ).toEqual({ loading: false, failed: false, targets: durable });
+  });
+
+  it("opens the newest executed episode and preserves a settled imported source with no child", () => {
+    expect(
+      resolveConversationAppOpenSessionId({
+        viewerSessionId: "claudecodeapp-source",
+        executionTargets: [],
+        loading: false,
+        failed: false,
+      })
+    ).toBe("claudecodeapp-source");
+
+    expect(
+      resolveConversationAppOpenSessionId({
+        viewerSessionId: "claudecodeapp-source",
+        executionTargets: [
+          {
+            sessionId: "agent-newest",
+            updatedAt: "2026-09-07T00:00:00.000Z",
+            target: {
+              agentDefinitionId: "sde",
+              accountId: "account-sde",
+              model: "model-sde",
+            },
+          },
+        ],
+        loading: false,
+        failed: false,
+      })
+    ).toBe("agent-newest");
+  });
+
+  it("does not guess an app-open owner while execution hydration is pending or failed", () => {
+    for (const state of [
+      { loading: true, failed: false },
+      { loading: false, failed: true },
+    ]) {
+      expect(
+        resolveConversationAppOpenSessionId({
+          viewerSessionId: "claudecodeapp-source",
+          executionTargets: [],
+          ...state,
+        })
+      ).toBeNull();
+    }
   });
 
   it("stays loading instead of falling back while a new root hydrates", () => {

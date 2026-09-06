@@ -26,7 +26,10 @@ import {
   ORG2_CLOUD_POSTGREST_SCHEMA,
   getCloudEndpoint,
 } from "./config";
-import { fetchWithTransportRetry } from "./org2CloudFetchRetry";
+import {
+  fetchWithTransportRetry,
+  runCloudRequestWithTimeout,
+} from "./org2CloudFetchRetry";
 import { sha256Hex } from "./org2CloudOrgManagement";
 
 const log = createLogger("Org2CloudConversationEvents");
@@ -51,6 +54,7 @@ const CLOUD_CONVERSATION_MAX_CHUNKS_PER_EVENT = Math.ceil(
 const CLOUD_CONVERSATION_MAX_CHUNK_BASE64_CHARS =
   4 * Math.ceil(CLOUD_CONVERSATION_CHUNK_DATA_BYTES / 3);
 const CONVERSATION_EVENT_CHUNK_FUNCTION = "conversation_event_chunk";
+const CONVERSATION_EVENTS_RPC_TIMEOUT_MS = 15_000;
 
 export const ORG2_CONVERSATION_ERROR_CODES = [
   "ORG2_VALIDATION",
@@ -94,34 +98,37 @@ async function callConversationRpc(
   body: Record<string, unknown>,
   endpoint: Pick<CloudEndpoint, "supabaseUrl" | "anonKey"> = getCloudEndpoint()
 ): Promise<unknown> {
-  const response = await fetchWithTransportRetry(
-    `${endpoint.supabaseUrl}/rest/v1/rpc/${functionName}`,
-    {
-      method: "POST",
-      headers: {
-        apikey: endpoint.anonKey,
-        authorization: `Bearer ${accessToken}`,
-        "content-type": "application/json",
-        "content-profile": ORG2_CLOUD_POSTGREST_SCHEMA,
-      },
-      body: JSON.stringify(body),
+  return runCloudRequestWithTimeout(async (signal) => {
+    const response = await fetchWithTransportRetry(
+      `${endpoint.supabaseUrl}/rest/v1/rpc/${functionName}`,
+      {
+        method: "POST",
+        headers: {
+          apikey: endpoint.anonKey,
+          authorization: `Bearer ${accessToken}`,
+          "content-type": "application/json",
+          "content-profile": ORG2_CLOUD_POSTGREST_SCHEMA,
+        },
+        body: JSON.stringify(body),
+        signal,
+      }
+    );
+    const text = await response.text();
+    let payload: unknown = null;
+    try {
+      payload = text ? JSON.parse(text) : null;
+    } catch {
+      payload = null;
     }
-  );
-  const text = await response.text();
-  let payload: unknown = null;
-  try {
-    payload = text ? JSON.parse(text) : null;
-  } catch {
-    payload = null;
-  }
-  if (!response.ok) {
-    const message =
-      payload && typeof payload === "object" && "message" in payload
-        ? String((payload as { message: unknown }).message)
-        : `org2_cloud rpc ${functionName} failed with ${response.status}`;
-    throw new Org2CloudConversationError(message, response.status);
-  }
-  return payload;
+    if (!response.ok) {
+      const message =
+        payload && typeof payload === "object" && "message" in payload
+          ? String((payload as { message: unknown }).message)
+          : `org2_cloud rpc ${functionName} failed with ${response.status}`;
+      throw new Org2CloudConversationError(message, response.status);
+    }
+    return payload;
+  }, CONVERSATION_EVENTS_RPC_TIMEOUT_MS);
 }
 
 const CloudConversationEventWireSchema = z.object({

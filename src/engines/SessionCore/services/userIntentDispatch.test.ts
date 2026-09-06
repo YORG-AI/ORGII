@@ -32,9 +32,10 @@ const mocks = vi.hoisted(() => {
     atomValues,
     store,
     append: vi.fn(),
-    getPersistedEvents: vi.fn(),
+    getEvents: vi.fn(),
     removeByIdPrefix: vi.fn(),
     updateById: vi.fn(),
+    upsert: vi.fn(),
     sendMessage: vi.fn(),
     beginOptimisticTurn: vi.fn(),
     failOptimisticTurn: vi.fn(),
@@ -51,9 +52,10 @@ const mocks = vi.hoisted(() => {
 vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
   eventStoreProxy: {
     append: mocks.append,
-    getPersistedEvents: mocks.getPersistedEvents,
+    getEvents: mocks.getEvents,
     removeByIdPrefix: mocks.removeByIdPrefix,
     updateById: mocks.updateById,
+    upsert: mocks.upsert,
   },
 }));
 
@@ -122,9 +124,10 @@ describe("userIntentDispatch", () => {
     mocks.atomValues.clear();
     mocks.beginTurnDispatch.mockReturnValue(7);
     mocks.append.mockResolvedValue(undefined);
-    mocks.getPersistedEvents.mockResolvedValue([]);
+    mocks.getEvents.mockResolvedValue([]);
     mocks.removeByIdPrefix.mockResolvedValue(1);
     mocks.updateById.mockResolvedValue(true);
+    mocks.upsert.mockReset().mockResolvedValue(undefined);
     mocks.sendMessage.mockResolvedValue(undefined);
     mocks.createSyntheticUserEvent.mockImplementation((sessionId: string) =>
       syntheticEvent(sessionId, `user-${sessionId}`)
@@ -153,6 +156,7 @@ describe("userIntentDispatch", () => {
           deliveryStatus: options.deliveryStatus,
           deliveryError: options.deliveryError,
           queueMessageId: options.queueMessageId,
+          deliveryOwnerRetired: options.deliveryOwnerRetired,
           syntheticUserInput: true,
         },
       })
@@ -237,6 +241,46 @@ describe("userIntentDispatch", () => {
       }),
       "imported-session"
     );
+
+    // Normal pending/sent/failed projection misses do not invent a new row.
+    mocks.updateById.mockResolvedValue(false);
+    for (const status of ["pending", "sent", "failed"] as const) {
+      await expect(
+        setOptimisticQueueUserDelivery(params, status)
+      ).resolves.toBe(false);
+    }
+    expect(mocks.upsert).not.toHaveBeenCalled();
+
+    // Only a terminal accepted owner can transfer its complete retry payload
+    // to the same stable failed row after native reconciliation removed it.
+    await expect(
+      setOptimisticQueueUserDelivery(params, "failed", "terminal verdict", {
+        ownerRetired: true,
+      })
+    ).resolves.toBe(true);
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: optimisticQueueUserEventId(params.queueMessageId),
+        sessionId: params.sessionId,
+        displayText: params.visibleText,
+        displayStatus: "failed",
+        result: expect.objectContaining({
+          images: params.imageDataUrls,
+          queueMessageId: params.queueMessageId,
+          turnIntentId: params.turnIntentId,
+          deliveryStatus: "failed",
+          deliveryError: "terminal verdict",
+          deliveryOwnerRetired: true,
+        }),
+      }),
+      params.sessionId
+    );
+    mocks.upsert.mockRejectedValueOnce(new Error("durable projection failed"));
+    await expect(
+      setOptimisticQueueUserDelivery(params, "failed", "terminal verdict", {
+        ownerRetired: true,
+      })
+    ).rejects.toThrow("durable projection failed");
 
     await removeOptimisticQueueUserDelivery(params);
     expect(mocks.removeByIdPrefix).toHaveBeenCalledWith(
@@ -407,6 +451,77 @@ describe("userIntentDispatch", () => {
     expect(mocks.sendMessage).toHaveBeenCalledOnce();
     expect(mocks.logError).toHaveBeenCalledWith(
       "Failed to project sent delivery for cliagent-projection-missing",
+      expect.objectContaining({
+        message: expect.stringContaining("optimistic user event"),
+      })
+    );
+  });
+
+  it("accepts an authoritative user replacement for the same sent turn", async () => {
+    mocks.updateById.mockResolvedValueOnce(false);
+    mocks.getEvents.mockResolvedValueOnce([
+      {
+        ...syntheticEvent("agent-authoritative", "authoritative-user"),
+        result: {
+          backendPersisted: true,
+          turnIntentId: "intent-authoritative",
+        },
+      },
+    ]);
+
+    await expect(
+      dispatchUserIntent({
+        sessionId: "agent-authoritative",
+        visibleText: "hello",
+        send: {
+          content: "hello",
+          turnIntentId: "intent-authoritative",
+          turnIntentSource: "user_submit",
+          directUserIntent: true,
+        },
+      })
+    ).resolves.toMatchObject({
+      userEvent: {
+        result: expect.objectContaining({ deliveryStatus: "sent" }),
+      },
+    });
+
+    expect(mocks.sendMessage).toHaveBeenCalledOnce();
+    expect(mocks.getEvents).toHaveBeenCalledWith("agent-authoritative");
+    expect(mocks.logError).not.toHaveBeenCalled();
+  });
+
+  it("does not use an authoritative sent row to hide a failed projection", async () => {
+    const transportError = new Error("send failed once");
+    mocks.sendMessage.mockRejectedValueOnce(transportError);
+    mocks.updateById.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    mocks.getEvents.mockResolvedValueOnce([
+      {
+        ...syntheticEvent("agent-failed", "authoritative-user"),
+        result: {
+          backendPersisted: true,
+          turnIntentId: "intent-failed-authoritative",
+        },
+      },
+    ]);
+
+    await expect(
+      dispatchUserIntent({
+        sessionId: "agent-failed",
+        visibleText: "hello",
+        send: {
+          content: "hello",
+          turnIntentId: "intent-failed-authoritative",
+          turnIntentSource: "user_submit",
+          directUserIntent: true,
+        },
+      })
+    ).rejects.toThrow("send failed once");
+
+    expect(mocks.sendMessage).toHaveBeenCalledOnce();
+    expect(mocks.getEvents).not.toHaveBeenCalled();
+    expect(mocks.logError).toHaveBeenCalledWith(
+      "Failed to project failed delivery for agent-failed",
       expect.objectContaining({
         message: expect.stringContaining("optimistic user event"),
       })

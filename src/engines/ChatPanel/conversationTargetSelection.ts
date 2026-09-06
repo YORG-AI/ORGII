@@ -24,6 +24,8 @@ import { SESSION_TARGET_KIND } from "@src/store/session/creatorStateAtom";
 
 export interface ConversationTargetBinding {
   root: ConversationRootLocator;
+  /** Session whose current native binding the Open-in-App action should use. */
+  appOpenSessionId: string | null;
   cloudTarget: SessionCommentTarget | null;
   selection: LastModelSelection | null;
   runtimeSelection: AgentSelection | null;

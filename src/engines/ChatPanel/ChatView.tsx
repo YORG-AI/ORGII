@@ -70,6 +70,7 @@ import {
   shouldShowMainChatComposer,
 } from "./chatViewComposerVisibility";
 import { resolveInitialFileChanges } from "./chatViewFileChanges";
+import type { ConversationTargetBinding } from "./conversationTargetSelection";
 import { useConversationSubmitRouter } from "./hooks/conversationSubmit/useConversationSubmitRouter";
 import { useBrowserAddToConversationAction } from "./hooks/useBrowserAddToConversationAction";
 import { useChatViewAgentOrgSurface } from "./hooks/useChatViewAgentOrgSurface";
@@ -89,9 +90,17 @@ import {
 
 export type { ChatViewProps } from "./ChatViewTypes";
 
-const ChatView: React.FC<ChatViewProps> = memo(
+type ResolvedChatViewProps = Omit<
+  ChatViewProps,
+  "conversationTargetBinding"
+> & {
+  conversationTargetBinding: ConversationTargetBinding | null;
+};
+
+const ResolvedChatView: React.FC<ResolvedChatViewProps> = memo(
   ({
     sessionId,
+    conversationTargetBinding,
     displayMode = "full",
     turnPaginationEnabled = true,
     position = "right",
@@ -121,7 +130,6 @@ const ChatView: React.FC<ChatViewProps> = memo(
     useTodoSync(isReadOnlySurface ? undefined : sessionId);
     useFileReviewSync(sessionId, !isReadOnlySurface && !secondary);
     const currentSession = useAtomValue(sessionByIdAtom(sessionId));
-    const conversationTargetBinding = useConversationTargetBinding(sessionId);
     const hydratedSessionIdsRef = useRef(new Set<string>());
     useEffect(() => {
       if (
@@ -599,6 +607,36 @@ const ChatView: React.FC<ChatViewProps> = memo(
       </ChatSessionContext.Provider>
     );
   }
+);
+
+ResolvedChatView.displayName = "ResolvedChatView";
+
+const ChatViewWithLoadedBinding: React.FC<
+  Omit<ChatViewProps, "conversationTargetBinding">
+> = memo((props) => {
+  const conversationTargetBinding = useConversationTargetBinding(
+    props.sessionId
+  );
+  return (
+    <ResolvedChatView
+      {...props}
+      conversationTargetBinding={conversationTargetBinding}
+    />
+  );
+});
+
+ChatViewWithLoadedBinding.displayName = "ChatViewWithLoadedBinding";
+
+const ChatView: React.FC<ChatViewProps> = memo(
+  ({ conversationTargetBinding, ...props }) =>
+    conversationTargetBinding === undefined ? (
+      <ChatViewWithLoadedBinding {...props} />
+    ) : (
+      <ResolvedChatView
+        {...props}
+        conversationTargetBinding={conversationTargetBinding}
+      />
+    )
 );
 
 ChatView.displayName = "ChatView";

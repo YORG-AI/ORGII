@@ -613,7 +613,32 @@ export function useQueueDispatch(
                 // This typed verdict proves automatic recovery cannot run the
                 // provider. Retire the execution owner without synthesizing a
                 // retry of the already accepted intent; the durable provider/
-                // Cloud failure row remains the visible terminal result.
+                // Cloud failure row remains the visible terminal result. Mark
+                // that row so an explicit Retry mints a fresh intent instead
+                // of waiting for an owner that no longer exists.
+                const retiredProjection = await setOptimisticQueueUserDelivery(
+                  optimisticDeliveryProjectionParams(currentDelivery),
+                  "failed",
+                  error,
+                  { ownerRetired: true }
+                ).catch((projectionError) => {
+                  log.error(
+                    "[useQueueDispatch] could not mark retired canonical transcript row:",
+                    projectionError
+                  );
+                  return false;
+                });
+                if (!retiredProjection) {
+                  // Reconciliation may have replaced the exact optimistic id,
+                  // or persistence may be unavailable. Until the failed row
+                  // owns Retry, retain this accepted delivery and use its
+                  // existing bounded recovery wake-up; never lose both owners.
+                  const current = store
+                    .get(activeMessageDeliveriesAtom)
+                    .find((candidate) => candidate.id === currentDelivery.id);
+                  if (current) await retryActiveDelivery(current);
+                  return;
+                }
                 await removeActiveMessageDelivery(store, currentDelivery.id);
                 Message.error({ content: error.message, duration: 5000 });
                 return;

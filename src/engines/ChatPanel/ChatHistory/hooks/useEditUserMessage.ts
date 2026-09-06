@@ -181,11 +181,20 @@ export function useEditUserMessage(
             durableFailedQueueRow = findDurableFailedQueueRow();
           }
           if (queueMessageId && !durableFailedQueueRow) {
-            // queueMessageId is an ownership claim, not a hint. Falling back
-            // to a new submit here would delete the only visible root row and
-            // create a second delivery on whichever Session is currently
-            // mounted. Preserve the failed bubble until its owner is readable.
-            throw new Error("failed delivery owner is not available yet");
+            if (chatItem.event.result?.deliveryOwnerRetired !== true) {
+              // queueMessageId is an ownership claim, not a hint. Falling
+              // back to a new submit here would delete the only visible root
+              // row and create a second delivery on whichever Session is
+              // currently mounted. Preserve the failed bubble until its owner
+              // is readable.
+              throw new Error("failed delivery owner is not available yet");
+            }
+            // The dispatcher retired this owner after a terminal provider/
+            // Cloud verdict and stamped the row. The failed bubble is the only
+            // remaining owner, so retry it as a fresh intent below.
+            log.warn(
+              "[useEditUserMessage] failed delivery owner was retired; retrying as a new intent"
+            );
           }
           if (durableFailedQueueRow) {
             const retryTurnIntentId = mintTurnIntentId();

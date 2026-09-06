@@ -227,6 +227,9 @@ let childEvents: SessionEvent[] = [];
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // A blocked preparation never consumes queued one-shot transport mocks.
+  // Do not let those implementations leak into the next test's send.
+  mocks.sendMessage.mockReset();
   childEvents = [];
   mocks.invokeTauri.mockResolvedValue([]);
   mocks.create.mockResolvedValue({ sessionId: "agentsession-child" });
@@ -1613,6 +1616,54 @@ describe("local native conversation continuation", () => {
     expect(mocks.markTerminal).not.toHaveBeenCalled();
   });
 
+  it("settles an interrupted turn the provider closed before recording its prompt", async () => {
+    mocks.getTerminal.mockReturnValue({
+      generation: 3,
+      status: "cancelled",
+      at: Date.now() + 1_000,
+    });
+    mocks.cliWaitForTurnTerminal.mockResolvedValueOnce({
+      sessionId: "agentsession-child",
+      turnIntentId: "turn-cancelled-before-prompt",
+      status: "cancelled",
+      updatedAt: "2026-08-29T00:01:00.000Z",
+    });
+    // Stop reached Codex two seconds after task start: the rollout gained
+    // `task_started` and `turn_aborted` but never the user message. No user
+    // anchor can converge later, so this must not stay recovery-pending.
+    mocks.sendMessage.mockImplementationOnce(async ({ sessionId }) => {
+      const lifecycle = (id: string, actionType: string): SessionEvent =>
+        ({
+          ...event(id, "assistant", "", { sessionId }),
+          functionName: actionType,
+          uiCanonical: actionType,
+          actionType,
+          result: {},
+          displayText: actionType,
+        }) as SessionEvent;
+      childEvents = [
+        ...childEvents,
+        lifecycle("lifecycle-start", "task_start"),
+        lifecycle("lifecycle-aborted", "task_failed"),
+      ];
+    });
+
+    const result = await continueLocalConversation({
+      root,
+      title: "Interrupted before prompt flush",
+      timeline: [event("u1", "user", "original question")],
+      displayText: "start a long task",
+      target,
+      turnIntentId: "turn-cancelled-before-prompt",
+    });
+
+    expect(result).toMatchObject({
+      terminalStatus: "cancelled",
+      agentTail: [],
+    });
+    expect(mocks.markTerminal).not.toHaveBeenCalled();
+  });
+
   it("rebuilds a same-provider import from canonical events", async () => {
     const timeline = [event("u1", "user", "provider-owned history")];
     await continueLocalConversation({
@@ -1974,7 +2025,7 @@ describe("local native conversation continuation", () => {
     expect(mocks.create).not.toHaveBeenCalled();
   });
 
-  it("creates a new native episode when shared history diverged", async () => {
+  it("does not replace unique native history when shared history diverged", async () => {
     childEvents = [
       event("old", "user", "old", { sessionId: "agentsession-old" }),
     ];
@@ -1991,18 +2042,19 @@ describe("local native conversation continuation", () => {
     });
     const timeline = [event("new", "user", "teammate added context")];
 
-    await continueLocalConversation({
-      root,
-      title: "Shared",
-      timeline,
-      displayText: "continue",
-      target,
-      turnIntentId: "turn-3",
-    });
-    expect(mocks.materialize).toHaveBeenCalledWith({
-      sessionId: "agentsession-child",
-      timeline,
-    });
+    await expect(
+      continueLocalConversation({
+        root,
+        title: "Shared",
+        timeline,
+        displayText: "continue",
+        target,
+        turnIntentId: "turn-3",
+      })
+    ).rejects.toBeInstanceOf(QueuedConversationRecoveryBlockedError);
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.materialize).not.toHaveBeenCalled();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
 
   it("appends canonical role history natively before resuming one episode", async () => {
@@ -2170,6 +2222,44 @@ describe("local native conversation continuation", () => {
     expect(ready).toEqual([existingSessionId, "agentsession-child"]);
     expect(beforeDispatch).toEqual([existingSessionId, "agentsession-child"]);
   });
+
+  it.each([
+    "native=293 canonical=292 (provider transcript is longer than the canonical conversation)",
+    "native=292 canonical=293 (assistant output differs)",
+  ])(
+    "retains a failed intent instead of silently rebuilding divergent history: %s",
+    async (mismatch) => {
+      const existingSessionId = "cliagent-codex-diverged";
+      const timeline = [
+        event("u1", "user", "inspect the repository", {
+          sessionId: existingSessionId,
+        }),
+      ];
+      mockCompatibleCliEpisode(existingSessionId, "codex", timeline);
+      mocks.synchronize.mockRejectedValueOnce(
+        new Error(
+          `provider-native transcript is not a semantic prefix of the canonical conversation: ${mismatch}`
+        )
+      );
+
+      await expect(
+        continueLocalConversationAfterTimelineLoad({
+          root,
+          title: "Shared",
+          loadTimeline: async () => timeline,
+          displayText: "continue after the plane lost a row",
+          target: codexTarget,
+          turnIntentId: "turn-diverged",
+        })
+      ).rejects.toThrow("is not a semantic prefix");
+
+      expect(mocks.create).not.toHaveBeenCalled();
+      expect(mocks.materialize).not.toHaveBeenCalled();
+      expect(mocks.sendMessage).not.toHaveBeenCalled();
+      expect(mocks.removeSyntheticUserInputs).not.toHaveBeenCalled();
+      expect(mocks.failOptimistic).toHaveBeenCalled();
+    }
+  );
 
   it("does not retry a rebuilt Codex episode more than once", async () => {
     const existingSessionId = "cliagent-codex-owned-by-app";
@@ -2477,7 +2567,7 @@ describe("local native conversation continuation", () => {
     expect(mocks.materialize).not.toHaveBeenCalled();
   });
 
-  it("skips a newer matching UUID with future history and resumes the latest canonical prefix", async () => {
+  it("does not bypass unpublished native history by selecting an older UUID on Retry", async () => {
     const canonical = [
       event("u1", "user", "first question"),
       event("a1", "assistant", "first answer"),
@@ -2552,23 +2642,24 @@ describe("local native conversation continuation", () => {
       }
     );
 
-    const result = await continueLocalConversation({
-      root,
-      title: "Shared",
-      timeline: canonical,
-      displayText: "continue safely",
-      target,
-      turnIntentId: "turn-prefix-selection",
-    });
+    const retry = () =>
+      continueLocalConversation({
+        root,
+        title: "Shared",
+        timeline: canonical,
+        displayText: "continue safely",
+        target,
+        turnIntentId: "turn-prefix-selection",
+      });
 
-    expect(result).toMatchObject({ sessionId: "agentsession-prefix" });
-    expect(mocks.synchronize).toHaveBeenCalledWith({
-      sessionId: "agentsession-prefix",
-      timeline: canonical,
-    });
-    expect(mocks.sendMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: "agentsession-prefix" })
+    await expect(retry()).rejects.toBeInstanceOf(
+      QueuedConversationRecoveryBlockedError
     );
+    await expect(retry()).rejects.toBeInstanceOf(
+      QueuedConversationRecoveryBlockedError
+    );
+    expect(mocks.synchronize).not.toHaveBeenCalled();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
     expect(mocks.create).not.toHaveBeenCalled();
   });
 

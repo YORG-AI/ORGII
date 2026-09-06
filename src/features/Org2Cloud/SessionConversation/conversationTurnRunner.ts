@@ -27,6 +27,23 @@ import { isRetryableCloudRequestError } from "../org2CloudFetchRetry";
 
 const log = createLogger("ConversationTurnRunner");
 
+/**
+ * Provider-positional ids (`codex-asst-97`) restart in every native rollout
+ * of one execution child. The Cloud plane keys events by id, so a later
+ * turn's row could be shadowed by an earlier turn's row that happened to
+ * share the position. Scope every published tail row to its durable turn.
+ */
+export function turnScopedTailEvent(
+  event: SessionEvent,
+  turnIntentId: string
+): SessionEvent {
+  if (event.id.startsWith("convturn-") || event.id.startsWith("convchunk-")) {
+    return event;
+  }
+  const id = `convturn-${turnIntentId}-${event.id}`;
+  return { ...event, id, chunk_id: id };
+}
+
 export function buildPushedUserEvent(
   displayText: string,
   agentContent: string | undefined,
@@ -260,7 +277,11 @@ export async function runConversationTurn(
         ]
       : result.agentTail;
   const agentTail = (
-    await Promise.all(terminalTail.map(conversationEventsForPush))
+    await Promise.all(
+      terminalTail
+        .map((event) => turnScopedTailEvent(event, turnIntentId))
+        .map(conversationEventsForPush)
+    )
   ).flat();
   if (agentTail.length > 0) {
     // The accepted canonical execution row remains the only crash-recovery

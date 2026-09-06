@@ -3,7 +3,7 @@
 //! This module owns validation and projections from provider/Agent history.
 //! Native store mutation and provider serialization remain in the materializer.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::Write;
 
 use core_types::activity::ActivityChunk;
@@ -383,6 +383,11 @@ pub(super) fn native_items_from_chunks(chunks: &[ActivityChunk]) -> Vec<NativeCo
 
 pub(super) fn native_items_from_agent_history(history: &[Value]) -> Vec<NativeConversationItem> {
     let mut items = Vec::new();
+    // The persisted LLM history serializes a tool result as
+    // `{"role":"tool","tool_call_id","content"}`; the tool name lives only on
+    // the assistant `tool_calls` entry that opened the pair.
+    let mut call_names: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
     for (index, message) in history.iter().enumerate() {
         let role = message
             .get("role")
@@ -415,14 +420,15 @@ pub(super) fn native_items_from_agent_history(history: &[Value]) -> Vec<NativeCo
                         .flatten()
                         .enumerate()
                     {
-                        let call_id = portable_tool_call_id(
-                            tool.get("id").and_then(Value::as_str).unwrap_or_default(),
-                        );
+                        let raw_call_id =
+                            tool.get("id").and_then(Value::as_str).unwrap_or_default();
+                        let call_id = portable_tool_call_id(raw_call_id);
                         let function = tool.get("function").unwrap_or(tool);
                         let name = function
                             .get("name")
                             .and_then(Value::as_str)
                             .unwrap_or("tool");
+                        call_names.insert(raw_call_id.to_string(), name.to_string());
                         let arguments = function
                             .get("arguments")
                             .and_then(Value::as_str)
@@ -438,20 +444,21 @@ pub(super) fn native_items_from_agent_history(history: &[Value]) -> Vec<NativeCo
                 }
             }
             "tool" => {
-                let call_id = portable_tool_call_id(
-                    message
-                        .get("tool_call_id")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default(),
-                );
+                let raw_call_id = message
+                    .get("tool_call_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let call_id = portable_tool_call_id(raw_call_id);
+                let name = message
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                    .or_else(|| call_names.get(raw_call_id).cloned())
+                    .unwrap_or_else(|| "tool".to_string());
                 items.push(NativeConversationItem::ToolResult {
                     id: format!("agent-history-{index}-result"),
                     call_id,
-                    name: message
-                        .get("name")
-                        .and_then(Value::as_str)
-                        .unwrap_or("tool")
-                        .to_string(),
+                    name,
                     output: message.get("content").map(json_text).unwrap_or_default(),
                     is_error: message
                         .get("is_error")
@@ -505,8 +512,7 @@ pub(super) fn native_item_semantically_equal(
         ) => {
             left_id == right_id
                 && left_name == right_name
-                && serde_json::from_str::<Value>(left_arguments).ok()
-                    == serde_json::from_str::<Value>(right_arguments).ok()
+                && tool_arguments_semantically_equal(left_arguments, right_arguments)
         }
         (
             NativeConversationItem::ToolResult {
@@ -548,10 +554,351 @@ pub(super) fn native_item_semantically_equal(
     }
 }
 
+/// Structural description used in diagnostics. Content is summarized by
+/// length only so provider transcripts never leak into error strings.
+fn native_item_shape(item: &NativeConversationItem) -> String {
+    match item {
+        NativeConversationItem::Message {
+            role, text, images, ..
+        } => format!(
+            "message:{role}:text={}:images={}",
+            text.chars().count(),
+            images.len()
+        ),
+        NativeConversationItem::ToolCall {
+            call_id,
+            name,
+            arguments,
+            ..
+        } => format!(
+            "tool_call:{name}:call={call_id}:arguments={}",
+            arguments.chars().count()
+        ),
+        NativeConversationItem::ToolResult {
+            call_id,
+            name,
+            output,
+            is_error,
+            ..
+        } => format!(
+            "tool_result:{name}:call={call_id}:output={}:is_error={is_error}",
+            output.chars().count()
+        ),
+        NativeConversationItem::ContextSummary { summary, .. } => {
+            format!("context_summary:text={}", summary.chars().count())
+        }
+    }
+}
+
+fn tool_arguments_semantically_equal(left: &str, right: &str) -> bool {
+    match (
+        serde_json::from_str::<Value>(left),
+        serde_json::from_str::<Value>(right),
+    ) {
+        (Ok(left), Ok(right)) => left == right,
+        // Provider readers should not normally produce invalid JSON, but a
+        // corrupt native row must not compare equal to a different corrupt
+        // row merely because both failed to parse.
+        (Err(_), Err(_)) => left == right,
+        _ => false,
+    }
+}
+
+#[derive(Debug)]
+struct PortableToolCallBinding {
+    native_call_id: String,
+    name: String,
+    has_result: bool,
+}
+
+#[derive(Default)]
+struct PortableToolCallBindings {
+    canonical_to_native: HashMap<String, PortableToolCallBinding>,
+    native_to_canonical: HashMap<String, String>,
+}
+
+impl PortableToolCallBindings {
+    fn bind_call(
+        &mut self,
+        native_call_id: &str,
+        canonical_call_id: &str,
+        name: &str,
+    ) -> Result<(), String> {
+        if self.canonical_to_native.contains_key(canonical_call_id) {
+            return Err("canonical tool call id is reused".to_string());
+        }
+        if self.native_to_canonical.contains_key(native_call_id) {
+            return Err("provider tool call id is reused".to_string());
+        }
+        self.native_to_canonical
+            .insert(native_call_id.to_string(), canonical_call_id.to_string());
+        self.canonical_to_native.insert(
+            canonical_call_id.to_string(),
+            PortableToolCallBinding {
+                native_call_id: native_call_id.to_string(),
+                name: name.to_string(),
+                has_result: false,
+            },
+        );
+        Ok(())
+    }
+
+    fn match_result(
+        &mut self,
+        native_call_id: &str,
+        canonical_call_id: &str,
+        name: &str,
+    ) -> Result<(), String> {
+        let binding = self
+            .canonical_to_native
+            .get_mut(canonical_call_id)
+            .ok_or_else(|| "tool result has no preceding canonical call".to_string())?;
+        if binding.native_call_id != native_call_id {
+            return Err("tool result does not match the provider call alias".to_string());
+        }
+        if binding.name != name {
+            return Err("tool result name does not match its call".to_string());
+        }
+        if binding.has_result {
+            return Err("tool call has more than one result".to_string());
+        }
+        binding.has_result = true;
+        Ok(())
+    }
+
+    fn native_call_id_for_result(
+        &mut self,
+        canonical_call_id: &str,
+        name: &str,
+    ) -> Result<String, String> {
+        let native_call_id = self
+            .canonical_to_native
+            .get(canonical_call_id)
+            .ok_or_else(|| "tool result has no preceding canonical call".to_string())?
+            .native_call_id
+            .clone();
+        self.match_result(&native_call_id, canonical_call_id, name)?;
+        Ok(native_call_id)
+    }
+}
+
+/// Compare an authoritative provider transcript with a canonical prefix while
+/// preserving provider-local tool-call aliases. If the prefix is valid, return
+/// the canonical suffix rewritten so results that cross the prefix boundary
+/// still target the provider's accepted call id.
+pub(super) fn provider_portable_append_suffix(
+    authoritative: &[NativeConversationItem],
+    complete: &[NativeConversationItem],
+) -> Result<Vec<NativeConversationItem>, String> {
+    if authoritative.len() > complete.len() {
+        let first_divergence = authoritative
+            .iter()
+            .zip(complete)
+            .position(|(native, canonical)| !native_item_semantically_equal(native, canonical))
+            .map(|index| {
+                format!(
+                    "; first divergence at item {index}: native={} canonical={}",
+                    native_item_shape(&authoritative[index]),
+                    native_item_shape(&complete[index])
+                )
+            })
+            .unwrap_or_default();
+        let extra = authoritative[complete.len()..]
+            .iter()
+            .take(4)
+            .map(native_item_shape)
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(format!(
+            "provider transcript is longer than the canonical conversation{first_divergence}; native items beyond the canonical end: [{extra}]"
+        ));
+    }
+
+    let mut bindings = PortableToolCallBindings::default();
+    for (index, (native, canonical)) in authoritative.iter().zip(complete).enumerate() {
+        let comparison = match (native, canonical) {
+            (
+                NativeConversationItem::ToolCall {
+                    call_id: native_call_id,
+                    name: native_name,
+                    arguments: native_arguments,
+                    ..
+                },
+                NativeConversationItem::ToolCall {
+                    call_id: canonical_call_id,
+                    name: canonical_name,
+                    arguments: canonical_arguments,
+                    ..
+                },
+            ) if native_name == canonical_name
+                && tool_arguments_semantically_equal(native_arguments, canonical_arguments) =>
+            {
+                bindings.bind_call(native_call_id, canonical_call_id, canonical_name)
+            }
+            (
+                NativeConversationItem::ToolResult {
+                    call_id: native_call_id,
+                    name: native_name,
+                    output: native_output,
+                    is_error: native_is_error,
+                    ..
+                },
+                NativeConversationItem::ToolResult {
+                    call_id: canonical_call_id,
+                    name: canonical_name,
+                    output: canonical_output,
+                    is_error: canonical_is_error,
+                    ..
+                },
+            ) if native_name == canonical_name
+                && native_output == canonical_output
+                && native_is_error == canonical_is_error =>
+            {
+                bindings.match_result(native_call_id, canonical_call_id, canonical_name)
+            }
+            _ if native_item_semantically_equal(native, canonical) => Ok(()),
+            _ => Err(format!(
+                "item semantics differ: native={} canonical={}",
+                native_item_shape(native),
+                native_item_shape(canonical)
+            )),
+        };
+        comparison.map_err(|reason| format!("item {index}: {reason}"))?;
+    }
+
+    let mut append = Vec::with_capacity(complete.len() - authoritative.len());
+    for (index, item) in complete.iter().enumerate().skip(authoritative.len()) {
+        let mut item = item.clone();
+        match &mut item {
+            NativeConversationItem::ToolCall { call_id, name, .. } => bindings
+                .bind_call(call_id, call_id, name)
+                .map_err(|reason| format!("item {index}: {reason}"))?,
+            NativeConversationItem::ToolResult { call_id, name, .. } => {
+                *call_id = bindings
+                    .native_call_id_for_result(call_id, name)
+                    .map_err(|reason| format!("item {index}: {reason}"))?;
+            }
+            NativeConversationItem::Message { .. }
+            | NativeConversationItem::ContextSummary { .. } => {}
+        }
+        append.push(item);
+    }
+    Ok(append)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn test_tool_call(call_id: &str, name: &str, arguments: &str) -> NativeConversationItem {
+        NativeConversationItem::ToolCall {
+            id: format!("call-item-{call_id}"),
+            call_id: call_id.to_string(),
+            name: name.to_string(),
+            arguments: arguments.to_string(),
+            created_at: "2026-09-07T00:00:00Z".to_string(),
+        }
+    }
+
+    fn test_tool_result(call_id: &str, name: &str) -> NativeConversationItem {
+        NativeConversationItem::ToolResult {
+            id: format!("result-item-{call_id}"),
+            call_id: call_id.to_string(),
+            name: name.to_string(),
+            output: "result".to_string(),
+            is_error: false,
+            interrupted: false,
+            created_at: "2026-09-07T00:00:01Z".to_string(),
+        }
+    }
+
+    #[test]
+    fn provider_portable_prefix_rewrites_a_cross_boundary_result() {
+        let authoritative = vec![test_tool_call(
+            "provider_call_a",
+            "read_file",
+            r#"{"path":"README.md"}"#,
+        )];
+        let complete = vec![
+            test_tool_call("canonical_call_a", "read_file", r#"{"path":"README.md"}"#),
+            test_tool_result("canonical_call_a", "read_file"),
+        ];
+
+        let suffix = provider_portable_append_suffix(&authoritative, &complete)
+            .expect("provider aliases preserve a semantic prefix");
+        assert!(matches!(
+            suffix.as_slice(),
+            [NativeConversationItem::ToolResult { call_id, .. }]
+                if call_id == "provider_call_a"
+        ));
+    }
+
+    #[test]
+    fn provider_portable_prefix_rejects_swapped_or_reused_tool_aliases() {
+        let complete = vec![
+            test_tool_call("canonical_a", "read_file", r#"{"path":"a"}"#),
+            test_tool_call("canonical_b", "read_file", r#"{"path":"b"}"#),
+            test_tool_result("canonical_a", "read_file"),
+            test_tool_result("canonical_b", "read_file"),
+        ];
+        let swapped = vec![
+            test_tool_call("provider_a", "read_file", r#"{"path":"a"}"#),
+            test_tool_call("provider_b", "read_file", r#"{"path":"b"}"#),
+            test_tool_result("provider_b", "read_file"),
+            test_tool_result("provider_a", "read_file"),
+        ];
+        assert!(provider_portable_append_suffix(&swapped, &complete).is_err());
+
+        let reused = vec![
+            test_tool_call("provider_a", "read_file", r#"{"path":"a"}"#),
+            test_tool_call("provider_a", "read_file", r#"{"path":"b"}"#),
+        ];
+        assert!(provider_portable_append_suffix(&reused, &complete).is_err());
+
+        let collision_prefix = vec![test_tool_call(
+            "canonical_b",
+            "read_file",
+            r#"{"path":"a"}"#,
+        )];
+        let colliding_complete = vec![
+            test_tool_call("canonical_a", "read_file", r#"{"path":"a"}"#),
+            test_tool_call("canonical_b", "read_file", r#"{"path":"b"}"#),
+        ];
+        assert!(provider_portable_append_suffix(&collision_prefix, &colliding_complete).is_err());
+    }
+
+    #[test]
+    fn provider_portable_prefix_ignores_provider_unrepresentable_interrupted_refinement() {
+        let authoritative = vec![
+            test_tool_call("provider_a", "read_file", r#"{"path":"a"}"#),
+            test_tool_result("provider_a", "read_file"),
+        ];
+        let mut complete = vec![
+            test_tool_call("canonical_a", "read_file", r#"{"path":"a"}"#),
+            test_tool_result("canonical_a", "read_file"),
+        ];
+        if let NativeConversationItem::ToolResult { interrupted, .. } = &mut complete[1] {
+            *interrupted = true;
+        }
+
+        assert_eq!(
+            provider_portable_append_suffix(&authoritative, &complete)
+                .expect("interrupted is not provider-portable"),
+            Vec::<NativeConversationItem>::new()
+        );
+    }
+
+    #[test]
+    fn invalid_tool_arguments_compare_by_exact_raw_text() {
+        let left = test_tool_call("call_a", "read_file", "{invalid-left");
+        let same = test_tool_call("call_a", "read_file", "{invalid-left");
+        let different = test_tool_call("call_a", "read_file", "{invalid-right");
+
+        assert!(native_item_semantically_equal(&left, &same));
+        assert!(!native_item_semantically_equal(&left, &different));
+        assert!(provider_portable_append_suffix(&[left], &[different]).is_err());
+    }
 
     #[test]
     fn provider_tool_ids_use_the_portable_conversation_identity() {
@@ -609,6 +956,54 @@ mod tests {
             portable_tool_call_id("call_already_portable"),
             "call_already_portable"
         );
+    }
+
+    #[test]
+    fn persisted_tool_result_without_a_name_inherits_the_paired_call_name() {
+        let items = native_items_from_agent_history(&[
+            json!({
+                "role": "assistant",
+                "tool_calls": [{
+                    "id": "call_0b3a8cc5654a5208989d80ed5659c267",
+                    "type": "function",
+                    "function": {"name": "read_file", "arguments": "{\"path\":\"CLAUDE.md\"}"}
+                }]
+            }),
+            json!({
+                "role": "tool",
+                "tool_call_id": "call_0b3a8cc5654a5208989d80ed5659c267",
+                "content": "Script completed"
+            }),
+        ]);
+        let canonical = vec![
+            NativeConversationItem::ToolCall {
+                id: "canonical-call".to_string(),
+                call_id: "call_0b3a8cc5654a5208989d80ed5659c267".to_string(),
+                name: "read_file".to_string(),
+                arguments: "{\"path\":\"CLAUDE.md\"}".to_string(),
+                created_at: String::new(),
+            },
+            NativeConversationItem::ToolResult {
+                id: "canonical-result".to_string(),
+                call_id: "call_0b3a8cc5654a5208989d80ed5659c267".to_string(),
+                name: "read_file".to_string(),
+                output: "Script completed".to_string(),
+                is_error: false,
+                interrupted: false,
+                created_at: String::new(),
+            },
+        ];
+        assert!(matches!(
+            items.as_slice(),
+            [_, NativeConversationItem::ToolResult { name, .. }] if name == "read_file"
+        ));
+        assert!(items
+            .iter()
+            .zip(&canonical)
+            .all(|(left, right)| native_item_semantically_equal(left, right)));
+        assert!(provider_portable_append_suffix(&items, &canonical)
+            .expect("a persisted history must be a prefix of the conversation it was built from")
+            .is_empty());
     }
 
     #[test]

@@ -35,6 +35,7 @@ pub(super) async fn run_acp_branch(
     mut cli_session_id_out: Option<String>,
     sequence: &mut i64,
     env_vars: &HashMap<String, String>,
+    turn_intent_id: Option<&str>,
 ) -> Result<AcpOutcome, String> {
     // ── ACP agents (Copilot, Kiro, OpenCode, DeepSeek Harness):
     //    bidirectional JSON-RPC ──
@@ -119,7 +120,7 @@ pub(super) async fn run_acp_branch(
             if let Some(snap_id) = &pre_message_snapshot_id {
                 snapshot_cli_file_edit(&session_id, snap_id, &chunk, &snapshot_working_dir).await;
             }
-            emit_chunk(&chunk, &session_id, sequence).await;
+            emit_chunk(&chunk, &session_id, sequence, turn_intent_id).await;
         }
     })
     .await;

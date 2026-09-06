@@ -5,9 +5,16 @@
  */
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 
+import type { ConversationTargetBinding } from "./conversationTargetSelection";
+
 export interface ChatViewProps {
   /** Session ID to display. Sync bridges and events load for this session. */
   sessionId: string;
+  /**
+   * Resolved once by a surface that also owns session header actions. When
+   * omitted, ChatView remains self-contained and resolves the binding itself.
+   */
+  conversationTargetBinding?: ConversationTargetBinding | null;
   displayMode?: ChatHistoryDisplayMode;
   turnPaginationEnabled?: boolean;
   /** Dock side for the containing chat panel, used to place side previews inward. */

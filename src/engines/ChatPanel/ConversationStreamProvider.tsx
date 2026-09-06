@@ -26,6 +26,7 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { derivePlanDisplayEvents } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import { chatEventsForSessionAtomFamily } from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
 import { isVisibleInChat } from "@src/engines/SessionCore/ingestion/visibilityFilters";
+import { useSessionEventIngestion } from "@src/engines/SessionCore/sync/useSessionEventIngestion";
 import { useSessionCommentsContext } from "@src/features/Org2Cloud/SessionComments/SessionCommentsContext";
 import {
   assembleCanonicalConversationTimeline,
@@ -73,7 +74,6 @@ import {
 
 const EMPTY_DISCUSSION_COMMENTS = [] as const;
 const EMPTY_LOCAL_EXECUTION_SEGMENTS: readonly LocalExecutionSegment[] = [];
-const EMPTY_SESSION_EVENTS: readonly SessionEvent[] = [];
 const log = createLogger("ConversationStreamProvider");
 
 interface ConversationDeliveryScope {
@@ -314,9 +314,18 @@ export function resolveConversationRunnerBindings(
   };
 }
 
+/** The primary SessionSync surface already ingests its own live channel. */
+export function shouldIngestConversationRunnerLiveEvents(
+  runnerSessionId: string,
+  pipelineSessionId: string | null
+): boolean {
+  return runnerSessionId !== pipelineSessionId;
+}
+
 interface MemberEventsTapProps {
   bareSessionId: string;
   localSessionId: string;
+  ingestLive?: boolean;
   onEvents: (bareSessionId: string, events: SessionEvent[]) => void;
   onUnmount?: (bareSessionId: string) => void;
 }
@@ -325,9 +334,11 @@ interface MemberEventsTapProps {
 function MemberEventsTap({
   bareSessionId,
   localSessionId,
+  ingestLive = false,
   onEvents,
   onUnmount,
 }: MemberEventsTapProps): null {
+  useSessionEventIngestion(ingestLive ? localSessionId : null);
   const events = useAtomValue(chatEventsForSessionAtomFamily(localSessionId));
   React.useEffect(() => {
     onEvents(bareSessionId, events);
@@ -660,8 +671,6 @@ export function ConversationStreamProvider({
   const authoritativeLocalRootEvents = localSnapshot?.rootEvents ?? null;
   const localExecutionSegments: readonly LocalExecutionSegment[] =
     localSnapshot?.segments ?? EMPTY_LOCAL_EXECUTION_SEGMENTS;
-  const localCanonicalExecutionTimeline =
-    localSnapshot?.events ?? EMPTY_SESSION_EVENTS;
   const localTails = useMemo(() => {
     if (!localRootKey || !authoritativeLocalRootEvents) return [];
     return projectVisibleLocalExecutionTail(
@@ -684,12 +693,7 @@ export function ConversationStreamProvider({
         (candidate) => candidate.runnerSessionId === runnerSessionId
       );
       if (!runner) return;
-      const overlay = buildConversationRunnerOverlay(
-        runner,
-        events,
-        sessionId,
-        localCanonicalExecutionTimeline
-      );
+      const overlay = buildConversationRunnerOverlay(runner, events, sessionId);
       setRunnerOverlayById((previous) => {
         if (
           conversationRunnerOverlaysEqual(
@@ -709,7 +713,7 @@ export function ConversationStreamProvider({
         return next;
       });
     },
-    [activeRunnerIds, activeRunners, localCanonicalExecutionTimeline, sessionId]
+    [activeRunnerIds, activeRunners, sessionId]
   );
   const handleRunnerUnmount = useCallback((runnerSessionId: string) => {
     setRunnerOverlayById((previous) => {
@@ -793,6 +797,10 @@ export function ConversationStreamProvider({
           key={`runner-${runner.runnerSessionId}`}
           bareSessionId={runner.runnerSessionId}
           localSessionId={runner.runnerSessionId}
+          ingestLive={shouldIngestConversationRunnerLiveEvents(
+            runner.runnerSessionId,
+            pipelineSessionId
+          )}
           onEvents={handleRunnerEvents}
           onUnmount={handleRunnerUnmount}
         />

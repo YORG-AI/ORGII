@@ -1,10 +1,7 @@
-import { memo, useEffect, useMemo } from "react";
+import { memo, useMemo } from "react";
 
 import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
-import { parseRawSessionEvent } from "@src/engines/SessionCore/core/schemas";
-import "@src/engines/SessionCore/sync/adapters";
-import { getAdapterForSession } from "@src/engines/SessionCore/sync/types";
-import { useSessionChannel } from "@src/engines/SessionCore/sync/useSessionChannel";
+import { useSessionEventIngestion } from "@src/engines/SessionCore/sync/useSessionEventIngestion";
 import { isActiveStatus } from "@src/types/session/session";
 
 const PENDING_MEMBER_SESSION_PREFIX = "agent-org-member-pending:";
@@ -20,21 +17,7 @@ interface LiveSessionTapProps {
 }
 
 function LiveSessionTap({ sessionId }: LiveSessionTapProps) {
-  const handler = useMemo(() => {
-    const adapter = getAdapterForSession(sessionId);
-    if (!adapter) return null;
-    return adapter.createEventHandler(sessionId, {});
-  }, [sessionId]);
-
-  useEffect(() => {
-    return () => handler?.dispose();
-  }, [handler]);
-
-  useSessionChannel(handler ? sessionId : null, (raw) => {
-    if (!handler) return;
-    handler.handleEvent(parseRawSessionEvent(raw));
-  });
-
+  useSessionEventIngestion(sessionId);
   return null;
 }
 

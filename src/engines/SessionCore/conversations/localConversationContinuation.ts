@@ -556,15 +556,21 @@ async function findCompatibleExecution(
           events,
         };
       }
-      log.info(
-        `[native-continuation] skipping ${candidate.sessionId}: native transcript is not a canonical prefix`,
-        {
-          nativeItems: executionItems.length,
-          canonicalItems: canonicalItems.length,
-        }
+      // A compatible execution may contain unpublished partial/tool output.
+      // Selecting an older UUID (or creating a fresh one) would silently omit
+      // that output on Retry just as surely as ignoring the synchronizer's
+      // prefix error. Explicit forks have their own root; an unexplained
+      // branch inside this root requires reconciliation before another send.
+      throw new QueuedConversationRecoveryBlockedError(
+        `native history for ${candidate.sessionId} differs from the canonical conversation (native=${executionItems.length}, canonical=${canonicalItems.length}); reconcile the missing history before retrying`
       );
     } catch (error) {
-      if (error instanceof QueuedConversationRecoveryPendingError) throw error;
+      if (
+        error instanceof QueuedConversationRecoveryPendingError ||
+        error instanceof QueuedConversationRecoveryBlockedError
+      ) {
+        throw error;
+      }
       // An unknown reader failure cannot prove that this episode is absent or
       // divergent. Fail closed and retry instead of silently selecting an
       // older provider-native UUID whose relative history is unknown.
@@ -765,6 +771,17 @@ async function loadSettledTail(
   );
   if (agentTail) return { agentTail, events };
   if (preserveInterruptedSuffix) {
+    if (providerClosedTurnWithoutRecordingPrompt(before, events)) {
+      // Stop reached the provider before it persisted the prompt: the native
+      // transcript gained only the turn's closing lifecycle marker and no
+      // portable item. Nothing further will converge, so this is the same
+      // durable empty-tail boundary as a user-only interrupted turn. The
+      // accepted user row stays on the canonical timeline for the next send.
+      log.warn(
+        `[native-continuation] ${turnIntentId} was interrupted before the provider recorded its prompt; settling an empty tail`
+      );
+      return { agentTail: [], events };
+    }
     // `resolveSettledTail` returns [] (which is truthy) when the provider
     // transcript contains the accepted user anchor but no assistant/tool
     // output. `null` is materially different: the accepted turn has not yet
@@ -802,6 +819,37 @@ async function loadSettledTail(
   if (agentTail) return { agentTail, events };
   throw new Error(
     `conversation turn ${turnIntentId} is missing its native transcript anchor`
+  );
+}
+
+const TURN_CLOSING_LIFECYCLE_ACTIONS = new Set([
+  "task_completed",
+  "task_failed",
+]);
+
+/**
+ * True when the provider transcript grew past the pre-turn prefix only by a
+ * closing task lifecycle marker: the provider finalized (aborted) the turn
+ * without ever recording the prompt or any portable output. The portable item
+ * list is unchanged, so no user anchor can appear later.
+ */
+export function providerClosedTurnWithoutRecordingPrompt(
+  before: readonly SessionEvent[],
+  after: readonly SessionEvent[]
+): boolean {
+  const beforeItems = projectNativeConversationItems(before);
+  const afterItems = projectNativeConversationItems(after);
+  if (
+    afterItems.length !== beforeItems.length ||
+    !nativeConversationItemsArePrefix(beforeItems, afterItems)
+  ) {
+    return false;
+  }
+  const knownIds = new Set(before.map((event) => event.id));
+  return after.some(
+    (event) =>
+      !knownIds.has(event.id) &&
+      TURN_CLOSING_LIFECYCLE_ACTIONS.has(event.actionType)
   );
 }
 
@@ -1144,13 +1192,22 @@ async function continueLocalConversationAtQueueHead(
       );
     } catch (error) {
       if (error instanceof QueuedConversationRecoveryPendingError) throw error;
-      if (isCodexNativeEpisodeAlreadyOwned(error, effectiveParams.target)) {
+      const rebuildReason = isCodexNativeEpisodeAlreadyOwned(
+        error,
+        effectiveParams.target
+      )
+        ? "its native UUID has an active writer"
+        : null;
+      if (rebuildReason) {
         const rolloverTimeline = reloadTimelineForRollover
           ? await reloadTimelineForRollover()
           : effectiveParams.timeline;
-        // Codex App exclusively owns this native UUID. The canonical Session
-        // remains authoritative, so discard only this failed optimistic echo
-        // and rebuild a fresh Codex episode from the complete typed timeline.
+        // The native App exclusively owns this UUID, but synchronization has
+        // already verified its history against the canonical timeline.
+        // Discard only this failed optimistic echo and rebuild a fresh episode.
+        // A prefix mismatch is NOT a rollover signal: rebuilding from a shorter
+        // or divergent plane could silently omit native-only tool/output rows.
+        // That error follows the ordinary visible failed-intent path below.
         // runCreatedConversationTurn does not recurse through candidate lookup,
         // which bounds this recovery to one automatic resend of the same intent.
         await eventStoreProxy.removeSyntheticUserInputEvents(
@@ -1161,7 +1218,7 @@ async function continueLocalConversationAtQueueHead(
           }
         );
         log.info(
-          `[localConversationContinuation] rebuilding Codex episode ${compatible.sessionId} because its native UUID has an active writer`
+          `[localConversationContinuation] rebuilding episode ${compatible.sessionId} because ${rebuildReason}`
         );
         return runCreatedConversationTurn(effectiveParams, {
           loadTimeline: async () => rolloverTimeline,

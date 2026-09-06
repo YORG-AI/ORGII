@@ -173,8 +173,14 @@ export function decideCloudAutoReplay({
     return null;
   }
 
-  // The viewer's own row, with the session already writable on this device.
+  // An exact row reference to the viewer's own session can open the writable
+  // local original. A canonical-root request (Team Inbox) must keep its Cloud
+  // authority, though: the raw external-history row carries no org/root
+  // provenance, so revealing it would drop the plane and show only the stale
+  // provider transcript. Replaying through the existing deterministic cache
+  // preserves importedFrom and therefore the canonical conversation binding.
   if (
+    parsed &&
     selfUserId &&
     row.ownerUserId === selfUserId &&
     localOwnSessionIds.has(row.sourceSessionId)

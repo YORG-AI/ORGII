@@ -161,6 +161,10 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     displayTotalFlatItems: projection.displayTotalFlatItems,
     followAgentNav,
     isPendingCancelRef: emptyState.isPendingCancelRef,
+    latestGroupIsLocalSubmit: (() => {
+      const event = projection.displayGroupHeaders.at(-1)?.event;
+      return event?.source === "user" && event.displayStatus === "pending";
+    })(),
     onScrollNavChange,
     planningIndicatorCount,
     sessionLoadStatus: historyState.sessionLoadStatus,

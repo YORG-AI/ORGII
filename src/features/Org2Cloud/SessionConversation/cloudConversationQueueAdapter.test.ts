@@ -655,6 +655,62 @@ describe("dispatchQueuedCloudConversation failure classification", () => {
     expect(mocks.runConversationTurn).toHaveBeenCalledOnce();
   });
 
+  it("retries a timed-out terminal-tail publication under the same accepted turn", async () => {
+    const store = readyStore();
+    mocks.pushEvents
+      .mockResolvedValueOnce({ firstSeq: 1, lastSeq: 1 })
+      .mockRejectedValueOnce(
+        new DOMException(
+          "Cloud request timed out after 15000ms.",
+          "TimeoutError"
+        )
+      )
+      .mockResolvedValue({ firstSeq: 1, lastSeq: 2 });
+    mocks.runConversationTurn.mockImplementation(async (params) => {
+      await params.onTurnAccepted?.("runner");
+      await params.publishTail(params.turnIntentId, [ASSISTANT_TAIL_EVENT]);
+      return { runnerSessionId: "runner", terminalStatus: "completed" };
+    });
+    const onAccepted = vi.fn();
+
+    await expect(
+      dispatchQueuedCloudConversation(store, MESSAGE, ROOT, { onAccepted })
+    ).rejects.toBeInstanceOf(QueuedConversationRecoveryPendingError);
+
+    await expect(
+      dispatchQueuedCloudConversation(
+        store,
+        {
+          ...MESSAGE,
+          status: "accepted",
+          runnerSessionId: "runner",
+          runnerEventStartIndex: 42,
+        },
+        ROOT,
+        { onAccepted }
+      )
+    ).resolves.toBeUndefined();
+
+    expect(mocks.runConversationTurn).toHaveBeenCalledTimes(2);
+    expect(mocks.runConversationTurn.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({
+        turnIntentId: "turn-1",
+        recovery: {
+          runnerSessionId: "runner",
+          eventStartIndex: 42,
+          providerAccepted: true,
+        },
+      })
+    );
+    expect(mocks.pushEvents).toHaveBeenCalledTimes(4);
+    expect(mocks.pushEvents.mock.calls.map((call) => call[1]?.turnId)).toEqual([
+      "turn-1",
+      "turn-1",
+      "turn-1",
+      "turn-1",
+    ]);
+  });
+
   it("leaves an already-bound native suffix to accepted-turn recovery", async () => {
     const store = readyStore();
     mocks.runConversationTurn.mockResolvedValueOnce({

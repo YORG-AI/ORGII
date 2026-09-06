@@ -396,7 +396,15 @@ export function removeKnownNativeConversationEchoes(
   candidates: readonly SessionEvent[]
 ): SessionEvent[] {
   const knownItems = projectNativeConversationItems(knownEvents);
-  const seen = new Set(knownItems.map((item) => item.id));
+  // Only an explicit globally scoped identity proves two rows are the same
+  // message. A provider-positional id (`codex-asst-97`) is reused by every
+  // native rollout of one execution child, so its session-scoped hash can
+  // collide with a different, genuinely new row from a later rollout.
+  const seen = new Set(
+    knownEvents
+      .map(scopedNativeSourceEventIdOf)
+      .filter((id): id is string => id !== null)
+  );
   const semanticCounts = new Map<string, number>();
   let semanticPrefixOpen = true;
   for (const item of knownItems) {
@@ -406,7 +414,8 @@ export function removeKnownNativeConversationEchoes(
   return candidates.filter((event) => {
     const items = projectNativeConversationItems([event]);
     if (items.length === 0) return true;
-    const hasKnownIds = items.every((item) => seen.has(item.id));
+    const scopedId = scopedNativeSourceEventIdOf(event);
+    const hasKnownIds = scopedId !== null && seen.has(scopedId);
     const keys = items.map((item) => JSON.stringify(semanticItem(item)));
     const remaining = new Map(semanticCounts);
     const hasKnownSemantics = keys.every((key) => {
@@ -428,7 +437,7 @@ export function removeKnownNativeConversationEchoes(
         if (count > 0) semanticCounts.set(key, count - 1);
       }
     }
-    for (const item of items) seen.add(item.id);
+    if (scopedId) seen.add(scopedId);
     return !isKnown;
   });
 }
@@ -650,38 +659,53 @@ export function nativeConversationItemsArePrefix(
 
 function providerPortableSemanticItems(
   items: readonly NativeConversationItem[]
-): unknown[] {
-  const callAliases = new Map<string, number>();
-  const callAlias = (callId: string): number => {
-    const existing = callAliases.get(callId);
-    if (existing !== undefined) return existing;
-    const alias = callAliases.size;
-    callAliases.set(callId, alias);
-    return alias;
-  };
-
-  return items.map((item) => {
+): unknown[] | null {
+  const calls = new Map<
+    string,
+    { alias: number; name: string; hasResult: boolean }
+  >();
+  const semantic: unknown[] = [];
+  for (const item of items) {
     switch (item.kind) {
-      case "tool_call":
-        return [
+      case "tool_call": {
+        if (calls.has(item.callId)) return null;
+        const call = {
+          alias: calls.size,
+          name: item.name,
+          hasResult: false,
+        };
+        calls.set(item.callId, call);
+        let args: unknown;
+        try {
+          args = ["json", canonicalJson(JSON.parse(item.arguments) as unknown)];
+        } catch {
+          // Invalid provider rows compare only by their exact raw payload;
+          // two unrelated parse failures must never collapse to one value.
+          args = ["raw", item.arguments];
+        }
+        semantic.push([item.kind, call.alias, item.name, args]);
+        break;
+      }
+      case "tool_result": {
+        const call = calls.get(item.callId);
+        if (!call || call.hasResult || call.name !== item.name) return null;
+        call.hasResult = true;
+        // `interrupted` is ORG2-only refinement. Provider transcripts retain
+        // the portable error bit and output but cannot round-trip that flag.
+        semantic.push([
           item.kind,
-          callAlias(item.callId),
-          item.name,
-          canonicalJson(JSON.parse(item.arguments) as unknown),
-        ];
-      case "tool_result":
-        return [
-          item.kind,
-          callAlias(item.callId),
+          call.alias,
           item.name,
           item.output,
           item.isError,
-          item.interrupted,
-        ];
+        ]);
+        break;
+      }
       default:
-        return semanticItem(item);
+        semantic.push(semanticItem(item));
     }
-  });
+  }
+  return semantic;
 }
 
 /**
@@ -698,9 +722,20 @@ export function nativeConversationItemsAreProviderPortablePrefix(
   if (prefix.length > complete.length) return false;
   const prefixSemantic = providerPortableSemanticItems(prefix);
   const completeSemantic = providerPortableSemanticItems(complete);
+  if (!prefixSemantic || !completeSemantic) return false;
   return prefixSemantic.every(
     (item, index) =>
       JSON.stringify(item) === JSON.stringify(completeSemantic[index])
+  );
+}
+
+function nativeConversationItemsAreProviderPortableEqual(
+  left: readonly NativeConversationItem[],
+  right: readonly NativeConversationItem[]
+): boolean {
+  return (
+    left.length === right.length &&
+    nativeConversationItemsAreProviderPortablePrefix(left, right)
   );
 }
 
@@ -768,8 +803,8 @@ export async function materializeNativeConversation(params: {
  * Bring an existing execution episode up to the canonical transcript before
  * native resume. The complete structured role/tool history is written into
  * the target provider's own transcript format; no delta is rendered as a
- * user prompt. Only strict semantic-prefix growth is allowed, so a branch or
- * rewrite rolls to a new episode instead of mutating unrelated history.
+ * user prompt. Only strict semantic-prefix growth is allowed; a branch or
+ * rewrite fails visibly rather than mutating or silently omitting native history.
  */
 export async function synchronizeNativeConversation(params: {
   sessionId: string;
@@ -794,7 +829,7 @@ export async function synchronizeNativeConversation(params: {
   }
   const { events } = await loadAuthoritativeSessionEvents(params.sessionId);
   if (
-    !nativeConversationItemsEqual(
+    !nativeConversationItemsAreProviderPortableEqual(
       complete,
       projectNativeConversationItems(events)
     )

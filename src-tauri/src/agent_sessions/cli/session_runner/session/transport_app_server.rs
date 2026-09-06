@@ -49,6 +49,7 @@ pub(super) async fn run_codex_app_server_branch(
     mut codex_app_server_turn_ok: bool,
     attempt_stderr: &mut super::CliStderrCollector,
     allow_native_context_recovery: bool,
+    turn_intent_id: Option<&str>,
 ) -> Result<AppServerOutcome, String> {
     // ── Codex app-server: long-lived JSON-RPC over stdio ──
     // The resolved launch profile may explicitly select the legacy exec path.
@@ -125,7 +126,7 @@ pub(super) async fn run_codex_app_server_branch(
             if let Some(snap_id) = &pre_message_snapshot_id {
                 snapshot_cli_file_edit(&session_id, snap_id, &chunk, &snapshot_working_dir).await;
             }
-            emit_chunk(&chunk, &session_id, sequence).await;
+            emit_chunk(&chunk, &session_id, sequence, turn_intent_id).await;
         }
     })
     .await;

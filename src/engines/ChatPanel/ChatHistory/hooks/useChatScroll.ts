@@ -94,6 +94,19 @@ const MANUAL_SCROLL_AUTO_FOLLOW_SUPPRESS_MS = 450;
 const TURN_COLLAPSE_AUTO_FOLLOW_SUPPRESS_MS = 700;
 const FOLLOW_SETTLE_FRAME_COUNT = 4;
 
+/**
+ * `atBottom` is geometry, not user intent. A virtualizer remeasure or an
+ * async projection swap can temporarily move a tail-following viewport away
+ * from the bottom without any user input. Only an explicit manual scroll
+ * should suspend streaming follow in that state.
+ */
+function isTailFollowPaused(
+  atBottom: boolean,
+  manualScrollAt: number
+): boolean {
+  return !atBottom && manualScrollAt > 0;
+}
+
 export function useChatScroll({
   optimizedChatHistoryLength,
   virtuosoScrollerRef,
@@ -142,11 +155,17 @@ export function useChatScroll({
 
   const handleAtBottomStateChange = useCallback(
     (bottom: boolean) => {
+      if (bottom) {
+        // Reaching the tail explicitly re-arms follow after the user has read
+        // older content and scrolled back down.
+        // eslint-disable-next-line react-hooks/immutability -- This caller-owned ref is the scroll hooks' existing non-rendering intent channel.
+        effectiveManualScrollAtRef.current = 0;
+      }
       if (atBottomRef.current === bottom) return;
       atBottomRef.current = bottom;
       debouncedSetAtBottom(bottom);
     },
-    [debouncedSetAtBottom]
+    [debouncedSetAtBottom, effectiveManualScrollAtRef]
   );
 
   const scrollElementToBottom = useCallback(
@@ -234,7 +253,15 @@ export function useChatScroll({
         ) {
           return;
         }
-        if (!alwaysFollowTail && !atBottomRef.current) return;
+        if (
+          !alwaysFollowTail &&
+          isTailFollowPaused(
+            atBottomRef.current,
+            effectiveManualScrollAtRef.current
+          )
+        ) {
+          return;
+        }
         scheduleSettledFollow();
       });
     };
@@ -262,7 +289,15 @@ export function useChatScroll({
   useEffect(() => {
     if (!tailFollowKey) return;
     if (pinLastGroupRef.current) return;
-    if (!alwaysFollowTail && !atBottomRef.current) return;
+    if (
+      !alwaysFollowTail &&
+      isTailFollowPaused(
+        atBottomRef.current,
+        effectiveManualScrollAtRef.current
+      )
+    ) {
+      return;
+    }
     if (
       performance.now() - effectiveManualScrollAtRef.current <
       MANUAL_SCROLL_AUTO_FOLLOW_SUPPRESS_MS
