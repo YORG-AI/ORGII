@@ -54,8 +54,8 @@ describe("GitHubWorkItemsHeaderControls", () => {
       })
     );
 
-    expect(markup).toContain("gap-1");
-    expect(markup).toContain('class="flex min-w-0 items-center gap-1 flex-1"');
+    expect(markup).toContain("gap-px");
+    expect(markup).toContain('class="flex min-w-0 items-center gap-px flex-1"');
     expect(markup).toContain("w-full min-w-0");
     expect(markup).toContain("border-transparent!");
     expect(markup).toContain("hover]:bg-fill-2!");

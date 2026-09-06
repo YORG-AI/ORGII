@@ -159,7 +159,7 @@ export const TeamInboxListControls: React.FC<TeamInboxListControlsProps> = ({
 
   return (
     <div
-      className={`flex min-w-0 items-center gap-1 ${
+      className={`flex min-w-0 items-center gap-px ${
         placement === "list" || fillSearch ? "flex-1" : ""
       }`.trim()}
     >

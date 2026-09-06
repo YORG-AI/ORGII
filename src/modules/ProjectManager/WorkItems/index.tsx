@@ -610,7 +610,7 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
     () =>
       isWorkItemsSurface && state.activeTab !== "Settings" ? (
         <div
-          className={`flex min-w-0 items-center gap-1 ${
+          className={`flex min-w-0 items-center gap-px ${
             useSplitListHeader ? "flex-1" : ""
           }`.trim()}
         >

@@ -1,7 +1,6 @@
 import React, { useMemo } from "react";
 
 import Button from "@src/components/Button";
-import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import type { KanbanTask } from "@src/features/KanbanBoard";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
@@ -62,7 +61,6 @@ export function useTaskKanbanHeader({
       trailing: (
         <div className="flex min-w-0 items-center gap-px overflow-visible">
           <KanbanSearchInput />
-          <HeaderSectionSeparator className="mx-1" />
           <KanbanHeaderFilters
             tasks={tasks}
             autoArchiveTtl={autoArchiveTtl}
