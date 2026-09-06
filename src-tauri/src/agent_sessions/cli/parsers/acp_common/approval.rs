@@ -168,7 +168,7 @@ pub(super) fn extract_permission_request_info<A: AcpAgentAdapter>(
         .and_then(|tc| tc.get("kind"))
         .and_then(|v| v.as_str())
     {
-        Some(kind) => adapter.map_tool_kind(kind, &raw_input),
+        Some(kind) => adapter.map_tool_kind(kind, title, &raw_input),
         None => legacy_tool.unwrap_or("unknown_tool").to_string(),
     };
 

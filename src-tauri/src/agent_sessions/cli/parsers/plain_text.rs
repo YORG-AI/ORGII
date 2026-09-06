@@ -1,9 +1,8 @@
 //! Plain-text CLI output parser.
 //!
-//! Some non-interactive harness profiles, including Antigravity `--print` and
-//! DeepSeek Harness `--profile headless`, write only the final assistant
-//! response to stdout. Buffer it and emit one complete assistant chunk when
-//! the process exits.
+//! Some non-interactive harness profiles, including Antigravity `--print`,
+//! write only the final assistant response to stdout. Buffer it and emit one
+//! complete assistant chunk when the process exits.
 
 use core_types::activity::ActivityChunk;
 

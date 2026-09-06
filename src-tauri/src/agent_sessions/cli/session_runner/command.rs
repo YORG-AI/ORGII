@@ -178,7 +178,9 @@ pub(super) fn build_command_with_launch_profile(
             }
             cmd
         }
-        ModelType::Kiro | ModelType::OpenCode => cmd,
+        // ACP agents: the task, cwd, and resume id all travel over JSON-RPC
+        // (`session/new` / `session/prompt`), never on the argv.
+        ModelType::Kiro | ModelType::OpenCode | ModelType::DeepseekHarness => cmd,
         ModelType::Antigravity => {
             if let Some(rid) = resume_id {
                 cmd.push("--conversation".into());
@@ -221,8 +223,7 @@ pub(super) fn build_command_with_launch_profile(
         | ModelType::Omp
         | ModelType::Pi
         | ModelType::QoderCli
-        | ModelType::TraeCli
-        | ModelType::DeepseekHarness => {
+        | ModelType::TraeCli => {
             if !task.is_empty() {
                 cmd.push(task.into());
             }
@@ -395,18 +396,17 @@ fn strip_cli_date_suffix(model: &str) -> &str {
 
 /// Create the appropriate parser for a CLI agent type.
 ///
-/// Copilot uses ACP (bidirectional JSON-RPC) instead of CliAgentParser.
-/// API key providers are not CLI agents and should never reach this function.
+/// ACP agents (Copilot, Kiro, OpenCode, DeepSeek Harness) use bidirectional
+/// JSON-RPC instead of CliAgentParser. API key providers are not CLI agents
+/// and should never reach this function.
 pub(super) fn create_parser(agent: &ModelType, session_id: &str) -> Box<dyn CliAgentParser> {
     match agent {
         ModelType::CursorCli => Box::new(CursorParser::new(session_id)),
         ModelType::ClaudeCode => Box::new(ClaudeCodeParser::new(session_id)),
         ModelType::Codex => Box::new(CodexParser::new(session_id)),
-        ModelType::Antigravity | ModelType::DeepseekHarness => {
-            Box::new(PlainTextParser::new(session_id))
-        }
+        ModelType::Antigravity => Box::new(PlainTextParser::new(session_id)),
         other => panic!(
-            "ModelType::{:?} does not use CliAgentParser (Copilot/Kiro/OpenCode use ACP; API providers are not CLI agents)",
+            "ModelType::{:?} does not use CliAgentParser (Copilot/Kiro/OpenCode/DeepseekHarness use ACP; API providers are not CLI agents)",
             other
         ),
     }

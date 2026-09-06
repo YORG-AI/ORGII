@@ -823,7 +823,7 @@ pub(crate) fn cli_agent_registry() -> Vec<CliAgentEntry> {
                     true,
                 ),
             ],
-            // The official headless profile auto-initializes; a DeepSeek API
+            // The official ACP profile auto-initializes; a DeepSeek API
             // key is sufficient for GUI use. Optional TUI profiles remain an
             // explicit plugin setup outside the credential wizard.
             is_complex_setup: false,
@@ -832,7 +832,8 @@ pub(crate) fn cli_agent_registry() -> Vec<CliAgentEntry> {
             icon_provider: "deepseek",
             paired_api_provider: Some("deepseek_api"),
             supports_rust_agents: false,
-            acp_support: AcpSupport::Unavailable,
+            // `dsh --profile acp` ships a standard ACP v1 stdio server.
+            acp_support: AcpSupport::Native,
             supports_gui: true,
         },
     ]
@@ -887,7 +888,7 @@ mod tests {
     }
 
     #[test]
-    fn deepseek_harness_supports_headless_gui_launches() {
+    fn deepseek_harness_supports_acp_gui_launches() {
         let agents = cli_agent_registry();
         let harness = agents
             .iter()
@@ -897,7 +898,7 @@ mod tests {
         assert_eq!(harness.binary, "dsh");
         assert!(harness.supports_gui);
         assert!(!harness.is_complex_setup);
-        assert!(matches!(harness.acp_support, AcpSupport::Unavailable));
+        assert!(matches!(harness.acp_support, AcpSupport::Native));
         assert_eq!(harness.compatible_api_providers, &["deepseek_api"]);
         assert_eq!(harness.paired_api_provider, Some("deepseek_api"));
         assert_eq!(

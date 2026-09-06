@@ -197,7 +197,7 @@ impl<A: AcpAgentAdapter> AcpNotificationParser<A> {
             .cloned()
             .unwrap_or(Value::Object(Default::default()));
 
-        let mut cursor_name = self.adapter.map_tool_kind(kind, &raw_input);
+        let mut cursor_name = self.adapter.map_tool_kind(kind, &title, &raw_input);
 
         if kind == "think" && raw_input.get("todos").is_some() {
             cursor_name = "UpdateTodos".to_string();
@@ -237,6 +237,8 @@ impl<A: AcpAgentAdapter> AcpNotificationParser<A> {
                     .get("old_string")
                     .or(raw_input.get("oldString"))
                     .or(raw_input.get("oldStr"))
+                    // DSH `str_replace_editor`
+                    .or(raw_input.get("old_str"))
                     .or(raw_input.get("old_text"))
                     .or(raw_input.get("oldText"))
                     .and_then(|v| v.as_str())
@@ -294,6 +296,8 @@ impl<A: AcpAgentAdapter> AcpNotificationParser<A> {
                     .get("pattern")
                     .or(raw_input.get("glob_pattern"))
                     .or(raw_input.get("globPattern"))
+                    // DSH `glob`
+                    .or(raw_input.get("glob"))
                     .or(raw_input.get("query"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("");

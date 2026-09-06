@@ -288,13 +288,12 @@ fn build_antigravity_print_command() {
 }
 
 #[test]
-fn build_deepseek_harness_headless_command() {
+fn build_deepseek_harness_acp_command_keeps_the_task_off_the_argv() {
+    // The ACP transport delivers the task through `session/prompt`; a task
+    // argument here would boot the ACP app with an unexpected positional.
     let cmd = build_command!(ModelType::DeepseekHarness, task = "inspect the repository",);
 
-    assert_eq!(
-        cmd,
-        vec!["dsh", "--profile", "headless", "inspect the repository"]
-    );
+    assert_eq!(cmd, vec!["dsh", "--profile", "acp"]);
 }
 
 #[test]

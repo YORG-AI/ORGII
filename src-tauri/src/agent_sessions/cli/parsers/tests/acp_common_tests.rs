@@ -255,38 +255,38 @@ impl AcpAgentAdapter for TestAdapter {}
 #[test]
 fn map_tool_kind_execute() {
     let adapter = TestAdapter;
-    assert_eq!(adapter.map_tool_kind("execute", &json!({})), "Shell");
+    assert_eq!(adapter.map_tool_kind("execute", "", &json!({})), "Shell");
 }
 
 #[test]
 fn map_tool_kind_read() {
     let adapter = TestAdapter;
-    assert_eq!(adapter.map_tool_kind("read", &json!({})), "Read");
+    assert_eq!(adapter.map_tool_kind("read", "", &json!({})), "Read");
 }
 
 #[test]
 fn map_tool_kind_write() {
     let adapter = TestAdapter;
-    assert_eq!(adapter.map_tool_kind("write", &json!({})), "Edit");
+    assert_eq!(adapter.map_tool_kind("write", "", &json!({})), "Edit");
 }
 
 #[test]
 fn map_tool_kind_edit() {
     let adapter = TestAdapter;
-    assert_eq!(adapter.map_tool_kind("edit", &json!({})), "Edit");
+    assert_eq!(adapter.map_tool_kind("edit", "", &json!({})), "Edit");
 }
 
 #[test]
 fn map_tool_kind_search() {
     let adapter = TestAdapter;
-    assert_eq!(adapter.map_tool_kind("search", &json!({})), "Grep");
+    assert_eq!(adapter.map_tool_kind("search", "", &json!({})), "Grep");
 }
 
 #[test]
 fn map_tool_kind_unknown_passthrough() {
     let adapter = TestAdapter;
     assert_eq!(
-        adapter.map_tool_kind("custom_thing", &json!({})),
+        adapter.map_tool_kind("custom_thing", "", &json!({})),
         "custom_thing"
     );
 }
