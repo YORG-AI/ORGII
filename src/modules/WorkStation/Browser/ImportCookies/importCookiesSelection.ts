@@ -29,6 +29,18 @@ export function initialSelectedDomains(
   );
 }
 
+/** Filter preview rows by domain, ignoring case and surrounding whitespace. */
+export function filterSitesByDomain(
+  sites: readonly CookieSiteGroup[],
+  query: string
+): readonly CookieSiteGroup[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return sites;
+  return sites.filter((site) =>
+    site.domain.toLowerCase().includes(normalizedQuery)
+  );
+}
+
 /** Toggle one domain, returning a new set (never mutates the input). */
 export function toggleDomain(
   selected: ReadonlySet<string>,

@@ -98,6 +98,10 @@ interface ModalProps {
   };
   /** Custom close icon */
   closeIcon?: React.ReactNode;
+  /** Optional back action rendered at the left edge of the header, before the title. */
+  onBack?: () => void;
+  /** Accessible label and tooltip for the optional back action. */
+  backLabel?: string;
   /** Additional icon-only actions displayed before the close button. */
   headerActions?: React.ReactNode;
   /** Additional className for the modal container */
@@ -142,6 +146,8 @@ const Modal: React.FC<ModalProps> = ({
   okButtonProps,
   cancelButtonProps,
   closeIcon,
+  onBack,
+  backLabel,
   headerActions,
   className = "",
   bodyClassName = "p-3",
@@ -408,6 +414,8 @@ const Modal: React.FC<ModalProps> = ({
           {title && (
             <PanelHeader
               title={typeof title === "string" ? title : undefined}
+              onBack={onBack}
+              backLabel={backLabel}
               actions={
                 headerActions || closable ? (
                   <div className="flex items-center gap-1">

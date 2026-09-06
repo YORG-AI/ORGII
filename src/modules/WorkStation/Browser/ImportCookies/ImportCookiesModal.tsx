@@ -12,7 +12,7 @@
  * summary in its `left` slot and Cancel / "Import N sites" on the right; the
  * summary uses Modal's own `onOk` / `okText` for a lone "Done".
  */
-import React, { memo } from "react";
+import React, { memo, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -20,12 +20,19 @@ import type {
   CookieSiteCategory,
   CookieSiteGroup,
 } from "@src/api/tauri/browserCookies";
+import ArcBrowserIcon from "@src/assets/browserIcons/arc.svg?url";
+import BraveBrowserIcon from "@src/assets/browserIcons/brave.svg?url";
+import ChromeBrowserIcon from "@src/assets/browserIcons/chrome.svg?url";
+import ChromiumBrowserIcon from "@src/assets/browserIcons/chromium.svg?url";
+import EdgeBrowserIcon from "@src/assets/browserIcons/edge.svg?url";
+import FirefoxBrowserIcon from "@src/assets/browserIcons/firefox.svg?url";
+import SafariBrowserIcon from "@src/assets/browserIcons/safari.svg?url";
+import VivaldiBrowserIcon from "@src/assets/browserIcons/vivaldi.svg?url";
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
-import { IconButton } from "@src/components/IconButton";
 import { InlineBanner } from "@src/components/InlineBanner";
+import SearchInput from "@src/components/SearchInput";
 import {
-  ArrowLeft01Icon,
   ArrowRight01Icon,
   CheckmarkCircle01Icon,
   HugeiconsIcon,
@@ -40,7 +47,11 @@ import {
 import PanelFooter from "@src/modules/shared/layouts/blocks/PanelFooter";
 import Modal from "@src/scaffold/ModalSystem";
 
-import { selectAllState, selectedCookieCount } from "./importCookiesSelection";
+import {
+  filterSitesByDomain,
+  selectAllState,
+  selectedCookieCount,
+} from "./importCookiesSelection";
 import {
   type ImportCookiesController,
   useImportCookiesController,
@@ -70,6 +81,19 @@ const CAUTION_BADGE: Record<
   sso: { icon: Key01Icon, labelKey: "browserCookieImport.category.sso" },
 };
 
+const BROWSER_ICONS: Record<string, string> = {
+  arc: ArcBrowserIcon,
+  brave: BraveBrowserIcon,
+  chrome: ChromeBrowserIcon,
+  chromium: ChromiumBrowserIcon,
+  edge: EdgeBrowserIcon,
+  firefox: FirefoxBrowserIcon,
+  safari: SafariBrowserIcon,
+  vivaldi: VivaldiBrowserIcon,
+};
+
+const EMPTY_SITE_GROUPS: readonly CookieSiteGroup[] = [];
+
 function Spinner() {
   return (
     <HugeiconsIcon
@@ -92,18 +116,31 @@ const SourceRow = memo<{
   const subtitle = blocked
     ? t("browserCookieImport.safari.needsFullDiskAccess")
     : source.profileLabel;
+  const browserIcon = BROWSER_ICONS[source.browserId];
   return (
     <button
       type="button"
       onClick={() => onSelect(source.id)}
       className="flex w-full items-center gap-3 rounded-lg border border-border-1 bg-fill-1 px-3 py-2.5 text-left transition-colors hover:bg-fill-2"
     >
-      <HugeiconsIcon
-        icon={InternetIcon}
-        size={18}
-        className="shrink-0 text-text-2"
-        aria-hidden
-      />
+      {browserIcon ? (
+        <img
+          src={browserIcon}
+          width={18}
+          height={18}
+          className="size-[18px] shrink-0"
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+        />
+      ) : (
+        <HugeiconsIcon
+          icon={InternetIcon}
+          size={18}
+          className="shrink-0 text-text-2"
+          aria-hidden
+        />
+      )}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm text-text-1">
           {source.browserLabel}
@@ -238,7 +275,12 @@ function PreviewStage({
   controller: ImportCookiesController;
   t: Translate;
 }) {
-  const sites = controller.preview?.sites ?? [];
+  const sites = controller.preview?.sites ?? EMPTY_SITE_GROUPS;
+  const [searchQuery, setSearchQuery] = useState("");
+  const filteredSites = useMemo(
+    () => filterSitesByDomain(sites, searchQuery),
+    [sites, searchQuery]
+  );
 
   if (controller.previewLoading) {
     return (
@@ -270,20 +312,33 @@ function PreviewStage({
         <InlineBanner tone="warning">{controller.preview.warning}</InlineBanner>
       ) : null}
 
-      <div className="max-h-[320px] overflow-y-auto pr-1">
-        {sites.map((site) => (
-          <SiteRow
-            key={site.domain}
-            site={site}
-            checked={controller.selectedDomains.has(site.domain)}
-            onToggle={controller.toggleDomain}
-          />
-        ))}
-      </div>
+      <SearchInput
+        variant="sidebar"
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder={t("actions.search")}
+        ariaLabel={t("actions.search")}
+        showClearButton
+        hideChevron
+        className="w-full"
+      />
 
-      <p className="px-2 pt-1 text-[11px] text-text-4">
-        {t("browserCookieImport.cautionNote")}
-      </p>
+      <div className="max-h-[320px] overflow-y-auto pr-1">
+        {filteredSites.length > 0 ? (
+          filteredSites.map((site) => (
+            <SiteRow
+              key={site.domain}
+              site={site}
+              checked={controller.selectedDomains.has(site.domain)}
+              onToggle={controller.toggleDomain}
+            />
+          ))
+        ) : (
+          <div className="py-6 text-center text-sm text-text-3">
+            {t("actions.noResults", { defaultValue: "No matching sites" })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -385,16 +440,8 @@ export const ImportCookiesModal: React.FC<ImportCookiesModalProps> = ({
   const controller = useImportCookiesController(onImported);
   const { stage, importing } = controller;
 
-  const backAction =
-    stage === "preview" && !importing ? (
-      <IconButton
-        onClick={controller.backToSources}
-        aria-label={t("actions.back")}
-        title={t("actions.back")}
-      >
-        <HugeiconsIcon icon={ArrowLeft01Icon} size={16} aria-hidden />
-      </IconButton>
-    ) : undefined;
+  const onBack =
+    stage === "preview" && !importing ? controller.backToSources : undefined;
 
   // Summary stage: Modal's own footer with a lone "Done" (empty cancelText
   // hides the secondary button). Other stages leave these unset.
@@ -407,9 +454,10 @@ export const ImportCookiesModal: React.FC<ImportCookiesModalProps> = ({
     <Modal
       visible
       onClose={onClose}
+      onBack={onBack}
+      backLabel={t("actions.back")}
       title={t("browserCookieImport.title")}
       width={520}
-      headerActions={backAction}
       maskClosable={!importing}
       escToExit={!importing}
       footer={

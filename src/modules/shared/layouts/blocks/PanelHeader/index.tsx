@@ -205,6 +205,8 @@ export interface PanelHeaderProps {
 
   /** Back button click handler - shows back arrow when provided */
   onBack?: () => void;
+  /** Accessible label and tooltip for the back button. */
+  backLabel?: string;
 
   /** Breadcrumb navigation (used with onBack) */
   breadcrumb?: PanelHeaderBreadcrumb;
@@ -271,6 +273,7 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
     iconElement,
     subtitle,
     onBack,
+    backLabel,
     breadcrumb,
     actions,
     onSearch,
@@ -401,7 +404,8 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
               />
             }
             onClick={onBack}
-            title="Back"
+            title={backLabel ?? "Back"}
+            aria-label={backLabel ?? "Back"}
           />
         )}
 

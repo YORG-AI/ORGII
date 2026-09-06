@@ -179,4 +179,39 @@ describe("Modal opening focus", () => {
       refresh.compareDocumentPosition(close) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
   });
+
+  it("places the reusable back action before the title", () => {
+    const onBack = vi.fn();
+    act(() => {
+      root.render(
+        createElement(
+          Modal,
+          { visible: true, title: "Cookie", onBack, backLabel: "Return" },
+          createElement("div", null, "Body")
+        )
+      );
+    });
+
+    const back = document.querySelector<HTMLButtonElement>(
+      'button[title="Return"]'
+    );
+    const title = document.querySelector(".liquid-modal-content .truncate");
+    const close = document.querySelector('button[title="Close"]');
+    if (!back || !title || !close) {
+      throw new Error("Expected the back button, title, and close button");
+    }
+
+    expect(
+      back.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      title.compareDocumentPosition(close) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    back.click();
+    expect(onBack).toHaveBeenCalledOnce();
+    expect(back.getAttribute("aria-label")).toBe("Return");
+
+    const icon = back.querySelector('[data-icon="arrow-left"]');
+    expect(icon).not.toBeNull();
+  });
 });

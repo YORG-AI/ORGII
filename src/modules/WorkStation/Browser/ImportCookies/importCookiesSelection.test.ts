@@ -6,6 +6,7 @@ import type {
 } from "@src/api/tauri/browserCookies";
 
 import {
+  filterSitesByDomain,
   initialSelectedDomains,
   selectAllState,
   selectedCookieCount,
@@ -39,6 +40,15 @@ const preview: CookieImportPreview = {
     site({ domain: "news.com", cookieCount: 10, defaultSelected: true }),
   ],
 };
+
+describe("filterSitesByDomain", () => {
+  it("filters domains case-insensitively and ignores surrounding whitespace", () => {
+    expect(filterSitesByDomain(preview.sites, "  GITHUB  ")).toEqual([
+      preview.sites[0],
+    ]);
+    expect(filterSitesByDomain(preview.sites, "")).toBe(preview.sites);
+  });
+});
 
 describe("initialSelectedDomains", () => {
   it("checks only the default-selected sites (money/mail/SSO excluded)", () => {
