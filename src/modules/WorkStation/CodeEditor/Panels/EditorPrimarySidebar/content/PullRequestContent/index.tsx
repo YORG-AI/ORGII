@@ -42,6 +42,10 @@ import { ReferenceDragGhost } from "@src/shared/dnd/ReferenceDragGhost";
 import { setPrDragStash } from "@src/shared/dnd/dragSideChannel";
 import { useReferencePillDrag } from "@src/shared/dnd/useReferencePillDrag";
 import {
+  getPrStatusIconName,
+  getPrStatusVariant,
+} from "@src/shared/pr/prStatus";
+import {
   workstationAllClosedPrsAtomFamily,
   workstationAllOpenPrsAtomFamily,
   workstationClosedPrsErrorAtomFamily,
@@ -56,7 +60,6 @@ import { retainWorkstationRepoScope } from "@src/store/workstation/codeEditor/wo
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 
 import { filterPullRequestsByQuery } from "../../hooks/workstationPrHelpers";
-import { getPrStatusIconName, getPrStatusVariant } from "./prCardHelpers";
 
 interface PullRequestContentProps {
   branchName?: string;

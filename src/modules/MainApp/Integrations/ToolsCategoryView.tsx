@@ -19,7 +19,7 @@ import { integrationsToolbarAtom } from "@src/store/ui/integrationsToolbarAtom";
 import { BuiltInToolsTable } from "./BuiltInTools/Table/BuiltInToolsTable";
 import { useAgentToolMatrix } from "./BuiltInTools/useAgentToolMatrix";
 import { useBuiltInTools } from "./BuiltInTools/useBuiltInTools";
-import { ToolEventPreview } from "./DevTools/ToolEventPreview";
+import { ToolEventPreview } from "./DevTools/playground/ToolEventPreview";
 
 const ToolsCategoryView: React.FC = () => {
   const { t } = useTranslation("integrations");
