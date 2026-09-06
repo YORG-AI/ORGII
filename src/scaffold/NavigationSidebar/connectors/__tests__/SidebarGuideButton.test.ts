@@ -121,6 +121,11 @@ describe("SidebarGuideButton", () => {
       document.querySelector('[data-testid="sidebar-guide-trigger"]')
     ).not.toBeNull();
     expect(
+      document.querySelector<HTMLElement>(
+        '[data-testid="sidebar-guide-trigger"]'
+      )?.className
+    ).toContain("rounded-lg!");
+    expect(
       document.querySelector(
         '[data-testid="sidebar-guide-trigger"] [data-icon="rocket"]'
       )

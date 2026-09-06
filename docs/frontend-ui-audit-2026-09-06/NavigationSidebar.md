@@ -1,0 +1,15 @@
+# NavigationSidebar UI audit
+
+| Line                                    | Element                     | Verdict          | Reason                                                                                                                                                      | Suggested change |
+| --------------------------------------- | --------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `SettingsSidebar.tsx:64`                | Settings footer back button | keep with reason | Reuses the shared `Button` primitive, whose default square shape supplies the same 8px radius as sidebar rows.                                              | None.            |
+| `SettingsSidebar.tsx:412`               | Settings navigation search  | keep with reason | Reuses `SettingsSearchDropdown`; the dedicated Settings search remains available while the duplicate title-bar Spotlight action is omitted on this sidebar. | None.            |
+| `SettingsSidebar.tsx:421`               | Settings navigation list    | keep with reason | Reuses `SidebarList` and `NavigationMenu`, preserving the established sidebar row geometry and selection treatment.                                         | None.            |
+| `SessionFilterButton.tsx:298`           | Session filter trigger      | keep with reason | Reuses `IconButton` and explicitly adopts `rounded-lg` to match sidebar rows instead of rendering as a circle.                                              | None.            |
+| `SidebarGuideButton.tsx:194`            | Guide trigger               | keep with reason | Reuses `IconButton` with the same `rounded-lg` footer-control shape.                                                                                        | None.            |
+| `SidebarGuideButton.tsx:81`             | Next-step badge             | keep with reason | The pill radius communicates a compact status label, not a clickable sidebar control.                                                                       | None.            |
+| `SidebarSettingsMenuButton.tsx:293`     | Settings menu trigger       | keep with reason | Reuses the shared `Button` primitive and its default 8px square shape; dropdown actions continue to use shared dropdown tokens.                             | None.            |
+| `SidebarRamMonitorButton/index.tsx:336` | RAM monitor trigger         | keep with reason | Reuses the shared `Button` primitive and its default 8px square shape.                                                                                      | None.            |
+| `SidebarUpdateButton.tsx:36`            | Update trigger              | keep with reason | Reuses the shared `Button` primitive with the standard square shape while retaining its primary semantic treatment.                                         | None.            |
+
+Verdict totals: **0 fix**, **9 keep with reason**, **0 abstract**.

@@ -153,6 +153,14 @@ describe("SidebarSettingsMenuButton", () => {
     expect(adeManagerButton).toBeUndefined();
   });
 
+  it("uses the standard square button radius for its footer trigger", () => {
+    const trigger = document.querySelector<HTMLButtonElement>(
+      '[aria-label="sidebar.bottomBar.settings"]'
+    );
+
+    expect(trigger?.style.borderRadius).toBe("8px");
+  });
+
   it("does not expose the retired setup walkthrough", () => {
     const setupButton = Array.from(
       document.body.querySelectorAll("button")

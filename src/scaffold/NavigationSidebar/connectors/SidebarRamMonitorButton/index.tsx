@@ -3,6 +3,7 @@ import React, { useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import Button from "@src/components/Button";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_PANEL,
@@ -332,24 +333,29 @@ export const SidebarRamMonitorButton: React.FC = React.memo(() => {
   return (
     <>
       <div ref={triggerRef} title={triggerTitle}>
-        <button
-          type="button"
-          className={`flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none p-0 transition-colors duration-150 ${
+        <Button
+          htmlType="button"
+          variant="tertiary"
+          size="small"
+          iconOnly
+          aria-label={triggerTitle}
+          className={`${
             isOpen
-              ? "bg-sidebar-selected"
-              : "bg-transparent hover:bg-sidebar-selected"
+              ? "bg-sidebar-selected! text-text-1!"
+              : "hover:bg-sidebar-selected!"
           }`}
           onClick={toggle}
           onMouseEnter={(event) => triggerIconAnimation(event.currentTarget)}
-        >
-          <HoverAnimatedIcon
-            icon={GaugeIcon}
-            iconName="gauge"
-            size={16}
-            strokeWidth={2}
-            className={buttonActiveClassName}
-          />
-        </button>
+          icon={
+            <HoverAnimatedIcon
+              icon={GaugeIcon}
+              iconName="gauge"
+              size={16}
+              strokeWidth={2}
+              className={buttonActiveClassName}
+            />
+          }
+        />
       </div>
       {isPositioned && (
         <SidebarRamMonitorPanel

@@ -10,6 +10,7 @@ import React, {
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import Button from "@src/components/Button";
 import {
   clampSubmenuTop,
   getSubmenuAnchor,
@@ -289,27 +290,31 @@ const SidebarSettingsMenuButton: React.FC<SidebarSettingsMenuButtonProps> = ({
           disabled={isOpen}
         >
           <div ref={triggerRef} className="inline-flex">
-            <button
-              type="button"
+            <Button
+              htmlType="button"
+              variant="tertiary"
+              size="small"
+              iconOnly
               aria-label={t("sidebar.bottomBar.settings")}
-              className={`flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none p-0 transition-colors duration-150 ${
+              className={`${
                 isOpen
-                  ? "bg-sidebar-selected"
-                  : "bg-transparent hover:bg-sidebar-selected"
+                  ? "bg-sidebar-selected! text-text-1!"
+                  : "hover:bg-sidebar-selected!"
               }`}
               onClick={handleToggle}
               onMouseEnter={(event) =>
                 triggerIconAnimation(event.currentTarget)
               }
-            >
-              <HoverAnimatedIcon
-                icon={Settings01Icon}
-                iconName="settings"
-                size={16}
-                strokeWidth={2}
-                className={settingsButtonClassName}
-              />
-            </button>
+              icon={
+                <HoverAnimatedIcon
+                  icon={Settings01Icon}
+                  iconName="settings"
+                  size={16}
+                  strokeWidth={2}
+                  className={settingsButtonClassName}
+                />
+              }
+            />
           </div>
         </ToolbarTooltip>
       )}

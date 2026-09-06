@@ -6,11 +6,12 @@
  * Agents / Teams / CLIs switcher lives inside the page, not in a drill-down
  * sidebar level.
  */
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import Button from "@src/components/Button";
 import { ROUTES } from "@src/config/routes";
 import {
   type SettingsNavigationGroup,
@@ -23,7 +24,7 @@ import { buildGlobalSettingsSearchGroups } from "@src/config/settingsSearch";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
 import { SIDEBAR_MEMORY_KIND, useSidebarMemoryEntry } from "@src/hooks/perf";
-import { ArrowLeft01Icon, Search01Icon, Settings01Icon } from "@src/icons";
+import { ArrowLeft01Icon, Settings01Icon } from "@src/icons";
 import SettingsSearchDropdown, {
   type SettingsSearchDropdownGroup,
   type SettingsSearchDropdownItem,
@@ -36,7 +37,6 @@ import {
 } from "@src/modules/shared/layouts/blocks/SettingsSearchDropdown/settingsControlSearch";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { settingsReturnPathAtom } from "@src/store/ui/settingsNavigationAtom";
-import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
 
 import SidebarBase from "../SidebarBase";
 import {
@@ -51,7 +51,6 @@ import HoverAnimatedIcon, {
 import NavigationMenu from "../components/NavigationMenu";
 import type { NavigationMenuItem } from "../components/NavigationMenu/config";
 import SidebarAccountButton from "../connectors/SidebarAccountButton";
-import { SidebarSearchShortcutTooltip } from "../connectors/WorkstationSidebarConnector/sidebarTabs";
 
 interface SettingsFooterBackButtonProps {
   label: string;
@@ -62,21 +61,25 @@ const SettingsFooterBackButton: React.FC<SettingsFooterBackButtonProps> = ({
   label,
   onClick,
 }) => (
-  <button
-    type="button"
+  <Button
+    htmlType="button"
+    variant="tertiary"
+    size="small"
+    iconOnly
     aria-label={label}
-    className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-sidebar-selected p-0 text-text-1 transition-colors duration-150 hover:bg-sidebar-selected"
+    className="bg-sidebar-selected! text-text-1! hover:bg-sidebar-selected!"
     onClick={onClick}
     onMouseEnter={(event) => triggerIconAnimation(event.currentTarget)}
-  >
-    <HoverAnimatedIcon
-      icon={Settings01Icon}
-      iconName="settings"
-      size={16}
-      strokeWidth={2}
-      className="text-text-1"
-    />
-  </button>
+    icon={
+      <HoverAnimatedIcon
+        icon={Settings01Icon}
+        iconName="settings"
+        size={16}
+        strokeWidth={2}
+        className="text-text-1"
+      />
+    }
+  />
 );
 
 const SettingsFooterAccountMenu: React.FC = () => {
@@ -109,7 +112,6 @@ const SettingsSidebar: React.FC = () => {
   const location = useLocation();
   const settingsReturnPath = useAtomValue(settingsReturnPathAtom);
   const devModeEnabled = useAtomValue(devModeEnabledAtom);
-  const setSpotlightOpen = useSetAtom(spotlightOpenAtom);
   const pendingSearchTargetRef = React.useRef<SettingsControlSearchItem | null>(
     null
   );
@@ -126,10 +128,6 @@ const SettingsSidebar: React.FC = () => {
   const handleBack = useCallback(() => {
     navigate(settingsReturnPath || ROUTES.workStation.base.path);
   }, [navigate, settingsReturnPath]);
-
-  const handleOpenSpotlight = useCallback(() => {
-    setSpotlightOpen(true);
-  }, [setSpotlightOpen]);
 
   const handleSelectNavigationItem = useCallback(
     (item: SettingsNavigationItem) => {
@@ -188,14 +186,6 @@ const SettingsSidebar: React.FC = () => {
 
   return (
     <SidebarBase
-      onAddNew={handleOpenSpotlight}
-      addIcon={Search01Icon}
-      addLabel={t("common:actions.search")}
-      addTooltipContent={
-        <SidebarSearchShortcutTooltip
-          searchLabel={t("common:actions.search")}
-        />
-      }
       hostTopBarLeadingContent={settingsReturnItem}
       macTopBarFollowingContent={
         <div className="shrink-0 px-3">{settingsReturnItem}</div>

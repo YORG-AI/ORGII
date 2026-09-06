@@ -153,7 +153,7 @@ describe("SettingsRootBody search integration", () => {
     });
   }
 
-  it("finds localized controls outside the mounted page and an MCP destination", async () => {
+  it("keeps Settings search and finds localized controls and MCP destinations", async () => {
     await search("皮肤");
     expect(
       document.body.querySelector(

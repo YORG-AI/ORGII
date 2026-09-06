@@ -113,6 +113,13 @@ describe("SessionFilterButton", () => {
     expect(queryTestId("sidebar-refresh-sessions")).not.toBeNull();
   });
 
+  it("uses the sidebar row corner radius instead of a circular trigger", () => {
+    const trigger = queryTestId("sidebar-session-filter-button");
+
+    expect(trigger?.className).toContain("rounded-lg!");
+    expect(trigger?.className).not.toContain("rounded-full");
+  });
+
   it("gives Include External a leading icon like every other action row", () => {
     const includeExternal = queryTestId("sidebar-include-external");
 

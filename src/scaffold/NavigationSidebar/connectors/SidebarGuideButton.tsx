@@ -198,7 +198,7 @@ const SidebarGuideButton: FC<SidebarGuideButtonProps> = ({
             data-testid="sidebar-guide-trigger"
             size="lg"
             variant={isOpen ? "active" : "default"}
-            className={`rounded-full ${isOpen ? "" : "text-text-2!"}`}
+            className={`rounded-lg! ${isOpen ? "" : "text-text-2!"}`}
             onClick={toggle}
           >
             <HugeiconsIcon
