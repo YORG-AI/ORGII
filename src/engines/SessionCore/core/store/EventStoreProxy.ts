@@ -56,6 +56,10 @@ export {
 const log = createLogger("EventStoreProxy");
 
 class EventStoreProxyImpl {
+  private activityRequests = new Map<
+    string,
+    Promise<Record<string, boolean>>
+  >();
   /**
    * JS-side snapshot cache, listener registry and coalescing queue. The
    * delta base-miss fallback routes back through `getSnapshot` so the fetch
@@ -333,6 +337,22 @@ class EventStoreProxyImpl {
   // =========================================================================
 
   /** Fetch the full derived snapshot from Rust. */
+  getChatActivity(sessionIds: string[]): Promise<Record<string, boolean>> {
+    const ids = [...new Set(sessionIds)].sort();
+    const key = JSON.stringify(ids);
+    const existing = this.activityRequests.get(key);
+    if (existing) return existing;
+    const request = rpc.sessionCore.eventStore.getChatActivity({
+      sessionIds: ids,
+    });
+    this.activityRequests.set(key, request);
+    void request.then(
+      () => this.activityRequests.delete(key),
+      () => this.activityRequests.delete(key)
+    );
+    return request;
+  }
+
   async getSnapshot(sessionId?: string): Promise<DerivedSnapshot> {
     const snapshot = (await rpc.sessionCore.eventStore.getSnapshot({
       sessionId: sessionId ?? null,

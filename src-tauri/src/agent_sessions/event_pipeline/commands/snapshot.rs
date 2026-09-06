@@ -78,3 +78,43 @@ pub async fn es_export_markdown(
 
     Ok(out)
 }
+
+/// Activity-only ranking probe. Never creates an EventStore or a derived snapshot.
+#[tauri::command]
+pub async fn es_get_chat_activity(
+    state: State<'_, EventStoreState>,
+    session_ids: Vec<String>,
+) -> Result<std::collections::HashMap<String, bool>, String> {
+    use crate::agent_sessions::event_pipeline::derived::is_visible_in_chat;
+    if session_ids.len() > 64 {
+        return Err("At most 64 activity probes per request".into());
+    }
+    let mut activity = std::collections::HashMap::new();
+    let mut unloaded = Vec::new();
+    for sid in session_ids {
+        if activity.contains_key(&sid) {
+            continue;
+        }
+        let has_activity = state
+            .with_store_opt(&sid, |store| store.events().iter().any(is_visible_in_chat))
+            .unwrap_or(false);
+        activity.insert(sid.clone(), has_activity);
+        if !has_activity {
+            unloaded.push(sid);
+        }
+    }
+    tokio::task::spawn_blocking(move || {
+        for sid in unloaded {
+            let found = session_persistence::any_event_matching(&sid, |cached| {
+                is_visible_in_chat(&super::event_conversion::cached_event_to_session_event(
+                    cached,
+                ))
+            })
+            .map_err(|error| error.to_string())?;
+            activity.insert(sid, found);
+        }
+        Ok(activity)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}

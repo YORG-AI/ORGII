@@ -264,6 +264,40 @@ pub fn count_events(session_id: &str) -> SqliteResult<i64> {
     )
 }
 
+/// Read one persisted event at a time, stopping at the first match. This
+/// read-only probe neither normalizes history nor retains a transcript.
+pub fn any_event_matching(
+    session_id: &str,
+    mut matches: impl FnMut(&CachedEvent) -> bool,
+) -> SqliteResult<bool> {
+    let conn = get_connection()?;
+    let mut stmt = conn.prepare_cached(
+        "SELECT id, session_id, event_type, function_name, thread_id,
+                args_json, result_json, content, created_at, meta_json, history_sequence
+         FROM events WHERE session_id = ?1",
+    )?;
+    let mut rows = stmt.query([session_id])?;
+    while let Some(row) = rows.next()? {
+        let event = CachedEvent {
+            id: row.get(0)?,
+            session_id: row.get(1)?,
+            event_type: row.get(2)?,
+            function_name: row.get(3)?,
+            thread_id: row.get(4)?,
+            args_json: row.get(5)?,
+            result_json: row.get(6)?,
+            content: row.get(7)?,
+            created_at: row.get(8)?,
+            meta_json: row.get(9)?,
+            history_sequence: row.get(10)?,
+        };
+        if matches(&event) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 /// Load all events for a session.
 ///
 /// `normalize_session_sequences` is a writer (per-row UPDATEs) so it

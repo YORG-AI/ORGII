@@ -172,6 +172,10 @@ const eventStore = {
   bufferEvents: defineProcedure("es_buffer_events")
     .input(schemas.sessionCore.BufferEventsInput)
     .build(),
+  getChatActivity: defineProcedure("es_get_chat_activity")
+    .input(z.object({ sessionIds: z.array(z.string()).max(64) }))
+    .output(z.record(z.string(), z.boolean()))
+    .build(),
   getSnapshot: defineProcedure("es_get_snapshot")
     .input(schemas.sessionCore.NullableSessionIdInput)
     .output(schemas.sessionCore.DerivedSnapshotSchema)
