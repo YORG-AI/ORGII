@@ -132,7 +132,12 @@ const SelectorPillContent: React.FC<SelectorPillContentProps> = ({
             <>
               {icon !== null && (
                 <span
-                  className={`${active ? "hidden" : "group-hover/pill:hidden"} inline-flex items-center justify-center leading-none ${iconColor}`}
+                  // The active branch must not also carry `inline-flex`:
+                  // Tailwind v4 emits display utilities in alphabetical order,
+                  // so `.inline-flex` lands after `.hidden` at equal
+                  // specificity and would win, leaving the rest icon painted
+                  // under the absolutely positioned chevron.
+                  className={`${active ? "hidden" : "inline-flex group-hover/pill:hidden"} items-center justify-center leading-none ${iconColor}`}
                 >
                   {icon}
                 </span>
