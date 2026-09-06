@@ -7,9 +7,9 @@ export const MAX_METADATA_CACHE_SIZE = 500;
 export const MAX_LOADED_FILES_SIZE = 1000;
 
 /**
- * Soft cap on `unsavedContentCache` entries. Entries hold a full copy of the
- * buffer text, so without a cap every dirty file ever switched away from is
- * retained for the app lifetime. Only *clean* entries (buffer equal to disk
- * at cache time) are evicted past this cap; dirty entries always survive.
+ * Soft cap on `unsavedContentCache` entries. Only *clean* entries (buffer
+ * equal to disk at cache time) are evicted past this cap; dirty entries
+ * always survive, but their text is spilled to an on-disk draft so surviving
+ * does not mean pinning the buffer in the heap.
  */
 export const MAX_UNSAVED_CONTENT_CACHE_SIZE = 32;

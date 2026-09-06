@@ -203,8 +203,12 @@ export function useFileContent(
         return;
       }
 
-      // Check for cached unsaved content from a previous tab switch
-      const cachedUnsaved = popUnsavedContent(filePath);
+      // Check for cached unsaved content from a previous tab switch. The
+      // text may come back from an on-disk draft, so this can yield.
+      const cachedUnsaved = await popUnsavedContent(filePath);
+      if (currentFilePathRef.current !== filePath) {
+        return;
+      }
 
       if (cachedUnsaved) {
         // Restore unsaved content from cache
