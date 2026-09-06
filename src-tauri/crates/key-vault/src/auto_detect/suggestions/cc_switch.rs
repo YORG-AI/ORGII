@@ -195,6 +195,25 @@ pub(super) fn codex_base_url_from_config_toml(config_toml: &str) -> Option<Strin
     providers.into_iter().find_map(|p| p.base_url)
 }
 
+fn model_from_settings(app: &str, config: &serde_json::Value) -> Option<String> {
+    match app {
+        "claude" | "claude-desktop" => {
+            non_empty_str(config.get("env").and_then(|env| env.get("ANTHROPIC_MODEL")))
+                .or_else(|| non_empty_str(config.get("model")))
+        }
+        "codex" => {
+            let config: toml::Value = toml::from_str(config.get("config")?.as_str()?).ok()?;
+            config
+                .get("model")?
+                .as_str()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 pub(super) mod fixtures {
     //! Build a cc-switch database with the live schema (2026-09-04) in a
@@ -338,25 +357,6 @@ mod tests {
             Some("https://a.example/v1")
         );
         assert_eq!(codex_base_url_from_config_toml("not = [toml"), None);
-    }
-}
-
-fn model_from_settings(app: &str, config: &serde_json::Value) -> Option<String> {
-    match app {
-        "claude" | "claude-desktop" => {
-            non_empty_str(config.get("env").and_then(|env| env.get("ANTHROPIC_MODEL")))
-                .or_else(|| non_empty_str(config.get("model")))
-        }
-        "codex" => {
-            let config: toml::Value = toml::from_str(config.get("config")?.as_str()?).ok()?;
-            config
-                .get("model")?
-                .as_str()
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(str::to_string)
-        }
-        _ => None,
     }
 }
 
