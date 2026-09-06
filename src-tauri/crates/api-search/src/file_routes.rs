@@ -158,7 +158,16 @@ mod tests {
         assert_eq!(response.files[0].filename, "lib.rs");
         assert_eq!(response.files[0].file_type, "file");
         assert!(response.files[0].path.ends_with("src/lib.rs"));
-        assert!(response.folders.is_empty());
+        // Folders are never filtered by extension, and after a filename miss
+        // nucleo also fuzzy-matches the *full path*, so the `src` directory
+        // matches "lib" whenever the random temp path happens to contain an
+        // `l`, an `i` and a `b` in that order (macOS temp roots begin with
+        // `/var/folders/…`). The invariant is therefore "only fixture folders,
+        // mapped as folders", not "no folders at all".
+        assert!(response
+            .folders
+            .iter()
+            .all(|folder| folder.filename == "src" && folder.file_type == "folder"));
         assert_eq!(response.total_indexed, 4);
     }
 
