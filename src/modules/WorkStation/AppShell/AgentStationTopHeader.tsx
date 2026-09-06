@@ -22,7 +22,7 @@ import {
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import {
-  usePinnedWorkbenchChromeVisible,
+  usePinnedWorkbenchChromeAvailable,
   useWorkbenchRightEdgeReservation,
 } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
 import {
@@ -59,7 +59,7 @@ import { SimulatorAgentChip, StationModeChip } from "../shared";
 const AgentStationTopHeader: React.FC = memo(() => {
   const { t } = useTranslation("sessions");
   const shouldOffsetLeftChrome = useShouldOffsetWorkStationTopBar();
-  const pinnedChrome = usePinnedWorkbenchChromeVisible();
+  const sidePaneChromeManaged = usePinnedWorkbenchChromeAvailable();
   const rightEdge = useWorkbenchRightEdgeReservation();
   const getStationChatVisible = useAtomValue(activeStationChatVisibleAtom);
   const chatWidth = useAtomValue(chatWidthAtom);
@@ -194,25 +194,26 @@ const AgentStationTopHeader: React.FC = memo(() => {
               strokeWidth={2}
             />
           </TabBarTrailingIconButton>
-          {!isSettingsRoute && !pinnedChrome && !isChatPanelVisible && (
-            <TabBarTrailingIconButton
-              title={chatPanelLabel}
-              shortcutId="maximize_work_station"
-              tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
-              onClick={handleToggleChatPanel}
-            >
-              <HugeiconsIcon
-                icon={ArrowShrink01Icon}
-                data-icon="minimize-2"
-                size={14}
-                strokeWidth={2}
-              />
-            </TabBarTrailingIconButton>
-          )}
-          {/* On macOS `PinnedWorkbenchChrome` draws hide/restore-chat and
-              maximize-chat fixed at the window's right edge, so this header
-              leaves them out — same as the My Station bar. */}
-          {!isSettingsRoute && !pinnedChrome && (
+          {!isSettingsRoute &&
+            !sidePaneChromeManaged &&
+            !isChatPanelVisible && (
+              <TabBarTrailingIconButton
+                title={chatPanelLabel}
+                shortcutId="maximize_work_station"
+                tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
+                onClick={handleToggleChatPanel}
+              >
+                <HugeiconsIcon
+                  icon={ArrowShrink01Icon}
+                  data-icon="minimize-2"
+                  size={14}
+                  strokeWidth={2}
+                />
+              </TabBarTrailingIconButton>
+            )}
+          {/* macOS keeps side-pane actions out of populated station headers,
+              leaving their content controls clear. */}
+          {!isSettingsRoute && !sidePaneChromeManaged && (
             <TabBarTrailingIconButton
               title={chatPanelLabel}
               shortcutId="maximize_work_station"
@@ -236,7 +237,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
               )}
             </TabBarTrailingIconButton>
           )}
-          {!isSettingsRoute && !pinnedChrome && isChatPanelVisible && (
+          {!isSettingsRoute && !sidePaneChromeManaged && isChatPanelVisible && (
             <TabBarTrailingIconButton
               title={hideWorkstationLabel}
               shortcutId="maximize_chat"

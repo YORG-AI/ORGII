@@ -19,13 +19,17 @@ import {
   getPinnedWorkbenchChromeReservedRight,
   isPinnedWorkbenchChromePath,
   resolvePinnedWorkbenchChromeSlots,
+  shouldShowPinnedWorkbenchChrome,
 } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
+import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
 import {
   activeStationChatVisibleAtom,
   chatPanelMaximizedAtom,
   chatWidthAtom,
 } from "@src/store/ui/chatPanelAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
+import { workstationLayoutAtom } from "@src/store/workstation/tabs";
+import { createFileTab } from "@src/store/workstation/tabs/factories";
 import {
   createInstrumentedStore,
   resetInstrumentedStore,
@@ -120,6 +124,65 @@ describe("PinnedWorkbenchChrome", () => {
     expect(isPinnedWorkbenchChromePath(ROUTES.workStation.base.path)).toBe(
       true
     );
+  });
+
+  it("leaves populated station headers clear for their own trailing controls", () => {
+    expect(
+      shouldShowPinnedWorkbenchChrome({
+        baseVisible: true,
+        stationMode: "my-station",
+        myStationHasContent: true,
+        agentStationHasContent: false,
+      })
+    ).toBe(false);
+    expect(
+      shouldShowPinnedWorkbenchChrome({
+        baseVisible: true,
+        stationMode: "agent-station",
+        myStationHasContent: false,
+        agentStationHasContent: true,
+      })
+    ).toBe(false);
+
+    expect(
+      shouldShowPinnedWorkbenchChrome({
+        baseVisible: true,
+        stationMode: "my-station",
+        myStationHasContent: false,
+        agentStationHasContent: true,
+      })
+    ).toBe(true);
+    expect(
+      shouldShowPinnedWorkbenchChrome({
+        baseVisible: true,
+        stationMode: "agent-station",
+        myStationHasContent: true,
+        agentStationHasContent: false,
+      })
+    ).toBe(true);
+  });
+
+  it("removes the pinned group when the active station gains content", () => {
+    render();
+    expect(query("pinned-workbench-chrome")).not.toBeNull();
+
+    const fileTab = createFileTab("/repo/src/index.ts");
+    act(() => {
+      store.set(workstationLayoutAtom, {
+        mainPane: { tabs: [fileTab], activeTabId: fileTab.id },
+      });
+    });
+    expect(query("pinned-workbench-chrome")).toBeNull();
+
+    act(() => {
+      store.set(stationModeAtom, "agent-station");
+    });
+    expect(query("pinned-workbench-chrome")).not.toBeNull();
+
+    act(() => {
+      store.set(workstationActiveSessionIdAtom, "session-a");
+    });
+    expect(query("pinned-workbench-chrome")).toBeNull();
   });
 
   it("pins hide-chat and maximize-chat at the window's right edge, 1px apart", () => {

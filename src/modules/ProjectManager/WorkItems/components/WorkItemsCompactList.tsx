@@ -13,7 +13,7 @@ import CompactListPanel, {
   type CompactListPanelEntry,
 } from "@src/modules/shared/components/CompactListPanel";
 import type { WorkItem } from "@src/types/core/workItem";
-import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
+import { formatCompactAge } from "@src/util/time/formatRelativeTime";
 
 import {
   formatWorkItemShortId,
@@ -80,7 +80,7 @@ const WorkItemsCompactList = <TWorkItem extends CompactWorkItem>({
           key: item.session_id,
           title: item.name || t("workItems.untitledWorkItem"),
           titlePrefix: displayId ?? undefined,
-          time: formatRelativeTime(item.updated_time, "nano"),
+          time: formatCompactAge(item.updated_time),
           metadata: (
             <>
               {item.assignee?.avatar ? (

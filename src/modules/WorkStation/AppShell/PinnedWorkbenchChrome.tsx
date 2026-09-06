@@ -1,12 +1,11 @@
 /**
  * PinnedWorkbenchChrome
  *
- * macOS only. The window's right-edge collapse toggles — hide / restore the
- * chat pane, and maximize chat / show workstation — drawn once, fixed in
- * window coordinates, so they hold still while the chat slot and the
- * workstation animate under them. The counterpart of `PinnedSidebarChrome`
- * on the left. Hosts (`TabBar`, `AgentStationTopHeader`, `ChatPanelHeader`)
- * only reserve the space; see `useWorkbenchRightEdgeOwner`.
+ * macOS only. While the active station is empty, the window's right-edge
+ * collapse toggles — hide / restore the chat pane, and maximize chat / show
+ * workstation — are drawn once in window coordinates. Populated stations
+ * leave this group hidden so their pane-owned trailing controls cannot be
+ * covered. The counterpart of `PinnedSidebarChrome` on the left.
  */
 import { useAtomValue, useSetAtom } from "jotai";
 import React, { memo, startTransition, useCallback } from "react";

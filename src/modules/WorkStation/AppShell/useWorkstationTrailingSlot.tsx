@@ -14,7 +14,7 @@ import { useLocation } from "react-router-dom";
 
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { CHROME_TOOLTIP_HOVER_DELAY } from "@src/config/tooltip";
-import { usePinnedWorkbenchChromeVisible } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
+import { usePinnedWorkbenchChromeAvailable } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
 import {
   ArrowExpand01Icon,
   ArrowShrink01Icon,
@@ -97,9 +97,10 @@ export function useWorkstationTrailingSlot({
   const chatPanelPosition = useAtomValue(chatPanelPositionAtom);
   const projectTabBar = useAtomValue(workstationProjectTabBarAtom);
   const toggleChatPanelMaximized = useSetAtom(toggleChatPanelMaximizedAtom);
-  // On macOS `PinnedWorkbenchChrome` draws the hide-chat and maximize-chat
-  // toggles fixed at the window's right edge, so the bar leaves them out.
-  const pinnedChrome = usePinnedWorkbenchChromeVisible();
+  // macOS owns the side-pane actions outside this populated tab bar. The
+  // fixed group itself is hidden once real station content exists, leaving
+  // the bar's `+` and content-specific actions clear.
+  const sidePaneChromeManaged = usePinnedWorkbenchChromeAvailable();
 
   const isChatPanelVisible =
     getStationChatVisible("my-station") && chatWidth > 0;
@@ -134,7 +135,7 @@ export function useWorkstationTrailingSlot({
       ? t("sessions:chat.maximizeWorkStation")
       : t("sessions:chat.restoreChatPanel");
     const chatPanelControl =
-      isSettingsRoute || pinnedChrome ? null : (
+      isSettingsRoute || sidePaneChromeManaged ? null : (
         <TabBarTrailingIconButton
           title={chatPanelLabel}
           shortcutId="maximize_work_station"
@@ -161,7 +162,7 @@ export function useWorkstationTrailingSlot({
 
     const hideWorkstationLabel = t("sessions:chat.hideWorkstation");
     const maximizeChatControl =
-      !isSettingsRoute && !pinnedChrome && isChatPanelVisible ? (
+      !isSettingsRoute && !sidePaneChromeManaged && isChatPanelVisible ? (
         <TabBarTrailingIconButton
           title={hideWorkstationLabel}
           shortcutId="maximize_chat"
@@ -174,6 +175,7 @@ export function useWorkstationTrailingSlot({
       ) : null;
 
     const shrinkWorkstationControl = !isSettingsRoute &&
+      !sidePaneChromeManaged &&
       !isChatPanelVisible && (
         <TabBarTrailingIconButton
           title={chatPanelLabel}
@@ -263,7 +265,7 @@ export function useWorkstationTrailingSlot({
     t,
     visible,
     chatPanelPosition,
-    pinnedChrome,
+    sidePaneChromeManaged,
   ]);
 
   return { trailingSlot, handleToggleChatPanel };

@@ -50,7 +50,7 @@ import DetailPaneLayout, {
 import InboxListDetailLayout from "@src/modules/shared/layouts/InboxListDetailLayout";
 import SplitListFullscreenButton from "@src/modules/shared/layouts/SplitListFullscreenButton";
 import type { WorkItemStatus } from "@src/types/core/workItem";
-import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
+import { formatCompactAge } from "@src/util/time/formatRelativeTime";
 
 import { STORY_WORK_ITEMS_VISIBLE_TABS } from "./ProjectWorkItemsTabContentConstants";
 import type {
@@ -373,7 +373,7 @@ export const ProjectWorkItemsTabContent: React.FC<
           ),
           updated: (
             <span title={workItem.updated_time}>
-              {formatRelativeTime(workItem.updated_time, "nano") || "—"}
+              {formatCompactAge(workItem.updated_time) || "—"}
             </span>
           ),
           onClick: () => handleSelectWorkItemAndShowDetail(workItem.session_id),

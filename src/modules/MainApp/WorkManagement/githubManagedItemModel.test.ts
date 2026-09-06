@@ -59,7 +59,7 @@ describe("GitHub managed-item model", () => {
       id: 42,
       repo: "acme/repo",
       author: "author",
-      timeAgo: "1m ago",
+      timeAgo: "1m",
       linkedPullRequests: 3,
     });
     expect(mapPrToManagedItem(pr, source)).toMatchObject({
@@ -68,7 +68,7 @@ describe("GitHub managed-item model", () => {
       author: "author",
       sourceBranch: "fix/crash",
       targetBranch: "main",
-      timeAgo: "1h ago",
+      timeAgo: "1h",
     });
     vi.useRealTimers();
   });
@@ -115,11 +115,9 @@ describe("GitHub managed-item model", () => {
     ).toBe(true);
     expect(formatGitHubItemTimeAgo("invalid", 0)).toBe("");
     const now = Date.parse("2026-07-20T12:00:00.000Z");
-    expect(formatGitHubItemTimeAgo("2026-07-20T07:00:00.000Z", now)).toBe(
-      "5h ago"
-    );
+    expect(formatGitHubItemTimeAgo("2026-07-20T07:00:00.000Z", now)).toBe("5h");
     expect(formatGitHubItemTimeAgo("2026-06-20T12:00:00.000Z", now)).toBe(
-      "1mo ago"
+      "1mo"
     );
   });
 });

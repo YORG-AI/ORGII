@@ -2,16 +2,17 @@
  * Where the window's right-edge chrome (hide/restore chat, maximize chat /
  * show workstation) is drawn and who has to make room for it.
  *
- * On macOS the two collapse toggles are pinned in window space by
- * `PinnedWorkbenchChrome`, mirroring the sidebar group on the left: the chat
- * slot animates its width and the workstation slides with it, so a toggle
- * drawn inside either pane moved during the transition. Whichever pane
- * touches the window's right edge reserves the footprint underneath.
+ * On macOS an empty station pins the two collapse toggles in window space by
+ * `PinnedWorkbenchChrome`, mirroring the sidebar group on the left. Once the
+ * station has content, the fixed side-pane group is withheld so pane-owned
+ * `+` / expand controls remain unobstructed. While the pinned group is active,
+ * whichever pane touches the window's right edge reserves its footprint.
  */
 import { useAtomValue } from "jotai";
 import { useLocation } from "react-router-dom";
 
 import { ROUTES, isWorkbenchPath } from "@src/config/routes";
+import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
 import {
   chatPanelMaximizedAtom,
   chatWidthAtom,
@@ -19,6 +20,8 @@ import {
 } from "@src/store/ui/chatPanelAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { chatPanelPositionAtom } from "@src/store/ui/workStationAtom";
+import { mainPaneHasRealTabsAtom } from "@src/store/workstation/tabHost";
+import type { StationMode } from "@src/types/ui/workstation";
 import { isMacOS } from "@src/util/platform/tauri";
 
 /** One 28px icon button. */
@@ -64,10 +67,54 @@ export function isPinnedWorkbenchChromePath(pathname: string): boolean {
   return isWorkbenchPath(pathname) && !inSettings;
 }
 
-/** True where `PinnedWorkbenchChrome` draws: macOS, on a workbench route (Settings owns its own maximize control). */
-export function usePinnedWorkbenchChromeVisible(): boolean {
+interface PinnedWorkbenchChromeVisibility {
+  baseVisible: boolean;
+  stationMode: StationMode;
+  myStationHasContent: boolean;
+  agentStationHasContent: boolean;
+}
+
+/**
+ * Empty stations use window-level side-pane controls. Once a station owns
+ * real content, its pane headers own the `+` / expand controls instead; the
+ * fixed group would otherwise sit over those trailing actions.
+ */
+export function shouldShowPinnedWorkbenchChrome({
+  baseVisible,
+  stationMode,
+  myStationHasContent,
+  agentStationHasContent,
+}: PinnedWorkbenchChromeVisibility): boolean {
+  if (!baseVisible) return false;
+  return stationMode === "my-station"
+    ? !myStationHasContent
+    : !agentStationHasContent;
+}
+
+/**
+ * Whether macOS owns side-pane chrome at the window level on this route.
+ * Populated station headers use this to avoid restoring the same side-pane
+ * actions after the fixed group is visually suppressed.
+ */
+export function usePinnedWorkbenchChromeAvailable(): boolean {
   const location = useLocation();
   return isMacOS() && isPinnedWorkbenchChromePath(location.pathname);
+}
+
+/** True where the empty-station `PinnedWorkbenchChrome` may draw. */
+export function usePinnedWorkbenchChromeVisible(): boolean {
+  const baseVisible = usePinnedWorkbenchChromeAvailable();
+  const stationMode = useAtomValue(stationModeAtom);
+  const myStationHasContent = useAtomValue(mainPaneHasRealTabsAtom);
+  const agentStationHasContent = Boolean(
+    useAtomValue(workstationActiveSessionIdAtom)
+  );
+  return shouldShowPinnedWorkbenchChrome({
+    baseVisible,
+    stationMode,
+    myStationHasContent,
+    agentStationHasContent,
+  });
 }
 
 /**
