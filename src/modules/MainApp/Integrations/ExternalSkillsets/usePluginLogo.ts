@@ -1,9 +1,9 @@
 /**
  * usePluginLogo
  *
- * Async hook that reads a plugin logo from the filesystem, converts it
- * to a data URL, and detects whether it is a monochrome SVG (for brand
- * background / invert-filter styling).
+ * Async hook that reads a plugin logo from the filesystem, exposes it as
+ * a Blob-backed object URL, and detects whether it is a monochrome SVG (for
+ * brand background / invert-filter styling).
  *
  * Encapsulates the `readFile` + cancellation pattern shared between
  * `PluginLogoCell` (table) and `CursorPluginPreviewPanel` (detail panel).
@@ -11,7 +11,10 @@
 import { readFile } from "@tauri-apps/plugin-fs";
 import { useEffect, useState } from "react";
 
-import { uint8ArrayToDataUrl } from "@src/util/file/binaryUtils";
+import {
+  releaseImageUrl,
+  uint8ArrayToImageUrl,
+} from "@src/util/file/binaryUtils";
 import { getImageMimeType } from "@src/util/file/previewTypes";
 
 import { isMonochromeSvg } from "./pluginBrandColors";
@@ -30,6 +33,8 @@ export function usePluginLogo(logoPath: string | null): PluginLogoResult {
   useEffect(() => {
     if (!logoPath) return;
     let cancelled = false;
+    // Object URL owned by this effect run; released on teardown.
+    let objectUrl: string | null = null;
     const mime = getImageMimeType(logoPath) ?? "image/svg+xml";
     readFile(logoPath)
       .then((data) => {
@@ -37,13 +42,15 @@ export function usePluginLogo(logoPath: string | null): PluginLogoResult {
         const isMono =
           logoPath.endsWith(".svg") &&
           isMonochromeSvg(new TextDecoder().decode(data));
-        setResult({ src: uint8ArrayToDataUrl(data, mime), monochrome: isMono });
+        objectUrl = uint8ArrayToImageUrl(data, mime);
+        setResult({ src: objectUrl, monochrome: isMono });
       })
       .catch(() => {
         if (!cancelled) setResult({ src: null, monochrome: false });
       });
     return () => {
       cancelled = true;
+      releaseImageUrl(objectUrl);
     };
   }, [logoPath]);
 
