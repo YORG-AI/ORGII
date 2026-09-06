@@ -1321,7 +1321,7 @@
       "mergeStatus": {
         "label": "合併狀態",
         "viewChecks": "查看全部檢查",
-        "ableToMerge": "可以合併",
+        "ableToMerge": "已準備好合併",
         "blocked": "合併受阻",
         "conflicts": "存在合併衝突",
         "queued": "已排入合併佇列",

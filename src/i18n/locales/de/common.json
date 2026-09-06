@@ -1309,7 +1309,7 @@
       "mergeStatus": {
         "label": "Merge-Status",
         "viewChecks": "Alle Checks anzeigen",
-        "ableToMerge": "Kann zusammengeführt werden",
+        "ableToMerge": "Bereit zum Zusammenführen",
         "blocked": "Zusammenführung blockiert",
         "conflicts": "Merge-Konflikte",
         "queued": "Zum Zusammenführen eingereiht",

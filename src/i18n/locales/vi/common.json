@@ -1308,7 +1308,7 @@
       "mergeStatus": {
         "label": "Trạng thái hợp nhất",
         "viewChecks": "Xem tất cả kiểm tra",
-        "ableToMerge": "Có thể hợp nhất",
+        "ableToMerge": "Sẵn sàng hợp nhất",
         "blocked": "Hợp nhất bị chặn",
         "conflicts": "Xung đột hợp nhất",
         "queued": "Đang xếp hàng để hợp nhất",

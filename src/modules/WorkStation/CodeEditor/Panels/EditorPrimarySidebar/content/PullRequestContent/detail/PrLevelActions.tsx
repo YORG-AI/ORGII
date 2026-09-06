@@ -52,10 +52,13 @@ interface PrLevelActionsProps {
   onStateChange: (state: "open" | "closed") => Promise<void>;
 }
 
+const GIT_MERGE_METHOD_LABELS = new Set([
+  "Merge",
+  "Squash and merge",
+  "Rebase and merge",
+]);
+
 const ACTION_LABEL_KEYS: Record<string, string> = {
-  Merge: "merge",
-  "Squash and merge": "squash",
-  "Rebase and merge": "rebase",
   "Enable auto-merge": "enableAutoMerge",
   "Merge when ready": "mergeWhenReady",
   "Disable auto-merge": "disableAutoMerge",
@@ -86,6 +89,10 @@ const ACTION_TOOLTIP_KEYS: Record<string, string> = {
 };
 
 function localizedActionLabel(t: TFunction, label: string): string {
+  if (GIT_MERGE_METHOD_LABELS.has(label)) return label;
+  if (label === "Ready to merge") {
+    return t("git.pr.mergeStatus.ableToMerge", label);
+  }
   const key = ACTION_LABEL_KEYS[label];
   return key ? t(`git.pr.actions.${key}`, label) : label;
 }

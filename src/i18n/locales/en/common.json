@@ -1315,7 +1315,7 @@
       "mergeStatus": {
         "label": "Merge status",
         "viewChecks": "View all checks",
-        "ableToMerge": "Able to merge",
+        "ableToMerge": "Ready to merge",
         "blocked": "Merging is blocked",
         "conflicts": "Merge conflicts",
         "queued": "Queued to merge",
