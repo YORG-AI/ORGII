@@ -1308,7 +1308,7 @@
       "mergeStatus": {
         "label": "マージ状態",
         "viewChecks": "すべてのチェックを表示",
-        "ableToMerge": "マージ可能",
+        "ableToMerge": "マージの準備完了",
         "blocked": "マージがブロックされています",
         "conflicts": "マージ競合",
         "queued": "マージキューに登録済み",

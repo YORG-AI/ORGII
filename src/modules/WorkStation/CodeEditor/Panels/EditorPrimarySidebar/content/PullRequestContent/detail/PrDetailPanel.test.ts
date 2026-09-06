@@ -33,6 +33,12 @@ const childProps = vi.hoisted(() => ({
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, fallback?: string | Record<string, unknown>) => {
+      const localizedMergeMethod: Record<string, string> = {
+        "git.pr.actions.merge": "Localized merge",
+        "git.pr.actions.squash": "Localized squash and merge",
+        "git.pr.actions.rebase": "Localized rebase and merge",
+      };
+      if (localizedMergeMethod[key]) return localizedMergeMethod[key];
       if (key === "git.pr.actions.resolveConflicts") {
         return "Localized conflict label";
       }
@@ -538,6 +544,7 @@ describe("PrDetailPanel tabs", () => {
     const mergeAction = container.querySelector<HTMLButtonElement>(
       '[data-testid="pr-merge-action"]'
     );
+    expect(mergeAction?.textContent).toBe("Ready to merge");
     const dropdownButton = mergeAction?.parentElement?.querySelectorAll(
       "button"
     )[1] as HTMLButtonElement | undefined;
@@ -550,6 +557,13 @@ describe("PrDetailPanel tabs", () => {
         '[data-testid="pr-convert-to-draft-action"]'
       )
     ).toHaveLength(1);
+    expect(
+      ["merge", "squash", "rebase"].map(
+        (method) =>
+          document.body.querySelector(`[data-testid="pr-merge-${method}"]`)
+            ?.textContent
+      )
+    ).toEqual(["Merge", "Squash and merge", "Rebase and merge"]);
   });
 
   it("restores the per-PR sub-tab and nested selection after remount", () => {
