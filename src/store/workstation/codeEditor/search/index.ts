@@ -10,7 +10,10 @@
  */
 import { atom } from "jotai";
 
+import { shareSearchLineContext } from "./lineContext";
 import type { SearchOptions, SearchResultFile } from "./types";
+
+export { shareSearchLineContext } from "./lineContext";
 
 export type { SearchMatch, SearchResultFile, SearchOptions } from "./types";
 
@@ -131,7 +134,7 @@ export const searchAppendResultsAtom = atom(
       retained += file.matches.length;
     }
     if (accepted.length > 0) {
-      set(searchResultsAtom, [...current, ...accepted]);
+      set(searchResultsAtom, [...current, ...shareSearchLineContext(accepted)]);
     }
     if (truncated || retained >= SEARCH_MAX_RETAINED_MATCHES) {
       set(searchHasMoreAtom, false);
