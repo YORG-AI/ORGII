@@ -414,19 +414,18 @@ export async function dispatchQueuedCloudConversation(
       (row) => row.sourceSessionId === rootSessionId
     );
     if (!rootRow) {
-      // A replay viewer may simply be ahead of its listing; the owner of a
-      // local session is not. Its root row left the listing for good
-      // (retention expiry or retract), so the Cloud plane can never admit
-      // this turn. Fail the send visibly instead of retrying forever; the
-      // retry re-resolves the root through the binding, which continues the
-      // conversation locally.
+      // The identity-bound listing is ready, so absence is an admission
+      // failure for viewers as well as owners, not an unbounded hydration
+      // retry. Keep the failed intent visible and editable. Only owner-local
+      // sessions may re-resolve to local authority; viewers must not bypass
+      // a revoked/expired share by silently changing authority.
       if (sourceSession && !sourceSession.importedFrom) {
         throw new QueuedConversationBlockedError(
           "This shared session is no longer available in Cloud; retry to continue it locally"
         );
       }
-      throw new QueuedConversationRecoveryPendingError(
-        "Cloud conversation root metadata is unavailable"
+      throw new QueuedConversationBlockedError(
+        "This shared session is no longer available in Cloud; refresh or ask its owner to share it again"
       );
     }
     const listing = await listSessionComments(

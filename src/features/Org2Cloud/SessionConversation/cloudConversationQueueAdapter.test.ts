@@ -720,7 +720,7 @@ describe("dispatchQueuedCloudConversation failure classification", () => {
     expect(mocks.runConversationTurn).not.toHaveBeenCalled();
   });
 
-  it("keeps waiting for a replay viewer whose Cloud root row has not arrived", async () => {
+  it("fails a replay viewer's send when the ready Cloud listing has no root", async () => {
     enableTurnCoordination();
     const store = readyStore();
     store.set(sessionsAtom, [
@@ -754,7 +754,25 @@ describe("dispatchQueuedCloudConversation failure classification", () => {
       dispatchQueuedCloudConversation(store, MESSAGE, ROOT, {
         onAccepted: vi.fn(),
       })
+    ).rejects.toBeInstanceOf(QueuedConversationBlockedError);
+    expect(mocks.admitTurn).not.toHaveBeenCalled();
+    expect(mocks.claimTurn).not.toHaveBeenCalled();
+    expect(mocks.pushEvents).not.toHaveBeenCalled();
+    expect(mocks.runConversationTurn).not.toHaveBeenCalled();
+  });
+
+  it("keeps an unhydrated Cloud listing recovery-pending without dispatching", async () => {
+    enableTurnCoordination();
+    const store = readyStore();
+    store.set(org2CloudRemoteSessionsAtom, {});
+
+    await expect(
+      dispatchQueuedCloudConversation(store, MESSAGE, ROOT, {
+        onAccepted: vi.fn(),
+      })
     ).rejects.toBeInstanceOf(QueuedConversationRecoveryPendingError);
+    expect(mocks.admitTurn).not.toHaveBeenCalled();
+    expect(mocks.runConversationTurn).not.toHaveBeenCalled();
   });
 
   it("imports every available family member before executing the canonical timeline", async () => {

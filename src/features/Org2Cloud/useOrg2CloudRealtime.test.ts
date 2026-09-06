@@ -10,6 +10,7 @@ import { type SmokeRoot, createSmokeRoot } from "@src/test/reactSmokeHarness";
 
 import { conversationPlaneSignalAtom } from "./SessionConversation/conversationPlaneAtom";
 import { org2CloudAuthAtom } from "./org2CloudAuthAtom";
+import { ORG_DB_CHANGED_EVENT } from "./org2CloudControlBus";
 import {
   type Org2CloudOrg,
   org2CloudOrgsAtom,
@@ -397,6 +398,33 @@ describe("useOrg2CloudRealtime lifecycle", () => {
 
     act(() => signalSubscription.options.onStatus?.(true));
     expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(afterFull + 1);
+  });
+
+  it("delivers the provider tail after a nearby admission signal without waiting for coarse recovery", async () => {
+    mocks.getCloudCapabilities.mockResolvedValue({ broadcastSignals: true });
+    await mount();
+    const presence = connections[0]!.presences.at(-1)!;
+    const before = store.get(conversationPlaneSignalAtom)["org-a"] ?? 0;
+    const signal = () =>
+      presence.options.onBroadcast?.(ORG_DB_CHANGED_EVENT, {
+        kind: "conversationEvents",
+      });
+
+    act(signal);
+    expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(before + 1);
+    act(() => {
+      vi.advanceTimersByTime(100);
+      signal();
+    });
+    expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(before + 1);
+    act(() => vi.advanceTimersByTime(REALTIME_SIGNAL_COALESCE_MS - 100));
+    expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(before + 2);
+
+    // A pending trailing refresh must not outlive its org/socket owner.
+    act(signal);
+    await root.unmount();
+    act(() => vi.advanceTimersByTime(REALTIME_SIGNAL_COALESCE_MS));
+    expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(before + 2);
   });
 
   it("owns short foreground recovery once and coalesces duplicate browser edges", async () => {
