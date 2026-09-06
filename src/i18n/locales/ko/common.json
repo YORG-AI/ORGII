@@ -2432,7 +2432,7 @@
   "browserCookieImport": {
     "title": "Import cookies from your browser",
     "subtitle": "Choose a browser to bring its saved logins into the built-in browser.",
-    "action": "Import cookies from your browser",
+    "action": "Import cookies from browser",
     "scanning": "Looking for installed browsers…",
     "reading": "Reading cookies from {{browser}}…",
     "keychainHint": "Your system may ask for permission to read the browser's saved data",

@@ -5,6 +5,10 @@
  * app's built-in browser: pick a source profile, review the sites it holds
  * cookies for (money / mail / SSO unchecked by default), and import the chosen
  * ones. Mirrors the built-in-browser "import cookies" affordance.
+ *
+ * The footer is the design-system Modal's own: the source picker has none (a
+ * row click advances), the checklist gets "Import N sites" / Cancel with a
+ * Back action in the header, and the summary gets a lone "Done".
  */
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,10 +18,11 @@ import type {
   CookieSiteCategory,
   CookieSiteGroup,
 } from "@src/api/tauri/browserCookies";
-import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
+import { IconButton } from "@src/components/IconButton";
 import { InlineBanner } from "@src/components/InlineBanner";
 import {
+  ArrowLeft01Icon,
   ArrowRight01Icon,
   CheckmarkCircle01Icon,
   CloudDownloadIcon,
@@ -46,6 +51,8 @@ interface ImportCookiesModalProps {
   /** Fired after a successful import, e.g. to reload the active tab. */
   onImported?: () => void;
 }
+
+type ModalProps = React.ComponentProps<typeof Modal>;
 
 const CAUTION_BADGE: Record<
   Exclude<CookieSiteCategory, "general">,
@@ -300,54 +307,42 @@ export const ImportCookiesModal: React.FC<ImportCookiesModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const controller = useImportCookiesController(onImported);
+  const { stage, previewLoading, importing, selectedDomains } = controller;
 
-  const renderFooter = (): React.ReactNode => {
-    if (controller.stage === "sources") {
-      return (
-        <div className="flex justify-end">
-          <Button variant="secondary" size="small" onClick={onClose}>
-            {t("actions.cancel")}
-          </Button>
-        </div>
-      );
-    }
-    if (controller.stage === "preview") {
-      const canImport =
-        !controller.previewLoading &&
-        !controller.importing &&
-        controller.selectedDomains.size > 0;
-      return (
-        <div className="flex justify-between gap-2">
-          <Button
-            variant="secondary"
-            size="small"
-            onClick={controller.backToSources}
-            disabled={controller.importing}
-          >
-            {t("actions.back")}
-          </Button>
-          <Button
-            variant="primary"
-            size="small"
-            onClick={controller.runImport}
-            disabled={!canImport}
-            loading={controller.importing}
-          >
-            {t("browserCookieImport.importAction", {
-              count: controller.selectedDomains.size,
-            })}
-          </Button>
-        </div>
-      );
-    }
-    return (
-      <div className="flex justify-end">
-        <Button variant="primary" size="small" onClick={onClose}>
-          {t("actions.done")}
-        </Button>
-      </div>
-    );
-  };
+  // Footer through Modal's own props. The source picker has no footer at all
+  // (`onOk` unset): clicking a row advances, and the header X closes.
+  let footerProps: Pick<
+    ModalProps,
+    "onOk" | "okText" | "okButtonProps" | "cancelText" | "cancelButtonProps"
+  > = {};
+  if (stage === "preview") {
+    footerProps = {
+      onOk: controller.runImport,
+      okText: t("browserCookieImport.importAction", {
+        count: selectedDomains.size,
+      }),
+      okButtonProps: {
+        disabled: previewLoading || selectedDomains.size === 0,
+        loading: importing,
+      },
+      cancelText: t("actions.cancel"),
+      cancelButtonProps: { disabled: importing },
+    };
+  } else if (stage === "done") {
+    // An empty cancelText hides the secondary button: "Done" stands alone.
+    footerProps = { onOk: onClose, okText: t("actions.done"), cancelText: "" };
+  }
+
+  const backAction =
+    stage === "preview" && !importing ? (
+      <IconButton
+        onClick={controller.backToSources}
+        aria-label={t("actions.back")}
+        title={t("actions.back")}
+      >
+        <HugeiconsIcon icon={ArrowLeft01Icon} size={16} aria-hidden />
+      </IconButton>
+    ) : undefined;
 
   return (
     <Modal
@@ -360,14 +355,15 @@ export const ImportCookiesModal: React.FC<ImportCookiesModalProps> = ({
         </span>
       }
       width={520}
-      footer={renderFooter()}
-      maskClosable={!controller.importing}
-      escToExit={!controller.importing}
+      headerActions={backAction}
+      maskClosable={!importing}
+      escToExit={!importing}
+      {...footerProps}
     >
       <div className="min-h-[200px]">
-        {controller.stage === "sources" ? (
+        {stage === "sources" ? (
           <SourcesStage controller={controller} t={t} />
-        ) : controller.stage === "preview" ? (
+        ) : stage === "preview" ? (
           <PreviewStage controller={controller} t={t} />
         ) : (
           <DoneStage controller={controller} t={t} />
