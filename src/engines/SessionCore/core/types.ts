@@ -508,19 +508,6 @@ export type ReplayMode = "follow" | "replay";
 export type SessionLoadStatus = "idle" | "loading" | "loaded" | "error";
 
 // ============================================
-// Cache Types
-// ============================================
-
-export interface CachedSession {
-  sessionId: string;
-  events: SessionEvent[];
-  specs: SessionSpec[];
-  timeRange: ReplayTimeRange;
-  cachedAt: number;
-  eventCount: number;
-}
-
-// ============================================
 // Session Spec
 // ============================================
 

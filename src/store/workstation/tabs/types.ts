@@ -329,14 +329,6 @@ export interface WorkItemDetailTabData {
   pendingUpdates?: Record<string, unknown>;
 }
 
-/**
- * Data stored in new work item (create) tabs
- */
-export interface NewWorkItemTabData {
-  projectId: string;
-  projectName: string;
-}
-
 // ============================================
 // URL Preview Tab Data Types
 // ============================================
@@ -473,36 +465,3 @@ export const FILE_TAB_TYPES = [
   "terminal-content",
   "dom-component-preview",
 ] as const;
-
-/** Tab types that are TOOL tabs (global, not cached per-repo) */
-export const TOOL_TAB_TYPES = [
-  "terminal",
-  "search",
-  "ai-impact",
-  "search-sessions",
-  "url-preview",
-  // Browser tabs
-  "browser-session",
-  // Project Manager tabs
-  "project-dashboard",
-  "project-work-items",
-  "project-linear-projects",
-  "project-linear-work-items",
-  "project-settings",
-  "project-org",
-  "project-org-settings",
-  "project-workitems",
-  "workItem-detail",
-  "chat-session",
-  "subagent-detail",
-  "agent-config",
-  // GitHub Issues detail
-  "github-issue-detail",
-  // GitHub Pull Request detail
-  "github-pr-detail",
-  // Start page launcher
-  "start",
-] as const;
-
-export type FileTabType = (typeof FILE_TAB_TYPES)[number];
-export type ToolTabType = (typeof TOOL_TAB_TYPES)[number];

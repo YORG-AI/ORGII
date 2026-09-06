@@ -57,8 +57,6 @@ export const EMAIL_BUBBLE_TOOLS = [
   "send_to_inbox",
 ] as const;
 
-export type EmailBubbleTool = (typeof EMAIL_BUBBLE_TOOLS)[number];
-
 export function isEmailBubbleEvent(event: SessionEvent): boolean {
   return (
     isAgentOrgInboxTranscriptEvent(event) ||

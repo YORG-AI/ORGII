@@ -5,22 +5,14 @@
  * Use this hook in your context providers to automatically track tabs globally.
  *
  * These hooks sync local state (from contexts like BrowserContext, TerminalContext)
- * to the navigationSidebarTabsAtom for display in the GlobalTabsSidebar.
- *
- * PERFORMANCE: Each sync hook now uses focused hooks instead of the combined
- * useGlobalTabs hook, preventing unnecessary re-renders when other tab categories change.
+ * to navigationSidebarTabsAtom for consumers of the shared tab state.
  *
  * CRITICAL: Uses refs to prevent infinite loops. The sync is ONE-WAY:
  * local context state -> global tabs state
  */
 import { useEffect, useRef } from "react";
 
-import {
-  useGlobalBrowserTabs,
-  useGlobalDocumentTabs,
-  useGlobalEditorTabs,
-  useGlobalTerminalTabs,
-} from "./useGlobalTabs";
+import { useGlobalBrowserTabs, useGlobalTerminalTabs } from "./useGlobalTabs";
 
 /**
  * Sync browser tabs to global state
@@ -168,108 +160,4 @@ export const useSyncTerminalSessions = (
       setActiveTerminalSession(activeSessionId);
     }
   }, [activeSessionId, activeTerminal?.id, setActiveTerminalSession]);
-};
-
-/**
- * Sync editor repos to global state
- *
- * Used by: EditorContext
- *
- * ONE-WAY sync: EditorContext repos -> navigationSidebarTabsAtom.editor
- */
-export const useSyncEditorRepos = (
-  repos: Array<{ id: string; name: string; description?: string }>,
-  activeRepoId: string | null
-) => {
-  const { activeEditor, addEditorRepo, setActiveEditorRepo, removeEditorRepo } =
-    useGlobalEditorTabs();
-
-  // Track synced repo IDs to detect additions/removals
-  const syncedRepoIdsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    const currentRepoIds = new Set(repos.map((repo) => repo.id));
-    const syncedIds = syncedRepoIdsRef.current;
-
-    // Add new repos
-    repos.forEach((repo) => {
-      if (!syncedIds.has(repo.id)) {
-        addEditorRepo({
-          id: repo.id,
-          name: repo.name,
-          description: repo.description,
-          isActive: repo.id === activeRepoId,
-        });
-        syncedIds.add(repo.id);
-      }
-    });
-
-    // Remove repos that no longer exist
-    syncedIds.forEach((id) => {
-      if (!currentRepoIds.has(id)) {
-        removeEditorRepo(id);
-        syncedIds.delete(id);
-      }
-    });
-  }, [repos, activeRepoId, addEditorRepo, removeEditorRepo]);
-
-  useEffect(() => {
-    if (activeRepoId && activeEditor !== activeRepoId) {
-      setActiveEditorRepo(activeRepoId);
-    }
-  }, [activeRepoId, activeEditor, setActiveEditorRepo]);
-};
-
-/**
- * Sync document files to global state
- *
- * Used by: FilesContext
- *
- * ONE-WAY sync: FilesContext documents -> navigationSidebarTabsAtom.files
- */
-export const useSyncDocumentFiles = (
-  documents: Array<{ id: string; title: string; updatedAt?: string }>,
-  activeDocumentId: string | null
-) => {
-  const {
-    activeDocument,
-    addDocumentFile,
-    setActiveDocumentFile,
-    removeDocumentFile,
-  } = useGlobalDocumentTabs();
-
-  // Track synced document IDs to detect additions/removals
-  const syncedDocIdsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    const currentDocIds = new Set(documents.map((doc) => doc.id));
-    const syncedIds = syncedDocIdsRef.current;
-
-    // Add new documents
-    documents.forEach((doc) => {
-      if (!syncedIds.has(doc.id)) {
-        addDocumentFile({
-          id: doc.id,
-          title: doc.title,
-          updatedAt: doc.updatedAt,
-          isActive: doc.id === activeDocumentId,
-        });
-        syncedIds.add(doc.id);
-      }
-    });
-
-    // Remove documents that no longer exist
-    syncedIds.forEach((id) => {
-      if (!currentDocIds.has(id)) {
-        removeDocumentFile(id);
-        syncedIds.delete(id);
-      }
-    });
-  }, [documents, activeDocumentId, addDocumentFile, removeDocumentFile]);
-
-  useEffect(() => {
-    if (activeDocumentId && activeDocument?.id !== activeDocumentId) {
-      setActiveDocumentFile(activeDocumentId);
-    }
-  }, [activeDocumentId, activeDocument?.id, setActiveDocumentFile]);
 };

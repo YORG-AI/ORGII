@@ -413,5 +413,3 @@ export function useCloudOrgPanelState(orgId: string) {
     handleFloorChange,
   };
 }
-
-export type CloudOrgPanelState = ReturnType<typeof useCloudOrgPanelState>;

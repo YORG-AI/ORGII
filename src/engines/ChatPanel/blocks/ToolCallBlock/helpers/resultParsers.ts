@@ -14,7 +14,7 @@ import type {
   WorkspaceEntry,
   WorkspaceInfoRow,
 } from "../types";
-import { extractScreenshotIds, stripScreenshotMarkers } from "./argsSummary";
+import { stripScreenshotMarkers } from "./argsSummary";
 
 /**
  * Try to parse a JSON string that contains structured browser tool output.
@@ -68,34 +68,6 @@ export function extractResultText(
   const errorVal = result.error || result.error_message;
   if (typeof errorVal === "string" && errorVal.trim().length > 0) {
     return errorVal.trim();
-  }
-
-  return null;
-}
-
-export function extractScreenshot(
-  result: Record<string, unknown>,
-  screenshotCache?: Map<string, string>
-): string | null {
-  if (typeof result.screenshot === "string" && result.screenshot.length > 100) {
-    return result.screenshot as string;
-  }
-  const output = result.output;
-  if (typeof output === "string") {
-    const parsed = parseBrowserJsonResult(output);
-    if (parsed?.screenshot) return parsed.screenshot;
-  }
-
-  if (screenshotCache) {
-    for (const field of ["content", "output", "observation"]) {
-      const val = result[field];
-      if (typeof val !== "string") continue;
-      const ids = extractScreenshotIds(val);
-      for (const id of ids) {
-        const cached = screenshotCache.get(id);
-        if (cached) return cached;
-      }
-    }
   }
 
   return null;

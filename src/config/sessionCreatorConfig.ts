@@ -104,10 +104,6 @@ export function resolveSessionAgentExecMode(value: unknown): AgentExecMode {
   return normalizeAgentExecMode(value) ?? DEFAULT_AGENT_EXEC_MODE;
 }
 
-export function isAgentExecMode(value: unknown): value is AgentExecMode {
-  return normalizeAgentExecMode(value) === value;
-}
-
 export interface AgentExecModeEntry {
   id: AgentExecMode;
   icon: typeof Infinity01Icon;
@@ -139,10 +135,6 @@ export const AGENT_EXEC_MODES: AgentExecModeEntry[] = [
     description: "Read-only research — search + read + ask",
   },
 ];
-
-export function getAgentExecModeEntry(id: string): AgentExecModeEntry {
-  return AGENT_EXEC_MODES.find((mode) => mode.id === id) ?? AGENT_EXEC_MODES[0];
-}
 
 // ============================================
 // Composer modes (product-mode axis, orgtrack/v1 §5.2)
@@ -191,8 +183,6 @@ export function execModeForComposerSelection(
 // ============================================
 
 export type RunningLocation = "local" | "worktree" | "cloud";
-
-export const DEFAULT_RUNNING_LOCATION: RunningLocation = "local";
 
 export interface RunningLocationEntry {
   id: RunningLocation;

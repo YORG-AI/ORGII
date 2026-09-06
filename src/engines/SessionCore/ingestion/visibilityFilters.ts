@@ -14,43 +14,6 @@
 import type { SessionEvent } from "../core/types";
 
 // ============================================
-// Utility Functions
-// ============================================
-
-/**
- * Strip triple-backtick code blocks that wrap terminal output.
- *
- * When the agent calls a terminal tool, the output often arrives wrapped in
- * triple-backtick blocks like:
- *   ```shell
- *   actual output
- *   ```
- *
- * For display in the chat history we strip those wrappers so the output
- * renders as plain text instead of a code block inside a code block.
- */
-export function stripTerminalCodeBlocks(text: string): string {
-  // Only strip leading ```xyz and trailing ```
-  // Don't strip all code blocks — only the outermost terminal wrapper
-  let result = text;
-
-  // Strip leading ```xyz\n  (common: shell, bash, sh, zsh, terminal)
-  const leadingMatch = result.match(
-    /^```(?:shell|bash|sh|zsh|terminal|console|output|)[ \t]*\n/i
-  );
-  if (leadingMatch) {
-    result = result.slice(leadingMatch[0].length);
-  }
-
-  // Strip trailing \n``` at end of string
-  if (/\n```\s*$/.test(result)) {
-    result = result.replace(/\n```\s*$/, "");
-  }
-
-  return result;
-}
-
-// ============================================
 // Visibility Filters
 // ============================================
 

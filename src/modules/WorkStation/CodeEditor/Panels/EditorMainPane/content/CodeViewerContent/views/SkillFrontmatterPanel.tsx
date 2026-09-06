@@ -25,7 +25,6 @@ import {
 } from "./skillFrontmatter";
 
 export { parseSkillFrontmatter } from "./skillFrontmatter";
-export type { ParseResult, SkillFrontmatter } from "./skillFrontmatter";
 
 const PROPERTY_VALUE_CONTROL_STYLE: React.CSSProperties = {
   width: 400,

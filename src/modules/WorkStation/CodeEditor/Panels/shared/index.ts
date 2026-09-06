@@ -6,10 +6,6 @@
 
 // Search components (VSCode-style find/replace)
 export { SearchInput } from "@src/components/SearchInput";
-export type {
-  SearchInputProps,
-  SearchInputVariant,
-} from "@src/components/SearchInput";
 
 export { ReplaceInput } from "./ReplaceInput";
 

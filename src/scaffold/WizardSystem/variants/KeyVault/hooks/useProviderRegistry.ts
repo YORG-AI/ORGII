@@ -598,12 +598,3 @@ export function useProviderRegistry(
     reload,
   };
 }
-
-// ============================================
-// Preload Helper
-// ============================================
-
-/** Preload provider registry into cache. Call early in app startup. */
-export function preloadProviderRegistry(): Promise<void> {
-  return loadRegistry().then(() => undefined);
-}

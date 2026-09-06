@@ -4,9 +4,6 @@
  * Shared hooks for code-related functionality
  */
 
-export {
-  useSyntaxHighlight,
-  clearSyntaxHighlightCache,
-} from "./useSyntaxHighlight";
+export { useSyntaxHighlight } from "./useSyntaxHighlight";
 
 export { loadPrismHtml } from "./prismHtmlLoader";

@@ -7,8 +7,6 @@ import type {
 } from "@src/types/modelTable";
 import type { ModelGroup } from "@src/util/modelGrouping";
 
-import type { FlatRow, GroupRow } from "./useModelTableData";
-
 export type ModelTableSwitchSize = "small" | "default";
 
 export interface ModelTableColumnSharedArgs {
@@ -56,6 +54,3 @@ export interface UseModelGroupExpandableArgs
   expandedGroupRowKeysInView: string[];
   handleExpandedGroupRowsChange: (keys: string[]) => void;
 }
-
-export type FlatColumnRow = FlatRow;
-export type GroupColumnRow = GroupRow;

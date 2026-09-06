@@ -561,5 +561,4 @@ export function useCodeEditorReplay(
   };
 }
 
-export { useCodeEditorReplay as useSimulatorIDE };
 export default useCodeEditorReplay;

@@ -44,19 +44,6 @@ export function stripAnsiCodes(content: string): string {
 }
 
 /**
- * Check if content contains ANSI codes
- *
- * @param content - Content to check
- * @returns True if content has ANSI escape sequences
- */
-export function hasAnsiCodes(content: string): boolean {
-  if (!content || typeof content !== "string") return false;
-
-  // eslint-disable-next-line no-control-regex
-  return /\u001b\[[0-9;]*[a-zA-Z]/.test(content);
-}
-
-/**
  * Detect TUI-style terminal output that requires a real VT100 renderer.
  *
  * Returns true when the content contains escape sequences that ansi-to-react

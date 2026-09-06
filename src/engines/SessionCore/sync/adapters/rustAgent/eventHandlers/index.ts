@@ -73,11 +73,7 @@ import type { EventHandlerContext } from "./types";
 const unknownEventLogger = createLogger("AgentEventDispatch");
 
 // Re-export types and context factory
-export type {
-  EventHandlerCallbacksInternal,
-  EventHandlerContext,
-  RustAgentFeatures,
-} from "./types";
+export type { EventHandlerContext, RustAgentFeatures } from "./types";
 export { createEventHandlerContext } from "./context";
 
 // ============================================================================

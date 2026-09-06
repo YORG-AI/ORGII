@@ -1310,7 +1310,7 @@
       "mergeStatus": {
         "label": "Birleştirme durumu",
         "viewChecks": "Tüm kontrolleri gör",
-        "ableToMerge": "Birleştirilebilir",
+        "ableToMerge": "Birleştirmeye hazır",
         "blocked": "Birleştirme engellendi",
         "conflicts": "Birleştirme çakışmaları",
         "queued": "Birleştirme kuyruğunda",

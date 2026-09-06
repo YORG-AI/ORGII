@@ -17,7 +17,6 @@ export {
 export type {
   PrimarySidebarConfig,
   SecondaryPanelConfig,
-  SecondaryPanelPosition,
 } from "./WorkStationShell/config";
 
 // Shared panel tab-bar chrome (position-aware tab header + position toggle)
@@ -26,22 +25,17 @@ export type { PanelTabBarTab } from "./PanelTabBar";
 
 export { TerminalInfoButton } from "./TerminalInfoButton";
 export { TerminalNewSessionSplitButton } from "./TerminalNewSessionSplitButton";
-export type { NewTerminalSessionOptions } from "./TerminalNewSessionSplitButton";
 
 // Diff display
 export { default as DiffFileSection } from "./DiffFileSection";
 export type { DiffFileSectionData } from "./DiffFileSection";
 export { default as DiffSectionList } from "./DiffSectionList";
-export type {
-  DiffSectionListItem,
-  DiffSectionListViewState,
-} from "./DiffSectionList";
+export type { DiffSectionListViewState } from "./DiffSectionList";
 export { default as DiffFileNavigationList } from "./DiffFileNavigationList";
 export type { DiffFileNavigationItem } from "./DiffFileNavigationList";
 export {
   buildConsolidatedSessionReplayDiffSectionItems,
   buildSessionReplayDiffSectionItems,
-  type SessionReplayDiffEntryLike,
 } from "./DiffSectionList/sessionReplaySections";
 
 // Count badges (for diagnostic counts: errors, warnings, etc.)
@@ -53,12 +47,7 @@ export {
   PrimarySidebarLayout,
   PrimarySidebarLayoutWithSections,
 } from "./PrimarySidebarLayout";
-export type {
-  CollapsibleSectionProps,
-  PanelSection,
-  PrimarySidebarLayoutWithSectionsProps,
-  PrimarySidebarTab,
-} from "./PrimarySidebarLayout";
+export type { PrimarySidebarTab } from "./PrimarySidebarLayout";
 
 // Reusable sidebar modules (tab-specific sidebar substrate) are NOT
 // re-exported here on purpose: `./SidebarModules/index.ts` evaluates the
@@ -78,35 +67,19 @@ export {
   SpacingRight,
   SpacingTop,
 } from "./PropertyEditor";
-export type {
-  ColorInputProps,
-  EditableFieldProps,
-  LinkedInputPairProps,
-} from "./PropertyEditor";
 
 // Tab bar
-export {
-  TabBar,
-  TAB_BAR_HEIGHT,
-  MAX_VISIBLE_TABS,
-  STATUS_LABELS,
-} from "./TabBar";
+export { TabBar } from "./TabBar";
 export type { WorkStationTab } from "./TabBar";
 export { StationTabBarLeading } from "./StationTabBarLeading";
 export { TabBarLeadingLayout } from "./TabBarLeadingLayout";
 
 // File header with breadcrumb navigation (relocated to shared)
 export { default as FileHeader } from "@src/modules/shared/components/FileHeader";
-export type {
-  FileHeaderProps,
-  DiffViewMode,
-  ToggleOption,
-} from "@src/modules/shared/components/FileHeader";
 
 export { default as GitFileList } from "./GitFileList";
 export {
   gitFileListWidthAtom,
-  GIT_FILE_LIST_DEFAULT_WIDTH,
   GIT_FILE_LIST_MAX_WIDTH,
   GIT_FILE_LIST_MIN_WIDTH,
 } from "./GitFileList/widthAtom";
@@ -123,11 +96,10 @@ export { FloatingBar, UnsavedChangesBar } from "./UnsavedChangesBar";
 // Quick actions panel — types only. The component (framer-motion) is not
 // re-exported: nothing imports it through this barrel, and a value export
 // here would drag the animation stack into every barrel consumer.
-export type { QuickAction, QuickActionsPanelProps } from "./QuickActionsPanel";
+export type { QuickAction } from "./QuickActionsPanel";
 
 // No tabs placeholder (with quick actions)
 export { NoTabsPlaceholder } from "./NoTabsPlaceholder";
-export type { PlaceholderIcon } from "./NoTabsPlaceholder";
 
 export {
   useSimulatorAwaitingAgentCaption,
@@ -143,21 +115,10 @@ export {
   SimulatorReplayChrome,
   SimulatorWorkstationTabHeader,
   capNewestWithActive,
-  gateByActiveKind,
-  MAX_REPLAY_TABS,
   mergeNewestFirstByTimestamp,
-  useReplayShell,
-  type ActiveSelectionKind,
   type KnownReplayTabKind,
-  type ReplayShellLayoutProps,
-  type ReplayShellPlaceholderProps,
-  type ReplayShellWorkstationConfig,
   type ReplayTab,
-  type ReplayTabBarProps,
-  type SimulatorReplayChromeProps,
-  type SelectionByKind,
   type TimestampedReplayTab,
-  type UseReplayShellResult,
 } from "./SessionReplay";
 
 // Station-mode chip + product-bound app-switcher wrappers.
@@ -185,18 +146,9 @@ export { TabBarBottomPanelToggle } from "./TabBarTrailingControls";
 
 // Header and typography tokens (shared dimensions, button styles, class strings)
 export {
-  BUTTON_SIZE,
-  COUNT_BADGE,
-  getCountBadgeSizeClass,
-  BUTTON_VARIANT,
-  EDITOR_TAB_CANVAS_BG_CLASS,
   WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS,
   HEADER_BUTTON,
-  HEADER_CLASSES,
-  HEADER_HEIGHT,
   HEADER_ICON_SIZE,
-  SECTION_ACTION_BUTTON,
-  TYPOGRAPHY,
 } from "./tokens";
 
 // Text tokens (i18n keys for Workstation)
@@ -213,13 +165,4 @@ export {
   StatusBarText,
 } from "./StatusBar";
 
-export type {
-  BaseStatusBarProps,
-  BrowserStatusBarProps,
-  CommitInfo,
-  CursorPosition,
-  EditorStatusBarProps,
-  StatusBarButtonProps,
-  StatusBarDividerProps,
-  StatusBarTextProps,
-} from "./StatusBar";
+export type { CommitInfo, CursorPosition } from "./StatusBar";

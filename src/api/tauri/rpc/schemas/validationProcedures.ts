@@ -394,7 +394,6 @@ export const CursorNativeModelSchema = z.object({
   aliases: z.array(z.string()).optional().default([]),
   maxMode: z.boolean().optional().default(false),
 });
-export type CursorNativeModel = z.infer<typeof CursorNativeModelSchema>;
 
 export const CursorNativeOauthStartResponseSchema = z.object({
   loginUrl: z.string(),

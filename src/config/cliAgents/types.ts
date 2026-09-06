@@ -5,7 +5,6 @@
  * DO NOT define duplicate interfaces here.
  */
 export type {
-  AgentEnvConfig,
   AvailableAgent,
   CliInstallMethod,
 } from "@src/api/tauri/rpc/schemas/validation";

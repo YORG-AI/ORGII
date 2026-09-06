@@ -22,6 +22,7 @@ describe("WorkManagementDatasetSwitch", () => {
     [WORK_MANAGEMENT_DATASET.WORK_ITEMS, 'data-icon="list-todo"'],
     [WORK_MANAGEMENT_DATASET.GITHUB_ISSUES, 'data-icon="circle-dot"'],
     [WORK_MANAGEMENT_DATASET.REVIEWS, 'data-icon="git-pull-request"'],
+    [WORK_MANAGEMENT_DATASET.RUNS, 'data-icon="play-circle"'],
   ])("renders one simple select for %s", (activeDataset, activeIcon) => {
     const markup = renderToStaticMarkup(
       createElement(WorkManagementDatasetSwitch, {
@@ -52,6 +53,7 @@ describe("WorkManagementDatasetSwitch", () => {
       WORK_MANAGEMENT_DATASET.INBOX,
       WORK_MANAGEMENT_DATASET.PROJECTS,
       WORK_MANAGEMENT_DATASET.WORK_ITEMS,
+      WORK_MANAGEMENT_DATASET.RUNS,
     ]);
   });
 

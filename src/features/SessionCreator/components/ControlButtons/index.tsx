@@ -21,7 +21,7 @@ import { modelSelectorAtom } from "@src/store/ui/modelSelectorAtom";
 
 import type { ControlButtonsProps } from "./types";
 
-export type { ControlButtonsProps, DropdownDirection } from "./types";
+export type { DropdownDirection } from "./types";
 
 const ControlButtons: React.FC<ControlButtonsProps> = memo(
   ({

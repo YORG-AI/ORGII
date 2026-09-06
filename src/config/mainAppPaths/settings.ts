@@ -42,9 +42,6 @@ export const SETTINGS_SECTION_TABS = {
 
 export type SettingsSectionWithTabs = keyof typeof SETTINGS_SECTION_TABS;
 
-export type SettingsSectionTab<S extends SettingsSectionWithTabs> =
-  (typeof SETTINGS_SECTION_TABS)[S][number];
-
 export type SettingsTopTabSegment =
   | "core-settings"
   | "integrations"
@@ -53,13 +50,6 @@ export type SettingsTopTabSegment =
   | "org"
   | "clis"
   | "my-role";
-
-export const SETTINGS_TOP_TABS: readonly SettingsTopTabSegment[] = [
-  "core-settings",
-  "integrations",
-  "agent-orgs",
-  "my-role",
-] as const;
 
 export type CoreSettingsItemSegment =
   | SettingsSectionSegment
@@ -216,17 +206,6 @@ export function parseSettingsTopTab(pathname: string): SettingsTopTabSegment {
   }
   if (head === "my-role") return "my-role";
   return "core-settings";
-}
-
-export function buildSettingsTabPath(tab: SettingsTopTabSegment): string {
-  if (tab === "core-settings") return SETTINGS_BASE;
-  if (tab === "integrations") return buildIntegrationsPath();
-  if (tab === "agent-orgs" || tab === "agents") {
-    return `${SETTINGS_BASE}/agent-orgs/agents`;
-  }
-  if (tab === "org") return `${SETTINGS_BASE}/agent-orgs/orgs`;
-  if (tab === "clis") return `${SETTINGS_BASE}/agent-orgs/clis`;
-  return `${SETTINGS_BASE}/${tab}`;
 }
 
 export function buildCoreSettingsItemPath(

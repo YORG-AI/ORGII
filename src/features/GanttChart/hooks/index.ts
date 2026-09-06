@@ -9,4 +9,3 @@ export { useGanttScroll } from "./useGanttScroll";
 export { useGanttDrag } from "./useGanttDrag";
 export type { DragState } from "./useGanttDrag";
 export { useGanttZoom } from "./useGanttZoom";
-export type { ZoomLevel } from "./useGanttZoom";

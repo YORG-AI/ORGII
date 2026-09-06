@@ -49,9 +49,6 @@ const PRESENCE_CALL_WINDOW_MARGIN_MS = 100;
 /** Postgres schema every ORG2 Cloud table lives in. */
 export const ORG2_CLOUD_SCHEMA = "org2_cloud";
 
-/** Realtime change events we care about (soft-delete is an UPDATE). */
-export type Org2CloudChangeEvent = "INSERT" | "UPDATE" | "DELETE";
-
 export interface Org2CloudSubscribeOptions {
   /** Table name inside `org2_cloud` (e.g. `org_memberships`). */
   readonly table: string;

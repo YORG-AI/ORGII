@@ -9,6 +9,7 @@ import {
   HugeiconsIcon,
   InboxIcon,
   ListTodoIcon,
+  PlayCircleIcon,
 } from "@src/icons";
 
 import {
@@ -29,6 +30,7 @@ export const WORK_MANAGEMENT_DATASET_MENU_ORDER = [
   WORK_MANAGEMENT_DATASET.INBOX,
   WORK_MANAGEMENT_DATASET.PROJECTS,
   WORK_MANAGEMENT_DATASET.WORK_ITEMS,
+  WORK_MANAGEMENT_DATASET.RUNS,
 ] as const satisfies readonly WorkManagementDataset[];
 
 export function WorkManagementDatasetSwitch({
@@ -42,12 +44,14 @@ export function WorkManagementDatasetSwitch({
   const inboxLabel = t("navigation:labels.inbox");
   const issuesLabel = t("sessions:kanban.sidebar.githubIssues");
   const reviewsLabel = t("sessions:kanban.sidebar.githubPrs");
+  const runsLabel = t("sessions:kanban.sidebar.runs");
   const activeDatasetLabel: Record<WorkManagementDataset, string> = {
     [WORK_MANAGEMENT_DATASET.INBOX]: inboxLabel,
     [WORK_MANAGEMENT_DATASET.PROJECTS]: projectsLabel,
     [WORK_MANAGEMENT_DATASET.WORK_ITEMS]: workItemsLabel,
     [WORK_MANAGEMENT_DATASET.GITHUB_ISSUES]: issuesLabel,
     [WORK_MANAGEMENT_DATASET.REVIEWS]: reviewsLabel,
+    [WORK_MANAGEMENT_DATASET.RUNS]: runsLabel,
   };
   const options = useMemo<SelectOption[]>(() => {
     const optionsByDataset: Record<WorkManagementDataset, SelectOption> = {
@@ -126,6 +130,21 @@ export function WorkManagementDatasetSwitch({
         ),
         dataTestId: "work-dataset-reviews",
       },
+      [WORK_MANAGEMENT_DATASET.RUNS]: {
+        value: WORK_MANAGEMENT_DATASET.RUNS,
+        label: runsLabel,
+        triggerLabel: compact ? "" : runsLabel,
+        icon: (
+          <HugeiconsIcon
+            icon={PlayCircleIcon}
+            data-icon="play-circle"
+            size={14}
+            strokeWidth={1.9}
+            aria-hidden="true"
+          />
+        ),
+        dataTestId: "work-dataset-runs",
+      },
     };
 
     return WORK_MANAGEMENT_DATASET_MENU_ORDER.map(
@@ -137,6 +156,7 @@ export function WorkManagementDatasetSwitch({
     issuesLabel,
     projectsLabel,
     reviewsLabel,
+    runsLabel,
     workItemsLabel,
   ]);
 

@@ -27,14 +27,3 @@ export interface FileContentItem {
   type?: string;
   sessionId?: string;
 }
-
-/**
- * File content response from API
- */
-export interface FileContentResponse {
-  status: number;
-  message: string;
-  data: {
-    file_contents: FileContentItem[];
-  };
-}

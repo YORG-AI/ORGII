@@ -1,18 +1,11 @@
 export type SpreadsheetData = string[][];
 
-export type CellAddress = {
-  rowIndex: number;
-  columnIndex: number;
-};
-
 export type CellRange = {
   startRow: number;
   endRow: number;
   startColumn: number;
   endColumn: number;
 };
-
-export type NavigationDirection = "up" | "down" | "left" | "right";
 
 export interface SpreadsheetSheet {
   name: string;

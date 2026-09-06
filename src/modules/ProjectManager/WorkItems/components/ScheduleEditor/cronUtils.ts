@@ -8,16 +8,6 @@ export interface CronParts {
   minute: number;
 }
 
-const WEEKDAY_NAMES_KEYS = [
-  "common:schedule.days.sun",
-  "common:schedule.days.mon",
-  "common:schedule.days.tue",
-  "common:schedule.days.wed",
-  "common:schedule.days.thu",
-  "common:schedule.days.fri",
-  "common:schedule.days.sat",
-];
-
 export function buildCron(parts: CronParts): string {
   const { frequency, dayOfWeek, dayOfMonth, hour, minute } = parts;
   switch (frequency) {
@@ -56,34 +46,4 @@ export function parseCron(cron: string): CronParts | null {
   }
 
   return null;
-}
-
-export function cronToHumanReadable(
-  cron: string,
-  t: (key: string, opts?: Record<string, unknown>) => string
-): string {
-  const parsed = parseCron(cron);
-  if (!parsed) return cron;
-
-  const timeStr = `${String(parsed.hour).padStart(2, "0")}:${String(parsed.minute).padStart(2, "0")}`;
-
-  switch (parsed.frequency) {
-    case "daily":
-      return t("common:schedule.humanReadable.daily", { time: timeStr });
-    case "weekday":
-      return t("common:schedule.humanReadable.weekday", { time: timeStr });
-    case "weekly": {
-      const dayKey = WEEKDAY_NAMES_KEYS[parsed.dayOfWeek ?? 1];
-      const dayName = t(dayKey);
-      return t("common:schedule.humanReadable.weekly", {
-        day: dayName,
-        time: timeStr,
-      });
-    }
-    case "monthly":
-      return t("common:schedule.humanReadable.monthly", {
-        day: parsed.dayOfMonth ?? 1,
-        time: timeStr,
-      });
-  }
 }

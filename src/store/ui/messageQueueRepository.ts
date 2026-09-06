@@ -93,9 +93,3 @@ export function persistDurableMessageQueue(
     log.warn("[messageQueueRepository] failed to persist queue", error);
   });
 }
-
-export function resetMessageQueueRepositoryForTests(): void {
-  storePromise = null;
-  queueKeyPromise = null;
-  writeChain = Promise.resolve();
-}

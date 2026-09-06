@@ -7,16 +7,8 @@
  */
 import type {
   CookieImportPreview,
-  CookieSiteCategory,
   CookieSiteGroup,
 } from "@src/api/tauri/browserCookies";
-
-/** Categories whose rows start unchecked, in the order we explain them. */
-export const CAUTION_CATEGORIES: readonly CookieSiteCategory[] = [
-  "banking",
-  "email",
-  "sso",
-];
 
 /** Domains checked by default for a fresh preview. */
 export function initialSelectedDomains(

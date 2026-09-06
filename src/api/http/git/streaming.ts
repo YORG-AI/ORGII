@@ -25,11 +25,6 @@ export type GitErrorType =
   | "permission_denied" // Permission denied
   | "unknown"; // Unknown error
 
-export interface GitStreamResult {
-  success: boolean;
-  errorType: GitErrorType;
-}
-
 export interface GitStreamCallbacks {
   onStart?: () => void;
   onOutput?: (line: string, stream: "stdout" | "stderr") => void;

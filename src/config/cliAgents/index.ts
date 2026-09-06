@@ -3,12 +3,7 @@ import {
   type CliAgentType,
 } from "@src/api/tauri/rpc/schemas/validation";
 
-export type {
-  AgentAction,
-  AgentEnvConfig,
-  AvailableAgent,
-  CliInstallMethod,
-} from "./types";
+export type { AgentAction, AvailableAgent } from "./types";
 export type { CliInstallMethod as InstallMethod } from "./types";
 
 /**

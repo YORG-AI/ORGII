@@ -283,5 +283,4 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
 export const SessionReplayMessages = memo(SimulatorMessagesComponent);
 SessionReplayMessages.displayName = "SessionReplayMessages";
 
-export { SessionReplayMessages as SimulatorMessages };
 export default SessionReplayMessages;

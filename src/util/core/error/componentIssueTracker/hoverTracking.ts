@@ -82,14 +82,3 @@ export const ensureHoverTracking = () => {
 
   setHoverTrackingInitialized(true);
 };
-
-export const stopHoverTracking = () => {
-  if (!isHoverTrackingInitialized()) return;
-
-  HOVER_EVENTS.forEach((eventName) => {
-    document.removeEventListener(eventName, handleHoverEvent, true);
-  });
-
-  setHoverTrackingInitialized(false);
-  setLastHoveredElementState(null);
-};

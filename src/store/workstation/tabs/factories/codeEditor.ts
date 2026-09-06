@@ -515,10 +515,6 @@ export const aiImpactTabFactory = defineTabFactory<Record<string, never>>({
   icon: "Sparkles",
 });
 
-export function createAIImpactTab(): WorkStationTab {
-  return aiImpactTabFactory({});
-}
-
 // ============================================
 // Search Sessions Tab (singleton)
 // ============================================

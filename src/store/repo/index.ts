@@ -38,16 +38,9 @@
 // Types
 // ============================================
 
-export type {
-  Repo,
-  Branch,
-  RepoStoreState,
-  CachedRepo,
-  BranchCacheEntry,
-  RepoKind,
-} from "./types";
+export type { Repo, Branch, CachedRepo } from "./types";
 
-export { BRANCH_CACHE_CONFIG, MAX_CACHED_REPOS, REPO_KIND } from "./types";
+export { REPO_KIND } from "./types";
 
 // ============================================
 // Core Atoms
@@ -94,8 +87,6 @@ export {
   filteredReposAtom,
   branchOptionsAtom,
   // Stats
-  repoCountAtom,
-  hasReposAtom,
   isSelectedRepoValidAtom,
   reposByTypeAtom,
   repoTotalStatsAtom,
@@ -116,9 +107,6 @@ export {
   isBranchCacheFresh,
   getBranchesFromCache,
   setBranchCacheWithLRU,
-  touchBranchCache,
-  pruneBranchCache,
-  getBranchCacheStats,
 } from "./branchCache";
 
 // ============================================
@@ -127,9 +115,6 @@ export {
 
 export {
   REPO_STORAGE_KEYS,
-  CACHE_INVALIDATION_KEY,
-  getCacheInvalidationTimestamp,
-  clearRepoStorage,
   isValidUUID,
   resetRepoStore,
   // Window tracking

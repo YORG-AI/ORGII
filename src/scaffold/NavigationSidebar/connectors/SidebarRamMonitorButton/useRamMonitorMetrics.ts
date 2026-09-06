@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { getTerminalBufferCacheStats } from "@src/engines/TerminalCore/components/TerminalInteractive/bufferCache";
 import { createLogger } from "@src/hooks/logger";
@@ -9,6 +9,7 @@ import {
   useAppMemorySnapshot,
   useRuntimeRamStats,
 } from "@src/hooks/perf";
+import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
 import { listRegisteredCaches } from "@src/util/memory/cacheRegistry";
 
 import {
@@ -22,7 +23,6 @@ const logger = createLogger("SidebarRamMonitor");
 
 export function useRamMonitorMetrics(isOpen: boolean) {
   const [snapshot, setSnapshot] = useState<MetricsSnapshot>(EMPTY_SNAPSHOT);
-  const lastExpensiveFetchAtRef = useRef(0);
   const {
     rows: runtimeRows,
     fpsSample,
@@ -32,106 +32,93 @@ export function useRamMonitorMetrics(isOpen: boolean) {
   } = useRuntimeRamStats(false);
   const appMemoryState = useAppMemorySnapshot(isOpen);
 
-  const fetchExpensiveMetrics = useCallback(async (force = false) => {
-    if (document.visibilityState !== "visible") return;
-
-    const now = Date.now();
-    if (
-      !force &&
-      now - lastExpensiveFetchAtRef.current < EXPENSIVE_METRICS_POLL_INTERVAL_MS
-    ) {
-      return;
-    }
-    lastExpensiveFetchAtRef.current = now;
-
-    try {
-      const ptyMemory = await invoke<PtyMemoryInfo[]>(
-        "get_pty_memory_usage"
-      ).catch(() => []);
-
-      setSnapshot((previousSnapshot) => ({
-        ...previousSnapshot,
-        ptyMemory,
-        lastUpdatedAt: Date.now(),
-        errorMessage: null,
-      }));
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      logger.warn("failed to fetch expensive sidebar RAM metrics", error);
-      setSnapshot((previousSnapshot) => ({
-        ...previousSnapshot,
-        errorMessage,
-      }));
-    }
-  }, []);
-
-  const fetchCheapMetrics = useCallback(async () => {
-    if (document.visibilityState !== "visible") return;
-
-    try {
-      const memoryBreakdown = await invoke<MemoryBreakdown>(
-        "get_memory_breakdown"
-      );
-      const terminalBufferStats = getTerminalBufferCacheStats();
-      const webViewDiagnostics = collectWebViewRuntimeDiagnostics();
-      const scriptSources = getLoadedScriptSourceStats();
-
-      setSnapshot((previousSnapshot) => ({
-        ...previousSnapshot,
-        memoryBreakdown,
-        webViewDiagnostics,
-        scriptSources,
-        terminalBufferBytes: terminalBufferStats.bytes,
-        terminalBufferEntries: terminalBufferStats.entries,
-        cacheRegistry: listRegisteredCaches(),
-        lastUpdatedAt: Date.now(),
-        errorMessage: null,
-      }));
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      logger.warn("failed to fetch sidebar RAM metrics", error);
-      setSnapshot((previousSnapshot) => ({
-        ...previousSnapshot,
-        errorMessage,
-      }));
-    }
-  }, []);
-
-  const refreshAll = useCallback(
-    (forceExpensive = false) => {
-      refreshRuntimeStats();
-      void fetchCheapMetrics();
-      void fetchExpensiveMetrics(forceExpensive);
-    },
-    [fetchCheapMetrics, fetchExpensiveMetrics, refreshRuntimeStats]
-  );
-
   useEffect(() => {
     if (!isOpen) return;
+    let disposed = false;
+    let generation = 0;
+    // In-flight IPC cannot be cancelled, but its result must not publish after
+    // hiding, closing, or a subsequent visibility lifecycle.
+    const invalidate = () => {
+      generation += 1;
+    };
+    document.addEventListener("visibilitychange", invalidate);
+    const isCurrent = (started: number) =>
+      !disposed &&
+      generation === started &&
+      document.visibilityState === "visible";
 
-    const frameId = window.requestAnimationFrame(() => refreshAll(true));
-    const cheapIntervalId = window.setInterval(
-      refreshAll,
+    const fetchCheapMetrics = async () => {
+      const started = generation;
+      try {
+        const memoryBreakdown = await invoke<MemoryBreakdown>(
+          "get_memory_breakdown"
+        );
+        if (!isCurrent(started)) return;
+        refreshRuntimeStats();
+        const terminalBufferStats = getTerminalBufferCacheStats();
+        const webViewDiagnostics = collectWebViewRuntimeDiagnostics();
+        const scriptSources = getLoadedScriptSourceStats();
+        const cacheRegistry = listRegisteredCaches();
+        setSnapshot((previousSnapshot) => ({
+          ...previousSnapshot,
+          memoryBreakdown,
+          webViewDiagnostics,
+          scriptSources,
+          terminalBufferBytes: terminalBufferStats.bytes,
+          terminalBufferEntries: terminalBufferStats.entries,
+          cacheRegistry,
+          lastUpdatedAt: Date.now(),
+          errorMessage: null,
+        }));
+      } catch (error) {
+        if (!isCurrent(started)) return;
+        logger.warn("failed to fetch sidebar RAM metrics", error);
+        setSnapshot((previous) => ({
+          ...previous,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        }));
+      }
+    };
+    const fetchExpensiveMetrics = async () => {
+      const started = generation;
+      try {
+        const ptyMemory = await invoke<PtyMemoryInfo[]>(
+          "get_pty_memory_usage"
+        ).catch(() => []);
+        if (!isCurrent(started)) return;
+        setSnapshot((previous) => ({
+          ...previous,
+          ptyMemory,
+          lastUpdatedAt: Date.now(),
+          errorMessage: null,
+        }));
+      } catch (error) {
+        if (!isCurrent(started)) return;
+        logger.warn("failed to fetch expensive sidebar RAM metrics", error);
+        setSnapshot((previous) => ({
+          ...previous,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        }));
+      }
+    };
+
+    const stopCheap = startVisibilityAwarePoller(
+      document,
+      fetchCheapMetrics,
       CHEAP_METRICS_POLL_INTERVAL_MS
     );
-    const expensiveIntervalId = window.setInterval(
-      () => refreshAll(true),
+    const stopExpensive = startVisibilityAwarePoller(
+      document,
+      fetchExpensiveMetrics,
       EXPENSIVE_METRICS_POLL_INTERVAL_MS
     );
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") refreshAll(true);
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
-      window.cancelAnimationFrame(frameId);
-      window.clearInterval(cheapIntervalId);
-      window.clearInterval(expensiveIntervalId);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      disposed = true;
+      stopCheap();
+      stopExpensive();
+      document.removeEventListener("visibilitychange", invalidate);
     };
-  }, [isOpen, refreshAll]);
+  }, [isOpen, refreshRuntimeStats]);
 
   return {
     snapshot,

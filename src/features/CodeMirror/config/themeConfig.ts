@@ -16,7 +16,7 @@ import { createGithubTheme } from "../themes";
 
 export const CODE_FONT_FAMILY = "var(--cm-font-family)";
 export const CODE_FONT_SIZE = "var(--cm-font-size)";
-export const CODE_FONT_SIZE_SMALL = "var(--cm-font-size-small)";
+
 export const CODE_LINE_HEIGHT = "var(--cm-line-height)";
 
 // ============================================

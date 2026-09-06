@@ -188,32 +188,6 @@ export const SESSION_UI_TOKENS = {
 } as const;
 
 // ============================================
-// Helper Functions for Token Classes
-// ============================================
-
-/**
- * Get status badge classes by status type
- */
-export function getStatusBadgeClass(
-  status: "success" | "warning" | "danger" | "primary" | "neutral"
-): string {
-  return SESSION_UI_TOKENS.STATUS_BADGE[
-    status.toUpperCase() as keyof typeof SESSION_UI_TOKENS.STATUS_BADGE
-  ];
-}
-
-/**
- * Get event card classes by variant
- */
-export function getEventCardClass(
-  variant: "default" | "success" | "danger" | "primary" | "transparent"
-): string {
-  return SESSION_UI_TOKENS.EVENT_CARD[
-    variant.toUpperCase() as keyof typeof SESSION_UI_TOKENS.EVENT_CARD
-  ];
-}
-
-// ============================================
 // Chat Item Spacing Tokens
 // ============================================
 
@@ -283,30 +257,6 @@ export const getEventBlockHeaderClasses = (
 ) =>
   `chat-block-header flex ${clickable ? "cursor-pointer" : "cursor-default"} items-center justify-between px-2 h-[36px] transition-all duration-150`;
 
-/**
- * Standard header left section classes
- */
-export const EVENT_BLOCK_HEADER_LEFT_CLASSES =
-  "flex min-w-0 flex-1 items-center gap-2";
-
-/**
- * Standard header right section classes
- */
-export const EVENT_BLOCK_HEADER_RIGHT_CLASSES =
-  "flex shrink-0 items-center gap-0.5";
-
-// ============================================
-// Header Button Classes
-// ============================================
-
-/**
- * Simple copy button classes (14px icon, no wrapper, always visible)
- * @param _isVisible - Deprecated: buttons are now always visible
- * @returns className string
- */
-export const getEventBlockCopyButtonClasses = (_isVisible: boolean) =>
-  `cursor-pointer text-text-3 transition-all duration-150 hover:text-text-1 opacity-100`;
-
 // ============================================
 // Expand Button Classes
 // ============================================
@@ -329,12 +279,6 @@ export const EVENT_BLOCK_EXPAND_BUTTON_CLASSES =
 export const EVENT_BLOCK_TRANSPARENT_EXPANDED_SHELL_CLASSES = `mt-1 overflow-hidden rounded-lg ${EVENT_BLOCK_BORDER_CLASSES} ${EVENT_BLOCK_CONTENT_BG}`;
 
 /**
- * CSS variable equivalent of EVENT_BLOCK_CONTENT_BG for inline styles.
- * Use when Tailwind classes aren't applicable (e.g. virtualised list style prop).
- */
-export const EVENT_BLOCK_CONTENT_BG_VAR = "var(--color-event-block)";
-
-/**
  * Elevated surface background — one step above EVENT_BLOCK_CONTENT_BG.
  * Used for badges, chips, and elements that need contrast against fill-2 content.
  */
@@ -351,11 +295,6 @@ export const EVENT_BLOCK_ELEVATED_BG = "bg-fill-3";
 export const EVENT_BLOCK_ICON_WRAPPER_CLASSES =
   "chat-block-icon inline-flex h-[14px] w-[14px] shrink-0 select-none items-center justify-center self-center text-text-2";
 
-/**
- * Standard icon classes
- */
-export const EVENT_BLOCK_ICON_CLASSES = "chat-block-icon shrink-0 text-text-2";
-
 // ============================================
 // Text Classes
 // ============================================
@@ -369,19 +308,6 @@ export const EVENT_LOADING_SHIMMER_TEXT_CLASSES =
   "bg-linear-to-r from-text-3 via-text-1 to-text-3 bg-size-[260%_100%] bg-clip-text text-transparent animate-shimmer-text";
 
 /**
- * Standard title classes
- * Font size is inherited from header which uses --chat-font-size CSS variable
- */
-export const EVENT_BLOCK_TITLE_CLASSES =
-  "overflow-hidden text-ellipsis whitespace-nowrap font-medium text-text-1";
-
-/**
- * Standard badge classes (char count, etc.)
- */
-export const EVENT_BLOCK_BADGE_CLASSES =
-  "shrink-0 chat-block-xs font-medium text-text-3";
-
-/**
  * Standard badge with background classes (execution time, exit code, etc.)
  */
 export const EVENT_BLOCK_BADGE_BG_CLASSES = `shrink-0 rounded ${EVENT_BLOCK_ELEVATED_BG} px-1.5 py-0.5 chat-block-xs font-medium text-text-3`;
@@ -389,11 +315,6 @@ export const EVENT_BLOCK_BADGE_BG_CLASSES = `shrink-0 rounded ${EVENT_BLOCK_ELEV
 // ============================================
 // Content Classes
 // ============================================
-
-/**
- * Standard content wrapper classes
- */
-export const EVENT_BLOCK_CONTENT_CLASSES = "overflow-hidden";
 
 /**
  * Get standard content area classes for event blocks

@@ -356,20 +356,9 @@ export const CodeEditorWebSocketMessageSchema = z
   })
   .passthrough();
 
-export type ParsedWSMessage = z.output<typeof WSMessageSchema>;
 export type ParsedCodeEditorWebSocketMessage = z.output<
   typeof CodeEditorWebSocketMessageSchema
 >;
-
-export function parseWSMessage(raw: string): ParsedWSMessage {
-  return WSMessageSchema.parse(JSON.parse(raw));
-}
-
-export function parseCodeEditorWebSocketMessage(
-  raw: string
-): ParsedCodeEditorWebSocketMessage {
-  return CodeEditorWebSocketMessageSchema.parse(JSON.parse(raw));
-}
 
 export function maybeParseCodeEditorWebSocketMessage(
   raw: string

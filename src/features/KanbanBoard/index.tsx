@@ -529,16 +529,6 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
 export default KanbanBoard;
 
 // Re-export types and config for convenience
-export type {
-  KanbanColumnConfig,
-  KanbanTask,
-  KanbanTaskCreator,
-  TaskPriority,
-  TaskStatus,
-} from "./types";
-export {
-  DEFAULT_KANBAN_COLUMNS,
-  GITHUB_ISSUE_KANBAN_COLUMNS,
-  getColumnConfig,
-} from "./config";
-export { KanbanColumn, TaskCard } from "./components";
+export type { KanbanColumnConfig, KanbanTask, TaskStatus } from "./types";
+export { DEFAULT_KANBAN_COLUMNS, GITHUB_ISSUE_KANBAN_COLUMNS } from "./config";
+export { KanbanColumn } from "./components";

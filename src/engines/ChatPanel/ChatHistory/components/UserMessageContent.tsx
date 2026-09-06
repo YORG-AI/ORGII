@@ -27,7 +27,6 @@ import {
 export type { UserMessageMention } from "./userMessageSegments";
 export {
   normalizeMarkdownReferencePills,
-  normalizeMarkdownUrlPills,
   parseUserMessage,
   splitMentionSegments,
 } from "./userMessageSegments";

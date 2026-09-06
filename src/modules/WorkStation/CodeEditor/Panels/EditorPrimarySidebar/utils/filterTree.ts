@@ -239,36 +239,6 @@ export function countTreeNodes(nodes: TreePanelNode[]): number {
   return count;
 }
 
-/**
- * Check if query matches a string (for highlighting purposes)
- * Returns match ranges for highlighting
- */
-export function getMatchRanges(
-  text: string,
-  query: string,
-  caseSensitive = false
-): Array<{ start: number; end: number }> {
-  if (!query || query.length === 0) return [];
-
-  const normalizedQuery = caseSensitive ? query : query.toLowerCase();
-  const normalizedText = caseSensitive ? text : text.toLowerCase();
-
-  const ranges: Array<{ start: number; end: number }> = [];
-
-  // Find fuzzy match positions
-  let queryIndex = 0;
-  for (let textIndex = 0; textIndex < normalizedText.length; textIndex++) {
-    if (normalizedQuery[queryIndex] === normalizedText[textIndex]) {
-      ranges.push({ start: textIndex, end: textIndex + 1 });
-      queryIndex++;
-      if (queryIndex === normalizedQuery.length) break;
-    }
-  }
-
-  // Only return ranges if we matched the full query
-  return queryIndex === normalizedQuery.length ? ranges : [];
-}
-
 // ============================================
 // Build Tree from Search Results
 // ============================================

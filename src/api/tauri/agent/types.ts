@@ -1,9 +1,3 @@
-/**
- * Agent API Types
- *
- * Shared types for all agent Tauri commands.
- */
-import type { WorkspaceSnapshot } from "@src/services/context/workspaceSnapshot";
 import type { SessionStatus } from "@src/types/session/session";
 
 export const RUST_AGENT_TYPE = {
@@ -104,26 +98,9 @@ export interface HousekeeperContextCompactionState {
   message?: string;
 }
 
-export interface AgentMessageResponse {
-  content: string;
-  sessionId: string;
-  model: string;
-}
-
 export interface GatewayStatus {
   running: boolean;
   activeSessions: number;
-}
-
-export interface MessageParams {
-  sessionId: string;
-  content: string;
-  model?: string;
-  accountId?: string;
-  workspacePath?: string;
-  mode?: string;
-  images?: string[];
-  ideContext?: WorkspaceSnapshot;
 }
 
 export interface SessionMessage {
@@ -135,25 +112,6 @@ export interface SessionMessage {
   createdAt: string;
   /** Non-null on compact-boundary rows: sequence the compacted tail starts at. */
   compactFromSequence?: number | null;
-}
-
-export interface QuestionResponseParams {
-  requestId: string;
-  answer: string;
-  sessionId?: string;
-}
-
-export interface PermissionResponseParams {
-  requestId: string;
-  approved: boolean;
-  sessionId?: string;
-  reason?: string;
-}
-
-export interface ModeSwitchResponseParams {
-  requestId: string;
-  approved: boolean;
-  sessionId: string;
 }
 
 export interface PendingQuestion {

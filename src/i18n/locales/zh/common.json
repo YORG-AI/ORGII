@@ -1267,7 +1267,7 @@
       "mergeStatus": {
         "label": "合并状态",
         "viewChecks": "查看全部检查",
-        "ableToMerge": "可以合并",
+        "ableToMerge": "已准备好合并",
         "blocked": "合并受阻",
         "conflicts": "存在合并冲突",
         "queued": "已排入合并队列",

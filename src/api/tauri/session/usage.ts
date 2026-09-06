@@ -66,13 +66,3 @@ export async function getSessionToolUsageAttributions(
     turnId: turnId ?? null,
   });
 }
-
-export async function getSessionToolUsageAttributionsForCall(
-  sessionId: string,
-  toolCallId: string
-): Promise<ToolUsageAttributionRecord[]> {
-  return invoke("get_session_tool_usage_attributions_for_call", {
-    sessionId,
-    toolCallId,
-  });
-}

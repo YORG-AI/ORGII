@@ -59,6 +59,3 @@ networkRefreshTriggerAtom.debugLabel = "settings/networkRefreshTrigger";
  */
 export const storageRefreshTriggerAtom = atom<number>(0);
 storageRefreshTriggerAtom.debugLabel = "settings/storageRefreshTrigger";
-
-/** Cooldown (ms) between refresh clicks to prevent spam. */
-export const REFRESH_COOLDOWN_MS = 2000;

@@ -23,7 +23,7 @@ export interface TerminalSession {
   timestamp: number;
 }
 
-export interface EditorRepo {
+interface EditorRepo {
   id: string;
   name: string;
   description?: string;
@@ -31,7 +31,7 @@ export interface EditorRepo {
   timestamp: number;
 }
 
-export interface DocumentFile {
+interface DocumentFile {
   id: string;
   title: string;
   updatedAt?: string;
@@ -39,7 +39,7 @@ export interface DocumentFile {
   timestamp: number;
 }
 
-export interface WorkspaceSession {
+interface WorkspaceSession {
   session_id: string;
   name: string;
   repo_id: string;
@@ -47,7 +47,7 @@ export interface WorkspaceSession {
   timestamp: number;
 }
 
-export interface ShortcutItem {
+interface ShortcutItem {
   id: string;
   name: string;
   isActive: boolean;
@@ -105,10 +105,6 @@ export const getSiteNameFromUrl = (url: string | undefined): string => {
 // Max size limits per tab type (FIFO eviction for oldest inactive items)
 export const MAX_BROWSER_TABS = 50;
 export const MAX_TERMINAL_SESSIONS = 20;
-export const MAX_EDITOR_REPOS = 30;
-export const MAX_DOCUMENT_FILES = 50;
-export const MAX_WORKSPACE_SESSIONS = 20;
-export const MAX_SHORTCUTS = 30;
 
 /** Evict oldest inactive items when array exceeds maxSize. Keeps active items. */
 export function evictOldest<T extends { isActive: boolean; timestamp: number }>(

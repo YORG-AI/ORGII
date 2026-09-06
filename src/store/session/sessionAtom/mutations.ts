@@ -46,11 +46,7 @@ import {
 import { clearTodosForSessionAtom } from "@src/store/ui/todoAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
-import {
-  sessionFlatListLastLoadedBySignatureAtom,
-  sessionLastLoadedAtom,
-  sessionsAtom,
-} from "./atoms";
+import { sessionsAtom } from "./atoms";
 import { removeGuestImportedSession } from "./guestImportRegistry";
 import { registerNewNativeSidebarSession } from "./loaders";
 import type { Session, SessionStatus } from "./types";
@@ -261,23 +257,4 @@ export const updateSessionStatus = (
     });
     return changed ? next : prev;
   });
-};
-
-/**
- * Invalidate cache and force refresh
- */
-export const resetSessionStore = () => {
-  const store = getStore();
-  store.set(sessionLastLoadedAtom, null);
-  store.set(sessionFlatListLastLoadedBySignatureAtom, {});
-};
-
-/**
- * Clear all sessions (use with caution)
- */
-export const clearSessions = () => {
-  const store = getStore();
-  store.set(sessionsAtom, []);
-  store.set(sessionLastLoadedAtom, null);
-  store.set(sessionFlatListLastLoadedBySignatureAtom, {});
 };

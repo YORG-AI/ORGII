@@ -25,6 +25,6 @@
 
 export { rpc } from "./router";
 export { defineProcedure } from "./invoke";
-export type { RpcProcedure } from "./invoke";
+
 export { snakeToCamel } from "./transforms";
 export * as schemas from "./schemas";

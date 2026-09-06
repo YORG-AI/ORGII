@@ -6,6 +6,3 @@ export const INITIAL_VISIBLE_ROWS = 50;
 export const ROW_LOAD_INCREMENT = 50;
 export const ROW_HEIGHT = 32;
 export const HEADER_HEIGHT = 32;
-export const COLUMN_WIDTH = 140;
-export const ROW_NUMBER_WIDTH = 56;
-export const OVERSCAN = 4;

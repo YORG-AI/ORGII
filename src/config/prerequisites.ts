@@ -24,20 +24,3 @@ export const INSTALL_METHOD_PREREQUISITES: Record<string, string> = {
   scoop: "scoop",
   winget: "winget",
 };
-
-/**
- * Derive the required binary from an install hint string.
- * Mirrors the Rust `required_binary()` in lint_tools.rs.
- */
-export function requiredBinaryFromHint(installHint: string): string | null {
-  const hint = installHint.toLowerCase();
-  if (hint.startsWith("npm ") || hint.startsWith("npx ")) return "npm";
-  if (hint.startsWith("pip3 ")) return "pip3";
-  if (hint.startsWith("pip ")) return "pip";
-  if (hint.startsWith("brew ")) return "brew";
-  if (hint.startsWith("cargo ")) return "cargo";
-  if (hint.includes("rustup")) return "rustup";
-  if (hint.startsWith("gem ")) return "gem";
-  if (hint.startsWith("go ")) return "go";
-  return null;
-}

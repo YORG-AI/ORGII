@@ -59,13 +59,7 @@ import { useCellPersistence } from "./useCellPersistence";
 import { useCellPlayback } from "./useCellPlayback";
 
 // Re-export types for existing consumers
-export type {
-  CellReplayState,
-  CellReplayControls,
-  ReplayMode,
-  UseCellReplayStateOptions,
-  UseCellReplayStateReturn,
-};
+export type { ReplayMode, UseCellReplayStateOptions, UseCellReplayStateReturn };
 
 function clampIndex(index: number, eventCount: number): number {
   if (eventCount <= 0) return -1;

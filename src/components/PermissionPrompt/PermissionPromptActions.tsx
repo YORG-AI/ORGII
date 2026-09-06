@@ -1,12 +1,10 @@
 /**
  * Shared Allow / Deny / Always Allow actions for permission prompts.
  */
-import React, { useCallback } from "react";
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-
-export type PermissionResponseWire = "allow" | "deny" | "always_allow";
 
 export interface PermissionPromptActionsProps {
   layout?: "compact" | "mobile";

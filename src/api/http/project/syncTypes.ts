@@ -30,9 +30,6 @@ export const OAUTH_FLOW_KIND = {
   REDIRECT: "redirect",
 } as const;
 
-export type OAuthFlowKind =
-  (typeof OAUTH_FLOW_KIND)[keyof typeof OAUTH_FLOW_KIND];
-
 export interface OAuthDeviceFlow {
   kind: typeof OAUTH_FLOW_KIND.DEVICE;
   user_code: string;

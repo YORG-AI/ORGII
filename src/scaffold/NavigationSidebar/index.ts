@@ -30,15 +30,7 @@ export { default as HoverSidebar } from "./HoverSidebar";
 // ============================================
 // Building blocks
 // ============================================
-export {
-  SidebarHeader,
-  SidebarSearch,
-  SidebarItem,
-  SidebarGroup,
-  SidebarEmptyState,
-  SidebarList,
-  SidebarSection,
-} from "./blocks";
+export { SidebarHeader, SidebarList } from "./blocks";
 
 // ============================================
 // Components
@@ -60,27 +52,6 @@ export {
 export { SIDEBAR_STYLE, SIDEBAR_PADDING } from "./config";
 
 // ============================================
-// Types
-// ============================================
-export type {
-  // Base types
-  SidebarIcon,
-  // Item types
-  SidebarItemData,
-  // Tab types
-  SidebarTab,
-  // Component props
-  SidebarBaseProps,
-  SidebarHeaderProps,
-  SidebarSearchProps,
-  SidebarGroupProps,
-  SidebarItemProps,
-  SidebarEmptyStateProps,
-  SidebarListProps,
-  SidebarSectionProps,
-} from "./types";
-
-// ============================================
 // Variants (composed sidebars)
 // ============================================
 export {
@@ -89,7 +60,6 @@ export {
 } from "./variants";
 
 // Variant types
-export type { NavigationSidebarProps } from "./variants";
 
 // ============================================
 // Connectors (sidebar data providers)

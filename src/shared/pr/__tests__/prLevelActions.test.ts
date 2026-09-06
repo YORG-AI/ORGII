@@ -45,6 +45,7 @@ describe("PR-level action presentation", () => {
     });
 
     expect(presentation.directMergeAvailable).toBe(true);
+    expect(presentation.label).toBe("Ready to merge");
     expect(presentation.defaultMethod).toBe("squash");
     expect(presentation.methods.map(({ method }) => method)).toEqual([
       "squash",
@@ -110,22 +111,30 @@ describe("PR-level action presentation", () => {
     expect(presentation.autoMergeAction).toBeNull();
   });
 
-  it("trusts GitHub mergeability when optional checks are still running", () => {
-    const presentation = presentPullRequestActions({
-      detail: {
-        state: "open",
-        mergeable: true,
-        mergeable_state: "clean",
-        base: { repo: { allow_auto_merge: true } },
-      },
-      fallbackStatus: "open",
-      checks: { sha: "head", check_runs: [], statuses: [], state: "pending" },
-    });
+  it.each(["pending", "failure"] as const)(
+    "trusts GitHub mergeability when optional checks report %s",
+    (checkState) => {
+      const presentation = presentPullRequestActions({
+        detail: {
+          state: "open",
+          mergeable: true,
+          mergeable_state: "clean",
+          base: { repo: { allow_auto_merge: true } },
+        },
+        fallbackStatus: "open",
+        checks: {
+          sha: "head",
+          check_runs: [],
+          statuses: [],
+          state: checkState,
+        },
+      });
 
-    expect(presentation.directMergeAvailable).toBe(true);
-    expect(presentation.label).toBe("Checks pending");
-    expect(presentation.autoMergeAction).toBeNull();
-  });
+      expect(presentation.directMergeAvailable).toBe(true);
+      expect(presentation.label).toBe("Ready to merge");
+      expect(presentation.autoMergeAction).toBeNull();
+    }
+  );
 
   it("does not offer auto-merge for conflicts or unstable status", () => {
     const conflicting = presentPullRequestActions({

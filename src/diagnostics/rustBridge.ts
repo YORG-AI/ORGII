@@ -43,10 +43,6 @@ async function invokeDiagnosticsCommand(
   }
 }
 
-export function resetRustDiagnosticsAvailability(): void {
-  rustDiagnosticsAvailable = undefined;
-}
-
 export async function diagnosticsInitialize(
   config: DiagnosticsServiceConfig
 ): Promise<boolean> {

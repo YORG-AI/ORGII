@@ -111,22 +111,6 @@ export function isBackendUserMessageEvent(
 // ============================================
 
 /**
- * Generate ID for a chunk from API
- * @param chunkId - Original chunk_id from backend
- */
-export function createChunkId(chunkId: string): string {
-  return `${ID_PREFIX.CHUNK}:${ID_SOURCE.API}:${chunkId}`;
-}
-
-/**
- * Generate ID for merged thinking chunks
- * @param firstChunkId - The first chunk's ID that was merged
- */
-export function createMergedThinkingId(firstChunkId: string): string {
-  return `${ID_PREFIX.MERGED}:${ID_SOURCE.THINKING}:${firstChunkId}`;
-}
-
-/**
  * Monotonic nonce for the TS-side streaming placeholder ids.
  *
  * A bare `Date.now()` nonce is NOT unique: two placeholders minted for the
@@ -216,14 +200,6 @@ export function createActionSummaryGroupId(firstChunkId: string): string {
 }
 
 /**
- * Generate ID for a task group
- * @param firstMsgId - First task's msg_id
- */
-export function createTaskGroupId(firstMsgId: string): string {
-  return `${ID_PREFIX.GROUP}:${ID_SOURCE.TASK}:${firstMsgId}`;
-}
-
-/**
  * Generate ID for an activity stack group (consecutive same-category blocks)
  * @param category - Category name (e.g. "browser", "terminal")
  * @param firstChunkId - First activity's chunk ID
@@ -233,14 +209,6 @@ export function createActivityStackGroupId(
   firstChunkId: string
 ): string {
   return `${ID_PREFIX.GROUP}:stack:${category}:${firstChunkId}`;
-}
-
-/**
- * Generate ID for merged tool call
- * @param startChunkId - The start chunk's ID
- */
-export function createMergedToolCallId(startChunkId: string): string {
-  return `${ID_PREFIX.MERGED}:${ID_SOURCE.TOOL}:${startChunkId}`;
 }
 
 // ============================================
@@ -294,38 +262,6 @@ export function isStreamingId(id: string): boolean {
     id.startsWith(`${ID_PREFIX.STREAM}:`) ||
     id.startsWith("stream-msg-") ||
     id.startsWith("stream-think-")
-  );
-}
-
-/**
- * Check if an ID is a merged ID
- */
-export function isMergedId(id: string): boolean {
-  return id.startsWith(`${ID_PREFIX.MERGED}:`);
-}
-
-/**
- * Check if an ID is a group ID
- */
-export function isGroupId(id: string): boolean {
-  return id.startsWith(`${ID_PREFIX.GROUP}:`);
-}
-
-/**
- * Check if an ID is a header ID
- */
-export function isHeaderId(id: string): boolean {
-  return id.startsWith(`${ID_PREFIX.HEADER}:`);
-}
-
-/**
- * Check if an ID is an original chunk ID from API
- */
-export function isApiChunkId(id: string): boolean {
-  return (
-    id.startsWith(`${ID_PREFIX.CHUNK}:${ID_SOURCE.API}:`) ||
-    // Legacy format: no prefix, just UUID
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
   );
 }
 

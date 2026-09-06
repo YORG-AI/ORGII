@@ -3,7 +3,6 @@
  * Canonical values are owned by the config-level language registry.
  */
 export {
-  LANGUAGE_DISPLAY_NAMES,
   SPECIAL_FILENAMES,
   getLanguageDisplayName,
   getLanguageIconFile,

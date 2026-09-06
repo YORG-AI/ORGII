@@ -9,9 +9,3 @@
  * The matching rules live in `src/styles/_decorative-icons.scss`.
  */
 export const DECORATIVE_ICON_CLASS = "orgii-decorative-icon";
-
-export const ICON_STYLES = ["colorful", "monochrome"] as const;
-
-export type IconStyle = (typeof ICON_STYLES)[number];
-
-export const DEFAULT_ICON_STYLE: IconStyle = "colorful";

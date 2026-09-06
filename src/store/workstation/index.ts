@@ -28,7 +28,6 @@ export { activeHostAtom } from "./tabHost";
 export {
   workstationNewBrowserSessionRequestAtom,
   requestNewBrowserSessionAtom,
-  type WorkstationNewBrowserSessionRequest,
   workstationProjectTabBarAtom,
   WORK_MANAGEMENT_SECTION,
   WORK_MANAGEMENT_PROJECTS_VIEW,

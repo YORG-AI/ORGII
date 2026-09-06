@@ -11,11 +11,6 @@
  */
 import React, { createContext, useContext } from "react";
 
-export interface A2UIActionPayload {
-  actionId: string;
-  payload?: unknown;
-}
-
 export type A2UIActionHandler = (actionId: string, payload?: unknown) => void;
 
 export const A2UIActionContext = createContext<A2UIActionHandler | undefined>(

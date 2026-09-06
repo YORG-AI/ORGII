@@ -16,7 +16,6 @@ import { AgentControlStatus } from "./AgentControlStatus";
 import { AgentControlToolbar } from "./AgentControlToolbar";
 import { useAgentControlPalette } from "./useAgentControlPalette";
 
-export type { AdeManagerSubmitDetail } from "./types";
 export {
   ADE_MANAGER_SUBMIT_EVENT,
   ADE_MANAGER_TOGGLE_SHORTCUT_ID,

@@ -11,13 +11,7 @@
 export { processChatItems } from "./pipeline";
 
 // Types
-export type {
-  ActionSummaryEntry,
-  ChatHistoryStats,
-  ChatItemPipelineOptions,
-  ChatPipelineSkipPolicy,
-  OptimizedChatItem,
-} from "./types";
+export type { OptimizedChatItem } from "./types";
 
 // Filters (used by ChatItemRenderer)
 export { willEventRenderContent } from "./filters";

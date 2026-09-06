@@ -9,7 +9,6 @@ import type {
   DetectedGitHubCredentials,
   GitCredential,
   GitHubGitCredential,
-  ProfileData,
 } from "./types";
 
 /**
@@ -46,14 +45,6 @@ export async function getGitCredentialForRemote(
   return invoke<GitCredential | null>("git_credential_for_remote", {
     remoteUrl,
   });
-}
-
-export async function checkTokenLocal(): Promise<boolean> {
-  return invokeWithAuth<boolean>("github_check_token", {});
-}
-
-export async function fetchProfileLocal(): Promise<ProfileData> {
-  return invokeWithAuth<ProfileData>("github_fetch_profile", {});
 }
 
 export async function detectGitHubCredentials(): Promise<DetectedGitHubCredentials> {

@@ -23,37 +23,23 @@ import type {
 } from "./syncTypes";
 
 export type {
-  AdapterAuthMethod,
   AdapterDescriptor,
-  OAuthFlowKind,
-  OAuthDeviceFlow,
-  OAuthRedirectFlow,
   OAuthFlowStart,
   SyncStatusReport,
-  SyncEventTrigger,
   SyncStatusEvent,
   EntityType,
   OutboxOp,
   OutboxStatus,
   OutboxProblemRow,
   SyncMetric,
-  SyncMetricKind,
-  SyncMetricOutcome,
   WebhookInstallInfo,
   WebhookStatusInfo,
   ImportState,
   ImportProgressInfo,
-  AppliedSide,
-  ConflictResolution,
   ConflictFieldDelta,
-  ConflictFieldsPayload,
   ConflictRow,
 } from "./syncTypes";
-export {
-  APPLIED_SIDE,
-  CONFLICT_RESOLUTION,
-  OAUTH_FLOW_KIND,
-} from "./syncTypes";
+export { CONFLICT_RESOLUTION, OAUTH_FLOW_KIND } from "./syncTypes";
 
 /** Tauri event channel emitted by `project_management::sync::events`. */
 const SYNC_STATUS_EVENT = "orgii-project-sync-status";

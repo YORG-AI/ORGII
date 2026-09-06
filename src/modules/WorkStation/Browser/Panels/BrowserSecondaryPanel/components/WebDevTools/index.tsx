@@ -52,13 +52,7 @@ import { useWebDevToolsElementsPanel } from "./hooks/useWebDevToolsElementsPanel
 import type { ComponentsSubTab, DevToolsTab, WebDevToolsProps } from "./types";
 
 // Re-export types for external use
-export type {
-  ConsoleEntry,
-  FilterLevel,
-  LogLevel,
-  NetworkEntry,
-  WebDevToolsProps,
-} from "./types";
+export type { ConsoleEntry, NetworkEntry } from "./types";
 
 // ============================================
 // Main Component

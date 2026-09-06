@@ -21,17 +21,6 @@ export function stripScreenshotMarkers(text: string): string {
   return text.replace(SCREENSHOT_MARKER_RE, "").trim();
 }
 
-/** Extract screenshot IDs from text containing [screenshot:ID] markers. */
-export function extractScreenshotIds(text: string): string[] {
-  const ids: string[] = [];
-  let match;
-  const re = new RegExp(SCREENSHOT_MARKER_RE.source, "g");
-  while ((match = re.exec(text)) !== null) {
-    ids.push(match[1]);
-  }
-  return ids;
-}
-
 /**
  * Rewrite simple grep alternation (`foo|bar`) into a readable comma list.
  * Leaves general regex patterns unchanged.

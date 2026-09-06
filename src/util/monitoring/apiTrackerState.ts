@@ -23,10 +23,6 @@ export function getApiCallRecords(): readonly ApiCall[] {
   return apiCalls;
 }
 
-export function getApiCallCount(): number {
-  return apiCalls.length;
-}
-
 export function clearApiCallRecords(): void {
   apiCalls = [];
 }

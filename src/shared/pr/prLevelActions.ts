@@ -126,8 +126,10 @@ export function presentPullRequestActions({
     status,
   });
 
-  let label =
-    methods.find((method) => method.method === defaultMethod)?.label ?? "Merge";
+  let label = directMergeAvailable
+    ? "Ready to merge"
+    : (methods.find((method) => method.method === defaultMethod)?.label ??
+      "Merge");
   let tooltip = "Merge this pull request on GitHub";
   if (status === "merged") {
     label = "Merged";
@@ -144,16 +146,16 @@ export function presentPullRequestActions({
   } else if (showConflictAction) {
     label = "Merge conflicts";
     tooltip = "Resolve merge conflicts before merging";
-  } else if (reviewDecision === "REVIEW_REQUIRED") {
+  } else if (!directMergeAvailable && reviewDecision === "REVIEW_REQUIRED") {
     label = "Approval required";
     tooltip = "GitHub requires review approval before merging";
-  } else if (reviewDecision === "CHANGES_REQUESTED") {
+  } else if (!directMergeAvailable && reviewDecision === "CHANGES_REQUESTED") {
     label = "Changes requested";
     tooltip = "Requested changes must be resolved before merging";
-  } else if (checks?.state === "failure") {
+  } else if (!directMergeAvailable && checks?.state === "failure") {
     label = "Checks failed";
     tooltip = "Required checks must pass before merging";
-  } else if (checks?.state === "pending") {
+  } else if (!directMergeAvailable && checks?.state === "pending") {
     label = "Checks pending";
     tooltip = "Wait for required checks or enable auto-merge";
   } else if (policyBlocked) {

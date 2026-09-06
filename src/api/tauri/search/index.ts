@@ -42,10 +42,8 @@ export type {
   SymbolSearchResult,
   Location,
   SearchFilters,
-  LanguageInfo,
   SearchResultEvent,
   SearchCompleteEvent,
-  SearchMode,
 } from "./types";
 
 export {
@@ -55,13 +53,7 @@ export {
   searchCodeFast,
 } from "./regex";
 
-export {
-  searchSymbols,
-  getFileSymbols,
-  gotoDefinition,
-  findReferences,
-  getSupportedLanguages,
-} from "./symbol";
+export { searchSymbols, getFileSymbols } from "./symbol";
 
 export {
   getTotalMatchCount,

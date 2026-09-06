@@ -191,20 +191,6 @@ export function placeCaretAfterPill(pill: HTMLElement): void {
   selection.addRange(range);
 }
 
-export function normalizeCollapsedSelectionAroundPills(
-  host: HTMLElement
-): void {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) {
-    return;
-  }
-  const range = selection.getRangeAt(0);
-  if (!host.contains(range.startContainer)) return;
-  const pill = findPillAncestor(range.startContainer);
-  if (!pill) return;
-  placeCaretAfterPill(pill);
-}
-
 export function placeCaretAtPoint(
   host: HTMLElement,
   x: number,

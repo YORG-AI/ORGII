@@ -21,21 +21,8 @@ export const VIEW_SCOPE_OPTIONS: { value: GanttViewScope; label: string }[] = [
 ];
 
 // TimeScale → ViewScope mapping
-export const TIME_SCALE_OPTIONS: { value: GanttTimeScale; label: string }[] = [
-  { value: "day", label: "3d" },
-  { value: "week", label: "7d" },
-  { value: "month", label: "1m" },
-  { value: "quarter", label: "3m" },
-];
 
 // Map legacy time scales to new view scopes
-export const TIME_SCALE_TO_VIEW_SCOPE: Record<GanttTimeScale, GanttViewScope> =
-  {
-    day: "3d",
-    week: "7d",
-    month: "1m",
-    quarter: "3m",
-  };
 
 // ============================================
 // Date Utilities
@@ -72,103 +59,6 @@ export function getStartOfPeriod(date: Date, scale: GanttTimeScale): Date {
   }
 
   return result;
-}
-
-/**
- * Get the end of a period based on time scale
- */
-export function getEndOfPeriod(date: Date, scale: GanttTimeScale): Date {
-  const result = new Date(date);
-
-  switch (scale) {
-    case "day":
-      result.setHours(23, 59, 59, 999);
-      break;
-    case "week": {
-      result.setHours(0, 0, 0, 0);
-      const dayOfWeek = result.getDay();
-      const diff = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-      result.setDate(result.getDate() + diff);
-      result.setHours(23, 59, 59, 999);
-      break;
-    }
-    case "month":
-      result.setMonth(result.getMonth() + 1, 0);
-      result.setHours(23, 59, 59, 999);
-      break;
-    case "quarter": {
-      const quarterMonth = Math.floor(result.getMonth() / 3) * 3 + 2;
-      result.setMonth(quarterMonth + 1, 0);
-      result.setHours(23, 59, 59, 999);
-      break;
-    }
-  }
-
-  return result;
-}
-
-/**
- * Add periods to a date
- */
-export function addPeriods(
-  date: Date,
-  count: number,
-  scale: GanttTimeScale
-): Date {
-  const result = new Date(date);
-
-  switch (scale) {
-    case "day":
-      result.setDate(result.getDate() + count);
-      break;
-    case "week":
-      result.setDate(result.getDate() + count * 7);
-      break;
-    case "month":
-      result.setMonth(result.getMonth() + count);
-      break;
-    case "quarter":
-      result.setMonth(result.getMonth() + count * 3);
-      break;
-  }
-
-  return result;
-}
-
-/**
- * Format a date for display in the header
- */
-export function formatPeriodLabel(date: Date, scale: GanttTimeScale): string {
-  const months = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
-
-  switch (scale) {
-    case "day":
-      return `${date.getDate()}`;
-    case "week": {
-      const endOfWeek = new Date(date);
-      endOfWeek.setDate(date.getDate() + 6);
-      return `${months[date.getMonth()]} ${date.getDate()}-${endOfWeek.getDate()}`;
-    }
-    case "month":
-      return months[date.getMonth()];
-    case "quarter": {
-      const quarter = Math.floor(date.getMonth() / 3) + 1;
-      return `Q${quarter}`;
-    }
-  }
 }
 
 // ============================================
@@ -409,73 +299,6 @@ export function getMsPerColumn(viewScope: GanttViewScope): number {
 }
 
 /**
- * Get the secondary label (year/month) for grouping
- */
-export function getSecondaryLabel(date: Date, scale: GanttTimeScale): string {
-  const months = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
-
-  switch (scale) {
-    case "day":
-      return `${months[date.getMonth()]} ${date.getFullYear()}`;
-    case "week":
-      return `${months[date.getMonth()]} ${date.getFullYear()}`;
-    case "month":
-      return `${date.getFullYear()}`;
-    case "quarter":
-      return `${date.getFullYear()}`;
-  }
-}
-
-/**
- * Calculate number of periods between two dates
- */
-export function getPeriodsBetween(
-  startDate: Date,
-  endDate: Date,
-  scale: GanttTimeScale
-): number {
-  const start = getStartOfPeriod(new Date(startDate), scale);
-  const end = getStartOfPeriod(new Date(endDate), scale);
-
-  const diffTime = end.getTime() - start.getTime();
-  const diffDays = diffTime / (1000 * 60 * 60 * 24);
-
-  switch (scale) {
-    case "day":
-      return Math.ceil(diffDays) + 1;
-    case "week":
-      return Math.ceil(diffDays / 7) + 1;
-    case "month":
-      return (
-        (end.getFullYear() - start.getFullYear()) * 12 +
-        (end.getMonth() - start.getMonth()) +
-        1
-      );
-    case "quarter":
-      return (
-        Math.ceil(
-          ((end.getFullYear() - start.getFullYear()) * 12 +
-            (end.getMonth() - start.getMonth())) /
-            3
-        ) + 1
-      );
-  }
-}
-
-/**
  * Check if a date is today
  */
 export function isToday(date: Date): boolean {
@@ -485,15 +308,4 @@ export function isToday(date: Date): boolean {
     date.getMonth() === today.getMonth() &&
     date.getFullYear() === today.getFullYear()
   );
-}
-
-/**
- * Check if a date is in the current period
- */
-export function isCurrentPeriod(date: Date, scale: GanttTimeScale): boolean {
-  const today = new Date();
-  const periodStart = getStartOfPeriod(date, scale);
-  const periodEnd = getEndOfPeriod(date, scale);
-
-  return today >= periodStart && today <= periodEnd;
 }

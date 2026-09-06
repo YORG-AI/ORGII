@@ -1315,7 +1315,7 @@
       "mergeStatus": {
         "label": "Stan scalania",
         "viewChecks": "Zobacz wszystkie kontrole",
-        "ableToMerge": "Można scalić",
+        "ableToMerge": "Gotowe do scalenia",
         "blocked": "Scalanie zablokowane",
         "conflicts": "Konflikty scalania",
         "queued": "W kolejce do scalenia",

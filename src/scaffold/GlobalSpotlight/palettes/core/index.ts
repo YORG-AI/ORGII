@@ -5,7 +5,3 @@
  * provided by SpotlightShell in `../../shell`.
  */
 export { useSelector as useSelectorKernel } from "../../hooks/selectors/useSelector";
-export type {
-  UseSelectorOptions,
-  UseSelectorReturn,
-} from "../../hooks/selectors/useSelector";
