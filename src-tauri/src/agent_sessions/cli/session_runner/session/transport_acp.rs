@@ -27,6 +27,7 @@ pub(super) async fn run_acp_branch(
     cli_resume_id: Option<String>,
     agent: ModelType,
     image_paths: Vec<String>,
+    model: Option<String>,
     session_timeout: tokio::time::Duration,
     pre_message_snapshot_id: Option<String>,
     snapshot_working_dir: String,
@@ -47,6 +48,7 @@ pub(super) async fn run_acp_branch(
     let acp_resume = cli_resume_id.clone();
     let acp_agent = agent.clone();
     let acp_image_paths = image_paths.clone();
+    let acp_model = model.clone();
 
     let acp_handle = tokio::spawn(async move {
         match acp_agent {
@@ -86,6 +88,7 @@ pub(super) async fn run_acp_branch(
                     acp_resume.as_deref(),
                     chunk_tx,
                     acp_image_paths,
+                    acp_model,
                 )
                 .await
             }

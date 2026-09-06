@@ -151,6 +151,10 @@ pub async fn run_acp_protocol<A: AcpAgentAdapter>(
     }
 
     let mut acp_session_id = resume_session_id.unwrap_or("").to_string();
+    // The `configOptions` the agent published for this session. `session/resume`
+    // returns them without a `sessionId`, so they are read from the result
+    // itself rather than from the session-id branch below.
+    let advertised_config: Value;
     // Tracks the request currently being awaited: a failed resume retries as
     // `session/new` under a fresh id.
     let mut session_req_id = session_req_id;
@@ -197,6 +201,11 @@ pub async fn run_acp_protocol<A: AcpAgentAdapter>(
                 }
                 return Err(format!("ACP session error: {}", err));
             }
+            advertised_config = msg
+                .get("result")
+                .and_then(|r| r.get("configOptions"))
+                .cloned()
+                .unwrap_or(Value::Null);
             if let Some(sid) = msg
                 .get("result")
                 .and_then(|r| r.get("sessionId"))
@@ -224,10 +233,8 @@ pub async fn run_acp_protocol<A: AcpAgentAdapter>(
                         }
                     });
                 }
-                let current_model = msg
-                    .get("result")
-                    .and_then(|r| r.get("configOptions"))
-                    .and_then(|opts| opts.as_array())
+                let current_model = advertised_config
+                    .as_array()
                     .and_then(|arr| {
                         arr.iter()
                             .find(|o| o.get("id").and_then(|v| v.as_str()) == Some("model"))
@@ -246,6 +253,43 @@ pub async fn run_acp_protocol<A: AcpAgentAdapter>(
         // Skip notifications during a resume — kiro replays conversation
         // history as notifications which we don't want to emit as new chunks.
         if !awaiting_resume {
+            process_notification(&msg, &mut parser, &mut stdin, &chunk_tx, session_id).await;
+        }
+    }
+
+    // ── Step 2b: Apply session configuration the adapter selected ──
+    // A rejected option must not sink the turn: the session still runs, just
+    // on the agent's own default route.
+    let config_updates = parser.adapter.session_config_updates(&advertised_config);
+    for (config_id, value) in config_updates {
+        request_id += 1;
+        let config_req_id = request_id;
+        acp_send(
+            &mut stdin,
+            config_req_id,
+            "session/set_config_option",
+            serde_json::json!({
+                "sessionId": acp_session_id,
+                "configId": config_id,
+                "value": value,
+            }),
+        )
+        .await?;
+        loop {
+            let msg = acp_read(&mut reader, &mut line_buf).await?;
+            if msg.get("id").and_then(|v| v.as_u64()) == Some(config_req_id) {
+                if let Some(err) = msg.get("error") {
+                    tracing::warn!(
+                        "[ACP] session/set_config_option {}={} rejected: {}",
+                        config_id,
+                        value,
+                        err
+                    );
+                } else {
+                    tracing::info!("[ACP] session config {} set to {}", config_id, value);
+                }
+                break;
+            }
             process_notification(&msg, &mut parser, &mut stdin, &chunk_tx, session_id).await;
         }
     }
