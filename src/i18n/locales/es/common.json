@@ -2470,5 +2470,9 @@
       "previewFailed": "Couldn't read cookies from that browser",
       "importFailed": "Couldn't import the selected cookies"
     }
+  },
+  "notifications": {
+    "taskCancelledToast": "«{{name}}» se canceló",
+    "taskCompletedToast": "«{{name}}» completada. Abre la sesión para revisar el resultado."
   }
 }

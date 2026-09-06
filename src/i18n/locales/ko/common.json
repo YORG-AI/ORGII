@@ -2471,5 +2471,9 @@
       "previewFailed": "Couldn't read cookies from that browser",
       "importFailed": "Couldn't import the selected cookies"
     }
+  },
+  "notifications": {
+    "taskCancelledToast": "“{{name}}” 취소됨",
+    "taskCompletedToast": "“{{name}}” 완료. 세션을 열어 결과를 확인하세요."
   }
 }

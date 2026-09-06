@@ -2491,5 +2491,9 @@
       "previewFailed": "無法從該瀏覽器讀取 Cookie",
       "importFailed": "無法匯入所選 Cookie"
     }
+  },
+  "notifications": {
+    "taskCancelledToast": "「{{name}}」已取消",
+    "taskCompletedToast": "「{{name}}」已完成。開啟工作階段以檢視結果。"
   }
 }

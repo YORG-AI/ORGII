@@ -20,6 +20,9 @@
     "confirmRemoveMessage": "로컬 자격 증명이 제거됩니다. 이 작업은 되돌릴 수 없습니다.",
     "toasts": {
       "refreshed": "{{name}} 새로고침 완료",
+      "refreshPartial": "모델 새로고침 완료: {{added}}개 추가, {{removed}}개 제거. 단, {{total}}개 계정 중 {{failed}}개 실패",
+      "refreshedNoChange": "모델 새로고침 완료: 변경 사항 없음",
+      "refreshedDelta": "모델 새로고침 완료: {{added}}개 추가, {{removed}}개 제거",
       "refreshError": "{{name}} 새로고침 실패",
       "localRemoved": "{{name}} 제거됨",
       "deleteError": "{{name}} 삭제 실패"

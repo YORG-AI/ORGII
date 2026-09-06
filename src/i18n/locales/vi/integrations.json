@@ -20,6 +20,9 @@
     "confirmRemoveMessage": "Thông tin xác thực cục bộ sẽ bị xóa. Hành động này không thể hoàn tác.",
     "toasts": {
       "refreshed": "{{name}} đã làm mới thành công",
+      "refreshPartial": "Đã làm mới mô hình: +{{added}} / -{{removed}}, nhưng {{failed}} trên {{total}} tài khoản bị lỗi",
+      "refreshedNoChange": "Đã làm mới mô hình: không có thay đổi",
+      "refreshedDelta": "Đã làm mới mô hình: thêm {{added}}, xóa {{removed}}",
       "refreshError": "Không thể làm mới {{name}}",
       "localRemoved": "{{name}} đã xóa",
       "deleteError": "Không thể xóa {{name}}"

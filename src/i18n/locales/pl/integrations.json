@@ -21,6 +21,9 @@
     "confirmRemoveMessage": "To usunie lokalnie zapisany klucz. Tej operacji nie można cofnąć.",
     "toasts": {
       "refreshed": "{{name}} odświeżono pomyślnie",
+      "refreshPartial": "Modele odświeżone: +{{added}} / -{{removed}}, ale wystąpił błąd dla {{failed}} z {{total}} kont",
+      "refreshedNoChange": "Modele odświeżone: bez zmian",
+      "refreshedDelta": "Modele odświeżone: dodano {{added}}, usunięto {{removed}}",
       "refreshError": "Nie udało się odświeżyć {{name}}",
       "localRemoved": "{{name}} usunięto",
       "deleteError": "Nie udało się usunąć {{name}}"

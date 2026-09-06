@@ -20,6 +20,9 @@
     "confirmRemoveMessage": "Esto eliminará la credencial local. Esta acción no se puede deshacer.",
     "toasts": {
       "refreshed": "{{name}} actualizado correctamente",
+      "refreshPartial": "Modelos actualizados: +{{added}} / -{{removed}}, pero fallaron {{failed}} de {{total}} cuentas",
+      "refreshedNoChange": "Modelos actualizados: sin cambios",
+      "refreshedDelta": "Modelos actualizados: {{added}} añadidos, {{removed}} eliminados",
       "refreshError": "Error al actualizar {{name}}",
       "localRemoved": "{{name}} eliminado",
       "deleteError": "Error al eliminar {{name}}"

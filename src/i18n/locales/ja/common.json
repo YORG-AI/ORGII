@@ -2473,5 +2473,9 @@
       "previewFailed": "Couldn't read cookies from that browser",
       "importFailed": "Couldn't import the selected cookies"
     }
+  },
+  "notifications": {
+    "taskCancelledToast": "「{{name}}」はキャンセルされました",
+    "taskCompletedToast": "「{{name}}」が完了しました。セッションを開いて結果を確認してください。"
   }
 }
