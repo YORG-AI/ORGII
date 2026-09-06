@@ -43,6 +43,7 @@ import {
 } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import type { IssueFilterState } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
+import { retainWorkstationRepoScope } from "@src/store/workstation/codeEditor/workstationRepoScopeRetention";
 
 import {
   type IssueSectionLoadState,
@@ -86,6 +87,9 @@ export function useWorkstationIssues({
 }: UseWorkstationIssuesOptions) {
   const apiRepoId = repoId ?? "default";
   const scopeKey = workstationRepoScopeKey(repoId, repoPath);
+  // Keep this repo's list atoms alive while mounted; released scopes fall
+  // into a bounded warm window instead of living for the app lifetime.
+  useEffect(() => retainWorkstationRepoScope(scopeKey), [scopeKey]);
   const setListState = useSetAtom(workstationIssueListAtomFamily(scopeKey));
   const setSelectedState = useSetAtom(
     workstationSelectedIssueAtomFamily(scopeKey)

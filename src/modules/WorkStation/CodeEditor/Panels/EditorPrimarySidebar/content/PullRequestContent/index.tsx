@@ -52,6 +52,7 @@ import {
   workstationPrCallbackAtomFamily,
   workstationRepoScopeKey,
 } from "@src/store/workstation/codeEditor/workstationPrAtom";
+import { retainWorkstationRepoScope } from "@src/store/workstation/codeEditor/workstationRepoScopeRetention";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 
 import { filterPullRequestsByQuery } from "../../hooks/workstationPrHelpers";
@@ -188,6 +189,8 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
 }) => {
   const { t } = useTranslation("common");
   const scopeKey = workstationRepoScopeKey(repoId, repoPath);
+  // Keep this repo's list atoms alive while the panel is mounted.
+  useEffect(() => retainWorkstationRepoScope(scopeKey), [scopeKey]);
   const {
     prUrl,
     readyToCreate,
