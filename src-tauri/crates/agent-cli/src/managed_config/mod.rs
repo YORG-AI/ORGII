@@ -11,6 +11,7 @@
 //! serializes every switch.
 
 mod adapters;
+pub mod desktop;
 mod direct;
 mod dto;
 mod target_lock;
@@ -24,6 +25,8 @@ mod registry;
 mod snapshot;
 mod transaction;
 
+#[cfg(test)]
+mod desktop_tests;
 #[cfg(test)]
 mod direct_tests;
 #[cfg(test)]
@@ -118,6 +121,9 @@ pub fn enable_orgii_managed_checked(
     force: bool,
     expected: Option<&std::collections::BTreeMap<String, Option<String>>>,
 ) -> Result<CliConfigManagedStatus, String> {
+    if agent_name == desktop::TARGET {
+        return Err("Claude Desktop currently supports direct connections only".into());
+    }
     let _guard = config_operation_guard()?;
     let _target_lock = target_lock::lock_targets(agent_name)?;
     recover_pending_transaction_unlocked(agent_name)?;

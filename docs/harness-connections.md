@@ -1,8 +1,10 @@
 # Connect Claude Code and Codex to saved API keys
 
-Open **Settings → Harness connections**. Add an API connection using the existing Key Vault wizard, or import a saved cc-switch connection. Select the connection and model under Claude Code or Codex, test it, and choose **Use this connection**. Start a new CLI session after applying.
+Open **Settings → App connections**. Add an API connection using the existing Key Vault wizard, or import a saved cc-switch connection. Select the connection and model under Claude Code or Codex, test it, and choose **Use this connection**. Start a new CLI session after applying.
 
 The same controls are available in each harness's detail view. API keys remain managed in Key Vault; this feature sets the local CLI default. It does not change hosted ORGII session profiles, Codex cloud, or existing running sessions. Project settings, explicit CLI profiles, command-line flags and environment variables may override the default.
+
+Claude Desktop has a separate target and native 3P profile; see [Claude Desktop connections](./claude-desktop-connections.md). The instructions below describe the CLI targets.
 
 ## Supported scope
 

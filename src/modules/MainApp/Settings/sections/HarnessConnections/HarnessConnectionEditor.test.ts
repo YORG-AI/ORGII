@@ -105,6 +105,7 @@ function view(conflict = false, requiresTest = true) {
   return {
     installed: true,
     config: {
+      supported: true,
       agentName: "codex",
       mode: "direct",
       selectedKeyId: "gateway",
@@ -269,5 +270,138 @@ describe("HarnessConnectionEditor", () => {
     });
     expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(container.textContent).not.toContain("refresh unavailable");
+  });
+});
+
+async function mountDesktop() {
+  await act(async () =>
+    root.render(
+      createElement(HarnessConnectionEditor, {
+        agentName: "claude_desktop",
+        onAdd: vi.fn(),
+      })
+    )
+  );
+}
+async function input(label: string, value: string) {
+  const element = container.querySelector(
+    `input[aria-label="harnessConnections.${label}"]`
+  ) as HTMLInputElement;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )!.set!.call(element, value);
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+describe("Claude Desktop connection", () => {
+  it("sends Desktop-only endpoint and authentication overrides and invalidates old evidence", async () => {
+    await mountDesktop();
+    await input("endpoint", "https://desktop.example/anthropic");
+    await input("model", "claude-sonnet-5");
+    const auth = container.querySelector(
+      'select[aria-label="harnessConnections.authentication"]'
+    ) as HTMLSelectElement;
+    await act(async () => {
+      auth.value = "x-api-key";
+      auth.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await act(async () => button("test").click());
+    expect(mocks.test).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: "claude_desktop",
+        model: "claude-sonnet-5",
+        desktopOptions: {
+          endpoint: "https://desktop.example/anthropic",
+          authScheme: "x-api-key",
+        },
+      })
+    );
+    expect(button("apply").disabled).toBe(false);
+    await act(async () => button("apply").click());
+    expect(mocks.apply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentName: "claude_desktop",
+        routing: "direct",
+        desktopOptions: {
+          endpoint: "https://desktop.example/anthropic",
+          authScheme: "x-api-key",
+        },
+      })
+    );
+    expect(container.textContent).toContain(
+      "harnessConnections.desktopApplied"
+    );
+    await input("endpoint", "https://changed.example");
+    expect(button("apply").disabled).toBe(true);
+    expect(
+      container.querySelector('select[aria-label="harnessConnections.routing"]')
+    ).toBeNull();
+  });
+
+  it("copies a CLI selection for review without applying or changing CLI", async () => {
+    mocks.status.mockImplementation(
+      async ({ agentName }: { agentName: string }) => ({
+        ...view(),
+        desktopOptions: {
+          endpoint: "https://old-desktop.example",
+          authScheme: "x-api-key",
+        },
+        config: {
+          ...view().config,
+          selectedModel:
+            agentName === "claude_code" ? "claude-opus-5" : "claude-sonnet-5",
+        },
+      })
+    );
+    await mountDesktop();
+    await act(async () => button("desktopCopy").click());
+    expect(mocks.status).toHaveBeenCalledWith({ agentName: "claude_code" });
+    expect(
+      (
+        container.querySelector(
+          'input[aria-label="harnessConnections.model"]'
+        ) as HTMLInputElement
+      ).value
+    ).toBe("claude-opus-5");
+    expect(
+      (
+        container.querySelector(
+          'input[aria-label="harnessConnections.endpoint"]'
+        ) as HTMLInputElement
+      ).value
+    ).toBe("https://gateway.example/v1");
+    expect(mocks.apply).not.toHaveBeenCalled();
+    expect(button("apply").disabled).toBe(true);
+    expect(container.textContent).toContain(
+      "harnessConnections.desktopCopyReview"
+    );
+  });
+
+  it("shows managed configuration restrictions and blocks native writes", async () => {
+    mocks.status.mockResolvedValue({
+      ...view(),
+      configurationIssue: "Managed by your administrator",
+    });
+    await mountDesktop();
+    expect(container.textContent).toContain("Managed by your administrator");
+    expect(button("test").disabled).toBe(true);
+    expect(button("apply").disabled).toBe(true);
+    expect(button("restore").disabled).toBe(true);
+  });
+
+  it("restores only Desktop and shows restart instructions", async () => {
+    mocks.restore.mockResolvedValue(undefined);
+    await mountDesktop();
+    await act(async () => button("restore").click());
+    expect(mocks.restore).toHaveBeenCalledWith({
+      agentName: "claude_desktop",
+      force: false,
+    });
+    expect(container.textContent).toContain(
+      "harnessConnections.desktopRestored"
+    );
   });
 });

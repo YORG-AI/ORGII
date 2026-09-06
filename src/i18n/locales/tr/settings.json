@@ -42,7 +42,7 @@
     "agentMemory": "Agent Belleği",
     "agentOrg": "Agent Ekibi",
     "collaboration": "İş birliği",
-    "harnessConnections": "CLI Yönlendirmesi"
+    "harnessConnections": "Uygulama bağlantıları"
   },
   "coreSidebar": {
     "groups": {
@@ -1406,6 +1406,17 @@
     "conflict": "Yapılandırma ORGII dışında değiştirildi. Uygulamadan veya geri yüklemeden önce değişiklikleri inceleyin; üzerlerine yazılmayacak",
     "credentialsNote": "Doğrudan mod, kimlik bilgilerini kısıtlı dosya erişimiyle CLI yapılandırmasına yazar; kasadan anahtar silmek dışa aktarılan kimlik bilgisini iptal etmez",
     "import": "cc-switch üzerinden içe aktar",
-    "notInstalled": "Bağlantıyı test etmeden veya uygulamadan önce bu aracı yükleyin"
+    "notInstalled": "Bağlantıyı test etmeden veya uygulamadan önce bu aracı yükleyin",
+    "appSelector": "Uygulama",
+    "endpoint": "API uç noktası",
+    "authentication": "Kimlik doğrulama",
+    "desktopScope": "Claude Desktop, Claude Code CLI’den ayrı yapılandırılır; uyguladıktan sonra Desktop’ı tamamen kapatıp yeniden açın",
+    "desktopVersion": "Yüklü sürüm: {{version}}",
+    "desktopCopy": "Claude Code CLI’den kopyala",
+    "desktopCopyMissing": "Önce bir Claude Code CLI bağlantısı yapılandırın",
+    "desktopCopyReview": "Bağlantı inceleme için kopyalandı; Desktop için ayrıca test edip uygulayın",
+    "desktopApplied": "Yapılandırma kaydedildi — Claude Desktop’ı tamamen kapatıp yeniden açın",
+    "desktopRestored": "Önceki yapılandırma geri yüklendi — Claude Desktop’ı tamamen kapatıp yeniden açın",
+    "desktopCredentials": "Doğrudan mod, kimlik bilgilerini erişimi kısıtlı yerel profile yazar; kasadaki anahtarı silmek dışa aktarılan kopyayı iptal etmez"
   }
 }

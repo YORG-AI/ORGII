@@ -373,9 +373,14 @@ export const CursorPluginInfoSchema = z.object({
 export type CursorPluginInfo = z.infer<typeof CursorPluginInfoSchema>;
 
 export const HarnessConnectionInput = z.object({
-  agentName: z.enum(["claude_code", "codex"]),
+  agentName: z.enum(["claude_code", "claude_desktop", "codex"]),
+});
+export const DesktopConnectionOptionsSchema = z.object({
+  endpoint: z.string().nullable().optional(),
+  authScheme: z.enum(["bearer", "x-api-key"]).nullable().optional(),
 });
 export const HarnessConnectionSelectionInput = HarnessConnectionInput.extend({
+  desktopOptions: DesktopConnectionOptionsSchema.optional(),
   keyId: z.string(),
   model: z.string(),
 });
@@ -388,6 +393,9 @@ export const HarnessConnectionApplyInput =
     receipt: z.string().nullable().optional(),
   });
 export const HarnessConnectionViewSchema = z.object({
+  version: z.string().nullable().optional(),
+  configurationIssue: z.string().nullable().optional(),
+  desktopOptions: DesktopConnectionOptionsSchema.nullable().optional(),
   installed: z.boolean(),
   config: CliConfigManagedStatusSchema,
   choices: z.array(

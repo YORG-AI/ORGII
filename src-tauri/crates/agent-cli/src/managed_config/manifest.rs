@@ -65,6 +65,12 @@ fn manifest_target(
 pub(super) fn agent_manifest_targets(
     agent_name: &str,
 ) -> Result<Vec<CliConfigTargetFileManifest>, String> {
+    if agent_name == super::desktop::TARGET {
+        return super::desktop::targets()?
+            .into_iter()
+            .map(|(id, name, path)| Ok(manifest_target(agent_name, id, &name, &path)))
+            .collect();
+    }
     let adapter = managed_config_adapter(agent_name)
         .ok_or_else(|| format!("Unsupported CLI managed config agent: {agent_name}"))?;
     adapter

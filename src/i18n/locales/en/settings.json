@@ -43,7 +43,7 @@
     "agentOrg": "Agent Team",
     "collaboration": "Collaboration",
     "mobileRemote": "Mobile Remote",
-    "harnessConnections": "CLI Routing"
+    "harnessConnections": "App connections"
   },
   "coreSidebar": {
     "groups": {
@@ -1520,6 +1520,17 @@
     "conflict": "Configuration changed outside ORGII. Review those edits before applying or restoring; they will not be overwritten",
     "credentialsNote": "Direct mode writes credentials to native CLI configuration with restricted file access; removing a vault key does not revoke that exported credential",
     "import": "Import from cc-switch",
-    "notInstalled": "Install this harness before testing or applying a connection"
+    "notInstalled": "Install this harness before testing or applying a connection",
+    "appSelector": "App",
+    "endpoint": "API endpoint",
+    "authentication": "Authentication",
+    "desktopScope": "Configures Claude Desktop separately from Claude Code CLI; fully quit and reopen Desktop after applying",
+    "desktopVersion": "Installed version: {{version}}",
+    "desktopCopy": "Copy from Claude Code CLI",
+    "desktopCopyMissing": "Configure a Claude Code CLI connection first",
+    "desktopCopyReview": "Connection copied for review; test and apply it separately to Desktop",
+    "desktopApplied": "Desktop configuration saved — fully quit and reopen Claude Desktop",
+    "desktopRestored": "Previous Desktop configuration restored — fully quit and reopen Claude Desktop",
+    "desktopCredentials": "Direct mode exports the selected credential to a local Desktop profile with restricted file access; deleting the vault key does not revoke that export"
   }
 }

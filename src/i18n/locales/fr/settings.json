@@ -42,7 +42,7 @@
     "agentMemory": "Mémoire de l'Agent",
     "agentOrg": "Équipe Agent",
     "collaboration": "Collaboration",
-    "harnessConnections": "Routage CLI"
+    "harnessConnections": "Connexions des applications"
   },
   "coreSidebar": {
     "groups": {
@@ -1406,6 +1406,17 @@
     "conflict": "La configuration a été modifiée en dehors d’ORGII. Vérifiez ces modifications avant d’appliquer ou de rétablir ; elles ne seront pas écrasées",
     "credentialsNote": "Le mode direct écrit les identifiants dans la configuration CLI avec un accès restreint ; supprimer une clé du coffre ne révoque pas l’identifiant exporté",
     "import": "Importer depuis cc-switch",
-    "notInstalled": "Installez cet outil avant de tester ou d’appliquer une connexion"
+    "notInstalled": "Installez cet outil avant de tester ou d’appliquer une connexion",
+    "appSelector": "Application",
+    "endpoint": "Point de terminaison API",
+    "authentication": "Authentification",
+    "desktopScope": "Configure Claude Desktop séparément de Claude Code CLI ; quittez complètement Desktop puis rouvrez-le après application",
+    "desktopVersion": "Version installée : {{version}}",
+    "desktopCopy": "Copier depuis Claude Code CLI",
+    "desktopCopyMissing": "Configurez d’abord une connexion Claude Code CLI",
+    "desktopCopyReview": "Connexion copiée pour vérification ; testez-la et appliquez-la séparément à Desktop",
+    "desktopApplied": "Configuration enregistrée — quittez complètement Claude Desktop puis rouvrez-le",
+    "desktopRestored": "Configuration précédente restaurée — quittez complètement Claude Desktop puis rouvrez-le",
+    "desktopCredentials": "Le mode direct écrit les identifiants dans un profil local à accès restreint ; supprimer la clé du coffre ne révoque pas cette copie"
   }
 }

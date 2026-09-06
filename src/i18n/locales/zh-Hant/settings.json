@@ -42,7 +42,7 @@
     "agentMemory": "Agent 記憶",
     "agentOrg": "Agent 團隊",
     "collaboration": "協作",
-    "harnessConnections": "CLI 路由"
+    "harnessConnections": "應用程式連線"
   },
   "coreSidebar": {
     "groups": {
@@ -1418,6 +1418,17 @@
     "conflict": "設定已在 ORGII 外部變更。套用或還原前請檢查這些變更；系統不會覆蓋它們",
     "credentialsNote": "直接連線模式會將憑證寫入存取受限的 CLI 設定檔；刪除金鑰庫中的金鑰不會撤銷已匯出的憑證",
     "import": "從 cc-switch 匯入",
-    "notInstalled": "請先安裝此工具，再測試或套用連線"
+    "notInstalled": "請先安裝此工具，再測試或套用連線",
+    "appSelector": "應用程式",
+    "endpoint": "API 端點",
+    "authentication": "驗證方式",
+    "desktopScope": "單獨設定 Claude Desktop，不影響 Claude Code CLI；套用後需完全結束並重新開啟桌面應用程式",
+    "desktopVersion": "已安裝版本：{{version}}",
+    "desktopCopy": "從 Claude Code CLI 複製",
+    "desktopCopyMissing": "請先設定 Claude Code CLI 連線",
+    "desktopCopyReview": "連線已複製，請檢查並單獨測試、套用至桌面應用程式",
+    "desktopApplied": "桌面設定已儲存，請完全結束並重新開啟 Claude Desktop",
+    "desktopRestored": "已還原先前的桌面設定，請完全結束並重新開啟 Claude Desktop",
+    "desktopCredentials": "直連模式會將所選憑證寫入限制檔案存取權限的本機桌面設定；刪除金鑰庫中的金鑰不會撤銷已匯出的憑證"
   }
 }

@@ -37,7 +37,7 @@ fn request(
     let url = format!("{}{suffix}", connection.base_url);
     let request = client.post(url).json(body);
     let request = if connection.protocol == HarnessProtocol::AnthropicMessages
-        && connection.base_url == "https://api.anthropic.com"
+        && connection.auth_scheme == key_vault::harness_connections::ConnectionAuthScheme::ApiKey
     {
         request.header("x-api-key", &connection.api_key)
     } else {
@@ -187,6 +187,43 @@ fn validate_stream(protocol: HarnessProtocol, bytes: &[u8]) -> Result<(), String
 mod tests {
     use super::*;
     #[test]
+    fn desktop_probe_uses_the_selected_authentication_without_sending_both_headers() {
+        use key_vault::harness_connections::ConnectionAuthScheme;
+        crate::test_utils::install_crypto_provider_for_tests();
+        let client = reqwest::Client::new();
+        for scheme in [ConnectionAuthScheme::Bearer, ConnectionAuthScheme::ApiKey] {
+            let connection = ResolvedHarnessConnection {
+                key_id: "fixture".into(),
+                provider: "custom_api".into(),
+                model: "claude-sonnet-5".into(),
+                base_url: "https://fixture.example/prefix".into(),
+                api_key: "synthetic-fixture-key".into(),
+                protocol: HarnessProtocol::AnthropicMessages,
+                auth_scheme: scheme,
+                requires_test: true,
+                revision: "fixture".into(),
+            };
+            let request = request(&client, &connection, &json!({}))
+                .unwrap()
+                .build()
+                .unwrap();
+            assert_eq!(
+                request.url().as_str(),
+                "https://fixture.example/prefix/v1/messages"
+            );
+            assert_eq!(
+                request.headers().contains_key("x-api-key"),
+                scheme == ConnectionAuthScheme::ApiKey
+            );
+            assert_eq!(
+                request.headers().contains_key("authorization"),
+                scheme == ConnectionAuthScheme::Bearer
+            );
+            assert_eq!(request.headers()["anthropic-version"], "2023-06-01");
+        }
+    }
+
+    #[test]
     fn chat_completions_and_incomplete_streams_do_not_prove_responses() {
         let initial = json!({"input":[],"stream":false});
         assert!(followup_body(
@@ -301,6 +338,7 @@ mod transport_tests {
                 base_url: format!("http://{addr}"),
                 api_key: "synthetic-fixture-key".into(),
                 protocol,
+                auth_scheme: key_vault::harness_connections::ConnectionAuthScheme::Bearer,
                 requires_test: true,
                 revision: "fixture".into(),
             };

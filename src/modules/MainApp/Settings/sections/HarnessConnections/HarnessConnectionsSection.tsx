@@ -2,8 +2,10 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { saveKey } from "@src/api/services/keyValidation";
+import type { ConnectionHarness } from "@src/api/tauri/rpc/schemas/agentOrgs";
 import type { SaveKeyRequest } from "@src/api/types/keys";
 import Message from "@src/components/Message";
+import SegmentedTextPill from "@src/components/SegmentedTextPill";
 import InlineCredentialImport from "@src/modules/MainApp/Integrations/KeyVault/CliClients/CredentialImport/InlineCredentialImport";
 import { KeyVaultWizard } from "@src/scaffold/WizardSystem/variants/KeyVault";
 
@@ -12,6 +14,7 @@ import { refreshHarnessConnections } from "./useHarnessConnection";
 
 export default function HarnessConnectionsSection() {
   const { t } = useTranslation("settings");
+  const [target, setTarget] = useState<ConnectionHarness>("claude_code");
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const submit = async (data: SaveKeyRequest) => {
@@ -42,13 +45,22 @@ export default function HarnessConnectionsSection() {
       className="flex flex-col gap-4"
       data-testid="harness-connections-settings"
     >
+      <div className="overflow-x-auto">
+        <SegmentedTextPill<ConnectionHarness>
+          ariaLabel={t("harnessConnections.appSelector")}
+          value={target}
+          onChange={setTarget}
+          options={[
+            { value: "claude_code", label: "Claude Code CLI" },
+            { value: "claude_desktop", label: "Claude Desktop" },
+            { value: "codex", label: "Codex" },
+          ]}
+        />
+      </div>
       <InlineCredentialImport onAfterImport={refreshHarnessConnections} />
       <HarnessConnectionEditor
-        agentName="claude_code"
-        onAdd={() => setAdding(true)}
-      />
-      <HarnessConnectionEditor
-        agentName="codex"
+        key={target}
+        agentName={target}
         onAdd={() => setAdding(true)}
       />
     </div>

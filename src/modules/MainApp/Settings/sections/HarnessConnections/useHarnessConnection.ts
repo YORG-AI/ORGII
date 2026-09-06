@@ -6,7 +6,7 @@ import type {
   HarnessConnectionView,
 } from "@src/api/tauri/rpc/schemas/agentOrgs";
 
-// At most two in-flight reads. No retained response cache, timers or background scans.
+// At most three target keys for in-flight reads. No retained response cache, timers or background scans.
 const reads = new Map<ConnectionHarness, Promise<HarnessConnectionView>>();
 const listeners = new Set<() => void>();
 

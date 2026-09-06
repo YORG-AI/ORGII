@@ -10,6 +10,7 @@ pub struct DirectConnection {
     pub model: String,
     pub base_url: String,
     pub api_key: String,
+    pub desktop_auth_scheme: Option<String>,
 }
 
 pub(super) fn generate_direct_configs(
@@ -20,6 +21,12 @@ pub(super) fn generate_direct_configs(
 ) -> Result<BTreeMap<String, String>, String> {
     if connection.api_key.trim().is_empty() || connection.model.trim().is_empty() {
         return Err("An API key and model are required".into());
+    }
+    if agent == super::desktop::TARGET {
+        return super::desktop::generate(contents, connection, previous);
+    }
+    if connection.desktop_auth_scheme.is_some() {
+        return Err("Desktop authentication settings cannot be applied to a CLI target".into());
     }
     let (file_id, generated) = match agent {
         "claude_code" => (

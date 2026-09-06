@@ -10,6 +10,7 @@ fn main() -> Result<(), String> {
     agent_cli::managed_config::enable_direct(
         &args[1],
         agent_cli::managed_config::DirectConnection {
+            desktop_auth_scheme: None,
             key_id: "fixture".into(),
             provider: "custom_api".into(),
             model: "fixture-model".into(),
