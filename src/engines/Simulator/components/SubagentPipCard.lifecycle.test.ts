@@ -7,7 +7,15 @@ import type { SubagentSession } from "../hooks/useSubagentSessions";
 import { SubagentPipCard } from "./SubagentPipCard";
 
 vi.mock("../hooks/useMultiSessionSimulatorEvents", () => ({
-  useMultiSessionSimulatorEvents: () => new Map(),
+  // Support the independent history-lifecycle PR while this selection regression
+  // stays concerned only with roster/selection behavior.
+  useMultiSessionSimulatorEvents: () => {
+    const events = new Map();
+    return Object.assign(events, {
+      eventsMap: events,
+      loadState: () => ({ status: "ready", retry: () => {} }),
+    });
+  },
 }));
 vi.mock("./GridCell/IndependentGridCell", () => ({
   IndependentGridCell: ({
