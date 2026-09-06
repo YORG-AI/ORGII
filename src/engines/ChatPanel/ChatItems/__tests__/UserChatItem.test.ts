@@ -40,6 +40,32 @@ function renderMessage(id: string): string {
 }
 
 describe("UserChatItem shared sender presentation", () => {
+  it("renders a timestamp and the turn's provider-recorded model in its hover row", () => {
+    const event = makeSessionEvent({
+      id: "user-message-metadata",
+      sessionId: "agentsession-local",
+      source: "user",
+      actionType: "raw",
+      functionName: "user_message",
+      displayText: "Hello from the conversation owner",
+      displayVariant: "message",
+      createdAt: "2026-09-06T01:09:00.000Z",
+    });
+
+    const markup = renderToStaticMarkup(
+      createElement(UserChatItem, {
+        chatItem: makeChatItem(event),
+        modelId: "gpt-5.3-codex-high",
+        onEditSubmit: () => undefined,
+      })
+    );
+
+    expect(markup).toContain('data-testid="chat-message-timestamp"');
+    expect(markup).toContain('dateTime="2026-09-06T01:09:00.000Z"');
+    expect(markup).toContain('data-testid="chat-message-model"');
+    expect(markup).toContain("GPT 5.3 Codex · High");
+  });
+
   it("shows the owner avatar beside a copied remote message", () => {
     const sessionId = "agentsession-local";
     const markup = renderMessage(
@@ -65,11 +91,10 @@ describe("UserChatItem shared sender presentation", () => {
     expect(markup).not.toContain("shared-message-sender-avatar");
   });
 
-  it("does not render message-level copy or timestamp controls", () => {
+  it("does not render a message-level copy control", () => {
     const markup = renderMessage("user-message-without-footer");
 
     expect(markup).not.toContain('data-icon="copy"');
-    expect(markup).not.toContain("<time");
   });
 });
 

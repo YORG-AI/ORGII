@@ -24,13 +24,14 @@ import { discussionPayloadOf } from "@src/features/Org2Cloud/SessionConversation
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import {
   ClipboardCheckIcon,
+  Edit03Icon,
   File01Icon,
   HugeiconsIcon,
   Image01Icon,
-  PencilEdit01Icon,
   SparklesIcon,
   Undo02Icon,
 } from "@src/icons";
+import { formatSmartDateTime } from "@src/util/data/formatters/date";
 import { imageRefToRustPath } from "@src/util/file/imageRefs";
 
 import UserMessageContent, {
@@ -44,6 +45,7 @@ import RawPromptToggle from "./RawPromptToggle";
 import { useSharedConversationSender } from "./SharedConversationSenderContext";
 import { normalizeUserMessageText } from "./normalizeUserMessageText";
 import { wasSubmittedByViewer } from "./parentAgentSender";
+import { describeModelLabel } from "./rawPromptModelLabel";
 import { resolveRawUserPrompt } from "./rawUserPrompt";
 import { resolveUserMessageSide } from "./userMessageSide";
 
@@ -74,6 +76,8 @@ interface UserChatItemProps {
   chatItem: OptimizedChatItem;
   /** Keep the short preview used by paginated/pinned turn headers. */
   compactPreview?: boolean;
+  /** Provider-exact model from the assistant response in this turn. */
+  modelId?: string | null;
   onEditSubmit?: (newText: string, imageDataUrls?: string[]) => void;
   /** Extra actions rendered in the message action toolbar. */
   toolbarActions?: React.ReactNode;
@@ -191,6 +195,7 @@ const DISPLAY_CONTAINER_BASE =
 const UserChatItem = ({
   chatItem,
   compactPreview = true,
+  modelId,
   onEditSubmit,
   toolbarActions,
   onRestoreCheckpoint,
@@ -211,6 +216,12 @@ const UserChatItem = ({
   const messageContentRef = useRef<HTMLDivElement | null>(null);
 
   const event = chatItem.event;
+  const messageTimestamp = event?.createdAt ?? null;
+  const timestampLabel = useMemo(
+    () => (messageTimestamp ? formatSmartDateTime(messageTimestamp) : null),
+    [messageTimestamp]
+  );
+  const modelLabel = useMemo(() => describeModelLabel(modelId), [modelId]);
   // Who wrote this turn. In a session an agent started, a `user` turn is the
   // parent's dispatch rather than the reader's own message, so the row is
   // attributed to the parent session — same identity icon the header shows.
@@ -433,7 +444,7 @@ const UserChatItem = ({
       <div
         className={containerClass}
         data-testid="chat-message-user-editable"
-        onClick={isEditableDisplay ? handleEditClick : undefined}
+        onDoubleClick={isEditableDisplay ? handleEditClick : undefined}
       >
         <div className="flex min-w-0 flex-1 flex-col gap-[6px]">
           {isRepoSetup ? (
@@ -540,6 +551,30 @@ const UserChatItem = ({
               isRawPromptOpen ? "opacity-100" : "opacity-0"
             } ${isRemoteSharedMessage ? "left-full ml-1" : "right-full mr-1"}`}
           >
+            {(timestampLabel || modelLabel) && (
+              <span className="inline-flex items-center gap-1 text-[11px] whitespace-nowrap text-text-3">
+                {timestampLabel && messageTimestamp && (
+                  <time
+                    dateTime={messageTimestamp}
+                    data-testid="chat-message-timestamp"
+                  >
+                    {timestampLabel}
+                  </time>
+                )}
+                {timestampLabel && modelLabel && (
+                  <span aria-hidden="true">·</span>
+                )}
+                {modelLabel && (
+                  <span
+                    data-testid="chat-message-model"
+                    title={modelId ?? undefined}
+                  >
+                    {modelLabel.name}
+                    {modelLabel.variant ? ` · ${modelLabel.variant}` : ""}
+                  </span>
+                )}
+              </span>
+            )}
             {rawPrompt.trim() && event?.sessionId && (
               <RawPromptToggle
                 rawText={rawPrompt}
@@ -577,8 +612,8 @@ const UserChatItem = ({
                 }}
               >
                 <HugeiconsIcon
-                  icon={PencilEdit01Icon}
-                  data-icon="pencil-line"
+                  icon={Edit03Icon}
+                  data-icon="edit-03"
                   size={14}
                   strokeWidth={1.75}
                 />

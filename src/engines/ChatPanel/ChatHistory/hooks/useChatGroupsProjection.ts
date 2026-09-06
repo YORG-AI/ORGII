@@ -19,6 +19,8 @@ export interface UnloadedTurnMeta {
 
 export interface ChatGroupMeta {
   turnId: string | null;
+  /** Provider-exact model recorded on this turn's assistant LLM span. */
+  assistantModelId?: string | null;
   durationMs: number;
   /** Rendered rows in the turn body. A grouped stack counts as one row. */
   itemCount: number;
@@ -197,6 +199,20 @@ function parseEpochMs(iso: string | undefined): number | null {
 }
 
 /**
+ * The user-message event does not record a model. The associated assistant
+ * event does, once provider usage telemetry is attached to the turn. Read it
+ * here while the complete turn is still available rather than falling back to
+ * the session's mutable current-model setting.
+ */
+function assistantModelIdForGroup(group: ChatGroup): string | null {
+  for (const item of group.items) {
+    const model = item.event?.llmUsage?.model?.trim();
+    if (model) return model;
+  }
+  return null;
+}
+
+/**
  * How many session events one rendered row stands for.
  *
  * The item pipeline folds consecutive tool calls into a SINGLE row —
@@ -336,6 +352,7 @@ export function projectChatGroups(
 
     return {
       turnId,
+      assistantModelId: assistantModelIdForGroup(group),
       durationMs: unloadedTurn?.durationMs ?? durationMs,
       itemCount: group.items.length,
       bodyEventCount: group.items.reduce(

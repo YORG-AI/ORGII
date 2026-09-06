@@ -91,6 +91,22 @@ function assistantItem(text: string): OptimizedChatItem {
   );
 }
 
+it("projects the provider-recorded model onto its user-message turn", () => {
+  const assistant = assistantItem("Hello");
+  assistant.event!.llmUsage = {
+    inputTokens: 10,
+    outputTokens: 20,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    model: "gpt-5.3-codex-high",
+    attributionMethod: "provider_exact",
+  };
+
+  const projection = projectChatGroups([userItem("Hi"), assistant]);
+
+  expect(projection.groupMeta[0]?.assistantModelId).toBe("gpt-5.3-codex-high");
+});
+
 function canonicalAgentMessageItem(text: string): OptimizedChatItem {
   return item(
     makeEvent({

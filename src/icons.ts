@@ -180,6 +180,7 @@ export { default as Download02Icon } from "@hugeicons/core-free-icons/Download02
 export { default as EclipseIcon } from "@hugeicons/core-free-icons/EclipseIcon";
 export { default as Edit01Icon } from "@hugeicons/core-free-icons/Edit01Icon";
 export { default as Edit02Icon } from "@hugeicons/core-free-icons/Edit02Icon";
+export { default as Edit03Icon } from "@hugeicons/core-free-icons/Edit03Icon";
 export { default as Edit04Icon } from "@hugeicons/core-free-icons/Edit04Icon";
 export { default as EllipsisIcon } from "@hugeicons/core-free-icons/EllipsisIcon";
 export { default as ExpandIcon } from "@hugeicons/core-free-icons/ExpandIcon";

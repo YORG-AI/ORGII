@@ -46,6 +46,7 @@ function sameMeta(
   if (!left || !right) return false;
   return (
     left.turnId === right.turnId &&
+    left.assistantModelId === right.assistantModelId &&
     left.durationMs === right.durationMs &&
     left.itemCount === right.itemCount &&
     left.bodyEventCount === right.bodyEventCount &&
@@ -258,6 +259,7 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
           <UserChatItem
             chatItem={header}
             compactPreview={compactUserMessage}
+            modelId={meta?.assistantModelId}
             onEditSubmit={onEditSubmit ? handleEdit : undefined}
             onRestoreCheckpoint={
               onRestoreCheckpoint ? handleRestoreCheckpoint : undefined
