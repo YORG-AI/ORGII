@@ -250,9 +250,6 @@ importers:
       react-i18next:
         specifier: ^16.5.4
         version: 16.5.8(i18next@25.8.18(typescript@5.9.3))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@5.9.3)
-      react-intersection-observer:
-        specifier: ^10.0.0
-        version: 10.0.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react-is:
         specifier: ^19.2.4
         version: 19.2.4
@@ -7587,15 +7584,6 @@ packages:
       react-native:
         optional: true
       typescript:
-        optional: true
-
-  react-intersection-observer@10.0.3:
-    resolution: {integrity: sha512-luICLMbs0zxTO/70Zy7K5jOXkABPEVSAF8T3FdZUlctsrIaPLmx8TZe2SSA+CY2HGWfz2INyNTnp82pxNNsShA==}
-    peerDependencies:
-      react: ^17.0.0 || ^18.0.0 || ^19.0.0
-      react-dom: ^17.0.0 || ^18.0.0 || ^19.0.0
-    peerDependenciesMeta:
-      react-dom:
         optional: true
 
   react-is@16.13.1:
@@ -16995,12 +16983,6 @@ snapshots:
     optionalDependencies:
       react-dom: 19.2.6(react@19.2.6)
       typescript: 5.9.3
-
-  react-intersection-observer@10.0.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
-    dependencies:
-      react: 19.2.6
-    optionalDependencies:
-      react-dom: 19.2.6(react@19.2.6)
 
   react-is@16.13.1: {}
 

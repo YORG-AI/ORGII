@@ -3,7 +3,7 @@
  * Handles solid background and appearance customization.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -42,7 +42,6 @@ import {
   sanitizePageOpacity,
   sanitizeSidebarOpacity,
 } from "@src/store/ui/backgroundConfigAtom";
-import { prewarmColor } from "@src/util/ui/theme/glassMaterial";
 import { swapThemeCss } from "@src/util/ui/theme/swapThemeCss";
 import { showThemeTransitionCover } from "@src/util/ui/theme/themeTransitionCover";
 
@@ -114,13 +113,6 @@ export function useBackgroundSettings(): UseBackgroundSettingsReturn {
       })),
     [skinVariant]
   );
-
-  useEffect(() => {
-    if (!config.backgroundColorId) return;
-    const preset = getBackgroundColorPresetById(config.backgroundColorId);
-    if (!preset) return;
-    prewarmColor(resolveBackgroundColorPreset(preset));
-  }, [config.backgroundColorId]);
 
   // Undo/redo for config changes (Ctrl+Z / Cmd+Z)
   const undoStack = useUndoStackWithRestore<BackgroundConfig>({

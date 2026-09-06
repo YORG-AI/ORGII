@@ -3,7 +3,6 @@
  *
  * Context menu that appears when hovering on dock items.
  * Provides options for "Switch to" and "Split view" actions.
- * Uses Glass for modern glass aesthetic.
  */
 // ============================================
 // Menu Item Configuration
@@ -12,7 +11,7 @@ import React, { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import AnyIcon from "@src/components/AnyIcon";
-import Glass from "@src/components/Glass";
+import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import type { IconSvgElement } from "@src/icons";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
@@ -172,31 +171,28 @@ export const DockContextMenu: React.FC<DockContextMenuProps> = ({
   const isSameAsActive = targetApp.id === activeAppType;
 
   return (
-    <Glass
-      material="thin"
+    <div
       ref={setMenuRef}
-      radius={12}
-      className="animate-in fade-in zoom-in-95 fixed z-100 min-w-[180px] p-1"
+      className={`${DROPDOWN_CLASSES.menuPanelBase} fixed min-w-180 animate-dropdown-in`}
       style={{
         left: position.x,
         top: position.y,
-        boxShadow: "0 12px 48px rgba(0, 0, 0, 0.25)",
       }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
       {/* Menu Items */}
-      <div className="space-y-0.5">
+      <div className={DROPDOWN_CLASSES.itemsColumn}>
         {MENU_ITEMS.map((item) => {
           const isDisabled = item.action === "switch" && isSameAsActive;
 
           return (
             <React.Fragment key={item.id}>
               <button
-                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-all ${
+                className={`${DROPDOWN_CLASSES.menuActionItem} ${
                   isDisabled
-                    ? "cursor-not-allowed text-text-3"
-                    : "text-text-1 hover:bg-[rgba(255,255,255,0.4)]"
+                    ? `${DROPDOWN_CLASSES.itemDisabled} text-text-3`
+                    : ""
                 }`}
                 onClick={() => !isDisabled && handleItemClick(item)}
                 disabled={isDisabled}
@@ -219,7 +215,7 @@ export const DockContextMenu: React.FC<DockContextMenuProps> = ({
           );
         })}
       </div>
-    </Glass>
+    </div>
   );
 };
 

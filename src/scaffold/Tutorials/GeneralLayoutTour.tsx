@@ -1,11 +1,10 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useSetAtom } from "jotai";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import { getMaterialConfig } from "@src/components/Glass/config";
 import {
   Infinity01Icon,
   ArrowLeft02Icon,
@@ -17,7 +16,7 @@ import {
 } from "@src/icons";
 import {
   POPUP_ANIMATION,
-  POPUP_SHADOW,
+  getPopupSurfaceStyle,
 } from "@src/scaffold/shared/popupTokens";
 import { type StationMode, stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
@@ -265,23 +264,7 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
     return () => document.removeEventListener("keydown", handleKeyDown, true);
   }, [onClose, open]);
 
-  const containerMaterial = useMemo(
-    () => getMaterialConfig(isDark, "thick"),
-    [isDark]
-  );
-
-  const popoverGlassStyle = useMemo<React.CSSProperties>(() => {
-    const borderColor = isDark
-      ? "rgba(255, 255, 255, 0.10)"
-      : "rgba(255, 255, 255, 0.24)";
-    return {
-      backdropFilter: `blur(${containerMaterial.blur}px)`,
-      WebkitBackdropFilter: `blur(${containerMaterial.blur}px)`,
-      background: containerMaterial.background,
-      border: `1px solid ${borderColor}`,
-      boxShadow: POPUP_SHADOW,
-    };
-  }, [containerMaterial, isDark]);
+  const popoverSurfaceStyle = getPopupSurfaceStyle(isDark);
 
   const goPrevious = useCallback(() => {
     setStepIndex((value) => Math.max(value - 1, 0));
@@ -346,7 +329,7 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
         <motion.div
           {...POPUP_ANIMATION}
           className="fixed z-10002 rounded-[14px] p-3"
-          style={{ ...popoverStyle, ...popoverGlassStyle }}
+          style={{ ...popoverStyle, ...popoverSurfaceStyle }}
           onClick={(event) => event.stopPropagation()}
         >
           <div className="mb-2 flex items-center justify-between gap-3">

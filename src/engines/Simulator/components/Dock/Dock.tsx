@@ -1,7 +1,7 @@
 /**
  * Dock Component
  *
- * Pure macOS-style dock bar — Glass pill with app icons.
+ * Pure macOS-style dock bar with app icons.
  * Used by both My Station and Agent Station with different app lists.
  */
 import React, { memo } from "react";
@@ -14,7 +14,7 @@ import {
   CompactDockIconColumn,
   DOCK_ICON_PROPS,
   DockSegmentDivider,
-  StationDockGlassPill,
+  StationDockIconStrip,
   StationDockRow,
   dockIconHitAreaClassName,
 } from "./dockLayout";
@@ -63,8 +63,8 @@ function getTourTarget(appId: string): string | undefined {
 
 export const Dock: React.FC<DockProps> = memo(
   ({ segments, activeApp, onAppClick }) => (
-    <StationDockRow layout="centered">
-      <StationDockGlassPill>
+    <StationDockRow>
+      <StationDockIconStrip>
         {segments.map((segment, segmentIndex) => (
           <React.Fragment key={segmentIndex}>
             {segmentIndex > 0 && <DockSegmentDivider />}
@@ -85,7 +85,7 @@ export const Dock: React.FC<DockProps> = memo(
             })}
           </React.Fragment>
         ))}
-      </StationDockGlassPill>
+      </StationDockIconStrip>
     </StationDockRow>
   )
 );

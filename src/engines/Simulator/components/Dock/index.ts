@@ -24,7 +24,7 @@ export {
   DOCK_ICON_PROPS,
   DockIconColumn,
   DockSegmentDivider,
-  StationDockGlassPill,
+  StationDockIconStrip,
   StationDockRow,
   dockIconHitAreaClassName,
 } from "./dockLayout";

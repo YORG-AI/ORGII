@@ -79,7 +79,6 @@ src/util/
 │
 ├── ui/                          # UI utilities
 │   ├── theme/
-│   │   ├── glassMaterial.ts    # Glass material theme resolver
 │   │   ├── themeUtils.ts       # Theme utility functions
 │   │   └── toolbarTheme.ts     # Toolbar theme resolver
 │   ├── tabs/
@@ -342,7 +341,6 @@ import {
   - **`breadcrumb.tsx`** - Breadcrumb rendering
   - **`chatDetail.ts`** - Chat detail creation
 
-- **`ui/theme/glassMaterial.ts`** - Glass material theme resolution
 - **`ui/window/windowManager.ts`** - Window management operations
 
 ### Platform Utilities
