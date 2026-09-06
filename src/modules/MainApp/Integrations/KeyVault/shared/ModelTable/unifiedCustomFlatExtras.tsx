@@ -94,12 +94,8 @@ export function newPlaceholderModelName(rowId: string): string {
   return `${PLACEHOLDER_PREFIX}${rowId.slice(CUSTOM_ROW_ID_PREFIX.length)}`;
 }
 
-/** True when a model name is a placeholder for an unnamed new row. */
-export function isPlaceholderModelName(name: string): boolean {
-  return name.startsWith(PLACEHOLDER_PREFIX);
-}
-
 interface CustomModelNameInputProps {
+  isDraft?: boolean;
   modelName: string;
   placeholder: string;
   className: string;
@@ -108,13 +104,14 @@ interface CustomModelNameInputProps {
 }
 
 export function CustomModelNameInput({
+  isDraft = false,
   modelName,
   placeholder,
   className,
   onCommit,
   onCommittedBlur,
 }: CustomModelNameInputProps) {
-  const resolvedValue = isPlaceholderModelName(modelName) ? "" : modelName;
+  const resolvedValue = isDraft ? "" : modelName;
   const [draft, setDraft] = useState(resolvedValue);
 
   useEffect(() => {
@@ -139,6 +136,7 @@ export function CustomModelNameInput({
           event.currentTarget.blur();
         }
       }}
+      aria-label={placeholder}
       placeholder={placeholder}
       size={MODEL_TABLE_CONTROL_SIZE}
       className={className}
@@ -184,6 +182,7 @@ export function CustomModelDisplayNameInput({
           event.currentTarget.blur();
         }
       }}
+      aria-label={placeholder}
       placeholder={placeholder}
       size={MODEL_TABLE_CONTROL_SIZE}
       className={className}
@@ -258,7 +257,13 @@ export function useUnifiedCustomFlatHandlers({
     onCustomModelsChange([...customModels, placeholder]);
     onModelAliasesChange([
       ...modelAliases,
-      { displayName: "", alias: placeholder, icon: undefined, rowId },
+      {
+        displayName: "",
+        alias: placeholder,
+        icon: undefined,
+        rowId,
+        isDraft: true,
+      },
     ]);
     if (onEnabledModelsChange && !enabledModels.includes(placeholder)) {
       onEnabledModelsChange([...enabledModels, placeholder]);
@@ -317,7 +322,9 @@ export function useUnifiedCustomFlatHandlers({
 
       onModelAliasesChange(
         modelAliases.map((entry) =>
-          entry.alias === oldName ? { ...entry, alias: trimmed } : entry
+          entry.alias === oldName
+            ? { ...entry, alias: trimmed, isDraft: false }
+            : entry
         )
       );
 
@@ -344,7 +351,7 @@ export function useUnifiedCustomFlatHandlers({
     async (currentName: string) => {
       if (!onTestModel) return;
       const trimmed = currentName.trim();
-      if (!trimmed || isPlaceholderModelName(trimmed)) return;
+      if (!trimmed) return;
 
       setTestError(null);
       try {

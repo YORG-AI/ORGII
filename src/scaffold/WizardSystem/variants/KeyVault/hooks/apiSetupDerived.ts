@@ -59,13 +59,31 @@ export function getApiSetupProceedState({
           envVar.value.trim() !== ""
       ));
   const isOAuthConfigured = data.auth_method === "oauth" && data.validated;
-  const hasLocalModelEndpoint =
-    data.agent_type === LOCAL_MODEL_PROVIDER &&
-    Boolean(data.extracted_base_url?.trim()) &&
+  let hasEndpoint = false;
+  try {
+    const endpoint = new URL(data.extracted_base_url ?? "");
+    hasEndpoint =
+      ["http:", "https:"].includes(endpoint.protocol) &&
+      !endpoint.username &&
+      !endpoint.password;
+  } catch {
+    /* Manual setup needs an absolute HTTP endpoint */
+  }
+  const hasManualModelEndpoint =
+    (data.agent_type === LOCAL_MODEL_PROVIDER ||
+      data.agent_type === "custom_api") &&
+    hasEndpoint &&
+    data.auth_method !== "oauth" &&
     hasApiKeyInput &&
-    ((data.enabled_models?.length ?? 0) > 0 ||
-      (data.custom_models?.length ?? 0) > 0 ||
-      (data.available_models?.length ?? 0) > 0);
+    data.enabled_models.some(
+      (model) =>
+        model.length > 0 &&
+        new TextEncoder().encode(model).length <= 256 &&
+        !/\s|\p{Cc}/u.test(model) &&
+        !data.model_aliases.some(
+          (alias) => alias.alias === model && alias.isDraft
+        )
+    );
   const canProceed = isClaudeCode
     ? hasClaudeCodeOAuthToken
     : isCodex
@@ -76,7 +94,7 @@ export function getApiSetupProceedState({
         ? tokenDetected && data.validated
         : isCursor
           ? hasSessionToken
-          : hasLocalModelEndpoint ||
+          : hasManualModelEndpoint ||
             isOAuthConfigured ||
             (keyValidated && hasApiKeyInput) ||
             (data.validated && hasApiKeyInput);

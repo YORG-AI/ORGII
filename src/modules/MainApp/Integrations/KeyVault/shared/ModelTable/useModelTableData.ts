@@ -91,7 +91,7 @@ interface UseModelTableDataOptions {
 }
 
 export function useModelTableData({
-  models,
+  models: discoveredModels,
   enabledModelsProp,
   defaultView = "flat",
   customModels = [],
@@ -100,6 +100,12 @@ export function useModelTableData({
 }: UseModelTableDataOptions) {
   const { t } = useTranslation("integrations");
 
+  // Catalog and manual sources can legitimately name the same model. The
+  // explicit editable row owns its presentation in the unified wizard.
+  const models = useMemo(() => {
+    const customIds = new Set(customModels);
+    return discoveredModels.filter((model) => !customIds.has(model));
+  }, [discoveredModels, customModels]);
   const [viewMode, setViewMode] = useState<ModelTableViewMode>(defaultView);
   const [searchQuery, setSearchQuery] = useState("");
   // Default to showing all models (latest + older). The dropdown filter lets

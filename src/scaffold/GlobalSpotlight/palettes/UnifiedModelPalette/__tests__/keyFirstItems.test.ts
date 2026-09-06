@@ -173,3 +173,48 @@ describe("buildKeyModelItems", () => {
     ).toEqual([]);
   });
 });
+
+it("custom API labels stay key-scoped while selection uses each exact request ID", async () => {
+  const { replaceModelAliasesFromKeys } =
+    await import("@src/hooks/models/modelAliasRegistry");
+  replaceModelAliasesFromKeys([
+    {
+      id: "a",
+      model_aliases: [{ alias: "deployment-high", display_name: "Production" }],
+    },
+    {
+      id: "b",
+      model_aliases: [
+        { alias: "deployment-high", display_name: "Development" },
+      ],
+    },
+  ]);
+  try {
+    const account = makeAccount({
+      id: "a",
+      modelType: "custom_api",
+      availableModels: [
+        "deployment-high",
+        "deployment-low",
+        "new-provider/model-2026-09-01",
+      ],
+    });
+    const onCommit = vi.fn();
+    const items = buildKeyModelItems({
+      account,
+      onCommit,
+      persistDefaultVariantForAccount: vi.fn(),
+    });
+    expect(items).toHaveLength(3);
+    expect(new Set(items.map((item) => item.id)).size).toBe(3);
+    for (const item of items) {
+      item.action?.();
+      expect(onCommit).toHaveBeenLastCalledWith(account, item.data?.modelId);
+    }
+    const row = items.find((item) => item.data?.modelId === "deployment-high");
+    expect(row?.label).toContain("Production");
+    expect(row?.label).not.toContain("Development");
+  } finally {
+    replaceModelAliasesFromKeys([]);
+  }
+});

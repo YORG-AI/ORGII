@@ -77,6 +77,7 @@
       "notice": "Không thể tự động phát hiện các mô hình có sẵn từ proxy này. Bạn có thể thêm mô hình thủ công bên dưới hoặc thử nhấn Validate lại."
     },
     "customModels": {
+      "manualSetupHint": "Nhập ID mô hình chính xác mà điểm cuối chấp nhận và tên hiển thị tùy chọn. Không bắt buộc khám phá mô hình; bật mô hình không xác minh tính tương thích.",
       "notice": "Tên mô hình = id dùng để gọi LLM. Tên hiển thị = nhãn trong bộ chọn.",
       "modelNamePlaceholder": "Nhập id mô hình...",
       "displayName": "Tên hiển thị",

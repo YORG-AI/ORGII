@@ -77,6 +77,7 @@
       "notice": "Impossible de détecter automatiquement les modèles disponibles depuis ce proxy. Vous pouvez ajouter des modèles manuellement ci-dessous ou réessayer en cliquant sur Validate."
     },
     "customModels": {
+      "manualSetupHint": "Ajoutez l’identifiant exact accepté par votre endpoint et un nom facultatif. La découverte est facultative ; activer un modèle ne vérifie pas sa compatibilité.",
       "notice": "Nom du modèle = id utilisé pour appeler le LLM. Nom d'affichage = libellé dans les sélecteurs.",
       "modelNamePlaceholder": "Entrez l'id du modèle...",
       "displayName": "Nom d'affichage",

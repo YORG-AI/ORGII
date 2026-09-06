@@ -74,6 +74,7 @@
       "notice": "No se pudieron detectar automáticamente los modelos disponibles desde este proxy. Puede agregar modelos manualmente a continuación o intentar hacer clic en Validate nuevamente."
     },
     "customModels": {
+      "manualSetupHint": "Añade el ID exacto que acepta tu endpoint y un nombre opcional. La detección es opcional; activar un modelo no verifica su compatibilidad.",
       "notice": "Nombre del modelo = id usado para llamar al LLM. Nombre visible = etiqueta en los selectores.",
       "modelNamePlaceholder": "Ingrese el id del modelo...",
       "displayName": "Nombre visible",

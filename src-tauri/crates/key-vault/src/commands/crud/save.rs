@@ -1,5 +1,4 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-use regex::Regex;
 
 use super::{key_info_from_entry, KeyInfo, SaveKeyRequest};
 use crate::commands::validate::{invalidate_key_quota_runtime, quota_credential_revision};
@@ -7,16 +6,6 @@ use crate::key_store::{
     is_claude_official_oauth_token, is_official_anthropic_endpoint, AuthMethod, DefaultVariant,
     HealthStatus, ModelKey, ModelType, ModelVariant, ProviderProtocol, KEY_SERVICE,
 };
-
-/// Filter out model IDs containing dated snapshot suffixes (YYYY-MM-DD pattern).
-/// These are point-in-time snapshots that shouldn't be persisted as enabled.
-pub(super) fn filter_dated_models(models: Vec<String>) -> Vec<String> {
-    let date_pattern = Regex::new(r"\b\d{4}-\d{2}-\d{2}\b").unwrap();
-    models
-        .into_iter()
-        .filter(|m| !date_pattern.is_match(m))
-        .collect()
-}
 
 fn is_cursor_web_session_token(token: &str) -> bool {
     let jwt = token.split("%3A%3A").nth(1).unwrap_or(token);
@@ -127,8 +116,7 @@ pub async fn save_key(request: SaveKeyRequest) -> Result<KeyInfo, String> {
             entry.available_models = models;
         }
         if let Some(enabled) = request.enabled_models {
-            // Filter out dated snapshot models (containing YYYY-MM-DD pattern)
-            entry.enabled_models = filter_dated_models(enabled);
+            entry.enabled_models = enabled;
         }
         if let Some(aliases) = request.model_aliases {
             entry.model_aliases = aliases

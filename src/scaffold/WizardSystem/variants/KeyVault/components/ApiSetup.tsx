@@ -80,6 +80,7 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
   }, [hook.browserOpen, onBrowserStateChange]);
 
   const parsedModelVariants = useMemo(() => {
+    if (data.agent_type === "custom_api") return [];
     const variants = new Map(
       (data.model_variants ?? []).map((variant) => [
         variant.model,
@@ -103,7 +104,12 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
       });
     }
     return [...variants.values()];
-  }, [data.available_models, data.model_context_lengths, data.model_variants]);
+  }, [
+    data.agent_type,
+    data.available_models,
+    data.model_context_lengths,
+    data.model_variants,
+  ]);
 
   const hasAgent = !!data.agent_type;
 
@@ -176,7 +182,8 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
     (effectiveKeyValidated ||
       (hook.isCursor && data.validated) ||
       (hook.isOAuthAgent && data.validated) ||
-      isLocalModelProvider);
+      isLocalModelProvider ||
+      data.agent_type === "custom_api");
 
   const accountNameBase =
     selectedProvider?.label ||
@@ -225,7 +232,10 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
         (isLocalModelProvider ? "local-model" : "");
       const baseUrl = data.extracted_base_url;
       if (!apiKey || !baseUrl) {
-        return { available: true, message: "No base URL — skipping test" };
+        return {
+          available: false,
+          message: "Enter an endpoint and API key to test this model",
+        };
       }
       return testModelAvailability(apiKey, baseUrl, model, data.agent_type);
     },
@@ -456,10 +466,18 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
                 </div>
                 <div className="text-[12px] text-text-3">
                   {t("keyVault.modelCount", {
-                    count: data.available_models?.length ?? 0,
+                    count: new Set([
+                      ...data.available_models,
+                      ...data.custom_models,
+                    ]).size,
                   })}
                 </div>
               </div>
+              {data.agent_type === "custom_api" && (
+                <p className="text-sm text-text-3">
+                  {t("keyVault.customModels.manualSetupHint")}
+                </p>
+              )}
               <ModelsDisplay
                 models={data.available_models ?? []}
                 enabledModels={data.enabled_models ?? []}
@@ -475,7 +493,9 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
                 onModelAliasesChange={(aliases) =>
                   onChange({ model_aliases: aliases })
                 }
-                onTestModel={handleTestModel}
+                onTestModel={
+                  data.agent_type === "custom_api" ? undefined : handleTestModel
+                }
                 defaultVariants={data.default_variants}
                 onChangeDefaultVariant={(baseModel, model) => {
                   const next = (data.default_variants ?? []).filter(

@@ -74,6 +74,7 @@
       "notice": "Bu proxy üzerinden kullanılabilir modeller otomatik olarak algılanamadı. Aşağıdan manuel olarak model ekleyebilir veya tekrar Validate'e tıklayabilirsiniz."
     },
     "customModels": {
+      "manualSetupHint": "Uç noktanızın kabul ettiği tam model kimliğini ve isteğe bağlı görünen adı ekleyin. Model keşfi isteğe bağlıdır; etkinleştirmek uyumluluğu doğrulamaz.",
       "notice": "Model adı = LLM çağrısı için id. Görünen ad = seçicilerde gösterilen etiket.",
       "modelNamePlaceholder": "Model id girin...",
       "displayName": "Görünen Ad",
