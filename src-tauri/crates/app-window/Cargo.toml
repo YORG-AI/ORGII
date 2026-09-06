@@ -32,18 +32,12 @@ tracing = "0.1"
 
 # macOS-specific native-window plumbing
 [target.'cfg(target_os = "macos")'.dependencies]
-# Modern Objective-C bindings. `dispatch2::DispatchQueue::main()` is the
-# typed replacement for `dispatch::Queue::main()` used by `set_window_vibrancy`
-# and `set_traffic_light_position` to hop AppKit work onto the main thread.
+# Modern Objective-C bindings used by native window chrome and materials.
 objc2 = { workspace = true }
 objc2-foundation = { workspace = true }
 objc2-app-kit = { workspace = true }
 dispatch2 = { workspace = true }
 
-# `set_window_vibrancy` decodes the optional base64 wallpaper bytes that
-# the frontend passes when toggling vibrancy off (so we can paint a static
-# bitmap behind external content like Stripe Checkout).
-base64 = { workspace = true }
 # Windows-specific DWM rounded corners + acrylic backdrop + OS version
 # detection (Win10 vs Win11 chrome policy in `windows_corner.rs`).
 [target.'cfg(windows)'.dependencies]

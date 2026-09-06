@@ -12,7 +12,6 @@ infrastructure::cloud_identity::cloud_device_identity,
 // Dev-only ORG2 Cloud auth import from the installed app's WebKit origin
 infrastructure::dev_bundled_auth::debug_import_bundled_org2_cloud_auth,
 // Main-window appearance commands
-app_window::commands::set_window_vibrancy,
 app_window::commands::set_main_webview_zoom,
 app_window::commands::set_webview_zoom,
 app_window::commands::remove_window_background,
@@ -574,10 +573,6 @@ file_ops::filter_ignored_paths,
 file_ops::list_directory_filtered,
 file_ops::list_directory_tree,
 // Performance optimization commands
-// - Image luminance calculation (for adaptive UI theming)
-perf_utils::calculate_image_luminance,
-perf_utils::calculate_single_region_luminance,
-perf_utils::calculate_luminance_from_base64,
 // - Binary file detection (SIMD-accelerated + magic bytes)
 perf_utils::check_binary_by_path,
 perf_utils::check_binary_content,

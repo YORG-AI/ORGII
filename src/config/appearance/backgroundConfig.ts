@@ -1,17 +1,10 @@
 /**
- * Background configuration constants and utilities shared across the store
- * layer (uiAtom, backgroundInit) and the Settings BackgroundPage UI.
+ * Background configuration utilities shared across the store layer and the
+ * Settings BackgroundPage UI.
  *
  * Lives here so that shared atoms in src/store/ do not need to import from
  * a Settings sub-page module.
  */
-import BambooBlueBg from "@src/assets/bg/bamboo-blue.jpg";
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-/** Bundled image used as `imageUrl` seed in the default background config. */
-export const DEFAULT_BUNDLED_BACKGROUND_IMAGE = BambooBlueBg;
-
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
 /** Normalize #rgb / #rrggbb to lowercase #rrggbb. Returns null for invalid input. */

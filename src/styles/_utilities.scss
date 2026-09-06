@@ -199,7 +199,7 @@
     pointer-events: none;
     content: "";
     // Fade only the tint: the real chat pane shows through at every edge,
-    // including when its background is translucent or wallpaper-tinted.
+    // including when its background is translucent or surface-tinted.
     background: radial-gradient(
       ellipse 50% 100% at 50% 0%,
       color-mix(in srgb, var(--color-primary-6) 46%, transparent) 0%,
@@ -316,7 +316,7 @@
  * Surface paint lives on the SettingsSlot body wrapper — which honors the
  * user's page transparency setting via `getPagePanelBackgroundStyle()`.
  * Painting it again here would re-establish a fully opaque layer that
- * masks the wallpaper bleed-through.
+ * masks the configured backdrop.
  */
 .settings-page {
   &,

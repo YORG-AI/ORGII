@@ -77,7 +77,7 @@ interface GlassProps extends React.HTMLAttributes<HTMLDivElement> {
   rimBrightnessOffsets?: { base: number; highlight: number; glow: number };
   /**
    * UI region for automatic material resolution (Apple-style)
-   * When set, automatically samples from the appropriate wallpaper region
+   * When set, automatically derives material from the configured surface
    * and applies the resolved rim color. Enables enableRim automatically.
    */
   region?: GlassRegion;
@@ -122,7 +122,7 @@ export const Glass = forwardRef<HTMLDivElement, GlassProps>(
     const { isDark } = useCurrentTheme();
 
     // Region-based automatic material resolution (Apple-style)
-    // When region is set, automatically resolve material from that wallpaper region
+    // When region is set, automatically resolve material from the app surface
     const { material: resolvedMaterial, isReady: regionMaterialReady } =
       useGlassMaterial(region || "global", {
         thickness: material,
@@ -304,11 +304,11 @@ export const Glass = forwardRef<HTMLDivElement, GlassProps>(
           />
 
           {/* Glass Overlay Layer - semi-transparent background
-                Safari approach: Blend wallpaper tint INTO the base material (not as separate layer)
-                This creates a warmer/cooler cast that matches the wallpaper naturally
+                Blend the configured surface tint into the base material
+                for a subtle warmer or cooler cast
                 
                 DYNAMIC OPACITY: Scales based on background luminance
-                - Dark bg (low L) → less opacity needed (wallpaper already provides contrast)
+                - Dark bg (low L) → less opacity needed (the backdrop already provides contrast)
                 - Bright bg (high L) → more opacity needed (maintain readability) */}
           <div
             className="glass-overlay"
@@ -361,7 +361,7 @@ export const Glass = forwardRef<HTMLDivElement, GlassProps>(
                           minOpacity + bgLuminance * (maxOpacity - minOpacity);
                       } else {
                         // Light theme: scale opacity 0.60 (bright bg) to 0.82 (dark bg)
-                        // Bright wallpaper = less opacity ok, dark wallpaper = need more white
+                        // Bright backdrop = less opacity, dark backdrop = more white
                         const minOpacity = 0.6;
                         const maxOpacity = 0.82;
                         finalOpacity =
@@ -376,7 +376,7 @@ export const Glass = forwardRef<HTMLDivElement, GlassProps>(
             }}
           />
 
-          {/* Wallpaper Tint Layer - VERY subtle color hint from background
+          {/* Surface Tint Layer - VERY subtle color hint from background
                 Safari uses minimal tinting (1.5-3%) - the base material dominates
                 Tint opacity comes from material config (single source of truth) */}
           {region && resolvedMaterial?.tintRGB && !noBackdrop && (

@@ -18,7 +18,6 @@ This document describes the organization of the `src/util/` folder — structure
 src/util/
 ├── core/                        # Core framework utilities
 │   ├── init/
-│   │   ├── backgroundInit.ts   # Background initialization
 │   │   ├── deferredInit.ts     # Deferred initialization
 │   │   ├── menuInit.ts         # Menu initialization
 │   │   └── themeInit.ts        # Theme initialization
@@ -27,10 +26,7 @@ src/util/
 │   │   ├── instrumentedStore.ts # Instrumented Jotai store
 │   │   └── windowId.ts         # Storage-safe per-window identity
 │   ├── storage/
-│   │   ├── backgroundImage.ts   # Background image storage
 │   │   ├── cleanup.ts           # Storage cleanup utilities
-│   │   ├── devIndexedDBProtection.ts # Dev IndexedDB protection
-│   │   ├── diagnosis.ts         # Storage diagnosis tools
 │   │   ├── indexedDB.ts         # IndexedDB wrapper
 │   │   └── localStorage.ts      # LocalStorage cache
 │   ├── error/

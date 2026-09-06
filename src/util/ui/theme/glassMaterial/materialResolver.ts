@@ -1,7 +1,7 @@
 /**
  * Material Resolver
  *
- * Resolves glass material properties from wallpaper color fields.
+ * Resolves glass material properties from solid surface colors.
  * Includes legibility guard, tint resolution, and specular highlights.
  */
 import { getMaterialConfig } from "@src/components/Glass/config";
@@ -10,7 +10,7 @@ import type {
   AppearanceMode,
   GlassMaterial,
   LegibilityGuard,
-  WallpaperColorField,
+  SurfaceColorField,
 } from "./types";
 
 // ============================================
@@ -86,7 +86,7 @@ export function computeLegibilityGuard(luminance: number): LegibilityGuard {
  * - Use Display-P3 color space for wide gamut
  */
 export function resolveTint(
-  colorField: WallpaperColorField,
+  colorField: SurfaceColorField,
   appearance: AppearanceMode,
   thickness: "ultrathin" | "thin" | "medium" | "thick"
 ): {
@@ -121,10 +121,10 @@ export function resolveTint(
  * Resolve complete glass material from color field (Safari-style)
  *
  * Gets all base properties from material config (single source of truth).
- * Only derives: tint color, rim offsets, legibility guard from wallpaper.
+ * Only derives: tint color, rim offsets, and the legibility guard.
  */
 export function resolveMaterial(
-  colorField: WallpaperColorField,
+  colorField: SurfaceColorField,
   appearance: AppearanceMode,
   thickness: "ultrathin" | "thin" | "medium" | "thick"
 ): GlassMaterial {

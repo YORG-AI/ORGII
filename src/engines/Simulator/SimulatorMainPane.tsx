@@ -1,7 +1,7 @@
 /**
  * SimulatorContentArea Component
  *
- * Main content area for the simulator with header, wallpaper background.
+ * Main content area for the simulator with header and app surface.
  * Pairs with SimulatorTitleBar to create the complete simulator window experience.
  * Renders simulator content for the active app.
  *
@@ -12,9 +12,6 @@
  * - StateDisplays: idle and booting state components
  */
 import { type FC, memo } from "react";
-
-import { useBackgroundImage } from "@src/hooks/theme/useBackgroundImage";
-import useProgressiveImage from "@src/hooks/ui/effects/useProgressiveImage";
 
 import { SimulatorSingleView } from "./components/SimulatorContentArea/SimulatorSingleView";
 import { BootingState } from "./components/SimulatorContentArea/StateDisplays";
@@ -62,13 +59,6 @@ const SimulatorContentAreaComponent: FC<SimulatorContentAreaProps> = ({
   hideHeader = false,
   compactMode = false,
 }) => {
-  const wallpaperBg = useBackgroundImage();
-
-  useProgressiveImage({
-    src: wallpaperBg,
-    autoLoad: true,
-  });
-
   const { mainContentAppType, isBootingEvent, displayContent } =
     useSimulatorContent({
       currentEvent,

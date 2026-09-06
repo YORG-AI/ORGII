@@ -1,13 +1,12 @@
 /**
  * Region Material Cache
  *
- * FIFO-evicting cache for resolved glass materials per region.
- * Keyed by "imageUrl-region" or "color:cssColor-region".
+ * FIFO-evicting cache for resolved glass materials per color and region.
  */
-import type { CachedRegionMaterial } from "./types";
+import type { CachedMaterialEntry } from "./types";
 
 const MAX_REGION_CACHE_SIZE = 50;
-const regionCache = new Map<string, CachedRegionMaterial>();
+const regionCache = new Map<string, CachedMaterialEntry>();
 
 /** Evict oldest entries by timestamp when cache exceeds max size */
 function evictRegionCache() {
@@ -22,26 +21,12 @@ function evictRegionCache() {
 }
 
 /** Get a cached entry by key */
-export function getCached(key: string): CachedRegionMaterial | undefined {
+export function getCached(key: string): CachedMaterialEntry | undefined {
   return regionCache.get(key);
 }
 
 /** Store a cache entry (with auto-eviction) */
-export function setCached(key: string, entry: CachedRegionMaterial): void {
+export function setCached(key: string, entry: CachedMaterialEntry): void {
   regionCache.set(key, entry);
   evictRegionCache();
-}
-
-/** Clear all cached materials */
-export function clearCache(): void {
-  regionCache.clear();
-}
-
-/** Clear cache entries for a specific image URL */
-export function clearCacheForImage(imageUrl: string): void {
-  for (const key of regionCache.keys()) {
-    if (key.startsWith(imageUrl)) {
-      regionCache.delete(key);
-    }
-  }
 }

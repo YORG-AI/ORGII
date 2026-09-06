@@ -121,7 +121,7 @@
 }
 
 .chat-panel-terminal-core {
-  // Match the *visible* chat-pane color (possibly tinted by the wallpaper
+  // Match the *visible* chat-pane color (possibly tinted by the app backdrop
   // via `color-mix()` when page opacity < 100%). The xterm WebGL fill is
   // driven at runtime from the same computed background so the sub-cell
   // remainder and the painted cells stay seam-free.

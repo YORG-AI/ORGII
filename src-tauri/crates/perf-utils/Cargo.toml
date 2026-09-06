@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
-# Performance-critical leaf utilities (image luminance, binary detection,
+# Performance-critical leaf utilities (binary detection,
 # fast JSON, hashing, diff/patch, process metrics). Pure leaf — no
 # back-edges into `app`. Owns ~36 `#[tauri::command]`s, re-registered
 # from `commands/handler_list.inc` via bare `perf_utils::…` paths.
@@ -20,7 +20,6 @@ tauri = { workspace = true }
 tokio = { workspace = true }
 tracing = "0.1"
 log = "0.4"
-base64 = { workspace = true }
 
 # Hashing
 sha2 = "0.10"
@@ -33,10 +32,6 @@ memchr = "2.7"
 
 # Fast JSON
 simd-json = "0.17"
-
-# Image luminance
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
-rayon = "1.8"
 
 # Diff / patch
 similar = "2.6"

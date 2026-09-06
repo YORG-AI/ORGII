@@ -156,7 +156,7 @@ describe("syncMacosRootTint", () => {
 
   it("removes the native layer and restores the CSS tint when the root is not a plain colour", async () => {
     html.dataset[NATIVE_ROOT_TINT_ATTRIBUTE] = "1";
-    document.body.style.backgroundImage = "url(wallpaper.png)";
+    document.body.style.backgroundImage = "url(surface.png)";
 
     await syncMacosRootTint();
 

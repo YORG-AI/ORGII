@@ -24,7 +24,7 @@ export interface MaterialConfig {
   brightness: number;
   /** Backdrop contrast multiplier (Safari uses 1.05 = 105%) */
   contrast: number;
-  /** Tint opacity for wallpaper color hint (0.015-0.03) */
+  /** Tint opacity for the surface color hint (0.015-0.03) */
   tintOpacity: number;
 }
 

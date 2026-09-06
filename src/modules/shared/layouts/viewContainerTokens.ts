@@ -153,7 +153,7 @@ export function getSidebarSurfaceBackgroundStyle(
  * `--color-chat-container` is intentionally NOT rebound: it backs distinct
  * cards/badges that sit on top of the primary surface (region notices, pinned
  * pop-out cards, inline tool blocks). Those should read as raised surfaces
- * over the wallpaper-tinted pane, not also bleed through.
+ * over the tinted pane, not also bleed through.
  *
  * The mix reads the shared `--color-primary-pane-bg` token. The consumer
  * aliases remain available for semantic component styling, but resolve to one

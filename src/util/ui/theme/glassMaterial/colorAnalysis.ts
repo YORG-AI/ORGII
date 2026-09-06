@@ -1,10 +1,10 @@
 /**
  * Color Analysis Utilities
  *
- * Low-frequency semantic color extraction from wallpaper regions.
+ * Semantic color analysis for configured solid surfaces.
  * Converts between color spaces and determines color temperature.
  */
-import type { WallpaperColorField } from "./types";
+import type { SurfaceColorField } from "./types";
 
 /**
  * Convert RGB to HSL
@@ -111,10 +111,10 @@ export function getColorTemperature(hue: number): "warm" | "cool" | "neutral" {
 }
 
 /**
- * Create a WallpaperColorField from a CSS color string
+ * Create a SurfaceColorField from a CSS color string
  */
-export function colorFieldFromCssColor(color: string): WallpaperColorField {
-  const defaultField: WallpaperColorField = {
+export function colorFieldFromCssColor(color: string): SurfaceColorField {
+  const defaultField: SurfaceColorField = {
     dominantHue: 0,
     saturation: 0.05,
     luminance: 0.5,
@@ -137,7 +137,7 @@ export function colorFieldFromCssColor(color: string): WallpaperColorField {
 }
 
 /** Default neutral color field (used as fallback) */
-export const DEFAULT_COLOR_FIELD: WallpaperColorField = {
+export const DEFAULT_COLOR_FIELD: SurfaceColorField = {
   dominantHue: 0,
   saturation: 0.05,
   luminance: 0.5,

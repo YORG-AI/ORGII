@@ -17,15 +17,15 @@ export type GlassRegion =
 /** Appearance mode */
 export type AppearanceMode = "light" | "dark";
 
-/** Semantic color properties extracted from wallpaper */
-export interface WallpaperColorField {
+/** Semantic properties derived from the configured background color */
+export interface SurfaceColorField {
   /** Dominant hue in degrees (0-360) */
   dominantHue: number;
   /** Average saturation (0-1) */
   saturation: number;
   /** Average luminance (0-1) */
   luminance: number;
-  /** Whether image is predominantly warm or cool */
+  /** Whether the color is predominantly warm or cool */
   temperature: "warm" | "cool" | "neutral";
   /** Raw RGB for tint derivation */
   dominantRGB: { r: number; g: number; b: number };
@@ -79,17 +79,15 @@ export interface GlassMaterial {
 export interface ResolverConfig {
   /** Appearance mode */
   appearance: AppearanceMode;
-  /** Background image URL (wallpaper) */
-  backgroundImageUrl: string;
-  /** Background color (CSS color string, used when no image) */
+  /** Background color (CSS color string) */
   backgroundColor?: string;
   /** Material thickness (affects blur, opacity) */
   thickness: "ultrathin" | "thin" | "medium" | "thick";
 }
 
 /** Cached region material entry */
-export interface CachedRegionMaterial {
-  colorField: WallpaperColorField;
+export interface CachedMaterialEntry {
+  colorField: SurfaceColorField;
   materials: Map<string, GlassMaterial>; // keyed by "appearance-thickness"
   timestamp: number;
 }
