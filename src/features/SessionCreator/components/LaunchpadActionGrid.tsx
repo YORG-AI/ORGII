@@ -166,7 +166,7 @@ export function LaunchpadActionGrid({
   layoutActionCount,
   presentation = "pill",
 }: LaunchpadActionGridProps): React.ReactNode {
-  const [isStandardCollapsed, setIsStandardCollapsed] = useState(false);
+  const [isStandardCollapsed, setIsStandardCollapsed] = useState(true);
   const [isCompactExpanded, setIsCompactExpanded] = useState(false);
   const contentId = useId();
   const isCardGrid = presentation === "card";
@@ -180,7 +180,7 @@ export function LaunchpadActionGrid({
   const cardWidthClass =
     cardWidthClassName ??
     (actionCount >= 4
-      ? "max-w-[320px]"
+      ? "max-w-[320px] @[640px]/focusedchat:max-w-[640px]"
       : actionCount === 3
         ? "max-w-[480px]"
         : "max-w-[320px]");
