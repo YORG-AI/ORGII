@@ -269,23 +269,53 @@ fn macos_current_process_has_physical_footprint() {
 }
 
 #[cfg(target_os = "macos")]
+fn private_or_swapped(breakdown: &types::MemoryBreakdown) -> u64 {
+    breakdown
+        .resident_private_bytes
+        .saturating_add(breakdown.swapped_bytes)
+}
+
+#[cfg(target_os = "macos")]
 #[test]
 fn macos_region_walk_splits_current_process() {
     // Dirty a private allocation so the walk has something unambiguous to
     // find. Under memory pressure the kernel may compress these pages
     // immediately, so the invariant is "resident or swapped", never
     // "resident" alone.
+    //
+    // Two transient kernel states can still leave a single walk short of
+    // the buffer, and the shared CI runners hit them:
+    // - a page mid-reclaim is briefly neither resident nor in the
+    //   compressor, so the sum can run a page or two under the allocation;
+    // - a copy-on-write snapshot of the address space (fork-style) taken
+    //   while the buffer is being dirtied leaves the pages written before
+    //   it in a backing object that the walk reports as shared, not
+    //   private.
+    // Re-dirtying moves every page back into a private object and a few
+    // pages of slack absorb reclaim in flight. A struct-layout mismatch
+    // still fails: it yields zero or absurd totals on every walk.
     const PINNED: u64 = 32 * 1024 * 1024;
-    let pinned = vec![7_u8; PINNED as usize];
+    const SLACK_PAGES: u64 = 4;
+    const MAX_WALKS: u8 = 5;
+    let page_size = unsafe { libc::vm_page_size } as u64;
+    let floor = PINNED - SLACK_PAGES * page_size;
+    let pid = std::process::id();
+    let mut pinned = vec![7_u8; PINNED as usize];
     std::hint::black_box(&pinned);
-    let breakdown = macos_region_breakdown(std::process::id());
+    let mut breakdown = macos_region_breakdown(pid);
+    let mut walks = 1;
+    while private_or_swapped(&breakdown) < floor && walks < MAX_WALKS {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        pinned.fill(7 + walks);
+        std::hint::black_box(&pinned);
+        breakdown = macos_region_breakdown(pid);
+        walks += 1;
+    }
     assert_eq!(breakdown.kind, MemoryBreakdownKind::VmRegionWalk);
-    let private = breakdown
-        .resident_private_bytes
-        .saturating_add(breakdown.swapped_bytes);
+    let private = private_or_swapped(&breakdown);
     assert!(
-        private >= PINNED,
-        "private resident {} + swapped {} should cover the pinned 32 MiB",
+        private >= floor,
+        "private resident {} + swapped {} should cover the pinned 32 MiB within {SLACK_PAGES} pages after {walks} walks",
         breakdown.resident_private_bytes,
         breakdown.swapped_bytes
     );
@@ -296,7 +326,7 @@ fn macos_region_walk_splits_current_process() {
     // A struct-layout mismatch would read addresses or sizes as page
     // counts and produce absurd totals; the real split stays in the same
     // order of magnitude as the kernel's own footprint ledger.
-    let usage = macos_rusage(std::process::id()).expect("current process rusage");
+    let usage = macos_rusage(pid).expect("current process rusage");
     let ceiling = usage
         .ri_phys_footprint
         .saturating_mul(2)
