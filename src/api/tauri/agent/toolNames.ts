@@ -48,5 +48,3 @@ export const TOOL_NAMES = {
   TASK_LIST: "task_list",
   TASK_GET: "task_get",
 } as const;
-
-export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];

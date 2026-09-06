@@ -4,7 +4,7 @@
  */
 import { useSharedPolicies } from "@src/hooks/policies";
 
-export type { PolicySource, PolicyInfo, PolicyKind } from "@src/hooks/policies";
+export type { PolicySource, PolicyInfo } from "@src/hooks/policies";
 
 export function useAgentPolicies(workspacePath?: string) {
   return useSharedPolicies({ workspacePath });

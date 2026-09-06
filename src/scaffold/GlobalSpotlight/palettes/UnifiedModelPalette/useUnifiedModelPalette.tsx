@@ -8,7 +8,6 @@ import { useUnifiedModelPaletteItems } from "./useUnifiedModelPaletteItems";
 import { useUnifiedModelPaletteSelection } from "./useUnifiedModelPaletteSelection";
 
 export { MODEL_SECTION } from "./modelSection";
-export type { ModelSection } from "./modelSection";
 
 export function useUnifiedModelPalette({
   isOpen,

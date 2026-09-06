@@ -15,7 +15,6 @@
 export {
   settingsAtom,
   settingsLoadedAtom,
-  settingAtom,
   updateSettingAtom,
   saveSettingAtom,
   updateSettingsBatchAtom,
@@ -26,11 +25,7 @@ export {
 } from "./settingsAtom";
 
 // Hooks (canonical location: @src/hooks/settings/useSettings)
-export {
-  useSetting,
-  useSettingValue,
-  useAllSettings,
-} from "@src/hooks/settings/useSettings";
+export { useSetting, useAllSettings } from "@src/hooks/settings/useSettings";
 
 // Sync (file watcher listener)
 export { useSettingsSync } from "./settingsSync";

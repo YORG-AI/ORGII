@@ -11,26 +11,12 @@ export {
   default as DetailPaneLayout,
   DetailPaneCloseAction,
   DetailPanePlaceholder,
-  type DetailPaneCloseActionProps,
-  type DetailPaneHeaderProps,
-  type DetailPaneLayoutProps,
-  type DetailPanePlaceholderProps,
 } from "./DetailPaneLayout";
-export {
-  default as CompactListHeader,
-  type CompactListHeaderProps,
-} from "./CompactListHeader";
+export { default as CompactListHeader } from "./CompactListHeader";
 export { default as SplitViewLayout } from "./SplitViewLayout";
 export { default as SplitListFullscreenButton } from "./SplitListFullscreenButton";
-export {
-  default as SplitListHeader,
-  type SplitListHeaderProps,
-} from "./SplitListHeader";
-export {
-  default as InboxListDetailLayout,
-  INBOX_LIST_DETAIL_WIDTH,
-  type InboxListDetailLayoutProps,
-} from "./InboxListDetailLayout";
+export { default as SplitListHeader } from "./SplitListHeader";
+export { default as InboxListDetailLayout } from "./InboxListDetailLayout";
 export { OnboardingLayout } from "./OnboardingLayout";
 export { OnboardingLoadingVideo } from "./OnboardingLoadingVideo";
 export {

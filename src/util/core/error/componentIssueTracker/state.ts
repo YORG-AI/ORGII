@@ -91,8 +91,3 @@ export const resetInspectState = () => {
   labelsHidden = false;
   userNavigatedLevel = false;
 };
-
-export const resetHoverState = () => {
-  hoverTrackingInitialized = false;
-  lastHoveredElement = null;
-};

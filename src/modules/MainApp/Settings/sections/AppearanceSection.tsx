@@ -48,9 +48,6 @@ export const APPEARANCE_TAB_KEYS = {
   CHAT_PANEL: "chat-panel",
 } as const;
 
-export type AppearanceTabKey =
-  (typeof APPEARANCE_TAB_KEYS)[keyof typeof APPEARANCE_TAB_KEYS];
-
 const SPOTLIGHT_PLACEMENT_OPTIONS: SpotlightPlacement[] = ["top", "center"];
 const IS_MACOS_HOST = resolveHostDesktop() === HOST_DESKTOP.MACOS;
 

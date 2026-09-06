@@ -21,14 +21,7 @@ export { DesignTabPages, DesignTabGlobalTokens } from "./sections";
 export { getGlobalTokensActions } from "./actions";
 
 // Re-export types
-export type {
-  PageItem,
-  DesignTabPagesProps,
-  DesignTabGlobalTokensProps,
-  ActionItem,
-  PagesActionsOptions,
-  GlobalTokensActionsOptions,
-} from "./types";
+export type { ActionItem } from "./types";
 
 export default {
   DesignTabPages,

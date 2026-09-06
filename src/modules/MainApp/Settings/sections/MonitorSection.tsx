@@ -38,9 +38,6 @@ export const MONITOR_TAB_KEYS = {
   STORAGE: "storage",
 } as const;
 
-export type MonitorTabKey =
-  (typeof MONITOR_TAB_KEYS)[keyof typeof MONITOR_TAB_KEYS];
-
 interface MonitorSectionProps {
   activeTab?: string;
 }

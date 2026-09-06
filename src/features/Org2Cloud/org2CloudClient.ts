@@ -21,7 +21,6 @@ import type { OrgRuntimeTelemetry } from "./memberRuntime/types";
 import {
   ORG2_CLOUD_AUTH_STORAGE_KEY,
   type Org2CloudAuthState,
-  type Org2CloudProfile,
   org2CloudAuthIdentityKey,
   parseStoredOrg2CloudAuth,
 } from "./org2CloudAuthAtom";
@@ -621,6 +620,3 @@ export async function ensureFreshSession(
   }
   return outcome.session;
 }
-
-/** Re-exported so UI code has one import site. */
-export type { Org2CloudProfile };

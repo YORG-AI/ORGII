@@ -9,8 +9,6 @@ export { eventStoreProxy } from "./EventStoreProxy";
 export type {
   DerivedSnapshot,
   StreamingSnapshot,
-  Snapshot,
-  SnapshotEnvelope,
   EventStoreProxy,
 } from "./EventStoreProxy";
 

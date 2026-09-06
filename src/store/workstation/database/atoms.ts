@@ -76,32 +76,3 @@ export function removeConnectionConfig(
   saveConnectionConfigs(filtered);
   return filtered;
 }
-
-/**
- * Update a connection config
- */
-export function updateConnectionConfig(
-  connectionId: string,
-  updates: Partial<DatabaseConnectionConfig>
-): DatabaseConnectionConfig[] {
-  const configs = loadConnectionConfigs();
-  const index = configs.findIndex((config) => config.id === connectionId);
-  if (index !== -1) {
-    configs[index] = {
-      ...configs[index],
-      ...updates,
-      updatedAt: Date.now(),
-    } as DatabaseConnectionConfig;
-    saveConnectionConfigs(configs);
-  }
-  return configs;
-}
-
-// ============================================
-// Pending Changes Helper Functions
-// ============================================
-
-/** Generate a unique change ID */
-export function generateChangeId(): string {
-  return `change-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}

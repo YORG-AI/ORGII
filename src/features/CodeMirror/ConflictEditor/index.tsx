@@ -549,9 +549,5 @@ CodeMirrorConflictEditor.displayName = "CodeMirrorConflictEditor";
 
 // Export types and utilities
 export * from "./types";
-export {
-  useConflictMarkers,
-  parseConflictBlocks,
-  hasConflictMarkers,
-} from "./useConflictMarkers";
+export { hasConflictMarkers } from "./useConflictMarkers";
 export default CodeMirrorConflictEditor;

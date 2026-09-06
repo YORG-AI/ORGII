@@ -50,18 +50,6 @@ export interface ProjectData {
   statusBreakdown?: StatusBreakdown;
 }
 
-/** @deprecated Use PropertiesPanelShellProps + ProjectPropertyFields instead */
-export interface PropertiesPanelProps {
-  className?: string;
-  title?: string;
-  mode: "project";
-  project: ProjectData;
-  onUpdate?: (updates: Partial<ProjectData>) => void;
-  availableMembers?: Person[];
-  availableTeams?: Team[];
-  availableLabels?: Label[];
-}
-
 export type PickerType =
   | "status"
   | "priority"

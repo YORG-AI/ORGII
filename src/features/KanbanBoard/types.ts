@@ -126,8 +126,3 @@ export interface KanbanColumnConfig {
   /** Override the board-level showAddButton for this specific column. */
   showAddButton?: boolean;
 }
-
-export interface KanbanColumnData {
-  id: TaskStatus;
-  tasks: KanbanTask[];
-}

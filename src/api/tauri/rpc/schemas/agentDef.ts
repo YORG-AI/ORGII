@@ -47,8 +47,6 @@ export const AgentDefinitionSchema = z
   .record(z.string(), z.unknown())
   .describe("AgentDefinition (shape owned by Rust schema.rs)");
 
-export type AgentDefinitionRecord = z.output<typeof AgentDefinitionSchema>;
-
 export const CommandRiskRulesSchema = z.object({
   medium: z.array(z.string()),
   high: z.array(z.string()),

@@ -39,13 +39,3 @@ export function writeHiddenRemoteSessionIds(ids: ReadonlySet<string>): void {
 export function hiddenRemoteSessionKey(orgId: string, rowId: string): string {
   return `${orgId}|${rowId}`;
 }
-
-/** Row ids hidden ("unsubscribed") for one org, from the persisted set. */
-export function hiddenRemoteRowIdsForOrg(orgId: string): Set<string> {
-  const prefix = `${orgId}|`;
-  const scoped = new Set<string>();
-  for (const key of readHiddenRemoteSessionIds()) {
-    if (key.startsWith(prefix)) scoped.add(key.slice(prefix.length));
-  }
-  return scoped;
-}

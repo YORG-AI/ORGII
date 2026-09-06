@@ -301,25 +301,6 @@ export const projectOrgSettingsTabFactory =
     icon: "Settings",
   });
 
-export function createProjectOrgSettingsTab(
-  org: {
-    id: string;
-    name?: string;
-    sync_provider?: string | null;
-  },
-  _section?: string
-): WorkStationTab {
-  return createProjectOrgTab(
-    {
-      id: org.id,
-      name: org.name,
-      sync_provider: org.sync_provider,
-    },
-    PROJECT_ORG_SURFACE_VIEW.SETTINGS,
-    STORY_ORG_SCOPE.PROJECT_ORG
-  );
-}
-
 export interface ProjectOrgTabData extends ProjectOrgFilterTabData {
   orgView?: ProjectOrgSurfaceView;
 }

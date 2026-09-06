@@ -149,10 +149,6 @@ export function getAppForEvent(eventFunction: string): AppType | null {
   return null;
 }
 
-export function getRegisteredApps(): AppType[] {
-  return Object.keys(SIMULATOR_APP_REGISTRY) as AppType[];
-}
-
 export function hasSimulatorApp(appType: AppType): boolean {
   return appType in SIMULATOR_APP_REGISTRY;
 }

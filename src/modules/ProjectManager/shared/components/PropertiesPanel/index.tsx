@@ -22,17 +22,7 @@ import {
 } from "@src/modules/shared/layouts/blocks";
 
 // Re-export types for consumers
-export type {
-  Label,
-  LinkedRepoOption,
-  Person,
-  Team,
-  ProjectStatus,
-  ProjectPriority,
-  ProjectHealth,
-  ProjectData,
-  PropertiesPanelProps,
-} from "./types";
+export type { Label, LinkedRepoOption, Team, ProjectData } from "./types";
 
 // ============================================
 // Shell Component

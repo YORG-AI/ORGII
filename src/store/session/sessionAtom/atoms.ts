@@ -12,18 +12,6 @@ import { loadPersistedSessions } from "./persistence";
 import type { Session, SessionGroups } from "./types";
 
 // ============================================
-// Storage Keys
-// ============================================
-
-export const SESSION_STORAGE_KEYS = {
-  lastRefresh: "orgii_sessions_last_refresh",
-} as const;
-
-export const SESSION_CACHE_INVALIDATION_KEY =
-  "orgii_session_cache_invalidated_at";
-export const SESSION_CACHE_INVALIDATED_EVENT = "session-cache-invalidated";
-
-// ============================================
 // Core Atoms
 // ============================================
 

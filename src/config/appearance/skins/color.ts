@@ -60,13 +60,6 @@ export function mix(from: Rgb, to: Rgb, amount: number): Rgb {
   };
 }
 
-export function mixHex(from: string, to: string, amount: number): string {
-  const a = parseHex(from);
-  const b = parseHex(to);
-  if (!a || !b) return from;
-  return formatHex(mix(a, b, amount));
-}
-
 export function rgba(color: Rgb, alpha: number): string {
   return `rgba(${Math.round(color.r)}, ${Math.round(color.g)}, ${Math.round(color.b)}, ${Number(clamp(alpha, 0, 1).toFixed(3))})`;
 }
@@ -90,10 +83,6 @@ export function contrastRatio(a: Rgb, b: Rgb): number {
   const lighter = Math.max(relativeLuminance(a), relativeLuminance(b));
   const darker = Math.min(relativeLuminance(a), relativeLuminance(b));
   return (lighter + 0.05) / (darker + 0.05);
-}
-
-export function isDarkColor(color: Rgb): boolean {
-  return relativeLuminance(color) < 0.5;
 }
 
 /**

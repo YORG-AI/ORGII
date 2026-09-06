@@ -402,13 +402,6 @@ export function derivePlanDisplayEvents(
   return derived;
 }
 
-export function hasPlanDisplayEvent(events: readonly SessionEvent[]): boolean {
-  for (const event of events) {
-    if (isPlanDisplayEvent(event)) return true;
-  }
-  return false;
-}
-
 export function pendingPlanMatchesEvent(
   pendingPlan: PendingPlanApproval,
   event: SessionEvent

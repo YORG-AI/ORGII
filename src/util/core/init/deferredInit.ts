@@ -67,13 +67,6 @@ export function signalFirstPaintComplete(): void {
 }
 
 /**
- * Check if first paint is complete
- */
-export function isFirstPaintComplete(): boolean {
-  return firstPaintComplete;
-}
-
-/**
  * Returns a promise that resolves after first paint is complete.
  * Use this in async functions to wait for first paint.
  *
@@ -96,65 +89,4 @@ export function waitForFirstPaint(): Promise<void> {
   }
 
   return firstPaintPromise;
-}
-
-/**
- * Execute a callback after first paint is complete.
- * If first paint is already complete, executes immediately via microtask.
- *
- * @param callback Function to execute after first paint
- * @param options Configuration options
- */
-export function deferAfterPaint(
-  callback: () => void,
-  options: {
-    /** Use requestIdleCallback for non-critical tasks */
-    useIdleCallback?: boolean;
-    /** Timeout for requestIdleCallback */
-    idleTimeout?: number;
-  } = {}
-): void {
-  const { useIdleCallback = false, idleTimeout = 1000 } = options;
-
-  const executeCallback = () => {
-    if (useIdleCallback && "requestIdleCallback" in window) {
-      requestIdleCallback(callback, { timeout: idleTimeout });
-    } else {
-      // Use microtask to avoid blocking
-      queueMicrotask(callback);
-    }
-  };
-
-  if (firstPaintComplete) {
-    executeCallback();
-  } else {
-    waitingCallbacks.push(executeCallback);
-  }
-}
-
-/**
- * React hook helper - returns true after first paint is complete.
- * Useful for conditionally triggering effects.
- *
- * @example
- * const isReady = useIsFirstPaintComplete();
- * useEffect(() => {
- *   if (isReady) {
- *     loadData();
- *   }
- * }, [isReady]);
- */
-export function getFirstPaintStatus(): boolean {
-  return firstPaintComplete;
-}
-
-// ============================================
-// Reset (for testing)
-// ============================================
-
-export function resetFirstPaintState(): void {
-  firstPaintComplete = false;
-  firstPaintPromise = null;
-  firstPaintResolver = null;
-  waitingCallbacks.length = 0;
 }

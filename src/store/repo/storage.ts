@@ -49,18 +49,6 @@ export const REPO_STORAGE_KEYS = {
  */
 export const CACHE_INVALIDATION_KEY = "orgii_repo_cache_invalidated_at";
 
-/**
- * Get the last cache invalidation timestamp
- */
-export function getCacheInvalidationTimestamp(): number {
-  try {
-    const stored = localStorage.getItem(CACHE_INVALIDATION_KEY);
-    return stored ? parseInt(stored, 10) : 0;
-  } catch {
-    return 0;
-  }
-}
-
 // ============================================
 // Storage Helpers
 // ============================================

@@ -15,12 +15,8 @@
  * The sync functions (`isBinaryByExtension`, `isBinaryContent`) are kept for
  * quick synchronous checks where async is not convenient.
  */
-import {
-  type BinaryCheckResult,
-  checkBinaryByPath,
-  checkBinaryContentEnhanced,
-  checkFileIsBinaryEnhanced,
-} from "@src/api/tauri/perf";
+import "@src/api/tauri/perf";
+import { type BinaryCheckResult } from "@src/api/tauri/perf";
 
 import { getFileExtensionLower } from "./pathUtils";
 
@@ -313,90 +309,6 @@ export function getBinaryFileMessage(): string {
 // ============================================
 // Rust-Accelerated Functions (Tauri only)
 // ============================================
-
-/**
- * Check if a file is binary using Rust SIMD-acceleration
- *
- * This is faster than the JS version, especially for large files.
- *
- * @param filePath - File path to check
- * @returns True if file is binary
- */
-export async function isBinaryByExtensionAsync(
-  filePath: string
-): Promise<boolean> {
-  const result = await checkBinaryByPath(filePath);
-  // If Rust returns null, extension is unknown - use JS fallback
-  if (result !== null) {
-    return result;
-  }
-  return isBinaryByExtension(filePath);
-}
-
-/**
- * Check if content bytes are binary (Rust SIMD-accelerated)
- *
- * Performance: 10-20x faster than JS implementation for large buffers.
- *
- * @param content - Content as Uint8Array
- * @param sampleSize - Bytes to sample (default: 8000)
- * @returns Binary check result with reason
- */
-export async function isBinaryContentBytesAsync(
-  content: Uint8Array,
-  sampleSize: number = 8000
-): Promise<BinaryCheckResult> {
-  return checkBinaryContentEnhanced(content, sampleSize);
-}
-
-/**
- * Full binary file check using Rust
- *
- * Reads the file and performs magic bytes + extension + content check.
- * Use this when you need comprehensive detection without already having file content.
- *
- * Detection order:
- * 1. Magic bytes (infer crate) — most reliable for known file types
- * 2. Extension check — fast fallback
- * 3. Content analysis (null bytes, non-printable ratio) — heuristic fallback
- *
- * @param filePath - File path to check
- * @param sampleSize - Bytes to sample (default: 8000)
- * @returns Binary check result
- */
-export async function isFileBinaryAsync(
-  filePath: string,
-  sampleSize?: number
-): Promise<BinaryCheckResult> {
-  return checkFileIsBinaryEnhanced(filePath, sampleSize);
-}
-
-/**
- * Async version of isTextFile with Rust acceleration
- *
- * @param filePath - File path to check
- * @param content - Optional file content as Uint8Array
- * @returns True if file is text
- */
-export async function isTextFileAsync(
-  filePath: string,
-  content?: Uint8Array
-): Promise<boolean> {
-  // First check extension
-  const extBinary = await isBinaryByExtensionAsync(filePath);
-  if (extBinary) {
-    return false;
-  }
-
-  // If content provided, check for binary data
-  if (content !== undefined) {
-    const result = await isBinaryContentBytesAsync(content);
-    return !result.is_binary;
-  }
-
-  // If only path provided and extension is not binary, assume text
-  return true;
-}
 
 // Re-export types
 export type { BinaryCheckResult };

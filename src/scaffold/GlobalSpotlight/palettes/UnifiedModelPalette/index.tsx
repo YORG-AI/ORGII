@@ -49,7 +49,6 @@ import {
 
 export type { UnifiedModelPaletteProps } from "./types";
 export { UnifiedModelDropdown } from "./UnifiedModelDropdown";
-export type { UnifiedModelDropdownProps } from "./UnifiedModelDropdown";
 
 // ============ COMPONENT ============
 

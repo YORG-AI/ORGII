@@ -7,13 +7,8 @@
 export {
   useServiceAuth,
   useServiceAuthState,
-  clearAuthStateCompletely,
   serviceAuthAtom,
-  serviceLoadingAtom,
   hostedTokenAtom,
   serviceExpiryAtom,
-  serviceErrorAtom,
   serviceValidatedAtom,
-  serviceRefreshingAtom,
 } from "./useServiceAuth";
-export type { UseServiceAuthStateReturn } from "./useServiceAuth";

@@ -14,14 +14,13 @@ export {
 } from "./CreatorContentLayout";
 
 export { default as CollapsibleSection } from "./CollapsibleSection";
-export type { CollapsibleSectionProps } from "./CollapsibleSection";
 
 export { default as DetailPanelContainer } from "./DetailPanelContainer";
-export type { DetailPanelContainerProps } from "./DetailPanelContainer";
+
 export { default as DetailHeaderTabs } from "./DetailHeaderTabs";
 export { default as DetailTabStrip } from "./DetailTabStrip";
 export { default as PersistentDetailTabPanel } from "./PersistentDetailTabPanel";
-export type { PersistentDetailTabPanelProps } from "./PersistentDetailTabPanel";
+
 export {
   default as WorkstationTrailSurface,
   WorkstationTrailBody,
@@ -29,7 +28,6 @@ export {
   WorkstationTrailHeader,
   WorkstationTrailIconButton,
   WorkstationTrailSection,
-  FOCUSED_CHAT_WORKSTATION_TRAIL_RAIL_PADDING_CLASS,
   WORKSTATION_TRAIL_ICON_BUTTON_CLASS,
   WORKSTATION_TRAIL_RAIL_PADDING_CLASS,
   WORKSTATION_TRAIL_WIDTH,
@@ -45,19 +43,12 @@ export {
 } from "@src/config/detailPanelTokens";
 export { default as ScrollFadeContainer } from "./ScrollFadeContainer";
 export { default as ScrollPreservation } from "./ScrollPreservation";
-export {
-  default as ScrollTrail,
-  ScrollTrailTarget,
-  getScrollTrailMarkerWidthClass,
-  normalizeScrollTrailLabel,
-  resolveActiveScrollTrailIndex,
-  sampleScrollTrailIndices,
-} from "./ScrollTrail";
-export type { ScrollPreservationProps } from "./ScrollPreservation";
+export { default as ScrollTrail, ScrollTrailTarget } from "./ScrollTrail";
+
 export { SCROLL_FADE_TOKENS } from "../tokens/scrollFadeTokens";
 
 export { default as InfoCard } from "./InfoCard";
-export type { InfoCardRow } from "./InfoCard";
+
 export { default as InlineInfoCard } from "./InlineInfoCard";
 export { InfoRow } from "./InfoRow";
 export { default as InlineExpandedSplitCard } from "./InlineExpandedSplitCard";
@@ -71,10 +62,7 @@ export { default as PageBreadcrumb } from "./PageBreadcrumb";
 
 export { default as SettingsBreadcrumb } from "./SettingsBreadcrumb";
 
-export {
-  BreadcrumbPillNav,
-  BreadcrumbPillNavTrigger,
-} from "./BreadcrumbPillNav";
+export { BreadcrumbPillNavTrigger } from "./BreadcrumbPillNav";
 
 export { default as InternalHeader } from "./InternalHeader";
 

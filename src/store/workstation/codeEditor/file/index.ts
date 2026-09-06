@@ -139,4 +139,4 @@ export const fileClearSearchAtom = atom(null, (_get, set) => {
 // Re-exports
 // ============================================
 
-export { fileClipboardAtom, type FileClipboard } from "./clipboardAtom";
+export { fileClipboardAtom } from "./clipboardAtom";

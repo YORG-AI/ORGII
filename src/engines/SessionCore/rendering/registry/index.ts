@@ -14,49 +14,24 @@ export {
   initToolRegistry,
   // Getters
   getAppTypeForTool,
-  getAppSubtool,
-  getActionChatBlock,
-  getBuiltinSimulatorApp,
   getBuiltinToolIconId,
-  getBuiltinToolActionIconId,
-  getBuiltinToolStatusIconId,
-  getToolActions,
   getToolDisplayBehavior,
   getActionLabels,
   getToolLabel,
-  getCliSimulatorApp,
   getCliUiCanonical,
-  getCliStorageCanonical,
-  resolveCliAlias,
-  getAllCliAliasKeys,
-  // Test utilities
-  _resetToolRegistry,
-  _setBuiltinSimulatorMap,
-  _setBuiltinIconIdMap,
-  _setBuiltinAppSubtoolMap,
-  _setBuiltinChatBlockMap,
-  _setBuiltinDisplayBehaviorMap,
-  _setBuiltinLabelsMap,
-  _setBuiltinActionsMap,
-  _setCliToolAliasMap,
   // Types
   type AppSubtool,
   type ChatBlock,
-  type AliasEntry,
-  type ToolActionInfo,
-  type ToolDisplayBehavior,
 } from "./initToolRegistry";
 
 export {
   statusToLifecycle,
   useLifecycleLabels,
   useToolLabelText,
-  type LifecycleState,
-  type LifecycleLabelText,
 } from "./useToolLabel";
 
 export { resolveToolName } from "./toolAliases";
-export { getIDEEventType, isDeleteTool } from "./toolRegistryDomain";
+export { getIDEEventType } from "./toolRegistryDomain";
 export {
   // Tool type detection
   isBrowserTool,
@@ -72,10 +47,4 @@ export {
 
 // React-coupled event component registry (COMPONENT_LOADERS / CONTEXT_CONFIG etc.)
 export * from "./events";
-export {
-  getActionConfig,
-  requiresItemIndex,
-  getRegisteredActionTypes,
-  prefetchCommonComponents,
-} from "./registryAccessors";
-export type { ComponentOption } from "./registryAccessors";
+export { getActionConfig, prefetchCommonComponents } from "./registryAccessors";

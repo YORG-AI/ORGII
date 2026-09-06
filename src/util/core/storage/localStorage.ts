@@ -117,20 +117,6 @@ export function getCached(key: string): string | null {
 }
 
 /**
- * Get a value with JSON parsing
- */
-export function getCachedJSON<T>(key: string, defaultValue: T): T {
-  const raw = getCached(key);
-  if (!raw) return defaultValue;
-
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return defaultValue;
-  }
-}
-
-/**
  * Set a value in both cache and localStorage (write-through)
  */
 export function setCached(key: string, value: string): void {
@@ -140,32 +126,6 @@ export function setCached(key: string, value: string): void {
   } catch (error) {
     log.error(`Failed to write ${key}:`, error);
   }
-}
-
-/**
- * Set a JSON value
- */
-export function setCachedJSON<T>(key: string, value: T): void {
-  setCached(key, JSON.stringify(value));
-}
-
-/**
- * Remove a value from both cache and localStorage
- */
-export function removeCached(key: string): void {
-  deleteCacheEntry(key);
-  try {
-    localStorage.removeItem(key);
-  } catch (error) {
-    log.error(`Failed to remove ${key}:`, error);
-  }
-}
-
-/**
- * Check if cache is preloaded
- */
-export function isCachePreloaded(): boolean {
-  return isPreloaded;
 }
 
 // ============================================
@@ -207,54 +167,6 @@ export function preloadCache(): Promise<void> {
   });
 
   return preloadPromise;
-}
-
-/**
- * Preload specific keys (for components that need specific settings)
- */
-export function preloadKeys(keys: string[]): void {
-  for (const key of keys) {
-    if (!cache.has(key)) {
-      try {
-        cacheValue(key, localStorage.getItem(key));
-      } catch {
-        cacheValue(key, null);
-      }
-    }
-  }
-}
-
-// ============================================
-// Helpers for Common Patterns
-// ============================================
-
-/**
- * Get boolean value with default
- */
-export function getCachedBoolean(key: string, defaultValue: boolean): boolean {
-  const raw = getCached(key);
-  if (raw === null) return defaultValue;
-  return raw === "true";
-}
-
-/**
- * Get number value with default and optional bounds
- */
-export function getCachedNumber(
-  key: string,
-  defaultValue: number,
-  options?: { min?: number; max?: number }
-): number {
-  const raw = getCached(key);
-  if (raw === null) return defaultValue;
-
-  const num = parseFloat(raw);
-  if (isNaN(num)) return defaultValue;
-
-  if (options?.min !== undefined && num < options.min) return defaultValue;
-  if (options?.max !== undefined && num > options.max) return defaultValue;
-
-  return num;
 }
 
 // ============================================

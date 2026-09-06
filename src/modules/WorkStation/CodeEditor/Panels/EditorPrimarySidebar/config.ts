@@ -82,18 +82,3 @@ export const PANEL_CONSTANTS = {
 // ============================================
 // Resolve with t() at render time. Use HUMANTOOLS_TEXT_KEYS from shared for consistency.
 // This config is for components that need default props; they pass t(key) as the default.
-
-export const DEFAULT_MESSAGE_KEYS = {
-  filterFiles: "placeholders.filterFiles",
-  filterSearch: "placeholders.filterSearch",
-  filterSourceControl: "placeholders.filterChanges",
-  emptyFiles: "placeholders.noFilesFound",
-  emptySearch: "placeholders.noResults",
-  emptySourceControl: "placeholders.noChanges",
-  tooltipFilter: "actions.filter",
-  tooltipNewFile: "actions.newFile",
-  tooltipNewFolder: "actions.newFolder",
-  tooltipRefreshExplorer: "workstation.tooltipRefreshExplorer",
-  tooltipCollapseAll: "workstation.tooltipCollapseAll",
-  tooltipRefresh: "actions.refresh",
-} as const;

@@ -83,13 +83,3 @@ export function processTerminalOutput(
   const unescaped = unescapeTerminalString(rawOutput);
   return truncateTerminalOutput(unescaped, maxLength, marker);
 }
-
-/**
- * Check if output was truncated (has truncation marker)
- */
-export function isOutputTruncated(
-  output: string,
-  marker: string = TERMINAL_TRUNCATION_MARKER
-): boolean {
-  return output.endsWith(marker);
-}

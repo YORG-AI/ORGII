@@ -14,9 +14,6 @@
  */
 import { ORG2_CLOUD_AUTH_CALLBACK_URL } from "./config";
 
-export const ORG2_CLOUD_AUTH_DEEP_LINK_HOST = "auth";
-export const ORG2_CLOUD_AUTH_DEEP_LINK_PATH = "callback";
-
 export interface Org2CloudAuthCallback {
   accessToken: string;
   refreshToken: string;

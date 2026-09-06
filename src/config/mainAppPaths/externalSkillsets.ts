@@ -1,7 +1,5 @@
-import { EXTERNAL_SKILLSETS_URL_SEGMENT } from "./integrations";
+import "./integrations";
 import { buildCoreSettingsItemPath } from "./settings";
-
-export { EXTERNAL_SKILLSETS_URL_SEGMENT };
 
 export const EXTERNAL_SKILLSETS_TAB_PARAM = "skillsetTab";
 

@@ -223,5 +223,4 @@ export default useSimulatorEvents;
 export type {
   UseSimulatorEventsOptions,
   UseSimulatorEventsReturn,
-  TimeRangeInfo,
 } from "./types";

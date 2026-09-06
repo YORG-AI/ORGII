@@ -22,7 +22,7 @@ import { type FileTypeIconProps, SIZE_STYLES } from "./types";
 import { getFileTypeFromName } from "./utils";
 
 // Re-export types for external use
-export type { FileType, FileTypeIconProps } from "./types";
+export type { FileTypeIconProps } from "./types";
 export { getFileTypeFromName } from "./utils";
 
 /**

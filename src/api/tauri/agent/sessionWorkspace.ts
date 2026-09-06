@@ -87,14 +87,6 @@ export interface WorkspaceChangedPayload {
   additionalDirectories: AdditionalDirectoryView[];
 }
 
-export interface WorktreeMergeResult {
-  merged: boolean;
-  branch: string;
-  baseBranch: string;
-  conflicts: string[];
-  error?: string;
-}
-
 /**
  * Grant the session access to `path` in addition to its `workspace_root`.
  * The backend canonicalises `path` before storing it.
@@ -130,35 +122,6 @@ export async function removeSessionDirectory(
   return invokeTauri<boolean>("agent_session_remove_directory", {
     sessionId,
     path,
-  });
-}
-
-/** Switch the current running session into a git worktree. */
-export async function enterSessionWorktree(
-  sessionId: string,
-  branch?: string
-): Promise<SessionWorkspaceView> {
-  return invokeTauri<SessionWorkspaceView>("agent_session_enter_worktree", {
-    sessionId,
-    branch,
-  });
-}
-
-export async function applySessionWorktree(
-  sessionId: string,
-  strategy?: string
-): Promise<WorktreeMergeResult> {
-  return invokeTauri<WorktreeMergeResult>("agent_session_apply_worktree", {
-    sessionId,
-    strategy,
-  });
-}
-
-export async function deleteSessionWorktree(
-  sessionId: string
-): Promise<SessionWorkspaceView> {
-  return invokeTauri<SessionWorkspaceView>("agent_session_delete_worktree", {
-    sessionId,
   });
 }
 

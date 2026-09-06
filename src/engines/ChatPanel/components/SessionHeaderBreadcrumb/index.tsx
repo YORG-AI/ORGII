@@ -193,7 +193,6 @@ export {
   SESSION_HEADER_CHILD_NAME_MAX_CHARACTERS,
   SESSION_HEADER_NAME_MAX_CHARACTERS,
   SESSION_HEADER_PARENT_NAME_MAX_CHARACTERS,
-  resolveAgentChildParentSessionId,
   resolveSessionHeaderBreadcrumbDisplay,
 } from "./sessionHeaderBreadcrumbDisplay";
 export default SessionHeaderBreadcrumb;

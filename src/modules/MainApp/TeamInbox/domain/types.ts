@@ -36,11 +36,6 @@ export interface WorkItemCommentTarget {
   workItemTitle: string;
 }
 
-export type TeamInboxTarget =
-  | SessionCommentTarget
-  | WorkItemTarget
-  | WorkItemCommentTarget;
-
 interface TeamInboxItemBase {
   id: string;
   occurredAt: string;

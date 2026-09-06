@@ -46,12 +46,7 @@ export type {
 };
 export { IMPORTED_HISTORY_SOURCE_DESCRIPTORS };
 export type { ImportedHistoryCloudTurnWindow };
-export {
-  importedHistoryInitialWindow,
-  importedHistoryTurnWindows,
-  type ImportedHistoryInitialWindow,
-  type ImportedHistoryTurnWindow,
-} from "./window";
+export { importedHistoryTurnWindows } from "./window";
 
 export type { ImportedTranscriptStat };
 

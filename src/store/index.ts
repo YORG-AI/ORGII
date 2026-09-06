@@ -22,22 +22,13 @@
 // NOTE: Direct imports to avoid circular dependency through the barrel
 export type {
   SessionEvent,
-  SessionLoadStatus,
   ReplayMode,
-  ReplayTimeRange,
   EventDisplayVariant,
-  EventDisplayStatus,
-  ActivityStatus,
-  CachedSession,
-  SessionSpec,
 } from "@src/engines/SessionCore/core/types";
 
 export { useEventNavigation } from "@src/engines/SessionCore/hooks/useEventNavigation";
 
-export {
-  isVisibleInChat,
-  stripTerminalCodeBlocks,
-} from "@src/engines/SessionCore/ingestion/visibilityFilters";
+export { isVisibleInChat } from "@src/engines/SessionCore/ingestion/visibilityFilters";
 
 // NOTE: normalizeChunk/normalizeChunks are ARCHIVED
 // Use processChunksRust/normalizeChunkRust from "@src/engines/SessionCore/ingestion/rustBridge" instead

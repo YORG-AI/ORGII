@@ -83,27 +83,19 @@ export * from "./types";
 export { getGitStatus } from "./status";
 
 // Re-export worktree functions
-export {
-  createGitWorktree,
-  getGitWorktrees,
-  removeGitWorktree,
-} from "./worktrees";
+export { getGitWorktrees, removeGitWorktree } from "./worktrees";
 
 // Re-export branch functions
-export {
-  getGitBranches,
-  getGitCurrentBranchName,
-  getGitDefaultBranch,
-} from "./branches";
+export { getGitBranches } from "./branches";
 
 // Re-export commit functions
-export { getGitCommits, gitCommit, gitAmendCommit } from "./commits";
+export { getGitCommits } from "./commits";
 
 // Re-export remote functions
-export { getGitRemotes, fillGitCredentials } from "./remotes";
+export { getGitRemotes } from "./remotes";
 
 // Re-export remote operations
-export { gitFetch, gitPull, gitPush } from "./operations";
+export { gitFetch, gitPush } from "./operations";
 
 // Re-export stash functions
 export {
@@ -122,7 +114,7 @@ export {
 } from "./staging";
 
 // Re-export branch operations
-export { gitCreateBranch, gitDeleteBranch, gitCheckout } from "./branchOps";
+export { gitCreateBranch } from "./branchOps";
 
 // Re-export merge functions
 export { gitMergeAbort } from "./merge";
@@ -141,8 +133,6 @@ export { gitReset } from "./reset";
 
 // Re-export diff functions
 export {
-  getGitFileContent,
-  getGitBatchFileDiffs,
   getGitDiffNumstatCombined,
   getGitDiffSummary,
   getGitCommitDiff,

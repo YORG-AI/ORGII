@@ -66,22 +66,7 @@ export interface WorkspaceFolderEntry {
 }
 
 // ============================================
-// Workspace State
-// ============================================
-
-/** Runtime workspace state */
-export interface WorkspaceState {
-  /** All folder roots in this workspace */
-  folders: WorkspaceFolder[];
-  /** Path to the .orgii-workspace file (null if untitled/unsaved) */
-  configPath: string | null;
-  /** Whether the workspace has been modified since last save */
-  isDirty: boolean;
-}
-
-// ============================================
 // Constants
 // ============================================
 
 export const WORKSPACE_FILE_EXTENSION = ".orgii-workspace";
-export const WORKSPACE_DIR_NAME = "workspaces";

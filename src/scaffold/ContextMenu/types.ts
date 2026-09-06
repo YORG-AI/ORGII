@@ -146,14 +146,3 @@ export interface UseContextMenuReturn {
   /** Reset state */
   reset: () => void;
 }
-
-// ============================================
-// Internal Types
-// ============================================
-
-export interface TerminalItem {
-  id: string;
-  name: string;
-  cwd?: string;
-  isActive?: boolean;
-}

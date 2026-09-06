@@ -11,9 +11,4 @@ export {
   isCodeLanguage,
 } from "./detectLanguage";
 
-export {
-  LANGUAGE_DISPLAY_NAMES,
-  SPECIAL_FILENAMES,
-  getLanguageDisplayName,
-  getLanguageIconFile,
-} from "./languageMap";
+export { getLanguageDisplayName, getLanguageIconFile } from "./languageMap";

@@ -79,21 +79,6 @@ export interface McpResource {
   size?: number;
 }
 
-export interface McpResourceTemplate {
-  uriTemplate: string;
-  name: string;
-  description?: string;
-  mimeType?: string;
-}
-
-export interface McpResourceContent {
-  type: "text" | "blob";
-  uri: string;
-  mimeType?: string;
-  text?: string;
-  blob?: string;
-}
-
 interface UseMcpServersOptions {
   workspacePath?: string;
   /** When false, skips the initial server-list fetch and polling (no Tauri IPC on mount). */

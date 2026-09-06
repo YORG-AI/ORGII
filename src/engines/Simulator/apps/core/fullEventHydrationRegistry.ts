@@ -29,16 +29,6 @@ export function hydrateFullEventWindow(events: SessionEvent[]): SessionEvent[] {
   return hydrated;
 }
 
-export function releaseHydratedEventsExcept(
-  retainedIds: ReadonlySet<string>
-): void {
-  for (const eventId of hydratedEvents.keys()) {
-    if (!retainedIds.has(eventId)) {
-      hydratedEvents.delete(eventId);
-    }
-  }
-}
-
 export function clearHydratedEvents(): void {
   hydratedEvents.clear();
 }

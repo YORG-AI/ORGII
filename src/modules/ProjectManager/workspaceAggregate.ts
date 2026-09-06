@@ -40,9 +40,6 @@ export const WORKSPACE_SOURCE = {
   LINEAR: "linear",
 } as const;
 
-export type WorkspaceSource =
-  (typeof WORKSPACE_SOURCE)[keyof typeof WORKSPACE_SOURCE];
-
 export interface LinearWorkspaceSource {
   source: typeof WORKSPACE_SOURCE.LINEAR;
   connectionId: string;

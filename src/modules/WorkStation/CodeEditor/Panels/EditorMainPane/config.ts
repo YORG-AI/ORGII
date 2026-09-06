@@ -52,61 +52,6 @@ export const DEFAULT_PANEL_STATE: PanelState = {
 };
 
 // ============================================
-// Tab Type Configuration
-// ============================================
-
-/**
- * Configuration for each tab type
- */
-export const TAB_TYPE_CONFIG = {
-  file: {
-    supportsEdit: true,
-    supportsPreview: true,
-  },
-  directory: {
-    supportsEdit: false,
-    supportsPreview: false,
-  },
-  explorer: {
-    supportsEdit: false,
-    supportsPreview: false,
-  },
-  "git-diff": {
-    supportsEdit: true, // Unified view supports editing
-    supportsPreview: false,
-  },
-  "source-control": {
-    // Focus mode delegates to GitDiffContent which supports inline editing.
-    supportsEdit: true,
-    supportsPreview: false,
-  },
-  "git-log": {
-    supportsEdit: false,
-    supportsPreview: false,
-  },
-  "terminal-content": {
-    supportsEdit: false,
-    supportsPreview: false,
-  },
-  terminal: {
-    supportsEdit: false,
-    supportsPreview: false,
-  },
-  output: {
-    supportsEdit: false,
-    supportsPreview: false,
-  },
-  debug: {
-    supportsEdit: false,
-    supportsPreview: false,
-  },
-  "lint-scan": {
-    supportsEdit: false,
-    supportsPreview: false,
-  },
-} as const;
-
-// ============================================
 // Quick Actions
 // ============================================
 

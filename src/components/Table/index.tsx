@@ -58,7 +58,7 @@ import "./index.scss";
 import type { TableProps } from "./types";
 import { useTableColumns } from "./useTableColumns";
 
-export type { TableColumn, TablePagination, TableProps } from "./types";
+export type { TableColumn } from "./types";
 
 function TableComponent<T = unknown>(
   {

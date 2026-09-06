@@ -555,11 +555,3 @@ export const DROPDOWN_STYLES = {
     },
   },
 } as const;
-
-// ==============================================
-// Type Exports
-// ==============================================
-
-export type DropdownPanelTokens = typeof DROPDOWN_PANEL;
-export type DropdownItemTokens = typeof DROPDOWN_ITEM;
-export type DropdownSearchTokens = typeof DROPDOWN_SEARCH;

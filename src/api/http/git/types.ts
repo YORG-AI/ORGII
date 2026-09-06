@@ -79,11 +79,6 @@ export interface GitStatusData {
   do_conflicted_files_exist: boolean;
 }
 
-export interface GitStatusResponse {
-  status: number;
-  data: GitStatusData;
-}
-
 // ============================================================================
 // Branch Types
 // ============================================================================
@@ -107,32 +102,10 @@ export interface GitBranchesResponse {
 }
 
 // Ahead/behind response
-export interface GitAheadBehindResponse {
-  status: number;
-  data: GitAheadBehind;
-}
 
 // Default branch response
-export interface GitDefaultBranchResponse {
-  status: number;
-  data: GitBranchInfo;
-}
 
 // Python backend branch types
-export interface PythonBranchInfo {
-  name: string;
-  upstream: string | null;
-  tip_sha: string;
-  branch_type: "local" | "remote";
-  ref: string;
-  is_current: boolean;
-  last_commit_date: string | null;
-}
-
-export interface PythonBranchListResponse {
-  branches: PythonBranchInfo[];
-  current_branch: string | null;
-}
 
 // ============================================================================
 // Commit Types
@@ -263,11 +236,6 @@ export interface GitFileContentResult {
   exists: boolean;
 }
 
-export interface GitFileContentResponse {
-  status: number;
-  data: GitFileContentResult;
-}
-
 // ============================================================================
 // Diff Types
 // ============================================================================
@@ -315,11 +283,6 @@ export interface GitFileDiffResult {
   binary: boolean;
 }
 
-export interface GitFileDiffResponse {
-  status: number;
-  data: GitFileDiffResult;
-}
-
 // Batch file diff input - supports renamed files with original_path
 export interface GitBatchFileDiffInput {
   /** Current file path */
@@ -339,11 +302,6 @@ export interface GitBatchFileDiffResult {
   };
 }
 
-export interface GitBatchFileDiffResponse {
-  status: number;
-  data: GitBatchFileDiffResult;
-}
-
 // Diff summary
 export interface GitDiffSummaryFile {
   path: string;
@@ -358,11 +316,6 @@ export interface GitDiffSummaryResult {
   total_additions: number;
   total_deletions: number;
   files: GitDiffSummaryFile[];
-}
-
-export interface GitDiffSummaryResponse {
-  status: number;
-  data: GitDiffSummaryResult;
 }
 
 // Per-file numstat (lightweight — no content)
@@ -433,17 +386,6 @@ export interface StashResult {
   stash_ref: string | null;
 }
 
-export interface StashPushRequest {
-  files?: string[] | null;
-  message?: string | null;
-  include_untracked?: boolean;
-}
-
-export interface StashApplyRequest {
-  index?: number;
-  pop?: boolean;
-}
-
 // ============================================================================
 // Worktree Types
 // ============================================================================
@@ -480,46 +422,6 @@ export interface FileOperationResult {
   error?: GitError | null;
 }
 
-export interface StageFilesRequest {
-  files: string[];
-}
-
-export interface UnstageFilesRequest {
-  files: string[];
-}
-
-export interface DiscardChangesRequest {
-  files: string[];
-}
-
-// ============================================================================
-// Branch Operation Types
-// ============================================================================
-
-export interface BranchOperationResult {
-  success: boolean;
-  message: string;
-  branch_name?: string | null;
-  commit_sha?: string | null;
-  error?: GitError | null;
-}
-
-export interface CreateBranchRequest {
-  name: string;
-  start_point?: string | null;
-  checkout?: boolean;
-}
-
-export interface DeleteBranchRequest {
-  force?: boolean;
-}
-
-export interface CheckoutRequest {
-  ref: string;
-  create?: boolean;
-  force?: boolean;
-}
-
 // ============================================================================
 // Merge Types
 // ============================================================================
@@ -531,12 +433,6 @@ export interface MergeResult {
   conflicted_files: string[];
   commit_sha: string | null;
   error?: GitError | null;
-}
-
-export interface MergeRequest {
-  branch: string;
-  no_ff?: boolean;
-  message?: string | null;
 }
 
 // ============================================================================
@@ -552,11 +448,6 @@ export interface RebaseResult {
   error?: GitError | null;
 }
 
-export interface RebaseRequest {
-  upstream: string;
-  branch?: string | null;
-}
-
 // ============================================================================
 // Cherry-pick Types
 // ============================================================================
@@ -568,11 +459,6 @@ export interface CherryPickResult {
   conflicted_files: string[];
   commit_sha: string | null;
   error?: GitError | null;
-}
-
-export interface CherryPickRequest {
-  commit: string;
-  no_commit?: boolean;
 }
 
 // ============================================================================
@@ -588,11 +474,6 @@ export interface RevertResult {
   error?: GitError | null;
 }
 
-export interface RevertRequest {
-  commit: string;
-  no_commit?: boolean;
-}
-
 // ============================================================================
 // Reset Types
 // ============================================================================
@@ -605,20 +486,6 @@ export interface ResetResult {
   previous_head: string | null;
   new_head: string | null;
   error?: GitError | null;
-}
-
-export interface ResetRequest {
-  ref?: string;
-  mode?: ResetMode;
-}
-
-// ============================================================================
-// Amend Commit Types
-// ============================================================================
-
-export interface AmendCommitRequest {
-  message?: string | null;
-  files?: string[] | null;
 }
 
 // ============================================================================

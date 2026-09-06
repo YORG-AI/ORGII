@@ -99,18 +99,6 @@ export async function updateRepoVisibility(
   await invokeTauri("server_update_repo_visibility", { path, visibility });
 }
 
-/** Check GitHub repo visibility via backend (no CORS issues). Returns "public", "private", or null. */
-export async function checkGithubVisibility(
-  ownerRepo: string
-): Promise<"public" | "private" | null> {
-  const result = await invokeTauri<string | null>(
-    "server_check_github_visibility",
-    { ownerRepo }
-  );
-  if (result === "public" || result === "private") return result;
-  return null;
-}
-
 // ============================================
 // Repository Creation (via Tauri commands)
 // ============================================

@@ -33,14 +33,8 @@ import {
   sortIntegrationsModelGroups,
 } from "./integrationsModelGroups";
 import { INTEGRATIONS_MODELS_TABLE_COL_WIDTH } from "./integrationsModelsTableWidths";
-import {
-  MAX_SOURCE_ICONS,
-  dedupeSourceTypes,
-  getModelRowKey,
-} from "./modelsTableUtils";
+import { MAX_SOURCE_ICONS, dedupeSourceTypes } from "./modelsTableUtils";
 import { useModelsTableData } from "./useModelsTableData";
-
-export { getModelRowKey };
 
 function renderGroupSourcesCell(group: IntegrationsModelGroupRow) {
   if (group.isOrgiiGroup) return null;

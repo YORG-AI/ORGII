@@ -43,9 +43,6 @@ export {
 
 export { RebaseConflictDialog } from "./RebaseConflictDialog";
 
-export {
-  CheckoutConflictDialog,
-  type CheckoutConflictResult,
-} from "./CheckoutConflictDialog";
+export { CheckoutConflictDialog } from "./CheckoutConflictDialog";
 
 export { CheckoutBlockedDialog } from "./CheckoutBlockedDialog";

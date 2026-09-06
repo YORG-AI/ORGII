@@ -59,13 +59,6 @@ export class Org2CloudChannelMessagesError extends Error {
   }
 }
 
-export function isOrg2ChannelMessagesErrorCode(
-  error: unknown,
-  code: Org2ChannelMessagesErrorCode
-): boolean {
-  return error instanceof Org2CloudChannelMessagesError && error.code === code;
-}
-
 /** The server's code for an error, or null when it is not a message RPC one. */
 export function org2ChannelMessagesErrorCode(
   error: unknown

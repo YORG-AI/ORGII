@@ -231,8 +231,6 @@ const BLUE_PALETTE: PrimaryColorSchema = {
   },
 };
 
-export const DEFAULT_PRIMARY_COLOR_PRESET: PrimaryColorPreset = "blue";
-
 export const PRIMARY_COLOR_PALETTES: Record<
   PrimaryColorPreset,
   PrimaryColorSchema

@@ -8,14 +8,12 @@
  */
 
 export { CollapsibleSection } from "./CollapsibleSection";
-export type { CollapsibleSectionProps } from "./CollapsibleSection";
 
 export {
   PrimarySidebarLayoutWithSections,
   PrimarySidebarLayoutWithSections as PrimarySidebarLayout,
 } from "./PrimarySidebarLayoutWithSections";
 export type {
-  PrimarySidebarLayoutWithSectionsProps,
   PrimarySidebarTab,
   PanelSection,
 } from "./PrimarySidebarLayoutWithSections";

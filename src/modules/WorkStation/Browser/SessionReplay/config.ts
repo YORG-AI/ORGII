@@ -11,7 +11,7 @@
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { getAppSubtool } from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
 import { defineSimulatorAppConfig } from "@src/engines/Simulator/apps/core/configFactory";
-import { matchesByAppType } from "@src/engines/Simulator/apps/core/matchers";
+import "@src/engines/Simulator/apps/core/matchers";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import {
   getToolDisplayLabelFromRegistry,
@@ -35,14 +35,6 @@ function getTitleFromUrl(url: string): string {
   } catch {
     return url;
   }
-}
-
-/**
- * Check if an event should be handled by the Browser app.
- * Uses Rust registry as single source of truth.
- */
-export function matchesBrowserEvent(eventFunction: string): boolean {
-  return matchesByAppType(eventFunction, AppType.BROWSER);
 }
 
 function getEventArgs(event: SessionEvent): Record<string, unknown> {

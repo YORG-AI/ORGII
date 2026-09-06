@@ -10,24 +10,15 @@ import type { ModelType } from "@src/api/types/keys";
 import type { WizardData } from "../types";
 
 // Re-export hooks for convenience
-export {
-  useProviderConfig,
-  preloadProviderConfigs,
-  type ProviderEnvConfig,
-} from "../hooks/useProviderConfig";
+export { useProviderConfig } from "../hooks/useProviderConfig";
 
 export {
   useProviderRegistry,
-  preloadProviderRegistry,
-  isPrimaryProvider,
   getLocalRuntimeForProviderKey,
   getLocalProviderKeyForRuntime,
-  type LocalRuntimePreset,
   type ProviderGroup,
   type UnifiedProvider,
   type UnifiedProviderVariant,
-  type UseProviderRegistryOptions,
-  type UseProviderRegistryResult,
 } from "../hooks/useProviderRegistry";
 
 export {

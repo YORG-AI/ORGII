@@ -99,11 +99,6 @@ export async function gzipBytesToBase64(bytes: Uint8Array): Promise<string> {
   return bytesToBase64(await gzipBytes(bytes));
 }
 
-/** JSON → gzip → base64 (the client half of `payload_gz`). */
-export async function gzipJsonToBase64(value: unknown): Promise<string> {
-  return gzipBytesToBase64(segmentCanonicalBytes(value));
-}
-
 /** gunzip → JSON over raw gzip bytes (storage-object downloads). */
 export async function gunzipBytesToJson(
   compressed: Uint8Array

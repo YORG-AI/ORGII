@@ -71,18 +71,13 @@ export type {
   AddCommentInput,
   CloudSessionCommentsEntry,
   CloudSessionCommentsFetchState,
-  CommentThread,
   GroupedCommentThreads,
-  SessionCommentsFetchDecision,
   UseSessionCommentsResult,
 } from "./org2CloudSessionCommentsAtom.types";
 export {
   MAX_SESSION_COMMENT_CACHE_ENTRIES,
   SESSION_COMMENTS_DELTA_OVERLAP_MS,
-  SESSION_COMMENTS_ERROR_RETRY_MS,
-  SESSION_COMMENTS_ERROR_RETRY_MAX_MS,
   sessionCommentsDeltaSince,
-  sessionCommentsErrorRetryDelayMs,
   countLiveComments,
   decideSessionCommentsFetch,
   getThreadResolution,

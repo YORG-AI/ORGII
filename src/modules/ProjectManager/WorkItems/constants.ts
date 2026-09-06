@@ -54,16 +54,6 @@ export function toAgentRole(role: string | null | undefined): AgentRole | null {
   return null;
 }
 
-export const SESSION_STATUS = {
-  Running: "running",
-  Completed: "completed",
-  Failed: "failed",
-  Cancelled: "cancelled",
-} as const satisfies Record<
-  string,
-  import("@src/types/session/session").SessionStatus
->;
-
 export const PENDING_SESSION_ID = "pending";
 
 /**

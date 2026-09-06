@@ -14,16 +14,11 @@ export {
   isShellTool,
 } from "@src/engines/SessionCore/rendering/registry/toolCategories";
 
-export {
-  extractArgsSummary,
-  extractScreenshotIds,
-  stripScreenshotMarkers,
-} from "./helpers/argsSummary";
+export { extractArgsSummary } from "./helpers/argsSummary";
 
 export {
   buildWorkspaceInfoRows,
   extractResultText,
-  extractScreenshot,
   hasNonEmptyResultValues,
   isBrowserSnapshotResult,
   isErrorResult,
@@ -45,4 +40,3 @@ export {
 } from "./helpers/cardParsers";
 
 export { extractToolSource } from "./helpers/toolSource";
-export type { ToolSourceTarget } from "./helpers/toolSource";

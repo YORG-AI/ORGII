@@ -19,11 +19,9 @@ export {
 
 // Session view
 export { useSessionView } from "./useSessionView";
-export type { UseSessionViewReturn } from "./useSessionView";
 
 // Editor cache (per-repo tab caching)
 export { useEditorCache } from "./useEditorCache";
-export type { UseEditorCacheReturn } from "./useEditorCache";
 
 // Editor repo cache sync (saves/restores file tabs when switching repos)
 export { useEditorRepoCacheSync } from "./useEditorRepoCacheSync";

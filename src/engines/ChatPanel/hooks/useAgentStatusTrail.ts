@@ -57,10 +57,7 @@ import {
   resolveTrailStaleDelayMs,
 } from "./agentStatusTrailMath";
 
-export type {
-  AgentStatusTrailPhase,
-  AgentStatusTrailState,
-} from "./agentStatusTrailMath";
+export type { AgentStatusTrailState } from "./agentStatusTrailMath";
 
 export interface UseAgentStatusTrailOptions {
   /** Session the trail describes. `null` keeps it idle. */

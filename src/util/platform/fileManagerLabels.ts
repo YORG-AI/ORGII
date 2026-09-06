@@ -12,13 +12,6 @@ export const COMMON_FILE_MANAGER_REVEAL_KEYS: FileManagerRevealLabelKeys = {
   fileManager: "common:actions.revealInFileManager",
 };
 
-export const SESSION_REFERENCE_FILE_MANAGER_REVEAL_KEYS: FileManagerRevealLabelKeys =
-  {
-    finder: "cards.actions.revealInFinder",
-    explorer: "cards.actions.revealInExplorer",
-    fileManager: "cards.actions.revealInFileManager",
-  };
-
 export function getFileManagerRevealLabelKey(
   keys: FileManagerRevealLabelKeys = COMMON_FILE_MANAGER_REVEAL_KEYS
 ): string {

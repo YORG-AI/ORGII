@@ -207,21 +207,6 @@ export function getDefaultThemePreferenceForAppearanceMode(
   return GLOBAL_THEME_GROUPS[mode][0];
 }
 
-export function getDefaultThemeForAppearanceMode(
-  mode: Exclude<AppearanceMode, typeof APPEARANCE_MODE.SYSTEM>
-): GlobalThemeId {
-  return GLOBAL_THEME_GROUPS[mode][0];
-}
-
-export function getThemeOptionsForAppearanceMode(
-  mode: AppearanceMode
-): GlobalThemePreference[] {
-  if (mode === APPEARANCE_MODE.SYSTEM) {
-    return [THEME_PREFERENCE.SYSTEM];
-  }
-  return GLOBAL_THEME_GROUPS[mode];
-}
-
 export const APPEARANCE_MODE_OPTIONS = [
   APPEARANCE_MODE.SYSTEM,
   APPEARANCE_MODE.LIGHT,

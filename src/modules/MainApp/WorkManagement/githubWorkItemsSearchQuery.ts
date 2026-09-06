@@ -15,8 +15,7 @@ export const GITHUB_QUERY_STATE = {
 
 export type GitHubQueryScope =
   (typeof GITHUB_QUERY_SCOPE)[keyof typeof GITHUB_QUERY_SCOPE];
-export type GitHubQueryState =
-  (typeof GITHUB_QUERY_STATE)[keyof typeof GITHUB_QUERY_STATE];
+
 export type GitHubIssuePageState = "open" | "closed";
 
 export interface ParsedGitHubSearchQuery {

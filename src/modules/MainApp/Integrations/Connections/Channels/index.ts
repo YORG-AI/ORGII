@@ -14,11 +14,9 @@ export {
   WhatsAppConfig,
 } from "./configs";
 export type {
-  ChannelConfigProps,
   ChannelConnectionStatus,
   ChannelInstance,
   ChannelProbeResult,
   ChannelSelection,
-  ChannelType,
 } from "./types";
 export { parseCommaSeparated } from "./utils";

@@ -10,12 +10,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
-  DomSelectionComponentStackEntry,
-  DomSelectionComputedStyle,
   DomSelectionElementInfo,
   DomSelectionRect,
   DomSelectionSourceLocation,
-  DomSelectionSourcePoint,
 } from "@src/features/DomSelection/types";
 import { createLogger } from "@src/hooks/logger";
 import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
@@ -27,9 +24,7 @@ const log = createLogger("useWebviewInspector");
 // ============================================
 
 export type ElementRect = DomSelectionRect;
-export type ElementComputedStyle = DomSelectionComputedStyle;
-export type SimpleSourceLocation = DomSelectionSourcePoint;
-export type ComponentStackEntry = DomSelectionComponentStackEntry;
+
 /** Framework/debug source metadata detected without a repository index. */
 export type SourceLocation = DomSelectionSourceLocation;
 export type ElementInfo = DomSelectionElementInfo;
