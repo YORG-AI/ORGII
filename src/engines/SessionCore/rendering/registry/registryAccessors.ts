@@ -12,11 +12,7 @@ import { getAllEventTypes } from "./events";
 // Chat-context accessors are pure metadata; re-exported from ./events/contextConfig
 // so `ActionRegistry` (and the chat-projection worker behind it) can import
 // them without touching the renderer loaders.
-export {
-  getActionConfig,
-  requiresItemIndex,
-  shouldShowStatusLine,
-} from "./events/contextConfig";
+export { getActionConfig, requiresItemIndex } from "./events/contextConfig";
 
 export interface ComponentOption {
   id: string;

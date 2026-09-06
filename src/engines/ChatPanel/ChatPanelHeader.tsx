@@ -38,8 +38,8 @@ import {
 } from "./header";
 import {
   CHAT_PANEL_COLLAPSED_HEADER_HEIGHT_PX,
-  CHAT_PANEL_GLASS_SURFACE_CLASS,
   CHAT_PANEL_HEADER_STACK_HEIGHT_PX,
+  CHAT_PANEL_HEADER_SURFACE_CLASS,
   CHAT_PANEL_HEADER_TOP_PADDING_PX,
   CHAT_PANEL_TAB_HEADER_HEIGHT_PX,
   shouldStartHeaderDragFromTarget,
@@ -469,8 +469,8 @@ export function ChatPanelHeader({
   return (
     <>
       <div
-        className={`pointer-events-none absolute top-0 right-0 left-0 z-30 ${CHAT_PANEL_GLASS_SURFACE_CLASS}`}
-        data-testid="chat-panel-header-glass"
+        className={`pointer-events-none absolute top-0 right-0 left-0 z-30 ${CHAT_PANEL_HEADER_SURFACE_CLASS}`}
+        data-testid="chat-panel-header-surface"
         aria-hidden
         style={{
           height: tabRowCollapsed

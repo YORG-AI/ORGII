@@ -967,34 +967,3 @@ html[data-host-desktop="windows"] [data-windows-top-bar="true"] {
     }
   }
 }
-
-/* Compact diff styles for multi-task grid view - smaller gutter area */
-.compact-diff {
-  .diff-line {
-    min-height: 20px !important;
-  }
-
-  .diff-line-gutter {
-    width: 18px !important;
-    padding: 0 4px !important;
-    font-size: 10px !important;
-    backdrop-filter: blur(8px);
-  }
-
-  .diff-line-indicator {
-    width: 16px !important;
-    backdrop-filter: blur(8px);
-  }
-
-  .diff-line-content {
-    font-size: 11px !important;
-  }
-
-  /* Ensure context lines have solid background instead of transparent */
-  .diff-line-context {
-    .diff-line-gutter,
-    .diff-line-indicator {
-      background: var(--color-bg-2);
-    }
-  }
-}

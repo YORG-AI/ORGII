@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   CHAT_PANEL_COLLAPSED_HEADER_HEIGHT_PX,
-  CHAT_PANEL_GLASS_SURFACE_CLASS,
   CHAT_PANEL_HEADER_STACK_HEIGHT_PX,
+  CHAT_PANEL_HEADER_SURFACE_CLASS,
   CHAT_PANEL_HEADER_TOP_PADDING_PX,
   CHAT_PANEL_PUBLISHED_HEADER_HEIGHT_PX,
   CHAT_PANEL_TRANSCRIPT_TOP_GAP_PX,
@@ -17,9 +17,10 @@ import {
 } from "./chatPanelHeaderLayout";
 
 describe("chat panel header overlay", () => {
-  it("uses a dense glass fill so scrolled content stays subdued", () => {
-    expect(CHAT_PANEL_GLASS_SURFACE_CLASS).toContain("bg-chat-pane/70");
-    expect(CHAT_PANEL_GLASS_SURFACE_CLASS).toContain("backdrop-blur-xl");
+  it("uses a solid, blur-free fill so scrolling never re-renders a backdrop", () => {
+    expect(CHAT_PANEL_HEADER_SURFACE_CLASS).toContain("bg-chat-pane");
+    expect(CHAT_PANEL_HEADER_SURFACE_CLASS).not.toContain("bg-chat-pane/");
+    expect(CHAT_PANEL_HEADER_SURFACE_CLASS).not.toContain("backdrop-");
   });
 
   it("floats the full header stack for every ordinary session view", () => {

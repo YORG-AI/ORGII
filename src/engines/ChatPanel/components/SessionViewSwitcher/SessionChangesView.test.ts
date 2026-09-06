@@ -161,8 +161,8 @@ describe("SessionChangesView", () => {
       '[data-testid="virtualized-changes-list"]'
     );
 
-    expect(summary?.className).toContain("bg-chat-pane/70");
-    expect(summary?.className).toContain("backdrop-blur-xl");
+    expect(summary?.className).toContain("bg-chat-pane");
+    expect(summary?.className).not.toContain("backdrop-");
     expect(summary?.className).not.toContain("absolute");
     expect(
       document

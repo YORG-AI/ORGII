@@ -1,24 +1,9 @@
 /**
  * ActivityChatItem Styles — Barrel File
  *
- * Imports all activity style partials from ./styles/.
- * Each activity type lives in its own file for maintainability.
- *
- * Shared variables & utility classes: styles/_variables.scss
- * Base layout:      styles/_activity-item.scss
- * Shell command:    styles/_activity-shell.scss
- * Thinking/LLM:    styles/_activity-thinking.scss
- * Tool call:       styles/_activity-tool-call.scss
- * Status cards:    styles/_activity-status.scss   (task-completed, stage-error, merge, conflict)
- * File operations: styles/_activity-file-ops.scss (edit, read, ls, search)
- * Misc:            styles/_activity-misc.scss     (consult, error, user, todo)
+ * The routed event components own their presentation. This stylesheet only
+ * carries the shared thinking/reasoning treatment still emitted by stream
+ * renderers.
  */
 
-@import "./styles/variables";
-@import "./styles/activity-item";
-@import "./styles/activity-shell";
 @import "./styles/activity-thinking";
-@import "./styles/activity-tool-call";
-@import "./styles/activity-status";
-@import "./styles/activity-file-ops";
-@import "./styles/activity-misc";

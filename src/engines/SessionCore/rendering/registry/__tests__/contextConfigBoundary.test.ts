@@ -18,9 +18,6 @@ describe("registry contextConfig boundary", () => {
     expect(eventsIndex.getChatContextConfig).toBe(
       contextConfig.getChatContextConfig
     );
-    expect(eventsIndex.chatShowsStatusLine).toBe(
-      contextConfig.chatShowsStatusLine
-    );
     expect(eventsIndex.chatRequiresItemIndex).toBe(
       contextConfig.chatRequiresItemIndex
     );
@@ -29,9 +26,6 @@ describe("registry contextConfig boundary", () => {
   it("registryAccessors and the barrel expose the same action-config helpers", () => {
     expect(registryAccessors.getActionConfig).toBe(
       contextConfig.getActionConfig
-    );
-    expect(registryAccessors.shouldShowStatusLine).toBe(
-      contextConfig.shouldShowStatusLine
     );
     expect(registryAccessors.requiresItemIndex).toBe(
       contextConfig.requiresItemIndex
@@ -42,9 +36,6 @@ describe("registry contextConfig boundary", () => {
 
   it("ActionRegistry (worker-side entry) resolves the same helpers", () => {
     expect(actionRegistry.getActionConfig).toBe(contextConfig.getActionConfig);
-    expect(actionRegistry.shouldShowStatusLine).toBe(
-      contextConfig.shouldShowStatusLine
-    );
     expect(actionRegistry.requiresItemIndex).toBe(
       contextConfig.requiresItemIndex
     );
@@ -54,13 +45,9 @@ describe("registry contextConfig boundary", () => {
     expect(contextConfig.getActionConfig("read_file")).toEqual(
       contextConfig.CONTEXT_CONFIG.read_file.chat
     );
-    expect(contextConfig.shouldShowStatusLine("read_file")).toBe(true);
     expect(contextConfig.requiresItemIndex("read_file")).toBe(false);
     // Unknown types fall back to the permissive defaults.
     expect(contextConfig.getActionConfig("definitely_not_a_tool")).toBeNull();
-    expect(contextConfig.shouldShowStatusLine("definitely_not_a_tool")).toBe(
-      true
-    );
     expect(contextConfig.requiresItemIndex("definitely_not_a_tool")).toBe(
       false
     );

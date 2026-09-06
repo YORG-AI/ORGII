@@ -292,7 +292,7 @@ const KEY_CAP_STYLES: Record<
     kbd: `${KEY_CAP_BASE} bg-fill-2 text-text-2`,
     iconSize: KEY_CAP_ICON_SIZE,
   },
-  // Used on the Spotlight footer hint strip — the surrounding Glass
+  // Used on the Spotlight footer hint strip — the surrounding surface
   // panel is already `fill-2`, so pills bump one shade up to `fill-3` to
   // stay readable against it.
   spotlightFooter: {

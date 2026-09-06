@@ -57,7 +57,6 @@ const ActivityRowShell: React.FC<{
     >
       <ActivityChatItem
         event={event}
-        status={event.activityStatus || "agent"}
         itemIndex={index}
         isStreaming={event.isDelta === true}
       />

@@ -13,5 +13,4 @@
 export {
   getActionConfig,
   requiresItemIndex,
-  shouldShowStatusLine,
 } from "@src/engines/SessionCore/rendering/registry/events/contextConfig";

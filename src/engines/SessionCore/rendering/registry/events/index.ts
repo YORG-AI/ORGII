@@ -53,7 +53,6 @@ export {
   CONTEXT_CONFIG,
   type ContextConfig,
   getChatContextConfig,
-  chatShowsStatusLine,
   chatRequiresItemIndex,
 } from "./contextConfig";
 

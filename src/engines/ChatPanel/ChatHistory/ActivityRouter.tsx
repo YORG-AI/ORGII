@@ -19,7 +19,6 @@ import {
 } from "@src/engines/SessionCore/core/types";
 import {
   chatRequiresItemIndex,
-  chatShowsStatusLine,
   getChatComponent,
 } from "@src/engines/SessionCore/rendering/registry/events";
 import { createLogger } from "@src/hooks/logger";
@@ -38,12 +37,9 @@ import UserMessageContent from "./components/UserMessageContent";
 
 const log = createLogger("ActivityRouter");
 
-export type ActivityStatus = "processed" | "pending" | "agent";
-
 export interface ActivityChatItemProps {
   event: SessionEvent;
   itemIndex?: number;
-  status?: ActivityStatus;
   /** Pass true when the caller is in live-playback mode (e.g. subagent grid replay). */
   isStreaming?: boolean;
 }
@@ -88,7 +84,6 @@ function arePropsEqual(
   nextProps: ActivityChatItemProps
 ): boolean {
   if (prevProps.itemIndex !== nextProps.itemIndex) return false;
-  if (prevProps.status !== nextProps.status) return false;
   if (prevProps.isStreaming !== nextProps.isStreaming) return false;
 
   const prevEvent = prevProps.event;
@@ -232,7 +227,7 @@ class ActivityErrorBoundary extends React.Component<
 // ============================================
 
 const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
-  ({ event, itemIndex = 0, status = "agent", isStreaming = false }) => {
+  ({ event, itemIndex = 0, isStreaming = false }) => {
     const userMessageText = useMemo((): string | null => {
       const actionType = event.actionType;
       if (actionType !== "raw" && actionType !== "raw_event") return null;
@@ -345,26 +340,13 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
     const content = renderContent();
     if (!content) return null;
 
-    const eventType = getRegistryEventType(event);
-    const showStatusLine = chatShowsStatusLine(eventType);
-
-    const statusLineClass = showStatusLine
-      ? {
-          processed: "activity-chat-item--status-processed",
-          pending: "activity-chat-item--status-pending",
-          agent: "activity-chat-item--status-agent",
-        }[status] || "activity-chat-item--status-agent"
-      : "";
-
     // Every file reference rendered below this event — markdown link, local
     // image, fenced-block open button — resolves against the repo that was
     // active when the event was written, not the folder the reader happens to
     // have focused while scrolling the transcript.
     return (
       <MarkdownWorkspaceRootContext.Provider value={event.repoPath}>
-        <div className={`activity-chat-item ${statusLineClass}`.trim()}>
-          {content}
-        </div>
+        <div className="activity-chat-item">{content}</div>
       </MarkdownWorkspaceRootContext.Provider>
     );
   },
