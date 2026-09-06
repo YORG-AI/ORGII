@@ -2519,5 +2519,48 @@
     "officialApp": "应用",
     "cli": "命令行",
     "thirdParty": "第三方"
+  },
+  "browserCookieImport": {
+    "safari": {
+      "needsFullDiskAccess": "需要“完全磁盘访问”权限",
+      "explain": "Safari 的 Cookie 保存在 macOS 保护的文件夹中。请在系统设置的“完全磁盘访问权限”中允许 ORG2，然后重新检查。",
+      "openSettings": "打开系统设置",
+      "checkAgain": "重新检查"
+    },
+    "title": "从浏览器导入 Cookie",
+    "action": "从浏览器导入 Cookie",
+    "scanning": "正在查找已安装的浏览器…",
+    "reading": "正在从 {{browser}} 读取 Cookie…",
+    "keychainHint": "系统可能会请求权限以读取该浏览器保存的数据",
+    "selectAll": "全选",
+    "selectedSummary": "{{sites}} 个网站 · {{cookies}} 个 Cookie",
+    "cookieCount_one": "{{count}} 个 Cookie",
+    "cookieCount_other": "{{count}} 个 Cookie",
+    "noSites": "该配置文件中未找到 Cookie",
+    "noMatchingSites": "没有匹配的网站",
+    "importAction_one": "导入 {{count}} 个网站",
+    "importAction_other": "导入 {{count}} 个网站",
+    "imported_one": "已导入 {{count}} 个 Cookie",
+    "imported_other": "已导入 {{count}} 个 Cookie",
+    "doneTitle_one": "已导入 {{count}} 个 Cookie",
+    "doneTitle_other": "已导入 {{count}} 个 Cookie",
+    "doneSkipped_one": "已跳过 {{count}} 个 Cookie",
+    "doneSkipped_other": "已跳过 {{count}} 个 Cookie",
+    "empty": {
+      "title": "未找到受支持的浏览器",
+      "body": "请安装带有已保存登录信息的 Chrome、Edge、Brave 或 Firefox。"
+    },
+    "category": {
+      "banking": "银行",
+      "email": "邮箱",
+      "sso": "登录"
+    },
+    "errors": {
+      "openSettingsFailed": "无法打开系统设置",
+      "keychainDenied": "钥匙串访问被拒绝。请重新选择该配置文件并点击“允许”。",
+      "listFailed": "找不到可导入的浏览器",
+      "previewFailed": "无法从该浏览器读取 Cookie",
+      "importFailed": "无法导入所选 Cookie"
+    }
   }
 }

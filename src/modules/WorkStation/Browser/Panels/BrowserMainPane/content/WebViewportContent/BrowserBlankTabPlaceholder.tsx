@@ -27,10 +27,15 @@ export function selectBlankTabPortOptions(
 interface BrowserBlankTabPlaceholderProps {
   isIncognito?: boolean;
   onOpen: (url: string) => void;
+  /**
+   * Open the "import cookies from your browser" flow. When omitted (e.g. in
+   * unit tests, or private windows) the action is not shown.
+   */
+  onImportCookies?: () => void;
 }
 
 const BrowserBlankTabPlaceholder: React.FC<BrowserBlankTabPlaceholderProps> =
-  memo(({ isIncognito = false, onOpen }) => {
+  memo(({ isIncognito = false, onOpen, onImportCookies }) => {
     const { t } = useTranslation();
     const scannedPorts = useAtomValue(workspacePortsAtom);
     const ports = useMemo(
@@ -48,8 +53,21 @@ const BrowserBlankTabPlaceholder: React.FC<BrowserBlankTabPlaceholderProps> =
         };
       });
 
-      return portActions;
-    }, [onOpen, ports, t]);
+      // Importing carries persistent logins, so it is offered only for regular
+      // (non-private) browsing and only when the host wires up the flow.
+      const importAction: QuickAction[] =
+        onImportCookies && !isIncognito
+          ? [
+              {
+                id: "import-browser-cookies",
+                label: t("browserCookieImport.action"),
+                onAction: onImportCookies,
+              },
+            ]
+          : [];
+
+      return [...importAction, ...portActions];
+    }, [isIncognito, onImportCookies, onOpen, ports, t]);
 
     return (
       <>

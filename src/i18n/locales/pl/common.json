@@ -2447,5 +2447,48 @@
     "officialApp": "Aplikacja",
     "cli": "CLI",
     "thirdParty": "Zewnętrzny"
+  },
+  "browserCookieImport": {
+    "safari": {
+      "needsFullDiskAccess": "Needs Full Disk Access",
+      "explain": "Safari keeps its cookies in a folder macOS protects. Allow ORG2 under Full Disk Access in System Settings, then check again.",
+      "openSettings": "Open System Settings",
+      "checkAgain": "Check again"
+    },
+    "title": "Import cookies from your browser",
+    "action": "Import cookies from browser",
+    "scanning": "Looking for installed browsers…",
+    "reading": "Reading cookies from {{browser}}…",
+    "keychainHint": "Your system may ask for permission to read the browser's saved data",
+    "selectAll": "Select all",
+    "selectedSummary": "{{sites}} sites · {{cookies}} cookies",
+    "cookieCount_one": "{{count}} cookie",
+    "cookieCount_other": "{{count}} cookies",
+    "noSites": "No cookies were found in this profile",
+    "noMatchingSites": "No matching sites",
+    "importAction_one": "Import {{count}} site",
+    "importAction_other": "Import {{count}} sites",
+    "imported_one": "Imported {{count}} cookie",
+    "imported_other": "Imported {{count}} cookies",
+    "doneTitle_one": "Imported {{count}} cookie",
+    "doneTitle_other": "Imported {{count}} cookies",
+    "doneSkipped_one": "{{count}} cookie was skipped",
+    "doneSkipped_other": "{{count}} cookies were skipped",
+    "empty": {
+      "title": "No supported browsers found",
+      "body": "Install Chrome, Edge, Brave, or Firefox with saved logins to import from."
+    },
+    "category": {
+      "banking": "Bank",
+      "email": "Mail",
+      "sso": "Sign-in"
+    },
+    "errors": {
+      "openSettingsFailed": "Couldn't open System Settings",
+      "keychainDenied": "Keychain access was denied. Pick the profile again and choose Allow.",
+      "listFailed": "Couldn't find browsers to import from",
+      "previewFailed": "Couldn't read cookies from that browser",
+      "importFailed": "Couldn't import the selected cookies"
+    }
   }
 }

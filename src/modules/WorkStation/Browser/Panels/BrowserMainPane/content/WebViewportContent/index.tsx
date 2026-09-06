@@ -8,10 +8,11 @@ import BrowserCore from "@/src/engines/BrowserCore";
 import type { BrowserState } from "@/src/engines/BrowserCore/types";
 import { TabBar, type WorkStationTab } from "@/src/modules/WorkStation/shared";
 import { useSetAtom } from "jotai";
-import React, { memo, useCallback, useMemo } from "react";
+import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { WorkstationTabHeaderHost } from "@src/hooks/tabHost/useWorkstationTabHeader";
+import { ImportCookiesModal } from "@src/modules/WorkStation/Browser/ImportCookies";
 import { getSiteNameFromUrl } from "@src/store/ui/navigationSidebarTabsAtom";
 import {
   closeBrowserTabAtom,
@@ -282,6 +283,13 @@ export const WebViewport: React.FC<WebViewportProps> = memo(
       webviewLabel: activeWebviewLabel,
     });
 
+    const [importCookiesOpen, setImportCookiesOpen] = useState(false);
+    const handleReloadAfterImport = useCallback(() => {
+      if (effectiveActiveSessionId && activeSession?.url) {
+        updateSession(effectiveActiveSessionId, { isLoading: true });
+      }
+    }, [effectiveActiveSessionId, activeSession?.url, updateSession]);
+
     return (
       <div className="flex h-full w-full flex-col overflow-hidden">
         {/* Tab Bar - uses the same component as Code Editor and Database Explorer */}
@@ -336,11 +344,20 @@ export const WebViewport: React.FC<WebViewportProps> = memo(
                 <BrowserBlankTabPlaceholder
                   isIncognito={activeSession?.incognito}
                   onOpen={handleNavigate}
+                  onImportCookies={() => setImportCookiesOpen(true)}
                 />
               ) : undefined
             }
           />
         </div>
+
+        {/* Mounted only while open: the flow resets by unmounting. */}
+        {importCookiesOpen ? (
+          <ImportCookiesModal
+            onClose={() => setImportCookiesOpen(false)}
+            onImported={handleReloadAfterImport}
+          />
+        ) : null}
       </div>
     );
   }
