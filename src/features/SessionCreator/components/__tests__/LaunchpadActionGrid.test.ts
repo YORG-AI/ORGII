@@ -201,7 +201,26 @@ describe("LaunchpadActionGrid", () => {
     expect(header?.className).toContain("flex-col");
     expect(header?.className).toContain("items-center");
     expect(header?.className).toContain("w-fit");
-    expect(header?.querySelector("button")).toBe(toggle);
+    // The disclosure belongs with the cards it toggles, not with the title,
+    // and shares the standard control's wrapper so both land in the same spot.
+    expect(header?.querySelector("button")).toBeNull();
+    const content = container.querySelector<HTMLElement>(
+      ".launchpad-action-grid-content"
+    )!;
+    const toggleZone = toggle!.closest(
+      ".launchpad-action-grid-compact-toggle"
+    )!;
+    expect(content).not.toBeNull();
+    expect(toggleZone).not.toBeNull();
+    expect(
+      content.compareDocumentPosition(toggleZone) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(toggleZone.className).toContain("w-full");
+    // Same alignment vocabulary as the standard expand zone (`controlAlignment`
+    // defaults to "left" here), so the two controls dock identically.
+    expect(toggleZone.className).toContain("justify-start");
+    expect(toggleZone.className).toContain("pl-2.5");
     expect(toggle?.getAttribute("aria-label")).toBe("Show suggestions");
     expect(toggle?.getAttribute("aria-expanded")).toBe("false");
     expect(toggle?.querySelector('[data-icon="ellipsis"]')).not.toBeNull();

@@ -94,6 +94,19 @@ describe("SessionCreatorAgentHero", () => {
     );
   });
 
+  it("docks the card disclosure left with the title in short windows", () => {
+    const shortWindowStyles = chatPanelStyles.slice(
+      chatPanelStyles.indexOf("@media (max-height: 800px)"),
+      chatPanelStyles.indexOf("@media (max-height: 600px)")
+    );
+
+    // `translate` must be reset next to `transform`: Tailwind v4 emits the
+    // centering `-translate-x-1/2` on the standalone `translate` property.
+    expect(shortWindowStyles).toMatch(
+      /\.launchpad-action-grid-compact-toggle,\s*\[data-launchpad-action-grid-standard-control\]\s*\{[\s\S]*?justify-content:\s*flex-start;[\s\S]*?translate:\s*none;[\s\S]*?transform:\s*none;/
+    );
+  });
+
   it("keeps the same top-left title position in the smallest compact state", () => {
     const compactWindowStyles = chatPanelStyles.slice(
       chatPanelStyles.indexOf("@media (max-height: 600px)"),

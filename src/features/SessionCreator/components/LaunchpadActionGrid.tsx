@@ -215,25 +215,9 @@ export function LaunchpadActionGrid({
         isCollapsibleCardGrid ? String(isCompactExpanded) : undefined
       }
     >
-      {header || isCollapsibleCardGrid ? (
-        <div
-          className={`launchpad-action-grid-header mx-auto flex w-fit max-w-full flex-col items-center gap-0.5 ${
-            header ? "mb-2" : ""
-          }`}
-        >
+      {header ? (
+        <div className="launchpad-action-grid-header mx-auto mb-2 flex w-fit max-w-full flex-col items-center gap-0.5">
           {header}
-          {isCollapsibleCardGrid ? (
-            <div className="launchpad-action-grid-compact-toggle shrink-0">
-              <LaunchpadActionGridToggle
-                collapsed={!isCompactExpanded}
-                collapseLabel={collapseLabel}
-                controls={contentId}
-                expandLabel={expandLabel}
-                onClick={handleCompactToggle}
-                testId="launchpad-action-grid-compact-toggle"
-              />
-            </div>
-          ) : null}
         </div>
       ) : null}
       <div
@@ -249,6 +233,25 @@ export function LaunchpadActionGrid({
       >
         {children}
       </div>
+      {/* Compact disclosure. It sits after the content and borrows the standard
+          control's wrapper so both read as the same "show/hide the cards"
+          affordance in the same place — below the cards, and left-docked with
+          the title in the layouts where the title itself docks left. `display`
+          is owned by the compact-state mixin in ChatPanel/index.scss. */}
+      {isCollapsibleCardGrid ? (
+        <div
+          className={`launchpad-action-grid-compact-toggle w-full pt-1 ${expandControlAlignmentClass}`}
+        >
+          <LaunchpadActionGridToggle
+            collapsed={!isCompactExpanded}
+            collapseLabel={collapseLabel}
+            controls={contentId}
+            expandLabel={expandLabel}
+            onClick={handleCompactToggle}
+            testId="launchpad-action-grid-compact-toggle"
+          />
+        </div>
+      ) : null}
       {isCollapsibleCardGrid ? (
         isCardGridCollapsed ? (
           <div

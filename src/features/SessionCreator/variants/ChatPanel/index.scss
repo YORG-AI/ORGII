@@ -85,6 +85,19 @@
       margin-inline: 0;
     }
 
+    // The title docks to the top-left here, so its show/hide control docks
+    // with it instead of staying centered under the card grid. `translate`
+    // has to be reset alongside `transform`: Tailwind v4 emits the centering
+    // `-translate-x-1/2` on the standalone `translate` property, so clearing
+    // only `transform` leaves the control half a width to the left.
+    .launchpad-action-grid-compact-toggle,
+    [data-launchpad-action-grid-standard-control] {
+      justify-content: flex-start;
+      left: 0;
+      translate: none;
+      transform: none;
+    }
+
     .session-creator-chat-panel-launchpad-suggestions > * {
       margin-inline: 8px 0;
     }
