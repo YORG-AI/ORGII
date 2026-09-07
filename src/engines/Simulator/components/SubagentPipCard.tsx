@@ -57,7 +57,7 @@ const SUBAGENT_GRID_PAGE_SIZE = 4;
 const HIGHLIGHT_LEAD_MS = 90_000;
 
 interface SubagentViewState {
-  sessionKeySignature: string;
+  sessionIds: readonly string[];
   pageIndex: number;
   gridExpanded: boolean;
   expandedSessionId: string | null;
@@ -65,14 +65,38 @@ interface SubagentViewState {
 
 export function advanceSubagentViewState(
   previous: SubagentViewState,
-  sessionKeySignature: string
+  sessionIds: readonly string[]
 ): SubagentViewState {
-  if (previous.sessionKeySignature === sessionKeySignature) return previous;
+  if (
+    previous.sessionIds.length === sessionIds.length &&
+    previous.sessionIds.every((id, index) => id === sessionIds[index])
+  )
+    return previous;
+  const pageSize = previous.gridExpanded
+    ? SUBAGENT_GRID_PAGE_SIZE
+    : SUBAGENT_STRIP_PAGE_SIZE;
+  const expandedSessionId =
+    previous.expandedSessionId &&
+    sessionIds.includes(previous.expandedSessionId)
+      ? previous.expandedSessionId
+      : null;
+  const previousPage = previous.sessionIds.slice(
+    previous.pageIndex * pageSize,
+    (previous.pageIndex + 1) * pageSize
+  );
+  const anchor =
+    expandedSessionId ?? previousPage.find((id) => sessionIds.includes(id));
+  const hasSurvivor = previous.sessionIds.some((id) => sessionIds.includes(id));
   return {
-    sessionKeySignature,
-    pageIndex: 0,
-    gridExpanded: false,
-    expandedSessionId: null,
+    sessionIds,
+    pageIndex: anchor
+      ? Math.floor(sessionIds.indexOf(anchor) / pageSize)
+      : Math.min(
+          previous.pageIndex,
+          Math.max(0, Math.ceil(sessionIds.length / pageSize) - 1)
+        ),
+    gridExpanded: hasSurvivor && previous.gridExpanded,
+    expandedSessionId,
   };
 }
 
@@ -108,24 +132,17 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
   liveFollow = false,
 }) => {
   const { t } = useTranslation("sessions");
-  const sessionKeySignature = useMemo(
-    () =>
-      activeSessions
-        .map((sub) => sub.key)
-        .sort()
-        .join(","),
+  const sessionIds = useMemo(
+    () => activeSessions.map((sub) => sub.sessionId),
     [activeSessions]
   );
   const [viewState, setViewState] = useState<SubagentViewState>(() => ({
-    sessionKeySignature,
+    sessionIds,
     pageIndex: 0,
     gridExpanded: false,
     expandedSessionId: null,
   }));
-  const nextViewState = advanceSubagentViewState(
-    viewState,
-    sessionKeySignature
-  );
+  const nextViewState = advanceSubagentViewState(viewState, sessionIds);
   if (nextViewState !== viewState) {
     setViewState(nextViewState);
   }
