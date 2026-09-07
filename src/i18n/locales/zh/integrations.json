@@ -21,6 +21,9 @@
     "confirmRemoveActiveSessions_other": "仍有 {{count}} 个活跃会话在使用此账号，移除后它们的下一轮将失败：",
     "toasts": {
       "refreshed": "{{name}} 刷新成功",
+      "refreshPartial": "模型已刷新：新增 {{added}} 个，移除 {{removed}} 个，但 {{total}} 个账户中有 {{failed}} 个失败",
+      "refreshedNoChange": "模型已刷新：无变化",
+      "refreshedDelta": "模型已刷新：新增 {{added}} 个，移除 {{removed}} 个",
       "refreshError": "{{name}} 刷新失败：{{error}}",
       "localRemoved": "{{name}} 已移除",
       "deleteError": "{{name}} 删除失败"

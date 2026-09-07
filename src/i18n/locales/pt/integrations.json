@@ -21,6 +21,9 @@
     "confirmRemoveMessage": "Isso removerá a chave salva localmente. Esta ação não pode ser desfeita.",
     "toasts": {
       "refreshed": "{{name}} atualizado com sucesso",
+      "refreshPartial": "Modelos atualizados: +{{added}} / -{{removed}}, mas {{failed}} de {{total}} contas falharam",
+      "refreshedNoChange": "Modelos atualizados: sem alterações",
+      "refreshedDelta": "Modelos atualizados: {{added}} adicionados, {{removed}} removidos",
       "refreshError": "Falha ao atualizar {{name}}",
       "localRemoved": "{{name}} removido",
       "deleteError": "Falha ao excluir {{name}}"

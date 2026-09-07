@@ -20,6 +20,9 @@
     "confirmRemoveMessage": "Die lokalen Anmeldedaten werden entfernt. Diese Aktion kann nicht rückgängig gemacht werden.",
     "toasts": {
       "refreshed": "{{name}} erfolgreich aktualisiert",
+      "refreshPartial": "Modelle aktualisiert: +{{added}} / -{{removed}}, aber bei {{failed}} von {{total}} Konten ist ein Fehler aufgetreten",
+      "refreshedNoChange": "Modelle aktualisiert: keine Änderungen",
+      "refreshedDelta": "Modelle aktualisiert: {{added}} hinzugefügt, {{removed}} entfernt",
       "refreshError": "{{name}} konnte nicht aktualisiert werden",
       "localRemoved": "{{name}} entfernt",
       "deleteError": "{{name}} konnte nicht gelöscht werden"

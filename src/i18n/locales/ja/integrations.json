@@ -20,6 +20,9 @@
     "confirmRemoveMessage": "ローカル認証情報が削除されます。この操作は元に戻せません。",
     "toasts": {
       "refreshed": "{{name}} の更新が完了しました",
+      "refreshPartial": "モデルを更新しました：{{added}} 件追加、{{removed}} 件削除。ただし {{total}} アカウント中 {{failed}} 件で失敗しました",
+      "refreshedNoChange": "モデルを更新しました：変更なし",
+      "refreshedDelta": "モデルを更新しました：{{added}} 件追加、{{removed}} 件削除",
       "refreshError": "{{name}} の更新に失敗しました",
       "localRemoved": "{{name}} を削除しました",
       "deleteError": "{{name}} の削除に失敗しました"

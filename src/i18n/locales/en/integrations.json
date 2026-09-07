@@ -24,8 +24,8 @@
     "toasts": {
       "refreshed": "{{name}} refreshed successfully",
       "refreshedDelta": "Models refreshed: +{{added}} added, -{{removed}} removed",
-      "refreshedNoChange": "Models refreshed — no changes",
-      "refreshPartial": "Models refreshed (+{{added}} / -{{removed}}), but {{failed}} of {{total}} accounts failed",
+      "refreshedNoChange": "Models refreshed: no changes",
+      "refreshPartial": "Models refreshed: +{{added}} / -{{removed}}, but {{failed}} of {{total}} accounts failed",
       "refreshError": "Failed to refresh {{name}}: {{error}}",
       "localRemoved": "{{name}} removed",
       "deleteError": "Failed to delete {{name}}"
