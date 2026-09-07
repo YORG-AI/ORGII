@@ -313,6 +313,49 @@ fn task_execution_profile_exposes_only_owner_task_update_operations() {
 }
 
 #[test]
+fn task_execution_writer_profile_combines_graph_and_owner_operations() {
+    let mut policy = ResolvedToolPolicy::permissive();
+    policy.agent_org_turn_profile = Some(AgentOrgTurnToolProfile::TaskExecutionWriter);
+    assert!(policy.is_allowed(crate::tools::names::TASK_CREATE));
+    assert!(policy.is_allowed(crate::tools::names::TASK_GRAPH_CREATE));
+    assert!(policy.is_allowed(crate::tools::names::TASK_UPDATE));
+    assert!(!policy.is_allowed(crate::tools::names::ORG_RUN_COMPLETE));
+    assert!(!policy.is_allowed(crate::tools::names::ORG_INBOX_REPAIR));
+
+    let filtered = policy.filter_definitions(vec![serde_json::json!({
+        "type": "function",
+        "function": {
+            "name": crate::tools::names::TASK_UPDATE,
+            "parameters": {
+                "properties": {
+                    "operation": {
+                        "enum": [
+                            "patch_pending", "cancel", "cancel_and_replace",
+                            "append_audit_note", "start", "complete", "fail",
+                            "append_progress", "append_evidence"
+                        ]
+                    }
+                }
+            }
+        }
+    })]);
+    assert_eq!(
+        filtered[0]["function"]["parameters"]["properties"]["operation"]["enum"],
+        serde_json::json!([
+            "patch_pending",
+            "cancel",
+            "cancel_and_replace",
+            "append_audit_note",
+            "start",
+            "complete",
+            "fail",
+            "append_progress",
+            "append_evidence"
+        ])
+    );
+}
+
+#[test]
 fn test_filter_definitions() {
     let policy = ResolvedToolPolicy {
         layers: vec![ToolPolicyLayer {

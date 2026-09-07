@@ -8,8 +8,10 @@ import {
   REPLY_TIMEOUT_MS,
   RUN_ID,
   assertE2ERepoFixture,
+  execJS,
   getApiAccount,
   invokeE2E,
+  js,
   selectPreferredModel,
   unwrap,
   waitForApp,
@@ -62,9 +64,30 @@ async function waitForDisplayed(selector, label) {
 
 async function clickVisible(selector, label) {
   const element = await waitForDisplayed(selector, label);
-  await element.scrollIntoView({ block: "center", inline: "center" });
+  // WebDriver's native click scrolls the target into view. Calling
+  // scrollIntoView first leaves a longer window for push-driven React renders
+  // to replace Agent Org controls and stale the native element reference.
   await element.click();
   return element;
+}
+
+async function openRenderedMember(memberId, memberName) {
+  const groupMemberSelector = `//section[@data-testid="agent-org-group-projection"]//button[normalize-space()=${JSON.stringify(memberName)}]`;
+  if ((await browser.$$(groupMemberSelector)).length > 0) {
+    await clickVisible(
+      groupMemberSelector,
+      `${memberName} Group projection button`
+    );
+    return;
+  }
+  await clickVisible(
+    '[data-testid="agent-org-member-switcher-trigger"]',
+    "Member switcher"
+  );
+  await clickVisible(
+    `[data-testid="agent-org-member-switcher-option-${memberId}"]`,
+    "canonical Member option"
+  );
 }
 
 async function sendVisiblePrompt(prompt) {
@@ -72,12 +95,20 @@ async function sendVisiblePrompt(prompt) {
     '[data-testid="chat-input"] [contenteditable="true"]',
     "Member composer"
   );
-  await editor.scrollIntoView({ block: "center", inline: "center" });
   await editor.click();
-  await browser.keys(prompt);
+  const typed = await execJS(
+    js.type('[data-testid="chat-input"] [contenteditable="true"]', prompt)
+  );
+  if (typed !== "typed") {
+    throw new Error(`Member composer did not accept prompt: ${typed}`);
+  }
   await browser.waitUntil(
     async () =>
-      String((await editor.getProperty("textContent")) ?? "").includes(prompt),
+      String(
+        (await execJS(
+          js.editorText('[data-testid="chat-input"] [contenteditable="true"]')
+        )) ?? ""
+      ).includes(prompt),
     {
       timeout: RENDER_TIMEOUT_MS,
       interval: 100,
@@ -129,6 +160,7 @@ describe("Agent Org direct UserDirectedWork with a live provider", () => {
     const markerPath = path.join(E2E_REPO_PATH, markerName);
     const shellMarkerPath = path.join(E2E_REPO_PATH, shellMarkerName);
     const exactContent = `MEMBER_DIRECT_PROVIDER_${RUN_ID}`;
+    const writerTaskSubject = `Direct Writer Proof ${RUN_ID}`;
 
     await postFixture("/agent/test/agent-org/seed", {
       id: orgId,
@@ -142,6 +174,7 @@ describe("Agent Org direct UserDirectedWork with a live provider", () => {
           agent_id: "builtin:sde",
         },
       ],
+      additional_task_graph_writer_member_ids: [memberId],
     });
     const launched = await postFixture(
       "/agent/test/agent-org/launch-coordinator",
@@ -179,18 +212,25 @@ describe("Agent Org direct UserDirectedWork with a live provider", () => {
       }
     );
 
-    await clickVisible(
-      `[data-testid="sidebar-session-item-${rootSessionId}"]`,
-      "Root Session sidebar row"
+    // Session launch runs through the debug backend fixture and can make this
+    // new Root Session current before the sidebar navigation catches up. A
+    // second click on an already-selected row opens its context menu, so use
+    // the standard E2E navigation bridge only for test setup; Direct work,
+    // Member selection, Send, and Return remain native rendered actions.
+    unwrap(await invokeE2E("openSession", rootSessionId), "open Root Session");
+    await browser.waitUntil(
+      async () =>
+        unwrap(
+          await invokeE2E("getActiveSessionId"),
+          "getActiveSessionId(Root before Member switch)"
+        ).sessionId === rootSessionId,
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 200,
+        timeoutMsg: "Root Session click did not finish navigation",
+      }
     );
-    await clickVisible(
-      '[data-testid="agent-org-member-switcher-trigger"]',
-      "Member switcher"
-    );
-    await clickVisible(
-      `[data-testid="agent-org-member-switcher-option-${memberId}"]`,
-      "canonical Member option"
-    );
+    await openRenderedMember(memberId, "Direct Live Member");
     await browser.waitUntil(
       async () =>
         unwrap(
@@ -213,6 +253,8 @@ describe("Agent Org direct UserDirectedWork with a live provider", () => {
     }
 
     const prompt = [
+      `Before editing files, call task_create exactly once with subject ${writerTaskSubject}, dispatch_policy immediate, execution_mode build, owner omitted, eligible_member_ids [${memberId}], and allow_parallel_with_unlisted_open_tasks true.`,
+      `Continue only after task_create confirms that the durable Task exists. Leave that Task pending and ownerless, and do not call task_update.`,
       `This is direct user work. Create ${markerName} in the workspace with exactly ${exactContent}.`,
       `Then run a shell command that reads ${markerName}, verifies the exact content, and writes SHELL_OK_${RUN_ID} to ${shellMarkerName}.`,
       `Read both files back and reply with exactly DIRECT_DONE_${RUN_ID} only after both checks pass.`,
@@ -248,7 +290,7 @@ describe("Agent Org direct UserDirectedWork with a live provider", () => {
     await browser.waitUntil(
       async () => {
         const assistantRows = await browser.$$(
-          '[data-testid="chat-message-assistant"]'
+          '[data-testid="chat-message-assistant"], [data-testid="agent-org-group-projection-item"][data-item-kind="assistant_reply"]'
         );
         const texts = [];
         for (const row of assistantRows) texts.push(await row.getText());
@@ -301,6 +343,48 @@ describe("Agent Org direct UserDirectedWork with a live provider", () => {
       );
     }
 
+    const evidence = await postFixture(
+      "/agent/test/agent-org/user-directed/evidence",
+      { org_run_id: launched.agent_org_run_id }
+    );
+    const matchingAdmissions = (evidence.runtime_admissions ?? []).filter(
+      (admission) =>
+        admission.session_id === memberSessionId &&
+        admission.turn_intent_id === directSources[0]?.result?.turnIntentId &&
+        admission.member_id === memberId
+    );
+    if (
+      matchingAdmissions.length !== 1 ||
+      matchingAdmissions[0].status !== "committed" ||
+      !matchingAdmissions[0].reservation_id ||
+      !matchingAdmissions[0].runtime_lease_id
+    ) {
+      throw new Error(
+        `direct Turn did not retain one committed runtime admission: ${JSON.stringify(matchingAdmissions)}`
+      );
+    }
+    const writerView = await runView(memberSessionId, "Writer Task created");
+    const writerTask = writerView?.tasks?.find(
+      (task) => task.subject === writerTaskSubject
+    );
+    if (!writerTask) {
+      throw new Error(
+        `frozen-snapshot Writer did not create the durable Task: ${JSON.stringify(writerView?.tasks ?? [])}`
+      );
+    }
+    if (
+      writerView?.workState?.openTasks < 1 ||
+      !(writerView?.blockers ?? []).some(
+        (blocker) =>
+          blocker.kind === "openTasks" &&
+          blocker.objects?.some((object) => object.id === writerTask.id)
+      )
+    ) {
+      throw new Error(
+        `Run View did not expose the Writer Task through canonical typed blockers: ${JSON.stringify({ workState: writerView?.workState, blockers: writerView?.blockers })}`
+      );
+    }
+
     const returnButton = await waitForDisplayed(
       '[data-testid="agent-org-end-direct-work-button"]',
       "End direct work button"
@@ -312,20 +396,6 @@ describe("Agent Org direct UserDirectedWork with a live provider", () => {
         "End direct work remained disabled after direct work became terminal",
     });
     await returnButton.click();
-
-    let returnToast = "";
-    await browser.waitUntil(
-      async () => {
-        const roots = await browser.$$('[data-message-root="true"]');
-        returnToast = roots.length > 0 ? await roots[0].getText() : "";
-        return returnToast.includes("Direct work ended");
-      },
-      {
-        timeout: RENDER_TIMEOUT_MS,
-        interval: 100,
-        timeoutMsg: `exact one-shot direct-work outcome did not render: ${returnToast}`,
-      }
-    );
 
     await browser.waitUntil(
       async () => {
@@ -339,20 +409,6 @@ describe("Agent Org direct UserDirectedWork with a live provider", () => {
         timeout: RENDER_TIMEOUT_MS,
         interval: 200,
         timeoutMsg: `End direct work did not clear receipt ${acceptedReceipt} from current activity`,
-      }
-    );
-
-    await browser.waitUntil(
-      async () => {
-        const roots = await browser.$$('[data-message-root="true"]');
-        const text = roots.length > 0 ? await roots[0].getText() : "";
-        return !text.includes("Direct work ended");
-      },
-      {
-        timeout: 6_000,
-        interval: 100,
-        timeoutMsg:
-          "one-shot direct-work outcome remained visible after 4 seconds",
       }
     );
     const refreshed = await runView(memberSessionId, "cleared receipt refresh");

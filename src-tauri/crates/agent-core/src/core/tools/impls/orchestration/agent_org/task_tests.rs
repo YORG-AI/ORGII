@@ -144,6 +144,20 @@ fn owner_call(turn_id: &str) -> CallContext {
     )
 }
 
+fn writer_owner_call(turn_id: &str) -> CallContext {
+    CallContext::for_turn(
+        format!("call-writer-owner-{}", next_call_sequence()),
+        ALICE_SESSION,
+        turn_id,
+        Vec::new(),
+    )
+    .with_authority(
+        crate::tools::call_context::ToolCallAuthority::PersistedAgentOrg(
+            crate::tools::call_context::AgentOrgTurnToolProfile::TaskExecutionWriter,
+        ),
+    )
+}
+
 fn next_call_sequence() -> u64 {
     static NEXT_CALL: AtomicU64 = AtomicU64::new(1);
     NEXT_CALL.fetch_add(1, Ordering::Relaxed)
@@ -706,7 +720,7 @@ async fn configured_writer_uses_one_schema_for_graph_and_owned_lifecycle_authori
                 "id": target_id,
                 "description": "Edited by the configured Writer"
             }),
-            &owner_call(writer_turn),
+            &writer_owner_call(writer_turn),
         )
         .await
         .expect("configured Writer can patch shared graph work");
@@ -721,7 +735,7 @@ async fn configured_writer_uses_one_schema_for_graph_and_owned_lifecycle_authori
     writer
         .execute_text(
             json!({"operation":"start","id":authority_id}),
-            &owner_call(writer_turn),
+            &writer_owner_call(writer_turn),
         )
         .await
         .expect("configured Writer keeps Owner authority for its exact execution Task");
@@ -1892,7 +1906,18 @@ async fn task_list_and_get_cover_five_states_without_loading_detail_in_pages() {
         "blocked"
     );
     assert!(history["run_summary"].get("completion_ready").is_none());
-    assert!(history["run_summary"].get("completion_blockers").is_none());
+    let completion_blockers = history["run_summary"]["completion_blockers"]
+        .as_array()
+        .expect("candidate exposes bounded typed blockers");
+    assert!(!completion_blockers.is_empty());
+    assert!(completion_blockers.iter().all(|blocker| {
+        blocker.get("kind").is_some()
+            && blocker.get("objects").is_some()
+            && blocker.get("hasMore").is_some()
+            && blocker.get("reasonCode").is_some()
+            && blocker.get("recoveryState").is_some()
+            && blocker.get("requiresUserAction").is_some()
+    }));
     assert!(history["run_summary"].get("quiescence_decision").is_some());
 
     let detail: Value = serde_json::from_str(

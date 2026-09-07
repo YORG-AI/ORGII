@@ -200,6 +200,7 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
     // upgrades both fresh and existing databases without rewriting or
     // invalidating the established runtime schema.
     super::agent_org_finality::create_schema(&tx)?;
+    agent_member_interventions::create_runtime_admission_schema(&tx)?;
     agent_inbox::repair_dangling_materializations(&tx)?;
     let unknown_objects = unknown_agent_org_objects(&tx)?;
     tx.commit()?;

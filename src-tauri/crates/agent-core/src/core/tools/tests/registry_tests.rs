@@ -1008,6 +1008,12 @@ fn all_registered_tool_schemas_are_llm_compatible() {
                 crate::tools::impls::coding::worktree::WorktreeParams,
             >(),
         ),
+        (
+            "org_inbox_repair",
+            crate::tools::traits::params_schema::<
+                crate::tools::impls::orchestration::agent_org::tasks::OrgInboxRepairParams,
+            >(),
+        ),
     ];
     for (name, schema) in schemas {
         assert_llm_compatible_schema(&schema)

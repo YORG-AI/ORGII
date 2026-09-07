@@ -525,6 +525,7 @@ pub(crate) async fn send_message_impl(
     let session_for_closure = Arc::clone(&session_handle);
     let load_workspace_resources = runtime.resolved.load_workspace_resources;
 
+    let mut direct_runtime_admission = None;
     let direct_user_directed_work: Option<EnqueueUserDirectedWorkResult> = if let Some(
         source_event_id,
     ) =
@@ -546,6 +547,9 @@ pub(crate) async fn send_message_impl(
             })
             .await
             .map_err(|error| format!("Agent Org Member lookup worker failed: {error}"))??;
+        let runtime_admission = session_handle
+            .reserve_runtime_admission(&runtime, &effective_turn_intent_id)
+            .await?;
         let enqueue = EnqueueUserDirectedWorkParams {
             org_run_id: run_id,
             session_id: session_id.clone(),
@@ -556,15 +560,35 @@ pub(crate) async fn send_message_impl(
             dispatch_content: content.clone(),
             source_display_content: direct_source_display_content.clone(),
             source_images: images.clone().filter(|images| !images.is_empty()),
+            runtime_reservation_id: runtime_admission.reservation_id.clone(),
+            runtime_lease_id: runtime_admission.runtime_lease_id.clone(),
             queue_cap: DEFAULT_USER_DIRECTED_QUEUE_CAP,
         };
-        Some(
-            tokio::task::spawn_blocking(move || {
-                AgentMemberInterventionStore::enqueue_user_directed_work(enqueue)
-            })
-            .await
-            .map_err(|error| format!("UserDirectedWork admission worker failed: {error}"))??,
-        )
+        let admitted = match tokio::task::spawn_blocking(move || {
+            AgentMemberInterventionStore::enqueue_user_directed_work(enqueue)
+        })
+        .await
+        {
+            Ok(admitted) => admitted,
+            Err(error) => {
+                session_handle
+                    .release_runtime_admission(&runtime_admission)
+                    .await;
+                return Err(format!("UserDirectedWork admission worker failed: {error}"));
+            }
+        };
+        match admitted {
+            Ok(admitted) => {
+                direct_runtime_admission = Some(runtime_admission);
+                Some(admitted)
+            }
+            Err(error) => {
+                session_handle
+                    .release_runtime_admission(&runtime_admission)
+                    .await;
+                return Err(error);
+            }
+        }
     } else {
         None
     };
@@ -579,6 +603,7 @@ pub(crate) async fn send_message_impl(
             intervention_receipt_id = %admission.intervention.intervention_receipt_id,
             duplicate = admission.duplicate,
             turn_status = %admission.turn_status,
+            runtime_admission_status = %admission.runtime_admission_status,
             "accepted durable direct Member Turn"
         );
         if admission.should_request_yield {
@@ -655,11 +680,15 @@ pub(crate) async fn send_message_impl(
             &admission.turn_status,
             allow_admitted_direct_recovery,
         ) {
+            if let Some(reservation) = direct_runtime_admission.as_ref() {
+                session_handle.release_runtime_admission(reservation).await;
+            }
             return Ok(AgentResponse {
                 content: serde_json::json!({
                     "queued": matches!(admission.turn_status.as_str(), "queued" | "running"),
                     "duplicate": true,
                     "turnStatus": admission.turn_status,
+                    "runtimeAdmissionState": admission.runtime_admission_status,
                     "interventionReceiptId": admission.intervention.intervention_receipt_id,
                 })
                 .to_string(),
@@ -843,6 +872,7 @@ pub(crate) async fn send_message_impl(
     let workspace_root_for_closure = effective_workspace_root.clone();
     let turn_intent_id_for_closure = effective_turn_intent_id.clone();
     let direct_user_directed_work_for_closure = direct_user_directed_work.clone();
+    let direct_runtime_admission_for_closure = direct_runtime_admission.clone();
     let is_user_directed_work_for_closure = is_user_directed_work;
     let intent_org_run_id_for_closure = effective_intent_org_run_id.clone();
     // Resolve durable mode-control rows from exactly the bounded inbox batch
@@ -898,6 +928,7 @@ pub(crate) async fn send_message_impl(
         let session = session_for_closure;
         let turn_intent_id = turn_intent_id_for_closure;
         let direct_user_directed_work = direct_user_directed_work_for_closure;
+        let direct_runtime_admission = direct_runtime_admission_for_closure;
         let is_user_directed_work = is_user_directed_work_for_closure;
         let is_exact_group_turn = is_exact_group_turn;
         let org_wake_run_id = org_wake_run_id;
@@ -906,6 +937,17 @@ pub(crate) async fn send_message_impl(
 
         Box::pin(async move {
             if is_exact_group_turn && session.scheduler.turn_is_invalidated(&turn_intent_id) {
+                if let Some(reservation) = direct_runtime_admission.as_ref() {
+                    session.release_runtime_admission(reservation).await;
+                }
+                if is_user_directed_work {
+                    let _ = agent_org_user_directed_work::mark_turn_terminal(
+                        &sid,
+                        &turn_intent_id,
+                        UserDirectedDeliveryStatus::Cancelled,
+                        Some("cancelled_before_runtime_commit"),
+                    );
+                }
                 return Err(format!(
                     "{USER_DIRECTED_CANCELLED_ERROR_PREFIX} exact Turn was stopped before start"
                 ));
@@ -920,6 +962,28 @@ pub(crate) async fn send_message_impl(
             // scheduler generation check, so queued work invalidated by Stop
             // or hierarchy deletion is discarded before this callback runs.
             cancel_flag.store(false, std::sync::atomic::Ordering::SeqCst);
+
+            // Runtime reservation is the first half of direct admission. It
+            // must still name the exact installed Provider before the durable
+            // lifecycle may cross from prepared to committed/running.
+            if let Some(reservation) = direct_runtime_admission.as_ref() {
+                if !session
+                    .runtime_admission_is_current(reservation, &runtime)
+                    .await
+                {
+                    session.release_runtime_admission(reservation).await;
+                    let _ = agent_org_user_directed_work::mark_turn_terminal(
+                        &sid,
+                        &turn_intent_id,
+                        UserDirectedDeliveryStatus::Failed,
+                        Some("runtime_reservation_lost_before_commit"),
+                    );
+                    return Err(
+                        "agent_org_runtime_admission_stale: prepared runtime reservation was lost"
+                            .to_string(),
+                    );
+                }
+            }
 
             // Queued and coalesced messages are not running sessions. Promote
             // the DB state only when the scheduler actually begins execution.
@@ -953,13 +1017,44 @@ pub(crate) async fn send_message_impl(
             {
                 Ok(Ok(true)) => {}
                 Ok(Ok(false)) if is_user_directed_work_turn => {
+                    if let Some(reservation) = direct_runtime_admission.as_ref() {
+                        session.release_runtime_admission(reservation).await;
+                    }
+                    let _ = agent_org_user_directed_work::mark_turn_terminal(
+                        &sid,
+                        &turn_intent_id,
+                        UserDirectedDeliveryStatus::Failed,
+                        Some("runtime_commit_rejected"),
+                    );
                     return Err(format!(
                         "{USER_DIRECTED_WAITING_ERROR_PREFIX} intervention handoff is not released"
                     ));
                 }
                 Ok(Ok(false)) => return Ok(String::new()),
-                Ok(Err(err)) => return Err(format!("failed to persist running status: {err}")),
-                Err(err) => return Err(format!("running-status task failed: {err}")),
+                Ok(Err(err)) => {
+                    if let Some(reservation) = direct_runtime_admission.as_ref() {
+                        session.release_runtime_admission(reservation).await;
+                    }
+                    let _ = agent_org_user_directed_work::mark_turn_terminal(
+                        &sid,
+                        &turn_intent_id,
+                        UserDirectedDeliveryStatus::Failed,
+                        Some("runtime_commit_failed"),
+                    );
+                    return Err(format!("failed to persist running status: {err}"));
+                }
+                Err(err) => {
+                    if let Some(reservation) = direct_runtime_admission.as_ref() {
+                        session.release_runtime_admission(reservation).await;
+                    }
+                    let _ = agent_org_user_directed_work::mark_turn_terminal(
+                        &sid,
+                        &turn_intent_id,
+                        UserDirectedDeliveryStatus::Failed,
+                        Some("runtime_commit_worker_failed"),
+                    );
+                    return Err(format!("running-status task failed: {err}"));
+                }
             }
             if is_exact_group_turn && session.scheduler.turn_is_invalidated(&turn_intent_id) {
                 if is_user_directed_work {
@@ -969,12 +1064,22 @@ pub(crate) async fn send_message_impl(
                         UserDirectedDeliveryStatus::Cancelled,
                         Some("user_stop"),
                     );
+                    if direct_runtime_admission.is_some() {
+                        let _ = AgentMemberInterventionStore::reject_committed_runtime_admission(
+                            &sid,
+                            &turn_intent_id,
+                            "cancelled_before_provider_start",
+                        );
+                    }
                 } else {
                     crate::foundation::session_bridge::update_turn_intent_status(
                         &sid,
                         &turn_intent_id,
                         crate::foundation::session_bridge::TurnIntentBridgeStatus::Cancelled,
                     );
+                }
+                if let Some(reservation) = direct_runtime_admission.as_ref() {
+                    session.release_runtime_admission(reservation).await;
                 }
                 return Err(format!(
                     "{USER_DIRECTED_CANCELLED_ERROR_PREFIX} exact Group Turn was stopped before Provider execution"
@@ -984,14 +1089,28 @@ pub(crate) async fn send_message_impl(
                 crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
                     &accepted.context.org_run_id,
                 );
-                session
+                if let Err(error) = session
                     .attach_warm_runtime_if_empty(Arc::clone(&runtime))
-                    .await?;
+                    .await
+                {
+                    if let Some(reservation) = direct_runtime_admission.as_ref() {
+                        session.release_runtime_admission(reservation).await;
+                    }
+                    let _ = AgentMemberInterventionStore::reject_committed_runtime_admission(
+                        &sid,
+                        &turn_intent_id,
+                        "runtime_attach_failed",
+                    );
+                    return Err(error);
+                }
             }
 
             let turn_id = session
                 .begin_turn_with_intent(content.clone(), Some(turn_intent_id.clone()))
                 .await;
+            if let Some(reservation) = direct_runtime_admission.as_ref() {
+                session.release_runtime_admission(reservation).await;
+            }
             if is_exact_group_turn && session.scheduler.turn_is_invalidated(&turn_intent_id) {
                 session
                     .cancel_active_turn(crate::state::control_flow::CancelReason::UserDirectedStop)
@@ -1322,6 +1441,9 @@ pub(crate) async fn send_message_impl(
     let enqueue_result = match session_handle.scheduler.enqueue(msg).await {
         Ok(result) => result,
         Err(error) => {
+            if let Some(reservation) = direct_runtime_admission.as_ref() {
+                session_handle.release_runtime_admission(reservation).await;
+            }
             if is_user_directed_work {
                 let failed_session_id = session_id.clone();
                 let failed_turn_intent_id = effective_turn_intent_id.clone();
@@ -1369,6 +1491,9 @@ pub(crate) async fn send_message_impl(
             "queuePosition": enqueue_result.queue_position,
             "duplicate": enqueue_result.duplicate,
             "interventionReceiptId": intervention_receipt_id,
+            "runtimeAdmissionState": direct_user_directed_work
+                .as_ref()
+                .map(|accepted| accepted.runtime_admission_status.as_str()),
         })
         .to_string(),
         session_id,

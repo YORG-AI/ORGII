@@ -7,9 +7,103 @@
 
 use rusqlite::{params, Connection, OptionalExtension};
 
+use crate::coordination::agent_org_turn_contexts::{AgentOrgTurnContext, AgentOrgTurnKind};
+
 use super::AgentInboxStore;
 
 const BINDING_KIND: &str = "coordinator_task_message";
+
+/// Durable authority proven before a Coordinator formal-work Inbox row is
+/// inserted. Persistence keeps these values together so the post-insert bind
+/// cannot silently switch back to unchecked tool parameters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CoordinatorTaskMessageAuthority {
+    pub(crate) task_id: String,
+    pub(crate) recipient_member_id: String,
+    pub(crate) source_turn_intent_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum CoordinatorTaskMessagePreflight {
+    Authorized(CoordinatorTaskMessageAuthority),
+    RequiresRootCoordinator,
+    Rejected(&'static str),
+}
+
+/// Validate every piece of authority needed by the later Inbox/task binding
+/// before any business row is written. The bind repeats these predicates as a
+/// final compare-and-set guard inside the same writer transaction.
+pub(crate) fn preflight_coordinator_task_message_in_tx(
+    conn: &Connection,
+    org_run_id: &str,
+    task_id: &str,
+    recipient_member_id: &str,
+    context: &AgentOrgTurnContext,
+) -> Result<CoordinatorTaskMessagePreflight, String> {
+    if context.turn_kind != AgentOrgTurnKind::Coordinator
+        || context.participant_id != "coordinator"
+        || !matches!(context.source_kind.as_str(), "root_turn" | "group_root")
+        || context.activation_generation.is_none()
+    {
+        return Ok(CoordinatorTaskMessagePreflight::RequiresRootCoordinator);
+    }
+
+    let authorized: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                 SELECT 1
+                 FROM agent_org_runtime_tasks task
+                 JOIN agent_org_runtime_runs run
+                   ON run.id=task.org_run_id
+                  AND run.status='running'
+                  AND run.activation_generation=task.activation_generation
+                 JOIN agent_org_runtime_turn_contexts source_context
+                   ON source_context.org_run_id=task.org_run_id
+                  AND source_context.turn_intent_id=?4
+                  AND source_context.participant_id='coordinator'
+                  AND source_context.turn_kind='coordinator'
+                  AND source_context.source_kind IN ('root_turn','group_root')
+                  AND source_context.activation_generation=run.activation_generation
+                 WHERE task.org_run_id=?1
+                   AND task.id=?2
+                   AND task.owner=?3
+                   AND task.status IN ('pending','in_progress')
+                   AND NOT EXISTS (
+                       SELECT 1
+                       FROM json_each(
+                           CASE WHEN json_valid(task.blocked_by_json)
+                                THEN task.blocked_by_json ELSE '[]' END
+                       ) edge
+                       LEFT JOIN agent_org_runtime_tasks dependency
+                         ON dependency.org_run_id=task.org_run_id
+                        AND dependency.id=CAST(edge.value AS TEXT)
+                       WHERE edge.type<>'text'
+                          OR dependency.id IS NULL
+                          OR dependency.status<>'completed'
+                   )
+             )",
+            params![
+                org_run_id,
+                task_id,
+                recipient_member_id,
+                &context.turn_intent_id
+            ],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    if !authorized {
+        return Ok(CoordinatorTaskMessagePreflight::Rejected(
+            "coordinator_task_dispatch_authority_stale",
+        ));
+    }
+    Ok(CoordinatorTaskMessagePreflight::Authorized(
+        CoordinatorTaskMessageAuthority {
+            task_id: task_id.to_string(),
+            recipient_member_id: recipient_member_id.to_string(),
+            source_turn_intent_id: context.turn_intent_id.clone(),
+        },
+    ))
+}
 
 pub(crate) fn create_task_message_binding_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(

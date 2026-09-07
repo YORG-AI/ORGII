@@ -22,6 +22,7 @@ use crate::coordination::agent_member_interventions::{
 use crate::coordination::agent_org_plan_approvals::{
     AgentOrgPlanDecisionStatus, AgentOrgPlanRevisionStore, AgentOrgPlanRevisionSummary,
 };
+use crate::coordination::agent_org_run_blockers::{AgentOrgRunBlocker, AgentOrgRunWorkState};
 use crate::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunStatus, AgentOrgRunStore,
     WorkerSessionRuntime, COORDINATOR_MEMBER_ID,
@@ -156,6 +157,12 @@ pub struct AgentOrgRunView {
     pub execution_handoffs:
         Vec<crate::coordination::agent_org_task_handoffs::TaskExecutionHandoffReceipt>,
     pub task_overview: AgentOrgRunTaskOverview,
+    /// Bounded, batched current-state overlay for immutable task event cards.
+    pub task_state_window: AgentOrgTaskStateWindow,
+    /// Typed operational dimensions derived from the same quiescence facts
+    /// used by completion certification.
+    pub work_state: AgentOrgRunWorkState,
+    pub blockers: Vec<AgentOrgRunBlocker>,
     pub inbox: Vec<AgentOrgInboxPreviewRow>,
     /// All unresolved unread rows retained for durable Inbox history.
     pub unread_inbox_count: usize,
@@ -209,6 +216,25 @@ pub struct AgentOrgRunTaskOverview {
     pub truncated: bool,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentOrgTaskStateProjection {
+    pub task_id: String,
+    pub status: crate::coordination::agent_org_tasks::TaskStatus,
+    pub owner_member_id: Option<String>,
+    pub activation_generation: i64,
+    pub replaces_task_id: Option<String>,
+    pub replacement_task_id: Option<String>,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentOrgTaskStateWindow {
+    pub tasks: Vec<AgentOrgTaskStateProjection>,
+    pub truncated: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentOrgRunPhase {
@@ -231,6 +257,7 @@ pub enum AgentOrgRunPhase {
 /// the explicitly paginated inbox/history surfaces.
 const RUN_VIEW_INBOX_LIMIT: usize = 200;
 const RUN_VIEW_TASK_LIMIT: usize = 50;
+const RUN_VIEW_TASK_STATE_LIMIT: usize = 200;
 
 #[tauri::command]
 pub async fn agent_org_session_run_view(
@@ -311,6 +338,13 @@ pub(super) fn build_agent_org_run_view(
         visible: task_page.tasks.len(),
         truncated: task_page.has_more,
     };
+    let task_state_window = load_task_state_window(&tx, &context.run_id)?;
+    let work_state = crate::coordination::agent_org_run_blockers::work_state(&quiescence);
+    let blockers = crate::coordination::agent_org_run_blockers::build_with_connection(
+        &tx,
+        &context.run_id,
+        &quiescence,
+    )?;
     let member_task_counts = task_counts_by_owner_with_connection(&tx, &context.run_id)?;
     let inbox_records = AgentInboxStore::list_recent_previews_by_run_with_connection(
         &tx,
@@ -532,10 +566,84 @@ pub(super) fn build_agent_org_run_view(
         tasks,
         execution_handoffs: handoffs,
         task_overview,
+        task_state_window,
+        work_state,
+        blockers,
         inbox,
         unread_inbox_count: quiescence.facts.unread_inbox_count,
         blocking_unread_inbox_count: quiescence.facts.blocking_unread_inbox_count,
         plan_revisions,
+    })
+}
+
+pub(super) fn load_task_state_window(
+    conn: &rusqlite::Connection,
+    org_run_id: &str,
+) -> Result<AgentOrgTaskStateWindow, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT task.id,task.status,task.owner,task.activation_generation,
+                    task.replaces_task_id,
+                    (SELECT replacement.id
+                     FROM agent_org_runtime_tasks replacement
+                     WHERE replacement.org_run_id=task.org_run_id
+                       AND replacement.replaces_task_id=task.id
+                     ORDER BY replacement.created_at,replacement.id LIMIT 1),
+                    task.updated_at
+             FROM agent_org_runtime_tasks task
+             WHERE task.org_run_id=?1
+             ORDER BY task.updated_at DESC,task.id
+             LIMIT ?2",
+        )
+        .map_err(|error| error.to_string())?;
+    let mut tasks = statement
+        .query_map(
+            params![org_run_id, (RUN_VIEW_TASK_STATE_LIMIT + 1) as i64],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, String>(6)?,
+                ))
+            },
+        )
+        .map_err(|error| error.to_string())?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|error| error.to_string())?;
+    let truncated = tasks.len() > RUN_VIEW_TASK_STATE_LIMIT;
+    tasks.truncate(RUN_VIEW_TASK_STATE_LIMIT);
+    Ok(AgentOrgTaskStateWindow {
+        tasks: tasks
+            .into_iter()
+            .map(
+                |(
+                    task_id,
+                    status,
+                    owner_member_id,
+                    activation_generation,
+                    replaces_task_id,
+                    replacement_task_id,
+                    updated_at,
+                )| {
+                    Ok(AgentOrgTaskStateProjection {
+                        task_id,
+                        status: crate::coordination::agent_org_tasks::TaskStatus::from_wire(
+                            &status,
+                        )?,
+                        owner_member_id,
+                        activation_generation,
+                        replaces_task_id,
+                        replacement_task_id,
+                        updated_at,
+                    })
+                },
+            )
+            .collect::<Result<Vec<_>, String>>()?,
+        truncated,
     })
 }
 

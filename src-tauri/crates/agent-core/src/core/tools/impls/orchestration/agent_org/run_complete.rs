@@ -131,10 +131,64 @@ impl Tool for OrgRunCompleteTool {
                                     .map(Ok)
                                     .map_err(crate::coordination::agent_org_tool_receipts::AgentOrgToolReceiptAbort::storage)
                             }
-                            Err(error) => match classify_task_receipt_error(error) {
-                                Ok(error) => Ok(Err(error)),
-                                Err(abort) => Err(abort),
-                            },
+                            Err(error) => {
+                                let quiescence = crate::coordination::agent_org_runs::AgentOrgRunStore::quiescence_assessment_with_connection(
+                                    tx,
+                                    &run_id,
+                                );
+                                let blockers = quiescence.as_ref().map_err(|failure| failure.clone()).and_then(
+                                    |quiescence| {
+                                        if candidate_outcome == RunCompletionOutcome::Delivered {
+                                            let candidate = crate::coordination::agent_org_run_completion::assess_delivered_candidate_from_quiescence_with_connection(
+                                                tx,
+                                                &run_id,
+                                                &coordinator_session_id,
+                                                &coordinator_turn_intent_id,
+                                                &projected_inbox_ids,
+                                                quiescence,
+                                            );
+                                            crate::coordination::agent_org_run_blockers::build_from_candidate_with_connection(
+                                                tx,
+                                                &run_id,
+                                                &candidate,
+                                            )
+                                        } else {
+                                            crate::coordination::agent_org_run_blockers::build_with_connection(
+                                                tx,
+                                                &run_id,
+                                                quiescence,
+                                            )
+                                        }
+                                    },
+                                );
+                                match blockers {
+                                    Ok(mut blockers) => {
+                                        crate::coordination::agent_org_run_blockers::append_completion_failure(
+                                            &mut blockers,
+                                            &error,
+                                        );
+                                        tracing::warn!(
+                                            org_run_id = %run_id,
+                                            reason_code = error.split(':').next().unwrap_or("run_completion_blocked"),
+                                            blocker_kinds = ?blockers.iter().map(|blocker| blocker.kind).collect::<Vec<_>>(),
+                                            "Agent Org completion blocked by canonical typed details"
+                                        );
+                                        serde_json::to_string(&json!({
+                                        "outcome": "blocked",
+                                        "org_run_id": run_id,
+                                        "reason_code": error.split(':').next().unwrap_or("run_completion_blocked"),
+                                        "blockers": blockers,
+                                        "guidance": "Resolve the typed blockers, then submit a new completion candidate."
+                                    }))
+                                    .map(Ok)
+                                    .map_err(crate::coordination::agent_org_tool_receipts::AgentOrgToolReceiptAbort::storage)
+                                    },
+                                    Err(_) => match classify_task_receipt_error(error) {
+                                        Ok(error) => Ok(Err(error)),
+                                        Err(abort) => Err(abort),
+                                    },
+                                }
+                            }
                         }
                     },
                 )?;

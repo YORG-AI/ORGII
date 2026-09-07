@@ -776,9 +776,12 @@ fn delivery_resolution_rejects_a_healthy_canonical_recipient() {
         replacement_task_id: None,
     })
     .expect_err("healthy recipient cannot be discarded by the model");
-    assert!(error
-        .to_string()
-        .contains("recoverable canonical recipient"));
+    assert!(
+        error
+            .to_string()
+            .contains("not repairable: recoverable_canonical_delivery"),
+        "{error}"
+    );
     assert!(
         AgentInboxStore::has_unread_for_member("coordinator", run_id)
             .expect("healthy delivery remains pending")
@@ -903,8 +906,8 @@ fn superseded_delivery_can_follow_a_real_replacement_chain_but_not_cycle() {
     let row_a = AgentInboxStore::insert(InsertInboxParams {
         recipient_agent_id: "agent-a".into(),
         recipient_member_id: Some("member-a".into()),
-        sender_agent_id: "coordinator-agent".into(),
-        sender_member_id: Some(COORDINATOR_MEMBER_ID.into()),
+        sender_agent_id: "peer-agent".into(),
+        sender_member_id: Some("peer-member".into()),
         org_run_id: Some(run_id.into()),
         message: AgentMessage::Plain {
             summary: "A".into(),
@@ -915,8 +918,8 @@ fn superseded_delivery_can_follow_a_real_replacement_chain_but_not_cycle() {
     let row_b = AgentInboxStore::insert(InsertInboxParams {
         recipient_agent_id: "agent-b".into(),
         recipient_member_id: Some("member-b".into()),
-        sender_agent_id: "coordinator-agent".into(),
-        sender_member_id: Some(COORDINATOR_MEMBER_ID.into()),
+        sender_agent_id: "peer-agent".into(),
+        sender_member_id: Some("peer-member".into()),
         org_run_id: Some(run_id.into()),
         message: AgentMessage::Plain {
             summary: "B".into(),
@@ -927,8 +930,8 @@ fn superseded_delivery_can_follow_a_real_replacement_chain_but_not_cycle() {
     let row_c = AgentInboxStore::insert(InsertInboxParams {
         recipient_agent_id: "agent-c".into(),
         recipient_member_id: Some("member-c".into()),
-        sender_agent_id: "coordinator-agent".into(),
-        sender_member_id: Some(COORDINATOR_MEMBER_ID.into()),
+        sender_agent_id: "peer-agent".into(),
+        sender_member_id: Some("peer-member".into()),
         org_run_id: Some(run_id.into()),
         message: AgentMessage::Plain {
             summary: "C".into(),

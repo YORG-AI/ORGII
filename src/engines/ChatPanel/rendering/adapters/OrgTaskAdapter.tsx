@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 
+import { useAgentOrgTaskProjection } from "@src/engines/ChatPanel/ChatHistory/AgentOrgTaskProjectionContext";
 import { useAgentTurnContext } from "@src/engines/ChatPanel/ChatHistory/AgentTurnContext";
 import type { RustOrgTaskItem } from "@src/engines/SessionCore/core/types";
 import { resolveOrgTaskOperationOutcome } from "@src/engines/SessionCore/rendering/orgTaskOutcome";
@@ -96,6 +97,16 @@ export const OrgTaskAdapter: React.FC<UniversalEventProps> = (props) => {
         : null,
     [props.result, props.rustExtracted, props.status]
   );
+  const projectedTaskId =
+    props.rustExtracted?.kind === "orgTask"
+      ? ((props.rustExtracted.task ?? props.rustExtracted.tasks?.[0])?.id ?? "")
+      : "";
+  const currentTask = useAgentOrgTaskProjection(
+    props.rustExtracted?.kind === "orgTask"
+      ? props.rustExtracted.orgRunId
+      : undefined,
+    projectedTaskId
+  );
 
   if (props.rustExtracted?.kind !== "orgTask") {
     return (
@@ -187,7 +198,6 @@ export const OrgTaskAdapter: React.FC<UniversalEventProps> = (props) => {
       : extracted.action === "delete"
         ? "delete"
         : "update";
-
   return (
     <div
       data-tool-call-event-id={props.eventId}
@@ -199,6 +209,22 @@ export const OrgTaskAdapter: React.FC<UniversalEventProps> = (props) => {
         description={task.description}
         ownerName={resolveOrgTaskOwnerDisplay(task)}
         status={blockAction === "delete" ? undefined : task.status}
+        currentStatus={
+          blockAction === "delete" ? undefined : currentTask?.status
+        }
+        currentUpdatedAt={currentTask?.updatedAt}
+        currentOwnerName={
+          currentTask
+            ? currentTask.ownerMemberId
+              ? prettifyMemberName(currentTask.ownerMemberId)
+              : null
+            : undefined
+        }
+        currentGeneration={currentTask?.activationGeneration}
+        currentReplacementTaskId={currentTask?.replacementTaskId ?? undefined}
+        currentRecordUnavailable={
+          blockAction !== "delete" && currentTask === null
+        }
         priority={task.priority}
         blocks={task.blocks ?? []}
         blockedBy={task.blockedBy ?? []}

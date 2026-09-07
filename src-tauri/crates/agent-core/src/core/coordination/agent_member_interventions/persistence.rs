@@ -81,6 +81,45 @@ pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
             ON agent_org_runtime_member_intervention_turns(
                 intervention_receipt_id, status, member_dispatch_sequence
             );",
+    )?;
+    create_runtime_admission_schema(conn)
+}
+
+/// Additive runtime-admission companion schema. The original
+/// `agent_org_runtime_*` namespace is frozen; existing databases receive this
+/// table on every startup and older builds safely preserve it.
+pub(crate) fn create_runtime_admission_schema(conn: &Connection) -> SqliteResult<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS agent_org_member_turn_admissions (
+            session_id TEXT NOT NULL,
+            turn_intent_id TEXT NOT NULL,
+            org_run_id TEXT NOT NULL,
+            member_id TEXT NOT NULL CHECK(length(trim(member_id)) > 0),
+            reservation_id TEXT NOT NULL CHECK(length(trim(reservation_id)) > 0),
+            runtime_lease_id TEXT NOT NULL CHECK(length(trim(runtime_lease_id)) > 0),
+            status TEXT NOT NULL CHECK(status IN (
+                'prepared','committed','rejected','unknown'
+            )),
+            reason_code TEXT,
+            prepared_at TEXT NOT NULL,
+            committed_at TEXT,
+            terminal_at TEXT,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY(session_id, turn_intent_id),
+            UNIQUE(reservation_id),
+            FOREIGN KEY(session_id, turn_intent_id)
+                REFERENCES session_turn_intents(session_id, turn_intent_id)
+                ON DELETE CASCADE,
+            FOREIGN KEY(org_run_id)
+                REFERENCES agent_org_runtime_runs(id) ON DELETE CASCADE,
+            CHECK(
+                (status='prepared' AND committed_at IS NULL AND terminal_at IS NULL)
+                OR (status='committed' AND committed_at IS NOT NULL AND terminal_at IS NULL)
+                OR (status IN ('rejected','unknown') AND terminal_at IS NOT NULL)
+            )
+        );
+        CREATE INDEX IF NOT EXISTS idx_agent_org_member_turn_admission_recovery
+            ON agent_org_member_turn_admissions(status, updated_at);",
     )
 }
 

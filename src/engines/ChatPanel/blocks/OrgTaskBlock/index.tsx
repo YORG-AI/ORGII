@@ -16,6 +16,7 @@ import type { ToolUsageMetadata } from "@src/engines/SessionCore/core/types";
 import type { ResolvedOrgTaskOperationOutcome } from "@src/engines/SessionCore/rendering/orgTaskOutcome";
 import { PriorityIndicator } from "@src/features/KanbanBoard/utils/priority";
 import {
+  CancelCircleIcon,
   CheckmarkCircle01Icon,
   CircleDotIcon,
   HugeiconsIcon,
@@ -51,6 +52,13 @@ interface OrgTaskBlockProps {
   description?: string;
   ownerName?: string;
   status?: string;
+  /** Live bounded Run View overlay; the event's original `status` is retained. */
+  currentStatus?: string;
+  currentUpdatedAt?: string;
+  currentOwnerName?: string | null;
+  currentGeneration?: number;
+  currentReplacementTaskId?: string;
+  currentRecordUnavailable?: boolean;
   priority?: string;
   blocks?: string[];
   blockedBy?: string[];
@@ -149,6 +157,22 @@ function getStatusIcon(status?: string): React.ReactNode {
       />
     );
   }
+  if (status === "failed" || status === "cancelled") {
+    return (
+      <HugeiconsIcon
+        icon={CancelCircleIcon}
+        data-icon="x-circle"
+        size={13}
+        strokeWidth={2}
+        className={
+          status === "failed"
+            ? "text-error-6 shrink-0"
+            : "shrink-0 text-warning-6"
+        }
+        data-testid="org-task-card-status-icon"
+      />
+    );
+  }
   return null;
 }
 
@@ -161,6 +185,12 @@ function CompactTaskCard({
   description,
   ownerName,
   status,
+  currentStatus,
+  currentUpdatedAt,
+  currentOwnerName,
+  currentGeneration,
+  currentReplacementTaskId,
+  currentRecordUnavailable,
   priority,
   blocks = [],
   blockedBy = [],
@@ -177,6 +207,12 @@ function CompactTaskCard({
   description?: string;
   ownerName?: string;
   status?: string;
+  currentStatus?: string;
+  currentUpdatedAt?: string;
+  currentOwnerName?: string | null;
+  currentGeneration?: number;
+  currentReplacementTaskId?: string;
+  currentRecordUnavailable?: boolean;
   priority?: string;
   blocks?: string[];
   blockedBy?: string[];
@@ -203,6 +239,24 @@ function CompactTaskCard({
     taskSnapshotIsAuthoritative && status
       ? t(`orgTask.status.${status}`, { defaultValue: status })
       : null;
+  const hasCurrentStatusOverlay =
+    operationAccepted && Boolean(currentStatus) && currentStatus !== status;
+  const currentStatusLabel = hasCurrentStatusOverlay
+    ? t(`orgTask.status.${currentStatus}`, { defaultValue: currentStatus })
+    : null;
+  const hasCurrentOwnerOverlay =
+    operationAccepted &&
+    currentStatus != null &&
+    currentOwnerName !== (ownerName ?? null);
+  const currentOwnerLabel = hasCurrentOwnerOverlay
+    ? (currentOwnerName ??
+      t("orgTask.unassignedOwner", { defaultValue: "Unassigned" }))
+    : null;
+  const currentRecordUnavailableLabel = currentRecordUnavailable
+    ? t("orgTask.currentRecordUnavailable", {
+        defaultValue: "Current state unavailable",
+      })
+    : null;
   const assignedLabel =
     operationAccepted && taskAssignedDispatched
       ? t("orgTask.assignedBadge", { defaultValue: "Assigned" })
@@ -225,7 +279,13 @@ function CompactTaskCard({
   const showAssignedRow =
     operationAccepted && Boolean(ownerName) && !hideAssignedRow;
   const hasMetaRows = Boolean(
-    showAssignedRow || formattedTimestamp || statusRowLabel
+    showAssignedRow ||
+    formattedTimestamp ||
+    statusRowLabel ||
+    currentStatusLabel ||
+    currentOwnerLabel ||
+    currentRecordUnavailableLabel ||
+    currentReplacementTaskId
   );
 
   return (
@@ -235,11 +295,21 @@ function CompactTaskCard({
       data-operation-outcome={
         completionDeferred ? "deferred" : operationOutcome
       }
+      data-event-status={status}
+      data-current-status={currentStatus ?? status}
+      data-current-owner={
+        currentStatus != null ? (currentOwnerName ?? "unassigned") : undefined
+      }
+      data-current-generation={currentGeneration}
+      data-current-replacement-task-id={currentReplacementTaskId}
+      data-current-record-unavailable={currentRecordUnavailable || undefined}
     >
       {/* Title row — leading status icon + title + badges (owner-changed / deps); assigned + status merged into meta rows below */}
       <div className="kanban-task-card__header mb-0">
         <div className="kanban-task-card__title flex min-w-0 items-center gap-1.5 text-[13px]">
-          {taskSnapshotIsAuthoritative ? getStatusIcon(status) : null}
+          {taskSnapshotIsAuthoritative
+            ? getStatusIcon(currentStatus ?? status)
+            : null}
           <span className="min-w-0 truncate">{title}</span>
         </div>
         {ownerChanged && <OrgTaskOwnerChangedBadge />}
@@ -306,6 +376,70 @@ function CompactTaskCard({
               </span>
             </div>
           )}
+          {currentStatusLabel && (
+            <div
+              className="flex min-w-0 items-center gap-2"
+              data-testid="org-task-block-current-status"
+            >
+              <span className="shrink-0 text-text-3">
+                {t("orgTask.currentStatusLabel", {
+                  defaultValue: "Current status",
+                })}
+              </span>
+              <span
+                className="min-w-0 truncate text-text-1"
+                title={currentUpdatedAt}
+                data-testid="org-task-card-current-status"
+              >
+                {currentStatusLabel}
+              </span>
+            </div>
+          )}
+          {currentOwnerLabel && (
+            <div
+              className="flex min-w-0 items-center gap-2"
+              data-testid="org-task-block-current-owner"
+            >
+              <span className="shrink-0 text-text-3">
+                {t("orgTask.currentOwnerLabel", {
+                  defaultValue: "Current owner",
+                })}
+              </span>
+              <span className="min-w-0 truncate text-text-1">
+                {currentOwnerLabel}
+              </span>
+            </div>
+          )}
+          {currentRecordUnavailableLabel && (
+            <div
+              className="flex min-w-0 items-center gap-2"
+              data-testid="org-task-block-current-status-unavailable"
+            >
+              <span className="shrink-0 text-text-3">
+                {t("orgTask.currentStatusLabel", {
+                  defaultValue: "Current status",
+                })}
+              </span>
+              <span className="min-w-0 truncate text-warning-6">
+                {currentRecordUnavailableLabel}
+              </span>
+            </div>
+          )}
+          {currentReplacementTaskId && (
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0 text-text-3">
+                {t("orgTask.replacementLabel", {
+                  defaultValue: "Replacement",
+                })}
+              </span>
+              <span
+                className="min-w-0 truncate font-mono text-text-1"
+                title={currentReplacementTaskId}
+              >
+                {currentReplacementTaskId}
+              </span>
+            </div>
+          )}
           {formattedTimestamp && (
             <div
               className="flex min-w-0 items-center gap-2"
@@ -339,6 +473,12 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
   description,
   ownerName,
   status,
+  currentStatus,
+  currentUpdatedAt,
+  currentOwnerName,
+  currentGeneration,
+  currentReplacementTaskId,
+  currentRecordUnavailable,
   priority,
   blocks = [],
   blockedBy = [],
@@ -501,6 +641,12 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
           description={description}
           ownerName={ownerName}
           status={status}
+          currentStatus={currentStatus}
+          currentUpdatedAt={currentUpdatedAt}
+          currentOwnerName={currentOwnerName}
+          currentGeneration={currentGeneration}
+          currentReplacementTaskId={currentReplacementTaskId}
+          currentRecordUnavailable={currentRecordUnavailable}
           priority={priority}
           blocks={blocks}
           blockedBy={blockedBy}
@@ -565,6 +711,12 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
             description={description}
             ownerName={ownerName}
             status={status}
+            currentStatus={currentStatus}
+            currentUpdatedAt={currentUpdatedAt}
+            currentOwnerName={currentOwnerName}
+            currentGeneration={currentGeneration}
+            currentReplacementTaskId={currentReplacementTaskId}
+            currentRecordUnavailable={currentRecordUnavailable}
             priority={priority}
             blocks={blocks}
             blockedBy={blockedBy}

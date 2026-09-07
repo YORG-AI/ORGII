@@ -2,6 +2,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import type { AgentOrgRunView } from "@src/api/tauri/agent";
+import { AgentOrgTaskProjectionProvider } from "@src/engines/ChatPanel/ChatHistory/AgentOrgTaskProjectionContext";
 import type { UniversalEventProps } from "@src/engines/SessionCore/rendering/types/universalProps";
 
 import { OrgTaskAdapter } from "./OrgTaskAdapter";
@@ -40,6 +42,15 @@ const baseProps: UniversalEventProps = {
   variant: "chat",
   context: "chat",
 };
+
+function projectionView(
+  tasks: AgentOrgRunView["taskStateWindow"]["tasks"]
+): AgentOrgRunView {
+  return {
+    context: { runId: "run-current" },
+    taskStateWindow: { tasks, truncated: false },
+  } as AgentOrgRunView;
+}
 
 describe("OrgTaskAdapter raw fallback rendering", () => {
   it("collapses raw task events when extracted task data is unavailable", () => {
@@ -194,5 +205,78 @@ describe("OrgTaskAdapter raw fallback rendering", () => {
     expect(markup).toContain("in_progress");
     expect(markup).toContain("Stop the background server");
     expect(markup).not.toContain('data-operation-outcome="failed"');
+  });
+
+  it("keeps the event status immutable while showing the current cancelled Task", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        AgentOrgTaskProjectionProvider,
+        {
+          view: projectionView([
+            {
+              taskId: "task-history",
+              status: "cancelled",
+              ownerMemberId: "member-new-owner",
+              activationGeneration: 3,
+              replacementTaskId: "task-replacement",
+              updatedAt: "2026-09-06T00:00:00Z",
+            },
+          ]),
+        },
+        createElement(OrgTaskAdapter, {
+          ...baseProps,
+          rustExtracted: {
+            kind: "orgTask",
+            action: "update",
+            outcome: "succeeded",
+            orgRunId: "run-current",
+            task: {
+              id: "task-history",
+              subject: "Historical task",
+              status: "in_progress",
+            },
+          },
+        })
+      )
+    );
+
+    expect(markup).toContain('data-event-status="in_progress"');
+    expect(markup).toContain('data-current-status="cancelled"');
+    expect(markup).toContain('data-current-generation="3"');
+    expect(markup).toContain(
+      'data-current-replacement-task-id="task-replacement"'
+    );
+    expect(markup).toContain("Current status");
+    expect(markup).toContain("cancelled");
+    expect(markup).toContain("Current owner");
+    expect(markup).toContain("Member new owner");
+    expect(markup).toContain("task-replacement");
+  });
+
+  it("does not present stale in-progress history as current when the Task is absent", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        AgentOrgTaskProjectionProvider,
+        { view: projectionView([]) },
+        createElement(OrgTaskAdapter, {
+          ...baseProps,
+          rustExtracted: {
+            kind: "orgTask",
+            action: "update",
+            outcome: "succeeded",
+            orgRunId: "run-current",
+            task: {
+              id: "task-missing",
+              subject: "Historical task",
+              status: "in_progress",
+            },
+          },
+        })
+      )
+    );
+
+    expect(markup).toContain('data-event-status="in_progress"');
+    expect(markup).toContain('data-current-record-unavailable="true"');
+    expect(markup).toContain("Current state unavailable");
   });
 });

@@ -180,6 +180,42 @@ pub async fn test_agent_org_seed(Json(body): Json<serde_json::Value>) -> Json<se
         });
     }
 
+    let writer_member_ids = match obj.get("additional_task_graph_writer_member_ids") {
+        None | Some(serde_json::Value::Null) => Vec::new(),
+        Some(serde_json::Value::Array(values)) => {
+            let mut ids = Vec::with_capacity(values.len());
+            for (idx, value) in values.iter().enumerate() {
+                let Some(member_id) = value.as_str().map(str::trim).filter(|id| !id.is_empty())
+                else {
+                    return Json(serde_json::json!({
+                        "ok": false,
+                        "error": format!(
+                            "additional_task_graph_writer_member_ids[{idx}] must be a non-empty string"
+                        )
+                    }));
+                };
+                if !members.iter().any(|member| member.member_id == member_id) {
+                    return Json(serde_json::json!({
+                        "ok": false,
+                        "error": format!(
+                            "additional Task graph Writer {member_id} is not a seeded Member"
+                        )
+                    }));
+                }
+                if !ids.iter().any(|existing| existing == member_id) {
+                    ids.push(member_id.to_string());
+                }
+            }
+            ids
+        }
+        Some(_) => {
+            return Json(serde_json::json!({
+                "ok": false,
+                "error": "additional_task_graph_writer_member_ids must be an array if provided"
+            }))
+        }
+    };
+
     let mut def = OrgDefinition {
         id: id.clone(),
         name: name.clone(),
@@ -188,7 +224,7 @@ pub async fn test_agent_org_seed(Json(body): Json<serde_json::Value>) -> Json<se
         description: Some("E2E test org seeded via /test/agent-org/seed".to_string()),
         plan_approval_policy,
         members,
-        additional_task_graph_writer_member_ids: Vec::new(),
+        additional_task_graph_writer_member_ids: writer_member_ids,
         member_communication_links: Vec::new(),
     };
     def.member_communication_links = all_member_links(&def.members);

@@ -2748,6 +2748,21 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Str
         )
         .map_err(|error| error.to_string())?;
     conn.execute(
+        "UPDATE agent_org_member_turn_admissions AS admission
+         SET status='unknown',reason_code='app_restart_after_start',
+             terminal_at=?1,updated_at=?1
+         WHERE admission.status='committed'
+           AND EXISTS (
+               SELECT 1 FROM agent_org_runtime_member_intervention_turns chain
+               WHERE chain.session_id=admission.session_id
+                 AND chain.turn_intent_id=admission.turn_intent_id
+                 AND chain.status='abandoned'
+                 AND chain.failure_reason='app_restart_after_start'
+           )",
+        [&now],
+    )
+    .map_err(|error| error.to_string())?;
+    conn.execute(
         "UPDATE session_turn_intents AS intent
          SET status='failed',updated_at=?1
          WHERE intent.status='running'

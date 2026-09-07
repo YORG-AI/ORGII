@@ -228,6 +228,27 @@ fn seed_direct_source(
     .expect("persist canonical direct source");
 }
 
+fn grant_direct_member_writer(fixture: &DirectFixture) {
+    let conn = get_connection().expect("writer snapshot connection");
+    let mut snapshot: crate::definitions::orgs::AgentOrgLaunchSnapshot = conn
+        .query_row(
+            "SELECT org_snapshot_json FROM agent_org_runtime_runs WHERE id=?1",
+            [&fixture.run_id],
+            |row| row.get::<_, String>(0),
+        )
+        .map(|json| serde_json::from_str(&json).expect("decode launch snapshot"))
+        .expect("load launch snapshot");
+    snapshot.additional_task_graph_writer_member_ids = vec![MEMBER_ID.to_string()];
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET org_snapshot_json=?2 WHERE id=?1",
+        params![
+            &fixture.run_id,
+            serde_json::to_string(&snapshot).expect("encode launch snapshot")
+        ],
+    )
+    .expect("grant direct Member frozen writer capability");
+}
+
 fn enqueue(
     fixture: &DirectFixture,
     event_id: &str,
@@ -245,6 +266,8 @@ fn enqueue(
         dispatch_content: content.to_string(),
         source_display_content: content.to_string(),
         source_images: None,
+        runtime_reservation_id: format!("reservation-{turn_intent_id}"),
+        runtime_lease_id: "runtime-lease-test".to_string(),
         queue_cap,
     })
 }
@@ -353,6 +376,7 @@ fn statuses_have_no_expiry_state() {
 fn admission_atomically_persists_source_context_sequence_receipt_and_chain() {
     let _sandbox = test_helpers::test_env::sandbox();
     let fixture = create_fixture("atomic", AgentOrgRunStatus::Running);
+    grant_direct_member_writer(&fixture);
     seed_direct_source(&fixture, "event-atomic", "turn-atomic", "inspect fixture");
 
     let accepted = enqueue(
@@ -365,6 +389,7 @@ fn admission_atomically_persists_source_context_sequence_receipt_and_chain() {
     .expect("accept canonical direct work");
     assert!(!accepted.duplicate);
     assert!(!accepted.should_request_yield);
+    assert_eq!(accepted.runtime_admission_status, "prepared");
     assert_eq!(accepted.context.source_id, "event-atomic");
     assert_eq!(accepted.context.member_dispatch_sequence, Some(1));
     assert_eq!(
@@ -372,9 +397,18 @@ fn admission_atomically_persists_source_context_sequence_receipt_and_chain() {
         MemberInterventionStatus::Active
     );
     assert_eq!(accepted.intervention.queued_user_directed_count, 1);
+    assert_eq!(
+        crate::tools::policy::resolve_persisted_agent_org_tool_authority(
+            &fixture.member_session_id,
+            "turn-atomic",
+        )
+        .expect("resolve Direct writer from immutable launch snapshot")
+        .profile,
+        crate::tools::call_context::AgentOrgTurnToolProfile::UserDirectedWriter,
+    );
 
     let conn = get_connection().expect("test sqlite connection");
-    let persisted: (i64, i64, i64, i64) = conn
+    let persisted: (i64, i64, i64, i64, i64) = conn
         .query_row(
             "SELECT
                 (SELECT COUNT(*) FROM events WHERE id='event-atomic'),
@@ -385,12 +419,24 @@ fn admission_atomically_persists_source_context_sequence_receipt_and_chain() {
                      AND source_kind='direct_member' AND source_id='event-atomic'),
                 (SELECT COUNT(*) FROM agent_org_runtime_member_intervention_turns
                    WHERE session_id=?1 AND turn_intent_id='turn-atomic'
-                     AND member_dispatch_sequence=1 AND chain_position=1)",
+                     AND member_dispatch_sequence=1 AND chain_position=1),
+                (SELECT COUNT(*) FROM agent_org_member_turn_admissions
+                   WHERE session_id=?1 AND turn_intent_id='turn-atomic'
+                     AND reservation_id='reservation-turn-atomic'
+                     AND runtime_lease_id='runtime-lease-test' AND status='prepared')",
             [&fixture.member_session_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
         )
         .expect("read accepted direct facts");
-    assert_eq!(persisted, (1, 1, 1, 1));
+    assert_eq!(persisted, (1, 1, 1, 1, 1));
 }
 
 #[test]
@@ -427,6 +473,8 @@ fn direct_images_are_source_verified_and_recovered_from_the_exact_event() {
             dispatch_content: "inspect image".to_string(),
             source_display_content: "inspect image".to_string(),
             source_images: Some(vec!["data:image/png;base64,different".to_string()]),
+            runtime_reservation_id: "reservation-turn-images".to_string(),
+            runtime_lease_id: "runtime-lease-test".to_string(),
             queue_cap: 32,
         })
         .expect_err("mismatched provider image input must fail");
@@ -443,6 +491,8 @@ fn direct_images_are_source_verified_and_recovered_from_the_exact_event() {
             dispatch_content: "inspect image".to_string(),
             source_display_content: "inspect image".to_string(),
             source_images: Some(vec!["data:image/png;base64,exact".to_string()]),
+            runtime_reservation_id: "reservation-turn-images".to_string(),
+            runtime_lease_id: "runtime-lease-test".to_string(),
             queue_cap: 32,
         })
         .expect("accept exact source image");
@@ -566,6 +616,7 @@ fn failed_dispatch_replay_stays_terminal_and_is_not_startup_recoverable() {
     .expect("read exact failed receipt");
     assert!(replay.duplicate);
     assert_eq!(replay.turn_status, "failed");
+    assert_eq!(replay.runtime_admission_status, "rejected");
     assert_eq!(
         replay.intervention.intervention_receipt_id,
         first.intervention.intervention_receipt_id
@@ -573,6 +624,16 @@ fn failed_dispatch_replay_stays_terminal_and_is_not_startup_recoverable() {
     assert!(AgentMemberInterventionStore::recoverable_queued_turns(100)
         .expect("read recoverable direct Turns")
         .is_empty());
+    let admission_status: String = get_connection()
+        .expect("read failed runtime admission")
+        .query_row(
+            "SELECT status FROM agent_org_member_turn_admissions
+             WHERE session_id=?1 AND turn_intent_id='turn-dispatch-failed'",
+            [&fixture.member_session_id],
+            |row| row.get(0),
+        )
+        .expect("failed admission remains terminal");
+    assert_eq!(admission_status, "rejected");
 }
 
 #[test]
@@ -653,6 +714,8 @@ fn mismatched_source_or_replayed_identity_is_rejected_without_mutation() {
             dispatch_content: "different expanded agent prompt".to_string(),
             source_display_content: "exact content".to_string(),
             source_images: None,
+            runtime_reservation_id: "reservation-turn-conflict".to_string(),
+            runtime_lease_id: "runtime-lease-test".to_string(),
             queue_cap: 32,
         })
         .expect_err("same visible source cannot replay with another Provider prompt");
@@ -723,19 +786,29 @@ fn receipt_or_chain_failure_rolls_back_turn_context_and_sequence() {
         .expect_err("fault must abort acceptance");
     assert!(error.contains("fixture chain failure"));
     let conn = get_connection().expect("test sqlite connection");
-    let counts: (i64, i64, i64, i64) = conn
+    let counts: (i64, i64, i64, i64, i64) = conn
         .query_row(
             "SELECT
                 (SELECT COUNT(*) FROM session_turn_intents WHERE session_id=?1),
                 (SELECT COUNT(*) FROM agent_org_runtime_turn_contexts WHERE session_id=?1),
                 (SELECT COUNT(*) FROM agent_org_runtime_member_interventions WHERE session_id=?1),
                 (SELECT COUNT(*) FROM agent_org_runtime_member_dispatch_allocators
-                   WHERE org_run_id=?2 AND member_id=?3)",
+                   WHERE org_run_id=?2 AND member_id=?3),
+                (SELECT COUNT(*) FROM agent_org_member_turn_admissions
+                   WHERE session_id=?1)",
             params![&fixture.member_session_id, &fixture.run_id, MEMBER_ID],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
         )
         .expect("read rolled-back facts");
-    assert_eq!(counts, (0, 0, 0, 0));
+    assert_eq!(counts, (0, 0, 0, 0, 0));
 }
 
 #[test]
@@ -787,6 +860,16 @@ fn fifty_concurrent_direct_turns_share_one_receipt_and_one_fifo() {
         .expect("read concurrent receipt")
         .expect("concurrent receipt exists");
     assert_eq!(receipt.queued_user_directed_count, 50);
+    let prepared_admissions: i64 = get_connection()
+        .expect("read concurrent runtime admissions")
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_member_turn_admissions
+             WHERE session_id=?1 AND status='prepared'",
+            [&fixture.member_session_id],
+            |row| row.get(0),
+        )
+        .expect("count concurrent runtime admissions");
+    assert_eq!(prepared_admissions, 50);
 }
 
 #[test]
@@ -1355,6 +1438,18 @@ fn restart_recovers_only_pending_direct_turns_and_never_replays_started_work() {
     let conn = get_connection().expect("restart reconciliation connection");
     agent_org_turn_contexts::reconcile_in_flight_after_restart(&conn)
         .expect("reconcile direct Turns");
+    let admission_statuses: (String, String) = conn
+        .query_row(
+            "SELECT
+                (SELECT status FROM agent_org_member_turn_admissions
+                 WHERE turn_intent_id='turn-restart-started'),
+                (SELECT status FROM agent_org_member_turn_admissions
+                 WHERE turn_intent_id='turn-restart-pending')",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("read restart runtime-admission dispositions");
+    assert_eq!(admission_statuses, ("unknown".into(), "prepared".into()));
     let statuses: (String, String, String, String) = conn
         .query_row(
             "SELECT

@@ -352,7 +352,6 @@ export async function waitForApp() {
             && window.__e2e.debugAgentOrgEnableRedesign
             && window.__e2e.agentOrgSessionRunView
             && window.__e2e.agentOrgSessionInterventionState
-            && window.__e2e.agentOrgSendGroupChatMessage
             && window.__e2e.agentOrgRunList
             && window.__e2e.debugSessionExecuteOrgTool);`
         );

@@ -136,6 +136,32 @@ fn load_evidence(org_run_id: &str) -> Result<serde_json::Value, String> {
         .collect::<rusqlite::Result<Vec<_>>>()
         .map_err(|error| error.to_string())?;
 
+    let mut admission_statement = conn
+        .prepare(
+            "SELECT session_id,turn_intent_id,member_id,reservation_id,
+                    runtime_lease_id,status,reason_code
+             FROM agent_org_member_turn_admissions
+             WHERE org_run_id=?1
+             ORDER BY prepared_at,session_id,turn_intent_id
+             LIMIT 200",
+        )
+        .map_err(|error| error.to_string())?;
+    let runtime_admissions = admission_statement
+        .query_map([org_run_id], |row| {
+            Ok(serde_json::json!({
+                "session_id": row.get::<_, String>(0)?,
+                "turn_intent_id": row.get::<_, String>(1)?,
+                "member_id": row.get::<_, String>(2)?,
+                "reservation_id": row.get::<_, String>(3)?,
+                "runtime_lease_id": row.get::<_, String>(4)?,
+                "status": row.get::<_, String>(5)?,
+                "reason_code": row.get::<_, Option<String>>(6)?,
+            }))
+        })
+        .map_err(|error| error.to_string())?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|error| error.to_string())?;
+
     let (root_count, context_count, intent_count, tool_receipt_count): (i64, i64, i64, i64) = conn
         .query_row(
             "SELECT
@@ -167,9 +193,11 @@ fn load_evidence(org_run_id: &str) -> Result<serde_json::Value, String> {
             "deliveries": deliveries.len(),
             "coordinator_bindings": coordinator_bindings.len(),
             "user_directed_inbox": inbox.len(),
+            "runtime_admissions": runtime_admissions.len(),
         },
         "deliveries": deliveries,
         "coordinator_bindings": coordinator_bindings,
         "inbox": inbox,
+        "runtime_admissions": runtime_admissions,
     }))
 }

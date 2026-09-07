@@ -49,12 +49,15 @@ pub(crate) use record::AgentInboxUnreadRecipientCounts;
 pub use record::{
     AgentInboxBatch, AgentInboxDeliveryResolution, AgentInboxDeliveryResolutionKind,
     AgentInboxPage, AgentInboxPreviewRecord, AgentInboxRecipientCounts, AgentInboxRecord,
-    InsertInboxParams, ResolveInboxDeliveryError, ResolveInboxDeliveryParams,
+    InboxRepairEligibility, InsertInboxParams, ResolveInboxDeliveryError,
+    ResolveInboxDeliveryParams,
 };
 pub use schema::init_schema;
 pub(crate) use schema::{create_schema, repair_dangling_materializations};
 pub(crate) use task_bindings::{
     create_task_message_binding_schema, oldest_unread_task_message_binding_with_connection,
+    preflight_coordinator_task_message_in_tx, CoordinatorTaskMessageAuthority,
+    CoordinatorTaskMessagePreflight,
 };
 
 /// Reserved sender id for system-generated agent inbox rows.

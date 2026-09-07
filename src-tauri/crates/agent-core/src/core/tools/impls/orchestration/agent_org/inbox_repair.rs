@@ -6,8 +6,8 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::coordination::agent_inbox::{
-    AgentInboxDeliveryResolutionKind, AgentInboxStore, ResolveInboxDeliveryError,
-    ResolveInboxDeliveryParams,
+    AgentInboxDeliveryResolutionKind, AgentInboxStore, InboxRepairEligibility,
+    ResolveInboxDeliveryError, ResolveInboxDeliveryParams,
 };
 use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
 use crate::coordination::agent_org_tasks::TaskGraphWriterAdmin;
@@ -23,24 +23,75 @@ use super::{classify_task_receipt_error, TaskToolsContext};
 /// recipient. This is intentionally not an automatic forwarding API: typed
 /// messages can carry task/approval semantics that must be reconstructed by
 /// the normal task/message tools rather than copied to a guessed identity.
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum OrgInboxRepairAction {
+    Inspect,
+    Cancel,
+    Supersede,
+}
+
+/// Flat provider-facing schema. A top-level tagged enum becomes `oneOf` and
+/// is flattened to an empty object by several function-calling providers.
 #[derive(Debug, Deserialize, JsonSchema)]
-#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
-pub enum OrgInboxRepairParams {
-    Inspect {
-        inbox_id: i64,
-    },
-    Cancel {
-        inbox_id: i64,
-        reason: String,
-    },
-    Supersede {
-        inbox_id: i64,
-        reason: String,
-        #[serde(default)]
-        replacement_inbox_id: Option<i64>,
-        #[serde(default)]
-        replacement_task_id: Option<String>,
-    },
+#[serde(deny_unknown_fields)]
+pub struct OrgInboxRepairParams {
+    pub action: OrgInboxRepairAction,
+    pub inbox_id: i64,
+    #[serde(default)]
+    pub reason: Option<String>,
+    #[serde(default)]
+    pub replacement_inbox_id: Option<i64>,
+    #[serde(default)]
+    pub replacement_task_id: Option<String>,
+}
+
+impl OrgInboxRepairParams {
+    fn validate(&self) -> Result<(), ToolError> {
+        let reason = self
+            .reason
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        let has_replacement =
+            self.replacement_inbox_id.is_some() || self.replacement_task_id.is_some();
+        match self.action {
+            OrgInboxRepairAction::Inspect => {
+                if self.reason.is_some() || has_replacement {
+                    return Err(ToolError::InvalidParams(
+                        "action=inspect accepts only action and inbox_id".to_string(),
+                    ));
+                }
+            }
+            OrgInboxRepairAction::Cancel => {
+                if reason.is_none() {
+                    return Err(ToolError::InvalidParams(
+                        "action=cancel requires a non-empty reason".to_string(),
+                    ));
+                }
+                if has_replacement {
+                    return Err(ToolError::InvalidParams(
+                        "action=cancel forbids replacement_inbox_id and replacement_task_id"
+                            .to_string(),
+                    ));
+                }
+            }
+            OrgInboxRepairAction::Supersede => {
+                if reason.is_none() {
+                    return Err(ToolError::InvalidParams(
+                        "action=supersede requires a non-empty reason".to_string(),
+                    ));
+                }
+                if self.replacement_inbox_id.is_some() == self.replacement_task_id.is_some() {
+                    return Err(ToolError::InvalidParams(
+                        "action=supersede requires exactly one of replacement_inbox_id or replacement_task_id"
+                            .to_string(),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 pub struct OrgInboxRepairTool {
@@ -84,16 +135,20 @@ impl Tool for OrgInboxRepairTool {
         }
         let canonical_params = params_value.clone();
         let params: OrgInboxRepairParams = parse_params(params_value)?;
+        params.validate()?;
         let run_id = self.ctx.org_context.run_id.clone();
 
-        match params {
-            OrgInboxRepairParams::Inspect { inbox_id } => {
+        match params.action {
+            OrgInboxRepairAction::Inspect => {
+                let inbox_id = params.inbox_id;
                 let inspect_run_id = run_id.clone();
-                let (row, resolution) = tokio::task::spawn_blocking(move || {
+                let (row, resolution, eligibility) = tokio::task::spawn_blocking(move || {
                     let row = AgentInboxStore::get_by_id_for_run(&inspect_run_id, inbox_id)?;
                     let resolution =
                         AgentInboxStore::delivery_resolution_for_inbox(&inspect_run_id, inbox_id)?;
-                    Ok::<_, String>((row, resolution))
+                    let eligibility =
+                        AgentInboxStore::repair_eligibility_for_inbox(&inspect_run_id, inbox_id)?;
+                    Ok::<_, String>((row, resolution, eligibility))
                 })
                 .await
                 .map_err(|err| {
@@ -107,12 +162,36 @@ impl Tool for OrgInboxRepairTool {
                         "Inbox row {inbox_id} does not belong to the current Agent Org run"
                     ))
                 })?;
+                let eligibility = eligibility.ok_or_else(|| {
+                    ToolError::InvalidParams(format!(
+                        "Inbox row {inbox_id} does not belong to the current Agent Org run"
+                    ))
+                })?;
+                let allowed_actions: Vec<&str> = if eligibility.is_repairable() {
+                    vec!["inspect", "cancel", "supersede"]
+                } else {
+                    vec!["inspect"]
+                };
+                let guidance = match &eligibility {
+                    InboxRepairEligibility::UnboundCoordinatorTaskMessage => "This is a historical unbound Coordinator task message. Cancel it only when its work was already completed or intentionally abandoned; otherwise create a valid replacement first and supersede it.",
+                    InboxRepairEligibility::PermanentlyUnavailableRecipient => "The original recipient is permanently unavailable. Restore it if possible; otherwise cancel intentionally or create a valid replacement and supersede.",
+                    InboxRepairEligibility::NotRepairable { .. } => "This row is not eligible for Inbox repair. Resume or retry its healthy delivery path instead.",
+                };
                 serde_json::to_string(&json!({
                     "outcome": "inspected",
                     "org_run_id": run_id,
-                    "inbox_row": row,
+                    "inbox_summary": {
+                        "inbox_id": row.id,
+                        "recipient_member_id": row.recipient_member_id,
+                        "sender_member_id": row.sender_member_id,
+                        "payload_kind": row.payload_kind,
+                        "created_at": row.created_at,
+                        "read_at": row.read_at,
+                    },
+                    "eligibility": eligibility,
+                    "allowed_actions": allowed_actions,
                     "delivery_resolution": resolution,
-                    "guidance": "If the original recipient can be restored, leave this row pending. Otherwise create a valid replacement through org_send_message or task tools, then call org_inbox_repair with action=supersede; use cancel only for an intentional discard."
+                    "guidance": guidance,
                 }))
                 .map_err(|err| {
                     ToolError::ExecutionFailed(format!(
@@ -120,41 +199,36 @@ impl Tool for OrgInboxRepairTool {
                     ))
                 })
             }
-            OrgInboxRepairParams::Cancel { inbox_id, reason } => {
+            OrgInboxRepairAction::Cancel => {
                 resolve(
                     &run_id,
                     call_ctx,
                     canonical_params,
                     ResolveInboxDeliveryParams {
-                        inbox_id,
+                        inbox_id: params.inbox_id,
                         org_run_id: run_id.clone(),
                         resolved_by_member_id: COORDINATOR_MEMBER_ID.to_string(),
                         resolution_kind: AgentInboxDeliveryResolutionKind::Cancelled,
-                        reason,
+                        reason: params.reason.expect("validated cancel reason"),
                         replacement_inbox_id: None,
                         replacement_task_id: None,
                     },
                 )
                 .await
             }
-            OrgInboxRepairParams::Supersede {
-                inbox_id,
-                reason,
-                replacement_inbox_id,
-                replacement_task_id,
-            } => {
+            OrgInboxRepairAction::Supersede => {
                 resolve(
                     &run_id,
                     call_ctx,
                     canonical_params,
                     ResolveInboxDeliveryParams {
-                        inbox_id,
+                        inbox_id: params.inbox_id,
                         org_run_id: run_id.clone(),
                         resolved_by_member_id: COORDINATOR_MEMBER_ID.to_string(),
                         resolution_kind: AgentInboxDeliveryResolutionKind::Superseded,
-                        reason,
-                        replacement_inbox_id,
-                        replacement_task_id,
+                        reason: params.reason.expect("validated supersede reason"),
+                        replacement_inbox_id: params.replacement_inbox_id,
+                        replacement_task_id: params.replacement_task_id,
                     },
                 )
                 .await
@@ -280,6 +354,14 @@ mod tests {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 PRIMARY KEY(session_id,turn_intent_id)
+            );
+            CREATE TABLE code_sessions (
+                session_id TEXT PRIMARY KEY,
+                cli_agent_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                parent_session_id TEXT,
+                org_member_id TEXT,
+                updated_at TEXT NOT NULL
             );",
         )
         .expect("Turn intent schema");
@@ -419,6 +501,155 @@ mod tests {
             coordinator: make_context(COORDINATOR_MEMBER_ID, "coordinator-agent"),
             worker: make_context("worker", "worker-agent"),
         }
+    }
+
+    fn seed_unbound_coordinator_task_message(fixture: &Fixture) -> i64 {
+        let now = chrono::Utc::now().to_rfc3339();
+        upsert_session(&UnifiedSessionRecord {
+            session_id: "repair-worker-session".into(),
+            name: "Worker".into(),
+            status: "idle".into(),
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            session_type: "sde".into(),
+            org_member_id: Some("worker".into()),
+            agent_definition_id: Some("worker-agent".into()),
+            parent_session_id: Some("root-inbox-repair".into()),
+            ..Default::default()
+        })
+        .expect("seed healthy worker runtime");
+        let conn = get_connection().expect("test sqlite connection");
+        let generation: i64 = conn
+            .query_row(
+                "SELECT activation_generation FROM agent_org_runtime_runs WHERE id=?1",
+                [&fixture.run_id],
+                |row| row.get(0),
+            )
+            .expect("load run generation");
+        conn.execute(
+            "INSERT INTO agent_org_runtime_member_materializations (
+                 org_run_id,member_id,agent_id,generation,session_id,
+                 authority_class,status,created_at,updated_at
+             ) VALUES (?1,'worker','worker-agent',?2,'repair-worker-session',
+                       'formal','succeeded',?3,?3)",
+            params![&fixture.run_id, generation, &now],
+        )
+        .expect("seed canonical worker materialization");
+        AgentInboxStore::insert(crate::coordination::agent_inbox::InsertInboxParams {
+            recipient_agent_id: "worker-agent".into(),
+            recipient_member_id: Some("worker".into()),
+            sender_agent_id: "coordinator-agent".into(),
+            sender_member_id: Some(COORDINATOR_MEMBER_ID.into()),
+            org_run_id: Some(fixture.run_id.clone()),
+            message: AgentMessage::Plain {
+                summary: "Historical orphan".into(),
+                text: "Sensitive historical content must not appear in inspection".into(),
+            },
+        })
+        .expect("seed historical unbound Coordinator task message")
+        .id
+    }
+
+    fn contains_forbidden_schema_keyword(value: &Value) -> bool {
+        match value {
+            Value::Object(object) => {
+                object
+                    .keys()
+                    .any(|key| matches!(key.as_str(), "oneOf" | "anyOf" | "allOf" | "$ref"))
+                    || object.values().any(contains_forbidden_schema_keyword)
+            }
+            Value::Array(values) => values.iter().any(contains_forbidden_schema_keyword),
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn final_tool_schema_exposes_flat_provider_callable_repair_fields() {
+        let fixture = fixture();
+        let schema = OrgInboxRepairTool::new(fixture.coordinator).to_schema();
+        let params = &schema["function"]["parameters"];
+        let properties = params["properties"].as_object().expect("schema properties");
+        assert!(properties.contains_key("action"));
+        assert!(properties.contains_key("inbox_id"));
+        assert_eq!(
+            properties["action"]["enum"],
+            json!(["inspect", "cancel", "supersede"])
+        );
+        assert!(params["required"]
+            .as_array()
+            .is_some_and(|required| required.contains(&json!("action"))
+                && required.contains(&json!("inbox_id"))));
+        assert!(
+            !contains_forbidden_schema_keyword(params),
+            "provider schema must not contain union/ref keywords: {params}"
+        );
+    }
+
+    #[tokio::test]
+    async fn flat_parameter_combinations_fail_before_any_repair_write() {
+        let fixture = fixture();
+        let tool = OrgInboxRepairTool::new(fixture.coordinator);
+        for request in [
+            json!({"action":"inspect","inbox_id":fixture.inbox_id,"reason":"no"}),
+            json!({"action":"cancel","inbox_id":fixture.inbox_id}),
+            json!({"action":"cancel","inbox_id":fixture.inbox_id,"reason":"ok","replacement_task_id":"task"}),
+            json!({"action":"supersede","inbox_id":fixture.inbox_id,"reason":"ok"}),
+            json!({"action":"supersede","inbox_id":fixture.inbox_id,"reason":"ok","replacement_inbox_id":1,"replacement_task_id":"task"}),
+        ] {
+            tool.execute_text(request, &repair_call_context())
+                .await
+                .expect_err("invalid flat action combination must fail");
+        }
+        assert!(
+            AgentInboxStore::delivery_resolution_for_inbox(&fixture.run_id, fixture.inbox_id)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn inspect_and_cancel_support_strict_historical_unbound_task_message_shape() {
+        let fixture = fixture();
+        let orphan_id = seed_unbound_coordinator_task_message(&fixture);
+        let tool = OrgInboxRepairTool::new(fixture.coordinator.clone());
+        let inspect = tool
+            .execute_text(
+                json!({"action":"inspect","inbox_id":orphan_id}),
+                &repair_call_context(),
+            )
+            .await
+            .expect("inspect historical orphan");
+        let value: Value = serde_json::from_str(&inspect).expect("inspect json");
+        assert_eq!(
+            value["eligibility"]["kind"],
+            "unbound_coordinator_task_message"
+        );
+        assert_eq!(
+            value["allowed_actions"],
+            json!(["inspect", "cancel", "supersede"])
+        );
+        assert!(value.get("inbox_row").is_none());
+        assert!(!inspect.contains("Sensitive historical content"));
+
+        tool.execute_text(
+            json!({
+                "action":"cancel",
+                "inbox_id":orphan_id,
+                "reason":"The linked task was already completed through the legal Root path"
+            }),
+            &repair_call_context(),
+        )
+        .await
+        .expect("strict historical orphan is repairable");
+        let row = AgentInboxStore::get_by_id_for_run(&fixture.run_id, orphan_id)
+            .unwrap()
+            .unwrap();
+        assert!(row.read_at.is_none());
+        assert!(
+            AgentInboxStore::delivery_resolution_for_inbox(&fixture.run_id, orphan_id)
+                .unwrap()
+                .is_some()
+        );
     }
 
     #[tokio::test]
