@@ -13,6 +13,7 @@ use futures_util::{SinkExt, StreamExt};
 use mobile_relay_protocol::{PermissionTier, RelayWireFrame, DESKTOP_WS_PATH};
 use serde::Serialize;
 use serde_json::Value;
+use tauri::Emitter;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -20,11 +21,10 @@ use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::http::StatusCode;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_util::sync::CancellationToken;
-use tauri::Emitter;
 
 use super::auth::{self, MobileRemoteSettings};
-use super::org2_cloud_auth::{self, SESSION_EXPIRED_MESSAGE};
 use super::fanout;
+use super::org2_cloud_auth::{self, SESSION_EXPIRED_MESSAGE};
 use super::rpc::{self, MobileTier, RpcContext};
 
 const ACTOR_QUEUE_CAPACITY: usize = 32;
@@ -487,7 +487,8 @@ async fn send_desktop_frame(
 fn build_websocket_request(
     plan: &RelayConnectionPlan,
 ) -> Result<tokio_tungstenite::tungstenite::http::Request<()>, String> {
-    let mut url = url::Url::parse(&plan.ws_url).map_err(|err| format!("invalid relay URL: {err}"))?;
+    let mut url =
+        url::Url::parse(&plan.ws_url).map_err(|err| format!("invalid relay URL: {err}"))?;
     url.query_pairs_mut()
         .append_pair("token", plan.access_token.trim());
     let mut request = url
@@ -635,7 +636,9 @@ mod tests {
         assert!(settings.relay_enabled);
         assert_eq!(settings.desktop_id, "desktop-a");
         let plan = settings.connection_plan().expect("connection plan");
-        assert!(plan.ws_url.starts_with("wss://relay.example.com/v1/desktop/ws?"));
+        assert!(plan
+            .ws_url
+            .starts_with("wss://relay.example.com/v1/desktop/ws?"));
         assert!(plan.ws_url.contains("desktopId=desktop-a"));
         assert_eq!(plan.access_token, "cloud-access-token");
         let request = build_websocket_request(&plan).expect("request");

@@ -7,13 +7,14 @@ use test_helpers::test_env;
 
 fn routine_fixture(id: &str, policy: RoutineOutputPolicy) -> RoutineDefinition {
     RoutineDefinition {
+        activations: Vec::new(),
         id: id.to_string(),
         name: format!("Routine {id}"),
         description: "Routine test fixture".to_string(),
         enabled: true,
-        trigger: RoutineTrigger::OneTime {
+        trigger: Some(RoutineTrigger::OneTime {
             at: "2026-05-30T00:00:00Z".to_string(),
-        },
+        }),
         run_template: RoutineRunTemplate {
             prompt: "Ask about the fixture".to_string(),
             target: RoutineRunTarget::AgentDefinition {
@@ -83,6 +84,63 @@ fn upsert_round_trips_output_policy() {
 }
 
 #[test]
+fn upsert_canonicalizes_trigger_and_activations_both_ways() {
+    let _sandbox = test_env::sandbox();
+    let mut routine = routine_fixture(
+        "routine-canonical",
+        policy(RoutineConcurrencyPolicy::AlwaysCreate),
+    );
+    routine.trigger = Some(RoutineTrigger::Cron {
+        cron: "0 9 * * *".to_string(),
+        timezone: "UTC".to_string(),
+    });
+    routine.activations = Vec::new();
+    let saved = upsert_routine(routine).expect("upsert");
+    assert_eq!(saved.activations.len(), 1);
+
+    let mut routine = saved;
+    routine.activations = vec![
+        crate::routine_service::spec::Activation::Manual {
+            policies: Default::default(),
+        },
+        crate::routine_service::spec::Activation::Schedule {
+            cron: "30 8 * * 2".to_string(),
+            timezone: "UTC".to_string(),
+            policies: Default::default(),
+        },
+    ];
+    let saved = upsert_routine(routine).expect("upsert");
+    assert_eq!(
+        saved.trigger,
+        Some(RoutineTrigger::Cron {
+            cron: "30 8 * * 2".to_string(),
+            timezone: "UTC".to_string(),
+        })
+    );
+    assert!(saved.next_fire_at.is_some());
+}
+
+#[test]
+fn backfill_populates_activations_for_legacy_rows() {
+    let _sandbox = test_env::sandbox();
+    let routine = routine_fixture(
+        "routine-backfill",
+        policy(RoutineConcurrencyPolicy::AlwaysCreate),
+    );
+    upsert_routine(routine).expect("upsert");
+    let connection = conn().expect("conn");
+    connection
+        .execute(
+            "UPDATE routine_definitions SET activations_json = '[]' WHERE id = 'routine-backfill'",
+            [],
+        )
+        .expect("strip");
+    backfill_routine_activations(&connection).expect("backfill");
+    let read = read_routine("routine-backfill").expect("read");
+    assert_eq!(read.activations.len(), 1);
+}
+
+#[test]
 fn upsert_computes_next_fire_immediately_in_declared_timezone() {
     use chrono::Timelike;
 
@@ -91,10 +149,10 @@ fn upsert_computes_next_fire_immediately_in_declared_timezone() {
         "routine-next-fire",
         policy(RoutineConcurrencyPolicy::AlwaysCreate),
     );
-    routine.trigger = RoutineTrigger::Cron {
+    routine.trigger = Some(RoutineTrigger::Cron {
         cron: "0 9 * * *".to_string(),
         timezone: "America/Vancouver".to_string(),
-    };
+    });
 
     let saved = upsert_routine(routine).expect("upsert routine");
     let next = saved.next_fire_at.expect("next fire projected on save");
@@ -594,10 +652,10 @@ fn unknown_fire_status_is_a_decode_error() {
     connection
         .execute(
             "INSERT INTO routine_fires (
-                    id, routine_id, fired_at, status, session_id, agent_org_run_id,
-                    work_item_id, coalesced_into_fire_id, idempotency_key, started_at,
-                    completed_at, error
-                 ) VALUES (?1, ?2, ?3, ?4, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
+                id, routine_id, fired_at, status, session_id, agent_org_run_id,
+                work_item_id, coalesced_into_fire_id, idempotency_key, started_at,
+                completed_at, error
+             ) VALUES (?1, ?2, ?3, ?4, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
             params!["bad-fire", "routine-bad-status", now_ms(), "mystery"],
         )
         .expect("insert bad fire");

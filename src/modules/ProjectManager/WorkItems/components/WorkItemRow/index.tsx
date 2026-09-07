@@ -31,6 +31,7 @@ import { deriveDisplayId, getDueDateColorClass } from "./utils";
 
 const WorkItemRow: React.FC<WorkItemRowProps> = React.memo(
   ({
+    statusOrgId,
     workItem,
     isSelected,
     onSelect,
@@ -331,6 +332,7 @@ const WorkItemRow: React.FC<WorkItemRowProps> = React.memo(
           onContextMenu={handleContextMenu}
         >
           <LeadingCells
+            statusOrgId={statusOrgId}
             shortId={shortId}
             priority={priority}
             status={status}

@@ -11,6 +11,8 @@ import type {
 } from "@src/types/core/workItem";
 
 export interface WorkItemRowProps {
+  /** Explicit owning org for custom status lookup; null disables custom statuses. */
+  statusOrgId: string | null;
   workItem: WorkItemExtended;
   isSelected: boolean;
   onSelect: (id: string) => void;
@@ -48,6 +50,7 @@ export interface DueDateInfo {
 }
 
 export interface LeadingCellsProps {
+  statusOrgId: string | null;
   shortId: string;
   priority: WorkItemPriority;
   status: WorkItemStatus;

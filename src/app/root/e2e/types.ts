@@ -328,7 +328,8 @@ export interface E2EHelpers {
   agentOrgSendGroupChatMessage: (
     sessionId: string,
     targetMemberId: string | null,
-    content: string
+    content: string,
+    messageId?: string
   ) => Promise<Result<{ result: Json }>>;
   agentOrgPauseRun: (
     sessionId: string

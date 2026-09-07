@@ -5,10 +5,15 @@ import {
   WORK_ITEM_STATUS_OPTIONS,
 } from "@src/modules/ProjectManager/config/manage";
 
+import {
+  useAllCustomStatusOptions,
+  useCustomStatusOptions,
+} from "../../hooks/useStatusDefinitions";
 import { RowPropertyDropdown } from "./RowPropertyDropdown";
 import type { LeadingCellsProps } from "./types";
 
 export function LeadingCells({
+  statusOrgId,
   shortId,
   priority,
   status,
@@ -26,13 +31,17 @@ export function LeadingCells({
   const priorityOption = WORK_ITEM_PRIORITY_OPTIONS.find(
     (option) => option.value === priority
   );
+  const customStatusOptions = useCustomStatusOptions(statusOrgId);
+  const allCustomStatusOptions = useAllCustomStatusOptions(statusOrgId);
   const isGitHubIssueStatus = GITHUB_ISSUE_STATUS_OPTIONS.some(
     (option) => option.value === status
   );
   const statusOptions = isGitHubIssueStatus
     ? GITHUB_ISSUE_STATUS_OPTIONS
-    : WORK_ITEM_STATUS_OPTIONS;
-  const statusOption = statusOptions.find((option) => option.value === status);
+    : [...WORK_ITEM_STATUS_OPTIONS, ...customStatusOptions];
+  const statusOption =
+    statusOptions.find((option) => option.value === status) ??
+    allCustomStatusOptions.find((option) => option.value === status);
   const currentExternalStatusOption = externalStatusOptions?.find(
     (option) => option.value === externalStatusValue
   );

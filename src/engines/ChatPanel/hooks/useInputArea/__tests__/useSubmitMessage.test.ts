@@ -12,6 +12,7 @@ import { wpReadOnlyAtom } from "@src/store/ui/chatPanelAtom";
 import { type SmokeRoot, createSmokeRoot } from "@src/test/reactSmokeHarness";
 
 import type { InputAreaRefs } from "../types";
+import { SubmitRetainedDeliveryError } from "../types";
 import {
   type UseSubmitMessageOptions,
   useSubmitMessage,
@@ -406,7 +407,7 @@ describe("useSubmitMessage composer boundary", () => {
     expect(clearReplyTarget).toHaveBeenCalledOnce();
   });
 
-  it("restores text, images, cite state, and the durable draft after dispatch failure", async () => {
+  it("restores an ordinary failed transport when no failed row owns the message", async () => {
     const editorHarness = createEditor("do not lose this");
     const attachment = image();
     const flushDraft = vi.fn().mockResolvedValue(undefined);
@@ -444,7 +445,9 @@ describe("useSubmitMessage composer boundary", () => {
     });
 
     expect(editorHarness.editor.clear).toHaveBeenCalledOnce();
-    expect(editorHarness.editor.setContent).toHaveBeenCalledOnce();
+    expect(editorHarness.editor.setContent).toHaveBeenCalledWith({
+      parts: [{ kind: "text", text: "do not lose this" }],
+    });
     expect(editorHarness.readText()).toBe("do not lose this");
     expect(options.refs.setHasContent).toHaveBeenLastCalledWith(true);
     expect(imageAttachment.clearImages).toHaveBeenCalledOnce();
@@ -457,6 +460,74 @@ describe("useSubmitMessage composer boundary", () => {
     ]);
     expect(mocks.messageError).toHaveBeenCalledWith(
       "chat.failedToSendMessage: transport unavailable"
+    );
+  });
+
+  it("restores each composer payload independently when one restore fails", async () => {
+    const editorHarness = createEditor("restore everything possible");
+    editorHarness.editor.setContent = vi.fn(() => {
+      throw new Error("editor restore failed");
+    });
+    const attachment = image();
+    const imageAttachment = {
+      hasImages: true,
+      images: [attachment],
+      clearImages: vi.fn(),
+      restoreImages: vi.fn(),
+    };
+    const citeSnapshot = {
+      isCiteCode: true,
+      selectedCiteRange: { start: 1, end: 3 },
+      selectedCiteText: "const answer = 42",
+      citeFileName: "answer.ts",
+    };
+    const citeCode = {
+      isCiteCode: true,
+      clearCiteCode: vi.fn(),
+      captureCiteCode: vi.fn(() => citeSnapshot),
+      restoreCiteCode: vi.fn(),
+    };
+    await mount(
+      optionsFor(editorHarness, {
+        imageAttachment,
+        citeCode,
+        handleSessChatSubmit: vi
+          .fn()
+          .mockRejectedValue(new Error("transport unavailable")),
+      })
+    );
+
+    await act(async () => {
+      await latestSubmit!();
+    });
+
+    expect(imageAttachment.restoreImages).toHaveBeenCalledWith([attachment]);
+    expect(citeCode.restoreCiteCode).toHaveBeenCalledWith(citeSnapshot);
+    expect(mocks.messageError).toHaveBeenCalledWith(
+      "chat.failedToSendMessage: transport unavailable"
+    );
+  });
+
+  it("does not duplicate a transport failure already retained as a failed row", async () => {
+    const editorHarness = createEditor("already visible below");
+    const options = optionsFor(editorHarness, {
+      onSubmitOverride: vi
+        .fn()
+        .mockRejectedValue(
+          new SubmitRetainedDeliveryError(new Error("delivery failed"))
+        ),
+    });
+    await mount(options);
+
+    await act(async () => {
+      await latestSubmit!();
+    });
+
+    expect(editorHarness.editor.clear).toHaveBeenCalledOnce();
+    expect(editorHarness.editor.setContent).not.toHaveBeenCalled();
+    expect(editorHarness.readText()).toBe("");
+    expect(mocks.messageError).toHaveBeenCalledWith(
+      "chat.failedToSendMessage: delivery failed"
     );
   });
 

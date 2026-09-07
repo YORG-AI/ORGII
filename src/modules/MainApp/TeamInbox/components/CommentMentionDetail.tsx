@@ -2,7 +2,13 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import PersonAvatar from "@src/components/PersonAvatar";
-import { AtIcon, HugeiconsIcon, LinkSquare02Icon } from "@src/icons";
+import {
+  ArchiveArrowUpIcon,
+  ArchiveIcon,
+  AtIcon,
+  HugeiconsIcon,
+  LinkSquare02Icon,
+} from "@src/icons";
 import { WORK_ITEM_THREAD_TOKENS } from "@src/modules/ProjectManager/WorkItems/components/WorkItemThread";
 import {
   ConnectedTimelineItem,
@@ -21,6 +27,10 @@ export interface CommentMentionDetailProps {
   onNavigate?: (intent: TeamInboxNavigationIntent) => void;
   onMarkRead?: (item: CommentMentionItem) => void;
   onMarkUnread?: (item: CommentMentionItem) => void;
+  archived?: boolean;
+  dispositionPending?: boolean;
+  onArchive?: (item: CommentMentionItem) => void;
+  onUnarchive?: (item: CommentMentionItem) => void;
 }
 
 const CommentMentionDetail: React.FC<CommentMentionDetailProps> = ({
@@ -29,6 +39,10 @@ const CommentMentionDetail: React.FC<CommentMentionDetailProps> = ({
   onNavigate,
   onMarkRead,
   onMarkUnread,
+  archived = false,
+  dispositionPending = false,
+  onArchive,
+  onUnarchive,
 }) => {
   const { t } = useTranslation();
   const targetTitle =
@@ -57,6 +71,41 @@ const CommentMentionDetail: React.FC<CommentMentionDetailProps> = ({
       }
       onMarkRead={onMarkRead ? () => onMarkRead(item) : undefined}
       onMarkUnread={onMarkUnread ? () => onMarkUnread(item) : undefined}
+      headerDispositionAction={
+        archived && onUnarchive
+          ? {
+              label: t("teamInbox.actions.unarchive"),
+              icon: (
+                <HugeiconsIcon
+                  icon={ArchiveArrowUpIcon}
+                  data-icon="archive-restore"
+                  size={14}
+                  strokeWidth={1.8}
+                  aria-hidden
+                />
+              ),
+              onClick: () => onUnarchive(item),
+              testId: "team-inbox-unarchive",
+              disabled: dispositionPending,
+            }
+          : !archived && onArchive
+            ? {
+                label: t("teamInbox.actions.archive"),
+                icon: (
+                  <HugeiconsIcon
+                    icon={ArchiveIcon}
+                    data-icon="archive"
+                    size={14}
+                    strokeWidth={1.8}
+                    aria-hidden
+                  />
+                ),
+                onClick: () => onArchive(item),
+                testId: "team-inbox-archive",
+                disabled: dispositionPending,
+              }
+            : undefined
+      }
       onOpen={
         onNavigate
           ? () =>
@@ -69,6 +118,7 @@ const CommentMentionDetail: React.FC<CommentMentionDetailProps> = ({
                   })
                 : onNavigate({
                     kind: "open_session_comment",
+                    ...(item.target.orgId ? { orgId: item.target.orgId } : {}),
                     sessionId: item.target.sessionId,
                     commentId: item.target.commentId,
                     threadId: item.target.threadId,

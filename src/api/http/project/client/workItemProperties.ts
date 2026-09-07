@@ -3,6 +3,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 
+import { cachedRead, invalidateCache } from "../cache";
 import type {
   PropertyDefinition,
   UpsertPropertyDefinitionRequest,
@@ -10,26 +11,46 @@ import type {
   WorkItemScope,
 } from "../types";
 
+export function propertyDefinitionsCacheKey(
+  orgId: string,
+  includeArchived = false
+): string {
+  return `${orgId}:property-definitions:${includeArchived ? "all" : "active"}`;
+}
+
 export async function listPropertyDefinitions(
   orgId: string,
   includeArchived = false
 ): Promise<PropertyDefinition[]> {
-  return invoke("project_list_property_definitions", {
-    orgId,
-    includeArchived,
-  });
+  return cachedRead(propertyDefinitionsCacheKey(orgId, includeArchived), () =>
+    invoke("project_list_property_definitions", {
+      orgId,
+      includeArchived,
+    })
+  );
 }
 
 export async function upsertPropertyDefinition(
   request: UpsertPropertyDefinitionRequest
 ): Promise<PropertyDefinition> {
-  return invoke("project_upsert_property_definition", { request });
+  const result = await invoke<PropertyDefinition>(
+    "project_upsert_property_definition",
+    { request }
+  );
+  invalidateCache(request.orgId);
+  return result;
 }
 
 export async function archivePropertyDefinition(
-  propertyId: string
+  propertyId: string,
+  orgId: string
 ): Promise<PropertyDefinition> {
-  return invoke("project_archive_property_definition", { propertyId });
+  const result = await invoke<PropertyDefinition>(
+    "project_archive_property_definition",
+    { propertyId }
+  );
+  invalidateCache(orgId);
+  return result;
 }
 
 export async function listWorkItemPropertyValues(
@@ -46,4 +67,35 @@ export async function setWorkItemPropertyValue(
   return invoke("project_set_work_item_property_value", {
     request: { ...scope, propertyId, value },
   });
+}
+
+export async function listScopePropertyValues(
+  orgId: string,
+  projectSlug?: string | null
+): Promise<import("../types").ScopePropertyValue[]> {
+  return invoke("project_list_scope_property_values", {
+    orgId,
+    projectSlug: projectSlug ?? null,
+  });
+}
+
+export async function batchSetWorkItemPropertyValue(input: {
+  orgId: string;
+  projectSlug?: string | null;
+  shortIds: string[];
+  propertyId: string;
+  value: unknown | null;
+}): Promise<number> {
+  const result = await invoke<number>(
+    "project_batch_set_work_item_property_value",
+    {
+      orgId: input.orgId,
+      projectSlug: input.projectSlug ?? null,
+      shortIds: input.shortIds,
+      propertyId: input.propertyId,
+      value: input.value,
+    }
+  );
+  invalidateCache(input.projectSlug ?? undefined);
+  return result;
 }

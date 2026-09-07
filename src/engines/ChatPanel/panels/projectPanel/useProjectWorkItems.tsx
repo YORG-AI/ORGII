@@ -290,6 +290,7 @@ export function useProjectWorkItems(
   const listContent = workItemsUnavailableContent ?? (
     <div className="h-full min-h-0 flex-1 overflow-hidden">
       <WorkItemsListContent
+        statusOrgId={selectedProject.orgId}
         groupedWorkItems={groupedWorkItems}
         filteredWorkItems={filteredWorkItems}
         workItems={workItems}

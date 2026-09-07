@@ -115,6 +115,7 @@ const CONTEXT_MENU_FIELD_IDS: Partial<
 };
 
 const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
+  statusOrgId,
   workItem,
   onUpdate,
   availableProjects = [],
@@ -314,6 +315,7 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
             visibleFields={visibleFieldSet}
           />
           <StatusPrioritySection
+            statusOrgId={statusOrgId}
             workItem={workItem}
             openPicker={openPicker}
             togglePicker={togglePicker}
@@ -412,6 +414,7 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
           visibleFields={visibleFieldSet}
         />
         <StatusPrioritySection
+          statusOrgId={statusOrgId}
           workItem={workItem}
           openPicker={openPicker}
           togglePicker={togglePicker}

@@ -282,6 +282,7 @@ export function PlaygroundChatPanel({
                 <QueuedMessages
                   messages={demoQueue}
                   onCancel={NOOP_MESSAGE_ACTION}
+                  onClear={() => setDemoQueue([])}
                   onSendNow={NOOP_MESSAGE_ACTION}
                   onReorder={handleDemoReorder}
                   onToggle={toggleQueue}

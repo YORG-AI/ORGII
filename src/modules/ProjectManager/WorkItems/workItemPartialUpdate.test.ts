@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { toWorkItemPartialUpdate } from "./workItemPartialUpdate";
+import {
+  buildBatchQuickFieldUpdate,
+  toWorkItemPartialUpdate,
+} from "./workItemPartialUpdate";
 
 describe("toWorkItemPartialUpdate", () => {
   it("maps editable Work Item fields to the project-store payload", () => {
@@ -49,5 +52,33 @@ describe("toWorkItemPartialUpdate", () => {
     expect(
       toWorkItemPartialUpdate({}, { id: "member-1", name: "Ada" })
     ).toEqual({});
+  });
+});
+
+describe("buildBatchQuickFieldUpdate", () => {
+  it("builds a status payload", () => {
+    expect(buildBatchQuickFieldUpdate("status", "in_progress")).toEqual({
+      status: "in_progress",
+    });
+  });
+
+  it("builds a priority payload", () => {
+    expect(buildBatchQuickFieldUpdate("priority", "urgent")).toEqual({
+      priority: "urgent",
+    });
+  });
+
+  it("builds an assignee payload for a real member", () => {
+    expect(buildBatchQuickFieldUpdate("assignee", "member-1")).toEqual({
+      assignee: "member-1",
+      assigneeType: "human",
+    });
+  });
+
+  it("clears both assignee fields for the no-assignee sentinel", () => {
+    expect(buildBatchQuickFieldUpdate("assignee", "none")).toEqual({
+      assignee: null,
+      assigneeType: null,
+    });
   });
 });

@@ -15,7 +15,8 @@
       "person": "按人员",
       "assignedTo": "按指派对象",
       "createdBy": "按创建者",
-      "targetDate": "按目标日期"
+      "targetDate": "按目标日期",
+      "property": "按属性"
     },
     "source": {
       "localOnly": "仅本地",
@@ -265,7 +266,8 @@
       "kanban": "看板",
       "gantt": "甘特图",
       "calendar": "日历",
-      "settings": "设置"
+      "settings": "设置",
+      "table": "表格"
     },
     "statusFilters": {
       "all": "全部",
@@ -316,6 +318,9 @@
     "properties": {
       "title": "工作项属性",
       "propertiesSection": "属性",
+      "filter": "属性筛选",
+      "filterValue": "属性筛选值",
+      "noValue": "无值",
       "assignment": "分配",
       "noAssignee": "未分配",
       "noMembersHint": "暂无成员。前往 Settings > Members 从 Git 同步",
@@ -364,7 +369,8 @@
       "previewThread": "将唤醒该 thread 的 agent",
       "previewAssignee": "将唤醒被指派的 agent",
       "previewAssigneeStart": "将启动被指派的 agent",
-      "previewCoalesce": "并入待处理的唤醒"
+      "previewCoalesce": "并入待处理的唤醒",
+      "previewMemberThread": "成员讨论串——不会唤醒任何 agent"
     },
     "activity": {
       "title": "动态",
@@ -432,7 +438,11 @@
         "schedule": "计划",
         "orchestratorConfig": "Orchestrator 配置",
         "handoff": "工作交接"
-      }
+      },
+      "edited": "（已编辑）",
+      "commentDeleted": "该评论已删除。",
+      "deleteComment": "删除评论",
+      "deleteCommentConfirm": "确定删除该评论？回复会保留，评论内容将被移除。"
     },
     "contextMenu": {
       "status": "状态",
@@ -580,6 +590,71 @@
       "notOnDeviceTitle": "会话不在此设备",
       "notOnDeviceHint": "该会话在其他设备上运行，转录未同步到本机。",
       "finalOutput": "最终输出"
+    },
+    "savedViews": {
+      "placeholder": "视图",
+      "save": "保存当前视图",
+      "saveTitle": "保存视图",
+      "namePlaceholder": "视图名称",
+      "saveHint": "保存当前筛选条件；布局只作为首次打开的种子。",
+      "delete": "删除视图"
+    },
+    "table": {
+      "columnsPicker": "列",
+      "groupByProperty": "按属性分组",
+      "columns": {
+        "shortId": "编号",
+        "title": "标题",
+        "status": "状态",
+        "priority": "优先级",
+        "assignee": "负责人",
+        "targetDate": "截止",
+        "labels": "标签"
+      }
+    },
+    "batchProperty": {
+      "title": "设置属性",
+      "hint": "将一个属性值应用到选中的 {{count}} 个事项；留空表示清除该属性。",
+      "propertyPlaceholder": "属性",
+      "valuePlaceholder": "值",
+      "applied": "已更新 {{count}} 个事项"
+    },
+    "revisionConflict": {
+      "title": "处理编辑冲突",
+      "description": "{{field}} 在版本 {{expected}} 之后已被修改。请将你的编辑与最新版本 {{actual}} 对比，再选择保留哪一版。",
+      "mine": "我的版本",
+      "latest": "最新版本",
+      "useLatest": "使用最新版本",
+      "keepMine": "保留我的版本",
+      "titleField": "标题",
+      "descriptionField": "描述",
+      "commentField": "评论",
+      "reloadNotice": "此工作项已在其他位置更新，现已载入最新版本。",
+      "retryFailed": "最新版本又发生了变化，请重新对比后再试。"
+    },
+    "quickActions": {
+      "title": "快捷指令",
+      "empty": "还没有快捷指令。为常用的 agent 任务保存一条可复用的提示。",
+      "emptyManage": "还没有保存任何指令。",
+      "manageTitle": "管理快捷指令",
+      "namePlaceholder": "指令名称（如：修复 CI）",
+      "targetPlaceholder": "目标 agent",
+      "promptPlaceholder": "希望 agent 做什么？",
+      "archive": "归档指令",
+      "scopeChanged": "快捷指令已不属于当前工作项范围",
+      "started": "快捷指令“{{name}}”已启动"
+    },
+    "batchField": {
+      "hint": "应用到选中的 {{count}} 个事项。"
+    },
+    "batchStatus": {
+      "title": "设置状态"
+    },
+    "batchPriority": {
+      "title": "设置优先级"
+    },
+    "batchAssignee": {
+      "title": "设置负责人"
     }
   },
   "settings": {
@@ -859,7 +934,16 @@
           "dismissFailed": "忽略冲突失败：{{error}}"
         }
       }
-    }
+    },
+    "sidebarStatuses": "状态",
+    "statusesBuiltin": "内置状态",
+    "statusesBuiltinDescription": "标准工作流状态，始终可用。",
+    "statusesCustom": "自定义状态",
+    "statusesCustomDescription": "映射到某个内置状态桶的别名；筛选、计数与看板按其所属桶处理。",
+    "statusNamePlaceholder": "状态名称",
+    "noCustomStatuses": "还没有自定义状态。",
+    "statusArchive": "归档状态",
+    "statusRestore": "恢复状态"
   },
   "statusBar": {
     "workItemCount": "{{count}}个项目",

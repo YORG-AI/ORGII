@@ -7,7 +7,7 @@
 //! ```text
 //! org2 context
 //! org2 work   list|show|create|update|claim|transition|note|relate
-//! org2 routine ...        (Phase 4)
+//! org2 routine ...
 //! ```
 //!
 //! Process model (design §13.0): short-lived console process linking the
@@ -46,7 +46,10 @@ fn parse_args(args: &[String]) -> Result<Parsed, CliError> {
     while i < args.len() {
         let arg = &args[i];
         if let Some(name) = arg.strip_prefix("--") {
-            if name == "json" || name == "ready" || name == "standalone" {
+            if matches!(
+                name,
+                "json" | "ready" | "standalone" | "activity-only" | "comments-only"
+            ) {
                 flags.insert(name.to_string(), "true".to_string());
                 i += 1;
                 continue;
@@ -55,10 +58,13 @@ fn parse_args(args: &[String]) -> Result<Parsed, CliError> {
                 return Err(CliError::new(
                     ErrorCode::InvalidArgument,
                     "org2-pm is JSON-envelope only. Commands: context show | \
-                     work list|show|create|update|claim|transition|note|relate | \
-                     routine list|validate|apply|run|status|enable|disable. \
+                     work list|show|timeline|create|update|claim|transition|note|relate | \
+                     routine list|validate|apply|run|status|cancel|enable|disable. \
                      Common flags: --scope <project> --mode project --actor \
                      <kind:id> --session-ref <provider:id> --idempotency-key <k>. \
+                     Routine run also accepts --root-work <work-item-id>. \
+                     work timeline <id> accepts --since <iso> --tail <n> \
+                     --activity-only|--comments-only. \
                      With no project scope, work list/create use the current \
                      organization's standalone Work Items automatically"
                         .to_string(),

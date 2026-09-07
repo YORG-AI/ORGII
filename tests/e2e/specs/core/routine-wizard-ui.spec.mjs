@@ -39,6 +39,7 @@ const SCENARIO_FILTER = (process.env.E2E_ROUTINE_UI_SCENARIOS ?? "")
 
 const WIZARD_SAVE_SCENARIO = "routine-wizard-save-output-policy";
 const WIZARD_EDIT_ROUNDTRIP_SCENARIO = "routine-wizard-edit-roundtrip";
+const WIZARD_MULTI_ACTIVATION_SCENARIO = "routine-wizard-multi-activation";
 const FIRE_HISTORY_SCENARIO = "routine-fire-history-expanded-row";
 const SCHEDULE_RECURRING_REMOVED_SCENARIO =
   "work-item-schedule-recurring-removed";
@@ -515,6 +516,184 @@ describe("Routine wizard and Routines page rendered UI", function () {
       }
     } finally {
       await invokeE2E("deleteRoutine", routine.id);
+    }
+  });
+
+  it("saves an extra activation added through the rendered wizard and round-trips it in edit mode", async function () {
+    if (!shouldRunScenario(WIZARD_MULTI_ACTIVATION_SCENARIO)) {
+      this.skip();
+      return;
+    }
+
+    const routineName = `E2E UI multi activation ${RUN_ID}`;
+    const extraCron = "30 8 * * 2";
+    let createdRoutineId = null;
+    try {
+      await openRoutinesPage();
+      await openAddRoutineWizard();
+      await fillRequiredWizardFields(
+        routineName,
+        "E2E multi-activation probe. Reply with one short sentence."
+      );
+
+      await selectRenderedOption(
+        "routine-wizard-trigger-select",
+        "routine-wizard-trigger-option-cron",
+        "Trigger kind (multi-activation)"
+      );
+      await waitForSelector(
+        '[data-testid="routine-wizard-cron-frequency-select"]',
+        "Cron frequency builder (multi-activation)"
+      );
+
+      await clickWhenRendered(
+        '[data-testid="routine-wizard-add-activation"]',
+        "Add activation button"
+      );
+      await waitForSelector(
+        '[data-testid^="routine-wizard-activation-cron-"]',
+        "Extra activation cron input (default schedule type)"
+      );
+      await setInputValue(
+        '[data-testid^="routine-wizard-activation-cron-"] input, input[data-testid^="routine-wizard-activation-cron-"]',
+        extraCron,
+        "Extra activation cron"
+      );
+
+      const multiSaveDisabled = await execJS(`
+        const btn = document.querySelector('[data-testid="routine-wizard-save-button"]');
+        return btn ? btn.disabled : null;
+      `);
+      if (multiSaveDisabled !== false) {
+        const activationState = await execJS(`
+          const cron = document.querySelector('[data-testid^="routine-wizard-activation-cron-"] input, input[data-testid^="routine-wizard-activation-cron-"]')?.value;
+          const rows = document.querySelectorAll('[data-testid^="routine-wizard-activation-type-"]').length;
+          return { cron, rows };
+        `);
+        throw new Error(
+          `Save disabled after adding the extra activation: disabled=${JSON.stringify(multiSaveDisabled)} state=${JSON.stringify(activationState)}`
+        );
+      }
+      await clickWhenRendered(
+        '[data-testid="routine-wizard-save-button"]',
+        "Routine wizard save (multi-activation)"
+      );
+      await browser.waitUntil(
+        async () =>
+          !(await execJS(
+            `return Boolean(document.querySelector('[data-testid="routine-wizard-root"]'));`
+          )),
+        {
+          timeout: MOUNT_TIMEOUT_MS,
+          timeoutMsg: "Routine wizard did not close after multi-activation save",
+        }
+      );
+
+      const saved = await findRoutineByName(
+        routineName,
+        "listRoutines(after multi-activation save)"
+      );
+      if (!saved) {
+        throw new Error(
+          `Saved routine "${routineName}" not found via listRoutines`
+        );
+      }
+      createdRoutineId = saved.id;
+
+      const activations = saved.activations ?? [];
+      if (activations.length !== 2) {
+        throw new Error(
+          `Expected 2 activations (trigger mirror + extra): ${JSON.stringify(activations)}`
+        );
+      }
+      const triggerToActivationType = {
+        cron: "schedule",
+        one_time: "one_time",
+        manual: "manual",
+      };
+      const expectedMirrorType =
+        triggerToActivationType[saved.trigger?.kind] ?? saved.trigger?.kind;
+      if (activations[0].type !== expectedMirrorType) {
+        throw new Error(
+          `activations[0] must mirror the trigger ${JSON.stringify(saved.trigger)}: ${JSON.stringify(activations[0])}`
+        );
+      }
+      if (
+        saved.trigger?.kind === "cron" &&
+        activations[0].cron !== saved.trigger.cron
+      ) {
+        throw new Error(
+          `activations[0] cron must mirror the trigger cron ${JSON.stringify(saved.trigger)}: ${JSON.stringify(activations[0])}`
+        );
+      }
+      if (
+        activations[1].type !== "schedule" ||
+        activations[1].cron !== extraCron
+      ) {
+        throw new Error(
+          `Extra activation did not persist from the rendered input: ${JSON.stringify(activations[1])}`
+        );
+      }
+
+      // Edit round-trip: the extra activation must render back, and the
+      // rendered remove button must strip it on the next save.
+      unwrap(
+        await invokeE2E(
+          "navigateTo",
+          `${ROUTINES_ROUTE}?wizard=routine-edit&id=${saved.id}`
+        ),
+        "navigateTo(multi-activation edit wizard)"
+      );
+      await waitForSelector(
+        '[data-testid="routine-wizard-root"]',
+        "Multi-activation edit wizard root"
+      );
+      await waitForSelector(
+        '[data-testid^="routine-wizard-activation-cron-"]',
+        "Extra activation rendered in edit mode"
+      );
+      const renderedCron = await execJS(`
+        const input = document.querySelector('[data-testid^="routine-wizard-activation-cron-"] input, input[data-testid^="routine-wizard-activation-cron-"]');
+        return input ? input.value : null;
+      `);
+      if (renderedCron !== extraCron) {
+        throw new Error(
+          `Edit wizard did not round-trip the extra activation cron: ${JSON.stringify(renderedCron)}`
+        );
+      }
+
+      await clickWhenRendered(
+        '[data-testid^="routine-wizard-activation-remove-"]',
+        "Remove extra activation"
+      );
+      await clickWhenRendered(
+        '[data-testid="routine-wizard-save-button"]',
+        "Routine wizard save (activation removed)"
+      );
+      await browser.waitUntil(
+        async () =>
+          !(await execJS(
+            `return Boolean(document.querySelector('[data-testid="routine-wizard-root"]'));`
+          )),
+        {
+          timeout: MOUNT_TIMEOUT_MS,
+          timeoutMsg: "Routine wizard did not close after removing activation",
+        }
+      );
+      const afterRemove = await findRoutineByName(
+        routineName,
+        "listRoutines(after activation removed)"
+      );
+      const remaining = afterRemove?.activations ?? [];
+      if (remaining.length !== 1 || remaining[0].type !== expectedMirrorType) {
+        throw new Error(
+          `Removing the extra activation should leave only the primary: ${JSON.stringify(remaining)}`
+        );
+      }
+    } finally {
+      if (createdRoutineId) {
+        await invokeE2E("deleteRoutine", createdRoutineId);
+      }
     }
   });
 

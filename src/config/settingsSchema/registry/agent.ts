@@ -94,4 +94,11 @@ export const AGENT_SETTINGS_REGISTRY = {
       "Auto-switch pending mode-switch suggestions to Plan mode on timeout per user status. Disabled by default to preserve timeout-as-skip behavior.",
     category: "agent",
   },
+  "agent.sde.followUpSuggestionsEnabled": {
+    schema: z.boolean(),
+    default: false,
+    description:
+      "Generate provider-backed follow-up suggestions after completed Work Item turns. Disabled by default because each suggestion pass is an additional model request.",
+    category: "agent",
+  },
 } as const satisfies Record<string, SettingDefinition>;

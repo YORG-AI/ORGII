@@ -1,6 +1,7 @@
-import type {
-  WorkItemMutationActor,
-  WorkItemPartialUpdate,
+import {
+  type WorkItemMutationActor,
+  type WorkItemPartialUpdate,
+  workItemCommentToEntry,
 } from "@src/api/http/project";
 import type { Person } from "@src/types/core/shared";
 import type { WorkItem } from "@src/types/core/workItem";
@@ -59,19 +60,7 @@ export function toWorkItemPartialUpdate(
     }));
   }
   if (updates.comments !== undefined) {
-    payload.comments = updates.comments.map((comment) => ({
-      id: comment.id,
-      author: comment.author,
-      content: comment.content,
-      created_at: comment.created_at,
-      mentioned_user_ids: comment.mentioned_user_ids,
-      parent_id: comment.parent_id,
-      thread_id: comment.thread_id,
-      resolved_at: comment.resolved_at,
-      resolved_by: comment.resolved_by,
-      conclusion: comment.conclusion,
-      agent_session_id: comment.agent_session_id,
-    }));
+    payload.comments = updates.comments.map(workItemCommentToEntry);
   }
   if (updates.linkedSessions !== undefined) {
     payload.linkedSessions = updates.linkedSessions;
@@ -107,4 +96,28 @@ export function withWorkItemMutationActor(
 
   const normalizedActor: WorkItemMutationActor = { id, name };
   return { ...payload, actor: normalizedActor };
+}
+
+export const BATCH_QUICK_FIELDS = ["status", "priority", "assignee"] as const;
+
+export type BatchQuickField = (typeof BATCH_QUICK_FIELDS)[number];
+
+export const BATCH_QUICK_FIELD_NO_ASSIGNEE_VALUE = "none";
+
+export function buildBatchQuickFieldUpdate(
+  field: BatchQuickField,
+  value: string
+): WorkItemPartialUpdate {
+  switch (field) {
+    case "status":
+      return { status: value };
+    case "priority":
+      return { priority: value };
+    case "assignee":
+      return value === BATCH_QUICK_FIELD_NO_ASSIGNEE_VALUE
+        ? { assignee: null, assigneeType: null }
+        : { assignee: value, assigneeType: "human" };
+    default:
+      return {};
+  }
 }

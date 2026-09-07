@@ -42,11 +42,8 @@ pub(crate) fn start_backend_services(
                         pid,
                         session_id
                     );
-                    agent_sessions::cli::session_runner::terminate_process_tree(
-                        pid,
-                        &session_id,
-                    )
-                    .await;
+                    agent_sessions::cli::session_runner::terminate_process_tree(pid, &session_id)
+                        .await;
                 }
             });
         }
@@ -70,7 +67,9 @@ pub(crate) fn start_backend_services(
     }
 
     git::watch::RepoWatchManager::initialize(app.handle().clone());
-    tracing::info!("[RepoWatch] Repository watch manager initialized for on-demand active workspaces");
+    tracing::info!(
+        "[RepoWatch] Repository watch manager initialized for on-demand active workspaces"
+    );
 
     // Start L3 offline consolidation tick (60s interval, fires on
     // idle/forced triggers). Non-blocking, runs on its own thread +
@@ -82,12 +81,20 @@ pub(crate) fn start_backend_services(
     // agent-core persistence layer stays orgtrack-agnostic; CLI
     // sessions mirror through their own persistence write path.
     agent_core::session::persistence::register_session_mirror_hook(|session_id| {
-        if let Err(err) = crate::agent_sessions::session_directory::orgtrack_adapter::upsert_rust_agent_session(session_id) {
+        if let Err(err) =
+            crate::agent_sessions::session_directory::orgtrack_adapter::upsert_rust_agent_session(
+                session_id,
+            )
+        {
             tracing::warn!(session_id, error = %err, "[session-mirror] orgtrack session mirror failed");
         }
     });
     agent_core::session::persistence::register_session_delete_mirror_hook(|session_id| {
-        if let Err(err) = crate::agent_sessions::session_directory::orgtrack_adapter::remove_mirrored_session(session_id) {
+        if let Err(err) =
+            crate::agent_sessions::session_directory::orgtrack_adapter::remove_mirrored_session(
+                session_id,
+            )
+        {
             tracing::warn!(session_id, error = %err, "[session-mirror] orgtrack delete mirror failed");
         }
     });
@@ -99,7 +106,6 @@ pub(crate) fn start_backend_services(
             tracing::warn!(error = %err, "[session-mirror] startup reconcile failed");
         }
     });
-
 
     // Create WebSocket broadcast channel for real-time events
     let (ws_tx, _ws_rx) = tokio::sync::broadcast::channel::<String>(1000);
@@ -115,13 +121,14 @@ pub(crate) fn start_backend_services(
     // thread. Local single-user server: a small worker cap serves it fine and
     // avoids a full core-count worker pool (the app spawns several runtimes).
     let ide_server_port = runtime_profile.ide_server_port;
-    std::thread::spawn(move || match tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(4)
-        .enable_all()
-        .build()
-    {
-        Ok(rt) => {
-            rt.block_on(async {
+    std::thread::spawn(move || {
+        match tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(4)
+            .enable_all()
+            .build()
+        {
+            Ok(rt) => {
+                rt.block_on(async {
                 match api::start_server(ws_tx, ide_server_port).await {
                     Ok(_) => tracing::info!("[IDE Server] Server stopped"),
                     Err(err) => {
@@ -129,8 +136,11 @@ pub(crate) fn start_backend_services(
                     }
                 }
             });
+            }
+            Err(err) => {
+                tracing::error!(error = %err, "[IDE Server] Failed to create tokio runtime")
+            }
         }
-        Err(err) => tracing::error!(error = %err, "[IDE Server] Failed to create tokio runtime"),
     });
 
     // Start the local managed-config proxy used by supported CLI agents.
@@ -148,9 +158,7 @@ pub(crate) fn start_backend_services(
         }
     });
     orgtrack::session_provenance::spawn_hook_inbox_drain_loop(app.handle().clone());
-    orgtrack::session_provenance::spawn_codex_write_reconciliation_loop(
-        app.handle().clone(),
-    );
+    orgtrack::session_provenance::spawn_codex_write_reconciliation_loop(app.handle().clone());
 
     // Live agent-status registry: frontend fanout handle + restart
     // continuity from the last-status cache (TTL-filtered).

@@ -1,6 +1,10 @@
 import React, { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import type {
+  PropertyDefinition,
+  ScopePropertyValue,
+} from "@src/api/http/project";
 import { Placeholder } from "@src/components/Placeholder";
 import type { CalendarEvent } from "@src/features/CalendarView";
 import type { GanttTask } from "@src/features/GanttChart";
@@ -19,16 +23,20 @@ import type {
   WorkItemStatus,
 } from "@src/types/core/workItem";
 
+import { indexScopePropertyValues } from "../../propertyViewModel";
 import {
   WORK_ITEMS_KANBAN_GROUP,
   type WorkItemGroup,
   type WorkItemsKanbanGroup,
+  getPropertyKanbanColumns,
   getWorkItemsKanbanColumns,
   workItemsToKanbanTasks,
+  workItemsToPropertyKanbanTasks,
 } from "../../workItemsViewModel";
 import WorkItemsCompactList from "../WorkItemsCompactList";
 import WorkItemsListSurface from "../WorkItemsListSurface";
 import type { WorkItemsViewTab } from "../WorkItemsPageHeader";
+import type { WorkItemsTableSort } from "../WorkItemsTableView";
 
 const WorkItemsOverview = React.lazy(
   () =>
@@ -51,6 +59,10 @@ const KanbanBoard = React.lazy(
       /* webpackChunkName: "workitems-kanban" */ "@src/features/KanbanBoard"
     )
 );
+const WorkItemsTableView = React.lazy(
+  () =>
+    import(/* webpackChunkName: "workitems-table" */ "../WorkItemsTableView")
+);
 
 /** Pre-computed overview stats from Rust */
 interface OverviewStats {
@@ -61,7 +73,16 @@ interface OverviewStats {
 }
 
 interface WorkItemsTabContentProps {
+  statusOrgId: string;
   activeTab: WorkItemsViewTab;
+  tableColumns: string[] | null;
+  onTableColumnsChange: (columns: string[]) => void;
+  tableSort: WorkItemsTableSort | null;
+  onTableSortChange: (sort: WorkItemsTableSort | null) => void;
+  tablePropertyDefinitions: PropertyDefinition[];
+  tablePropertyValues: ScopePropertyValue[];
+  tablePropertyGroupBy: string | null;
+  onTablePropertyGroupByChange: (propertyId: string | null) => void;
   groupedWorkItems: WorkItemGroup[];
   filteredWorkItems: WorkItemExtended[];
   selectedWorkItem: WorkItemExtended | null;
@@ -122,7 +143,16 @@ interface WorkItemsTabContentProps {
 }
 
 const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
+  statusOrgId,
   activeTab,
+  tableColumns,
+  onTableColumnsChange,
+  tableSort,
+  onTableSortChange,
+  tablePropertyDefinitions,
+  tablePropertyValues,
+  tablePropertyGroupBy,
+  onTablePropertyGroupByChange,
   groupedWorkItems,
   filteredWorkItems,
   selectedWorkItem,
@@ -175,24 +205,67 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
 }) => {
   const { t } = useTranslation("projects");
 
-  /** Keep the active full view intact and use the Inbox list while split. */
-  const effectiveKanbanTasks = useMemo(
+  /** Keep develop's unified list/detail owner while extending its board data. */
+  const kanbanPropertyDefinition = useMemo(
     () =>
-      kanbanGroupBy === WORK_ITEMS_KANBAN_GROUP.STATUS
-        ? kanbanTasks
-        : workItemsToKanbanTasks(filteredWorkItems, kanbanGroupBy),
-    [filteredWorkItems, kanbanGroupBy, kanbanTasks]
+      tablePropertyDefinitions.find(
+        (definition) => definition.id === tablePropertyGroupBy
+      ) ?? null,
+    [tablePropertyDefinitions, tablePropertyGroupBy]
   );
-  const kanbanColumns = useMemo(
-    () =>
-      getWorkItemsKanbanColumns(
-        filteredWorkItems,
-        kanbanGroupBy,
-        t("workItems.properties.noAssignee"),
-        pinnedKanbanColumnIds
-      ),
-    [filteredWorkItems, kanbanGroupBy, pinnedKanbanColumnIds, t]
+  const kanbanPropertyValuesByItem = useMemo(
+    () => indexScopePropertyValues(tablePropertyValues),
+    [tablePropertyValues]
   );
+  const effectiveKanbanTasks = useMemo(() => {
+    if (kanbanGroupBy === WORK_ITEMS_KANBAN_GROUP.STATUS) return kanbanTasks;
+    if (kanbanGroupBy === WORK_ITEMS_KANBAN_GROUP.PROPERTY) {
+      return kanbanPropertyDefinition
+        ? workItemsToPropertyKanbanTasks(
+            filteredWorkItems,
+            kanbanPropertyDefinition,
+            kanbanPropertyValuesByItem,
+            availableMembers
+          )
+        : [];
+    }
+    return workItemsToKanbanTasks(filteredWorkItems, kanbanGroupBy);
+  }, [
+    availableMembers,
+    filteredWorkItems,
+    kanbanGroupBy,
+    kanbanPropertyDefinition,
+    kanbanPropertyValuesByItem,
+    kanbanTasks,
+  ]);
+  const kanbanColumns = useMemo(() => {
+    if (kanbanGroupBy === WORK_ITEMS_KANBAN_GROUP.PROPERTY) {
+      return kanbanPropertyDefinition
+        ? getPropertyKanbanColumns(
+            filteredWorkItems,
+            kanbanPropertyDefinition,
+            kanbanPropertyValuesByItem,
+            availableMembers,
+            t("workItems.properties.noValue")
+          )
+        : [];
+    }
+    return getWorkItemsKanbanColumns(
+      filteredWorkItems,
+      kanbanGroupBy,
+      t("workItems.properties.noAssignee"),
+      pinnedKanbanColumnIds,
+      t("workItems.properties.noProject")
+    );
+  }, [
+    availableMembers,
+    filteredWorkItems,
+    kanbanGroupBy,
+    kanbanPropertyDefinition,
+    kanbanPropertyValuesByItem,
+    pinnedKanbanColumnIds,
+    t,
+  ]);
 
   const renderWithOptionalDetail = (content: React.ReactNode) => {
     const isDetail = !!selectedWorkItem;
@@ -253,6 +326,26 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
         </div>
       );
 
+    case "Table":
+      return renderWithOptionalDetail(
+        <Suspense fallback={<Placeholder variant="loading" />}>
+          <WorkItemsTableView
+            statusOrgId={statusOrgId}
+            items={filteredWorkItems}
+            members={availableMembers}
+            visibleColumns={tableColumns}
+            onVisibleColumnsChange={onTableColumnsChange}
+            tableSort={tableSort}
+            onTableSortChange={onTableSortChange}
+            propertyDefinitions={tablePropertyDefinitions}
+            propertyValues={tablePropertyValues}
+            propertyGroupBy={tablePropertyGroupBy}
+            onPropertyGroupByChange={onTablePropertyGroupByChange}
+            onRowClick={(workItem) => onSelectWorkItem(workItem.session_id)}
+          />
+        </Suspense>
+      );
+
     case "Kanban":
       return renderWithOptionalDetail(
         <div className="h-full min-h-0">
@@ -305,6 +398,7 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
     default:
       return (
         <WorkItemsListSurface
+          statusOrgId={statusOrgId}
           groupedWorkItems={groupedWorkItems}
           filteredWorkItems={filteredWorkItems}
           selectedWorkItem={selectedWorkItem}

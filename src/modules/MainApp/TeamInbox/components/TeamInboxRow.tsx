@@ -4,9 +4,12 @@ import { useTranslation } from "react-i18next";
 import IntegrationIcon from "@src/components/IntegrationIcon";
 import { ListPanelItem } from "@src/components/ListPanel";
 import {
+  AlertCircleIcon,
+  CircleCheckBigIcon,
   HugeiconsIcon,
   ListChecksIcon,
   MessageSquareMoreIcon,
+  Notification01Icon,
 } from "@src/icons";
 import { compactRepositoryLabel } from "@src/modules/shared/githubRepositoryLabel";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
@@ -16,6 +19,7 @@ import {
   humanizeToken,
   isGitHubIssueStatus,
   parseGitHubIssueNumber,
+  workItemEventLabelKey,
   workItemPriorityLabelKey,
   workItemStatusLabelKey,
 } from "../domain";
@@ -48,6 +52,7 @@ const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
   ({ item, itemKey, selected, onSelect }, ref) => {
     const { t } = useTranslation();
     const isMention = item.kind === "comment_mention";
+    const isAssigned = item.kind === "assigned_work_item";
     const isGitHubIssue =
       item.kind === "assigned_work_item" &&
       isGitHubIssueStatus(item.payload.status);
@@ -71,6 +76,14 @@ const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
       const source = repository
         ? t("teamInbox.row.issueSource", { repository })
         : t("teamInbox.row.issueSourceFallback");
+      if (!isAssigned) {
+        return {
+          meta: `${t(workItemEventLabelKey(item.payload.eventKind), {
+            defaultValue: humanizeToken(item.payload.eventKind),
+          })} · ${source}`,
+          summary: toCompactPreview(item.payload.summary ?? ""),
+        };
+      }
       const handoff = item.payload.handoff;
       if (!handoff) {
         return {
@@ -103,7 +116,7 @@ const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
         meta: `${meta} · ${source}`,
         summary: "",
       };
-    }, [item, t]);
+    }, [isAssigned, item, t]);
     const relativeTime = useMemo(
       () => formatRelativeTime(item.occurredAt, "nano"),
       [item.occurredAt]
@@ -145,6 +158,27 @@ const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
               size={14}
               strokeWidth={1.8}
             />
+          ) : item.kind === "work_item_run_failed" ? (
+            <HugeiconsIcon
+              icon={AlertCircleIcon}
+              data-icon="circle-alert"
+              size={14}
+              strokeWidth={1.8}
+            />
+          ) : item.kind === "child_completed" ? (
+            <HugeiconsIcon
+              icon={CircleCheckBigIcon}
+              data-icon="circle-check-big"
+              size={14}
+              strokeWidth={1.8}
+            />
+          ) : item.kind === "work_item_updated" ? (
+            <HugeiconsIcon
+              icon={Notification01Icon}
+              data-icon="bell-ring"
+              size={14}
+              strokeWidth={1.8}
+            />
           ) : isGitHubIssue ? (
             <IntegrationIcon type="github" size={14} />
           ) : (
@@ -159,9 +193,15 @@ const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
         leadingClassName={
           isMention
             ? "text-primary-6"
-            : isGitHubIssue
-              ? "text-text-2"
-              : "text-success-6"
+            : item.kind === "work_item_run_failed"
+              ? "text-danger-6"
+              : item.kind === "child_completed"
+                ? "text-success-6"
+                : item.kind === "work_item_updated"
+                  ? "text-warning-6"
+                  : isGitHubIssue
+                    ? "text-text-2"
+                    : "text-success-6"
         }
         onClick={() => onSelect(item)}
       />

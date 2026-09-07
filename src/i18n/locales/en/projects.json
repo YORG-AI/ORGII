@@ -15,7 +15,8 @@
       "person": "By person",
       "assignedTo": "Assigned to",
       "createdBy": "Created by",
-      "targetDate": "By target date"
+      "targetDate": "By target date",
+      "property": "By property"
     },
     "source": {
       "localOnly": "Local only",
@@ -264,7 +265,8 @@
       "kanban": "Kanban",
       "gantt": "Gantt",
       "calendar": "Calendar",
-      "settings": "Settings"
+      "settings": "Settings",
+      "table": "Table"
     },
     "statusFilters": {
       "all": "All",
@@ -315,6 +317,9 @@
     "properties": {
       "title": "Work Item Properties",
       "propertiesSection": "Properties",
+      "filter": "Property filter",
+      "filterValue": "Property filter value",
+      "noValue": "No value",
       "assignment": "Assignment",
       "noAssignee": "No assignee",
       "noMembersHint": "No members yet. Go to Settings > Members to sync from git",
@@ -363,7 +368,8 @@
       "previewThread": "Will wake the agent from this thread",
       "previewAssignee": "Will wake the assigned agent",
       "previewAssigneeStart": "Will start the assigned agent",
-      "previewCoalesce": "joins the pending wake"
+      "previewCoalesce": "joins the pending wake",
+      "previewMemberThread": "Member thread — no agent will be woken"
     },
     "activity": {
       "title": "Activity",
@@ -431,7 +437,11 @@
         "schedule": "schedule",
         "orchestratorConfig": "orchestrator config",
         "handoff": "handoff"
-      }
+      },
+      "edited": "(edited)",
+      "commentDeleted": "This comment was deleted.",
+      "deleteComment": "Delete comment",
+      "deleteCommentConfirm": "Delete this comment? Replies stay, the comment body is removed."
     },
     "contextMenu": {
       "status": "Status",
@@ -579,6 +589,71 @@
       "notOnDeviceTitle": "Session not on this device",
       "notOnDeviceHint": "This session ran on another device. Its transcript is not synced here.",
       "finalOutput": "Final output"
+    },
+    "savedViews": {
+      "placeholder": "Views",
+      "save": "Save current view",
+      "saveTitle": "Save view",
+      "namePlaceholder": "View name",
+      "saveHint": "Captures the current filters; layout seeds the first open.",
+      "delete": "Delete view"
+    },
+    "table": {
+      "columnsPicker": "Columns",
+      "groupByProperty": "Group by property",
+      "columns": {
+        "shortId": "ID",
+        "title": "Title",
+        "status": "Status",
+        "priority": "Priority",
+        "assignee": "Assignee",
+        "targetDate": "Due",
+        "labels": "Labels"
+      }
+    },
+    "batchProperty": {
+      "title": "Set property",
+      "hint": "Applies one property value to {{count}} selected items. Leave the value empty to clear it.",
+      "propertyPlaceholder": "Property",
+      "valuePlaceholder": "Value",
+      "applied": "Updated {{count}} items"
+    },
+    "batchField": {
+      "hint": "Applies to {{count}} selected items."
+    },
+    "batchStatus": {
+      "title": "Set status"
+    },
+    "batchPriority": {
+      "title": "Set priority"
+    },
+    "batchAssignee": {
+      "title": "Set assignee"
+    },
+    "revisionConflict": {
+      "title": "Resolve edit conflict",
+      "description": "{{field}} changed after revision {{expected}}. Compare your edit with revision {{actual}}, then choose which version to keep.",
+      "mine": "My version",
+      "latest": "Latest version",
+      "useLatest": "Use latest",
+      "keepMine": "Keep mine",
+      "titleField": "Title",
+      "descriptionField": "Description",
+      "commentField": "Comment",
+      "reloadNotice": "This Work Item changed elsewhere. The latest version was reloaded.",
+      "retryFailed": "The latest version changed again. Review both versions before retrying."
+    },
+    "quickActions": {
+      "title": "Quick actions",
+      "empty": "No quick actions yet. Save a reusable prompt for an agent.",
+      "emptyManage": "Nothing saved yet.",
+      "manageTitle": "Manage quick actions",
+      "namePlaceholder": "Action name (e.g. Fix CI)",
+      "targetPlaceholder": "Target agent",
+      "promptPlaceholder": "What should the agent do?",
+      "archive": "Archive action",
+      "scopeChanged": "Quick action is no longer in this Work Item scope",
+      "started": "Quick action “{{name}}” started"
     }
   },
   "settings": {
@@ -858,7 +933,16 @@
           "dismissFailed": "Failed to dismiss conflict: {{error}}"
         }
       }
-    }
+    },
+    "sidebarStatuses": "Statuses",
+    "statusesBuiltin": "Built-in statuses",
+    "statusesBuiltinDescription": "The standard workflow buckets. Always available.",
+    "statusesCustom": "Custom statuses",
+    "statusesCustomDescription": "Named aliases over a built-in bucket. Filters, counts, and boards treat them as their bucket.",
+    "statusNamePlaceholder": "Status name",
+    "noCustomStatuses": "No custom statuses yet.",
+    "statusArchive": "Archive status",
+    "statusRestore": "Restore status"
   },
   "statusBar": {
     "workItemCount": "{{count}} items",

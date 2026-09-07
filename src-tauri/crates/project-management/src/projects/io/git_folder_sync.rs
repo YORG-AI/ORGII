@@ -578,6 +578,7 @@ fn read_work_item_markdown(path: &Path) -> Result<WorkItemData, String> {
         frontmatter,
         body: body.to_string(),
         filename,
+        revision: None,
     })
 }
 

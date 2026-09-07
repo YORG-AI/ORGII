@@ -2,7 +2,8 @@
 //!
 //! Tries, in order: workspace `skills/<name>/SKILL.md`, auto-discovered
 //! workspace source dirs, the configured builtin dir, extra source dirs,
-//! and finally the binary-embedded builtin skills.
+//! the explicitly scoped org-shared materialization, and finally the
+//! binary-embedded builtin skills.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -82,6 +83,30 @@ impl SkillsLoader {
                 self.load_skill_from_source_dir(source_dir, name, "agent-source")
             {
                 return Some((contents, Some(path)));
+            }
+        }
+
+        if let Some(org_dir) = self.org_skills_dir() {
+            let org_path = org_dir.join(name).join("SKILL.md");
+            if org_path.exists() {
+                match fs::read_to_string(&org_path) {
+                    Ok(contents) => {
+                        let meta = self.parse_skill_metadata(&contents);
+                        if self.skill_metadata_applies_to_agent(&meta) {
+                            return Some((contents, Some(org_path)));
+                        }
+                        return None;
+                    }
+                    Err(err) => {
+                        tracing::warn!(
+                            "Failed to read org-shared skill {} at {}: {}",
+                            name,
+                            org_path.display(),
+                            err
+                        );
+                        return None;
+                    }
+                }
             }
         }
 

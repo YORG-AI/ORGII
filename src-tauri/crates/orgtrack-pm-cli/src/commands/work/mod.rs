@@ -35,6 +35,7 @@ pub fn dispatch_work(
     match positionals.first().map(String::as_str) {
         Some("list") => query::list(context, flags),
         Some("show") => query::show(context, positionals.get(1), flags),
+        Some("timeline") => query::timeline(context, positionals.get(1), flags),
         Some("create") => create::run(context, flags),
         Some("update") => update::run(context, positionals.get(1), flags),
         Some("assign") => ownership::assign(context, positionals.get(1), flags),
@@ -46,7 +47,7 @@ pub fn dispatch_work(
         other => emit_error(CliError::new(
             ErrorCode::InvalidArgument,
             format!(
-                "Unknown work subcommand '{}'; expected list|show|create|update|claim|transition|note|relate",
+                "Unknown work subcommand '{}'; expected list|show|timeline|create|update|claim|transition|note|relate",
                 other.unwrap_or("<none>")
             ),
         )),

@@ -6,6 +6,8 @@ import type { WorkItemHandoffTransition } from "@src/api/http/project";
 import type { GitHubIssue } from "@src/api/tauri/github";
 import InlineAlert from "@src/components/InlineAlert";
 import {
+  ArchiveArrowUpIcon,
+  ArchiveIcon,
   ClipboardListIcon,
   HugeiconsIcon,
   InternetIcon,
@@ -51,6 +53,10 @@ export interface AssignedWorkItemDetailProps {
   onMarkRead?: (item: AssignedWorkItem) => void;
   onMarkUnread?: (item: AssignedWorkItem) => void;
   onWorkItemUpdated?: (workItem: WorkItem) => void;
+  archived?: boolean;
+  dispositionPending?: boolean;
+  onArchive?: (item: AssignedWorkItem) => void;
+  onUnarchive?: (item: AssignedWorkItem) => void;
 }
 
 function getGitHubIssueNumber(
@@ -171,6 +177,7 @@ const AssignedWorkItemThread: React.FC<AssignedWorkItemThreadProps> = ({
                 }
                 propertiesPlacement="rail"
                 propertyProps={{
+                  statusOrgId: item.target.orgId ?? null,
                   showSchedule: !isGitHubIssue,
                   labelsReadonly: isGitHubIssue,
                   onUpdate: updateWorkItem,
@@ -269,6 +276,10 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
   onMarkRead,
   onMarkUnread,
   onWorkItemUpdated,
+  archived = false,
+  dispositionPending = false,
+  onArchive,
+  onUnarchive,
 }) => {
   const { t } = useTranslation();
   const [tabSelection, setTabSelection] = React.useState<{
@@ -490,6 +501,41 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
               testId: "team-inbox-open-github",
             }
           : undefined
+      }
+      headerDispositionAction={
+        archived && onUnarchive
+          ? {
+              label: t("teamInbox.actions.unarchive"),
+              icon: (
+                <HugeiconsIcon
+                  icon={ArchiveArrowUpIcon}
+                  data-icon="archive-restore"
+                  size={14}
+                  strokeWidth={1.8}
+                  aria-hidden
+                />
+              ),
+              onClick: () => onUnarchive(item),
+              testId: "team-inbox-unarchive",
+              disabled: dispositionPending,
+            }
+          : !archived && onArchive
+            ? {
+                label: t("teamInbox.actions.archive"),
+                icon: (
+                  <HugeiconsIcon
+                    icon={ArchiveIcon}
+                    data-icon="archive"
+                    size={14}
+                    strokeWidth={1.8}
+                    aria-hidden
+                  />
+                ),
+                onClick: () => onArchive(item),
+                testId: "team-inbox-archive",
+                disabled: dispositionPending,
+              }
+            : undefined
       }
       onMarkRead={onMarkRead ? () => onMarkRead(item) : undefined}
       onMarkUnread={onMarkUnread ? () => onMarkUnread(item) : undefined}

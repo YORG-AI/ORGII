@@ -31,6 +31,7 @@ use super::oauth_setup::{
     is_cli_oauth_retry_eligible, refresh_cli_oauth_for_retry, sanitize_cli_oauth_env_for_child,
 };
 
+mod mcp_inject;
 mod skills_resolve;
 mod spawn_retry;
 mod transport_acp;
@@ -49,6 +50,54 @@ const MAX_STDERR_LINES: usize = 20;
 /// CLI that hands its stderr to a surviving grandchild keeps the pipe open
 /// forever, and no diagnostic is worth hanging the turn on.
 const STDERR_DRAIN_TIMEOUT: tokio::time::Duration = tokio::time::Duration::from_secs(3);
+
+fn redacted_secret(value: &str) -> String {
+    let char_count = value.chars().count();
+    if char_count <= 10 {
+        return "<redacted>".to_string();
+    }
+    let prefix = value.chars().take(6).collect::<String>();
+    let suffix = value
+        .chars()
+        .skip(char_count.saturating_sub(4))
+        .collect::<String>();
+    format!("{prefix}...{suffix}")
+}
+
+fn environment_key_is_sensitive(key: &str) -> bool {
+    let key = key.to_ascii_lowercase();
+    [
+        "token",
+        "key",
+        "secret",
+        "password",
+        "passwd",
+        "credential",
+        "authorization",
+        "cookie",
+    ]
+    .iter()
+    .any(|marker| key.contains(marker))
+}
+
+fn redacted_command_parts(cmd_parts: &[String]) -> Vec<String> {
+    cmd_parts
+        .iter()
+        .enumerate()
+        .map(|(idx, part)| {
+            let previous = idx.checked_sub(1).and_then(|prev| cmd_parts.get(prev));
+            if previous.is_some_and(|flag| flag == "--api-key" || flag == "--market-token") {
+                redacted_secret(part)
+            } else if previous.is_some_and(|flag| flag == "-c") && part.starts_with("mcp_servers.")
+            {
+                let key = part.split_once('=').map_or(part.as_str(), |(key, _)| key);
+                format!("{key}=<redacted>")
+            } else {
+                part.clone()
+            }
+        })
+        .collect()
+}
 
 /// The child's stderr, collected by a background reader.
 ///
@@ -76,12 +125,19 @@ impl CliStderrCollector {
         Arc::clone(&self.lines)
     }
 
-    fn attach(&mut self, stderr: tokio::process::ChildStderr, session_id: String) {
+    fn attach(
+        &mut self,
+        stderr: tokio::process::ChildStderr,
+        session_id: String,
+        environment_secrets: Arc<Vec<String>>,
+        mcp_servers: Arc<mcp_inject::SessionMcpServers>,
+    ) {
         let sink = Arc::clone(&self.lines);
         self.reader = Some(tokio::spawn(async move {
             use tokio::io::AsyncBufReadExt;
             let mut reader = BufReader::new(stderr).lines();
             while let Ok(Some(line)) = reader.next_line().await {
+                let line = redact_cli_stderr_line(&line, &environment_secrets, &mcp_servers);
                 tracing::warn!("[CodeSession][stderr][{}] {}", session_id, line);
                 let mut buf = sink.lock().await;
                 if buf.len() >= MAX_STDERR_LINES {
@@ -119,6 +175,20 @@ impl CliStderrCollector {
             let _ = reader.await;
         }
     }
+}
+
+fn redact_cli_stderr_line(
+    line: &str,
+    environment_secrets: &[String],
+    mcp_servers: &mcp_inject::SessionMcpServers,
+) -> String {
+    let mut redacted = terminal::redaction::redact_terminal_text(line);
+    for secret in environment_secrets {
+        if !secret.is_empty() {
+            redacted = redacted.replace(secret, "[REDACTED_SECRET]");
+        }
+    }
+    mcp_servers.redact_secrets_from_text(&redacted)
 }
 
 fn terminal_cli_error_from_chunk(chunk: &core_types::activity::ActivityChunk) -> Option<String> {
@@ -397,6 +467,11 @@ pub async fn run_session(
     )
     .await;
 
+    let status_catalog = if session.product_mode.as_deref() == Some("project") {
+        project_management::work_item_features::render_status_catalog(Some(&session.org_id))
+    } else {
+        None
+    };
     let mut effective_input = super::input_assembly::build_effective_input(
         &user_input,
         Some(effective_mode_str),
@@ -411,6 +486,7 @@ pub async fn run_session(
         Some(working_dir),
         skills_cfg.enabled,
         &skills_cfg.disabled,
+        status_catalog.as_deref(),
     );
     if let Some(context) = lifecycle_hook_context {
         effective_input = format!(
@@ -436,6 +512,41 @@ pub async fn run_session(
             None
         };
     let additional_dirs: &[String] = session.additional_directories.as_deref().unwrap_or(&[]);
+
+    let session_mcp =
+        mcp_inject::SessionMcpServers::resolve(working_dir, session.agent_definition_id.as_deref())
+            .map_err(|err| format!("Failed to resolve external CLI MCP policy: {err}"))?;
+    // Keep the guard alive through spawn, transport retries, and finalization.
+    // Its TempPath removes the secret-bearing file on success, error, or
+    // cancellation when this run future exits.
+    let claude_mcp_config = if matches!(agent, ModelType::ClaudeCode) {
+        Some(session_mcp.write_claude_mcp_config().map_err(|err| {
+            format!("{err}; refusing to launch Claude without the strict resolved MCP boundary")
+        })?)
+    } else {
+        None
+    };
+    let claude_mcp_config_path = claude_mcp_config
+        .as_ref()
+        .map(|file| file.path().to_string_lossy().into_owned());
+    // Codex's MCP env/header values are secrets. Materialize them in a
+    // random owner-only profile layer and pass only the non-secret profile
+    // name in argv. The guard stays alive through every transport retry and
+    // finalization, then removes the profile on return/cancellation.
+    let codex_mcp_profile = if matches!(agent, ModelType::Codex) {
+        let codex_home =
+            super::env_setup::codex_home_for_session(&session, account_id, &session_id)?;
+        session_mcp
+            .write_codex_mcp_profile(&codex_home)
+            .map_err(|err| {
+                format!("{err}; refusing to launch Codex with an incomplete MCP profile")
+            })?
+    } else {
+        None
+    };
+    let acp_mcp_servers = session_mcp.acp_servers();
+    let stderr_mcp_servers = Arc::new(session_mcp);
+
     let mut cmd_parts = build_command_with_launch_profile(CliCommandBuildRequest {
         agent: &agent,
         launch_profile: &launch_profile,
@@ -447,6 +558,10 @@ pub async fn run_session(
         mode: Some(effective_mode_str),
         repo_path: Some(working_dir),
         additional_dirs,
+        mcp_config_path: claude_mcp_config_path.as_deref(),
+        codex_mcp_profile: codex_mcp_profile
+            .as_ref()
+            .map(|profile| profile.profile_name()),
     });
 
     if matches!(agent, ModelType::Codex) && session.key_source == KeySource::HostedKey {
@@ -467,23 +582,7 @@ pub async fn run_session(
 
     // Log the full command for debugging (redact sensitive values)
     {
-        let redacted_args: Vec<String> = cmd_parts
-            .iter()
-            .enumerate()
-            .map(|(idx, part)| {
-                if idx > 0
-                    && (cmd_parts[idx - 1] == "--api-key" || cmd_parts[idx - 1] == "--market-token")
-                {
-                    format!(
-                        "{}...{}",
-                        &part[..part.len().min(6)],
-                        &part[part.len().saturating_sub(4)..]
-                    )
-                } else {
-                    part.clone()
-                }
-            })
-            .collect();
+        let redacted_args = redacted_command_parts(&cmd_parts);
         tracing::info!(
             "[CodeSession] Command: {} (resume_id={:?})",
             redacted_args.join(" "),
@@ -568,17 +667,19 @@ pub async fn run_session(
 
     sanitize_cli_oauth_env_for_child(&agent, &mut env_vars);
 
+    let mut stderr_environment_secrets = env_vars
+        .iter()
+        .filter(|(key, value)| environment_key_is_sensitive(key) && !value.is_empty())
+        .map(|(_, value)| value.clone())
+        .collect::<Vec<_>>();
+    stderr_environment_secrets.sort_by_key(|secret| std::cmp::Reverse(secret.len()));
+    stderr_environment_secrets.dedup();
+    let stderr_environment_secrets = Arc::new(stderr_environment_secrets);
+
     // Log environment variables for debugging (redact token values)
     for (key, value) in &env_vars {
-        let display_val = if key.to_lowercase().contains("token")
-            || key.to_lowercase().contains("key")
-            || key.to_lowercase().contains("secret")
-        {
-            format!(
-                "{}...{}",
-                &value[..value.len().min(6)],
-                &value[value.len().saturating_sub(4)..]
-            )
+        let display_val = if environment_key_is_sensitive(key) {
+            redacted_secret(value)
         } else {
             value.clone()
         };
@@ -664,6 +765,20 @@ pub async fn run_session(
     let mut codex_app_server_turn_ok = false;
 
     let session_timeout = tokio::time::Duration::from_secs(4 * 60 * 60);
+    let _worktree_lock =
+        git::worktree::session_worktree_root_for_path(std::path::Path::new(working_dir)).and_then(
+            |root| match git::worktree::try_acquire_worktree_lock(&root) {
+                Ok(guard) => guard,
+                Err(err) => {
+                    tracing::warn!(
+                        "[CodeSession] Failed to lock worktree {}: {}",
+                        root.display(),
+                        err
+                    );
+                    None
+                }
+            },
+        );
 
     loop {
         let mut attempt_stderr = CliStderrCollector::new();
@@ -727,6 +842,8 @@ pub async fn run_session(
         attempt_stderr.attach(
             child.stderr.take().expect("stderr was piped"),
             session_id.clone(),
+            Arc::clone(&stderr_environment_secrets),
+            Arc::clone(&stderr_mcp_servers),
         );
 
         let retryable_oauth_message: Option<String>;
@@ -770,6 +887,7 @@ pub async fn run_session(
                 agent.clone(),
                 image_paths.clone(),
                 model.clone(),
+                acp_mcp_servers.clone(),
                 session_timeout,
                 pre_message_snapshot_id.clone(),
                 snapshot_working_dir.clone(),

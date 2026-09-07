@@ -119,6 +119,7 @@ pub async fn select_skills(
     disabled_skills: &[String],
     source_dirs: &[String],
     agent_id: &str,
+    org_id: Option<&str>,
     load_workspace_resources: bool,
 ) -> PrefetchResult {
     let empty_result = PrefetchResult {
@@ -128,12 +129,15 @@ pub async fn select_skills(
     };
 
     // Load available skills
-    let loader = SkillsLoader::new(workspace)
+    let mut loader = SkillsLoader::new(workspace)
         .with_builtin_dir(super::loader::global_skills_dir())
         .with_extra_source_dirs(source_dirs)
         .with_disabled_skills(disabled_skills.to_vec())
         .with_agent_id(agent_id.to_string())
         .with_load_workspace_resources(load_workspace_resources);
+    if let Some(org_id) = org_id {
+        loader = loader.with_org_id(org_id);
+    }
 
     let all_skills: Vec<SkillInfo> = loader
         .list_skills()
@@ -264,10 +268,16 @@ mod tests {
     #[test]
     fn build_selection_query_formats_correctly() {
         let skills = vec![SkillInfo {
+            id: "workspace:test-skill".into(),
             name: "test-skill".into(),
             description: "A test skill".into(),
             path: "/tmp/test/SKILL.md".into(),
             source: "workspace".into(),
+            origin: None,
+            identity_digest: String::new(),
+            content_digest: String::new(),
+            schema_digest: String::new(),
+            consent_valid: true,
             always: false,
             enabled: true,
             available: true,

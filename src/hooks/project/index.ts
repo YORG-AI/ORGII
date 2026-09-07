@@ -27,3 +27,5 @@ export {
 } from "./useProjectDataChanged";
 
 export { useAllRepoProjects } from "./useAllRepoProjects";
+
+export { useProjectCachedResource } from "./useProjectCachedResource";

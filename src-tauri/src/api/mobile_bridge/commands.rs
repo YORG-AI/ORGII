@@ -271,9 +271,7 @@ where
         .timeout(Duration::from_secs(10))
         .build()
         .map_err(|err| format!("create relay client: {err}"))?;
-    let mut request = client
-        .request(method, endpoint)
-        .bearer_auth(&access_token);
+    let mut request = client.request(method, endpoint).bearer_auth(&access_token);
     if let Some(body) = body {
         request = request.json(body);
     }

@@ -60,6 +60,8 @@ export interface WorkItemExternalAssigneeConfig {
 }
 
 export interface WorkItemPropertiesProps {
+  /** Explicit owning org for custom status lookup; null disables custom statuses. */
+  statusOrgId: string | null;
   workItem: WorkItemExtended;
   onUpdate: (updates: Partial<WorkItemExtended>) => void;
   externalStatusConfig?: WorkItemExternalStatusConfig;

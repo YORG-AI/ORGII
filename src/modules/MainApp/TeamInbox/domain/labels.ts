@@ -53,3 +53,8 @@ export function workItemStatusLabelKey(status: string): string {
 export function workItemPriorityLabelKey(priority: string): string {
   return `teamInbox.priority.${priority}`;
 }
+
+/** Semantic label for a Work Item subscription event. */
+export function workItemEventLabelKey(eventKind: string): string {
+  return `teamInbox.events.${eventKind}`;
+}

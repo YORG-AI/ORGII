@@ -1,9 +1,12 @@
-use rusqlite::{params, OptionalExtension, TransactionBehavior};
+use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
+
+use app_utils::runtime_errors::is_context_exhausted_message;
 
 use crate::projects::io::helpers::{conn, now_ms};
 use crate::projects::types::{
     EnqueueWorkItemRunRequest, WorkItemRun, WorkItemRunFailure, WorkItemRunFailureClass,
-    WorkItemRunRetryDisposition, WorkItemRunStatus, WorkItemRunTarget, WorkItemRunUsage,
+    WorkItemRunRetryDisposition, WorkItemRunStatus, WorkItemRunTarget, WorkItemRunTargetSnapshot,
+    WorkItemRunUsage,
 };
 use crate::work_service;
 
@@ -11,7 +14,7 @@ use super::dispatch::leased_run_id;
 use super::enqueue::enqueue;
 use super::path_lock::release_path_lock;
 use super::read::read;
-use super::store::{append_audit, db, require_run};
+use super::store::{append_audit, db, require_run, scope_key};
 use super::{error, WorkItemRunTerminalOutcome};
 
 const REVIEW_PROJECTION_SETTLED_OPERATION: &str = "work_run.review_projection_settled";
@@ -34,16 +37,12 @@ pub fn classify_failure(message: &str, has_session: bool) -> WorkItemRunFailure 
                 false,
                 WorkItemRunRetryDisposition::DoNotRetry,
             )
-        } else if normalized.contains("context length")
-            || normalized.contains("context window")
-            || normalized.contains("too many tokens")
-            || normalized.contains("maximum context")
-        {
+        } else if is_context_exhausted_message(message) {
             (
                 WorkItemRunFailureClass::ContextOverflow,
                 "context_overflow",
                 false,
-                WorkItemRunRetryDisposition::ManualReview,
+                WorkItemRunRetryDisposition::StartNewSession,
             )
         } else if normalized.contains("unauthorized")
             || normalized.contains("authentication")
@@ -182,6 +181,233 @@ pub fn classify_failure(message: &str, has_session: bool) -> WorkItemRunFailure 
     }
 }
 
+/// Return the target snapshot from the latest episode attached to a Session
+/// only when that episode exhausted the provider context window.
+pub(crate) fn context_exhausted_session_snapshot_in(
+    connection: &Connection,
+    session_id: &str,
+) -> Result<Option<WorkItemRunTargetSnapshot>, String> {
+    let row = db(connection
+        .query_row(
+            "SELECT status, failure_json, target_json
+               FROM pm_work_item_runs
+              WHERE session_id = ?1
+              ORDER BY updated_at DESC, created_at DESC
+              LIMIT 1",
+            params![session_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
+        )
+        .optional())?;
+    let Some((status, failure_json, target_json)) = row else {
+        return Ok(None);
+    };
+    if status != "failed" {
+        return Ok(None);
+    }
+    let Some(failure_json) = failure_json else {
+        return Ok(None);
+    };
+    let failure: WorkItemRunFailure = serde_json::from_str(&failure_json)
+        .map_err(|err| format!("work run context failure snapshot: {err}"))?;
+    if failure.class != WorkItemRunFailureClass::ContextOverflow {
+        return Ok(None);
+    }
+    serde_json::from_str(&target_json)
+        .map(Some)
+        .map_err(|err| format!("work run context target snapshot: {err}"))
+}
+
+struct AssigneeEscalationEvidence<'a> {
+    session_id: Option<&'a str>,
+    agent_definition_id: Option<&'a str>,
+    target_snapshot: Option<&'a WorkItemRunTargetSnapshot>,
+}
+
+fn same_bound_id(left: Option<&str>, right: Option<&str>) -> bool {
+    matches!((left, right), (Some(left), Some(right)) if left == right)
+}
+
+fn escalation_matches_evidence(
+    deferred: &WorkItemRunTargetSnapshot,
+    evidence: &AssigneeEscalationEvidence<'_>,
+) -> bool {
+    if let (
+        WorkItemRunTarget::ResumeSession {
+            session_id: deferred_session,
+        },
+        Some(evidence_session),
+    ) = (&deferred.target, evidence.session_id)
+    {
+        if deferred_session == evidence_session {
+            return true;
+        }
+    }
+
+    if same_bound_id(
+        deferred.agent_definition_id.as_deref(),
+        evidence.agent_definition_id,
+    ) {
+        return true;
+    }
+
+    evidence.target_snapshot.is_some_and(|target| {
+        same_bound_id(
+            deferred.agent_definition_id.as_deref(),
+            target.agent_definition_id.as_deref(),
+        ) || same_bound_id(
+            deferred.agent_org_id.as_deref(),
+            target.agent_org_id.as_deref(),
+        )
+    })
+}
+
+fn latest_target_for_session_in(
+    connection: &Connection,
+    session_id: &str,
+) -> Result<Option<WorkItemRunTargetSnapshot>, String> {
+    let raw = db(connection
+        .query_row(
+            "SELECT target_json FROM pm_work_item_runs
+              WHERE session_id = ?1
+              ORDER BY updated_at DESC, created_at DESC
+              LIMIT 1",
+            params![session_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional())?;
+    raw.map(|raw| {
+        serde_json::from_str(&raw).map_err(|error| format!("work run target snapshot: {error}"))
+    })
+    .transpose()
+}
+
+fn cancel_pending_assignee_escalations_matching(
+    project_slug: Option<&str>,
+    org_id: &str,
+    work_item_id: &str,
+    reason: &str,
+    evidence: AssigneeEscalationEvidence<'_>,
+) -> Result<usize, String> {
+    let mut connection = conn()?;
+    let tx = db(connection.transaction_with_behavior(TransactionBehavior::Immediate))?;
+    let scope = scope_key(project_slug, org_id);
+    let mut statement = db(tx.prepare(
+        "SELECT r.id, r.target_json
+           FROM pm_work_item_runs r
+           JOIN pm_dispatch_outbox d ON d.run_id = r.id
+          WHERE r.scope_key = ?1 AND r.work_item_id = ?2
+            AND r.status = 'queued' AND d.status = 'pending'
+            AND r.input_json LIKE '%\"discussionWakeReason\":\"assignee_deferred\"%'",
+    ))?;
+    let candidates = db(statement.query_map(params![scope, work_item_id], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    }))?
+    .collect::<Result<Vec<_>, _>>()
+    .map_err(|error| format!("work run deferred escalation query: {error}"))?;
+    drop(statement);
+
+    let now = now_ms();
+    let mut cancelled = 0usize;
+    for (run_id, target_json) in candidates {
+        let deferred: WorkItemRunTargetSnapshot = serde_json::from_str(&target_json)
+            .map_err(|error| format!("work run deferred escalation target: {error}"))?;
+        if !escalation_matches_evidence(&deferred, &evidence) {
+            continue;
+        }
+        let outbox_changed = db(tx.execute(
+            "UPDATE pm_dispatch_outbox
+                SET status = 'cancelled', updated_at = ?2
+              WHERE run_id = ?1 AND status = 'pending'",
+            params![run_id, now],
+        ))?;
+        if outbox_changed == 0 {
+            continue;
+        }
+        let run_changed = db(tx.execute(
+            "UPDATE pm_work_item_runs
+                SET status = 'cancelled', completed_at = ?2, updated_at = ?2
+              WHERE id = ?1 AND status = 'queued'",
+            params![run_id, now],
+        ))?;
+        if run_changed == 0 {
+            return Err(format!(
+                "{}:{} changed while cancelling deferred escalation",
+                error::INVALID_TRANSITION,
+                run_id
+            ));
+        }
+        let run = require_run(&tx, &run_id)?;
+        append_audit(
+            &tx,
+            &run_id,
+            "work_run.assignee_escalation_cancelled",
+            run.generation as i64,
+            run.project_slug.as_deref(),
+            &run.org_id,
+            serde_json::json!({ "reason": reason }),
+        )?;
+        cancelled += 1;
+    }
+    db(tx.commit())?;
+    if cancelled > 0 {
+        crate::projects::events::notify_work_item_dispatch_ready();
+    }
+    Ok(cancelled)
+}
+
+pub(crate) fn cancel_pending_assignee_escalations_for_agent_reply(
+    project_slug: Option<&str>,
+    org_id: &str,
+    work_item_id: &str,
+    agent_session_id: &str,
+    agent_definition_id: &str,
+) -> Result<usize, String> {
+    let connection = conn()?;
+    let reply_target = latest_target_for_session_in(&connection, agent_session_id)?;
+    drop(connection);
+    cancel_pending_assignee_escalations_matching(
+        project_slug,
+        org_id,
+        work_item_id,
+        "agent_reply",
+        AssigneeEscalationEvidence {
+            session_id: Some(agent_session_id),
+            agent_definition_id: Some(agent_definition_id),
+            target_snapshot: reply_target.as_ref(),
+        },
+    )
+}
+
+fn cancel_assignee_escalations_after_terminal(run: &WorkItemRun) {
+    if !run.status.is_terminal() {
+        return;
+    }
+    if let Err(error) = cancel_pending_assignee_escalations_matching(
+        run.project_slug.as_deref(),
+        &run.org_id,
+        &run.work_item_id,
+        "work_item_run_terminal",
+        AssigneeEscalationEvidence {
+            session_id: run.session_id.as_deref(),
+            agent_definition_id: run.target_snapshot.agent_definition_id.as_deref(),
+            target_snapshot: Some(&run.target_snapshot),
+        },
+    ) {
+        tracing::warn!(
+            run_id = %run.id,
+            work_item_id = %run.work_item_id,
+            error = %error,
+            "failed to cancel deferred assignee escalation after terminal Run"
+        );
+    }
+}
+
 /// Nack a leased dispatch. Safe transient failures are delayed and retried;
 /// permanent or exhausted failures move both dispatch and Run terminal.
 pub fn record_dispatch_failure(
@@ -259,6 +485,7 @@ pub fn record_dispatch_failure(
     db(tx.commit())?;
     crate::projects::events::notify_work_item_dispatch_ready();
     let persisted = read(&run_id)?;
+    cancel_assignee_escalations_after_terminal(&persisted);
     if let Err(err) = crate::work_item_features::subscriptions::notify_run_terminal(&persisted) {
         tracing::warn!(run_id = %persisted.id, error = %err, "failed to project Run failure into Inbox");
     }
@@ -310,10 +537,22 @@ pub fn record_run_terminal(
                 ),
             }
         }
+        cancel_assignee_escalations_after_terminal(&existing);
         return Ok(existing);
     }
 
     let (status, failure) = match outcome {
+        WorkItemRunTerminalOutcome::Succeeded
+            if error_message.is_some_and(is_context_exhausted_message) =>
+        {
+            (
+                WorkItemRunStatus::Failed,
+                Some(classify_failure(
+                    error_message.expect("guarded context overflow message"),
+                    true,
+                )),
+            )
+        }
         WorkItemRunTerminalOutcome::Succeeded => (WorkItemRunStatus::Succeeded, None),
         WorkItemRunTerminalOutcome::Failed => (
             WorkItemRunStatus::Failed,
@@ -372,6 +611,7 @@ pub fn record_run_terminal(
     db(tx.commit())?;
     crate::projects::events::notify_work_item_dispatch_ready();
     let persisted = read(run_id)?;
+    cancel_assignee_escalations_after_terminal(&persisted);
     if persisted.status == WorkItemRunStatus::Succeeded {
         project_succeeded_run_for_review(&persisted);
     }
@@ -535,10 +775,33 @@ pub fn mark_waiting(run_id: &str) -> Result<WorkItemRun, String> {
     read(run_id)
 }
 
+/// The open retry episode already spawned from `parent_run_id`, if any.
+fn open_retry_child(parent_run_id: &str) -> Result<Option<WorkItemRun>, String> {
+    let connection = conn()?;
+    let child_id: Option<String> = db(connection
+        .query_row(
+            "SELECT id FROM pm_work_item_runs
+             WHERE parent_run_id = ?1
+               AND status IN ('queued', 'deferred', 'dispatching', 'running')
+             ORDER BY created_at DESC, id DESC
+             LIMIT 1",
+            params![parent_run_id],
+            |row| row.get(0),
+        )
+        .optional())?;
+    child_id
+        .map(|child_id| require_run(&connection, &child_id))
+        .transpose()
+}
+
 /// Create the next execution episode from a failed Run according to the
-/// typed failure policy. This never mutates or reopens the previous Run.
+/// typed failure policy. Repeated retry requests converge on the same open
+/// child instead of stacking duplicate episodes.
 pub fn retry(run_id: &str, idempotency_key: &str) -> Result<WorkItemRun, String> {
     let previous = read(run_id)?;
+    if let Some(existing) = open_retry_child(&previous.id)? {
+        return Ok(existing);
+    }
     if previous.status != WorkItemRunStatus::Failed {
         return Err(format!(
             "{}:{} is not failed",

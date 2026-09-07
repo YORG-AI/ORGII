@@ -73,6 +73,7 @@ export function useTeamInboxWorkItem(
   const onWorkItemUpdatedRef = useRef(onWorkItemUpdated);
   const updateQueueByKeyRef = useRef(new Map<string, Promise<void>>());
   const updateQueueSizeByKeyRef = useRef(new Map<string, number>());
+  const revisionByKeyRef = useRef(new Map<string, number>());
   const activeMembers =
     resolved?.key === requestKey ? resolved.members : EMPTY_MEMBERS;
   const activeProject =
@@ -180,6 +181,10 @@ export function useTeamInboxWorkItem(
             : converted,
           members
         );
+        revisionByKeyRef.current.clear();
+        if (resolvedWorkItem.revision !== undefined) {
+          revisionByKeyRef.current.set(requestKey, resolvedWorkItem.revision);
+        }
         onWorkItemUpdatedRef.current?.(resolvedWorkItem);
         setResolved({
           key: requestKey,
@@ -238,12 +243,14 @@ export function useTeamInboxWorkItem(
 
       const runUpdate = async () => {
         try {
+          const expectedRevision = revisionByKeyRef.current.get(requestKey);
           const converted = projectId
             ? enrichedWorkItemToUI(
                 await projectApi.updateWorkItemPartial(
                   projectId,
                   workItemId,
-                  payload
+                  payload,
+                  expectedRevision
                 )
               )
             : enrichedWorkItemToUI(
@@ -251,7 +258,8 @@ export function useTeamInboxWorkItem(
                   await projectApi.updateStandaloneWorkItemPartial(
                     workItemId,
                     payload,
-                    orgId ? { orgId } : undefined
+                    orgId ? { orgId } : undefined,
+                    expectedRevision
                   )
                 )
               );
@@ -261,6 +269,12 @@ export function useTeamInboxWorkItem(
               : converted,
             activeMembers
           );
+          if (resolvedConverted.revision !== undefined) {
+            revisionByKeyRef.current.set(
+              requestKey,
+              resolvedConverted.revision
+            );
+          }
           onWorkItemUpdatedRef.current?.(resolvedConverted);
           setResolved((current) =>
             current?.key === requestKey

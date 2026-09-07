@@ -14,6 +14,12 @@ export function isAuthError(message: string): boolean {
   );
 }
 
+export const RUN_QUEUED_ERROR_PREFIX = "PM_RUN_ERR:RUN_QUEUED";
+
+export function isRunQueuedBehindCheckout(message: string): boolean {
+  return message.includes(RUN_QUEUED_ERROR_PREFIX);
+}
+
 export function isBalanceError(message: string): boolean {
   const lowerMessage = message.toLowerCase();
   return (

@@ -108,12 +108,38 @@ export interface RoutineRunTemplate {
   name?: string;
 }
 
+export interface RoutineActivationPolicies {
+  concurrencyPolicy?: "coalesce" | "skip" | "queue" | "always";
+  catchUp?: "none" | "fire_once" | "run_all_limited";
+  maxCatchUpRuns?: number;
+}
+
+/** Portable activation entry; mirrors the Rust `Activation` wire shape. */
+export type RoutineActivation = RoutineActivationPolicies &
+  (
+    | { type: "manual" }
+    | { type: "schedule"; cron: string; timezone: string }
+    | { type: "one_time"; at: string }
+    | {
+        type: "provider_event";
+        provider: string;
+        eventKind: string;
+        filter?: unknown;
+      }
+  );
+
 export interface RoutineDefinition {
   id: string;
   name: string;
   description: string;
   enabled: boolean;
-  trigger: RoutineTrigger;
+  /**
+   * Derived by the backend from the first schedulable activation; read
+   * only. `activations` is the single source of truth.
+   */
+  trigger?: RoutineTrigger;
+  /** Complete portable activation list; entry 0 is the primary trigger. */
+  activations?: RoutineActivation[];
   runTemplate: RoutineRunTemplate;
   outputPolicy: RoutineOutputPolicy;
   /** Scheduler evaluation watermark (ISO 8601), backend-managed. */

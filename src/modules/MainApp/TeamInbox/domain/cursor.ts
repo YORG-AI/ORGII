@@ -9,5 +9,8 @@
  * the backend rejects the cursor with "Unsupported Team Inbox cursor item id".
  */
 export function toWireCursorItemId(itemKey: string): string {
-  return itemKey.replace(/^(assigned_work_item|comment_mention):/, "");
+  return itemKey.replace(
+    /^(assigned_work_item|comment_mention|work_item_updated|work_item_run_failed|child_completed):/,
+    ""
+  );
 }

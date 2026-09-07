@@ -244,13 +244,15 @@ export function useMcpServers(options: UseMcpServersOptions = {}) {
   );
 
   const testServer = useCallback(
-    async (name: string, config: McpServerConfig) => {
+    async (name: string, config: McpServerConfig, scope?: McpConfigScope) => {
       return rpc.mcp.testServer({
         serverName: name,
         config,
+        workspacePath,
+        scope,
       });
     },
-    []
+    [workspacePath]
   );
 
   const reconnect = useCallback(

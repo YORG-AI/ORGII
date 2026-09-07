@@ -2282,7 +2282,17 @@
     "fireHistory": "Run history",
     "noFires": "No runs yet",
     "openSession": "Open session",
-    "openWorkItem": "Open work item"
+    "openWorkItem": "Open work item",
+    "extraActivations": "Additional activations",
+    "activationSchedule": "Schedule",
+    "activationOneTime": "One time",
+    "activationProviderEvent": "Provider event",
+    "activationManual": "Manual",
+    "providerPlaceholder": "github",
+    "eventKindPlaceholder": "pull_request",
+    "fireError": "Could not start the Routine: {{detail}}",
+    "provider": "Provider",
+    "eventKind": "Event"
   },
   "localModels": {
     "title": "On prem",
@@ -2445,5 +2455,12 @@
     },
     "applyFailed": "Import failed: {{message}}",
     "partialFailure": "Some credentials could not be imported:"
+  },
+  "skills": {
+    "shareToOrg": "Share to organization",
+    "share": "Share",
+    "sharedToOrg": "Skill shared with the organization",
+    "shareToOrgHint": "Members of the organization receive this skill's current snapshot; share again after editing to publish an update.",
+    "shareOrgPlaceholder": "Organization"
   }
 }

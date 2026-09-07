@@ -280,7 +280,10 @@ export function useSkillsHub({
   const checkUpdates = useCallback(async () => {
     setUpdatesLoading(true);
     try {
-      const result = await invoke<SkillUpdateInfo[]>("skills_check_updates");
+      const scopePaths = workspacePathsKey ? workspacePathsKey.split("\0") : [];
+      const result = await invoke<SkillUpdateInfo[]>("skills_check_updates", {
+        workspacePaths: scopePaths,
+      });
       if (mountedRef.current) setUpdates(result);
     } catch (err) {
       if (mountedRef.current)
@@ -288,15 +291,24 @@ export function useSkillsHub({
     } finally {
       if (mountedRef.current) setUpdatesLoading(false);
     }
-  }, [mountedRef]);
+  }, [mountedRef, workspacePathsKey]);
 
   const updateSkill = useCallback(
-    async (slug: string): Promise<boolean> => {
-      setUpdating(slug);
+    async (update: SkillUpdateInfo): Promise<boolean> => {
+      setUpdating(update.slug);
       try {
-        await invoke<HubInstallResult>("skills_hub_update", { slug });
+        await invoke<HubInstallResult>("skills_refresh", {
+          name: update.name,
+          workspacePath: update.workspacePath ?? null,
+        });
         if (mountedRef.current) {
-          setUpdates((prev) => prev.filter((upd) => upd.slug !== slug));
+          setUpdates((previous) =>
+            previous.filter(
+              (candidate) =>
+                candidate.name !== update.name ||
+                candidate.workspacePath !== update.workspacePath
+            )
+          );
           await refreshInstalled();
         }
         return true;

@@ -28,6 +28,7 @@ pub(super) async fn run_acp_branch(
     agent: ModelType,
     image_paths: Vec<String>,
     model: Option<String>,
+    mcp_servers: Vec<serde_json::Value>,
     session_timeout: tokio::time::Duration,
     pre_message_snapshot_id: Option<String>,
     snapshot_working_dir: String,
@@ -49,6 +50,7 @@ pub(super) async fn run_acp_branch(
     let acp_agent = agent.clone();
     let acp_image_paths = image_paths.clone();
     let acp_model = model.clone();
+    let acp_mcp_servers = mcp_servers;
 
     let acp_handle = tokio::spawn(async move {
         match acp_agent {
@@ -62,6 +64,7 @@ pub(super) async fn run_acp_branch(
                     acp_resume.as_deref(),
                     chunk_tx,
                     acp_image_paths,
+                    acp_mcp_servers,
                 )
                 .await
             }
@@ -75,6 +78,7 @@ pub(super) async fn run_acp_branch(
                     acp_resume.as_deref(),
                     chunk_tx,
                     acp_image_paths,
+                    acp_mcp_servers,
                 )
                 .await
             }
@@ -89,6 +93,7 @@ pub(super) async fn run_acp_branch(
                     chunk_tx,
                     acp_image_paths,
                     acp_model,
+                    acp_mcp_servers,
                 )
                 .await
             }
@@ -102,6 +107,7 @@ pub(super) async fn run_acp_branch(
                     acp_resume.as_deref(),
                     chunk_tx,
                     acp_image_paths,
+                    acp_mcp_servers,
                 )
                 .await
             }

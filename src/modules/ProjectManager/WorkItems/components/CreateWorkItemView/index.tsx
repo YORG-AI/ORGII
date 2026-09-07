@@ -415,6 +415,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
       rightContent={
         resolvedPropertiesOpen ? (
           <WorkItemProperties
+            statusOrgId={inlineFields.statusOrgId}
             workItem={inlineFields.stubWorkItem}
             onUpdate={inlineFields.handlePropertyUpdate}
             availableProjects={inlineFields.resolvedProjects}

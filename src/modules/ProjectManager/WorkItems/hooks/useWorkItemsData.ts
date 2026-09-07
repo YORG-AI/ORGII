@@ -33,6 +33,7 @@ import {
   type StatusFilterType,
   type WorkItemsViewTab,
 } from "../types";
+import { toWorkItemPartialUpdate } from "../workItemPartialUpdate";
 import { applyWorkItemUpdate } from "../workItemSource";
 import {
   countWorkItemsByStatus,
@@ -40,8 +41,59 @@ import {
   getWorkItemNavigation,
   groupWorkItemsForStatusFilter,
 } from "../workItemsViewModel";
+import {
+  useCustomStatusOptions,
+  useStatusCategoryResolver,
+} from "./useStatusDefinitions";
+import { useWorkItemRevisionConflict } from "./useWorkItemRevisionConflict";
 
 const logger = createLogger("useWorkItemsData");
+
+interface WorkItemsRevisionAttempt {
+  workItemId: string;
+  shortId: string;
+  updates: Partial<WorkItemExtended>;
+  name?: string;
+  spec?: string;
+}
+
+/** Keep an older async refresh from overwriting a newer local/collab row. */
+export function mergeWorkItemsViewDataByRevision(
+  current: WorkItemsViewData | null,
+  incoming: WorkItemsViewData
+): WorkItemsViewData {
+  if (!current) return incoming;
+  const currentById = new Map(current.items.map((item) => [item.id, item]));
+  const staleIds = new Set<string>();
+  const items = incoming.items.map((item) => {
+    const existing = currentById.get(item.id);
+    if (existing && existing.revision > item.revision) {
+      staleIds.add(item.id);
+      return existing;
+    }
+    return item;
+  });
+  const mergeProjection = <T extends { id: string }>(
+    next: T[] | undefined,
+    previous: T[] | undefined
+  ): T[] | undefined => {
+    if (!next || !previous || staleIds.size === 0) return next;
+    const previousById = new Map(previous.map((entry) => [entry.id, entry]));
+    return next.map((entry) =>
+      staleIds.has(entry.id) ? (previousById.get(entry.id) ?? entry) : entry
+    );
+  };
+  return {
+    ...incoming,
+    items,
+    kanbanTasks: mergeProjection(incoming.kanbanTasks, current.kanbanTasks),
+    ganttTasks: mergeProjection(incoming.ganttTasks, current.ganttTasks),
+    calendarEvents: mergeProjection(
+      incoming.calendarEvents,
+      current.calendarEvents
+    ),
+  };
+}
 
 // ============================================
 // Type Converters
@@ -93,7 +145,10 @@ interface UseWorkItemsDataParams {
   statusFilter: StatusFilterType;
   selectedWorkItemId: string | null;
   localUpdates: Record<string, Partial<WorkItemExtended>>;
+  /** Stable project-store identity; slug alone may be reused after navigation. */
+  projectId: string | null;
   projectSlug: string | null;
+  statusOrgId: string | null;
   /** Optional callback for assignment change notifications */
   onAssignmentChanges?: OnAssignmentChanges;
   /** Pre-loaded labels from useProjectData — avoids duplicate IPC on sequential path */
@@ -110,7 +165,9 @@ export function useWorkItemsData({
   statusFilter,
   selectedWorkItemId,
   localUpdates,
+  projectId,
   projectSlug,
+  statusOrgId,
   onAssignmentChanges: _onAssignmentChanges,
   sharedLabels: _sharedLabels,
   sharedMembers,
@@ -170,7 +227,7 @@ export function useWorkItemsData({
                 : "list",
       });
       if (loadGenerationRef.current !== loadGeneration) return;
-      setViewData(data);
+      setViewData((current) => mergeWorkItemsViewDataByRevision(current, data));
     } catch (err) {
       if (loadGenerationRef.current !== loadGeneration) return;
       const message =
@@ -224,6 +281,13 @@ export function useWorkItemsData({
     }
     return map;
   }, [viewData]);
+  const revisionMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of viewData?.items ?? []) {
+      map.set(item.id, item.revision);
+    }
+    return map;
+  }, [viewData]);
 
   const getShortId = useCallback(
     (workItemId: string): string | null => {
@@ -236,6 +300,63 @@ export function useWorkItemsData({
   const [localMembers, setLocalMembers] = useState<MemberEntry[]>([]);
   const members = sharedMembers?.length ? sharedMembers : localMembers;
   const { currentUser } = useCurrentUserMemberIds(members);
+
+  const acceptRevisionRecord = useCallback(
+    (record: Awaited<ReturnType<typeof projectApi.readWorkItemEnriched>>) => {
+      setViewData((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          items: current.items.map((item) =>
+            item.id === record.id ? record : item
+          ),
+        };
+      });
+    },
+    []
+  );
+  const readLatestRevisionRecord = useCallback(
+    (attempt: WorkItemsRevisionAttempt) =>
+      projectSlug
+        ? projectApi.readWorkItemEnriched(projectSlug, attempt.shortId)
+        : Promise.resolve(null),
+    [projectSlug]
+  );
+  const retryRevisionUpdate = useCallback(
+    (attempt: WorkItemsRevisionAttempt, expectedRevision: number) => {
+      if (!projectSlug) {
+        return Promise.reject(new Error("Project is unavailable"));
+      }
+      return projectApi.updateWorkItemPartial(
+        projectSlug,
+        attempt.shortId,
+        toWorkItemPartialUpdate(attempt.updates, currentUser),
+        expectedRevision
+      );
+    },
+    [currentUser, projectSlug]
+  );
+  const handleNonTextRevisionConflict = useCallback(() => {
+    setViewError(
+      "This Work Item changed elsewhere. The latest version was reloaded; your edit was not applied."
+    );
+  }, []);
+  const {
+    revisionConflict,
+    handleRevisionConflict,
+    useLatestRevisionConflict,
+    keepMineRevisionConflict,
+  } = useWorkItemRevisionConflict({
+    identityKey: JSON.stringify([projectId, projectSlug, selectedWorkItemId]),
+    readLatest: readLatestRevisionRecord,
+    retry: retryRevisionUpdate,
+    acceptRecord: acceptRevisionRecord,
+    recordTitle: (record) => record.title,
+    recordDescription: (record) => record.body,
+    recordRevision: (record) => record.revision,
+    onReloadFailure: fetchViewData,
+    onNonTextConflict: handleNonTextRevisionConflict,
+  });
 
   useEffect(() => {
     if (!isActive || sharedMembers?.length || !projectSlug) return;
@@ -271,7 +392,8 @@ export function useWorkItemsData({
           projectSlug,
           shortId,
           data,
-          currentUser
+          currentUser,
+          revisionMap.get(workItemId)
         );
         if (!updatedItem) return true;
 
@@ -280,20 +402,32 @@ export function useWorkItemsData({
           return {
             ...current,
             items: current.items.map((item) =>
-              item.id === updatedItem.id ? updatedItem : item
+              item.id === updatedItem.id &&
+              item.revision <= updatedItem.revision
+                ? updatedItem
+                : item
             ),
           };
         });
 
         return true;
       } catch (err) {
-        const msg =
-          err instanceof Error ? err.message : "Failed to update work item";
+        const msg = err instanceof Error ? err.message : String(err);
+        const shortId = shortIdMap.get(workItemId);
+        if (shortId) {
+          await handleRevisionConflict(err, {
+            workItemId,
+            shortId,
+            updates: data,
+            name: data.name,
+            spec: data.spec,
+          });
+        }
         logger.error(`Update error for ${workItemId}: ${msg}`);
         return false;
       }
     },
-    [currentUser, projectSlug, shortIdMap]
+    [currentUser, handleRevisionConflict, projectSlug, revisionMap, shortIdMap]
   );
 
   const teamId = "file";
@@ -335,9 +469,22 @@ export function useWorkItemsData({
     [workItems, selectedWorkItemId]
   );
 
+  const customStatusOptions = useCustomStatusOptions(statusOrgId);
+  const resolveStatusCategory = useStatusCategoryResolver(statusOrgId);
   const groupedWorkItems = useMemo(
-    () => groupWorkItemsForStatusFilter(filteredWorkItems, statusFilter),
-    [filteredWorkItems, statusFilter]
+    () =>
+      groupWorkItemsForStatusFilter(
+        filteredWorkItems,
+        statusFilter,
+        customStatusOptions,
+        resolveStatusCategory
+      ),
+    [
+      filteredWorkItems,
+      statusFilter,
+      customStatusOptions,
+      resolveStatusCategory,
+    ]
   );
 
   // ============================================
@@ -372,6 +519,7 @@ export function useWorkItemsData({
         todo: 0,
         inProgress: 0,
         inReview: 0,
+        blocked: 0,
         done: 0,
         cancelled: 0,
         duplicate: 0,
@@ -387,6 +535,7 @@ export function useWorkItemsData({
       todo: counts.planned, // Rust: "planned" → Frontend: "todo"
       inProgress: counts.inProgress,
       inReview: counts.inReview,
+      blocked: counts.blocked,
       done: counts.completed,
       cancelled: counts.cancelled,
       duplicate: counts.duplicate,
@@ -419,6 +568,9 @@ export function useWorkItemsData({
     error: viewError,
     refresh: fetchViewData,
     updateWorkItemSource,
+    revisionConflict,
+    useLatestRevisionConflict,
+    keepMineRevisionConflict,
     teamId,
     getShortId,
     members,

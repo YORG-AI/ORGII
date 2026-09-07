@@ -114,10 +114,11 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["manual", "schedule", "provider_event"]
+          "enum": ["manual", "schedule", "one_time", "provider_event"]
         },
         "cron": { "type": "string" },
         "timezone": { "type": "string" },
+        "at": { "type": "string", "format": "date-time" },
         "provider": { "type": "string" },
         "eventKind": { "type": "string" },
         "filter": {
@@ -126,15 +127,20 @@
         },
         "concurrencyPolicy": {
           "type": "string",
-          "enum": ["coalesce", "skip", "queue"],
+          "enum": ["coalesce", "skip", "queue", "always"],
           "default": "skip",
-          "description": "Behavior when the previous Run is not terminal. coalesce/skip record an AuditEvent without creating a Run; queue creates a pending Run."
+          "description": "Behavior when the previous Run is not terminal. coalesce/skip record a durable activation outcome, queue records a durable activation that is promoted once the active Run settles, and always creates another Run."
         },
         "catchUp": {
           "type": "string",
-          "enum": ["none", "fire_once"],
+          "enum": ["none", "fire_once", "run_all_limited"],
           "default": "none",
           "description": "Compensation for schedule fires missed while the ORG2 host process was not running."
+        },
+        "maxCatchUpRuns": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum missed activations replayed when catchUp is run_all_limited."
         }
       },
       "allOf": [
@@ -143,8 +149,19 @@
           "then": { "required": ["cron", "timezone"] }
         },
         {
+          "if": { "properties": { "type": { "const": "one_time" } } },
+          "then": { "required": ["at"] }
+        },
+        {
           "if": { "properties": { "type": { "const": "provider_event" } } },
           "then": { "required": ["provider", "eventKind"] }
+        },
+        {
+          "if": {
+            "required": ["catchUp"],
+            "properties": { "catchUp": { "const": "run_all_limited" } }
+          },
+          "then": { "required": ["maxCatchUpRuns"] }
         }
       ],
       "additionalProperties": false

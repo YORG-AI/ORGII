@@ -8,6 +8,7 @@ import {
   formatAgentLaunchError,
   isAuthError,
   isBalanceError,
+  isRunQueuedBehindCheckout,
 } from "./errorUtils";
 
 export interface HandleLaunchErrorOptions {
@@ -39,6 +40,12 @@ export function handleNonCursorLaunchError(
     t,
   } = options;
   const errorMessage = getErrorMessage(error);
+
+  if (isRunQueuedBehindCheckout(errorMessage)) {
+    clearDraft(null);
+    Message.info(t("errors.runQueuedBehindCheckout"));
+    return;
+  }
 
   if (isAuthError(errorMessage)) {
     clearDraft(null);

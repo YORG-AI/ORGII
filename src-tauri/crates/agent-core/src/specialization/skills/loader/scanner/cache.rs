@@ -21,6 +21,7 @@ struct SkillScanKey {
     builtin_dir: Option<PathBuf>,
     extra_source_dirs: Vec<PathBuf>,
     agent_id: Option<String>,
+    org_id: Option<String>,
     load_workspace_resources: bool,
 }
 
@@ -28,6 +29,15 @@ static SKILL_SCAN_CACHE: LazyLock<Arc<SwrCache<SkillScanKey, Vec<SkillInfo>>>> =
     LazyLock::new(Arc::default);
 
 impl SkillsLoader {
+    /// Bypass the short UI/prompt cache for consent boundaries such as Run
+    /// enqueue and dispatch. Those paths must observe filesystem drift even
+    /// when it occurs inside the ordinary two-second catalog TTL.
+    pub(crate) fn list_skills_fresh(&self) -> Vec<SkillInfo> {
+        let mut skills = self.scan_skills_uncached();
+        self.apply_disabled_skills(&mut skills);
+        skills
+    }
+
     /// List all available skills.
     ///
     /// Applies `disabled_skills` filtering: disabled skills have `enabled = false`.
@@ -37,12 +47,14 @@ impl SkillsLoader {
             builtin_dir: self.builtin_dir.clone(),
             extra_source_dirs: self.extra_source_dirs.clone(),
             agent_id: self.agent_id.clone(),
+            org_id: self.org_id.clone(),
             load_workspace_resources: self.load_workspace_resources,
         };
         let scan_workspace = self.workspace.clone();
         let scan_builtin_dir = self.builtin_dir.clone();
         let scan_extra_source_dirs = self.extra_source_dirs.clone();
         let scan_agent_id = self.agent_id.clone();
+        let scan_org_id = self.org_id.clone();
         let scan_load_workspace_resources = self.load_workspace_resources;
         let mut skills = SKILL_SCAN_CACHE
             .get_or_refresh(key, SKILL_SCAN_CACHE_TTL, move || {
@@ -50,6 +62,7 @@ impl SkillsLoader {
                     .with_builtin_dir_if_some(scan_builtin_dir.clone())
                     .with_extra_source_paths(scan_extra_source_dirs.clone())
                     .with_agent_id_if_some(scan_agent_id.clone())
+                    .with_org_id_if_some(scan_org_id.clone())
                     .with_load_workspace_resources(scan_load_workspace_resources);
                 Ok(scanner.scan_skills_uncached())
             })
@@ -77,6 +90,11 @@ impl SkillsLoader {
         self
     }
 
+    fn with_org_id_if_some(mut self, org_id: Option<String>) -> Self {
+        self.org_id = org_id;
+        self
+    }
+
     /// Evict the scan cache for this workspace so the next `list_skills` call
     /// does a fresh synchronous scan instead of returning stale data.
     ///
@@ -88,6 +106,7 @@ impl SkillsLoader {
             builtin_dir: self.builtin_dir.clone(),
             extra_source_dirs: self.extra_source_dirs.clone(),
             agent_id: self.agent_id.clone(),
+            org_id: self.org_id.clone(),
             load_workspace_resources: self.load_workspace_resources,
         };
         SKILL_SCAN_CACHE.invalidate(&key);

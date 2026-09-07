@@ -290,9 +290,20 @@ pub async fn project_update_work_item_partial(
     project_slug: String,
     short_id: String,
     updates: WorkItemPartialUpdate,
+    expected_revision: Option<i64>,
 ) -> Result<EnrichedWorkItem, String> {
     tokio::task::spawn_blocking(move || {
-        io::update_work_item_partial_enriched(&project_slug, &short_id, &updates)
+        if let Some(expected_revision) = expected_revision {
+            io::update_work_item_partial_at_revision(
+                &project_slug,
+                &short_id,
+                &updates,
+                expected_revision,
+            )?;
+            io::read_work_item_enriched(&project_slug, &short_id)
+        } else {
+            io::update_work_item_partial_enriched(&project_slug, &short_id, &updates)
+        }
     })
     .await
     .map_err(|err| format!("Task join error: {}", err))?
@@ -368,9 +379,16 @@ pub async fn work_item_update_standalone_partial(
     org_id: Option<String>,
     short_id: String,
     updates: WorkItemPartialUpdate,
+    expected_revision: Option<i64>,
 ) -> Result<WorkItemData, String> {
-    tokio::task::spawn_blocking(move || {
-        io::update_standalone_work_item_partial(org_id.as_deref(), &short_id, &updates)
+    tokio::task::spawn_blocking(move || match expected_revision {
+        Some(expected_revision) => io::update_standalone_work_item_partial_at_revision(
+            org_id.as_deref(),
+            &short_id,
+            &updates,
+            expected_revision,
+        ),
+        None => io::update_standalone_work_item_partial(org_id.as_deref(), &short_id, &updates),
     })
     .await
     .map_err(|err| format!("Task join error: {}", err))?

@@ -70,7 +70,8 @@ impl McpClient {
         let result = match tokio::time::timeout(tool_timeout, call_future).await {
             Ok(Ok(result)) => result,
             Ok(Err(err)) => {
-                let classified = McpCallError::classify_service_error(&err, &self.name, tool_name);
+                let classified = McpCallError::classify_service_error(&err, &self.name, tool_name)
+                    .redact_config_secrets(&self.config);
                 self.record_error(&classified);
                 return Err(classified);
             }
@@ -95,15 +96,21 @@ impl McpClient {
         let meta = result.meta.as_ref().map(|m| Value::Object(m.0.clone()));
         let content_blocks = extract_content_blocks(&result.content);
         let mut text = render_content(&result.content, &structured_content);
-        let _ = maybe_persist_large_payload(&self.name, tool_name, &mut text);
 
         if is_error {
+            text = crate::specialization::mcp::config::redact_server_secrets_from_text(
+                &self.config,
+                &text,
+            );
+            let _ = maybe_persist_large_payload(&self.name, tool_name, &mut text);
             return Err(McpCallError::ToolError {
                 server: self.name.clone(),
                 tool: tool_name.to_string(),
                 message: text,
             });
         }
+
+        let _ = maybe_persist_large_payload(&self.name, tool_name, &mut text);
 
         Ok(McpCallResult {
             text,
@@ -174,7 +181,8 @@ impl McpClient {
         {
             Ok(h) => h,
             Err(err) => {
-                let classified = McpCallError::classify_service_error(&err, &self.name, tool_name);
+                let classified = McpCallError::classify_service_error(&err, &self.name, tool_name)
+                    .redact_config_secrets(&self.config);
                 self.record_error(&classified);
                 return Err(classified);
             }
@@ -195,7 +203,8 @@ impl McpClient {
         let server_result = match response {
             Ok(Ok(sr)) => sr,
             Ok(Err(err)) => {
-                let classified = McpCallError::classify_service_error(&err, &self.name, tool_name);
+                let classified = McpCallError::classify_service_error(&err, &self.name, tool_name)
+                    .redact_config_secrets(&self.config);
                 self.record_error(&classified);
                 return Err(classified);
             }
@@ -219,7 +228,8 @@ impl McpClient {
                         "MCP '{}/{}' returned unexpected response variant: {:?}",
                         self.name, tool_name, other
                     ),
-                };
+                }
+                .redact_config_secrets(&self.config);
                 self.record_error(&err);
                 return Err(err);
             }
@@ -232,15 +242,21 @@ impl McpClient {
         let meta = result.meta.as_ref().map(|m| Value::Object(m.0.clone()));
         let content_blocks = extract_content_blocks(&result.content);
         let mut text = render_content(&result.content, &structured_content);
-        let _ = maybe_persist_large_payload(&self.name, tool_name, &mut text);
 
         if is_error {
+            text = crate::specialization::mcp::config::redact_server_secrets_from_text(
+                &self.config,
+                &text,
+            );
+            let _ = maybe_persist_large_payload(&self.name, tool_name, &mut text);
             return Err(McpCallError::ToolError {
                 server: self.name.clone(),
                 tool: tool_name.to_string(),
                 message: text,
             });
         }
+
+        let _ = maybe_persist_large_payload(&self.name, tool_name, &mut text);
 
         Ok(McpCallResult {
             text,

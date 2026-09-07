@@ -72,6 +72,7 @@ pub(super) fn run(
             parent_id,
             Some(&actor),
             agent_note_session(context, &actor),
+            context.originator.as_deref(),
         ) {
             Ok(()) => emit_success(
                 serde_json::json!({ "appended": true, "kind": kind }),
@@ -123,6 +124,7 @@ pub(super) fn run(
             parent_id,
             Some(&actor),
             agent_note_session(context, &actor),
+            context.originator.as_deref(),
         ) {
             Ok(()) => emit_success(
                 serde_json::json!({ "appended": true, "kind": kind }),
@@ -144,6 +146,7 @@ pub(super) fn run(
         parent_id,
         Some(&actor),
         agent_note_session(context, &actor),
+        context.originator.as_deref(),
     ) {
         Ok(()) => emit_success(
             serde_json::json!({ "appended": true, "kind": kind }),

@@ -23,10 +23,19 @@ import {
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
+import { projectRosterChangedSignalAtom } from "@src/hooks/project/useProjectDataChanged";
 import { sessionByIdAtom } from "@src/store/session";
 
+import {
+  archiveLocalTeamInboxItem,
+  listLocalTeamInboxMutedKinds,
+  listLocalTeamInboxPage,
+  setLocalTeamInboxKindMuted,
+  unarchiveLocalTeamInboxItem,
+} from "./api";
 import { createWorkItemFromSession } from "./createWorkItemFromSession";
 import { sessionHandoffDraft } from "./createWorkItemFromSession";
+import { getTeamInboxItemKey } from "./domain";
 import type {
   TeamInboxDataSource,
   TeamInboxHandoffDestination,
@@ -39,12 +48,13 @@ import {
   eligibleSessionHandoffProjects,
   handoffCloudOrgFromRoster,
   handoffProjectFromRoster,
-  teamInboxViewerMemberIds,
+  teamInboxViewerIdentityIds,
 } from "./sessionHandoffProjects";
 import { observeSharedOperation } from "./sharedOperation";
 import { teamInboxCacheAtom, teamInboxInvalidationAtom } from "./store";
 import {
   type TeamInboxCoordinatorScope,
+  resolveTeamInboxMemberNames,
   teamInboxCoordinator,
 } from "./teamInboxCoordinator";
 
@@ -69,7 +79,7 @@ interface MemberSnapshot {
 interface RetainedMemberSnapshot {
   members: MemberEntry[];
   issue: TeamInboxIssue | null;
-  loadedForInvalidation: number | null;
+  loadedForRosterVersion: number | null;
 }
 
 interface CloudMemberSnapshot {
@@ -87,7 +97,7 @@ const EMPTY_MEMBER_SNAPSHOT: MemberSnapshot = {
 const EMPTY_RETAINED_MEMBER_SNAPSHOT: RetainedMemberSnapshot = {
   members: [],
   issue: null,
-  loadedForInvalidation: null,
+  loadedForRosterVersion: null,
 };
 
 // Per-Jotai-store snapshots survive the rendered Inbox surface unmounting,
@@ -104,20 +114,20 @@ const teamInboxCloudMemberSnapshotAtom = atom<CloudMemberSnapshot>({
 function retainMemberSnapshot(
   current: RetainedMemberSnapshot,
   incoming: MemberSnapshot,
-  loadedForInvalidation: number | null
+  loadedForRosterVersion: number | null
 ): RetainedMemberSnapshot {
   const dataUnchanged =
     isEqual(current.members, incoming.members) &&
     isEqual(current.issue, incoming.issue);
   if (dataUnchanged) {
-    return current.loadedForInvalidation === loadedForInvalidation
+    return current.loadedForRosterVersion === loadedForRosterVersion
       ? current
-      : { ...current, loadedForInvalidation };
+      : { ...current, loadedForRosterVersion };
   }
   return {
     members: incoming.members,
     issue: incoming.issue,
-    loadedForInvalidation,
+    loadedForRosterVersion,
   };
 }
 
@@ -222,7 +232,11 @@ export function useTeamInboxDataSource(): {
     teamInboxCloudMemberSnapshotAtom
   );
   const { members } = memberSnapshot;
-  const { memberIds: localViewerMemberIds } = useCurrentUserMemberIds(members);
+  const {
+    memberIds: localViewerMemberIds,
+    currentUser: localCurrentUser,
+    gitEmail,
+  } = useCurrentUserMemberIds(members);
   const auth = useAtomValue(org2CloudAuthAtom);
   const authIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
   const activeCloudOrgId = useAtomValue(sidebarActiveCloudOrgIdAtom);
@@ -248,11 +262,18 @@ export function useTeamInboxDataSource(): {
   );
   const viewerMemberIds = useMemo(
     () =>
-      teamInboxViewerMemberIds(
+      teamInboxViewerIdentityIds(
         localViewerMemberIds,
+        [localCurrentUser?.id ?? "", gitEmail],
         activeCloudOrgId && auth ? auth.userId : undefined
       ),
-    [activeCloudOrgId, auth, localViewerMemberIds]
+    [
+      activeCloudOrgId,
+      auth,
+      gitEmail,
+      localCurrentUser?.id,
+      localViewerMemberIds,
+    ]
   );
   const scopeMembers = useMemo<MemberEntry[]>(() => {
     const byId = new Map(members.map((member) => [member.id, member]));
@@ -270,6 +291,7 @@ export function useTeamInboxDataSource(): {
   // Every consumer observes the same version; the coordinator single-flights
   // the resulting request instead of giving each hook its own request state.
   const invalidation = useAtomValue(teamInboxInvalidationAtom);
+  const localRosterVersion = useAtomValue(projectRosterChangedSignalAtom);
   const activeCloudCommentsRevision = activeCloudOrgId
     ? (commentsSignals[orgCommentsKey(activeCloudOrgId)] ?? 0)
     : 0;
@@ -298,13 +320,17 @@ export function useTeamInboxDataSource(): {
   }, [store, viewerKey]);
 
   useEffect(() => {
-    if (memberSnapshot.loadedForInvalidation === invalidation) return;
+    if (memberSnapshot.loadedForRosterVersion === localRosterVersion) return;
     let cancelled = false;
     void readAllProjectMembers()
       .then((nextSnapshot) => {
         if (!cancelled) {
           setMemberSnapshot((current) => {
-            return retainMemberSnapshot(current, nextSnapshot, invalidation);
+            return retainMemberSnapshot(
+              current,
+              nextSnapshot,
+              localRosterVersion
+            );
           });
         }
       })
@@ -325,8 +351,8 @@ export function useTeamInboxDataSource(): {
       cancelled = true;
     };
   }, [
-    invalidation,
-    memberSnapshot.loadedForInvalidation,
+    localRosterVersion,
+    memberSnapshot.loadedForRosterVersion,
     setMemberSnapshot,
     store,
   ]);
@@ -565,14 +591,34 @@ export function useTeamInboxDataSource(): {
         }
         return getSnapshot();
       },
+      listArchivedPage: async ({ cursor, limit = 50, signal }) => {
+        if (viewerMemberIds.length === 0) {
+          return { items: [], nextCursor: null };
+        }
+        if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        const result = await listLocalTeamInboxPage(
+          viewerMemberIds,
+          "archived",
+          cursor,
+          limit
+        );
+        if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        return {
+          ...result.page,
+          items: resolveTeamInboxMemberNames(result.page.items, scope.members),
+        };
+      },
       loadMore: () => teamInboxCoordinator.loadMore(store, scope),
       refresh: async () => {
-        // Never create a second roster fan-out while the first is active.
-        // Explicit refresh waits for it, then invalidates once. The retained
-        // snapshot remains visible until that fresh result actually differs.
+        // Explicit refresh reuses any in-flight roster read, then fences the
+        // API cache and lets the owning effect perform one fresh fan-out.
         await membersRequest?.catch(() => undefined);
         invalidateProjectCache();
         membersRequest = null;
+        setMemberSnapshot((current) => ({
+          ...current,
+          loadedForRosterVersion: null,
+        }));
         teamInboxCoordinator.invalidate(store);
       },
       markRead: (item) => teamInboxCoordinator.markRead(store, scope, item),
@@ -581,6 +627,46 @@ export function useTeamInboxDataSource(): {
         teamInboxCoordinator.markAllRead(store, scope, filter),
       reconcileItem: (itemKey, nextItem) =>
         teamInboxCoordinator.reconcileItem(store, scope.key, itemKey, nextItem),
+      archiveItem: async (item) => {
+        const archived = await archiveLocalTeamInboxItem(
+          viewerMemberIds,
+          item.id
+        );
+        if (!archived) throw new Error("Team Inbox item is no longer visible");
+        teamInboxCoordinator.reconcileItem(
+          store,
+          scope.key,
+          getTeamInboxItemKey(item),
+          null
+        );
+        teamInboxCoordinator.invalidate(store);
+      },
+      unarchiveItem: async (item) => {
+        const unarchived = await unarchiveLocalTeamInboxItem(
+          viewerMemberIds,
+          item.id
+        );
+        if (!unarchived)
+          throw new Error("Team Inbox item is no longer visible");
+        teamInboxCoordinator.reconcileItem(
+          store,
+          scope.key,
+          getTeamInboxItemKey(item),
+          item
+        );
+        teamInboxCoordinator.invalidate(store);
+      },
+      // Category preferences are keyed by the authoritative local/cloud
+      // viewer identity. Do not expose a control that can only resolve to an
+      // empty Promise.all and appear to save when this installation has no
+      // member identity in the active scope.
+      listMutedKinds: viewerMemberIds[0]
+        ? () => listLocalTeamInboxMutedKinds(viewerMemberIds)
+        : undefined,
+      setKindMuted: viewerMemberIds[0]
+        ? (kind, muted) =>
+            setLocalTeamInboxKindMuted(viewerMemberIds, kind, muted)
+        : undefined,
       prepareSessionHandoff: viewerMemberIds[0]
         ? ({ sessionId, title, signal }) => {
             const flightKey = `${scope.key}:${sessionId}:${title.trim()}`;
@@ -705,6 +791,7 @@ export function useTeamInboxDataSource(): {
     activeCloudRosterVersion,
     auth,
     scope,
+    setMemberSnapshot,
     store,
     viewerMemberIds,
   ]);

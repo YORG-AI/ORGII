@@ -21,6 +21,8 @@
 
 use std::fmt;
 
+use crate::specialization::mcp::config::{redact_server_secrets_from_text, McpServerConfig};
+
 /// Typed error surfaced by `McpClient::call_tool_typed`.
 ///
 /// Each variant carries the server name so upstream code (manager, auth
@@ -175,6 +177,40 @@ impl McpCallError {
                 | McpCallError::Timeout { .. }
         )
     }
+
+    /// Redact configured env/header values from the message-bearing variants
+    /// while preserving the error classification used by auth/reconnect
+    /// control flow.
+    pub(crate) fn redact_config_secrets(self, config: &McpServerConfig) -> Self {
+        match self {
+            Self::Auth { server, message } => Self::Auth {
+                server,
+                message: redact_server_secrets_from_text(config, &message),
+            },
+            Self::SessionExpired { server, message } => Self::SessionExpired {
+                server,
+                message: redact_server_secrets_from_text(config, &message),
+            },
+            Self::ToolError {
+                server,
+                tool,
+                message,
+            } => Self::ToolError {
+                server,
+                tool,
+                message: redact_server_secrets_from_text(config, &message),
+            },
+            Self::Transport { server, message } => Self::Transport {
+                server,
+                message: redact_server_secrets_from_text(config, &message),
+            },
+            Self::Other { server, message } => Self::Other {
+                server,
+                message: redact_server_secrets_from_text(config, &message),
+            },
+            timeout @ Self::Timeout { .. } => timeout,
+        }
+    }
 }
 
 impl fmt::Display for McpCallError {
@@ -232,6 +268,8 @@ impl std::error::Error for McpCallError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::specialization::mcp::config::McpTransportType;
+    use std::collections::HashMap;
 
     /// Build a `ServiceError` from a fabricated message so we can test
     /// the classifier without a real transport. We go through
@@ -291,6 +329,35 @@ mod tests {
             message: "bad input".into(),
         };
         assert!(!err.is_terminal());
+    }
+
+    #[test]
+    fn redaction_preserves_error_classification_without_leaking_secret() {
+        let config = McpServerConfig {
+            transport_type: McpTransportType::StreamableHttp,
+            command: None,
+            args: None,
+            cwd: None,
+            env: None,
+            url: Some("https://example.test/mcp".to_string()),
+            headers: Some(HashMap::from([(
+                "Authorization".to_string(),
+                "Bearer private-token".to_string(),
+            )])),
+            auto_approve: None,
+            disabled: false,
+            timeout: 30,
+        };
+        let redacted = McpCallError::Auth {
+            server: "srv".to_string(),
+            message: "401 for Bearer private-token".to_string(),
+        }
+        .redact_config_secrets(&config);
+
+        assert!(matches!(redacted, McpCallError::Auth { .. }));
+        let rendered = redacted.to_string();
+        assert!(rendered.contains("[REDACTED_SECRET]"));
+        assert!(!rendered.contains("private-token"));
     }
 
     #[test]

@@ -19,10 +19,12 @@ impl McpClient {
             .as_ref()
             .ok_or_else(|| format!("MCP '{}' has no live service", self.name))?;
 
-        let resources = service
-            .list_all_resources()
-            .await
-            .map_err(|err| format!("resources/list failed for '{}': {}", self.name, err))?;
+        let resources = service.list_all_resources().await.map_err(|err| {
+            crate::specialization::mcp::config::redact_server_secrets_from_text(
+                &self.config,
+                &format!("resources/list failed for '{}': {}", self.name, err),
+            )
+        })?;
 
         let converted = resources
             .into_iter()
@@ -47,7 +49,12 @@ impl McpClient {
         let result = service
             .read_resource(ReadResourceRequestParams::new(uri.to_string()))
             .await
-            .map_err(|err| format!("resources/read failed for '{}': {}", self.name, err))?;
+            .map_err(|err| {
+                crate::specialization::mcp::config::redact_server_secrets_from_text(
+                    &self.config,
+                    &format!("resources/read failed for '{}': {}", self.name, err),
+                )
+            })?;
 
         let contents = result
             .contents
@@ -89,9 +96,12 @@ impl McpClient {
             .ok_or_else(|| format!("MCP '{}' has no live service", self.name))?;
 
         let templates = service.list_all_resource_templates().await.map_err(|err| {
-            format!(
-                "resources/templates/list failed for '{}': {}",
-                self.name, err
+            crate::specialization::mcp::config::redact_server_secrets_from_text(
+                &self.config,
+                &format!(
+                    "resources/templates/list failed for '{}': {}",
+                    self.name, err
+                ),
             )
         })?;
 

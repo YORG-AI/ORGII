@@ -20,14 +20,18 @@ import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSe
 import type { WorkItem } from "@src/types/core/workItem";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
-import { AssignedWorkItemDetail, CommentMentionDetail } from ".";
+import {
+  AssignedWorkItemDetail,
+  CommentMentionDetail,
+  WorkItemEventDetail,
+} from ".";
 import type {
   LoadState,
   TeamInboxDataSource,
   TeamInboxItem,
   TeamInboxNavigationIntent,
 } from "../domain";
-import { toTeamInboxNavigationIntent } from "../domain";
+import { getTeamInboxItemKey, toTeamInboxNavigationIntent } from "../domain";
 
 const PullRequestDetailPanel = React.lazy(() =>
   import("@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/PullRequestContent/detail/PrDetailPanel").then(
@@ -50,6 +54,11 @@ export interface TeamInboxDetailPaneProps {
   onRefresh: () => void;
   onClose: () => void;
   onWorkItemUpdated: (sourceItem: TeamInboxItem, workItem: WorkItem) => void;
+  /** Whether the pane is showing the archived list. */
+  archived: boolean;
+  /** Row key of the archive/unarchive mutation in flight, if any. */
+  dispositionPendingKey: string | null;
+  onDisposition: (item: TeamInboxItem, archived: boolean) => void;
 }
 
 export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
@@ -67,6 +76,9 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
   onRefresh,
   onClose,
   onWorkItemUpdated,
+  archived,
+  dispositionPendingKey,
+  onDisposition,
 }) => {
   if (selectedPullRequest && selectedPullRequestIdentity) {
     const tabActions = (
@@ -163,6 +175,14 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
       </DetailPaneLayout>
     );
   }
+  const dispositionPending =
+    dispositionPendingKey === getTeamInboxItemKey(selectedItem);
+  const onArchive = dataSource.archiveItem
+    ? (item: TeamInboxItem) => onDisposition(item, true)
+    : undefined;
+  const onUnarchive = dataSource.unarchiveItem
+    ? (item: TeamInboxItem) => onDisposition(item, false)
+    : undefined;
   if (selectedItem.kind === "comment_mention") {
     return (
       <CommentMentionDetail
@@ -170,11 +190,29 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
         onClose={onClose}
         onMarkRead={dataSource.markRead ? onMarkRead : undefined}
         onMarkUnread={dataSource.markUnread ? onMarkUnread : undefined}
+        archived={archived}
+        dispositionPending={dispositionPending}
+        onArchive={selectedItem.source !== "cloud" ? onArchive : undefined}
+        onUnarchive={onUnarchive}
         onNavigate={
           onNavigate
             ? () => onNavigate(toTeamInboxNavigationIntent(selectedItem))
             : undefined
         }
+      />
+    );
+  }
+  if (selectedItem.kind !== "assigned_work_item") {
+    return (
+      <WorkItemEventDetail
+        item={selectedItem}
+        onMarkRead={dataSource.markRead ? onMarkRead : undefined}
+        onMarkUnread={dataSource.markUnread ? onMarkUnread : undefined}
+        archived={archived}
+        dispositionPending={dispositionPending}
+        onArchive={onArchive}
+        onUnarchive={onUnarchive}
+        onNavigate={onNavigate}
       />
     );
   }
@@ -184,6 +222,10 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
       onClose={onClose}
       onMarkRead={dataSource.markRead ? onMarkRead : undefined}
       onMarkUnread={dataSource.markUnread ? onMarkUnread : undefined}
+      archived={archived}
+      dispositionPending={dispositionPending}
+      onArchive={onArchive}
+      onUnarchive={onUnarchive}
       onNavigate={onNavigate}
       onWorkItemUpdated={(workItem) =>
         onWorkItemUpdated(selectedItem, workItem)

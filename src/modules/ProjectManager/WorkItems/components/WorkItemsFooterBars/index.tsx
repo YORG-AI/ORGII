@@ -16,6 +16,10 @@ interface MultiSelectBarProps {
   onSelectAll: () => void;
   onUnselectAll: () => void;
   onDelete: () => void;
+  onSetProperty?: () => void;
+  onSetStatus?: () => void;
+  onSetPriority?: () => void;
+  onSetAssignee?: () => void;
 }
 
 export const MultiSelectBar: React.FC<MultiSelectBarProps> = ({
@@ -26,12 +30,59 @@ export const MultiSelectBar: React.FC<MultiSelectBarProps> = ({
   onSelectAll,
   onUnselectAll,
   onDelete,
+  onSetProperty,
+  onSetStatus,
+  onSetPriority,
+  onSetAssignee,
 }) => {
   const { t } = useTranslation("projects");
 
   if (selectedCount === 0) return null;
 
   const allSelected = selectedCount > 0 && selectedCount === visibleItemCount;
+
+  const quickFieldButtons: Array<{ label: string; onClick: () => void }> = [
+    ...(onSetStatus
+      ? [
+          {
+            label: t("workItems.batchStatus.title", {
+              defaultValue: "Set status",
+            }),
+            onClick: onSetStatus,
+          },
+        ]
+      : []),
+    ...(onSetPriority
+      ? [
+          {
+            label: t("workItems.batchPriority.title", {
+              defaultValue: "Set priority",
+            }),
+            onClick: onSetPriority,
+          },
+        ]
+      : []),
+    ...(onSetAssignee
+      ? [
+          {
+            label: t("workItems.batchAssignee.title", {
+              defaultValue: "Set assignee",
+            }),
+            onClick: onSetAssignee,
+          },
+        ]
+      : []),
+    ...(onSetProperty
+      ? [
+          {
+            label: t("workItems.batchProperty.title", {
+              defaultValue: "Set property",
+            }),
+            onClick: onSetProperty,
+          },
+        ]
+      : []),
+  ];
 
   const selectToggleButton = (
     <Button size="small" onClick={allSelected ? onUnselectAll : onSelectAll}>
@@ -70,6 +121,16 @@ export const MultiSelectBar: React.FC<MultiSelectBarProps> = ({
           {selectToggleButton}
         </div>
         <div className="flex items-center gap-2">
+          {quickFieldButtons.map((action) => (
+            <Button
+              key={action.label}
+              size="small"
+              variant="secondary"
+              onClick={action.onClick}
+            >
+              {action.label}
+            </Button>
+          ))}
           {cancelButton}
           {deleteButton}
         </div>
@@ -81,6 +142,7 @@ export const MultiSelectBar: React.FC<MultiSelectBarProps> = ({
     <PanelFooter
       left={selectToggleButton}
       secondaryActions={[
+        ...quickFieldButtons,
         { label: t("common:actions.cancel"), onClick: onUnselectAll },
       ]}
       primaryAction={{

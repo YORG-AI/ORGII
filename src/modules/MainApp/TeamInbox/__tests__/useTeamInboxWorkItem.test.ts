@@ -315,7 +315,8 @@ describe("useTeamInboxWorkItem", () => {
     expect(mocks.updateStandaloneWorkItemPartial).toHaveBeenCalledWith(
       "AAA-0001",
       expect.objectContaining({ workItemStatus: "in_review" }),
-      { orgId: "cloud-org-1" }
+      { orgId: "cloud-org-1" },
+      undefined
     );
     expect(mocks.updateWorkItemPartial).not.toHaveBeenCalled();
   });

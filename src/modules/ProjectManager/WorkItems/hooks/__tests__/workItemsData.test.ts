@@ -17,9 +17,11 @@ import type {
   RustGanttTask,
   RustKanbanTask,
   StatusCounts,
+  WorkItemsViewData,
 } from "@src/api/http/project";
 
 import { FILTER_TO_STATUS, type StatusFilterType } from "../../types";
+import { mergeWorkItemsViewDataByRevision } from "../useWorkItemsData";
 
 // ============================================
 // Rust → Frontend Type Converters (mirrored from useWorkItemsData)
@@ -70,6 +72,7 @@ function transformStatusCounts(rustCounts: StatusCounts) {
     todo: rustCounts.planned, // Rust: "planned" → Frontend: "todo"
     inProgress: rustCounts.inProgress,
     inReview: rustCounts.inReview,
+    blocked: rustCounts.blocked,
     done: rustCounts.completed,
     cancelled: rustCounts.cancelled,
     duplicate: rustCounts.duplicate,
@@ -142,6 +145,7 @@ const mockRustStatusCounts: StatusCounts = {
   planned: 8, // Rust uses "planned"
   inProgress: 6,
   inReview: 2,
+  blocked: 0,
   completed: 3,
   cancelled: 1,
   duplicate: 0,
@@ -149,6 +153,7 @@ const mockRustStatusCounts: StatusCounts = {
 
 const mockEnrichedWorkItem: EnrichedWorkItem = {
   id: "uuid-001",
+  revision: 1,
   shortId: "WI-001",
   title: "Test work item",
   body: "Description of the work item",
@@ -167,6 +172,174 @@ const mockEnrichedWorkItem: EnrichedWorkItem = {
   workProducts: [],
   history: [],
 };
+
+describe("Work item revision merging", () => {
+  const viewData = (
+    item: EnrichedWorkItem,
+    overrides: Partial<WorkItemsViewData> = {}
+  ): WorkItemsViewData => ({
+    items: [item],
+    counts: mockRustStatusCounts,
+    ...overrides,
+  });
+
+  it("keeps a newer local row when an older refresh resolves later", () => {
+    const current = viewData(
+      {
+        ...mockEnrichedWorkItem,
+        revision: 4,
+        title: "Newer title",
+      },
+      {
+        kanbanTasks: [
+          {
+            ...mockKanbanTask,
+            id: mockEnrichedWorkItem.id,
+            title: "Newer title",
+          },
+        ],
+      }
+    );
+
+    const merged = mergeWorkItemsViewDataByRevision(
+      current,
+      viewData(
+        {
+          ...mockEnrichedWorkItem,
+          revision: 3,
+          title: "Stale title",
+        },
+        {
+          kanbanTasks: [
+            {
+              ...mockKanbanTask,
+              id: mockEnrichedWorkItem.id,
+              title: "Stale title",
+            },
+          ],
+        }
+      )
+    );
+
+    expect(merged.items[0]).toMatchObject({
+      revision: 4,
+      title: "Newer title",
+    });
+    expect(merged.kanbanTasks?.[0].title).toBe("Newer title");
+  });
+
+  it("keeps every projection aligned with the protected newer row", () => {
+    const current = viewData(
+      {
+        ...mockEnrichedWorkItem,
+        revision: 9,
+        title: "Protected title",
+      },
+      {
+        kanbanTasks: [
+          {
+            ...mockKanbanTask,
+            id: mockEnrichedWorkItem.id,
+            title: "Protected title",
+          },
+        ],
+        ganttTasks: [
+          {
+            ...mockGanttTask,
+            id: mockEnrichedWorkItem.id,
+            title: "Protected title",
+          },
+        ],
+        calendarEvents: [
+          {
+            ...mockCalendarEvent,
+            id: mockEnrichedWorkItem.id,
+            title: "Protected title",
+          },
+        ],
+      }
+    );
+    const staleTitle = "Late stale title";
+    const merged = mergeWorkItemsViewDataByRevision(
+      current,
+      viewData(
+        {
+          ...mockEnrichedWorkItem,
+          revision: 8,
+          title: staleTitle,
+        },
+        {
+          kanbanTasks: [
+            {
+              ...mockKanbanTask,
+              id: mockEnrichedWorkItem.id,
+              title: staleTitle,
+            },
+          ],
+          ganttTasks: [
+            {
+              ...mockGanttTask,
+              id: mockEnrichedWorkItem.id,
+              title: staleTitle,
+            },
+          ],
+          calendarEvents: [
+            {
+              ...mockCalendarEvent,
+              id: mockEnrichedWorkItem.id,
+              title: staleTitle,
+            },
+          ],
+        }
+      )
+    );
+
+    expect(merged.items[0].title).toBe("Protected title");
+    expect(merged.kanbanTasks?.[0].title).toBe("Protected title");
+    expect(merged.ganttTasks?.[0].title).toBe("Protected title");
+    expect(merged.calendarEvents?.[0].title).toBe("Protected title");
+  });
+
+  it("does not resurrect a row omitted by the authoritative query", () => {
+    const current = viewData({
+      ...mockEnrichedWorkItem,
+      revision: 9,
+      title: "No longer in this filtered result",
+    });
+    const incoming: WorkItemsViewData = {
+      items: [],
+      counts: { ...mockRustStatusCounts, all: 0 },
+      kanbanTasks: [],
+    };
+
+    const merged = mergeWorkItemsViewDataByRevision(current, incoming);
+
+    expect(merged.items).toEqual([]);
+    expect(merged.kanbanTasks).toEqual([]);
+  });
+
+  it("accepts an authoritative refresh with an equal or newer revision", () => {
+    const current = viewData({
+      ...mockEnrichedWorkItem,
+      revision: 4,
+      title: "Current title",
+    });
+
+    const merged = mergeWorkItemsViewDataByRevision(
+      current,
+      viewData({
+        ...mockEnrichedWorkItem,
+        revision: 5,
+        title: "Authoritative title",
+      })
+    );
+
+    expect(merged.items[0]).toMatchObject({
+      revision: 5,
+      title: "Authoritative title",
+    });
+  });
+});
 
 // ============================================
 // Tests
@@ -236,6 +409,7 @@ describe("Status Filter Mapping", () => {
     expect(FILTER_TO_STATUS.backlog).toBe("backlog");
     expect(FILTER_TO_STATUS.inProgress).toBe("in_progress");
     expect(FILTER_TO_STATUS.inReview).toBe("in_review");
+    expect(FILTER_TO_STATUS.blocked).toBe("blocked");
     expect(FILTER_TO_STATUS.cancelled).toBe("cancelled");
     expect(FILTER_TO_STATUS.duplicate).toBe("duplicate");
   });
@@ -247,6 +421,7 @@ describe("Status Filter Mapping", () => {
       "todo",
       "inProgress",
       "inReview",
+      "blocked",
       "done",
       "cancelled",
       "duplicate",
@@ -267,6 +442,7 @@ describe("Status Counts Transformation", () => {
     expect(result.todo).toBe(8); // Was "planned" in Rust
     expect(result.inProgress).toBe(6);
     expect(result.inReview).toBe(2);
+    expect(result.blocked).toBe(0);
     expect(result.done).toBe(3); // Was "completed" in Rust
     expect(result.cancelled).toBe(1);
     expect(result.duplicate).toBe(0);
@@ -279,6 +455,7 @@ describe("Status Counts Transformation", () => {
       planned: 0,
       inProgress: 0,
       inReview: 0,
+      blocked: 0,
       completed: 0,
       cancelled: 0,
       duplicate: 0,
@@ -300,6 +477,7 @@ describe("Status Counts Transformation", () => {
       result.todo +
       result.inProgress +
       result.inReview +
+      result.blocked +
       result.done +
       result.cancelled;
 

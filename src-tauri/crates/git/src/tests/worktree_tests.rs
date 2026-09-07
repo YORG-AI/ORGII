@@ -389,3 +389,175 @@ fn worktree_setup_command_is_terminated_at_deadline() {
     assert!(error.contains("timed out"));
     assert!(started.elapsed() < std::time::Duration::from_secs(1));
 }
+
+// ============================================
+// Liveness lock
+// ============================================
+
+fn unique_test_dir(tag: &str) -> std::path::PathBuf {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let pid = std::process::id();
+    let dir = std::env::temp_dir().join(format!("orgii-worktree-lock-test-{tag}-{pid}-{nanos}"));
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+#[test]
+fn worktree_lock_absent_file_is_stale() {
+    let dir = unique_test_dir("absent");
+    assert!(!worktree_lock_is_held(&dir));
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn worktree_lock_acquire_then_release_is_stale_again() {
+    let dir = unique_test_dir("acquire-release");
+
+    let guard = try_acquire_worktree_lock(&dir)
+        .unwrap()
+        .expect("fresh lock file must be acquirable");
+    assert!(worktree_lock_is_held(&dir));
+
+    drop(guard);
+    let probe = try_acquire_worktree_lock(&dir);
+    assert!(
+        matches!(&probe, Ok(Some(_))),
+        "lock must become acquirable again once the holder drops its fd: {}",
+        match &probe {
+            Ok(Some(_)) => "acquired".to_string(),
+            Ok(None) => "still held (EWOULDBLOCK)".to_string(),
+            Err(err) => format!("probe error: {err}"),
+        }
+    );
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn worktree_lock_held_by_another_fd_refuses() {
+    let dir = unique_test_dir("held");
+
+    let _holder = try_acquire_worktree_lock(&dir)
+        .unwrap()
+        .expect("first acquire should succeed");
+
+    assert!(worktree_lock_is_held(&dir));
+    let second = try_acquire_worktree_lock(&dir).unwrap();
+    assert!(
+        second.is_none(),
+        "a second, independent fd must not acquire a lock already held"
+    );
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn worktree_lock_probe_failure_blocks_cleanup() {
+    let dir = unique_test_dir("probe-failure");
+    std::fs::create_dir(dir.join(".orgii-worktree.lock")).unwrap();
+
+    assert!(
+        worktree_lock_is_held(&dir),
+        "an unreadable lock target must fail closed so cleanup cannot remove user work"
+    );
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+// ============================================
+// session_worktree_root_for_path
+// ============================================
+
+#[test]
+fn session_worktree_root_for_path_resolves_root_and_subdir() {
+    let root = app_paths::agent_worktrees_root();
+    let worktree_root = root.join("repo-hash-abc").join("session-123");
+    let nested = worktree_root.join("src").join("lib.rs");
+
+    assert_eq!(
+        session_worktree_root_for_path(&worktree_root),
+        Some(worktree_root.clone())
+    );
+    assert_eq!(session_worktree_root_for_path(&nested), Some(worktree_root));
+}
+
+#[test]
+fn session_worktree_root_for_path_outside_root_is_none() {
+    assert_eq!(
+        session_worktree_root_for_path(std::path::Path::new("/tmp/not-a-worktree")),
+        None
+    );
+}
+
+fn git(cwd: &std::path::Path, args: &[&str]) -> String {
+    let output = std::process::Command::new("git")
+        .args(args)
+        .current_dir(cwd)
+        .env("GIT_AUTHOR_NAME", "t")
+        .env("GIT_AUTHOR_EMAIL", "t@example.com")
+        .env("GIT_COMMITTER_NAME", "t")
+        .env("GIT_COMMITTER_EMAIL", "t@example.com")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git {:?} failed: {}",
+        args,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
+}
+
+#[test]
+fn worktree_excludes_keep_lock_and_tmp_out_of_status() {
+    let root = unique_test_dir("excludes");
+    let repo = root.join("repo");
+    std::fs::create_dir_all(&repo).unwrap();
+    git(&repo, &["init", "-q", "-b", "main"]);
+    std::fs::write(repo.join("README.md"), "hello\n").unwrap();
+    git(&repo, &["add", "."]);
+    git(&repo, &["commit", "-q", "-m", "init"]);
+
+    let worktree = root.join("wt");
+    git(
+        &repo,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "session-x",
+            worktree.to_str().unwrap(),
+            "main",
+        ],
+    );
+
+    ensure_worktree_excludes(&worktree).unwrap();
+    ensure_worktree_excludes(&worktree).unwrap();
+
+    std::fs::write(worktree.join(".orgii-worktree.lock"), "").unwrap();
+    std::fs::create_dir_all(worktree.join(".orgii-tmp")).unwrap();
+    std::fs::write(worktree.join(".orgii-tmp").join("scratch"), "x").unwrap();
+    std::fs::write(worktree.join("work.txt"), "y").unwrap();
+
+    let status = git(&worktree, &["status", "--porcelain"]);
+    assert_eq!(status, "?? work.txt");
+
+    let exclude = git(&worktree, &["rev-parse", "--git-path", "info/exclude"]);
+    let exclude_path = {
+        let candidate = std::path::PathBuf::from(&exclude);
+        if candidate.is_absolute() {
+            candidate
+        } else {
+            worktree.join(candidate)
+        }
+    };
+    let contents = std::fs::read_to_string(exclude_path).unwrap();
+    assert_eq!(contents.matches("/.orgii-worktree.lock").count(), 1);
+    assert_eq!(contents.matches("/.orgii-tmp/").count(), 1);
+
+    std::fs::remove_dir_all(&root).ok();
+}

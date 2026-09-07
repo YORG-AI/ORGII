@@ -168,15 +168,27 @@ mod tests {
 
         // Real bridge enqueue hooks: an update row plus the DELETE
         // tombstone that motivated this command (leave-scrub purge).
+        // Deleting a carrier also enqueues the org-catalog rehome row,
+        // so the scrub has to purge that durable kind too.
         collab_bridge::record_work_item_write(ORG, Some("shared-proj"), "wi-1", false)
             .expect("enqueue update");
         collab_bridge::record_work_item_write(ORG, Some("shared-proj"), "wi-1", true)
             .expect("enqueue delete tombstone");
         seed_null_org_worker_row();
-        assert_eq!(outbox_count("org_id = ?1"), 2, "bridge rows seeded");
+        assert_eq!(
+            outbox_count("org_id = ?1 AND entity_type = 'work_item'"),
+            2,
+            "work item update + delete rows seeded"
+        );
+        assert_eq!(
+            outbox_count("org_id = ?1 AND entity_type = 'org_catalog'"),
+            1,
+            "the delete tombstone rehomes the org catalog"
+        );
+        assert_eq!(outbox_count("org_id = ?1"), 3, "bridge rows seeded");
 
         let result = run_collab_leave_cleanup(ORG).expect("cleanup");
-        assert_eq!(result.deleted_outbox_rows, 2);
+        assert_eq!(result.deleted_outbox_rows, 3);
         assert!(result.org_unmarked);
 
         // Exactly the org's bridge rows are gone; the worker's NULL-org

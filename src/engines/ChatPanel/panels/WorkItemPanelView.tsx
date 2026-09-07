@@ -34,9 +34,11 @@ import {
   ListChecksIcon,
 } from "@src/icons";
 import { WorkItemThreadSurface } from "@src/modules/ProjectManager/WorkItems/components";
+import RevisionConflictModal from "@src/modules/ProjectManager/WorkItems/components/RevisionConflictModal";
 import { WorkItemDetailHeaderBreadcrumb } from "@src/modules/ProjectManager/WorkItems/components/WorkItemDetail/WorkItemDetailHeader";
 import WorkItemProperties from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties";
 import { WorkItemThreadNavigationPortalContext } from "@src/modules/ProjectManager/WorkItems/components/WorkItemThread";
+import { useWorkItemRevisionConflict } from "@src/modules/ProjectManager/WorkItems/hooks/useWorkItemRevisionConflict";
 import { toWorkItemPartialUpdate } from "@src/modules/ProjectManager/WorkItems/workItemPartialUpdate";
 import {
   PropertiesPanel,
@@ -81,17 +83,6 @@ interface WorkItemPanelViewProps {
   onClose?: () => void;
 }
 
-function applyWorkItemPatch(
-  workItem: WorkItem,
-  updates: Partial<WorkItem>
-): WorkItem {
-  return {
-    ...workItem,
-    ...updates,
-    updated_time: new Date().toISOString(),
-  };
-}
-
 export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
   selectedWorkItem,
   onUpdateWorkItem,
@@ -131,6 +122,107 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
   const { currentUser } = useCurrentUserMemberIds(workItemMembers);
   const sourceProjectSyncAdapterId =
     selectedWorkItem.sourceProject?.project.syncAdapterId;
+
+  const readLatestSelectedWorkItem =
+    useCallback(async (): Promise<WorkItem> => {
+      if (selectedWorkItem.projectSlug) {
+        return enrichedWorkItemToUI(
+          await projectApi.readWorkItemEnriched(
+            selectedWorkItem.projectSlug,
+            selectedWorkItem.shortId,
+            selectedWorkItem.orgId
+              ? { orgId: selectedWorkItem.orgId }
+              : undefined
+          )
+        );
+      }
+      return enrichedWorkItemToUI(
+        standaloneWorkItemDataToEnriched(
+          await projectApi.readStandaloneWorkItem(
+            selectedWorkItem.shortId,
+            selectedWorkItem.orgId
+              ? { orgId: selectedWorkItem.orgId }
+              : undefined
+          )
+        )
+      );
+    }, [
+      selectedWorkItem.orgId,
+      selectedWorkItem.projectSlug,
+      selectedWorkItem.shortId,
+    ]);
+
+  const acceptRevisionRecord = useCallback(
+    (record: WorkItem) => {
+      setSelectedWorkItem((current) =>
+        current?.shortId === selectedWorkItem.shortId &&
+        current.orgId === selectedWorkItem.orgId
+          ? { ...current, workItem: record }
+          : current
+      );
+    },
+    [selectedWorkItem.orgId, selectedWorkItem.shortId, setSelectedWorkItem]
+  );
+  const retryRevisionUpdate = useCallback(
+    async (updates: Partial<WorkItem>, expectedRevision: number) => {
+      const payload = toWorkItemPartialUpdate(updates, currentUser);
+      return selectedWorkItem.projectSlug
+        ? enrichedWorkItemToUI(
+            await projectApi.updateWorkItemPartial(
+              selectedWorkItem.projectSlug,
+              selectedWorkItem.shortId,
+              payload,
+              expectedRevision
+            )
+          )
+        : enrichedWorkItemToUI(
+            standaloneWorkItemDataToEnriched(
+              await projectApi.updateStandaloneWorkItemPartial(
+                selectedWorkItem.shortId,
+                payload,
+                selectedWorkItem.orgId
+                  ? { orgId: selectedWorkItem.orgId }
+                  : undefined,
+                expectedRevision
+              )
+            )
+          );
+    },
+    [
+      currentUser,
+      selectedWorkItem.orgId,
+      selectedWorkItem.projectSlug,
+      selectedWorkItem.shortId,
+    ]
+  );
+  const notifyRevisionRetry = useCallback(
+    () =>
+      emit("orgii-data-changed", {
+        project_slug: selectedWorkItem.projectSlug || undefined,
+        work_item_id: selectedWorkItem.shortId,
+        source: "chat-panel-work-item-conflict-retry",
+      }),
+    [selectedWorkItem.projectSlug, selectedWorkItem.shortId]
+  );
+  const {
+    revisionConflict,
+    handleRevisionConflict,
+    useLatestRevisionConflict: handleUseLatest,
+    keepMineRevisionConflict: handleKeepMine,
+  } = useWorkItemRevisionConflict({
+    identityKey: JSON.stringify([
+      selectedWorkItem.orgId ?? "personal-org",
+      selectedWorkItem.projectSlug ?? null,
+      selectedWorkItem.shortId,
+    ]),
+    readLatest: readLatestSelectedWorkItem,
+    retry: retryRevisionUpdate,
+    acceptRecord: acceptRevisionRecord,
+    recordTitle: (record) => record.name,
+    recordDescription: (record) => record.spec,
+    recordRevision: (record) => record.revision,
+    onRetrySuccess: notifyRevisionRetry,
+  });
 
   useEffect(() => {
     const projectSlug = selectedWorkItem.projectSlug;
@@ -176,7 +268,8 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             await projectApi.updateWorkItemPartial(
               selectedWorkItem.projectSlug,
               selectedWorkItem.shortId,
-              payload
+              payload,
+              selectedWorkItem.workItem.revision
             )
           );
           setSelectedWorkItem({
@@ -184,20 +277,21 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             workItem: updatedWorkItem,
           });
         } else {
-          const updatedWorkItem = applyWorkItemPatch(
-            selectedWorkItem.workItem,
-            updates
-          );
           // Atomic partial update, kept under the owning org — an orgless
           // whole-row write would re-home a collab-org item to
           // personal-org and detach it from sync, and a client-side merge
           // could silently drop concurrent edits.
-          await projectApi.updateStandaloneWorkItemPartial(
-            selectedWorkItem.shortId,
-            payload,
-            selectedWorkItem.orgId
-              ? { orgId: selectedWorkItem.orgId }
-              : undefined
+          const updatedWorkItem = enrichedWorkItemToUI(
+            standaloneWorkItemDataToEnriched(
+              await projectApi.updateStandaloneWorkItemPartial(
+                selectedWorkItem.shortId,
+                payload,
+                selectedWorkItem.orgId
+                  ? { orgId: selectedWorkItem.orgId }
+                  : undefined,
+                selectedWorkItem.workItem.revision
+              )
+            )
           );
           setSelectedWorkItem({
             ...selectedWorkItem,
@@ -211,9 +305,16 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
         });
       } catch (error) {
         logger.error("Failed to update chat panel work item", error);
+        await handleRevisionConflict(error, updates);
       }
     },
-    [currentUser, onUpdateWorkItem, selectedWorkItem, setSelectedWorkItem]
+    [
+      currentUser,
+      handleRevisionConflict,
+      onUpdateWorkItem,
+      selectedWorkItem,
+      setSelectedWorkItem,
+    ]
   );
 
   // The owning work-item tab's stored payload is mirrored from
@@ -648,6 +749,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
           }
         >
           <WorkItemProperties
+            statusOrgId={selectedWorkItem.orgId ?? "personal-org"}
             workItem={selectedWorkItem.workItem}
             onUpdate={handleUpdateWorkItem}
             availableProjects={
@@ -729,6 +831,25 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
           {propertiesOpen ? propertiesPanel : null}
         </div>
       </div>
+      <RevisionConflictModal
+        conflict={
+          revisionConflict
+            ? {
+                fieldLabel: t(
+                  revisionConflict.field === "title"
+                    ? "projects:workItems.revisionConflict.titleField"
+                    : "projects:workItems.revisionConflict.descriptionField"
+                ),
+                mine: revisionConflict.mine,
+                latest: revisionConflict.latest,
+                expectedRevision: revisionConflict.expectedRevision,
+                actualRevision: revisionConflict.actualRevision,
+              }
+            : null
+        }
+        onUseLatest={handleUseLatest}
+        onKeepMine={handleKeepMine}
+      />
     </WorkItemThreadNavigationPortalContext.Provider>
   );
 };

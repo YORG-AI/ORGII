@@ -357,6 +357,32 @@ pub fn global_skills_dir() -> PathBuf {
     orgii_root().join("skills")
 }
 
+/// Root for org-shared skill materializations: `~/.orgii/org-skills/`.
+pub fn org_skills_root() -> PathBuf {
+    orgii_root().join("org-skills")
+}
+
+/// Materialized skills shared by one org: `~/.orgii/org-skills/<org>/`.
+///
+/// The organization id is an opaque storage key, but it must still be one
+/// filesystem component. Keeping this validation beside the path constructor
+/// prevents callers from accidentally turning a synced id into a path escape.
+pub fn org_skills_dir(org_id: &str) -> Result<PathBuf, String> {
+    const MAX_ORG_ID_BYTES: usize = 255;
+
+    let is_safe_component = !org_id.is_empty()
+        && org_id.len() <= MAX_ORG_ID_BYTES
+        && org_id.trim() == org_id
+        && org_id != "."
+        && org_id != ".."
+        && !org_id.contains(['/', '\\', ':', '\0'])
+        && !org_id.chars().any(char::is_control);
+    if !is_safe_component {
+        return Err("Invalid organization id for org skills storage".to_string());
+    }
+    Ok(org_skills_root().join(org_id))
+}
+
 /// File-based session registry root: `~/.orgii/sessions/`.
 ///
 /// Crash-resilient per-session metadata files. Read/written by

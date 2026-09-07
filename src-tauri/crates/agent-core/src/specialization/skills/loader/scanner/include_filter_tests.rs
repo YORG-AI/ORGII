@@ -78,6 +78,56 @@ fn include_filter_narrows_listing_to_named_skills() {
 }
 
 #[test]
+fn targeted_consent_lookup_resolves_only_the_named_effective_skill() {
+    let ws = temp_workspace("targeted_consent");
+    write_skill(&ws, "selected", &skill_doc("selected", "selected skill"));
+    let unrelated = ws.join("skills/unrelated");
+    fs::create_dir_all(unrelated.join("large/nested/tree")).expect("mkdir unrelated tree");
+    fs::write(unrelated.join("SKILL.md"), "not valid frontmatter").expect("write unrelated");
+
+    let selected = SkillsLoader::new(&ws)
+        .find_skill_fresh("selected")
+        .expect("selected skill");
+
+    assert_eq!(selected.name, "selected");
+    assert_eq!(selected.source, "workspace");
+    assert!(!selected.content_digest.is_empty());
+}
+
+#[test]
+fn targeted_consent_lookup_applies_the_existing_disabled_policy() {
+    let ws = temp_workspace("targeted_disabled");
+    write_skill(&ws, "selected", &skill_doc("selected", "selected skill"));
+
+    let selected = SkillsLoader::new(&ws)
+        .with_disabled_skills(vec!["selected".to_string()])
+        .find_skill_fresh("selected")
+        .expect("selected skill remains discoverable for verification");
+
+    assert!(!selected.enabled);
+}
+
+#[test]
+fn targeted_consent_lookup_rejects_path_like_names() {
+    let ws = temp_workspace("targeted_path_guard");
+    write_skill(&ws, "selected", &skill_doc("selected", "selected skill"));
+    let loader = SkillsLoader::new(&ws);
+
+    for unsafe_name in [
+        "../selected",
+        "skills/selected",
+        r"skills\selected",
+        ".",
+        "..",
+    ] {
+        assert!(
+            loader.find_skill_fresh(unsafe_name).is_none(),
+            "path-like skill name must fail closed: {unsafe_name}"
+        );
+    }
+}
+
+#[test]
 fn empty_include_filter_means_no_skills() {
     // The prompt code only passes `Some(&[..])` when the slice is
     // non-empty (`!sc.include.is_empty()`), so `Some(&[])` is a
@@ -309,4 +359,83 @@ fn disabled_skills_take_precedence_over_include_filter() {
         "alpha is disabled and must NOT appear; got:\n{attachment}",
     );
     assert!(attachment.contains("beta"));
+}
+
+#[test]
+fn malformed_managed_provenance_fails_closed() {
+    let ws = temp_workspace("invalid_provenance");
+    write_skill(&ws, "managed", &skill_doc("managed", "managed skill"));
+    fs::write(
+        ws.join("skills/managed")
+            .join(crate::skills::provenance::PROVENANCE_FILENAME),
+        "not-json",
+    )
+    .expect("write invalid provenance");
+
+    let skills = SkillsLoader::new(&ws).list_skills();
+    let managed = skills
+        .iter()
+        .find(|skill| skill.name == "managed")
+        .expect("managed skill scanned");
+    assert!(!managed.consent_valid);
+    assert!(!managed.available);
+}
+
+#[test]
+#[serial_test::serial]
+fn org_shared_skills_are_scoped_and_list_lookup_agree() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let ws = temp_workspace("org_scope");
+    for (org_id, marker) in [
+        ("org-a", "ORG_A_BODY"),
+        ("org-b", "ORG_B_BODY"),
+        ("personal-org", "PERSONAL_BODY"),
+    ] {
+        let org_dir = app_paths::org_skills_dir(org_id).expect("valid org skill dir");
+        let skill_dir = org_dir.join("same-name");
+        fs::create_dir_all(&skill_dir).expect("mkdir org skill");
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            format!(
+                "---\nname: same-name\ndescription: {marker}\n---\n\n# same-name\n\n{marker}\n"
+            ),
+        )
+        .expect("write org skill");
+    }
+
+    for (org_id, marker) in [
+        ("org-a", "ORG_A_BODY"),
+        ("org-b", "ORG_B_BODY"),
+        ("personal-org", "PERSONAL_BODY"),
+    ] {
+        let loader = SkillsLoader::new(&ws).with_org_id(org_id);
+        let listed = loader
+            .list_skills()
+            .into_iter()
+            .filter(|skill| skill.name == "same-name")
+            .collect::<Vec<_>>();
+        assert_eq!(listed.len(), 1, "{org_id} sees exactly its own skill");
+        assert!(listed[0].description.contains(marker));
+        let consent_lookup = loader
+            .find_skill_fresh("same-name")
+            .expect("listed skill resolves for Work Item consent");
+        assert!(consent_lookup.description.contains(marker));
+        let loaded = loader.load_skill("same-name").expect("listed skill loads");
+        assert!(loaded.contains(marker));
+        for foreign in ["ORG_A_BODY", "ORG_B_BODY", "PERSONAL_BODY"] {
+            if foreign != marker {
+                assert!(!loaded.contains(foreign), "{org_id} leaked {foreign}");
+            }
+        }
+    }
+
+    let unscoped = SkillsLoader::new(&ws);
+    assert!(
+        unscoped
+            .list_skills()
+            .iter()
+            .all(|skill| skill.name != "same-name"),
+        "a loader without a session or Work Item org must not scan every org"
+    );
+    assert!(unscoped.load_skill("same-name").is_none());
 }

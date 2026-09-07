@@ -11,10 +11,12 @@ use crate::coordination::agent_org_payload_limits as limits;
 /// - `(recipient_agent_id, read_at, created_at)` — coordinator / legacy drain query.
 /// - `(org_run_id, created_at)` — bounded debug / E2E history pages.
 /// - `(request_id)` — RPC correlation lookups.
+/// - `(org_run_id, sender_agent_id, client_message_id)` — idempotent user sends.
 pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
     create_agent_inbox_table(conn)?;
     ensure_agent_inbox_column(conn, "causation_inbox_id", "INTEGER")?;
     ensure_agent_inbox_column(conn, "display_text", "TEXT")?;
+    ensure_agent_inbox_column(conn, "client_message_id", "TEXT")?;
     let schema = format!(
         "CREATE TABLE IF NOT EXISTS agent_inbox_materializations (
             inbox_id INTEGER PRIMARY KEY,
@@ -84,6 +86,9 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
         DROP INDEX IF EXISTS idx_agent_inbox_run_task_assignment_v2;
         CREATE INDEX IF NOT EXISTS idx_agent_inbox_request_id
             ON agent_inbox(request_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_inbox_user_message_once
+            ON agent_inbox(org_run_id, sender_agent_id, client_message_id)
+            WHERE client_message_id IS NOT NULL;
         DROP INDEX IF EXISTS idx_agent_inbox_causation_once;
         CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_inbox_causation_recipient_once
             ON agent_inbox(
@@ -165,7 +170,8 @@ fn create_agent_inbox_table(conn: &Connection) -> SqliteResult<()> {
             created_at TEXT NOT NULL,
             read_at TEXT,
             causation_inbox_id INTEGER,
-            display_text TEXT
+            display_text TEXT,
+            client_message_id TEXT
         );",
     )
 }
@@ -195,6 +201,7 @@ mod tests {
         .expect("create legacy inbox table");
 
         init_schema(&conn).expect("upgrade legacy inbox schema");
+        init_schema(&conn).expect("re-initialize upgraded inbox schema");
 
         let mut stmt = conn
             .prepare("PRAGMA table_info(agent_inbox)")
@@ -206,5 +213,18 @@ mod tests {
             .expect("collect inbox columns");
         assert!(columns.iter().any(|column| column == "causation_inbox_id"));
         assert!(columns.iter().any(|column| column == "display_text"));
+        assert!(columns.iter().any(|column| column == "client_message_id"));
+        let has_idempotency_index: bool = conn
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM sqlite_master
+                     WHERE type='index'
+                       AND name='idx_agent_inbox_user_message_once'
+                 )",
+                [],
+                |row| row.get(0),
+            )
+            .expect("inspect Group Chat idempotency index");
+        assert!(has_idempotency_index);
     }
 }

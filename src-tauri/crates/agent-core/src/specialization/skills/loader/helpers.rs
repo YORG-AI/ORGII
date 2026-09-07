@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::commands::global_skills_dir;
+use crate::skills::provenance::{PROVENANCE_FILENAME, SKILLS_SH_DETAIL_CACHE_FILENAME};
 
 /// Count tokens in a string using the shared BPE tokenizer.
 pub(super) fn estimate_tokens(text: &str) -> usize {
@@ -33,12 +34,39 @@ fn collect_bundled_files_recursive(base: &Path, dir: &Path, out: &mut Vec<String
         let path = entry.path();
         if path.is_dir() {
             collect_bundled_files_recursive(base, &path, out);
-        } else if path.file_name().map(|f| f != "SKILL.md").unwrap_or(false) {
+        } else if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| {
+                name != "SKILL.md"
+                    && name != PROVENANCE_FILENAME
+                    && name != SKILLS_SH_DETAIL_CACHE_FILENAME
+            })
+        {
             if let Ok(rel) = path.strip_prefix(base) {
                 out.push(rel.to_string_lossy().to_string());
             }
         }
     }
+}
+
+const BINARY_FILE_EXTENSIONS: &[&str] = &[
+    "png", "jpg", "jpeg", "gif", "bmp", "ico", "webp", "tiff", "tif", "psd", "heic", "avif", "mp3",
+    "wav", "flac", "aac", "ogg", "wma", "m4a", "opus", "aiff", "mp4", "mov", "avi", "mkv", "webm",
+    "wmv", "flv", "m4v", "mpg", "mpeg", "zip", "tar", "gz", "bz2", "7z", "rar", "xz", "tgz", "jar",
+    "war", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp", "pages", "numbers",
+    "key", "pdf", "ttf", "otf", "woff", "woff2", "eot", "exe", "dll", "so", "dylib", "bin", "app",
+    "deb", "rpm", "msi", "dmg", "pkg", "apk",
+];
+
+/// Whether a relative path looks like a binary attachment based on its
+/// extension. Used to skip bundled files that would otherwise fail a
+/// UTF-8 text read when sharing a skill to an org.
+pub(super) fn is_binary_by_extension(relative_path: &str) -> bool {
+    Path::new(relative_path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| BINARY_FILE_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
 }
 
 /// Resolve the skill directory for a given name, checking project then global.

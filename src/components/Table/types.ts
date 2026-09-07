@@ -48,6 +48,11 @@ export interface TablePagination {
   position?: "top" | "bottom" | "both";
 }
 
+export interface TableSorting {
+  column: string;
+  order: "ascend" | "descend";
+}
+
 export interface PaginationRenderContext {
   pageIndex: number;
   pageSize: number;
@@ -68,6 +73,9 @@ export interface TableProps<T = unknown> {
   /** @default true */
   showHeader?: boolean;
   pagination?: false | TablePagination;
+  /** Controlled single-column sort state. Omit to keep Table-local sorting. */
+  sorting?: TableSorting | null;
+  onSortingChange?: (sorting: TableSorting | null) => void;
   onChange?: (
     pagination: TablePagination,
     filters: Record<string, unknown>,

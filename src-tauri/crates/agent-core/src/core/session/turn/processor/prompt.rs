@@ -22,10 +22,14 @@ use crate::core::session::types::{SystemPromptConfig, ToolSummary};
 fn render_orgtrack_cli_brief(
     product_mode: Option<&str>,
     project_slug: Option<&str>,
+    status_catalog: Option<&str>,
 ) -> Option<String> {
     if product_mode != Some("project") {
         return None;
     }
+    let status_section = status_catalog
+        .map(|catalog| format!("\n\n{catalog}"))
+        .unwrap_or_default();
     let scope_line = match project_slug {
         Some(slug) => format!("Your scope is injected (ORGII_SCOPE={slug}); omit --scope."),
         None => "No Project is required. This session uses the current organization's standalone Work Item scope; omit --scope. Work list/create route there automatically.".to_string(),
@@ -35,6 +39,7 @@ fn render_orgtrack_cli_brief(
          The work system is also reachable from your shell through the `org2-pm` CLI. \
          Use `--output json`; run `org2-pm --help` or `org2-pm <command> --help` for anything beyond the core set.\n\n\
          - `org2-pm work show <id>` / `org2-pm work list [--status <state>] [--ready]`\n\
+         - `org2-pm work timeline <id> [--since <iso>] [--tail <n>] [--activity-only|--comments-only]` — merged history and Discussion\n\
          - `org2-pm work create --title \"...\" [--body ...] [--parent <id>]`\n\
          - `org2-pm work update <id> [--title ...] [--body ...|--body-file <path>] [--expected-revision N]`\n\
          - `org2-pm work transition <id> --to <state> --reason \"...\"`\n\
@@ -55,8 +60,15 @@ fn render_orgtrack_cli_brief(
          - If blocked, run `org2-pm work transition <id> --to blocked --reason \"...\"` and post \
          one note explaining the blocker.\n\
          - Your harness's built-in planning tools (task lists, todos) are local scratch state — \
-         they do NOT update the work system. Only `org2-pm` writes count.",
-        scope_line
+         they do NOT update the work system. Only `org2-pm` writes count.\n\
+         - Status discipline: state changes go through `work transition --to <state>` \
+         (`work claim` for in_progress). Use a custom status key from the catalog below when the \
+         team defines one that matches the work's stage; never invent a status key.\n\
+         - Mention discipline: every note notifies the item's subscribers. When a Discussion \
+         comment wakes you, answer with ONE reply note (`--parent-id <comment-id>`); never reply \
+         to your own notes and never post a note just to acknowledge.{}",
+        scope_line,
+        status_section
     ))
 }
 
@@ -140,12 +152,15 @@ impl UnifiedMessageProcessor {
             .and_then(|ctx| ctx.user_profile.clone())
             .or_else(crate::interaction::profile_state::global_profile);
 
-        let product_mode = tokio::task::block_in_place(|| {
+        let persisted_session = tokio::task::block_in_place(|| {
             super::unified_persistence::get_session(session_id)
                 .ok()
                 .flatten()
-                .and_then(|record| record.product_mode)
         });
+        let product_mode = persisted_session
+            .as_ref()
+            .and_then(|record| record.product_mode.clone());
+        let org_id = persisted_session.and_then(|record| record.org_id);
 
         let prompt_config = SystemPromptConfig {
             model: self.runtime.model.clone(),
@@ -160,6 +175,7 @@ impl UnifiedMessageProcessor {
             chat_id: self.chat_id.clone(),
             agent_mode: self.agent_mode,
             product_mode,
+            org_id,
             ide_context: self.ide_context.clone(),
             user_presence,
             user_profile,
@@ -276,10 +292,10 @@ impl UnifiedMessageProcessor {
         // after launch, and without this live row the model rediscovers
         // projects, creates duplicates, or asks for a scope that is optional.
         // Keep this volatile because the bootstrap link is session-specific.
+        let linked_session =
+            tokio::task::block_in_place(|| super::unified_persistence::get_session(session_id));
         {
-            let linked_session =
-                tokio::task::block_in_place(|| super::unified_persistence::get_session(session_id));
-            match linked_session {
+            match &linked_session {
                 Ok(Some(session)) => {
                     if let Some(context) = linked_work_item_context_for_session(
                         session.product_mode.as_deref(),
@@ -288,9 +304,19 @@ impl UnifiedMessageProcessor {
                     ) {
                         dynamic_sections.push(context);
                     }
+                    let status_catalog = if session.product_mode.as_deref() == Some("project") {
+                        tokio::task::block_in_place(|| {
+                            project_management::work_item_features::render_status_catalog(
+                                session.org_id.as_deref(),
+                            )
+                        })
+                    } else {
+                        None
+                    };
                     if let Some(brief) = render_orgtrack_cli_brief(
                         session.product_mode.as_deref(),
                         session.project_slug.as_deref(),
+                        status_catalog.as_deref(),
                     ) {
                         dynamic_sections.push(brief);
                     }
@@ -303,6 +329,11 @@ impl UnifiedMessageProcessor {
                 ),
             }
         }
+        let skill_org_id = linked_session
+            .as_ref()
+            .ok()
+            .and_then(|session| session.as_ref())
+            .and_then(|session| session.org_id.as_deref());
 
         // Skill listing attachment (per-turn name+description summary). Full SKILL.md
         // content is loaded via `read_file` when the LLM invokes it; the listing
@@ -336,6 +367,7 @@ impl UnifiedMessageProcessor {
                     &effective_disabled,
                     include_filter,
                     agent_key,
+                    skill_org_id,
                     self.runtime.resolved.load_workspace_resources,
                 );
                 let listing = {
@@ -349,6 +381,9 @@ impl UnifiedMessageProcessor {
                                 .with_load_workspace_resources(
                                     self.runtime.resolved.load_workspace_resources,
                                 );
+                            if let Some(org_id) = skill_org_id {
+                                loader = loader.with_org_id(org_id);
+                            }
                             if !self.runtime.resolved.skills.source_dirs.is_empty() {
                                 loader = loader.with_extra_source_dirs(
                                     &self.runtime.resolved.skills.source_dirs,
@@ -609,10 +644,26 @@ mod linked_work_item_context_tests {
     #[test]
     fn projectless_brief_says_project_is_optional() {
         let prompt =
-            render_orgtrack_cli_brief(Some("project"), None).expect("Project-mode CLI brief");
+            render_orgtrack_cli_brief(Some("project"), None, None).expect("Project-mode CLI brief");
 
         assert!(prompt.contains("No Project is required"));
         assert!(prompt.contains("route there automatically"));
         assert!(!prompt.contains("Pass --scope"));
+        assert!(prompt.contains("Status discipline"));
+        assert!(prompt.contains("Mention discipline"));
+        assert!(prompt.ends_with("never post a note just to acknowledge."));
+    }
+
+    #[test]
+    fn brief_appends_the_status_catalog_only_when_present() {
+        let without = render_orgtrack_cli_brief(Some("project"), Some("auth"), None)
+            .expect("Project-mode CLI brief");
+        let catalog = "Custom statuses defined by this organization:\n- in_progress: `qa` (QA)";
+        let with = render_orgtrack_cli_brief(Some("project"), Some("auth"), Some(catalog))
+            .expect("Project-mode CLI brief");
+
+        assert!(with.starts_with(&without));
+        assert!(with.ends_with(catalog));
+        assert!(render_orgtrack_cli_brief(Some("build"), Some("auth"), Some(catalog)).is_none());
     }
 }

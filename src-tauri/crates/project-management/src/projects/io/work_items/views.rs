@@ -56,6 +56,16 @@ pub fn read_work_items_view_data_scoped_for_view(
     view: Option<&str>,
 ) -> Result<WorkItemsViewData, String> {
     let all_items = read_all_work_items_enriched_scoped(project_slug, org_id)?;
+    // Custom statuses fold into their category bucket for every
+    // interpretation below (filters, counts, kanban columns).
+    let status_categories =
+        crate::work_item_features::statuses::category_map_for_project(project_slug, org_id);
+    let effective_status = |status: &str| -> String {
+        status_categories
+            .get(status)
+            .cloned()
+            .unwrap_or_else(|| status.to_string())
+    };
     let active_items: Vec<EnrichedWorkItem> = all_items
         .iter()
         .filter(|item| item.deleted_at.is_none())
@@ -64,11 +74,11 @@ pub fn read_work_items_view_data_scoped_for_view(
     // Counts come from the *unfiltered* active list so the filter badges in
     // the sidebar always show the true totals, not "results matching
     // the current search".
-    let counts = compute_status_counts(&active_items);
+    let counts = compute_status_counts(&active_items, &effective_status);
 
     let visible_items: Vec<EnrichedWorkItem> = active_items
         .into_iter()
-        .filter(|item| matches_view_filters(item, status_filter, search_query))
+        .filter(|item| matches_view_filters(item, status_filter, search_query, &effective_status))
         .collect();
     let items: Vec<EnrichedWorkItem> = all_items
         .into_iter()
@@ -76,23 +86,32 @@ pub fn read_work_items_view_data_scoped_for_view(
             if item.deleted_at.is_some() && !matches_all_status_filter(status_filter) {
                 return false;
             }
-            matches_view_filters(item, status_filter, search_query)
+            matches_view_filters(item, status_filter, search_query, &effective_status)
         })
         .collect();
 
     let include_all_projections = view.is_none();
     let kanban_tasks = if include_all_projections || view == Some("kanban") {
-        visible_items.iter().map(to_kanban_task).collect()
+        visible_items
+            .iter()
+            .map(|item| to_kanban_task_with_status(item, &effective_status(&item.status)))
+            .collect()
     } else {
         Vec::new()
     };
     let gantt_tasks = if include_all_projections || view == Some("gantt") {
-        visible_items.iter().filter_map(to_gantt_task).collect()
+        visible_items
+            .iter()
+            .filter_map(|item| to_gantt_task_with_status(item, &effective_status(&item.status)))
+            .collect()
     } else {
         Vec::new()
     };
     let calendar_events = if include_all_projections || view == Some("calendar") {
-        visible_items.iter().filter_map(to_calendar_event).collect()
+        visible_items
+            .iter()
+            .filter_map(|item| to_calendar_event_with_status(item, &effective_status(&item.status)))
+            .collect()
     } else {
         Vec::new()
     };
@@ -114,9 +133,11 @@ fn matches_view_filters(
     item: &EnrichedWorkItem,
     status_filter: Option<&str>,
     search_query: Option<&str>,
+    effective_status: &dyn Fn(&str) -> String,
 ) -> bool {
     if let Some(filter) = status_filter {
-        if !matches_all_status_filter(Some(filter)) && !matches_status_filter(&item.status, filter)
+        if !matches_all_status_filter(Some(filter))
+            && !matches_status_filter(&effective_status(&item.status), filter)
         {
             return false;
         }
@@ -142,6 +163,7 @@ fn matches_status_filter(item_status: &str, filter: &str) -> bool {
         "todo" | "planned" => item_status == "planned" || item_status == "todo",
         "inProgress" | "in_progress" => item_status == "in_progress",
         "inReview" | "in_review" => item_status == "in_review",
+        "blocked" => item_status == "blocked",
         "done" | "completed" => item_status == "completed",
         "cancelled" => item_status == "cancelled",
         "duplicate" => item_status == "duplicate",
@@ -174,23 +196,28 @@ fn matches_search_query(item: &EnrichedWorkItem, query: &str) -> bool {
 // Counts + grouping
 // ---------------------------------------------------------------------
 
-fn compute_status_counts(items: &[EnrichedWorkItem]) -> StatusCounts {
+fn compute_status_counts(
+    items: &[EnrichedWorkItem],
+    effective_status: &dyn Fn(&str) -> String,
+) -> StatusCounts {
     let mut counts = StatusCounts {
         all: items.len(),
         backlog: 0,
         planned: 0,
         in_progress: 0,
         in_review: 0,
+        blocked: 0,
         completed: 0,
         cancelled: 0,
         duplicate: 0,
     };
     for item in items {
-        match item.status.as_str() {
+        match effective_status(&item.status).as_str() {
             "backlog" => counts.backlog += 1,
             "planned" | "todo" => counts.planned += 1,
             "in_progress" => counts.in_progress += 1,
             "in_review" => counts.in_review += 1,
+            "blocked" => counts.blocked += 1,
             "completed" => counts.completed += 1,
             "cancelled" => counts.cancelled += 1,
             "duplicate" => counts.duplicate += 1,
@@ -210,6 +237,7 @@ fn work_item_to_kanban_status(status: &str) -> KanbanStatus {
         "planned" | "todo" => KanbanStatus::Planned,
         "in_progress" => KanbanStatus::InProgress,
         "in_review" => KanbanStatus::InReview,
+        "blocked" => KanbanStatus::Blocked,
         "completed" => KanbanStatus::Completed,
         "cancelled" => KanbanStatus::Cancelled,
         "duplicate" => KanbanStatus::Duplicate,
@@ -217,7 +245,7 @@ fn work_item_to_kanban_status(status: &str) -> KanbanStatus {
     }
 }
 
-fn to_kanban_task(item: &EnrichedWorkItem) -> KanbanTask {
+fn to_kanban_task_with_status(item: &EnrichedWorkItem, effective_status: &str) -> KanbanTask {
     KanbanTask {
         id: item.id.clone(),
         title: item.title.clone(),
@@ -226,7 +254,7 @@ fn to_kanban_task(item: &EnrichedWorkItem) -> KanbanTask {
         } else {
             Some(item.body.clone())
         },
-        status: work_item_to_kanban_status(&item.status),
+        status: work_item_to_kanban_status(effective_status),
         priority: if item.priority == "none" {
             None
         } else {
@@ -250,14 +278,14 @@ fn work_item_to_gantt_status(status: &str, target_date: Option<&str>) -> GanttSt
     }
     match status {
         "backlog" | "planned" | "todo" => GanttStatus::NotStarted,
-        "in_progress" | "in_review" => GanttStatus::InProgress,
+        "in_progress" | "in_review" | "blocked" => GanttStatus::InProgress,
         "completed" => GanttStatus::Completed,
         "cancelled" | "duplicate" => GanttStatus::Cancelled,
         _ => GanttStatus::NotStarted,
     }
 }
 
-fn to_gantt_task(item: &EnrichedWorkItem) -> Option<GanttTask> {
+fn to_gantt_task_with_status(item: &EnrichedWorkItem, effective_status: &str) -> Option<GanttTask> {
     let start_date = item
         .start_date
         .clone()
@@ -265,9 +293,9 @@ fn to_gantt_task(item: &EnrichedWorkItem) -> Option<GanttTask> {
     let end_date = if let Some(target) = &item.target_date {
         target.clone()
     } else {
-        let days = match item.status.as_str() {
+        let days = match effective_status {
             "completed" | "cancelled" | "duplicate" => 3,
-            "in_progress" | "in_review" => 7,
+            "in_progress" | "in_review" | "blocked" => 7,
             _ => 5,
         };
         add_days_to_date(&start_date, days)
@@ -277,13 +305,16 @@ fn to_gantt_task(item: &EnrichedWorkItem) -> Option<GanttTask> {
         title: item.title.clone(),
         start_date,
         end_date,
-        status: work_item_to_gantt_status(&item.status, item.target_date.as_deref()),
+        status: work_item_to_gantt_status(effective_status, item.target_date.as_deref()),
         assignee: item.assignee.as_ref().map(|person| person.name.clone()),
         labels: item.labels.clone(),
     })
 }
 
-fn to_calendar_event(item: &EnrichedWorkItem) -> Option<CalendarEvent> {
+fn to_calendar_event_with_status(
+    item: &EnrichedWorkItem,
+    effective_status: &str,
+) -> Option<CalendarEvent> {
     let start_date = item
         .start_date
         .clone()
@@ -298,7 +329,7 @@ fn to_calendar_event(item: &EnrichedWorkItem) -> Option<CalendarEvent> {
         title: item.title.clone(),
         start_date,
         end_date,
-        status: item.status.clone(),
+        status: effective_status.to_string(),
         assignee: item.assignee.clone(),
         labels: item.labels.clone(),
         all_day,
@@ -421,6 +452,49 @@ mod tests {
         assert_eq!(view.counts.in_progress, 1);
         assert_eq!(view.counts.completed, 1);
         assert_eq!(view.kanban_tasks.len(), 3);
+    }
+
+    #[test]
+    fn archived_custom_status_keeps_its_blocked_view_semantics() {
+        let _sandbox = test_env::sandbox();
+        seed();
+        let definition = crate::work_item_features::statuses::upsert_definition(
+            crate::work_item_features::UpsertStatusDefinitionRequest {
+                id: None,
+                org_id: "personal-org".into(),
+                key: Some("waiting_external".into()),
+                name: "Waiting on external".into(),
+                category: Some("blocked".into()),
+                color: None,
+                description: None,
+                position: None,
+            },
+        )
+        .expect("custom blocked status");
+        write_work_item(
+            "demo",
+            "AAA-0001",
+            &work_item_with("AAA-0001", "Waiting", "waiting_external"),
+            "",
+        )
+        .expect("historical work item");
+        crate::work_item_features::statuses::set_definition_archived(
+            "personal-org",
+            &definition.id,
+            true,
+        )
+        .expect("archive custom status");
+
+        let view = read_work_items_view_data("demo", Some("blocked"), None)
+            .expect("blocked filtered view");
+        assert_eq!(view.items.len(), 1);
+        assert_eq!(view.counts.blocked, 1);
+        assert!(matches!(view.kanban_tasks[0].status, KanbanStatus::Blocked));
+        assert!(matches!(
+            view.gantt_tasks[0].status,
+            GanttStatus::InProgress
+        ));
+        assert_eq!(view.calendar_events[0].status, "blocked");
     }
 
     #[test]

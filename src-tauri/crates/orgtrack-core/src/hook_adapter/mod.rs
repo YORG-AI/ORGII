@@ -148,8 +148,7 @@ pub fn normalize_hook_payload(
     }
     let source_session_id = source_session_id(source, payload)
         .ok_or_else(|| "Hook payload is missing its session identifier".to_string())?;
-    let cwd = string_field(payload, &["cwd", "workspace_path", "workspacePath"])
-        .or_else(|| first_string_array_item(payload, &["workspace_roots", "workspaceRoots"]));
+    let cwd = workspace_path(payload);
     let turn_id = string_field(payload, &["turn_id", "generation_id", "generationId"]);
     let actor_id = string_field(payload, &["agent_id", "subagent_id", "subagentId"]);
     let hook_event_name =
@@ -305,8 +304,7 @@ pub fn normalize_actor_lifecycle_payload(
         // identity or transcript relationship.
         return Ok(None);
     };
-    let cwd = string_field(payload, &["cwd", "workspace_path", "workspacePath"])
-        .or_else(|| first_string_array_item(payload, &["workspace_roots", "workspaceRoots"]))
+    let cwd = workspace_path(payload)
         .ok_or_else(|| "Actor lifecycle hook is missing its workspace path".to_string())?;
     let occurred_at = string_field(payload, &["timestamp", "occurred_at", "occurredAt"])
         .and_then(|timestamp| normalize_rfc3339(&timestamp))
@@ -364,8 +362,19 @@ pub(crate) fn source_session_id(source: HookSource, payload: &Value) -> Option<S
         | HookSource::Trae
         | HookSource::OpenCode
         | HookSource::Kimi
-        | HookSource::Antigravity
         | HookSource::ZCode => string_field(payload, &["session_id", "sessionId"]),
+        // Antigravity's documented hook contract calls this field
+        // `conversationId`; retain the session spellings for compatibility
+        // with early previews and hand-authored fixtures.
+        HookSource::Antigravity => string_field(
+            payload,
+            &[
+                "conversation_id",
+                "conversationId",
+                "session_id",
+                "sessionId",
+            ],
+        ),
         // Windsurf keys its session on `trajectory_id` (handled on its own path,
         // but kept here for completeness/lifecycle callers).
         HookSource::Windsurf => string_field(payload, &["trajectory_id", "trajectoryId"]),
@@ -481,6 +490,20 @@ fn first_string_array_item(value: &Value, fields: &[&str]) -> Option<String> {
             .map(str::trim)
             .filter(|item| !item.is_empty())
             .map(str::to_string)
+    })
+}
+
+pub(crate) fn workspace_path(payload: &Value) -> Option<String> {
+    string_field(payload, &["cwd", "workspace_path", "workspacePath"]).or_else(|| {
+        first_string_array_item(
+            payload,
+            &[
+                "workspace_roots",
+                "workspaceRoots",
+                "workspace_paths",
+                "workspacePaths",
+            ],
+        )
     })
 }
 

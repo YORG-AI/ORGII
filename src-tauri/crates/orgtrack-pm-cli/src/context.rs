@@ -17,6 +17,7 @@ pub const ENV_ACTOR: &str = "ORGII_ACTOR";
 pub const ENV_SCOPE: &str = "ORGII_SCOPE";
 pub const ENV_SESSION_REF: &str = "ORGII_SESSION_REF";
 pub const ENV_ORG: &str = "ORGII_ORG";
+pub const ENV_ORIGINATOR: &str = "ORGII_ORIGINATOR";
 
 pub const ALL_CAPABILITIES: &[&str] = &[
     "work.read",
@@ -125,6 +126,9 @@ pub struct ExecutionContext {
     pub org_id: Option<String>,
     pub actor: Option<ActorRef>,
     pub session_ref: Option<SessionRef>,
+    /// A2A chain identity injected by the run environment; env-only so an
+    /// agent cannot claim a different originator via flags.
+    pub originator: Option<String>,
     pub capabilities: Vec<&'static str>,
 }
 
@@ -342,6 +346,9 @@ pub fn resolve(
             .or(marker_org),
         actor,
         session_ref,
+        originator: std::env::var(ENV_ORIGINATOR)
+            .ok()
+            .filter(|value| !value.trim().is_empty()),
         capabilities,
     })
 }

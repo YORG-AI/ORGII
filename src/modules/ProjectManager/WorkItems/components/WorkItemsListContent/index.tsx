@@ -22,6 +22,7 @@ import WorkItemRow from "../WorkItemRow";
 import WorkItemSection from "../WorkItemSection";
 
 interface WorkItemsListContentProps {
+  statusOrgId: string | null;
   groupedWorkItems: WorkItemGroup<WorkItemExtended>[];
   filteredWorkItems: WorkItemExtended[];
   workItems: WorkItemExtended[];
@@ -80,6 +81,7 @@ function isSectionPlaceholder(
 }
 
 const WorkItemsListContent: FC<WorkItemsListContentProps> = ({
+  statusOrgId,
   groupedWorkItems,
   filteredWorkItems,
   workItems,
@@ -243,6 +245,7 @@ const WorkItemsListContent: FC<WorkItemsListContentProps> = ({
               return (
                 <div>
                   <WorkItemRow
+                    statusOrgId={statusOrgId}
                     workItem={row}
                     isSelected={selectedWorkItemId === row.session_id}
                     variant="table"

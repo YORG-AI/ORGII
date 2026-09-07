@@ -278,6 +278,7 @@ pub async fn run_acp_protocol(
     resume_session_id: Option<&str>,
     chunk_tx: mpsc::Sender<ActivityChunk>,
     image_paths: Vec<String>,
+    mcp_servers: Vec<serde_json::Value>,
 ) -> Result<AcpSessionResult, String> {
     acp_common::run_acp_protocol(
         OpenCodeAdapter,
@@ -289,6 +290,7 @@ pub async fn run_acp_protocol(
         resume_session_id,
         chunk_tx,
         image_paths,
+        mcp_servers,
     )
     .await
 }

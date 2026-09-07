@@ -89,6 +89,7 @@ export function useChatViewAgentOrgSurface({
     handleResumeGroupChatRun,
     handleGroupChatViewToggle,
     handleGroupChatSubmitOverride,
+    retryFailedGroupChatMessage,
   } = useAgentOrgGroupChatController({
     sessionId,
     agentOrgRunView,
@@ -109,6 +110,7 @@ export function useChatViewAgentOrgSurface({
   const {
     cancelQueuedMessage,
     enqueueCount,
+    handleClearSessionQueue,
     handleReorderSessionQueue,
     handleSendNow,
     queueEditProps,
@@ -181,8 +183,10 @@ export function useChatViewAgentOrgSurface({
     handleGroupChatViewToggle,
     handleAgentOrgMemberSessionJump,
     handleMainComposerSubmitOverride,
+    retryFailedGroupChatMessage,
     cancelQueuedMessage,
     enqueueCount,
+    handleClearSessionQueue,
     handleReorderSessionQueue,
     handleSendNow,
     queueEditProps,

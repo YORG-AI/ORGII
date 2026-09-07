@@ -22,6 +22,8 @@ pub(super) struct CliCommandBuildRequest<'a> {
     pub mode: Option<&'a str>,
     pub repo_path: Option<&'a str>,
     pub additional_dirs: &'a [String],
+    pub mcp_config_path: Option<&'a str>,
+    pub codex_mcp_profile: Option<&'a str>,
 }
 
 pub(super) fn build_command_with_launch_profile(
@@ -38,6 +40,8 @@ pub(super) fn build_command_with_launch_profile(
         mode,
         repo_path,
         additional_dirs,
+        mcp_config_path,
+        codex_mcp_profile,
     } = request;
 
     if !additional_dirs.is_empty() && !matches!(agent, ModelType::ClaudeCode | ModelType::Codex) {
@@ -54,7 +58,15 @@ pub(super) fn build_command_with_launch_profile(
     // sandbox, approval policy, cwd, model, resume and the task itself all
     // travel over JSON-RPC (`thread/start` / `turn/start` params) instead.
     if uses_codex_app_server(agent, launch_profile) {
-        let mut cmd = vec![launch_profile.command.clone(), "app-server".into()];
+        let mut cmd = vec![launch_profile.command.clone()];
+        // `app-server` does not expose `--profile` itself, but Codex's global
+        // option does. Keep it before the subcommand so the per-run MCP layer
+        // is loaded without putting its secret-bearing values in argv.
+        if let Some(profile) = codex_mcp_profile {
+            cmd.push("--profile".into());
+            cmd.push(profile.into());
+        }
+        cmd.push("app-server".into());
         if let Some(m) = model {
             let codex_model = map_codex_model_variant(m);
             for config in codex_model.config_overrides {
@@ -112,6 +124,13 @@ pub(super) fn build_command_with_launch_profile(
             cmd.push("--output-format".into());
             cmd.push("stream-json".into());
             cmd.push("--verbose".into());
+            if let Some(path) = mcp_config_path {
+                cmd.push("--mcp-config".into());
+                cmd.push(path.into());
+                // The per-run config is the resolved ORGII binding set. Do
+                // not let user/project configs silently add unbound servers.
+                cmd.push("--strict-mcp-config".into());
+            }
             if let Some(rid) = resume_id {
                 cmd.push("--resume".into());
                 cmd.push(rid.into());
@@ -137,6 +156,10 @@ pub(super) fn build_command_with_launch_profile(
             cmd
         }
         ModelType::Codex => {
+            if let Some(profile) = codex_mcp_profile {
+                cmd.push("--profile".into());
+                cmd.push(profile.into());
+            }
             cmd.push("--json".into());
             cmd.push("--skip-git-repo-check".into());
             if let Some(ws) = repo_path {

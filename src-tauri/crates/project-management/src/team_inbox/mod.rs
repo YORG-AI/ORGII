@@ -10,7 +10,8 @@ mod store;
 mod types;
 
 pub use store::{
-    list_page, mark_all_read, mark_read, mark_unread, unread_count, TeamInboxListOptions,
+    list_page, mark_all_read, mark_read, mark_unread, set_archived, unread_count,
+    TeamInboxListOptions,
 };
 pub use types::*;
 

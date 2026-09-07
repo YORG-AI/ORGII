@@ -54,6 +54,8 @@ export interface ActiveAddressRun {
   orgId: string;
   cloudSessionId: string;
   localSessionId: string;
+  /** Stable idempotency namespace for every reply produced by this turn. */
+  turnIntentId: string;
   validHeadIds: ReadonlySet<string>;
   replied: Map<string, string>;
 }
@@ -189,6 +191,7 @@ export async function replyViaActiveAddressRun(
     body: trimmedBody,
     parentId: commentId,
     kind: "agent_report",
+    clientMessageKey: `agent-report:${run.turnIntentId}:${commentId}`,
   });
   run.replied.set(commentId, trimmedBody);
   broadcastCommentsChanged(run.orgId, run.cloudSessionId);
@@ -410,6 +413,7 @@ async function executeAddressCommentsRound(
       orgId,
       cloudSessionId,
       localSessionId,
+      turnIntentId,
       validHeadIds: new Set(threads.map((thread) => thread.headId)),
       replied: new Map(),
     };

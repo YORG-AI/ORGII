@@ -4,14 +4,14 @@
 
 use std::path::Path;
 
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use super::git_cmd::{current_head_ref, git_stderr, git_stdout, run_git};
 use super::paths::session_worktree_dir;
 use super::setup_hooks::run_worktree_setup_hooks;
 use super::{
-    list_session_worktrees, session_branch_name, validate_session_id, LinkedWorktreeInfo,
-    WorktreeInfo,
+    ensure_worktree_excludes, list_session_worktrees, session_branch_name,
+    validate_session_id, worktree_lock_is_held, LinkedWorktreeInfo, WorktreeInfo,
 };
 
 /// Fallback used when the caller does not supply a configurable limit.
@@ -68,6 +68,10 @@ pub fn create_linked_worktree(
         return Err(format!("git worktree add failed: {}", git_stderr(&output)));
     }
 
+    if let Err(err) = ensure_worktree_excludes(worktree_path) {
+        warn!("[worktree] {err}");
+    }
+
     if let Err(err) = run_worktree_setup_hooks(repo_path, worktree_path) {
         let _ = run_git(repo_path, &["worktree", "remove", "--force", &path_string]);
         if !branch_exists {
@@ -122,6 +126,12 @@ pub fn create_session_worktree(
 
     // Clean up stale worktree if path exists but isn't registered
     if wt_path.exists() {
+        if worktree_lock_is_held(&wt_path) {
+            return Err(format!(
+                "Worktree at {} is in use by a running session; refusing to recreate it",
+                wt_path.display()
+            ));
+        }
         info!(
             "[worktree] Cleaning up stale worktree directory: {}",
             wt_path.display()
@@ -168,6 +178,10 @@ pub fn create_session_worktree(
         branch,
         base
     );
+
+    if let Err(err) = ensure_worktree_excludes(&wt_path) {
+        warn!("[worktree] {err}");
+    }
 
     if let Err(err) = run_worktree_setup_hooks(repo_path, &wt_path) {
         let _ = run_git(repo_path, &["worktree", "remove", "--force", &wt_path_str]);

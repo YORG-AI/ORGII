@@ -33,7 +33,14 @@ vi.mock("@src/api/http/project", () => ({
     transitionWorkItemHandoff: mocks.transitionWorkItemHandoff,
     readWorkItems: () => Promise.resolve([]),
     readStandaloneWorkItems: () => Promise.resolve([]),
+    listStatusDefinitions: () => Promise.resolve([]),
+    listQuickActions: () => Promise.resolve([]),
   },
+  statusDefinitionsCacheKey: (orgId: string, includeArchived = false) =>
+    `${orgId}:status-definitions:${includeArchived ? "all" : "active"}`,
+  propertyDefinitionsCacheKey: (orgId: string, includeArchived = false) =>
+    `${orgId}:property-definitions:${includeArchived ? "all" : "active"}`,
+  quickActionsCacheKey: (orgId: string) => `${orgId}:quick-actions`,
 }));
 
 vi.mock("react-i18next", () => ({
@@ -47,6 +54,11 @@ vi.mock("react-i18next", () => ({
 vi.mock("@src/hooks/project", () => ({
   useWorkItemImageInsert: () => ({ handleImageInsert: vi.fn() }),
   useProjectDataChanged: () => undefined,
+  useProjectCachedResource: ({ empty }: { empty: unknown }) => ({
+    data: empty,
+    loading: false,
+    refresh: () => Promise.resolve(empty),
+  }),
 }));
 
 vi.mock("@src/components/Avatar", () => ({

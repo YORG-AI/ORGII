@@ -11,6 +11,7 @@
 
 pub mod lineage;
 pub mod orchestrator;
+pub mod org_skills;
 pub mod project_service;
 pub mod projects;
 pub mod provider_host;

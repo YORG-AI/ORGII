@@ -33,7 +33,11 @@ export const SlashItemRow: React.FC<SlashItemRowProps> = React.memo(
   ({ item, isActive, isPinned, onMouseEnter, onClick, onTogglePin }) => {
     const { t } = useTranslation("sessions");
     const description =
-      item.category === "tool" && item.serverName ? item.serverName : undefined;
+      item.selection?.kind === "work_item_quick_action"
+        ? item.description
+        : item.category === "tool" && item.serverName
+          ? item.serverName
+          : undefined;
     const pinLabel = `${t("common:selectors.repo.sections.pinned")} ${item.name}`;
     return (
       <div

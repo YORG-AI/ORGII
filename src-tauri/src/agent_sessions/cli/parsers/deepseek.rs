@@ -161,6 +161,7 @@ pub async fn run_acp_protocol(
     chunk_tx: mpsc::Sender<ActivityChunk>,
     image_paths: Vec<String>,
     model: Option<String>,
+    mcp_servers: Vec<serde_json::Value>,
 ) -> Result<AcpSessionResult, String> {
     acp_common::run_acp_protocol(
         DeepseekHarnessAdapter {
@@ -174,6 +175,7 @@ pub async fn run_acp_protocol(
         resume_session_id,
         chunk_tx,
         image_paths,
+        mcp_servers,
     )
     .await
 }

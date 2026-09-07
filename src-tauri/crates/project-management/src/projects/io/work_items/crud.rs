@@ -22,6 +22,23 @@ use crate::projects::types::{
 
 const WORK_ITEM_PREFIX_LENGTH: usize = 3;
 
+fn effective_status_for_bucket(
+    connection: &rusqlite::Connection,
+    categories_by_org: &mut HashMap<String, HashMap<String, String>>,
+    org_id: &str,
+    raw_status: &str,
+) -> String {
+    let categories = categories_by_org
+        .entry(org_id.to_string())
+        .or_insert_with(|| {
+            crate::work_item_features::statuses::category_map_in(connection, org_id)
+        });
+    categories
+        .get(raw_status)
+        .cloned()
+        .unwrap_or_else(|| raw_status.to_string())
+}
+
 // ---------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------
@@ -129,10 +146,17 @@ pub fn read_all_work_items_scoped_filtered(
         params![&project_id],
     )?;
     let mut labels_by_work_item = read_project_labels(&connection, &project_id)?;
+    let mut status_categories_by_org = HashMap::new();
     let mut out = Vec::new();
-    for (core, extras_json, _) in rows {
+    for (core, extras_json, row_org_id) in rows {
+        let effective_status = effective_status_for_bucket(
+            &connection,
+            &mut status_categories_by_org,
+            &row_org_id,
+            &core.status,
+        );
         if read_bucket
-            .map(|bucket| !bucket.matches(&core.status))
+            .map(|bucket| !bucket.matches(&effective_status))
             .unwrap_or(false)
         {
             continue;
@@ -164,7 +188,8 @@ pub fn read_work_item_scoped(
         connection
             .query_row(
                 "SELECT id, project_id, short_id, title, body, status, priority, assignee, assignee_type,
-                        milestone, parent, start_date, target_date, created_at, updated_at, deleted_at
+                        milestone, parent, start_date, target_date, created_at, updated_at, deleted_at,
+                        local_version
                  FROM workitems
                  WHERE project_id = ?1 AND short_id = ?2",
                 params![&project_id, short_id],
@@ -195,10 +220,17 @@ pub fn read_standalone_work_items_filtered(
         params![org_id],
     )?;
     let mut labels_by_work_item = read_standalone_labels(&connection, org_id)?;
+    let mut status_categories_by_org = HashMap::new();
     let mut out = Vec::new();
-    for (core, extras_json, _) in rows {
+    for (core, extras_json, row_org_id) in rows {
+        let effective_status = effective_status_for_bucket(
+            &connection,
+            &mut status_categories_by_org,
+            &row_org_id,
+            &core.status,
+        );
         if read_bucket
-            .map(|bucket| !bucket.matches(&core.status))
+            .map(|bucket| !bucket.matches(&effective_status))
             .unwrap_or(false)
         {
             continue;
@@ -221,10 +253,17 @@ pub(super) fn read_all_standalone_work_items_filtered(
         read_work_item_rows_with_extras(&connection, "WHERE w.project_id IS NULL", params![])?;
     let mut labels_by_work_item =
         read_label_map(&connection, "WHERE w.project_id IS NULL", params![])?;
+    let mut status_categories_by_org = HashMap::new();
     let mut out = Vec::new();
     for (core, extras_json, org_id) in rows {
+        let effective_status = effective_status_for_bucket(
+            &connection,
+            &mut status_categories_by_org,
+            &org_id,
+            &core.status,
+        );
         if read_bucket
-            .map(|bucket| !bucket.matches(&core.status))
+            .map(|bucket| !bucket.matches(&effective_status))
             .unwrap_or(false)
         {
             continue;
@@ -250,8 +289,8 @@ where
     let sql = format!(
         "SELECT w.id, w.project_id, w.short_id, w.title, w.body, w.status, w.priority,
                 w.assignee, w.assignee_type, w.milestone, w.parent, w.start_date,
-                w.target_date, w.created_at, w.updated_at, w.deleted_at, e.extras_json,
-                w.org_id
+                w.target_date, w.created_at, w.updated_at, w.deleted_at, w.local_version,
+                e.extras_json, w.org_id
          FROM workitems w
          LEFT JOIN workitem_extras e ON e.work_item_id = w.id
          {where_clause}
@@ -261,8 +300,8 @@ where
     let rows = map_db(stmt.query_map(query_params, |row| {
         Ok((
             row_to_core(row)?,
-            row.get::<_, Option<String>>(16)?,
-            row.get::<_, String>(17)?,
+            row.get::<_, Option<String>>(17)?,
+            row.get::<_, String>(18)?,
         ))
     }))?;
     let mut out = Vec::new();
@@ -330,7 +369,8 @@ pub fn read_standalone_work_item(
         connection
             .query_row(
                 "SELECT id, project_id, short_id, title, body, status, priority, assignee, assignee_type,
-                        milestone, parent, start_date, target_date, created_at, updated_at, deleted_at
+                        milestone, parent, start_date, target_date, created_at, updated_at, deleted_at,
+                        local_version
                  FROM workitems
                  WHERE org_id = ?1 AND project_id IS NULL AND short_id = ?2",
                 params![org_id, short_id],
@@ -422,7 +462,8 @@ pub fn read_work_item_by_row_id(
         connection
             .query_row(
                 "SELECT id, project_id, short_id, title, body, status, priority, assignee, assignee_type,
-                        milestone, parent, start_date, target_date, created_at, updated_at, deleted_at
+                        milestone, parent, start_date, target_date, created_at, updated_at, deleted_at,
+                        local_version
                  FROM workitems
                  WHERE id = ?1 AND org_id = ?2",
                 params![work_item_id, org_id],
@@ -487,12 +528,13 @@ pub(crate) fn write_work_item_in_tx(
     let deleted_at = next_frontmatter.deleted_at.as_deref().map(from_iso8601);
     let existing_item: Option<PriorSyncSnapshot> = map_db(
         tx.query_row(
-            "SELECT id, title, body, status, priority, assignee, milestone,
+            "SELECT org_id, title, body, status, priority, assignee, milestone,
                     start_date, target_date
              FROM workitems WHERE id = ?1",
             params![&next_frontmatter.id],
             |row| {
                 Ok(PriorSyncSnapshot {
+                    org_id: row.get(0)?,
                     title: row.get(1)?,
                     body: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
                     status: row.get(3)?,
@@ -521,6 +563,15 @@ pub(crate) fn write_work_item_in_tx(
         }
         None => None,
     };
+    crate::work_item_features::statuses::ensure_status_assignable_in(
+        tx,
+        org_id,
+        &next_frontmatter.status,
+        existing_item
+            .as_ref()
+            .filter(|prior| prior.org_id == org_id)
+            .map(|prior| prior.status.as_str()),
+    )?;
     if existing_item.is_none() {
         ensure_created_event(&mut next_frontmatter, &to_iso8601(created_at));
     }
@@ -845,9 +896,18 @@ pub fn allocate_standalone_short_id(org_id: Option<&str>) -> Result<String, Stri
     let tx =
         map_db(connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate))?;
     let org_id = org_id.unwrap_or("personal-org");
+    let short_id = allocate_standalone_short_id_in_tx(&tx, org_id)?;
+    map_db(tx.commit())?;
+    Ok(short_id)
+}
+
+pub(crate) fn allocate_standalone_short_id_in_tx(
+    tx: &rusqlite::Transaction,
+    org_id: &str,
+) -> Result<String, String> {
     let prefix = "WI";
     let mut next_id = 1_i64;
-    if let Some(max_existing) = max_existing_standalone_work_item_number(&tx, org_id, prefix)? {
+    if let Some(max_existing) = max_existing_standalone_work_item_number(tx, org_id, prefix)? {
         next_id = (max_existing as i64).saturating_add(1);
     }
     // `workitems.id` is a GLOBAL primary key (`id = short_id` until the
@@ -870,7 +930,6 @@ pub fn allocate_standalone_short_id(org_id: Option<&str>) -> Result<String, Stri
         }
         next_id = next_id.saturating_add(1);
     };
-    map_db(tx.commit())?;
     Ok(short_id)
 }
 
@@ -943,6 +1002,7 @@ pub fn move_work_item(short_id: &str, from_project: &str, to_project: &str) -> R
 /// transaction so whole-row writes can stamp `("local", now)` revisions
 /// for the fields they actually changed.
 struct PriorSyncSnapshot {
+    org_id: String,
     title: String,
     body: String,
     status: String,

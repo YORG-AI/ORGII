@@ -21,7 +21,9 @@ mod process_tree;
 mod stall_watchdog;
 
 use background::handle_backgrounded;
-use environment::{configure_git_environment, configure_orgtrack_environment};
+use environment::{
+    configure_git_environment, configure_orgtrack_environment, configure_worktree_environment,
+};
 pub(super) use events::{broadcast_exec_output, broadcast_system_output};
 use events::{broadcast_process_exited, broadcast_process_started};
 #[cfg(test)]
@@ -114,6 +116,7 @@ pub async fn execute_via_command(
         cmd.env("PATH", path);
     }
     configure_orgtrack_environment(&mut cmd, &identity.session_id);
+    let worktree_lock = configure_worktree_environment(&mut cmd, &work_dir);
     cmd.arg(command)
         .current_dir(&work_dir)
         .stdin(Stdio::null())
@@ -153,6 +156,7 @@ pub async fn execute_via_command(
             runtime,
             identity.clone(),
             app_handle,
+            worktree_lock,
         );
     }
 
@@ -309,6 +313,7 @@ pub async fn execute_via_command(
                 runtime.take().expect("output runtime present"),
                 identity.clone(),
                 app_handle,
+                worktree_lock,
             );
         }
         tokio::time::sleep(Duration::from_millis(50)).await;

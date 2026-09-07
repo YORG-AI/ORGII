@@ -6,8 +6,8 @@ use super::outbox::store_remote_version;
 use super::wire::now_ms;
 use super::*;
 use crate::projects::io::{
-    acquire_execution_lock, configure_project_org_collab_sync, create_project_org, read_project,
-    read_standalone_work_item, read_work_item, release_execution_lock,
+    acquire_execution_lock, configure_project_org_collab_sync, create_project_org, delete_project,
+    read_project, read_standalone_work_item, read_work_item, release_execution_lock,
     update_standalone_work_item_partial, update_work_item_partial, write_project, write_work_item,
 };
 use crate::projects::types::{
@@ -146,6 +146,218 @@ fn non_collab_org_writes_enqueue_nothing() {
         .query_row("SELECT COUNT(*) FROM outbox_entries", [], |row| row.get(0))
         .expect("count");
     assert_eq!(count, 0);
+}
+
+#[test]
+fn org_catalog_touch_waits_durably_for_a_carrier_and_stays_off_ordinary_pushes() {
+    let _sandbox = test_env::sandbox();
+    seed_collab_org();
+
+    crate::work_item_features::properties::upsert_definition(UpsertPropertyDefinitionRequest {
+        id: Some("prop_waiting".to_string()),
+        org_id: ORG.to_string(),
+        name: "Waiting catalog".to_string(),
+        property_type: PropertyType::Text,
+        description: None,
+        config: PropertyConfig::default(),
+        position: 0,
+    })
+    .expect("create catalog before any carrier");
+
+    let conn = io::conn().expect("conn");
+    let pending_kind: String = conn
+        .query_row(
+            "SELECT entity_type FROM outbox_entries
+              WHERE org_id = ?1 AND status = 'pending'",
+            params![ORG],
+            |row| row.get(0),
+        )
+        .expect("durable catalog row");
+    assert_eq!(pending_kind, "org_catalog");
+    drop(conn);
+    assert!(
+        outbox_pending_ids(ORG)
+            .expect("pending ids without carrier")
+            .is_empty(),
+        "local-only catalog owners must not masquerade as Work Items in UI state"
+    );
+    assert!(
+        drain_outbox(ORG, 50)
+            .expect("drain without carrier")
+            .is_empty(),
+        "a catalog row cannot be claimed until a wire-supported carrier exists"
+    );
+    assert_eq!(
+        pending_org_rows(),
+        1,
+        "catalog mutation must remain pending"
+    );
+
+    seed_project("alpha");
+    assert_eq!(
+        outbox_pending_ids(ORG).expect("pending ids with carrier"),
+        vec![CollabPendingEntity {
+            kind: KIND_PROJECT.to_string(),
+            entity_id: "p-alpha".to_string(),
+        }],
+        "catalog and project pending rows resolve to one visible carrier"
+    );
+    let initial = drain_outbox(ORG, 50).expect("drain after carrier creation");
+    assert_eq!(
+        initial.len(),
+        1,
+        "catalog and project rows share one carrier"
+    );
+    let project = &initial[0];
+    assert_eq!(project.kind, KIND_PROJECT);
+    assert!(project.entry_ids.len() >= 2);
+    assert_eq!(
+        project.payload.as_ref().unwrap()["propertyDefinitions"][0]["id"],
+        "prop_waiting"
+    );
+    ack_outbox(vec![CollabAckResult {
+        entry_ids: project.entry_ids.clone(),
+        kind: project.kind.clone(),
+        entity_id: project.entity_id.clone(),
+        ok: true,
+        remote_version: Some(1),
+        error: None,
+    }])
+    .expect("ack initial carrier");
+
+    let mut data = read_project("alpha").expect("read project");
+    data.meta.priority = "high".to_string();
+    write_project("alpha", &data.meta, &data.description, false).expect("ordinary project edit");
+    let ordinary = drain_outbox(ORG, 50).expect("drain ordinary project edit");
+    let ordinary_payload = ordinary[0].payload.as_ref().expect("ordinary payload");
+    for key in [
+        "propertyDefinitions",
+        "statusDefinitions",
+        "savedViews",
+        "quickActions",
+    ] {
+        assert!(
+            ordinary_payload.get(key).is_none(),
+            "ordinary entity push duplicated {key}"
+        );
+    }
+    ack_outbox(vec![CollabAckResult {
+        entry_ids: ordinary[0].entry_ids.clone(),
+        kind: ordinary[0].kind.clone(),
+        entity_id: ordinary[0].entity_id.clone(),
+        ok: true,
+        remote_version: Some(2),
+        error: None,
+    }])
+    .expect("ack ordinary edit");
+
+    crate::work_item_features::properties::upsert_definition(UpsertPropertyDefinitionRequest {
+        id: Some("prop_waiting".to_string()),
+        org_id: ORG.to_string(),
+        name: "Updated catalog".to_string(),
+        property_type: PropertyType::Text,
+        description: None,
+        config: PropertyConfig::default(),
+        position: 0,
+    })
+    .expect("update catalog");
+    let catalog = drain_outbox(ORG, 50).expect("drain catalog update");
+    let payload = catalog[0].payload.as_ref().expect("catalog payload");
+    assert_eq!(payload["propertyDefinitions"][0]["name"], "Updated catalog");
+    for key in ["statusDefinitions", "savedViews", "quickActions"] {
+        assert!(
+            payload.get(key).is_none(),
+            "one catalog touch must not duplicate unrelated {key}"
+        );
+    }
+}
+
+#[test]
+fn deleting_the_catalog_carrier_rehomes_the_complete_catalog() {
+    let _sandbox = test_env::sandbox();
+    seed_collab_org();
+    seed_project("alpha");
+    seed_project("beta");
+
+    let initial = drain_outbox(ORG, 50).expect("initial projects");
+    ack_outbox(
+        initial
+            .into_iter()
+            .map(|item| CollabAckResult {
+                entry_ids: item.entry_ids,
+                kind: item.kind,
+                entity_id: item.entity_id,
+                ok: true,
+                remote_version: Some(1),
+                error: None,
+            })
+            .collect(),
+    )
+    .expect("ack initial projects");
+
+    crate::work_item_features::properties::upsert_definition(UpsertPropertyDefinitionRequest {
+        id: Some("prop_rehome".to_string()),
+        org_id: ORG.to_string(),
+        name: "Rehome me".to_string(),
+        property_type: PropertyType::Text,
+        description: None,
+        config: PropertyConfig::default(),
+        position: 0,
+    })
+    .expect("create catalog");
+    let catalog = drain_outbox(ORG, 50).expect("catalog push");
+    assert_eq!(catalog.len(), 1);
+    let original_carrier_id = catalog[0].entity_id.clone();
+    ack_outbox(vec![CollabAckResult {
+        entry_ids: catalog[0].entry_ids.clone(),
+        kind: catalog[0].kind.clone(),
+        entity_id: original_carrier_id.clone(),
+        ok: true,
+        remote_version: Some(2),
+        error: None,
+    }])
+    .expect("ack catalog push");
+
+    let carrier_slug = if original_carrier_id == "p-alpha" {
+        "alpha"
+    } else {
+        "beta"
+    };
+    delete_project(carrier_slug).expect("delete catalog carrier");
+
+    let after_delete = drain_outbox(ORG, 50).expect("delete and rehome drain");
+    let replacement = after_delete
+        .iter()
+        .find(|item| item.op == OP_UPSERT && item.entity_id != original_carrier_id)
+        .expect("remaining project receives catalog");
+    assert_eq!(
+        replacement.payload.as_ref().unwrap()["propertyDefinitions"][0]["id"],
+        "prop_rehome"
+    );
+    assert!(replacement
+        .payload
+        .as_ref()
+        .unwrap()
+        .get("statusDefinitions")
+        .is_some());
+    assert!(replacement
+        .payload
+        .as_ref()
+        .unwrap()
+        .get("savedViews")
+        .is_some());
+    assert!(replacement
+        .payload
+        .as_ref()
+        .unwrap()
+        .get("quickActions")
+        .is_some());
+    assert!(replacement
+        .payload
+        .as_ref()
+        .unwrap()
+        .get("orgSkills")
+        .is_some());
 }
 
 #[test]
@@ -513,6 +725,127 @@ fn apply_remote_creates_entities_without_echo() {
     assert_eq!(reapplied, 0);
     let item = read_work_item("remote-project", "REM-0001").expect("item");
     assert_eq!(item.frontmatter.title, "Remote item");
+}
+
+#[test]
+fn apply_remote_rejects_invalid_catalog_before_mutating_its_carrier() {
+    let _sandbox = test_env::sandbox();
+    seed_collab_org();
+
+    let applied = apply_remote(
+        ORG,
+        None,
+        vec![CollabRemoteEntity {
+            kind: KIND_PROJECT.to_string(),
+            payload: json!({
+                "id": "proj-poisoned",
+                "slug": "poisoned-project",
+                "name": "Must not appear",
+                "workItemPrefix": "BAD",
+                "updatedAt": "2026-07-01T00:00:00Z",
+                "statusDefinitions": [{
+                    "id": "wis_poisoned",
+                    "orgId": ORG,
+                    "key": "open",
+                    "name": "Shadows a built-in",
+                    "category": "planned",
+                    "color": null,
+                    "description": null,
+                    "position": 0,
+                    "archivedAt": null,
+                    "createdAt": 1,
+                    "updatedAt": 1
+                }]
+            }),
+            version: 1,
+            updated_by: Some("member-b".to_string()),
+            deleted_at: None,
+        }],
+    )
+    .expect("bad remote entities are skipped");
+
+    assert_eq!(applied, 0);
+    assert!(
+        read_project("poisoned-project").is_err(),
+        "catalog preflight must run before the carrier write"
+    );
+    assert!(
+        crate::work_item_features::statuses::list_definitions(ORG, true)
+            .expect("status catalog")
+            .is_empty()
+    );
+}
+
+#[test]
+fn apply_remote_preflights_quick_actions_and_org_skills_before_the_carrier() {
+    for (slug, catalog) in [
+        (
+            "bad-quick-action",
+            json!({
+                "quickActions": [{
+                    "id": "wiq_wrong_org",
+                    "orgId": "another-org",
+                    "name": "Wrong org",
+                    "description": "",
+                    "targetKind": "agent",
+                    "targetId": "builtin:sde",
+                    "prompt": "Run",
+                    "useCount": 0,
+                    "createdBy": null,
+                    "archivedAt": null,
+                    "createdAt": 1,
+                    "updatedAt": 1
+                }]
+            }),
+        ),
+        (
+            "bad-org-skill",
+            json!({
+                "orgSkills": [{
+                    "id": "skill_bad_path",
+                    "orgId": ORG,
+                    "name": "Bad path",
+                    "description": "",
+                    "skillMd": "---\ndescription: bad\n---\n",
+                    "files": [{"relativePath": "../escape", "content": "bad"}],
+                    "provenance": null,
+                    "sharedBy": null,
+                    "archivedAt": null,
+                    "createdAt": 1,
+                    "updatedAt": 1
+                }]
+            }),
+        ),
+    ] {
+        let _sandbox = test_env::sandbox();
+        seed_collab_org();
+        let mut payload = json!({
+            "id": format!("p-{slug}"),
+            "slug": slug,
+            "name": "Must not appear",
+            "workItemPrefix": "BAD",
+            "updatedAt": "2026-07-01T00:00:00Z"
+        });
+        payload
+            .as_object_mut()
+            .unwrap()
+            .extend(catalog.as_object().unwrap().clone());
+
+        let applied = apply_remote(
+            ORG,
+            None,
+            vec![CollabRemoteEntity {
+                kind: KIND_PROJECT.to_string(),
+                payload,
+                version: 1,
+                updated_by: Some("member-b".to_string()),
+                deleted_at: None,
+            }],
+        )
+        .expect("bad remote entity is skipped");
+        assert_eq!(applied, 0, "{slug}");
+        assert!(read_project(slug).is_err(), "{slug} must not be written");
+    }
 }
 
 #[test]
@@ -1577,7 +1910,10 @@ fn typed_properties_round_trip_and_preserve_pending_local_value() {
         project.payload.as_ref().unwrap()["propertyDefinitions"][0]["id"],
         "prop_effort"
     );
-    assert_eq!(remote_payload["propertyDefinitions"], json!([]));
+    assert!(
+        remote_payload.get("propertyDefinitions").is_none(),
+        "project-scoped Work Items must not duplicate org catalogs"
+    );
     assert_eq!(remote_payload["propertyValues"][0]["value"], json!(8));
     ack_outbox(
         pushed

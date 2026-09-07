@@ -9,6 +9,28 @@ import type { WorkItemDetailActions, WorkItemUpdateHandler } from "../types";
 
 const logger = createLogger("WorkItemDetail");
 
+const IMMEDIATE_UPDATE_KEYS = ["status", "workItemStatus"] as const;
+
+export function needsImmediateWorkItemUpdate(
+  updates: Partial<WorkItemExtended>
+): boolean {
+  return IMMEDIATE_UPDATE_KEYS.some((key) => key in updates);
+}
+
+export function routeWorkItemUpdate(
+  updates: Partial<WorkItemExtended>,
+  handlers: {
+    local?: (updates: Partial<WorkItemExtended>) => void;
+    immediate?: (updates: Partial<WorkItemExtended>) => void;
+  }
+): void {
+  if (needsImmediateWorkItemUpdate(updates)) {
+    (handlers.immediate ?? handlers.local)?.(updates);
+    return;
+  }
+  handlers.local?.(updates);
+}
+
 function sanitizePendingUpdates(
   updates: Partial<WorkItemExtended>
 ): Partial<WorkItemExtended> {

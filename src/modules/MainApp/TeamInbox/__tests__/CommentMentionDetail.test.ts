@@ -48,6 +48,7 @@ const mention: CommentMentionItem = {
   },
   target: {
     kind: "session_comment",
+    orgId: "org-1",
     sessionId: "session-1",
     sessionTitle: "Product planning",
     commentId: "comment-1",
@@ -146,6 +147,7 @@ describe("CommentMentionDetail", () => {
 
     expect(onNavigate).toHaveBeenCalledWith({
       kind: "open_session_comment",
+      orgId: "org-1",
       sessionId: "session-1",
       commentId: "comment-1",
       threadId: "thread-1",

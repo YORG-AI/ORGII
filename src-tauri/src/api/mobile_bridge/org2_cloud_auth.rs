@@ -167,7 +167,10 @@ mod tests {
             "ORGII_TEST_SHARED_AUTH_STORE",
             dir.path().join("shared-service-auth.json"),
         );
-        assert_eq!(current_access_token(), Err(NOT_SIGNED_IN_MESSAGE.to_string()));
+        assert_eq!(
+            current_access_token(),
+            Err(NOT_SIGNED_IN_MESSAGE.to_string())
+        );
         std::env::remove_var("ORGII_TEST_SHARED_AUTH_STORE");
     }
 

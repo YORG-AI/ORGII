@@ -12,7 +12,10 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex as AsyncMutex;
 
 use super::client::{McpClient, McpServerStatus, McpToolDef};
-use super::config::{McpConfigFile, McpConfigScope, McpServerConfig};
+use super::config::{
+    redact_server_secrets_from_text, update_config_file, McpConfigFile, McpConfigScope,
+    McpServerConfig,
+};
 use super::manager::McpManager;
 use super::prompts::{McpPrompt, McpPromptRendered};
 use super::resources::{McpResource, McpResourceContent, McpResourceTemplate};
@@ -204,7 +207,7 @@ pub async fn mcp_update_servers(
 ) -> Result<(), String> {
     let workspace = workspace_path.as_deref().map(Path::new);
     let path = McpConfigScope::resolve_path(scope, workspace)?;
-    config.save_to(&path)?;
+    persist_config_update(&path, config)?;
 
     // Reconnect: shut down all, then connect with merged config
     let owning = workspace_path.map(PathBuf::from);
@@ -221,7 +224,11 @@ pub async fn mcp_update_servers(
 pub async fn mcp_test_server(
     server_name: String,
     config: McpServerConfig,
+    workspace_path: Option<String>,
+    scope: Option<McpConfigScope>,
 ) -> Result<McpTestResult, String> {
+    let workspace = workspace_path.as_deref().map(Path::new);
+    let config = resolve_test_server_config(&server_name, config, scope, workspace)?;
     match McpClient::connect(&server_name, &config).await {
         Ok(client) => {
             let tools = client.tools().await;
@@ -236,14 +243,49 @@ pub async fn mcp_test_server(
                 server_name: Some(server_name),
             })
         }
-        Err(err) => Ok(McpTestResult {
-            success: false,
-            tool_count: 0,
-            tools: Vec::new(),
-            error: Some(err),
-            server_name: Some(server_name),
-        }),
+        Err(err) => {
+            let safe_error = redact_server_secrets_from_text(&config, &err);
+            Ok(McpTestResult {
+                success: false,
+                tool_count: 0,
+                tools: Vec::new(),
+                error: Some(safe_error),
+                server_name: Some(server_name),
+            })
+        }
     }
+}
+
+fn persist_config_update(path: &Path, mut incoming: McpConfigFile) -> Result<(), String> {
+    update_config_file(path, move |existing| {
+        incoming.resolve_redacted_secrets_from(existing)?;
+        *existing = incoming;
+        Ok(())
+    })
+}
+
+fn resolve_test_server_config(
+    server_name: &str,
+    incoming: McpServerConfig,
+    scope: Option<McpConfigScope>,
+    workspace_path: Option<&Path>,
+) -> Result<McpServerConfig, String> {
+    if !incoming.contains_redacted_secret_sentinel() {
+        return Ok(incoming);
+    }
+
+    let path = McpConfigScope::resolve_path(scope, workspace_path)?;
+    resolve_test_server_config_from_path(server_name, incoming, &path)
+}
+
+fn resolve_test_server_config_from_path(
+    server_name: &str,
+    mut incoming: McpServerConfig,
+    path: &Path,
+) -> Result<McpServerConfig, String> {
+    let existing = McpConfigFile::load_from(path)?;
+    incoming.resolve_redacted_secrets_from(server_name, existing.mcp_servers.get(server_name))?;
+    Ok(incoming)
 }
 
 /// List tools discovered from a connected MCP server.
@@ -330,21 +372,9 @@ pub async fn mcp_get_config(
     workspace_path: Option<String>,
     scope: Option<McpConfigScope>,
 ) -> Result<serde_json::Value, String> {
-    let config = match scope {
-        Some(McpConfigScope::Global) => McpConfigFile::load_global()?,
-        Some(McpConfigScope::Workspace) => match workspace_path.as_deref() {
-            Some(p) => McpConfigFile::load_for_workspace(&PathBuf::from(p))?,
-            None => {
-                return Err(
-                    "scope=workspace requires a workspace_path; none was provided".to_string(),
-                )
-            }
-        },
-        None => match workspace_path.as_deref() {
-            Some(p) => McpConfigFile::load_for_workspace(&PathBuf::from(p))?,
-            None => McpConfigFile::load_global()?,
-        },
-    };
+    let workspace = workspace_path.as_deref().map(Path::new);
+    let path = McpConfigScope::resolve_path(scope, workspace)?;
+    let config = McpConfigFile::load_from(&path)?.redacted_for_wire();
 
     serde_json::to_value(&config).map_err(|err| format!("Failed to serialize config: {}", err))
 }
@@ -491,6 +521,37 @@ pub async fn mcp_render_prompt(
 #[cfg(test)]
 mod scope_tests {
     use super::*;
+    use crate::specialization::mcp::config::McpTransportType;
+    use std::collections::HashMap;
+
+    fn server_with_secret(secret: &str) -> McpServerConfig {
+        McpServerConfig {
+            transport_type: McpTransportType::Stdio,
+            command: Some(format!("{secret}-command")),
+            args: Some(vec![format!("{secret}-arg")]),
+            cwd: Some(format!("/{secret}-cwd")),
+            env: Some(HashMap::from([(
+                "API_TOKEN".to_string(),
+                secret.to_string(),
+            )])),
+            url: Some(format!("https://{secret}.test/mcp")),
+            headers: Some(HashMap::from([(
+                "Authorization".to_string(),
+                secret.to_string(),
+            )])),
+            auto_approve: None,
+            disabled: false,
+            timeout: 30,
+        }
+    }
+
+    fn server_with_sentinel() -> McpServerConfig {
+        let config = McpConfigFile {
+            mcp_servers: HashMap::from([("docs".to_string(), server_with_secret("placeholder"))]),
+        }
+        .redacted_for_wire();
+        config.mcp_servers["docs"].clone()
+    }
 
     #[test]
     fn scope_global_with_no_workspace_returns_global_path() {
@@ -556,5 +617,115 @@ mod scope_tests {
             "unknown scope wire value must fail closed; got Ok({:?})",
             result
         );
+    }
+
+    #[test]
+    fn config_update_resolves_secret_only_from_selected_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let global_path = dir.path().join("global.json");
+        let workspace_path = dir.path().join("workspace.json");
+        McpConfigFile {
+            mcp_servers: HashMap::from([("docs".to_string(), server_with_secret("global-secret"))]),
+        }
+        .save_to(&global_path)
+        .unwrap();
+        McpConfigFile {
+            mcp_servers: HashMap::from([(
+                "docs".to_string(),
+                server_with_secret("workspace-secret"),
+            )]),
+        }
+        .save_to(&workspace_path)
+        .unwrap();
+
+        persist_config_update(
+            &workspace_path,
+            McpConfigFile {
+                mcp_servers: HashMap::from([("docs".to_string(), server_with_sentinel())]),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            McpConfigFile::load_from(&workspace_path)
+                .unwrap()
+                .mcp_servers["docs"]
+                .env
+                .as_ref()
+                .unwrap()["API_TOKEN"],
+            "workspace-secret"
+        );
+        assert_eq!(
+            McpConfigFile::load_from(&global_path).unwrap().mcp_servers["docs"]
+                .env
+                .as_ref()
+                .unwrap()["API_TOKEN"],
+            "global-secret"
+        );
+    }
+
+    #[test]
+    fn rejected_forged_sentinel_does_not_change_existing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("mcp-servers.json");
+        let original = McpConfigFile {
+            mcp_servers: HashMap::from([(
+                "other".to_string(),
+                server_with_secret("never-return-this"),
+            )]),
+        };
+        original.save_to(&path).unwrap();
+        let before = std::fs::read(&path).unwrap();
+
+        let result = persist_config_update(
+            &path,
+            McpConfigFile {
+                mcp_servers: HashMap::from([("docs".to_string(), server_with_sentinel())]),
+            },
+        );
+
+        assert!(result.is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(!result.unwrap_err().contains("never-return-this"));
+    }
+
+    #[test]
+    fn existing_server_test_resolves_sentinel_before_connect() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("mcp-servers.json");
+        McpConfigFile {
+            mcp_servers: HashMap::from([(
+                "docs".to_string(),
+                server_with_secret("native-test-secret"),
+            )]),
+        }
+        .save_to(&path)
+        .unwrap();
+
+        let resolved =
+            resolve_test_server_config_from_path("docs", server_with_sentinel(), &path).unwrap();
+
+        assert_eq!(
+            resolved.env.as_ref().unwrap()["API_TOKEN"],
+            "native-test-secret"
+        );
+        assert_eq!(
+            resolved.command.as_deref(),
+            Some("native-test-secret-command")
+        );
+        assert_eq!(
+            resolved.args.as_deref(),
+            Some(&["native-test-secret-arg".to_string()][..])
+        );
+        assert_eq!(resolved.cwd.as_deref(), Some("/native-test-secret-cwd"));
+        assert_eq!(
+            resolved.url.as_deref(),
+            Some("https://native-test-secret.test/mcp")
+        );
+        assert_eq!(
+            resolved.headers.as_ref().unwrap()["Authorization"],
+            "native-test-secret"
+        );
+        assert!(!resolved.contains_redacted_secret_sentinel());
     }
 }

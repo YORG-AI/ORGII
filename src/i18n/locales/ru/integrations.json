@@ -2214,7 +2214,10 @@
     "fireHistory": "Run history",
     "noFires": "No runs yet",
     "openSession": "Open session",
-    "openWorkItem": "Open work item"
+    "openWorkItem": "Open work item",
+    "fireError": "Не удалось запустить рутину: {{detail}}",
+    "provider": "Провайдер",
+    "eventKind": "Событие"
   },
   "cursorPlugins": {
     "noPlugins": "Плагины Cursor не установлены",

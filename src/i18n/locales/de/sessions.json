@@ -2524,7 +2524,8 @@
     "failedToInterrupt": "Session konnte nicht unterbrochen werden",
     "failedToStop": "Agent konnte nicht gestoppt werden",
     "failedToCheckChanges": "Dateiänderungen konnten nicht geprüft werden. Änderungen werden rückgängig gemacht.",
-    "insufficientBalance": "Unzureichendes Guthaben für den gehosteten ORGII-Dienst. Aufladen unter orgii.ai/wallet."
+    "insufficientBalance": "Unzureichendes Guthaben für den gehosteten ORGII-Dienst. Aufladen unter orgii.ai/wallet.",
+    "runQueuedBehindCheckout": "In Warteschlange: ein anderer Lauf verwendet dieses Checkout. Er startet, sobald dieser Lauf beendet ist."
   },
   "planning": {
     "agentTyping": "Agent tippt...",

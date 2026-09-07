@@ -102,8 +102,8 @@ pub fn create_session(
              proxy_session_id, background, key_source, additional_directories,
              parent_session_id, org_member_id, org_id, project_id, project_name,
              project_slug, work_item_id, agent_role, created_at, updated_at,
-             transcript_source, product_mode, agent_exec_mode)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31)",
+             transcript_source, product_mode, agent_exec_mode, agent_definition_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32)",
         params![
             session_id, name, SessionStatus::Pending.as_ref(), flow, runner, params.cli_agent_type,
             params.model, params.tier, params.account_id,
@@ -112,7 +112,7 @@ pub fn create_session(
             additional_dirs_json, params.parent_session_id, params.org_member_id,
             org_id, params.project_id, params.project_name, params.project_slug,
             params.work_item_id, params.agent_role, ts, ts, transcript_source,
-            product_mode, AgentExecMode::Build.as_str(),
+            product_mode, AgentExecMode::Build.as_str(), params.agent_definition_id,
         ],
     )?;
 

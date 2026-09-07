@@ -12,6 +12,18 @@ use crate::projects::io::helpers::{conn, now_ms};
 
 const MAX_PROPERTY_NAME_CHARS: usize = 80;
 const MAX_TEXT_CHARS: usize = 20_000;
+const ORG_SCOPE_MISMATCH: &str = "PM_ERR:ORG_SCOPE_MISMATCH";
+const PROPERTY_MEMBER_INVALID: &str = "PM_ERR:PROPERTY_MEMBER_INVALID";
+
+fn member_reference_id(value: &str) -> Option<&str> {
+    value
+        .strip_prefix("member:")
+        .filter(|member_id| !member_id.trim().is_empty() && member_id.trim() == *member_id)
+}
+
+fn org_scope_mismatch(entity: &str, id: &str) -> String {
+    format!("{ORG_SCOPE_MISMATCH}:{entity}:{id}")
+}
 
 fn decode_definition(row: &rusqlite::Row<'_>) -> rusqlite::Result<PropertyDefinition> {
     let property_type: String = row.get(3)?;
@@ -36,10 +48,10 @@ fn decode_definition(row: &rusqlite::Row<'_>) -> rusqlite::Result<PropertyDefini
     })
 }
 
-fn read_definition(
+fn find_definition(
     connection: &Connection,
     property_id: &str,
-) -> Result<PropertyDefinition, String> {
+) -> Result<Option<PropertyDefinition>, String> {
     connection
         .query_row(
             "SELECT id, org_id, name, property_type, description, config_json,
@@ -49,26 +61,62 @@ fn read_definition(
             decode_definition,
         )
         .optional()
-        .map_err(|err| format!("typed property store: {err}"))?
+        .map_err(|err| format!("typed property store: {err}"))
+}
+
+fn read_definition(
+    connection: &Connection,
+    property_id: &str,
+) -> Result<PropertyDefinition, String> {
+    find_definition(connection, property_id)?
         .ok_or_else(|| format!("Property definition '{property_id}' not found"))
 }
 
-fn validate_definition(request: &UpsertPropertyDefinitionRequest) -> Result<(), String> {
-    let name = request.name.trim();
+fn validate_definition_type_change(
+    connection: &Connection,
+    property_id: &str,
+    stored_type: &str,
+    requested_type: PropertyType,
+) -> Result<(), String> {
+    if stored_type == requested_type.as_str() {
+        return Ok(());
+    }
+    let value_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM pm_work_item_property_values WHERE property_id = ?1",
+            params![property_id],
+            |row| row.get(0),
+        )
+        .map_err(|err| format!("typed property store: {err}"))?;
+    if value_count > 0 {
+        return Err(
+            "A property type cannot change after Work Items have values; archive it and create a new property"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn validate_definition_fields(
+    name: &str,
+    property_type: PropertyType,
+    config: &super::PropertyConfig,
+) -> Result<String, String> {
+    let name = name.trim();
     if name.is_empty() || name.chars().count() > MAX_PROPERTY_NAME_CHARS {
         return Err(format!(
             "Property name must contain 1-{MAX_PROPERTY_NAME_CHARS} characters"
         ));
     }
     if matches!(
-        request.property_type,
+        property_type,
         PropertyType::Select | PropertyType::MultiSelect
     ) {
-        if request.config.options.is_empty() {
+        if config.options.is_empty() {
             return Err("Select properties require at least one option".to_string());
         }
         let mut ids = BTreeSet::new();
-        for option in &request.config.options {
+        for option in &config.options {
             if option.id.trim().is_empty() || option.name.trim().is_empty() {
                 return Err("Property option id and name are required".to_string());
             }
@@ -76,16 +124,16 @@ fn validate_definition(request: &UpsertPropertyDefinitionRequest) -> Result<(), 
                 return Err(format!("Duplicate property option id '{}'", option.id));
             }
         }
-    } else if !request.config.options.is_empty() {
+    } else if !config.options.is_empty() {
         return Err("Only select properties may define options".to_string());
     }
-    Ok(())
+    Ok(name.to_string())
 }
 
 pub(crate) fn upsert_definition(
     request: UpsertPropertyDefinitionRequest,
 ) -> Result<PropertyDefinition, String> {
-    validate_definition(&request)?;
+    let name = validate_definition_fields(&request.name, request.property_type, &request.config)?;
     if request.org_id.trim().is_empty() {
         return Err("orgId is required".to_string());
     }
@@ -98,31 +146,22 @@ pub(crate) fn upsert_definition(
         .clone()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| format!("prop_{}", uuid::Uuid::new_v4().simple()));
-    let existing_type: Option<String> = tx
+    let existing: Option<(String, String)> = tx
         .query_row(
-            "SELECT property_type FROM pm_property_definitions WHERE id = ?1",
+            "SELECT org_id, property_type FROM pm_property_definitions WHERE id = ?1",
             params![id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()
         .map_err(|err| format!("typed property store: {err}"))?;
-    if existing_type
-        .as_deref()
-        .is_some_and(|stored| stored != request.property_type.as_str())
+    if existing
+        .as_ref()
+        .is_some_and(|(stored_org, _)| stored_org != &request.org_id)
     {
-        let value_count: i64 = tx
-            .query_row(
-                "SELECT COUNT(*) FROM pm_work_item_property_values WHERE property_id = ?1",
-                params![id],
-                |row| row.get(0),
-            )
-            .map_err(|err| format!("typed property store: {err}"))?;
-        if value_count > 0 {
-            return Err(
-                "A property type cannot change after Work Items have values; archive it and create a new property"
-                    .to_string(),
-            );
-        }
+        return Err(org_scope_mismatch("property_definition", &id));
+    }
+    if let Some((_, stored_type)) = &existing {
+        validate_definition_type_change(&tx, &id, stored_type, request.property_type)?;
     }
     let config_json = serde_json::to_string(&request.config)
         .map_err(|err| format!("typed property config serialization: {err}"))?;
@@ -134,15 +173,17 @@ pub(crate) fn upsert_definition(
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, NULL, ?8, ?8)
          ON CONFLICT(id) DO UPDATE SET
              name = excluded.name,
+             property_type = excluded.property_type,
              description = excluded.description,
              config_json = excluded.config_json,
              position = excluded.position,
              archived_at = NULL,
-             updated_at = excluded.updated_at",
+             updated_at = excluded.updated_at
+         WHERE pm_property_definitions.org_id = excluded.org_id",
         params![
             id,
             request.org_id,
-            request.name.trim(),
+            name,
             request.property_type.as_str(),
             request.description,
             config_json,
@@ -152,10 +193,10 @@ pub(crate) fn upsert_definition(
     )
     .map_err(|err| format!("typed property store: {err}"))?;
     crate::sync::collab_bridge::record_property_definitions_touch(&tx, &request.org_id, &id)?;
+    let definition = read_definition(&tx, &id)?;
     tx.commit()
         .map_err(|err| format!("typed property commit: {err}"))?;
-    let connection = conn()?;
-    read_definition(&connection, &id)
+    Ok(definition)
 }
 
 pub(crate) fn list_definitions(
@@ -309,6 +350,77 @@ fn validate_value(
                 return invalid("an http(s) URL");
             }
         }
+        PropertyType::Actor => {
+            let Some(actor) = value.as_str() else {
+                return invalid("a member reference");
+            };
+            if member_reference_id(actor).is_none() {
+                return invalid("a member reference in the form member:<id>");
+            }
+        }
+        PropertyType::MultiActor => {
+            let Some(values) = value.as_array() else {
+                return invalid("an array of member references");
+            };
+            let mut seen = BTreeSet::new();
+            for item in values {
+                let Some(actor) = item.as_str() else {
+                    return invalid("an array of member references");
+                };
+                if member_reference_id(actor).is_none() {
+                    return invalid("member references in the form member:<id>");
+                }
+                if !seen.insert(actor) {
+                    return Err(format!(
+                        "Duplicate member reference '{actor}' for '{}'",
+                        definition.name
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_member_ownership(
+    connection: &Connection,
+    definition: &PropertyDefinition,
+    value: &serde_json::Value,
+    org_id: &str,
+    project_slug: Option<&str>,
+) -> Result<(), String> {
+    let member_ids = match definition.property_type {
+        PropertyType::Actor => value
+            .as_str()
+            .and_then(member_reference_id)
+            .into_iter()
+            .collect::<Vec<_>>(),
+        PropertyType::MultiActor => value
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|item| item.as_str().and_then(member_reference_id))
+            .collect::<Vec<_>>(),
+        _ => return Ok(()),
+    };
+    for member_id in member_ids {
+        let belongs = connection
+            .query_row(
+                "SELECT 1
+                   FROM members m
+                   JOIN projects p ON p.id = m.project_id
+                  WHERE m.id = ?1 AND p.org_id = ?2
+                    AND (?3 IS NULL OR p.slug = ?3)
+                  LIMIT 1",
+                params![member_id, org_id, project_slug],
+                |_| Ok(true),
+            )
+            .optional()
+            .map_err(|err| format!("typed property member ownership: {err}"))?
+            .unwrap_or(false);
+        if !belongs {
+            return Err(format!("{PROPERTY_MEMBER_INVALID}:{member_id}"));
+        }
     }
     Ok(())
 }
@@ -320,17 +432,36 @@ pub(crate) fn set_value(
     let tx = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|err| format!("typed property tx: {err}"))?;
-    let item = resolve_work_item(&tx, &request.scope)?;
     let definition = read_definition(&tx, &request.property_id)?;
+    let now = now_ms();
+    let result = set_value_in_transaction(&tx, &request, &definition, now)?;
+    tx.commit()
+        .map_err(|err| format!("typed property commit: {err}"))?;
+    Ok(result)
+}
+
+fn set_value_in_transaction(
+    tx: &rusqlite::Transaction<'_>,
+    request: &SetWorkItemPropertyValueRequest,
+    definition: &PropertyDefinition,
+    now: i64,
+) -> Result<Option<WorkItemPropertyValue>, String> {
+    let item = resolve_work_item(tx, &request.scope)?;
     if definition.org_id != item.org_id {
         return Err("Property definition belongs to another organization".to_string());
     }
     if definition.archived_at.is_some() {
         return Err("Archived properties are read-only".to_string());
     }
-    let now = now_ms();
     if let Some(value) = request.value.as_ref() {
-        validate_value(&definition, value)?;
+        validate_value(definition, value)?;
+        validate_member_ownership(
+            tx,
+            definition,
+            value,
+            &item.org_id,
+            item.project_slug.as_deref(),
+        )?;
         let raw = serde_json::to_string(value)
             .map_err(|err| format!("typed property value serialization: {err}"))?;
         tx.execute(
@@ -358,14 +489,14 @@ pub(crate) fn set_value(
         .map_err(|err| format!("typed property store: {err}"))?;
     }
     crate::sync::collab_bridge::record_work_item_payload_touch_in_connection(
-        &tx,
+        tx,
         &item.org_id,
         item.project_slug.as_deref(),
         &item.row_id,
         &format!("propertyValues.{}", request.property_id),
     )?;
     append_audit(
-        &tx,
+        tx,
         &item,
         if request.value.is_some() {
             "work.property_set"
@@ -380,13 +511,67 @@ pub(crate) fn set_value(
             "value": request.value,
         }),
     )?;
-    tx.commit()
-        .map_err(|err| format!("typed property commit: {err}"))?;
-    Ok(request.value.map(|value| WorkItemPropertyValue {
-        definition,
+    Ok(request.value.clone().map(|value| WorkItemPropertyValue {
+        definition: definition.clone(),
         value,
         updated_at: iso8601(now),
     }))
+}
+
+/// Apply one property value to a set of Work Items atomically. All target
+/// scopes are resolved before commit and every write, audit row, and sync
+/// touch shares the same `IMMEDIATE` transaction.
+pub(crate) fn batch_set_values(
+    org_id: String,
+    project_slug: Option<String>,
+    short_ids: Vec<String>,
+    property_id: String,
+    value: Option<serde_json::Value>,
+) -> Result<usize, String> {
+    let short_ids = short_ids
+        .into_iter()
+        .map(|short_id| short_id.trim().to_string())
+        .filter(|short_id| !short_id.is_empty())
+        .collect::<BTreeSet<_>>();
+    if short_ids.is_empty() {
+        return Ok(0);
+    }
+
+    let mut connection = conn()?;
+    let tx = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|err| format!("typed property batch tx: {err}"))?;
+    let definition = read_definition(&tx, &property_id)?;
+    if definition.org_id != org_id {
+        return Err("Property definition belongs to another organization".to_string());
+    }
+    if definition.archived_at.is_some() {
+        return Err("Archived properties are read-only".to_string());
+    }
+    if let Some(value) = value.as_ref() {
+        validate_value(&definition, value)?;
+    }
+
+    let now = now_ms();
+    for short_id in &short_ids {
+        set_value_in_transaction(
+            &tx,
+            &SetWorkItemPropertyValueRequest {
+                scope: WorkItemScope {
+                    project_slug: project_slug.clone(),
+                    org_id: org_id.clone(),
+                    work_item_id: short_id.clone(),
+                },
+                property_id: property_id.clone(),
+                value: value.clone(),
+            },
+            &definition,
+            now,
+        )?;
+    }
+    tx.commit()
+        .map_err(|err| format!("typed property batch commit: {err}"))?;
+    Ok(short_ids.len())
 }
 
 pub(crate) fn list_values(scope: &WorkItemScope) -> Result<Vec<WorkItemPropertyValue>, String> {
@@ -424,6 +609,43 @@ pub(crate) fn list_values(scope: &WorkItemScope) -> Result<Vec<WorkItemPropertyV
             })
         })
         .collect()
+}
+
+/// Every value in a scope, for list/table columns. Lean rows — callers
+/// already hold the definitions.
+pub(crate) fn list_values_for_scope(
+    org_id: &str,
+    project_slug: Option<&str>,
+) -> Result<Vec<super::ScopePropertyValue>, String> {
+    let connection = conn()?;
+    let scope_key = super::store::scope_key(project_slug, org_id);
+    let mut statement = connection
+        .prepare(
+            "SELECT property_id, work_item_id, value_json
+               FROM pm_work_item_property_values
+              WHERE scope_key = ?1
+              ORDER BY work_item_id ASC, property_id ASC",
+        )
+        .map_err(|err| format!("typed property store: {err}"))?;
+    let values = statement
+        .query_map(params![scope_key], |row| {
+            let raw: String = row.get(2)?;
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, raw))
+        })
+        .map_err(|err| format!("typed property store: {err}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| format!("typed property store: {err}"))?
+        .into_iter()
+        .map(|(property_id, work_item_id, raw)| {
+            Ok(super::ScopePropertyValue {
+                property_id,
+                work_item_id,
+                value: serde_json::from_str(&raw)
+                    .map_err(|err| format!("typed property value: {err}"))?,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    Ok(values)
 }
 
 pub(crate) fn export_definitions(
@@ -512,28 +734,7 @@ fn timestamp_ms(value: &str) -> Result<i64, String> {
         .map_err(|err| format!("typed property wire timestamp '{value}': {err}"))
 }
 
-fn pending_property_path(
-    connection: &Connection,
-    org_id: &str,
-    path: &str,
-) -> Result<bool, String> {
-    connection
-        .query_row(
-            "SELECT 1 FROM outbox_entries
-              WHERE org_id = ?1
-                AND status IN ('pending', 'in_flight')
-                AND instr(',' || coalesce(field_path, '') || ',', ',' || ?2 || ',') > 0
-              LIMIT 1",
-            params![org_id, path],
-            |_| Ok(true),
-        )
-        .optional()
-        .map(|found| found.unwrap_or(false))
-        .map_err(|err| format!("typed property pending-path probe: {err}"))
-}
-
-pub(crate) fn apply_wire_definitions(
-    connection: &Connection,
+pub(crate) fn validate_wire_definitions(
     org_id: &str,
     payload: &serde_json::Value,
 ) -> Result<(), String> {
@@ -542,31 +743,78 @@ pub(crate) fn apply_wire_definitions(
     };
     let definitions: Vec<PropertyDefinition> = serde_json::from_value(raw.clone())
         .map_err(|err| format!("typed property wire definitions: {err}"))?;
+    for definition in definitions.iter().filter(|item| item.org_id == org_id) {
+        validate_definition_fields(
+            &definition.name,
+            definition.property_type,
+            &definition.config,
+        )?;
+        timestamp_ms(&definition.created_at)?;
+        timestamp_ms(&definition.updated_at)?;
+        definition
+            .archived_at
+            .as_deref()
+            .map(timestamp_ms)
+            .transpose()?;
+    }
+    Ok(())
+}
+
+pub(crate) fn apply_wire_definitions(
+    connection: &Connection,
+    org_id: &str,
+    payload: &serde_json::Value,
+) -> Result<(), String> {
+    validate_wire_definitions(org_id, payload)?;
+    let Some(raw) = payload.get("propertyDefinitions") else {
+        return Ok(());
+    };
+    let definitions: Vec<PropertyDefinition> = serde_json::from_value(raw.clone())
+        .map_err(|err| format!("typed property wire definitions: {err}"))?;
     for definition in definitions {
         if definition.org_id != org_id {
-            return Err(format!(
-                "typed property definition '{}' belongs to another organization",
-                definition.id
-            ));
+            continue;
         }
-        let remote_updated_at = timestamp_ms(&definition.updated_at)?;
-        let local_updated_at: Option<i64> = connection
+        let name = validate_definition_fields(
+            &definition.name,
+            definition.property_type,
+            &definition.config,
+        )?;
+        let local: Option<(String, String, i64)> = connection
             .query_row(
-                "SELECT updated_at FROM pm_property_definitions WHERE id = ?1",
+                "SELECT org_id, property_type, updated_at
+                   FROM pm_property_definitions WHERE id = ?1",
                 params![definition.id],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()
             .map_err(|err| format!("typed property definition watermark: {err}"))?;
+        if local
+            .as_ref()
+            .is_some_and(|(stored_org, _, _)| stored_org != org_id)
+        {
+            continue;
+        }
+        let remote_updated_at = timestamp_ms(&definition.updated_at)?;
+        let local_updated_at = local.as_ref().map(|(_, _, updated_at)| *updated_at);
         if local_updated_at.is_some_and(|local| local >= remote_updated_at) {
             continue;
         }
-        if pending_property_path(
+        if crate::sync::collab_bridge::has_pending_collab_field_path(
             connection,
             org_id,
             &format!("propertyDefinitions.{}", definition.id),
+            "typed property pending-path probe",
         )? {
             continue;
+        }
+        if let Some((_, stored_type, _)) = &local {
+            validate_definition_type_change(
+                connection,
+                &definition.id,
+                stored_type,
+                definition.property_type,
+            )?;
         }
         let config_json = serde_json::to_string(&definition.config)
             .map_err(|err| format!("typed property wire config: {err}"))?;
@@ -578,16 +826,18 @@ pub(crate) fn apply_wire_definitions(
                  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
                  ON CONFLICT(id) DO UPDATE SET
                      name = excluded.name,
+                     property_type = excluded.property_type,
                      description = excluded.description,
                      config_json = excluded.config_json,
                      position = excluded.position,
                      archived_at = excluded.archived_at,
                      updated_at = excluded.updated_at
-                 WHERE excluded.updated_at >= pm_property_definitions.updated_at",
+                 WHERE pm_property_definitions.org_id = excluded.org_id
+                   AND excluded.updated_at >= pm_property_definitions.updated_at",
                 params![
                     definition.id,
                     definition.org_id,
-                    definition.name,
+                    name,
                     definition.property_type.as_str(),
                     definition.description,
                     config_json,
@@ -618,27 +868,42 @@ pub(crate) fn apply_work_item_wire_snapshot(
     };
     let values: Vec<SyncedWorkItemPropertyValue> = serde_json::from_value(raw.clone())
         .map_err(|err| format!("typed property wire values: {err}"))?;
-    let scope: Option<(String, String)> = connection
+    let scope: Option<(String, String, Option<String>)> = connection
         .query_row(
             "SELECT CASE
                         WHEN p.slug IS NULL THEN 'org:' || w.org_id
                         ELSE 'project:' || p.slug
                     END,
-                    w.short_id
+                    w.short_id,
+                    p.slug
                FROM workitems w
                LEFT JOIN projects p ON p.id = w.project_id
               WHERE w.id = ?1 AND w.org_id = ?2",
             params![work_item_row_id, org_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .optional()
         .map_err(|err| format!("typed property apply scope: {err}"))?;
-    let Some((scope_key, short_id)) = scope else {
+    let Some((scope_key, short_id, project_slug)) = scope else {
         return Err(format!(
             "typed property apply Work Item '{work_item_row_id}' not found"
         ));
     };
     for value in values {
+        let definition = match find_definition(connection, &value.property_id)? {
+            Some(definition) if definition.org_id == org_id => definition,
+            Some(_) | None => continue,
+        };
+        if !value.value.is_null() {
+            validate_value(&definition, &value.value)?;
+            validate_member_ownership(
+                connection,
+                &definition,
+                &value.value,
+                org_id,
+                project_slug.as_deref(),
+            )?;
+        }
         let remote_updated_at = timestamp_ms(&value.updated_at)?;
         let local_updated_at: Option<i64> = connection
             .query_row(
@@ -652,10 +917,11 @@ pub(crate) fn apply_work_item_wire_snapshot(
         if local_updated_at.is_some_and(|local| local >= remote_updated_at) {
             continue;
         }
-        if pending_property_path(
+        if crate::sync::collab_bridge::has_pending_collab_field_path(
             connection,
             org_id,
             &format!("propertyValues.{}", value.property_id),
+            "typed property pending-path probe",
         )? {
             continue;
         }

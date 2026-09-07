@@ -16,6 +16,7 @@ import {
   Delete02Icon,
   HugeiconsIcon,
   Refresh04Icon,
+  Share02Icon,
 } from "@src/icons";
 import {
   DETAIL_PANEL_TOKENS,
@@ -36,6 +37,7 @@ import {
 } from "../skillSourceLabel";
 import FindSkillsSection from "./FindSkillsSection";
 import InlineExternalSkillsImport from "./InlineExternalSkillsImport";
+import ShareSkillDialog from "./ShareSkillDialog";
 import SkillInlineExpandedCard from "./SkillInlineExpandedCard";
 import {
   SkillNameCell,
@@ -91,6 +93,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
   const [uninstallingSkillNames, setUninstallingSkillNames] = useState<
     Set<string>
   >(new Set());
+  const [shareTarget, setShareTarget] = useState<InstalledSkill | null>(null);
 
   const sourceTabs = useMemo<TabPillItem[]>(() => {
     const seenWorkspacePaths = new Set<string>();
@@ -226,8 +229,10 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
         align: "right",
         renderCell: (skill) => {
           const isBuiltIn = skill.source === SKILL_SOURCE.EMBEDDED_BUILTIN;
+          const isOrgShared = skill.source === SKILL_SOURCE.ORG_SHARED;
           const showRemove = Boolean(onUninstallSkill);
-          const canRemove = showRemove && !isBuiltIn;
+          const canRemove = showRemove && !isBuiltIn && !isOrgShared;
+          const canShare = !isBuiltIn && !isOrgShared;
           const uninstalling = uninstallingSkillNames.has(skill.name);
 
           return (
@@ -249,6 +254,30 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
               <div onClick={(event) => event.stopPropagation()}>
                 <SkillViewButton skill={skill} />
               </div>
+              {canShare ? (
+                <Button
+                  variant="secondary"
+                  size="small"
+                  icon={
+                    <HugeiconsIcon
+                      icon={Share02Icon}
+                      data-icon="share-2"
+                      size={14}
+                    />
+                  }
+                  iconOnly
+                  aria-label={t("skills.shareToOrg", {
+                    defaultValue: "Share to organization",
+                  })}
+                  title={t("skills.shareToOrg", {
+                    defaultValue: "Share to organization",
+                  })}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setShareTarget(skill);
+                  }}
+                />
+              ) : null}
               {showRemove ? (
                 <Button
                   variant="secondary"
@@ -417,9 +446,21 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {installedPanel}
         </div>
+        <ShareSkillDialog
+          skill={shareTarget}
+          onClose={() => setShareTarget(null)}
+        />
       </div>
     );
   }
 
-  return installedPanel;
+  return (
+    <>
+      {installedPanel}
+      <ShareSkillDialog
+        skill={shareTarget}
+        onClose={() => setShareTarget(null)}
+      />
+    </>
+  );
 };

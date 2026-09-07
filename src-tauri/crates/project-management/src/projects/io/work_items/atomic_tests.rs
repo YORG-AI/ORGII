@@ -133,6 +133,79 @@ fn atomic_persists_closure_mutations_and_bumps_version() {
 }
 
 #[test]
+fn partial_update_revision_guard_rejects_stale_project_and_standalone_edits() {
+    let _sandbox = test_env::sandbox();
+    seed("demo", "p1");
+    seed_standalone("org-1");
+
+    let project_revision = read_work_item("demo", "AAA-0001")
+        .expect("read project item")
+        .revision
+        .expect("database revision");
+    let updated = update_work_item_partial_at_revision(
+        "demo",
+        "AAA-0001",
+        &WorkItemPartialUpdate {
+            title: Some("Guarded edit".to_string()),
+            ..Default::default()
+        },
+        project_revision,
+    )
+    .expect("guarded project update");
+    assert_eq!(updated.revision, Some(project_revision + 1));
+    let stale = update_work_item_partial_at_revision(
+        "demo",
+        "AAA-0001",
+        &WorkItemPartialUpdate {
+            title: Some("Stale overwrite".to_string()),
+            ..Default::default()
+        },
+        project_revision,
+    )
+    .expect_err("stale project revision must conflict");
+    assert!(
+        stale.starts_with(crate::work_service::error::REVISION_CONFLICT),
+        "{stale}"
+    );
+    assert_eq!(
+        read_work_item("demo", "AAA-0001")
+            .expect("read guarded project item")
+            .frontmatter
+            .title,
+        "Guarded edit"
+    );
+
+    let standalone_revision = read_standalone_work_item(Some("org-1"), "ORG-0001")
+        .expect("read standalone item")
+        .revision
+        .expect("standalone database revision");
+    update_standalone_work_item_partial_at_revision(
+        Some("org-1"),
+        "ORG-0001",
+        &WorkItemPartialUpdate {
+            priority: Some("high".to_string()),
+            ..Default::default()
+        },
+        standalone_revision,
+    )
+    .expect("guarded standalone update");
+    let stale = update_standalone_work_item_partial_at_revision(
+        Some("org-1"),
+        "ORG-0001",
+        &WorkItemPartialUpdate {
+            priority: Some("low".to_string()),
+            ..Default::default()
+        },
+        standalone_revision,
+    )
+    .expect_err("stale standalone revision must conflict");
+    assert!(
+        stale.starts_with(crate::work_service::error::REVISION_CONFLICT),
+        "{stale}"
+    );
+}
+
+#[test]
 fn partial_update_records_property_and_body_history() {
     let _sandbox = test_env::sandbox();
     seed("demo", "p1");
@@ -1170,4 +1243,54 @@ fn atomic_two_calls_serialize_and_both_persist() {
     assert_eq!(after.frontmatter.priority, "high");
     assert_eq!(after.frontmatter.status, "in_progress");
     assert_eq!(current_local_version("w1"), 2, "both writes bumped version");
+}
+
+#[test]
+fn archived_custom_status_keeps_history_but_rejects_new_assignments() {
+    use crate::work_item_features::statuses::{self, UpsertStatusDefinitionRequest};
+
+    let _sandbox = test_env::sandbox();
+    seed("demo", "p1");
+    let second = work_item_fixture("w2", "AAA-0002", "Second");
+    write_work_item("demo", "AAA-0002", &second, "second body").expect("seed second item");
+
+    let definition = statuses::upsert_definition(UpsertStatusDefinitionRequest {
+        id: None,
+        org_id: "personal-org".to_string(),
+        key: Some("shipped".to_string()),
+        name: "Shipped".to_string(),
+        category: Some("completed".to_string()),
+        color: None,
+        description: None,
+        position: None,
+    })
+    .expect("create custom status");
+
+    let mut assign = WorkItemPartialUpdate::default();
+    assign.status = Some("shipped".to_string());
+    update_work_item_partial("demo", "AAA-0001", &assign).expect("assign active status");
+    statuses::set_definition_archived("personal-org", &definition.id, true)
+        .expect("archive status");
+
+    let mut rename = WorkItemPartialUpdate::default();
+    rename.title = Some("Historical shipped item".to_string());
+    update_work_item_partial("demo", "AAA-0001", &rename)
+        .expect("existing archived status remains writable");
+    assert_eq!(
+        read_work_item("demo", "AAA-0001")
+            .expect("read historical item")
+            .frontmatter
+            .status,
+        "shipped"
+    );
+
+    let error = update_work_item_partial("demo", "AAA-0002", &assign)
+        .expect_err("archived status cannot be newly assigned");
+    assert_eq!(error, "PM_ERR:STATUS_ARCHIVED:shipped");
+
+    let mut third = work_item_fixture("w3", "AAA-0003", "Third");
+    third.status = "shipped".to_string();
+    let create_error = write_work_item("demo", "AAA-0003", &third, "third body")
+        .expect_err("new rows cannot start in an archived status");
+    assert_eq!(create_error, "PM_ERR:STATUS_ARCHIVED:shipped");
 }

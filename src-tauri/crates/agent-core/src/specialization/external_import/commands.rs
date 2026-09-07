@@ -10,7 +10,7 @@ use super::types::{
 use crate::core::definitions::schema::{AgentDefinition, AgentTier, AgentToolSelection};
 use crate::core::definitions::store::AgentDefinitionsStore;
 use crate::specialization::mcp::config::{
-    global_config_path, workspace_config_path, McpConfigFile,
+    global_config_path, update_config_file, workspace_config_path, McpConfigFile,
 };
 use crate::specialization::policies::config::PolicyConfig;
 use crate::specialization::policies::{
@@ -440,21 +440,22 @@ fn apply_mcp_import(
         Some(repo_path) => workspace_config_path(repo_path),
         None => global_config_path(),
     };
-    let mut target_config = McpConfigFile::load_from(&target_path)?;
-    if !selection.overwrite
-        && target_config
+    update_config_file(&target_path, move |target_config| {
+        if !selection.overwrite
+            && target_config
+                .mcp_servers
+                .contains_key(&selection.target_name)
+        {
+            return Err(format!(
+                "MCP server '{}' already exists; pass `overwrite: true` to replace it",
+                selection.target_name
+            ));
+        }
+        target_config
             .mcp_servers
-            .contains_key(&selection.target_name)
-    {
-        return Err(format!(
-            "MCP server '{}' already exists; pass `overwrite: true` to replace it",
-            selection.target_name
-        ));
-    }
-    target_config
-        .mcp_servers
-        .insert(selection.target_name.clone(), server_config);
-    target_config.save_to(&target_path)
+            .insert(selection.target_name.clone(), server_config);
+        Ok(())
+    })
 }
 
 // ============================================================

@@ -15,7 +15,8 @@
       "person": "Theo người",
       "assignedTo": "Theo người được giao",
       "createdBy": "Theo người tạo",
-      "targetDate": "Theo ngày mục tiêu"
+      "targetDate": "Theo ngày mục tiêu",
+      "property": "Theo thuộc tính"
     },
     "source": {
       "localOnly": "Chỉ cục bộ",
@@ -541,7 +542,19 @@
       "cycles": "chu kỳ"
     },
     "viewWorkItems": "Xem Work Items",
-    "fromRoutine": "From routine: {{name}}"
+    "fromRoutine": "From routine: {{name}}",
+    "batchField": {
+      "hint": "Áp dụng cho {{count}} mục đã chọn."
+    },
+    "batchStatus": {
+      "title": "Đặt trạng thái"
+    },
+    "batchPriority": {
+      "title": "Đặt độ ưu tiên"
+    },
+    "batchAssignee": {
+      "title": "Đặt người được giao"
+    }
   },
   "settings": {
     "sidebarGeneral": "Chung",

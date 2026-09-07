@@ -15,7 +15,8 @@
       "person": "担当者別",
       "assignedTo": "割り当て先別",
       "createdBy": "作成者別",
-      "targetDate": "目標日別"
+      "targetDate": "目標日別",
+      "property": "プロパティ別"
     },
     "source": {
       "localOnly": "ローカルのみ",
@@ -541,7 +542,19 @@
       "cycles": "サイクル"
     },
     "viewWorkItems": "Work Item を表示",
-    "fromRoutine": "From routine: {{name}}"
+    "fromRoutine": "From routine: {{name}}",
+    "batchField": {
+      "hint": "選択した{{count}}件のアイテムに適用します。"
+    },
+    "batchStatus": {
+      "title": "ステータスを設定"
+    },
+    "batchPriority": {
+      "title": "優先度を設定"
+    },
+    "batchAssignee": {
+      "title": "担当者を設定"
+    }
   },
   "settings": {
     "sidebarGeneral": "一般",

@@ -20,6 +20,7 @@ describe("WorkItemsListSurface", () => {
   it("uses the compact Inbox list to the left of a selected detail", () => {
     const markup = renderToStaticMarkup(
       createElement(WorkItemsListSurface, {
+        statusOrgId: "personal-org",
         groupedWorkItems: [],
         filteredWorkItems: [workItem],
         selectedWorkItem: workItem,
@@ -48,6 +49,7 @@ describe("WorkItemsListSurface", () => {
   it("keeps the compact list and an empty right holder before selection", () => {
     const markup = renderToStaticMarkup(
       createElement(WorkItemsListSurface, {
+        statusOrgId: "personal-org",
         groupedWorkItems: [],
         filteredWorkItems: [workItem],
         selectedWorkItem: null,
@@ -77,6 +79,7 @@ describe("WorkItemsListSurface", () => {
         workItems: [workItem],
         availableMembers: [],
         onSelectWorkItem: vi.fn(),
+        statusOrgId: "personal-org",
         listFullscreen: true,
       })
     );

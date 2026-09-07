@@ -227,6 +227,10 @@ pub struct CommentEntry {
     pub author: String,
     pub content: String,
     pub created_at: String,
+    /// Per-comment optimistic concurrency token. Legacy comments deserialize
+    /// as revision 0, so old workspace payloads remain editable.
+    #[serde(default)]
+    pub revision: i64,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub mentioned_user_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -245,6 +249,16 @@ pub struct CommentEntry {
     pub conclusion: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_session_id: Option<String>,
+    /// A2A chain: who caused the authoring agent's run (`member:<id>`,
+    /// `session:<id>`, or `user`). Absent on human-authored comments.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub originator: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edited_at: Option<String>,
+    /// Tombstone: content and mentions are cleared, thread structure and
+    /// routing metadata stay so replies keep resolving.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<String>,
 }
 
 /// A market delegation entry on a work item

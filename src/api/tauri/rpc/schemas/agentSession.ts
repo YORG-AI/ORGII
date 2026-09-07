@@ -22,6 +22,67 @@ export const SessionIdInput = z.object({
   sessionId: z.string(),
 });
 
+export const SessionFollowUpMessageSchema = z
+  .object({
+    role: z.enum(["user", "assistant"]),
+    content: z
+      .string()
+      .min(1)
+      .max(64 * 1024),
+  })
+  .strict();
+
+export const SessionFollowUpSuggestionsInput = z
+  .object({
+    request: z
+      .object({
+        sessionId: z.string().min(1).max(512),
+        messages: z
+          .array(SessionFollowUpMessageSchema)
+          .min(1)
+          .max(6)
+          .refine(
+            (messages) =>
+              messages.at(-1)?.role === "assistant" &&
+              messages.some((message) => message.role === "user"),
+            "Follow-up context must contain a user message and end with an assistant reply"
+          ),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const SessionFollowUpSuggestionSchema = z
+  .object({
+    label: z.string().min(1).max(80),
+    prompt: z.string().min(1).max(500),
+    primary: z.boolean(),
+  })
+  .strict();
+
+export const SessionFollowUpSuggestionsResponseSchema = z
+  .object({
+    suggestions: z
+      .array(SessionFollowUpSuggestionSchema)
+      .length(3)
+      .refine(
+        (suggestions) =>
+          suggestions.filter((suggestion) => suggestion.primary).length === 1,
+        "Exactly one follow-up suggestion must be primary"
+      ),
+  })
+  .strict();
+
+export type SessionFollowUpMessage = z.infer<
+  typeof SessionFollowUpMessageSchema
+>;
+export type SessionFollowUpSuggestion = z.infer<
+  typeof SessionFollowUpSuggestionSchema
+>;
+export type SessionFollowUpSuggestionsResponse = z.infer<
+  typeof SessionFollowUpSuggestionsResponseSchema
+>;
+
 export const DeleteSessionReceiptSchema = z.object({
   deletedSessionIds: z.array(z.string()),
 }) as z.ZodType<DeleteSessionReceipt, DeleteSessionReceipt>;

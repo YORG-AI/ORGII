@@ -200,6 +200,7 @@ pub(super) fn enrich_work_item(
         title: fm.title.clone(),
         body: item.body,
         filename: item.filename,
+        revision: item.revision.unwrap_or_default(),
 
         status: fm.status.clone(),
         priority: fm.priority.clone(),

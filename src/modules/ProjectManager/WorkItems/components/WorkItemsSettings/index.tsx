@@ -18,6 +18,7 @@ import {
   getListItemClasses,
 } from "@src/components/ListPanel/tokens";
 import {
+  CircleDotIcon,
   HugeiconsIcon,
   type IconSvgElement,
   Settings01Icon,
@@ -35,6 +36,7 @@ import {
   LabelsSection,
   MembersSection,
   MyProfileSection,
+  StatusesSection,
   SyncSection,
 } from "./subpages";
 
@@ -47,6 +49,7 @@ const SETTINGS_SECTION_IDS = {
   PROFILE: "profile",
   MEMBERS: "members",
   LABELS: "labels",
+  STATUSES: "statuses",
   SYNC: "sync",
 } as const;
 
@@ -57,7 +60,9 @@ export type SettingsSectionId =
 // Types
 // ============================================
 
-interface WorkItemsSettingsProps {
+export interface WorkItemsSettingsProps {
+  /** Org that owns the project — scopes custom status definitions. */
+  orgId: string;
   members: MemberEntry[];
   onUpdateMembers: (members: MemberEntry[]) => Promise<void>;
   labels: Label[];
@@ -167,6 +172,12 @@ const SECTIONS: SettingsSectionConfig[] = [
     ),
   },
   {
+    id: SETTINGS_SECTION_IDS.STATUSES,
+    labelKey: "settings.sidebarStatuses",
+    icon: CircleDotIcon,
+    render: (props) => <StatusesSection orgId={props.orgId} />,
+  },
+  {
     id: SETTINGS_SECTION_IDS.SYNC,
     labelKey: "settings.sidebarSync",
     icon: UsbIcon,
@@ -215,6 +226,7 @@ const SettingsSidebar: React.FC<{
 // ============================================
 
 const WorkItemsSettings: React.FC<WorkItemsSettingsProps> = ({
+  orgId,
   members,
   onUpdateMembers,
   labels,
@@ -252,6 +264,7 @@ const WorkItemsSettings: React.FC<WorkItemsSettingsProps> = ({
     (section) => section.id === activeSection
   );
   const content = activeSectionConfig?.render({
+    orgId,
     members,
     onUpdateMembers,
     labels,

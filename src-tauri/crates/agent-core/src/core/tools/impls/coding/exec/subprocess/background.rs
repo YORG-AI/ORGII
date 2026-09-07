@@ -49,6 +49,7 @@ pub(super) fn handle_backgrounded(
     runtime: OutputRuntime,
     identity: ExecIdentity,
     app_handle: Option<AppHandle>,
+    worktree_lock: Option<git::worktree::WorktreeLockGuard>,
 ) -> Result<String, ToolError> {
     let log_path = runtime.log_path.clone();
     let human_line = match reason {
@@ -100,6 +101,7 @@ pub(super) fn handle_backgrounded(
     };
 
     tokio::spawn(async move {
+        let _worktree_lock = worktree_lock;
         let mut runtime = Some(runtime);
         let started = Instant::now();
         let mut stall_watchdog = StallWatchdog::new();

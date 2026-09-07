@@ -36,13 +36,16 @@ impl SkillTool {
         }
     }
 
-    fn build_loader(&self) -> SkillsLoader {
+    fn build_loader(&self, org_id: Option<&str>) -> SkillsLoader {
         let skills_dir = self.workspace.read().working_dir().join(".orgii");
         let mut loader = SkillsLoader::new(&skills_dir)
             .with_builtin_dir(crate::skills::loader::global_skills_dir())
             .with_load_workspace_resources(self.load_workspace_resources);
         if let Some(ref agent_id) = self.agent_id {
             loader = loader.with_agent_id(agent_id.clone());
+        }
+        if let Some(org_id) = org_id {
+            loader = loader.with_org_id(org_id);
         }
         loader
     }
@@ -98,7 +101,7 @@ impl Tool for SkillTool {
         })
     }
 
-    async fn execute_text(&self, params: Value, _ctx: &CallContext) -> Result<String, ToolError> {
+    async fn execute_text(&self, params: Value, ctx: &CallContext) -> Result<String, ToolError> {
         let name = params
             .get("skill")
             .and_then(Value::as_str)
@@ -113,7 +116,11 @@ impl Tool for SkillTool {
             )));
         }
 
-        let loader = self.build_loader();
+        let org_id = crate::session::persistence::get_session(&ctx.session_id)
+            .ok()
+            .flatten()
+            .and_then(|record| record.org_id);
+        let loader = self.build_loader(org_id.as_deref());
         match loader.load_skill_with_path(name) {
             Some((content, skill_md_path)) => {
                 // Skills reference bundled files (scripts/, references/, assets/)

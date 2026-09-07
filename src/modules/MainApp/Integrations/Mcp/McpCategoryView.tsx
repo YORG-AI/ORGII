@@ -36,7 +36,11 @@ export const McpCategoryView: React.FC<{
         onCancel={mcp.onAddClose}
         editName={mcp.editName ?? undefined}
         editConfig={mcp.editConfig ?? undefined}
-        initialScope={mcp.editName ? undefined : mcp.addScope}
+        initialScope={
+          mcp.editName
+            ? mcp.servers.find((server) => server.name === mcp.editName)?.scope
+            : mcp.addScope
+        }
       />
     );
   }

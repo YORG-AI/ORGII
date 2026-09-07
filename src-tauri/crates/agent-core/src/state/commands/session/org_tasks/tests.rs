@@ -342,6 +342,7 @@ fn terminal_group_message_writes_neither_inbox_nor_intervention_clear() {
         &context,
         "builtin:sde",
         "member-planner",
+        "terminal-message",
         "This must not enter a terminal run",
         None,
     )
@@ -385,6 +386,7 @@ fn group_message_and_intervention_clear_commit_atomically() {
         &context,
         "builtin:sde",
         "member-planner",
+        "atomic-message",
         "Both writes must commit together",
         None,
     )
@@ -398,6 +400,91 @@ fn group_message_and_intervention_clear_commit_atomically() {
             .is_some(),
         "the inbox insert must roll back if intervention clear cannot commit"
     );
+}
+
+#[test]
+fn group_message_retry_reuses_the_committed_inbox_row() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+
+    let first = persist_group_chat_message(
+        &context,
+        "builtin:sde",
+        "member-planner",
+        "stable-group-message",
+        "Send this exactly once",
+        Some("@Planner Send this exactly once"),
+    )
+    .expect("persist first attempt");
+
+    let conn = get_connection().expect("db connection");
+    conn.execute(
+        "UPDATE agent_org_runs SET status='completed' WHERE id=?1",
+        params![&context.run_id],
+    )
+    .expect("finish run after committed response was lost");
+    drop(conn);
+
+    let retried = persist_group_chat_message(
+        &context,
+        "builtin:sde",
+        "member-planner",
+        "stable-group-message",
+        "Send this exactly once",
+        Some("@Planner Send this exactly once"),
+    )
+    .expect("a retry after commit returns the durable row");
+
+    assert_eq!(retried.id, first.id);
+    assert_eq!(inbox_count_for_member(&context, "member-planner"), 1);
+}
+
+#[test]
+fn group_message_id_reuse_with_different_content_display_or_target_is_rejected() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+
+    persist_group_chat_message(
+        &context,
+        "builtin:sde",
+        "member-planner",
+        "conflicting-group-message",
+        "Original payload",
+        Some("@Planner Original payload"),
+    )
+    .expect("persist original message");
+
+    for (target_member_id, content, display_text) in [
+        (
+            "member-planner",
+            "Different payload",
+            "@Planner Different payload",
+        ),
+        (
+            "member-planner",
+            "Original payload",
+            "@Planner Edited display",
+        ),
+        (
+            "member-builder",
+            "Original payload",
+            "@Builder Original payload",
+        ),
+    ] {
+        let error = persist_group_chat_message(
+            &context,
+            "builtin:sde",
+            target_member_id,
+            "conflicting-group-message",
+            content,
+            Some(display_text),
+        )
+        .expect_err("a stable id cannot be rebound to another durable message");
+        assert!(error.contains("already used for a different durable message"));
+    }
+
+    assert_eq!(inbox_count_for_member(&context, "member-planner"), 1);
+    assert_eq!(inbox_count_for_member(&context, "member-builder"), 0);
 }
 
 #[test]
@@ -419,6 +506,7 @@ fn group_chat_history_pages_all_rows_and_preserves_long_display_text_after_reloa
             &context,
             "builtin:sde",
             "member-planner",
+            &format!("history-message-{index}"),
             body,
             Some(display),
         )

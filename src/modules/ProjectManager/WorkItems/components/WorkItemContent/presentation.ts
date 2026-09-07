@@ -1,5 +1,13 @@
 export type WorkItemContentPresentation = "default" | "thread";
 
+export function resolveCreationActivityKey(
+  isGitHubWorkItem: boolean
+): "common:git.issues.activity.opened" | "workItems.activity.createdWorkItem" {
+  return isGitHubWorkItem
+    ? "common:git.issues.activity.opened"
+    : "workItems.activity.createdWorkItem";
+}
+
 export interface WorkItemContentSectionPolicy {
   showTabbedLowerSection: boolean;
   showLinkedSessionsTable: boolean;

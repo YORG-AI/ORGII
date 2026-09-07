@@ -305,7 +305,8 @@ export function useAiWorkItemCreator({
         await projectApi.updateWorkItemPartial(
           metadata.projectSlug,
           metadata.shortId,
-          { linkedSessions: [linkedSession] }
+          { linkedSessions: [linkedSession] },
+          metadata.item.revision
         );
       } else {
         // Partial update in the same org scope as the creating write — an
@@ -314,7 +315,8 @@ export function useAiWorkItemCreator({
         await projectApi.updateStandaloneWorkItemPartial(
           metadata.shortId,
           { linkedSessions: [linkedSession] },
-          metadata.orgId ? { orgId: metadata.orgId } : undefined
+          metadata.orgId ? { orgId: metadata.orgId } : undefined,
+          metadata.item.revision
         );
       }
 

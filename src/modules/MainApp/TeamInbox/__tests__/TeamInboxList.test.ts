@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ManagedPrItem } from "../../WorkManagement/githubManagedItemModel";
 import TeamInboxList from "../components/TeamInboxList";
-import type { AssignedWorkItem } from "../domain";
+import type { AssignedWorkItem, WorkItemUpdateItem } from "../domain";
 
 vi.mock("@src/components/KeyboardShortcut/ToolbarTooltip", () => ({
   ToolbarTooltip: ({
@@ -299,5 +299,46 @@ describe("TeamInboxList pagination", () => {
     expect(markup).toContain("hover:bg-surface-hover");
     expect(markup).not.toContain("min-h-[72px]");
     vi.useRealTimers();
+  });
+
+  it("keeps Work Item events in a semantic updates section", () => {
+    const event: WorkItemUpdateItem = {
+      id: "event-1",
+      kind: "child_completed",
+      source: "local",
+      occurredAt: "2026-08-08T10:00:00.000Z",
+      readAt: null,
+      actor: { id: "member-2", displayName: "Lin" },
+      target: {
+        kind: "work_item",
+        projectId: "demo",
+        workItemId: "AAA-0001",
+      },
+      payload: {
+        title: "Child task",
+        eventKind: "child_completed",
+        status: "in_progress",
+        priority: "medium",
+        recipientMemberId: "member-1",
+        updatedAt: "2026-08-08T10:00:00.000Z",
+      },
+    };
+
+    const markup = renderToStaticMarkup(
+      createElement(TeamInboxList, {
+        filter: "all",
+        items: [event],
+        selectedItemId: null,
+        unreadCounts: { all: 1, mentions: 0, assigned: 0 },
+        query: "",
+        loading: false,
+        onQueryChange: vi.fn(),
+        onSelectItem: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain('data-testid="team-inbox-updates"');
+    expect(markup).toContain('data-item-kind="child_completed"');
+    expect(markup).not.toContain('data-testid="team-inbox-assigned"');
   });
 });

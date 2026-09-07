@@ -28,14 +28,20 @@ export function useMcpHandlers(
   const [mcpResourcesLoading, setMcpResourcesLoading] = useState(false);
 
   const handleMcpSave = useCallback(
-    async (name: string, config: McpServerConfig, scope?: McpConfigScope) => {
+    async (name: string, config: McpServerConfig, scope: McpConfigScope) => {
+      // Always base the full-file write on the exact target scope. Reusing the
+      // default-scope editor cache here could copy workspace sentinels into a
+      // global update (or vice versa), which the backend correctly rejects.
+      const scopedConfig = await mcpServers.getConfig(scope);
       const updated: McpConfigFile = {
-        mcpServers: { ...mcpConfig.mcpServers, [name]: config },
+        mcpServers: { ...scopedConfig.mcpServers, [name]: config },
       };
       await mcpServers.updateConfig(updated, scope);
-      setMcpConfig(updated);
+      setMcpConfig((current) => ({
+        mcpServers: { ...current.mcpServers, [name]: config },
+      }));
     },
-    [mcpConfig, mcpServers]
+    [mcpServers]
   );
 
   const handleMcpDelete = useCallback(

@@ -7,7 +7,10 @@ use tracing::{info, warn};
 
 use super::git_cmd::{git_stderr, run_git};
 use super::paths::session_worktree_dir;
-use super::{list_all_worktrees, list_session_worktrees, session_branch_name, validate_session_id};
+use super::{
+    list_all_worktrees, list_session_worktrees, session_branch_name,
+    validate_session_id, worktree_lock_is_held,
+};
 
 /// Remove a session's worktree and optionally delete its branch.
 pub fn remove_worktree_path(
@@ -72,6 +75,14 @@ pub fn remove_session_worktree(
     let repo_str = repo_path.to_string_lossy().to_string();
     let wt_path = session_worktree_dir(&repo_str, session_id);
     let branch = session_branch_name(session_id);
+
+    if wt_path.exists() && worktree_lock_is_held(&wt_path) {
+        return Err(format!(
+            "Worktree at {} is locked by a running session; refusing to remove it",
+            wt_path.display()
+        ));
+    }
+
     let mut cleanup_errors = Vec::new();
 
     // Try git worktree remove first (handles both directory and registry)

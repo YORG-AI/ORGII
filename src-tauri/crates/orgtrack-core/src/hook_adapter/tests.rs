@@ -175,6 +175,32 @@ fn antigravity_toolcall_write_normalizes_to_a_write() {
 }
 
 #[test]
+fn antigravity_documented_conversation_id_is_the_native_session_id() {
+    let envelopes = normalize_hook_payload(
+        HookSource::Antigravity,
+        &json!({
+            "conversationId": "019f-antigravity-conversation",
+            "workspacePaths": ["/repo"],
+            "hook_event_name": "PostToolUse",
+            "toolCall": {
+                "name": "write_file",
+                "args": {"file_path": "/repo/src/app.ts", "content": "x"}
+            }
+        }),
+    )
+    .expect("normalize documented Antigravity hook");
+
+    assert_eq!(
+        envelopes[0].source_session_id,
+        "019f-antigravity-conversation"
+    );
+    assert_eq!(
+        envelopes[0].session_id,
+        "antigravityapp-019f-antigravity-conversation"
+    );
+}
+
+#[test]
 fn windsurf_post_write_code_normalizes_from_tool_info() {
     let envelopes = normalize_hook_payload(
         HookSource::Windsurf,

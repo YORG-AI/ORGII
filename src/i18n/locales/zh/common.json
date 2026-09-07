@@ -2337,11 +2337,13 @@
     "filters": {
       "all": "全部",
       "mentions": "提及",
-      "assigned": "分配给我"
+      "assigned": "分配给我",
+      "archived": "已归档"
     },
     "sections": {
       "reviewRequested": "已请求审查",
-      "authoredByMe": "由我创建"
+      "authoredByMe": "由我创建",
+      "updates": "动态"
     },
     "status": {
       "read": "已读",
@@ -2373,6 +2375,10 @@
       "noResults": {
         "title": "无匹配结果",
         "subtitle": "没有与「{{query}}」匹配的事项。"
+      },
+      "archived": {
+        "title": "暂无已归档事项",
+        "subtitle": "你归档的事项会显示在这里。"
       }
     },
     "loading": "正在加载团队收件箱…",
@@ -2449,7 +2455,10 @@
       "workItemContext": "部分项目上下文暂不可用，工作项仍可继续查看和操作。",
       "workItemLoad": "无法加载此工作项，请重试。",
       "githubIssueLoad": "无法加载该工作项的 GitHub issue，仍显示本地工作项信息。",
-      "workItemUpdate": "无法保存刚才的工作项修改，请重试。"
+      "workItemUpdate": "无法保存刚才的工作项修改，请重试。",
+      "archive": "归档失败，请重试。",
+      "unarchive": "恢复到收件箱失败，请重试。",
+      "mutePreferences": "更新通知分类失败，请重试。"
     },
     "detail": {
       "assignedSubtitle": "分配给你的工作项",
@@ -2461,7 +2470,9 @@
     "actions": {
       "markRead": "标记已读",
       "markUnread": "标记未读",
-      "openWorkItem": "打开工作项"
+      "openWorkItem": "打开工作项",
+      "archive": "归档",
+      "unarchive": "恢复到收件箱"
     },
     "workItemStatus": {
       "backlog": "待办池",
@@ -2478,6 +2489,19 @@
       "medium": "中",
       "high": "高",
       "urgent": "紧急"
+    },
+    "mute": {
+      "title": "静音动态分类"
+    },
+    "events": {
+      "mention": "评论中提及了你",
+      "discussion_updated": "讨论有更新",
+      "run_failed": "运行失败",
+      "status_changed": "状态已变更",
+      "assignee_changed": "负责人已变更",
+      "priority_changed": "优先级已变更",
+      "dates_changed": "日期已变更",
+      "child_completed": "子工作项已完成"
     }
   },
   "globalToolbar": {},

@@ -105,13 +105,6 @@ pub fn dispatch_routine(
             }
         }
         Some("run") => {
-            if let Err(err) = context.require_project_mode("routine.run") {
-                return emit_error(err);
-            }
-            let scope = match context.require_scope() {
-                Ok(scope) => scope.to_string(),
-                Err(err) => return emit_error(err),
-            };
             let actor = match mutation_actor(context) {
                 Ok(actor) => actor,
                 Err(err) => return emit_error(err),
@@ -124,7 +117,38 @@ pub fn dispatch_routine(
             };
             let input_map: BTreeMap<String, String> = inputs.iter().cloned().collect();
             let invoke_key = flags.get("idempotency-key").map(String::as_str);
-            match routine_service::invoke(name, &scope, &input_map, Some(&actor), invoke_key) {
+            let target = match (
+                flags.get("root-work"),
+                context.scope_id.as_deref(),
+            ) {
+                (Some(root_work_item_id), Some(project_slug)) => {
+                    routine_service::RoutineInvocationTarget::ExistingProjectWork {
+                        project_slug: project_slug.to_string(),
+                        root_work_item_id: root_work_item_id.to_string(),
+                    }
+                }
+                (Some(root_work_item_id), None) => {
+                    routine_service::RoutineInvocationTarget::ExistingStandaloneWork {
+                        org_id: context.org_id.clone().unwrap_or_else(|| {
+                            project_management::projects::types::PERSONAL_ORG_ID.to_string()
+                        }),
+                        root_work_item_id: root_work_item_id.to_string(),
+                    }
+                }
+                (None, Some(project_slug)) => {
+                    routine_service::RoutineInvocationTarget::project(project_slug)
+                }
+                (None, None) => routine_service::RoutineInvocationTarget::standalone(
+                    context.org_id.as_deref(),
+                ),
+            };
+            match routine_service::invoke_target(
+                name,
+                &target,
+                &input_map,
+                Some(&actor),
+                invoke_key,
+            ) {
                 Ok(run) => emit_success(
                     serde_json::json!({
                         "runId": run.run_id,
@@ -175,14 +199,33 @@ pub fn dispatch_routine(
                 Err(err) => emit_error(CliError::from_service(err)),
             }
         }
-        Some("cancel") => emit_error(CliError::new(
-            ErrorCode::UnsupportedCapability,
-            "routine cancel lands with the Phase 5 runtime (cancel_requested machinery)",
-        )),
+        Some("cancel") => {
+            if let Err(err) = context.require_project_mode("routine.cancel") {
+                return emit_error(err);
+            }
+            let actor = match mutation_actor(context) {
+                Ok(actor) => actor,
+                Err(err) => return emit_error(err),
+            };
+            let Some(run_id) = positionals.get(1) else {
+                return emit_error(CliError::new(
+                    ErrorCode::InvalidArgument,
+                    "Usage: org2 routine cancel <run-id>",
+                ));
+            };
+            match routine_service::cancel_run(run_id, Some(&actor)) {
+                Ok(cancelled) => emit_success(
+                    serde_json::to_value(cancelled).unwrap_or_default(),
+                    None,
+                    None,
+                ),
+                Err(err) => emit_error(CliError::from_service(err)),
+            }
+        }
         other => emit_error(CliError::new(
             ErrorCode::InvalidArgument,
             format!(
-                "Unknown routine subcommand '{}'; expected list|validate|apply|run|status|enable|disable",
+                "Unknown routine subcommand '{}'; expected list|validate|apply|run|status|cancel|enable|disable",
                 other.unwrap_or("<none>")
             ),
         )),

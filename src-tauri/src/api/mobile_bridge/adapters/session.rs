@@ -247,9 +247,9 @@ fn parse_mobile_send_attachments(params: &Value) -> Result<Vec<String>, RpcError
     let Some(attachments) = params.get("attachments") else {
         return Ok(Vec::new());
     };
-    let items = attachments.as_array().ok_or_else(|| {
-        RpcError::invalid_params("attachments must be an array")
-    })?;
+    let items = attachments
+        .as_array()
+        .ok_or_else(|| RpcError::invalid_params("attachments must be an array"))?;
     if items.len() > MAX_MOBILE_ATTACHMENTS {
         return Err(RpcError::invalid_params("too many attachments"));
     }
@@ -275,7 +275,7 @@ fn parse_mobile_send_attachments(params: &Value) -> Result<Vec<String>, RpcError
         }
         let decoded = base64::engine::general_purpose::STANDARD
             .decode(payload)
-        .map_err(|_| RpcError::invalid_params("attachment dataUrl is invalid"))?;
+            .map_err(|_| RpcError::invalid_params("attachment dataUrl is invalid"))?;
         if decoded.len() > MAX_MOBILE_ATTACHMENT_DECODED_BYTES {
             return Err(RpcError::invalid_params("attachment is too large"));
         }

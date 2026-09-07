@@ -218,6 +218,7 @@ pub struct SkillListingCacheKey {
     disabled_skills: Vec<String>,
     include_filter: Option<Vec<String>>,
     agent_id: String,
+    org_id: Option<String>,
     load_workspace_resources: bool,
 }
 
@@ -227,6 +228,7 @@ impl SkillListingCacheKey {
         disabled_skills: &[String],
         include_filter: Option<&[String]>,
         agent_id: &str,
+        org_id: Option<&str>,
         load_workspace_resources: bool,
     ) -> Self {
         let mut disabled = disabled_skills.to_vec();
@@ -245,6 +247,7 @@ impl SkillListingCacheKey {
             disabled_skills: disabled,
             include_filter: include,
             agent_id: agent_id.to_string(),
+            org_id: org_id.map(str::to_string),
             load_workspace_resources,
         }
     }
@@ -761,6 +764,7 @@ mod tests {
             &disabled_a,
             Some(&include_a),
             "agent-a",
+            None,
             true,
         );
         let second = SkillListingCacheKey::new(
@@ -768,6 +772,7 @@ mod tests {
             &disabled_b,
             Some(&include_b),
             "agent-a",
+            None,
             true,
         );
 
@@ -778,17 +783,46 @@ mod tests {
     fn skill_listing_cache_distinguishes_empty_filter_from_no_filter() {
         let disabled: Vec<String> = Vec::new();
         let empty_include: Vec<String> = Vec::new();
-        let no_filter =
-            SkillListingCacheKey::new(Path::new("/tmp/project"), &disabled, None, "agent-a", true);
+        let no_filter = SkillListingCacheKey::new(
+            Path::new("/tmp/project"),
+            &disabled,
+            None,
+            "agent-a",
+            None,
+            true,
+        );
         let empty_filter = SkillListingCacheKey::new(
             Path::new("/tmp/project"),
             &disabled,
             Some(&empty_include),
             "agent-a",
+            None,
             true,
         );
 
         assert_ne!(no_filter, empty_filter);
+    }
+
+    #[test]
+    fn skill_listing_cache_is_scoped_by_org() {
+        let org_a = SkillListingCacheKey::new(
+            Path::new("/tmp/project"),
+            &[],
+            None,
+            "agent-a",
+            Some("org-a"),
+            true,
+        );
+        let org_b = SkillListingCacheKey::new(
+            Path::new("/tmp/project"),
+            &[],
+            None,
+            "agent-a",
+            Some("org-b"),
+            true,
+        );
+
+        assert_ne!(org_a, org_b);
     }
 
     fn listing_entry(name: &str) -> SkillListingEntry {
@@ -805,7 +839,8 @@ mod tests {
         // The listing rides a volatile per-request surface (never persisted
         // into history), so every request must carry the full catalog; only
         // the delta STATS track seen vs. unseen names.
-        let key = SkillListingCacheKey::new(Path::new("/tmp/project"), &[], None, "agent-a", true);
+        let key =
+            SkillListingCacheKey::new(Path::new("/tmp/project"), &[], None, "agent-a", None, true);
         let mut cache = SkillListingCache::default();
         let entries = vec![listing_entry("alpha"), listing_entry("beta")];
 

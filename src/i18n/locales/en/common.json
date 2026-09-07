@@ -2404,11 +2404,13 @@
     "filters": {
       "all": "All",
       "mentions": "Mentions",
-      "assigned": "Assigned to me"
+      "assigned": "Assigned to me",
+      "archived": "Archived"
     },
     "sections": {
       "reviewRequested": "Review requested",
-      "authoredByMe": "Authored by me"
+      "authoredByMe": "Authored by me",
+      "updates": "Updates"
     },
     "status": {
       "read": "Read",
@@ -2442,6 +2444,10 @@
       "noResults": {
         "title": "No matches",
         "subtitle": "No items match “{{query}}”."
+      },
+      "archived": {
+        "title": "No archived items",
+        "subtitle": "Items you archive will appear here."
       }
     },
     "loading": "Loading Team Inbox…",
@@ -2519,7 +2525,10 @@
       "workItemContext": "Some project context is unavailable. The work item remains usable.",
       "workItemLoad": "Unable to load this work item. Try again.",
       "githubIssueLoad": "This work item's GitHub issue could not be loaded. Local work item details are still shown.",
-      "workItemUpdate": "Unable to save the latest work item change. Try again."
+      "workItemUpdate": "Unable to save the latest work item change. Try again.",
+      "archive": "Unable to archive this item. Try again.",
+      "unarchive": "Unable to restore this item. Try again.",
+      "mutePreferences": "Unable to update notification categories. Try again."
     },
     "detail": {
       "assignedSubtitle": "Assigned work item",
@@ -2532,7 +2541,9 @@
     "actions": {
       "markRead": "Mark as read",
       "markUnread": "Mark as unread",
-      "openWorkItem": "Open work item"
+      "openWorkItem": "Open work item",
+      "archive": "Archive",
+      "unarchive": "Restore to inbox"
     },
     "workItemStatus": {
       "backlog": "Backlog",
@@ -2549,6 +2560,19 @@
       "medium": "Medium",
       "high": "High",
       "urgent": "Urgent"
+    },
+    "mute": {
+      "title": "Mute update categories"
+    },
+    "events": {
+      "mention": "Mentioned in a comment",
+      "discussion_updated": "Discussion updated",
+      "run_failed": "Run failed",
+      "status_changed": "Status changed",
+      "assignee_changed": "Assignee changed",
+      "priority_changed": "Priority changed",
+      "dates_changed": "Dates changed",
+      "child_completed": "Child work item completed"
     }
   },
   "globalToolbar": {},

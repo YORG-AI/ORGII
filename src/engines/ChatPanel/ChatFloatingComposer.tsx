@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { SessionFollowUpSuggestion } from "@src/api/services/sessionFollowUpSuggestions";
 import type { AgentOrgMemberIntervention } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
 import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
@@ -87,6 +88,7 @@ interface ChatFloatingComposerProps {
   processExpanded: boolean;
   queuedMessages: Parameters<typeof QueuedMessages>[0]["messages"];
   onCancelQueuedMessage: Parameters<typeof QueuedMessages>[0]["onCancel"];
+  onClearQueuedMessages: Parameters<typeof QueuedMessages>[0]["onClear"];
   onSendQueuedMessageNow: Parameters<typeof QueuedMessages>[0]["onSendNow"];
   onReorderQueuedMessages: Parameters<typeof QueuedMessages>[0]["onReorder"];
   onToggleQueue: () => void;
@@ -111,6 +113,8 @@ interface ChatFloatingComposerProps {
   customMentionOptions: ReadonlyArray<CustomMentionOption>;
   queueEditProps: QueueEditInputAreaProps;
   disableStopWhenEmpty?: boolean;
+  followUpSuggestions: ReadonlyArray<SessionFollowUpSuggestion>;
+  onFollowUpSuggestionSent: () => void;
 }
 
 const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
@@ -138,6 +142,7 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
     processExpanded,
     queuedMessages,
     onCancelQueuedMessage,
+    onClearQueuedMessages,
     onSendQueuedMessageNow,
     onReorderQueuedMessages,
     onToggleQueue,
@@ -161,6 +166,8 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
     customMentionOptions,
     queueEditProps,
     disableStopWhenEmpty = false,
+    followUpSuggestions,
+    onFollowUpSuggestionSent,
   }) => {
     const { t } = useTranslation("sessions");
     const [fileChangeStats, setFileChangeStatsState] =
@@ -275,6 +282,7 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
             <QueuedMessages
               messages={queuedMessages}
               onCancel={onCancelQueuedMessage}
+              onClear={onClearQueuedMessages}
               onSendNow={onSendQueuedMessageNow}
               onReorder={onReorderQueuedMessages}
               onToggle={onToggleQueue}
@@ -366,6 +374,8 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
                 {groupChatPausedBottomContent}
               </>
             }
+            followUpSuggestions={followUpSuggestions}
+            onFollowUpSuggestionSent={onFollowUpSuggestionSent}
             composerShellRef={inputBoxRef}
             disableStopWhenEmpty={disableStopWhenEmpty}
             {...queueEditProps}

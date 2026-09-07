@@ -2550,7 +2550,8 @@
     "failedToInterrupt": "Falha ao interromper a sessão",
     "failedToStop": "Falha ao parar o Agent",
     "failedToCheckChanges": "Não foi possível verificar as alterações de arquivo. Prosseguindo com a reversão.",
-    "insufficientBalance": "Saldo insuficiente para o serviço hospedado ORGII. Recarregue em orgii.ai/wallet."
+    "insufficientBalance": "Saldo insuficiente para o serviço hospedado ORGII. Recarregue em orgii.ai/wallet.",
+    "runQueuedBehindCheckout": "Na fila: outra execução está usando este checkout. Começará assim que ela terminar."
   },
   "revertConfirm": {
     "title": "Alterações de arquivo não salvas",

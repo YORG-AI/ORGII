@@ -2,6 +2,7 @@ import type { Store } from "jotai/vanilla/store";
 
 import {
   type QueuedMessage,
+  boundQueuedMessages,
   messageQueueAtom,
   messageQueueHydratedAtom,
 } from "@src/store/ui/messageQueueAtom";
@@ -32,8 +33,10 @@ function mergeQueues(
   }
   // Live mutations made while the async disk read was pending win.
   for (const message of live) byIntent.set(message.turnIntentId, message);
-  return [...byIntent.values()].sort((left, right) =>
-    left.createdAt.localeCompare(right.createdAt)
+  return boundQueuedMessages(
+    [...byIntent.values()].sort((left, right) =>
+      left.createdAt.localeCompare(right.createdAt)
+    )
   );
 }
 

@@ -33,6 +33,7 @@ pub async fn run_acp_protocol<A: AcpAgentAdapter>(
     resume_session_id: Option<&str>,
     chunk_tx: mpsc::Sender<ActivityChunk>,
     image_paths: Vec<String>,
+    mcp_servers: Vec<serde_json::Value>,
 ) -> Result<AcpSessionResult, String> {
     let mut reader = BufReader::new(stdout);
     let mut parser = AcpNotificationParser::new_with_task(adapter, session_id, task);
@@ -121,34 +122,21 @@ pub async fn run_acp_protocol<A: AcpAgentAdapter>(
     };
     let use_load = resume_session_id.is_some() && resume_method.is_some();
 
-    if let (Some(method), Some(resume_id)) = (
-        resume_method.filter(|_| resume_session_id.is_some()),
-        resume_session_id,
-    ) {
-        tracing::info!("[ACP] Resuming session via {} (id={})", method, resume_id);
-        acp_send(
-            &mut stdin,
-            session_req_id,
-            method,
-            serde_json::json!({
-                "sessionId": resume_id, "cwd": working_dir, "mcpServers": [],
-            }),
-        )
-        .await?;
-    } else {
-        if resume_session_id.is_some() {
+    let resume = resume_method
+        .filter(|_| resume_session_id.is_some())
+        .zip(resume_session_id);
+    match resume {
+        Some((method, resume_id)) => {
+            tracing::info!("[ACP] Resuming session via {} (id={})", method, resume_id);
+        }
+        None if resume_session_id.is_some() => {
             tracing::info!("[ACP] Agent supports no session resume — calling session/new");
         }
-        acp_send(
-            &mut stdin,
-            session_req_id,
-            "session/new",
-            serde_json::json!({
-                "cwd": working_dir, "mcpServers": [],
-            }),
-        )
-        .await?;
+        None => {}
     }
+    let (session_method, session_params) =
+        build_session_open_request(working_dir, resume, mcp_servers);
+    acp_send(&mut stdin, session_req_id, session_method, session_params).await?;
 
     let mut acp_session_id = resume_session_id.unwrap_or("").to_string();
     // The `configOptions` the agent published for this session. `session/resume`
@@ -390,6 +378,30 @@ pub async fn run_acp_protocol<A: AcpAgentAdapter>(
     })
 }
 
+fn build_session_open_request(
+    working_dir: &str,
+    resume: Option<(&'static str, &str)>,
+    mcp_servers: Vec<Value>,
+) -> (&'static str, Value) {
+    match resume {
+        Some((method, resume_id)) => (
+            method,
+            serde_json::json!({
+                "sessionId": resume_id,
+                "cwd": working_dir,
+                "mcpServers": mcp_servers,
+            }),
+        ),
+        None => (
+            "session/new",
+            serde_json::json!({
+                "cwd": working_dir,
+                "mcpServers": mcp_servers,
+            }),
+        ),
+    }
+}
+
 /// Process a single NDJSON message that might be a notification.
 async fn process_notification<A: AcpAgentAdapter>(
     msg: &Value,
@@ -486,5 +498,57 @@ async fn process_notification<A: AcpAgentAdapter>(
                 let _ = chunk_tx.send(chunk).await;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod mcp_tests {
+    use super::*;
+
+    fn serialized_request(method: &str, params: Value) -> Vec<u8> {
+        serde_json::to_vec(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": method,
+            "params": params,
+        }))
+        .expect("serialize ACP request")
+    }
+
+    #[test]
+    fn session_new_serializes_empty_mcp_server_list() {
+        let (method, params) = build_session_open_request("/workspace", None, vec![]);
+        let wire = serialized_request(method, params);
+        let decoded: Value = serde_json::from_slice(&wire).expect("decode ACP request");
+
+        assert_eq!(decoded["method"], "session/new");
+        assert_eq!(decoded["params"]["cwd"], "/workspace");
+        assert_eq!(decoded["params"]["mcpServers"], serde_json::json!([]));
+        assert!(decoded["params"].get("sessionId").is_none());
+    }
+
+    #[test]
+    fn session_load_serializes_stdio_mcp_secret_without_losing_resume_id() {
+        let servers = vec![serde_json::json!({
+            "name": "docs",
+            "command": "docs-server",
+            "args": ["--fast"],
+            "env": [{ "name": "API_TOKEN", "value": "stdin-secret" }],
+        })];
+        let (method, params) = build_session_open_request(
+            "/workspace",
+            Some(("session/load", "acp-session-id")),
+            servers.clone(),
+        );
+        let wire = serialized_request(method, params);
+        let decoded: Value = serde_json::from_slice(&wire).expect("decode ACP request");
+
+        assert_eq!(decoded["method"], "session/load");
+        assert_eq!(decoded["params"]["sessionId"], "acp-session-id");
+        assert_eq!(decoded["params"]["mcpServers"], serde_json::json!(servers));
+        assert!(
+            String::from_utf8(wire).unwrap().contains("stdin-secret"),
+            "the wire fixture must prove secret env values reach ACP stdin"
+        );
     }
 }

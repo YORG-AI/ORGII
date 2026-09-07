@@ -1,5 +1,7 @@
 //! Environment injection for integrated subprocesses.
 
+use std::path::Path;
+
 use tracing::warn;
 
 /// Inject the orgtrack identity for agent-plane CLI calls (design M6):
@@ -17,6 +19,10 @@ pub(super) fn configure_orgtrack_environment(cmd: &mut tokio::process::Command, 
         Ok(Some(record)) => record,
         _ => return,
     };
+    let originator = crate::session::originator::originator_identity(
+        record.org_member_id.as_deref(),
+        record.parent_session_id.as_deref(),
+    );
     for _ in 0..16 {
         let Some(parent_id) = record.parent_session_id.clone() else {
             break;
@@ -30,6 +36,7 @@ pub(super) fn configure_orgtrack_environment(cmd: &mut tokio::process::Command, 
         }
     }
     cmd.env("ORGII_SESSION_REF", format!("org2:{session_id}"));
+    cmd.env("ORGII_ORIGINATOR", originator);
     let agent = record
         .agent_definition_id
         .as_deref()
@@ -64,6 +71,38 @@ pub(super) fn configure_orgtrack_environment(cmd: &mut tokio::process::Command, 
             if let Ok(joined_path) = std::env::join_paths(paths) {
                 cmd.env("PATH", joined_path);
             }
+        }
+    }
+}
+
+/// Give a subprocess inside a Session worktree a private temp directory and
+/// hold the worktree liveness lock for the process lifetime.
+pub(super) fn configure_worktree_environment(
+    cmd: &mut tokio::process::Command,
+    work_dir: &Path,
+) -> Option<git::worktree::WorktreeLockGuard> {
+    let worktree_root = git::worktree::session_worktree_root_for_path(work_dir)?;
+    let tmp_dir = git::worktree::session_worktree_tmp_dir(&worktree_root);
+    if let Err(err) = std::fs::create_dir_all(&tmp_dir) {
+        warn!(
+            "[subprocess] failed to create worktree tmpdir {}: {err}",
+            tmp_dir.display()
+        );
+        return None;
+    }
+    let tmp_dir_str = tmp_dir.to_string_lossy().to_string();
+    cmd.env("TMPDIR", &tmp_dir_str);
+    cmd.env("TMP", &tmp_dir_str);
+    cmd.env("TEMP", &tmp_dir_str);
+
+    match git::worktree::try_acquire_worktree_lock(&worktree_root) {
+        Ok(guard) => guard,
+        Err(err) => {
+            warn!(
+                "[subprocess] failed to acquire worktree lock at {}: {err}",
+                worktree_root.display()
+            );
+            None
         }
     }
 }

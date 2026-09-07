@@ -10,6 +10,7 @@ pub enum TeamInboxFilter {
     All,
     Mentions,
     Assigned,
+    Archived,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -131,4 +132,14 @@ pub struct TeamInboxPage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<TeamInboxCursor>,
     pub unread_count: u64,
+    pub unread_counts: TeamInboxUnreadCounts,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamInboxUnreadCounts {
+    pub all: u64,
+    pub mentions: u64,
+    pub assigned: u64,
+    pub updates: u64,
 }

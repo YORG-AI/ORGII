@@ -14,8 +14,16 @@ export interface McpDetailState {
   onAddClose: () => void;
   editName: string | null;
   editConfig: McpServerConfig | null;
-  onSave: (name: string, config: McpServerConfig) => Promise<void>;
-  onTest: (name: string, config: McpServerConfig) => Promise<McpTestResult>;
+  onSave: (
+    name: string,
+    config: McpServerConfig,
+    scope: McpConfigScope
+  ) => Promise<void>;
+  onTest: (
+    name: string,
+    config: McpServerConfig,
+    scope: McpConfigScope
+  ) => Promise<McpTestResult>;
   servers: McpServerStatus[];
   loading: boolean;
   onRefresh: () => void | Promise<void>;

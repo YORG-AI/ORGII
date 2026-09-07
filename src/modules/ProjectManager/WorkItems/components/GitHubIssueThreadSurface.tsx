@@ -106,6 +106,7 @@ const GitHubIssueThreadSurface: React.FC<GitHubIssueThreadSurfaceProps> = ({
       propertyFields={["status", "assignee", "labels"]}
       propertiesPlacement="rail"
       propertyProps={{
+        statusOrgId: null,
         onUpdate: handleUpdate,
         externalStatusConfig: {
           currentStatusId: issue.state,

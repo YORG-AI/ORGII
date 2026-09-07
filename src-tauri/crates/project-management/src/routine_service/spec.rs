@@ -117,7 +117,7 @@ pub enum OutputType {
     Reference,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, tag = "type")]
 pub enum Activation {
     #[serde(rename = "manual")]
@@ -129,6 +129,12 @@ pub enum Activation {
     Schedule {
         cron: String,
         timezone: String,
+        #[serde(flatten)]
+        policies: ActivationPolicies,
+    },
+    #[serde(rename = "one_time")]
+    OneTime {
+        at: String,
         #[serde(flatten)]
         policies: ActivationPolicies,
     },
@@ -147,7 +153,7 @@ pub enum Activation {
 /// Concurrency + catch-up carried by every activation. Defaults preserve
 /// the legacy `routine_fires` semantics (skip, no catch-up) — the frozen
 /// no-regression requirement.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ActivationPolicies {
     #[serde(
         rename = "concurrencyPolicy",
@@ -157,6 +163,12 @@ pub struct ActivationPolicies {
     pub concurrency_policy: Option<ConcurrencyPolicy>,
     #[serde(rename = "catchUp", default, skip_serializing_if = "Option::is_none")]
     pub catch_up: Option<CatchUpPolicy>,
+    #[serde(
+        rename = "maxCatchUpRuns",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub max_catch_up_runs: Option<u32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -165,6 +177,7 @@ pub enum ConcurrencyPolicy {
     Coalesce,
     Skip,
     Queue,
+    Always,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -172,6 +185,7 @@ pub enum ConcurrencyPolicy {
 pub enum CatchUpPolicy {
     None,
     FireOnce,
+    RunAllLimited,
 }
 
 /// Structured validation failure — stable shape for the CLI error
@@ -364,24 +378,51 @@ pub fn validate(file: &RoutineSpecFile) -> Vec<SpecViolation> {
 
     // Activations.
     for (index, activation) in file.spec.activations.iter().enumerate() {
-        if let Activation::Schedule { cron, timezone, .. } = activation {
-            let path = format!("spec.activations[{index}]");
-            if cron.split_whitespace().count() != 5 {
-                push(
-                    &mut violations,
-                    &path,
-                    format!("cron '{cron}' must have 5 fields"),
-                );
+        let path = format!("spec.activations[{index}]");
+        match activation {
+            Activation::Schedule { cron, timezone, .. } => {
+                if cron.split_whitespace().count() != 5 {
+                    push(
+                        &mut violations,
+                        &path,
+                        format!("cron '{cron}' must have 5 fields"),
+                    );
+                }
+                if timezone.trim().is_empty() {
+                    push(&mut violations, &path, "timezone is required".into());
+                } else if timezone.parse::<chrono_tz::Tz>().is_err() {
+                    push(
+                        &mut violations,
+                        &path,
+                        format!("timezone '{timezone}' must be a valid IANA timezone"),
+                    );
+                }
             }
-            if timezone.trim().is_empty() {
-                push(&mut violations, &path, "timezone is required".into());
-            } else if timezone.parse::<chrono_tz::Tz>().is_err() {
-                push(
-                    &mut violations,
-                    &path,
-                    format!("timezone '{timezone}' must be a valid IANA timezone"),
-                );
+            Activation::OneTime { at, .. } => {
+                if chrono::DateTime::parse_from_rfc3339(at).is_err() {
+                    push(
+                        &mut violations,
+                        &path,
+                        format!("one-time activation '{at}' must be RFC 3339"),
+                    );
+                }
             }
+            Activation::Manual { .. } | Activation::ProviderEvent { .. } => {}
+        }
+        let policies = match activation {
+            Activation::Manual { policies }
+            | Activation::Schedule { policies, .. }
+            | Activation::OneTime { policies, .. }
+            | Activation::ProviderEvent { policies, .. } => policies,
+        };
+        if policies.catch_up == Some(CatchUpPolicy::RunAllLimited)
+            && policies.max_catch_up_runs.unwrap_or(0) == 0
+        {
+            push(
+                &mut violations,
+                &path,
+                "run_all_limited requires maxCatchUpRuns > 0".into(),
+            );
         }
     }
 

@@ -28,6 +28,7 @@ fn build_effective_skill_listing(
     runtime: &crate::state::session_runtime::SessionRuntime,
     effective_disabled: &[String],
     include_filter: Option<&[String]>,
+    org_id: Option<&str>,
 ) -> Option<String> {
     if !runtime.resolved.skills.enabled {
         return None;
@@ -35,10 +36,13 @@ fn build_effective_skill_listing(
 
     let workspace_root = runtime.workspace_state.read().workspace_root.clone();
     let skills_dir = workspace_root.join(".orgii");
-    let loader = crate::skills::loader::SkillsLoader::new(&skills_dir)
+    let mut loader = crate::skills::loader::SkillsLoader::new(&skills_dir)
         .with_builtin_dir(crate::skills::loader::global_skills_dir())
         .with_agent_id(runtime.resolved.agent_id.clone())
         .with_load_workspace_resources(runtime.resolved.load_workspace_resources);
+    if let Some(org_id) = org_id {
+        loader = loader.with_org_id(org_id);
+    }
     loader.build_skill_listing_attachment(effective_disabled, include_filter)
 }
 
@@ -115,10 +119,15 @@ pub async fn debug_session_skills_snapshot(
     } else {
         Some(skills.include.clone())
     };
+    let session_org_id = crate::session::persistence::get_session(&session_id)
+        .ok()
+        .flatten()
+        .and_then(|record| record.org_id);
     let effective_skill_listing = build_effective_skill_listing(
         &runtime,
         &effective_per_turn_disabled,
         effective_include_filter.as_deref(),
+        session_org_id.as_deref(),
     );
 
     Ok(SessionSkillsSnapshot {

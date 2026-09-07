@@ -88,6 +88,7 @@ export interface InlineCreateWorkItemFieldsState {
   clearDraft: () => void;
   setDraft: (draft: WorkItemDraft) => void;
   showManualInputs: boolean;
+  statusOrgId: string;
   stubWorkItem: WorkItemExtended;
   titleSection: React.ReactNode;
   updateDraft: (patch: Partial<WorkItemDraft>) => void;
@@ -427,6 +428,7 @@ export function useInlineCreateWorkItemFields({
   const inlinePropertyPills = !propertiesOpen ? (
     <div data-testid="create-work-item-property-pills">
       <WorkItemProperties
+        statusOrgId={effectiveOrgId}
         workItem={stubWorkItem}
         onUpdate={handlePropertyUpdate}
         availableProjects={resolvedProjects}
@@ -511,6 +513,7 @@ export function useInlineCreateWorkItemFields({
     setEditorMode,
     setDraft,
     showManualInputs,
+    statusOrgId: effectiveOrgId,
     stubWorkItem,
     titleSection,
     updateDraft,

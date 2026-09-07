@@ -9,6 +9,14 @@ import type {
   CloudSessionComment,
 } from "./org2CloudCommentsClient";
 
+export type SessionCommentDeliveryStatus = "pending" | "sent" | "failed";
+
+/** Server comment plus transient delivery state for a locally-authored row. */
+export interface SessionComment extends CloudSessionComment {
+  clientDeliveryStatus?: SessionCommentDeliveryStatus;
+  clientDeliveryError?: string;
+}
+
 export type CloudSessionCommentsFetchState =
   | "idle"
   | "loading"
@@ -18,7 +26,7 @@ export type CloudSessionCommentsFetchState =
 export interface CloudSessionCommentsEntry {
   /** Prevents cached bodies from crossing an account or endpoint switch. */
   identityKey?: string;
-  comments: CloudSessionComment[];
+  comments: SessionComment[];
   /** Server-derived permission for spending this session owner's local model. */
   viewerOwnsSession: boolean;
   state: CloudSessionCommentsFetchState;
@@ -39,9 +47,9 @@ export interface CloudSessionCommentsEntry {
 export type SessionCommentsFetchDecision = "claim" | "skip" | "queue_force";
 
 export interface CommentThread {
-  top: CloudSessionComment;
+  top: SessionComment;
   /** Direct replies, (createdAt, id) asc. Flat: replies never nest. */
-  replies: CloudSessionComment[];
+  replies: SessionComment[];
 }
 
 export interface GroupedCommentThreads {
@@ -65,8 +73,22 @@ export interface AddCommentInput {
   mentionedUserIds?: string[];
 }
 
+export class SessionCommentDeliveryError extends Error {
+  readonly commentId: string;
+  readonly input: AddCommentInput;
+  readonly cause: unknown;
+
+  constructor(commentId: string, input: AddCommentInput, cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = "SessionCommentDeliveryError";
+    this.commentId = commentId;
+    this.input = input;
+    this.cause = cause;
+  }
+}
+
 export interface UseSessionCommentsResult {
-  comments: CloudSessionComment[];
+  comments: SessionComment[];
   viewerOwnsSession: boolean;
   state: CloudSessionCommentsFetchState;
   /** Refetch now, ignoring the TTL. */
@@ -78,9 +100,14 @@ export interface UseSessionCommentsResult {
    * refetch. No RPC fires; the next TTL refetch reconciles regardless.
    */
   insertLocalComment: (comment: CloudSessionComment) => void;
-  /** Resolves with the created comment (already inserted); rejects on
-   *  failure so composers can keep the draft (design §4 non-goals). */
+  /** Resolves with the created comment (already inserted). Delivery failure
+   *  retains the optimistic row as failed and throws its stable local id. */
   addComment: (input: AddCommentInput) => Promise<CloudSessionComment>;
+  retryComment: (
+    commentId: string,
+    editedBody?: string,
+    editedMentionedUserIds?: string[]
+  ) => Promise<CloudSessionComment>;
   editComment: (commentId: string, body: string) => Promise<void>;
   deleteComment: (commentId: string) => Promise<void>;
   resolveComment: (

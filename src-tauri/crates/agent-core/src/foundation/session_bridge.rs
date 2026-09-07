@@ -56,6 +56,9 @@ pub struct CliLaunchParams {
     pub additional_directories: Option<Vec<String>>,
     pub parent_session_id: Option<String>,
     pub org_member_id: Option<String>,
+    /// Agent definition owning this run; the CLI runner scopes MCP
+    /// visibility to this agent's tool filters when present.
+    pub agent_definition_id: Option<String>,
     pub org_id: String,
     pub project_id: Option<String>,
     pub project_name: Option<String>,

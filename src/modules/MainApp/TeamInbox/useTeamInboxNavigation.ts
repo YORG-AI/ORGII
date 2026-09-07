@@ -7,6 +7,7 @@ import {
   projectApi,
   standaloneWorkItemDataToEnriched,
 } from "@src/api/http/project";
+import { useOpenCloudConversationRoot } from "@src/features/Org2Cloud/useOpenCloudSessionReference";
 import { createLogger } from "@src/hooks/logger";
 import {
   openOrFocusSessionInChatPanelTabAtom,
@@ -23,6 +24,7 @@ export function useTeamInboxNavigation(): (
 ) => void {
   const { t } = useTranslation();
   const sessions = useAtomValue(sessionsAtom);
+  const openCloudConversationRoot = useOpenCloudConversationRoot();
   const openSession = useSetAtom(openOrFocusSessionInChatPanelTabAtom);
   const openWorkItem = useSetAtom(openWorkItemInChatPanelTabAtom);
 
@@ -32,6 +34,13 @@ export function useTeamInboxNavigation(): (
         intent.kind === "open_session" ||
         intent.kind === "open_session_comment"
       ) {
+        if (intent.kind === "open_session_comment" && intent.orgId) {
+          openCloudConversationRoot({
+            orgId: intent.orgId,
+            rootSessionId: intent.sessionId,
+          });
+          return;
+        }
         const session = sessions.find(
           (candidate) => candidate.session_id === intent.sessionId
         );
@@ -108,6 +117,6 @@ export function useTeamInboxNavigation(): (
           log.warn("Failed to open project Team Inbox Work Item", error);
         });
     },
-    [openSession, openWorkItem, sessions, t]
+    [openCloudConversationRoot, openSession, openWorkItem, sessions, t]
   );
 }

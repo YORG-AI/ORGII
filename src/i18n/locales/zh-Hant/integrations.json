@@ -2244,7 +2244,10 @@
     "fireHistory": "运行历史",
     "noFires": "暂无运行记录",
     "openSession": "打开会话",
-    "openWorkItem": "打开工作项"
+    "openWorkItem": "打开工作项",
+    "fireError": "無法啟動例程：{{detail}}",
+    "provider": "提供方",
+    "eventKind": "事件"
   },
   "cursorPlugins": {
     "noPlugins": "未安裝任何 Cursor 插件",

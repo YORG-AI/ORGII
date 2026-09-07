@@ -1,7 +1,8 @@
 use crate::projects::io as project_io;
 use crate::projects::types::{
     LinkedSession, OrchestratorConfig, TodoEntry, WorkItemData, WorkItemFrontmatter,
-    WorkItemHandoff, WorkItemMutationActor, WorkItemOriginSession, WorkItemSchedule,
+    WorkItemHandoff, WorkItemMutationActor, WorkItemOriginSession, WorkItemRoutineSource,
+    WorkItemSchedule,
 };
 
 use super::{audit, error};
@@ -43,11 +44,17 @@ pub struct CreateWorkItemRequest {
     pub linked_sessions: Vec<LinkedSession>,
 }
 
+/// Graph materialization stamps Routine provenance the request DTO cannot
+/// carry: `routine_source` is written only by the Routine service, never by
+/// an IPC caller describing a work item.
 pub(crate) fn build_frontmatter_for_graph(
     short_id: &str,
     request: &CreateWorkItemRequest,
+    routine_source: Option<&WorkItemRoutineSource>,
 ) -> WorkItemFrontmatter {
-    build_frontmatter(short_id, request)
+    let mut frontmatter = build_frontmatter(short_id, request);
+    frontmatter.routine_source = routine_source.cloned();
+    frontmatter
 }
 
 fn build_frontmatter(short_id: &str, request: &CreateWorkItemRequest) -> WorkItemFrontmatter {

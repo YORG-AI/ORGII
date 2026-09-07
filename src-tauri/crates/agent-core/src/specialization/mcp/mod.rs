@@ -39,3 +39,4 @@ pub(crate) mod result;
 
 pub use bridge::register_mcp_tools;
 pub use manager::McpManager;
+pub use resource_tools::{LIST_MCP_RESOURCES_TOOL_NAME, READ_MCP_RESOURCE_TOOL_NAME};

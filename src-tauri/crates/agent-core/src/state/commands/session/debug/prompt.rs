@@ -170,6 +170,9 @@ pub async fn prompt_dump(
     // `prompt_dump` reports the stable prefix only, mirroring the
     // cacheable region the processor builds.
     let live_workspace = Some(runtime.workspace_state.read().clone());
+    let persisted_session = crate::session::persistence::get_session(&session_id)
+        .ok()
+        .flatten();
     let prompt_config = SystemPromptConfig {
         model: runtime.model.clone(),
         agent_id: session.definition.id.clone(),
@@ -182,10 +185,10 @@ pub async fn prompt_dump(
         channel: None,
         chat_id: None,
         agent_mode: None,
-        product_mode: crate::session::persistence::get_session(&session_id)
-            .ok()
-            .flatten()
-            .and_then(|record| record.product_mode),
+        product_mode: persisted_session
+            .as_ref()
+            .and_then(|record| record.product_mode.clone()),
+        org_id: persisted_session.and_then(|record| record.org_id),
         ide_context: None,
         user_presence: None,
         user_profile: None,

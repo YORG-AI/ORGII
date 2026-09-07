@@ -1,4 +1,5 @@
 import type { WorkItemMentionTarget } from "@src/api/http/project";
+import { resolveMessageAudience } from "@src/features/TeamCollaboration/messageAudienceRouting";
 import type { Person } from "@src/types/core/shared";
 
 /**
@@ -82,10 +83,5 @@ export function normalizeWorkItemMentions(
 export function mentionedMemberIds(
   mentions: readonly WorkItemMentionTarget[]
 ): string[] {
-  return mentions
-    .filter(
-      (target): target is { kind: "member"; id: string } =>
-        target.kind === "member"
-    )
-    .map((target) => target.id);
+  return resolveMessageAudience("work_item_comment", mentions).human.memberIds;
 }

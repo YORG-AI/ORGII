@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { TeamInboxMention } from "@src/features/Org2Cloud/teamInboxMentionsClient";
 
-import type { AssignedWorkItem } from "../domain";
+import type { AssignedWorkItem, WorkItemUpdateItem } from "../domain";
 import { teamInboxCacheAtom } from "../store";
 import {
   TEAM_INBOX_CACHE_LIMIT,
@@ -47,6 +47,30 @@ function mention(id: string): TeamInboxMention {
     readAt: null,
     commentCount: 1,
     threadCount: 1,
+  };
+}
+
+function failedRunItem(id: string): WorkItemUpdateItem {
+  return {
+    id,
+    kind: "work_item_run_failed",
+    source: "local",
+    occurredAt: "2026-07-28T11:00:00.000Z",
+    readAt: null,
+    actor: { id: "system", displayName: "" },
+    target: {
+      kind: "work_item",
+      projectId: "project-1",
+      workItemId: id,
+    },
+    payload: {
+      title: id,
+      eventKind: "run_failed",
+      status: "in_progress",
+      priority: "high",
+      recipientMemberId: "viewer-1",
+      updatedAt: "2026-07-28T11:00:00.000Z",
+    },
   };
 }
 
@@ -226,6 +250,11 @@ describe("TeamInboxCoordinator", () => {
       "identity_unresolved"
     );
     expect(store.get(teamInboxCacheAtom).items).toHaveLength(1);
+    expect(store.get(teamInboxCacheAtom).items[0]?.target).toMatchObject({
+      kind: "session_comment",
+      orgId: "org-1",
+      sessionId: "session-cloud-1",
+    });
   });
 
   it("keeps a failed source cursor retryable while appending a successful page", async () => {
@@ -373,6 +402,43 @@ describe("TeamInboxCoordinator", () => {
     await expect(mutation).rejects.toThrow("write failed");
     expect(store.get(teamInboxCacheAtom).items[0].readAt).toBeNull();
     expect(store.get(teamInboxCacheAtom).unreadCount).toBe(1);
+  });
+
+  it("counts Work Item updates in All without inflating Assigned", async () => {
+    const event = failedRunItem("event-1");
+    const markAllLocalRead = vi.fn(async () => 1);
+    const coordinator = new TeamInboxCoordinator(
+      dependencies({
+        listLocalPage: vi.fn(async () => ({
+          page: {
+            items: [event],
+            nextCursor: null,
+            unreadCounts: { all: 1, mentions: 0, assigned: 0 },
+          },
+          unreadCount: 1,
+        })),
+        markAllLocalRead,
+      })
+    );
+    const store = createStore();
+    const viewerScope = scope();
+
+    await coordinator.refresh(store, viewerScope, "version-1");
+    expect(store.get(teamInboxCacheAtom)).toMatchObject({
+      unreadCount: 1,
+      unreadCounts: { all: 1, mentions: 0, assigned: 0 },
+    });
+
+    await coordinator.markRead(store, viewerScope, event);
+    expect(store.get(teamInboxCacheAtom)).toMatchObject({
+      unreadCount: 0,
+      unreadCounts: { all: 0, mentions: 0, assigned: 0 },
+    });
+
+    await coordinator.markUnread(store, viewerScope, event);
+    await coordinator.markAllRead(store, viewerScope, "all");
+    expect(markAllLocalRead).toHaveBeenCalledWith(["viewer-1"], "all");
+    expect(store.get(teamInboxCacheAtom).unreadCount).toBe(0);
   });
 
   it("caps retained rows and closes cursors at the cache boundary", async () => {

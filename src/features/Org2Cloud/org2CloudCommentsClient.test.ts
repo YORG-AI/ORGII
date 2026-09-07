@@ -197,6 +197,44 @@ describe("addSessionComment", () => {
     expect(comment.mentionedUserIds).toEqual(["user-2", "user-3"]);
   });
 
+  it("uses the retry-safe RPC when a stable client message key is present", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ comment: WIRE_COMMENT }));
+
+    await addSessionComment("jwt-1", {
+      orgId: "org-1",
+      sessionId: "sess-1",
+      body: "Please review",
+      clientMessageKey: "agent-report:turn-1:c-1",
+      mentionedUserIds: ["user-2", "user-2"],
+    });
+
+    expect(lastCall().url).toBe(
+      `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/rest/v1/rpc/cloud_add_session_comment_idempotent`
+    );
+    expect(lastBody()).toMatchObject({
+      p_client_message_key: "agent-report:turn-1:c-1",
+      p_replace_existing: false,
+      p_mentioned_user_ids: ["user-2"],
+    });
+  });
+
+  it("maps a mismatched retry key into a coded conflict", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ message: "ORG2_IDEMPOTENCY_CONFLICT" }, 400)
+    );
+
+    const error = await addSessionComment("jwt-1", {
+      orgId: "org-1",
+      sessionId: "sess-1",
+      body: "changed payload",
+      clientMessageKey: "agent-report:turn-1:c-1",
+    }).catch((caught: unknown) => caught);
+
+    expect(isOrg2CommentErrorCode(error, "ORG2_IDEMPOTENCY_CONFLICT")).toBe(
+      true
+    );
+  });
+
   it("sends JWT bearer + Content-Profile", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ comment: WIRE_COMMENT }));
     await addSessionComment("jwt-9", {

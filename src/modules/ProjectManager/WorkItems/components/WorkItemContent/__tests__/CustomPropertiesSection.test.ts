@@ -12,6 +12,8 @@ import {
   vi,
 } from "vitest";
 
+import { invalidateCache } from "@src/api/http/project/cache";
+
 import CustomPropertiesSection from "../CustomPropertiesSection";
 
 const projectApiMocks = vi.hoisted(() => ({
@@ -19,9 +21,21 @@ const projectApiMocks = vi.hoisted(() => ({
   listWorkItemPropertyValues: vi.fn(),
 }));
 
-vi.mock("@src/api/http/project", () => ({
-  projectApi: projectApiMocks,
-}));
+vi.mock("@src/api/http/project", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@src/api/http/project")>();
+  const { cachedRead } = await import("@src/api/http/project/cache");
+  return {
+    ...actual,
+    projectApi: {
+      ...actual.projectApi,
+      ...projectApiMocks,
+      listPropertyDefinitions: (orgId: string) =>
+        cachedRead(actual.propertyDefinitionsCacheKey(orgId), () =>
+          projectApiMocks.listPropertyDefinitions(orgId)
+        ),
+    },
+  };
+});
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -42,6 +56,7 @@ describe("CustomPropertiesSection", () => {
   });
 
   beforeEach(() => {
+    invalidateCache();
     projectApiMocks.listPropertyDefinitions.mockResolvedValue([
       {
         id: "property-1",
@@ -76,6 +91,7 @@ describe("CustomPropertiesSection", () => {
         createElement(CustomPropertiesSection, {
           orgId: "org-1",
           shortId: "WI-0001",
+          members: [],
           editable: true,
         })
       );

@@ -279,7 +279,9 @@ pub fn imported_history_to_aggregate_record(
         lines_added: Some(row.lines_added),
         lines_removed: Some(row.lines_removed),
         touched_files: Some(row.touched_files),
-        client_origin: row.client_origin.map(|origin| origin.as_wire_str().to_string()),
+        client_origin: row
+            .client_origin
+            .map(|origin| origin.as_wire_str().to_string()),
         client_origin_raw: row.client_origin_raw,
     }
 }

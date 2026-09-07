@@ -2526,7 +2526,8 @@
     "failedToInterrupt": "Échec de l'interruption de la Session",
     "failedToStop": "Échec de l'arrêt de l'Agent",
     "failedToCheckChanges": "Impossible de vérifier les modifications de fichiers. La restauration sera effectuée.",
-    "insufficientBalance": "Solde insuffisant pour le service ORGII hébergé. Rechargez sur orgii.ai/wallet."
+    "insufficientBalance": "Solde insuffisant pour le service ORGII hébergé. Rechargez sur orgii.ai/wallet.",
+    "runQueuedBehindCheckout": "En file d'attente : une autre exécution utilise ce checkout. Elle démarrera dès que celle-ci sera terminée."
   },
   "planning": {
     "agentTyping": "Agent est en train d’écrire...",

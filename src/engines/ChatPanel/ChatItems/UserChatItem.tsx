@@ -21,6 +21,7 @@ import { useSessionCommentsContext } from "@src/features/Org2Cloud/SessionCommen
 import type { ConversationSenderStamp } from "@src/features/Org2Cloud/SessionConversation/continuationEvents";
 import { CONVERSATION_SENDER_ARG } from "@src/features/Org2Cloud/SessionConversation/continuationEvents";
 import { discussionPayloadOf } from "@src/features/Org2Cloud/SessionConversation/discussionEvents";
+import { resolveTeamChatMentions } from "@src/features/Org2Cloud/SessionConversation/teamChatMentions";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import {
   ClipboardCheckIcon,
@@ -28,6 +29,8 @@ import {
   File01Icon,
   HugeiconsIcon,
   Image01Icon,
+  PencilEdit01Icon,
+  RotateLeft01Icon,
   SparklesIcon,
   Undo02Icon,
 } from "@src/icons";
@@ -222,6 +225,7 @@ const UserChatItem = ({
     [messageTimestamp]
   );
   const modelLabel = useMemo(() => describeModelLabel(modelId), [modelId]);
+  const discussion = event ? discussionPayloadOf(event) : null;
   // Who wrote this turn. In a session an agent started, a `user` turn is the
   // parent's dispatch rather than the reader's own message, so the row is
   // attributed to the parent session — same identity icon the header shows.
@@ -231,9 +235,7 @@ const UserChatItem = ({
   // the org roster so the `@name` text renders as a member pill.
   const comments = useSessionCommentsContext();
   const mentionableMembers = comments?.mentionableMembers;
-  const mentionedUserIds = event
-    ? discussionPayloadOf(event)?.mentionedUserIds
-    : undefined;
+  const mentionedUserIds = discussion?.mentionedUserIds;
   const mentions = useMemo((): UserMessageMention[] | undefined => {
     if (!mentionedUserIds?.length) return undefined;
     const resolved: UserMessageMention[] = [];
@@ -341,6 +343,15 @@ const UserChatItem = ({
     setIsEditing(true);
   }, [messageImages]);
 
+  const failedLocalDiscussion = Boolean(
+    discussion?.deliveryStatus === "failed" &&
+    discussion.authorUserId === viewerCloudUserId
+  );
+  const retryFailedDiscussion = useCallback(() => {
+    if (!comments || !discussion || !failedLocalDiscussion) return;
+    void comments.retryComment(discussion.commentId).catch(() => undefined);
+  }, [comments, discussion, failedLocalDiscussion]);
+
   const handleEditCancel = useCallback(() => {
     setIsEditing(false);
   }, []);
@@ -352,6 +363,16 @@ const UserChatItem = ({
   const handleEditSubmitInternal = useCallback(
     (newText: string, addedImageDataUrls?: string[]) => {
       setIsEditing(false);
+      if (failedLocalDiscussion && discussion && comments) {
+        const mentionedUserIds = resolveTeamChatMentions(
+          newText,
+          comments.mentionableMembers
+        );
+        void comments
+          .retryComment(discussion.commentId, newText, mentionedUserIds)
+          .catch(() => undefined);
+        return;
+      }
       const rustImages = [
         ...((editImageList && editImageList.length > 0
           ? editImageList.map(imageRefToRustPath)
@@ -360,7 +381,7 @@ const UserChatItem = ({
       ];
       onEditSubmit?.(newText, rustImages.length > 0 ? rustImages : undefined);
     },
-    [onEditSubmit, editImageList]
+    [comments, discussion, editImageList, failedLocalDiscussion, onEditSubmit]
   );
 
   // Edit mode
@@ -385,11 +406,11 @@ const UserChatItem = ({
   const planApprovedEdited =
     isPlanApproved && fullContent.startsWith("[Plan approved (edited)");
   const isEditableDisplay = Boolean(
-    onEditSubmit &&
+    (onEditSubmit || failedLocalDiscussion) &&
     !isRepoSetup &&
     !isAgentOrgInboxTranscript &&
     !isPlanApproved &&
-    !event?.args?.["sessionDiscussion"] &&
+    (!event?.args?.["sessionDiscussion"] || failedLocalDiscussion) &&
     !readConversationSenderStamp(event)
   );
   const hasDisplayContent = Boolean(
@@ -439,6 +460,35 @@ const UserChatItem = ({
   );
 
   // Display mode
+  const discussionDeliveryActions = failedLocalDiscussion ? (
+    <>
+      <button
+        type="button"
+        data-testid="team-chat-retry-button"
+        title={t("common:actions.retry")}
+        className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} hover:text-danger-7 text-danger-6`}
+        onClick={(event) => {
+          event.stopPropagation();
+          retryFailedDiscussion();
+        }}
+      >
+        <HugeiconsIcon icon={RotateLeft01Icon} size={14} strokeWidth={1.75} />
+      </button>
+      <button
+        type="button"
+        data-testid="team-chat-edit-button"
+        title={t("input.editingSentMessage")}
+        className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} hover:text-danger-7 text-danger-6`}
+        onClick={(event) => {
+          event.stopPropagation();
+          handleEditClick();
+        }}
+      >
+        <HugeiconsIcon icon={PencilEdit01Icon} size={14} strokeWidth={1.75} />
+      </button>
+    </>
+  ) : null;
+  const effectiveToolbarActions = toolbarActions ?? discussionDeliveryActions;
   const display = (
     <>
       <div
@@ -542,13 +592,26 @@ const UserChatItem = ({
               )}
             </>
           )}
+          {discussion?.deliveryStatus === "pending" && (
+            <span className="text-[11px] text-text-3">
+              {t("common:status.sending")}
+            </span>
+          )}
+          {discussion?.deliveryStatus === "failed" && (
+            <span className="text-[11px] text-danger-6">
+              {discussion.deliveryError ||
+                t("chat.failedToSendMessage", "Failed to send message")}
+            </span>
+          )}
         </div>
       </div>
-      {(rawPrompt.trim() || isEditableDisplay || toolbarActions) && (
+      {(rawPrompt.trim() || isEditableDisplay || effectiveToolbarActions) && (
         <div className="relative mt-1 flex min-h-6 items-center px-1 text-[11px] leading-none text-text-3">
           <div
             className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-1 group-hover/msg:opacity-100 focus-within:opacity-100 ${
-              isRawPromptOpen ? "opacity-100" : "opacity-0"
+              isRawPromptOpen || failedLocalDiscussion
+                ? "opacity-100"
+                : "opacity-0"
             } ${isRemoteSharedMessage ? "left-full ml-1" : "right-full mr-1"}`}
           >
             {(timestampLabel || modelLabel) && (
@@ -619,7 +682,7 @@ const UserChatItem = ({
                 />
               </button>
             )}
-            {toolbarActions}
+            {effectiveToolbarActions}
           </div>
         </div>
       )}

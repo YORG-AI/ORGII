@@ -50,6 +50,7 @@ fn run(
             additional_directories: params.additional_directories,
             parent_session_id: params.parent_session_id,
             org_member_id: params.org_member_id,
+            agent_definition_id: params.agent_definition_id,
             org_id: Some(params.org_id),
             project_id: params.project_id,
             project_name: params.project_name,

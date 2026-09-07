@@ -886,7 +886,10 @@
     "compactCommandDescription": "总结较早的上下文以释放空间。可选：/compact <本次总结的重点>",
     "canvasCommandDescription": "创建一个新的交互式 Canvas。可选：/canvas <要创建的内容>",
     "canvasArgHint": "要创建的内容",
-    "newCanvasAction": "新建 Canvas"
+    "newCanvasAction": "新建 Canvas",
+    "followUpSuggestions": {
+      "label": "建议的下一步"
+    }
   },
   "listPanel": {
     "showingOf": "显示 {{filtered}} / {{total}}",
@@ -2626,7 +2629,8 @@
     "failedToInterrupt": "中断 Session 失败",
     "failedToStop": "停止 Agent 失败",
     "failedToCheckChanges": "无法检查文件变更，将自动还原。",
-    "insufficientBalance": "ORGII 托管服务余额不足，请前往 orgii.ai/wallet 充值。"
+    "insufficientBalance": "ORGII 托管服务余额不足，请前往 orgii.ai/wallet 充值。",
+    "runQueuedBehindCheckout": "已排队：另一个运行正在使用此检出目录，待其结束后将自动开始。"
   },
   "planning": {
     "agentTyping": "Agent 正在输入...",

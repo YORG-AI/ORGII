@@ -15,7 +15,8 @@
       "person": "按人員",
       "assignedTo": "按指派對象",
       "createdBy": "按建立者",
-      "targetDate": "按目標日期"
+      "targetDate": "按目標日期",
+      "property": "按屬性"
     },
     "source": {
       "localOnly": "僅本機",
@@ -561,6 +562,18 @@
       "notOnDeviceTitle": "會話不在此裝置",
       "notOnDeviceHint": "該會話在其他裝置上執行，轉錄未同步到本機。",
       "finalOutput": "最終輸出"
+    },
+    "batchField": {
+      "hint": "套用到選取的 {{count}} 個事項。"
+    },
+    "batchStatus": {
+      "title": "設定狀態"
+    },
+    "batchPriority": {
+      "title": "設定優先順序"
+    },
+    "batchAssignee": {
+      "title": "設定負責人"
     }
   },
   "settings": {

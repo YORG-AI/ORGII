@@ -505,6 +505,62 @@ fn routine_lifecycle_runs_through_the_cli() {
 }
 
 #[test]
+fn routine_root_work_and_cancel_run_through_the_cli() {
+    let _sandbox = test_env::sandbox();
+    seed("demo");
+    let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../docs/orgtrack-pm-protocol/fixtures/routine-spec.json");
+    let fixture_arg = fixture_path.to_string_lossy().to_string();
+    let base = [
+        "--mode",
+        "project",
+        "--scope",
+        "demo",
+        "--actor",
+        "agent:cli-tester",
+        "--session-ref",
+        "claude_code:session_routine_root",
+    ];
+
+    let (exit, applied) =
+        run_cli(&[&["routine", "apply", "--file", &fixture_arg], &base[..]].concat());
+    assert_eq!(exit, 0, "apply: {applied}");
+
+    let (exit, run) = run_cli(
+        &[
+            &[
+                "routine",
+                "run",
+                "interaction-impact-analysis",
+                "--root-work",
+                "AAA-0001",
+                "--input",
+                "requirement_id=REQ-ROOT",
+            ],
+            &base[..],
+        ]
+        .concat(),
+    );
+    assert_eq!(exit, 0, "root-work run: {run}");
+    assert_eq!(run["data"]["rootWorkItemId"], "AAA-0001");
+    let run_id = run["data"]["runId"].as_str().expect("run id");
+
+    let (exit, cancelled) = run_cli(&[&["routine", "cancel", run_id], &base[..]].concat());
+    assert_eq!(exit, 0, "cancel: {cancelled}");
+    assert_eq!(cancelled["data"]["status"], "cancelled");
+    assert_eq!(cancelled["data"]["changed"], true);
+
+    let (exit, repeated) = run_cli(&[&["routine", "cancel", run_id], &base[..]].concat());
+    assert_eq!(exit, 0, "repeated cancel: {repeated}");
+    assert_eq!(repeated["data"]["status"], "cancelled");
+    assert_eq!(repeated["data"]["changed"], false);
+
+    let root = project_management::projects::io::read_work_item("demo", "AAA-0001")
+        .expect("existing root remains");
+    assert_eq!(root.frontmatter.title, "CLI target");
+}
+
+#[test]
 fn wire_validation_maps_to_stable_codes() {
     let _sandbox = test_env::sandbox();
     seed("demo");

@@ -15,7 +15,8 @@
       "person": "Według osoby",
       "assignedTo": "Przypisane do",
       "createdBy": "Utworzone przez",
-      "targetDate": "Według daty docelowej"
+      "targetDate": "Według daty docelowej",
+      "property": "Według właściwości"
     },
     "source": {
       "localOnly": "Tylko lokalne",
@@ -541,7 +542,19 @@
       "cycles": "cykle"
     },
     "viewWorkItems": "Pokaż Work Items",
-    "fromRoutine": "From routine: {{name}}"
+    "fromRoutine": "From routine: {{name}}",
+    "batchField": {
+      "hint": "Dotyczy {{count}} wybranych elementów."
+    },
+    "batchStatus": {
+      "title": "Ustaw status"
+    },
+    "batchPriority": {
+      "title": "Ustaw priorytet"
+    },
+    "batchAssignee": {
+      "title": "Ustaw osobę przypisaną"
+    }
   },
   "settings": {
     "sidebarGeneral": "Ogólne",

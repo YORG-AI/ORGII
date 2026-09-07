@@ -11,9 +11,18 @@ export async function applyWorkItemUpdate(
   projectSlug: string,
   workItemId: string,
   updates: Partial<WorkItem>,
-  actor?: Parameters<typeof toWorkItemPartialUpdate>[1]
+  actor?: Parameters<typeof toWorkItemPartialUpdate>[1],
+  expectedRevision?: number
 ) {
   const payload = toWorkItemPartialUpdate(updates, actor);
   if (Object.keys(payload).length === 0) return null;
-  return projectApi.updateWorkItemPartial(projectSlug, workItemId, payload);
+  if (expectedRevision === undefined) {
+    return projectApi.updateWorkItemPartial(projectSlug, workItemId, payload);
+  }
+  return projectApi.updateWorkItemPartial(
+    projectSlug,
+    workItemId,
+    payload,
+    expectedRevision
+  );
 }

@@ -18,7 +18,7 @@ interface UseQueueEditModeOptions {
     messageId: string,
     content: string,
     imageDataUrls?: string[]
-  ) => void;
+  ) => boolean | void;
   onCommitSendNow?: (messageId: string) => void;
 }
 
@@ -48,20 +48,19 @@ export function useQueueEditMode({
         ...(queueEditTarget.imageDataUrls ?? []),
         ...(addedImageDataUrls ?? []),
       ];
-      onCommit(
+      const committed = onCommit(
         queueEditTarget.messageId,
         text,
         imageDataUrls.length > 0 ? imageDataUrls : undefined
       );
-      return queueEditTarget.messageId;
+      return committed === false ? null : queueEditTarget.messageId;
     },
     [queueEditTarget, onCommit]
   );
 
   const onEditSubmit = useCallback(
     (text: string, addedImageDataUrls?: string[]) => {
-      commitEdit(text, addedImageDataUrls);
-      setQueueEditTarget(null);
+      if (commitEdit(text, addedImageDataUrls)) setQueueEditTarget(null);
     },
     [commitEdit, setQueueEditTarget]
   );
@@ -69,8 +68,10 @@ export function useQueueEditMode({
   const onEditSendNow = useCallback(
     (text: string, addedImageDataUrls?: string[]) => {
       const messageId = commitEdit(text, addedImageDataUrls);
-      setQueueEditTarget(null);
-      if (messageId) onCommitSendNow?.(messageId);
+      if (messageId) {
+        setQueueEditTarget(null);
+        onCommitSendNow?.(messageId);
+      }
     },
     [commitEdit, onCommitSendNow, setQueueEditTarget]
   );

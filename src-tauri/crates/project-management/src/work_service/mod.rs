@@ -19,6 +19,7 @@ mod notes;
 mod relations;
 mod run_review;
 pub mod state;
+pub mod timeline;
 
 #[cfg(test)]
 #[path = "tests.rs"]

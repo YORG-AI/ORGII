@@ -69,7 +69,9 @@ const WorkItemsStatusFilterSelect: React.FC<
     () =>
       filterKeys.map((key) => {
         const count = statusCounts[key] ?? 0;
-        const label = t(`workItems.statusFilters.${key}`);
+        const label = t(`workItems.statusFilters.${key}`, {
+          defaultValue: key === "blocked" ? "Blocked" : key,
+        });
         return {
           value: key,
           label: (

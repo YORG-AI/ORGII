@@ -1,8 +1,7 @@
 //! SQLite-backed RoutineDefinition and RoutineFire IO.
 
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 
-use super::super::routine_schedule;
 use super::helpers::{conn, from_iso8601, map_db, now_ms, to_iso8601};
 use crate::projects::types::{
     RoutineConcurrencyPolicy, RoutineDefinition, RoutineFire, RoutineFireStatus,
@@ -31,7 +30,7 @@ fn row_to_routine(row: &rusqlite::Row<'_>) -> rusqlite::Result<RoutineDefinition
         name: row.get(1)?,
         description: row.get(2)?,
         enabled: row.get::<_, i64>(3)? != 0,
-        trigger: serde_json::from_str::<RoutineTrigger>(&trigger_json).map_err(|err| {
+        trigger: serde_json::from_str::<Option<RoutineTrigger>>(&trigger_json).map_err(|err| {
             rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(err))
         })?,
         run_template: serde_json::from_str::<RoutineRunTemplate>(&template_json).map_err(
@@ -44,6 +43,19 @@ fn row_to_routine(row: &rusqlite::Row<'_>) -> rusqlite::Result<RoutineDefinition
             },
         )?,
         output_policy: decode_output_policy(&output_policy_json)?,
+        activations: row
+            .get::<_, Option<String>>(16)?
+            .map(|raw| {
+                serde_json::from_str(&raw).map_err(|err| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        16,
+                        rusqlite::types::Type::Text,
+                        Box::new(err),
+                    )
+                })
+            })
+            .transpose()?
+            .unwrap_or_default(),
         last_evaluated_at: row.get::<_, Option<i64>>(9)?.map(to_iso8601),
         next_fire_at: row.get::<_, Option<i64>>(10)?.map(to_iso8601),
         last_fire_at: row.get::<_, Option<i64>>(11)?.map(to_iso8601),
@@ -65,7 +77,8 @@ const ROUTINE_SELECT_COLUMNS: &str =
      routine.created_at, routine.updated_at, routine.last_evaluated_at,
      routine.next_fire_at,
      latest_fire.fired_at, latest_fire.status, latest_fire.error,
-     latest_fire.session_id, latest_fire.work_item_id";
+     latest_fire.session_id, latest_fire.work_item_id,
+     routine.activations_json";
 
 const ROUTINE_FROM: &str = "routine_definitions AS routine
      LEFT JOIN routine_fires AS latest_fire ON latest_fire.id = (
@@ -143,6 +156,7 @@ pub fn list_routines() -> Result<Vec<RoutineDefinition>, String> {
     let mut stmt = map_db(connection.prepare(&format!(
         "SELECT {ROUTINE_SELECT_COLUMNS}
          FROM {ROUTINE_FROM}
+         WHERE routine.archived_at IS NULL
          ORDER BY routine.updated_at DESC, routine.created_at DESC",
     )))?;
     let rows = map_db(stmt.query_map([], row_to_routine))?;
@@ -174,7 +188,7 @@ pub fn list_enabled_routines() -> Result<Vec<RoutineDefinition>, String> {
     let mut stmt = map_db(connection.prepare(&format!(
         "SELECT {ROUTINE_SELECT_COLUMNS}
          FROM {ROUTINE_FROM}
-         WHERE routine.enabled = 1
+         WHERE routine.enabled = 1 AND routine.archived_at IS NULL
          ORDER BY routine.created_at ASC",
     )))?;
     let rows = map_db(stmt.query_map([], row_to_routine))?;
@@ -187,13 +201,20 @@ pub fn list_enabled_routines() -> Result<Vec<RoutineDefinition>, String> {
 
 pub fn read_routine(id: &str) -> Result<RoutineDefinition, String> {
     let connection = conn()?;
+    read_routine_in(&connection, id)
+}
+
+pub(crate) fn read_routine_in(
+    connection: &Connection,
+    id: &str,
+) -> Result<RoutineDefinition, String> {
     let routine = map_db(
         connection
             .query_row(
                 &format!(
                     "SELECT {ROUTINE_SELECT_COLUMNS}
                      FROM {ROUTINE_FROM}
-                     WHERE routine.id = ?1",
+                     WHERE routine.id = ?1 AND routine.archived_at IS NULL",
                 ),
                 params![id],
                 row_to_routine,
@@ -203,8 +224,10 @@ pub fn read_routine(id: &str) -> Result<RoutineDefinition, String> {
     routine.ok_or_else(|| format!("Routine not found: {id}"))
 }
 
-pub fn upsert_routine(mut routine: RoutineDefinition) -> Result<RoutineDefinition, String> {
-    let connection = conn()?;
+pub(crate) fn upsert_routine_in(
+    connection: &Connection,
+    mut routine: RoutineDefinition,
+) -> Result<RoutineDefinition, String> {
     let now = now_ms();
     if routine.id.trim().is_empty() {
         routine.id = timestamp_id("routine");
@@ -213,13 +236,24 @@ pub fn upsert_routine(mut routine: RoutineDefinition) -> Result<RoutineDefinitio
         routine.created_at = to_iso8601(now);
     }
     routine.updated_at = to_iso8601(now);
+    if routine.activations.is_empty() {
+        if let Some(trigger) = &routine.trigger {
+            routine.activations = vec![crate::routine_service::activation_from_trigger(trigger)];
+        }
+    }
+    if let Some(derived) = crate::routine_service::trigger_from_activations(&routine.activations) {
+        routine.trigger = Some(derived);
+    }
 
     let created_at_ms = from_iso8601(&routine.created_at);
     let trigger_json = encode_json("routine trigger", &routine.trigger)?;
+    let activations_json = encode_json("routine activations", &routine.activations)?;
     let template_json = encode_json("routine run template", &routine.run_template)?;
     let output_policy_json = encode_json("routine output policy", &routine.output_policy)?;
-    let computed_next_fire =
-        routine_schedule::next_occurrence(&routine.trigger, &chrono::Utc::now())?;
+    let computed_next_fire = crate::routine_service::next_occurrence_of_activations(
+        &routine.activations,
+        &chrono::Utc::now(),
+    )?;
     let next_fire_at_ms = if routine.enabled {
         computed_next_fire.map(|value| value.timestamp_millis())
     } else {
@@ -230,8 +264,8 @@ pub fn upsert_routine(mut routine: RoutineDefinition) -> Result<RoutineDefinitio
         "INSERT INTO routine_definitions (
             id, name, description, enabled, trigger_json, run_template_json,
             output_policy_json, created_at, updated_at, last_evaluated_at,
-            next_fire_at
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10)
+            next_fire_at, activations_json
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10, ?11)
          ON CONFLICT(id) DO UPDATE SET
             name = excluded.name,
             description = excluded.description,
@@ -239,6 +273,8 @@ pub fn upsert_routine(mut routine: RoutineDefinition) -> Result<RoutineDefinitio
             trigger_json = excluded.trigger_json,
             run_template_json = excluded.run_template_json,
             output_policy_json = excluded.output_policy_json,
+            activations_json = excluded.activations_json,
+            archived_at = NULL,
             last_evaluated_at = CASE
                 WHEN routine_definitions.trigger_json != excluded.trigger_json
                 THEN excluded.last_evaluated_at
@@ -257,16 +293,56 @@ pub fn upsert_routine(mut routine: RoutineDefinition) -> Result<RoutineDefinitio
             created_at_ms,
             now,
             next_fire_at_ms,
+            activations_json,
         ],
     ))?;
 
-    read_routine(&routine.id)
+    read_routine_in(connection, &routine.id)
+}
+
+pub fn upsert_routine(routine: RoutineDefinition) -> Result<RoutineDefinition, String> {
+    let connection = conn()?;
+    upsert_routine_in(&connection, routine)
+}
+
+pub fn backfill_routine_activations(connection: &rusqlite::Connection) -> rusqlite::Result<()> {
+    let mut statement = connection.prepare(
+        "SELECT id, trigger_json FROM routine_definitions
+          WHERE activations_json IS NULL OR activations_json = '' OR activations_json = '[]'",
+    )?;
+    let rows: Vec<(String, String)> = statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<Result<_, _>>()?;
+    drop(statement);
+    for (id, trigger_json) in rows {
+        let Ok(Some(trigger)) = serde_json::from_str::<Option<RoutineTrigger>>(&trigger_json)
+        else {
+            continue;
+        };
+        let activations = vec![crate::routine_service::activation_from_trigger(&trigger)];
+        let Ok(encoded) = serde_json::to_string(&activations) else {
+            continue;
+        };
+        connection.execute(
+            "UPDATE routine_definitions SET activations_json = ?2 WHERE id = ?1",
+            params![id, encoded],
+        )?;
+    }
+    Ok(())
 }
 
 pub fn delete_routine(id: &str) -> Result<bool, String> {
     let connection = conn()?;
-    let removed =
-        map_db(connection.execute("DELETE FROM routine_definitions WHERE id = ?1", [id]))?;
+    delete_routine_in(&connection, id)
+}
+
+pub(crate) fn delete_routine_in(connection: &Connection, id: &str) -> Result<bool, String> {
+    let removed = map_db(connection.execute(
+        "UPDATE routine_definitions
+            SET enabled = 0, next_fire_at = NULL, archived_at = ?2, updated_at = ?2
+          WHERE id = ?1 AND archived_at IS NULL",
+        params![id, now_ms()],
+    ))?;
     Ok(removed > 0)
 }
 

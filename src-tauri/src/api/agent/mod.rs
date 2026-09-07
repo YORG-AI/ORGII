@@ -22,7 +22,6 @@ pub mod test {
         pub async fn debug_work_item_scheduler_run_once() -> Result<serde_json::Value, String> {
             Err("debug_work_item_scheduler_run_once is only available in debug builds".to_string())
         }
-
     }
 }
 

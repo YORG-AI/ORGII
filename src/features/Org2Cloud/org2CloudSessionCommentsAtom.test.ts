@@ -6,6 +6,7 @@ import type { CloudSessionComment } from "./org2CloudCommentsClient";
 import {
   type CloudSessionCommentsEntry,
   MAX_SESSION_COMMENT_CACHE_ENTRIES,
+  OPTIMISTIC_SESSION_COMMENT_ID_PREFIX,
   SESSION_COMMENTS_DELTA_OVERLAP_MS,
   countLiveComments,
   decideSessionCommentsFetch,
@@ -473,6 +474,32 @@ describe("mergeFullSessionComments", () => {
       new Set(["gone", "kept"])
     );
     expect(merged.map((entry) => entry.id)).toEqual(["kept", "new"]);
+  });
+
+  it("keeps an in-flight optimistic Team Chat row across a full refresh", () => {
+    const optimistic = comment({
+      id: `${OPTIMISTIC_SESSION_COMMENT_ID_PREFIX}pending-1`,
+      createdAt: "2026-07-24T05:00:00Z",
+    });
+    const merged = mergeFullSessionComments(
+      [optimistic],
+      [],
+      new Set([optimistic.id])
+    );
+    expect(merged).toEqual([optimistic]);
+  });
+
+  it("keeps a failed optimistic Team Chat row across later full refreshes", () => {
+    const failed = {
+      ...comment({
+        id: `${OPTIMISTIC_SESSION_COMMENT_ID_PREFIX}failed-1`,
+        createdAt: "2026-07-24T05:00:00Z",
+      }),
+      clientDeliveryStatus: "failed" as const,
+      clientDeliveryError: "offline",
+    };
+    const merged = mergeFullSessionComments([failed], [], new Set([failed.id]));
+    expect(merged).toEqual([failed]);
   });
 });
 

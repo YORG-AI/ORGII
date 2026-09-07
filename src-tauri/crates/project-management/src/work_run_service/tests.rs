@@ -5,6 +5,7 @@ use crate::projects::types::{
     WorkItemRunTrigger,
 };
 use crate::work_service::{self, CreateWorkItemRequest};
+use rusqlite::params;
 use test_helpers::test_env;
 
 fn seed() {
@@ -202,6 +203,41 @@ fn path_lock_serializes_runs_until_terminal_release() {
         .expect("claim second")
         .expect("second lease");
     assert_eq!(second_lease.run.id, second.id);
+}
+
+#[test]
+fn retry_converges_on_the_open_child_run() {
+    let _sandbox = test_env::sandbox();
+    seed();
+    let run = enqueue(request("manual:retry:1")).expect("enqueue");
+    let lease = claim_next_dispatch("worker-1", 30_000)
+        .expect("claim")
+        .expect("lease");
+    acknowledge_dispatch_started(&lease.dispatch_id, &lease.lease_token, "session-1")
+        .expect("start");
+    record_run_terminal(
+        &run.id,
+        Some("session-1"),
+        WorkItemRunTerminalOutcome::Failed,
+        WorkItemRunUsage::default(),
+        Some("request timed out"),
+    )
+    .expect("fail");
+
+    let first = retry(&run.id, "retry:a").expect("first retry");
+    let second = retry(&run.id, "retry:b").expect("second retry converges");
+    assert_eq!(first.id, second.id);
+    assert_eq!(first.parent_run_id.as_deref(), Some(run.id.as_str()));
+
+    let connection = conn().expect("connection");
+    let children: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM pm_work_item_runs WHERE parent_run_id = ?1",
+            params![run.id],
+            |row| row.get(0),
+        )
+        .expect("child count");
+    assert_eq!(children, 1);
 }
 
 #[test]
@@ -711,7 +747,64 @@ fn failure_classifier_is_conservative_and_typed() {
     assert_eq!(quota.class, WorkItemRunFailureClass::Quota);
     assert!(!quota.retryable);
 
+    let context = classify_failure(
+        r#"{\"terminal_reason\":\"prompt_too_long\",\"message\":\"provider stopped\"}"#,
+        true,
+    );
+    assert_eq!(context.class, WorkItemRunFailureClass::ContextOverflow);
+    assert!(!context.retryable);
+    assert_eq!(
+        context.retry_disposition,
+        WorkItemRunRetryDisposition::StartNewSession
+    );
+
+    let cli_context = classify_failure("Error: prompt is too long", true);
+    assert_eq!(cli_context.class, WorkItemRunFailureClass::ContextOverflow);
+
+    for non_context in [
+        "failed while documenting context window behavior",
+        &format!("{} prompt is too long", "x".repeat(321)),
+    ] {
+        assert_eq!(
+            classify_failure(non_context, true).class,
+            WorkItemRunFailureClass::Unknown,
+            "message={non_context}"
+        );
+    }
+
     let unknown = classify_failure("something surprising", false);
     assert_eq!(unknown.class, WorkItemRunFailureClass::Unknown);
     assert!(!unknown.retryable);
+}
+
+#[test]
+fn structured_context_terminal_overrides_provider_false_success() {
+    let _sandbox = test_env::sandbox();
+    seed();
+    let run = enqueue(request("manual:false-success-context")).expect("enqueue");
+    let lease = claim_next_dispatch("desktop-context", 30_000)
+        .expect("claim")
+        .expect("dispatch");
+    acknowledge_dispatch_started(
+        &lease.dispatch_id,
+        &lease.lease_token,
+        "session-false-success-context",
+    )
+    .expect("ack");
+
+    let terminal = record_run_terminal(
+        &run.id,
+        Some("session-false-success-context"),
+        WorkItemRunTerminalOutcome::Succeeded,
+        WorkItemRunUsage::default(),
+        Some(r#"{"terminal_reason":"prompt_too_long"}"#),
+    )
+    .expect("terminal");
+    assert_eq!(terminal.status, WorkItemRunStatus::Failed);
+    let failure = terminal.failure.expect("typed failure");
+    assert_eq!(failure.class, WorkItemRunFailureClass::ContextOverflow);
+    assert_eq!(
+        failure.retry_disposition,
+        WorkItemRunRetryDisposition::StartNewSession
+    );
 }

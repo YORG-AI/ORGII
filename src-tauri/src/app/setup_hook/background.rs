@@ -8,6 +8,10 @@ use crate::infrastructure;
 use crate::setup::run_worktree_cleanup_loop;
 
 pub(crate) fn spawn_background_workers(app: &tauri::App) {
+    // WorkItemRun enqueue producers start below; install the skill consent
+    // resolver first so no startup schedule snapshots an unbound catalog.
+    agent_core::skills::work_run_manifest::register();
+
     // Durable WorkItemRun outbox consumer. This starts before the
     // legacy schedulers so every producer can converge on one
     // crash-safe delivery path during migration.
@@ -40,16 +44,12 @@ pub(crate) fn spawn_background_workers(app: &tauri::App) {
                     "[scheduler] work item cron→routine migration failed: {}",
                     err
                 ),
-                Err(err) => tracing::warn!(
-                    "[scheduler] cron→routine migration join error: {}",
-                    err
-                ),
+                Err(err) => {
+                    tracing::warn!("[scheduler] cron→routine migration join error: {}", err)
+                }
             }
-            // Orgtrack migration: convert legacy RoutineDefinitions
-            // into portable pm_routines specs. Converted legacy rows
-            // are disabled in the same pass so the legacy scheduler
-            // can never double-fire them; the written report lands
-            // next to the store for the operator.
+            // Reconcile editable RoutineDefinitions into the rebuildable
+            // portable execution projection before starting its scheduler.
             match tokio::task::spawn_blocking(|| {
                 project_management::routine_service::convert::convert_all(true)
             })
@@ -62,8 +62,7 @@ pub(crate) fn spawn_background_workers(app: &tauri::App) {
                             report.converted.len(),
                             report.skipped.len()
                         );
-                        let path = app_paths::orgii_root()
-                            .join("routine-conversion-report.json");
+                        let path = app_paths::orgii_root().join("routine-conversion-report.json");
                         if let Ok(raw) = serde_json::to_string_pretty(&report) {
                             let _ = std::fs::write(path, raw);
                         }
@@ -73,10 +72,15 @@ pub(crate) fn spawn_background_workers(app: &tauri::App) {
                     "[routine-migration] legacy routine conversion failed: {}",
                     err
                 ),
-                Err(err) => tracing::warn!(
-                    "[routine-migration] conversion join error: {}",
-                    err
-                ),
+                Err(err) => tracing::warn!("[routine-migration] conversion join error: {}", err),
+            }
+            if let Err(err) =
+                tokio::task::spawn_blocking(project_management::org_skills::materialize_all)
+                    .await
+                    .map_err(|err| err.to_string())
+                    .and_then(|result| result)
+            {
+                tracing::warn!("[org-skills] materialize sweep failed: {}", err);
             }
             agent_core::coordination::routine_scheduler::spawn(routine_handle);
             tracing::info!("[scheduler] Routine scheduler started");
@@ -92,14 +96,13 @@ pub(crate) fn spawn_background_workers(app: &tauri::App) {
         tauri::async_runtime::spawn(async move {
             use tauri::Emitter;
             const STAGE_BARRIER_CONSUMER: &str = "stage_barrier_dispatch_v1";
-            let initial_seq = tokio::task::spawn_blocking(
-                project_management::projects::io::read_pm_change_seq,
-            )
-            .await
-            .ok()
-            .and_then(Result::ok)
-            .unwrap_or(0)
-            .max(0);
+            let initial_seq =
+                tokio::task::spawn_blocking(project_management::projects::io::read_pm_change_seq)
+                    .await
+                    .ok()
+                    .and_then(Result::ok)
+                    .unwrap_or(0)
+                    .max(0);
             let mut last_seq = initial_seq;
             let mut stage_cursor = tokio::task::spawn_blocking(move || {
                 project_management::work_run_service::initialize_consumer_cursor(
@@ -154,16 +157,14 @@ pub(crate) fn spawn_background_workers(app: &tauri::App) {
                                     "[child-done-wake] cursor advance failed: {}",
                                     err
                                 ),
-                                Err(err) => tracing::warn!(
-                                    "[child-done-wake] cursor task failed: {}",
-                                    err
-                                ),
+                                Err(err) => {
+                                    tracing::warn!("[child-done-wake] cursor task failed: {}", err)
+                                }
                             }
                         }
-                        Err(err) => tracing::warn!(
-                            "[child-done-wake] audit window failed: {}",
-                            err
-                        ),
+                        Err(err) => {
+                            tracing::warn!("[child-done-wake] audit window failed: {}", err)
+                        }
                     }
                 }
                 if seq >= 0 {
@@ -182,12 +183,25 @@ pub(crate) fn spawn_background_workers(app: &tauri::App) {
     tracing::info!("[sync::worker] Sync worker started");
 
     let data_changed_handle = app.handle().clone();
-    project_management::projects::events::register_data_changed_notifier(Box::new(
-        move || {
+    project_management::projects::events::register_data_changed_notifier(Box::new(move || {
+        use tauri::Emitter;
+        let _ = data_changed_handle.emit(
+            project_management::projects::events::DATA_CHANGED_EVENT,
+            serde_json::json!({ "source": "rust" }),
+        );
+    }));
+
+    let routine_changed_handle = app.handle().clone();
+    project_management::projects::events::register_routine_changed_notifier(Box::new(
+        move |event| {
             use tauri::Emitter;
-            let _ = data_changed_handle.emit(
-                project_management::projects::events::DATA_CHANGED_EVENT,
-                serde_json::json!({ "source": "rust" }),
+            let _ = routine_changed_handle.emit(
+                project_management::projects::events::ROUTINE_CHANGED_EVENT,
+                serde_json::json!({
+                    "routineId": event.routine_id,
+                    "fireId": event.fire_id,
+                    "status": event.status,
+                }),
             );
         },
     ));
@@ -201,9 +215,7 @@ pub(crate) fn spawn_background_workers(app: &tauri::App) {
     let app_handle_for_restore = app.handle().clone();
     tauri::async_runtime::spawn(async move {
         let state = app_handle_for_restore.state::<agent_core::state::AgentAppState>();
-        match agent_core::state::commands::channel_handler::restore_enabled_channels(&state)
-            .await
-        {
+        match agent_core::state::commands::channel_handler::restore_enabled_channels(&state).await {
             Ok(()) => tracing::info!("Enabled channels restored"),
             Err(err) => tracing::error!("Failed to restore channels: {err}"),
         }
@@ -224,8 +236,7 @@ pub(crate) fn spawn_background_workers(app: &tauri::App) {
     // by `memory_dir()`. Idempotent — no-op once the legacy dir is
     // gone. See `agent_core::memory::workspace_memory::memory_dir`.
     tauri::async_runtime::spawn(async {
-        match agent_core::memory::workspace_memory::migrate_personal_workspace_memory(
-        ) {
+        match agent_core::memory::workspace_memory::migrate_personal_workspace_memory() {
             Ok(0) => {}
             Ok(moved) => tracing::info!(
                 "[startup] Migrated {} personal-workspace memory file(s) to {}",

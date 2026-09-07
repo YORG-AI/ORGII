@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { cachedRead, invalidateCache } from "./cache";
+import {
+  cachedRead,
+  invalidateCache,
+  readCachedSnapshot,
+  subscribeCachedSnapshot,
+} from "./cache";
 
 describe("project read cache invalidation fencing", () => {
   beforeEach(() => {
@@ -25,6 +30,25 @@ describe("project read cache invalidation fencing", () => {
       "current",
       "current",
     ]);
+  });
+
+  it("publishes successful reads and scoped invalidation to cache projections", async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeCachedSnapshot(
+      "project:quick-actions",
+      listener
+    );
+
+    await expect(
+      cachedRead("project:quick-actions", async () => ["review"])
+    ).resolves.toEqual(["review"]);
+    expect(readCachedSnapshot("project:quick-actions")).toEqual(["review"]);
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    invalidateCache("project");
+    expect(readCachedSnapshot("project:quick-actions")).toBeUndefined();
+    expect(listener).toHaveBeenCalledTimes(2);
+    unsubscribe();
   });
 
   it("never lets a pre-invalidation Promise resurrect or return stale data", async () => {

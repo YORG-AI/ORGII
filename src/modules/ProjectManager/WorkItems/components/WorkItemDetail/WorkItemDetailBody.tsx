@@ -31,6 +31,7 @@ import type {
 import WorkItemContent from "../WorkItemContent";
 import WorkItemProperties from "../WorkItemProperties";
 import type { WorkItemExternalStatusConfig } from "../WorkItemProperties/types";
+import { routeWorkItemUpdate } from "./hooks/usePendingWorkItemUpdates";
 
 const WORK_ITEM_INFO_PANEL_MIN_WIDTH = 200;
 const WORK_ITEM_INFO_PANEL_MAX_WIDTH = 280;
@@ -113,8 +114,14 @@ export function WorkItemDetailBody({
         headerVariant="workstation-trail"
       >
         <WorkItemProperties
+          statusOrgId={orgId ?? "personal-org"}
           workItem={displayWorkItem}
-          onUpdate={onUpdateWorkItem}
+          onUpdate={(updates) =>
+            routeWorkItemUpdate(updates, {
+              local: onUpdateWorkItem,
+              immediate: onUpdateWorkItemImmediate,
+            })
+          }
           availableProjects={availableProjects}
           availableMilestones={availableMilestones}
           availableLabels={availableLabels}

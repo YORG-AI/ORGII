@@ -11,6 +11,10 @@ export const agentSession = {
     .input(schemas.agentSession.SessionIdInput)
     .output(schemas.agentSession.SessionInfoSchema.nullable())
     .build(),
+  followUpSuggestions: defineProcedure("session_follow_up_suggestions")
+    .input(schemas.agentSession.SessionFollowUpSuggestionsInput)
+    .output(schemas.agentSession.SessionFollowUpSuggestionsResponseSchema)
+    .build(),
   manualCompact: defineProcedure("agent_session_manual_compact")
     .input(schemas.agentSession.ManualCompactInput)
     .output(schemas.agentSession.ManualCompactResultSchema)

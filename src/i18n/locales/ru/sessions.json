@@ -2570,7 +2570,8 @@
     "failedToInterrupt": "Не удалось прервать Session",
     "failedToStop": "Не удалось остановить Agent",
     "failedToCheckChanges": "Не удалось проверить изменения файлов. Будет выполнен откат.",
-    "insufficientBalance": "Недостаточно средств для использования хостингового сервиса ORGII. Пополните счёт на orgii.ai/wallet."
+    "insufficientBalance": "Недостаточно средств для использования хостингового сервиса ORGII. Пополните счёт на orgii.ai/wallet.",
+    "runQueuedBehindCheckout": "В очереди: этот checkout занят другим запуском. Запуск начнётся, как только он завершится."
   },
   "planning": {
     "agentTyping": "Agent печатает...",

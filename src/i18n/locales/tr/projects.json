@@ -15,7 +15,8 @@
       "person": "Kişiye göre",
       "assignedTo": "Atanana göre",
       "createdBy": "Oluşturan göre",
-      "targetDate": "Hedef tarihe göre"
+      "targetDate": "Hedef tarihe göre",
+      "property": "Özelliğe göre"
     },
     "source": {
       "localOnly": "Yalnızca yerel",
@@ -541,7 +542,19 @@
       "cycles": "döngü"
     },
     "viewWorkItems": "Work Item'ları görüntüle",
-    "fromRoutine": "From routine: {{name}}"
+    "fromRoutine": "From routine: {{name}}",
+    "batchField": {
+      "hint": "Seçilen {{count}} öğeye uygulanır."
+    },
+    "batchStatus": {
+      "title": "Durumu ayarla"
+    },
+    "batchPriority": {
+      "title": "Önceliği ayarla"
+    },
+    "batchAssignee": {
+      "title": "Atanan kişiyi ayarla"
+    }
   },
   "settings": {
     "sidebarGeneral": "Genel",

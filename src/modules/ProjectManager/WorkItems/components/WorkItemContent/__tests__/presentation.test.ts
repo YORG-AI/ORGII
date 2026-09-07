@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveWorkItemContentSectionPolicy } from "../presentation";
+import {
+  resolveCreationActivityKey,
+  resolveWorkItemContentSectionPolicy,
+} from "../presentation";
 
 describe("resolveWorkItemContentSectionPolicy", () => {
   it("keeps the existing tabs and linked-session table by default", () => {
@@ -23,5 +26,16 @@ describe("resolveWorkItemContentSectionPolicy", () => {
     expect(
       resolveWorkItemContentSectionPolicy("thread", false).showInlineOutput
     ).toBe(false);
+  });
+});
+
+describe("resolveCreationActivityKey", () => {
+  it("uses created wording locally and reserves opened wording for GitHub issues", () => {
+    expect(resolveCreationActivityKey(false)).toBe(
+      "workItems.activity.createdWorkItem"
+    );
+    expect(resolveCreationActivityKey(true)).toBe(
+      "common:git.issues.activity.opened"
+    );
   });
 });

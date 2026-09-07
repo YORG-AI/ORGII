@@ -28,6 +28,7 @@ fn create_test_session(session_id: &str, account_id: &str) {
             additional_directories: None,
             parent_session_id: None,
             org_member_id: None,
+            agent_definition_id: None,
             org_id: None,
             project_id: None,
             project_name: None,

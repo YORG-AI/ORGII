@@ -4,6 +4,7 @@
  * Defines task statuses, column settings, and icons for the Kanban board.
  */
 import {
+  BanIcon,
   CancelCircleIcon,
   CheckmarkCircle01Icon,
   CircleDashedIcon,
@@ -61,6 +62,15 @@ export const DEFAULT_KANBAN_COLUMNS: KanbanColumnConfig[] = [
     bgColor: "color-mix(in srgb, var(--color-warning-6) 10%, transparent)",
     dotColor: "var(--color-warning-6)",
     headerBgColor: "color-mix(in srgb, var(--color-warning-6) 8%, transparent)",
+  },
+  {
+    id: WORK_ITEM_STATUS.BLOCKED,
+    title: "Blocked",
+    icon: BanIcon,
+    color: "var(--color-danger-6)",
+    bgColor: "color-mix(in srgb, var(--color-danger-6) 10%, transparent)",
+    dotColor: "var(--color-danger-6)",
+    headerBgColor: "color-mix(in srgb, var(--color-danger-6) 8%, transparent)",
   },
   {
     id: WORK_ITEM_STATUS.COMPLETED,

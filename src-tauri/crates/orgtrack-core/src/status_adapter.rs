@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::hook_adapter::{
-    normalize_rfc3339, now_rfc3339, source_session_id, string_field, HookSource,
+    normalize_rfc3339, now_rfc3339, source_session_id, string_field, workspace_path, HookSource,
 };
 
 pub const AGENT_STATUS_SCHEMA_VERSION: u32 = 1;
@@ -130,7 +130,7 @@ pub fn normalize_status_payload(
         tool_name,
         tool_input_preview,
         interactive_prompt,
-        cwd: string_field(payload, &["cwd", "workspace_path", "workspacePath"]),
+        cwd: workspace_path(payload),
         orgii_session_id,
         occurred_at: string_field(payload, &["timestamp", "occurred_at", "occurredAt"])
             .and_then(|timestamp| normalize_rfc3339(&timestamp))
@@ -475,15 +475,18 @@ mod tests {
     #[test]
     fn antigravity_ask_question_tool_is_waiting_and_busy_stop_keeps_working() {
         let ask = json!({
-            "session_id": "ag-1",
+            "conversationId": "ag-1",
+            "workspacePaths": ["/repo"],
             "hook_event_name": "PreInvocation",
             "toolCall": {"name": "ask_question", "args": {"question": "?"}},
         });
         let status = normalize_status_payload(HookSource::Antigravity, &ask, None).expect("ask");
         assert_eq!(status.state, AgentLiveState::Waiting);
+        assert_eq!(status.source_session_id, "ag-1");
+        assert_eq!(status.cwd.as_deref(), Some("/repo"));
 
         let busy_stop = json!({
-            "session_id": "ag-1",
+            "conversationId": "ag-1",
             "hook_event_name": "Stop",
             "fullyIdle": false,
         });

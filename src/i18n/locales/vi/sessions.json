@@ -2523,7 +2523,8 @@
     "failedToInterrupt": "Ngắt Session thất bại",
     "failedToStop": "Dừng Agent thất bại",
     "failedToCheckChanges": "Không thể kiểm tra thay đổi tệp. Sẽ tiến hành hoàn tác.",
-    "insufficientBalance": "Số dư không đủ cho dịch vụ ORGII được lưu trữ. Nạp tiền tại orgii.ai/wallet."
+    "insufficientBalance": "Số dư không đủ cho dịch vụ ORGII được lưu trữ. Nạp tiền tại orgii.ai/wallet.",
+    "runQueuedBehindCheckout": "Đang xếp hàng: một lần chạy khác đang dùng checkout này. Sẽ bắt đầu ngay khi lần chạy đó kết thúc."
   },
   "planning": {
     "agentTyping": "Agent đang nhập...",

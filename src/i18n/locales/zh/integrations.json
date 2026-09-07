@@ -2280,7 +2280,17 @@
     "fireHistory": "运行历史",
     "noFires": "暂无运行记录",
     "openSession": "打开会话",
-    "openWorkItem": "打开工作项"
+    "openWorkItem": "打开工作项",
+    "extraActivations": "附加触发",
+    "activationSchedule": "定时",
+    "activationOneTime": "单次",
+    "activationProviderEvent": "Provider 事件",
+    "activationManual": "手动",
+    "providerPlaceholder": "github",
+    "eventKindPlaceholder": "pull_request",
+    "fireError": "无法启动例程：{{detail}}",
+    "provider": "提供方",
+    "eventKind": "事件"
   },
   "localModels": {
     "title": "On prem",
@@ -2443,5 +2453,12 @@
     },
     "applyFailed": "导入失败：{{message}}",
     "partialFailure": "部分凭据无法导入："
+  },
+  "skills": {
+    "shareToOrg": "共享到组织",
+    "share": "共享",
+    "sharedToOrg": "技能已共享到组织",
+    "shareToOrgHint": "组织成员会收到该技能当前的快照；编辑后再次共享即发布更新。",
+    "shareOrgPlaceholder": "组织"
   }
 }

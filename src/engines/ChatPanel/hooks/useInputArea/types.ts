@@ -25,6 +25,29 @@ export interface SubmitOverrideInput {
   imageDataUrls?: string[];
 }
 
+/** Rejected before any network/provider delivery was attempted. */
+export class SubmitValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SubmitValidationError";
+  }
+}
+
+/**
+ * The transport rejected the send after its owning surface had already
+ * retained the optimistic message as a visible failed row. Callers must not
+ * also restore the submitted content into the composer.
+ */
+export class SubmitRetainedDeliveryError extends Error {
+  readonly cause: unknown;
+
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = "SubmitRetainedDeliveryError";
+    this.cause = cause;
+  }
+}
+
 export interface CustomMentionOption {
   id: string;
   label: string;
@@ -51,6 +74,10 @@ export interface UseInputAreaOptions {
 
 export interface SubmitMessageOptions {
   capturedText?: string;
+  /** Submit a button-owned message without including or mutating the live draft. */
+  source?: "editor" | "explicit-action";
+  /** Runs only after the normal dispatch/override pipeline accepts the message. */
+  onSubmitted?: () => void;
 }
 
 // ============================================

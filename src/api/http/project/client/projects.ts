@@ -4,6 +4,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { cachedRead, invalidateCache } from "../cache";
+import { notifyProjectRosterChanged } from "../events";
 import type { ProjectData, ProjectMeta } from "../types";
 import {
   type ProjectScopeOptions,
@@ -42,6 +43,7 @@ export async function writeProject(
   invalidateCache(slug);
   // Project lists across all repo filters need to refresh.
   invalidateCache("__projects__");
+  notifyProjectRosterChanged({ project_slug: slug, source: "project" });
   return result;
 }
 
@@ -55,6 +57,7 @@ export async function moveProject(
   });
   invalidateCache(slug);
   invalidateCache("__projects__");
+  notifyProjectRosterChanged({ project_slug: slug, source: "project" });
   return result;
 }
 
@@ -62,5 +65,6 @@ export async function deleteProject(slug: string): Promise<void> {
   const result = await invoke<void>("project_delete_project", { slug });
   invalidateCache(slug);
   invalidateCache("__projects__");
+  notifyProjectRosterChanged({ project_slug: slug, source: "project" });
   return result;
 }

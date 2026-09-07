@@ -29,13 +29,19 @@ export function cloudOrgHandoffDestinationKey(orgId: string): string {
   return `cloud-org:${orgId}`;
 }
 
-export function teamInboxViewerMemberIds(
+export function teamInboxViewerIdentityIds(
   projectMemberIds: ReadonlySet<string>,
+  localIdentityIds: readonly string[],
   cloudUserId?: string
 ): string[] {
   return [
-    ...new Set([...(cloudUserId ? [cloudUserId] : []), ...projectMemberIds]),
+    ...new Set([
+      ...(cloudUserId ? [cloudUserId] : []),
+      ...localIdentityIds,
+      ...projectMemberIds,
+    ]),
   ]
+    .map((identityId) => identityId.trim())
     .filter(Boolean)
     .sort();
 }
@@ -72,6 +78,7 @@ export function handoffProjectFromRoster(
   return {
     kind: "project",
     key: projectHandoffDestinationKey(project.slug),
+    orgId: project.meta.org_id,
     projectId: project.meta.id,
     projectSlug: project.slug,
     name: project.meta.name,

@@ -8,6 +8,7 @@ export interface DetailHeaderIconActionProps {
   icon: React.ReactNode;
   onClick: () => void;
   testId?: string;
+  disabled?: boolean;
 }
 
 /** Shared icon-only action for list/detail pane headers and tab strips. */
@@ -16,6 +17,7 @@ const DetailHeaderIconAction: React.FC<DetailHeaderIconActionProps> = ({
   icon,
   onClick,
   testId,
+  disabled = false,
 }) => (
   <ToolbarTooltip label={label} position="bottom-end">
     <Button
@@ -27,6 +29,7 @@ const DetailHeaderIconAction: React.FC<DetailHeaderIconActionProps> = ({
       aria-label={label}
       onClick={onClick}
       data-testid={testId}
+      disabled={disabled}
     />
   </ToolbarTooltip>
 );

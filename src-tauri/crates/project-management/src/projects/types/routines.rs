@@ -170,7 +170,14 @@ pub struct RoutineDefinition {
     pub name: String,
     pub description: String,
     pub enabled: bool,
-    pub trigger: RoutineTrigger,
+    /// Derived from the first schedulable activation; wire and display
+    /// compatibility only. `activations` is the single source of truth.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trigger: Option<RoutineTrigger>,
+    /// Complete portable activation list — the single source of truth for
+    /// when this routine fires. Canonicalized to non-empty on every write.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub activations: Vec<crate::routine_service::spec::Activation>,
     pub run_template: RoutineRunTemplate,
     #[serde(default = "default_output_policy")]
     pub output_policy: RoutineOutputPolicy,

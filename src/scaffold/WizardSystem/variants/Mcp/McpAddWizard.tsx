@@ -52,7 +52,11 @@ interface McpAddWizardProps {
     config: McpServerConfig,
     scope: McpConfigScope
   ) => Promise<void>;
-  onTest: (name: string, config: McpServerConfig) => Promise<McpTestResult>;
+  onTest: (
+    name: string,
+    config: McpServerConfig,
+    scope: McpConfigScope
+  ) => Promise<McpTestResult>;
   onCancel: () => void;
   editName?: string;
   editConfig?: McpServerConfig;

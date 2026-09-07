@@ -111,4 +111,6 @@ pub struct SkillUpdateInfo {
     pub installed_version: String,
     pub latest_version: String,
     pub changelog: Option<String>,
+    #[serde(default)]
+    pub workspace_path: Option<String>,
 }

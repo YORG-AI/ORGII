@@ -5,6 +5,10 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { invalidateCache } from "../cache";
+import {
+  notifyProjectRosterChanged,
+  notifyProjectStatusDefinitionsChanged,
+} from "../events";
 import type {
   CollabOutboxAckResult,
   CollabOutboxPushItem,
@@ -91,6 +95,19 @@ export async function applyCollabRemote(input: {
   });
   if (applied > 0) {
     invalidateCache();
+    if (input.entities.some((entity) => entity.kind === "project")) {
+      notifyProjectRosterChanged({ source: "collab" });
+    }
+    if (
+      input.entities.some((entity) =>
+        Object.prototype.hasOwnProperty.call(
+          entity.payload,
+          "statusDefinitions"
+        )
+      )
+    ) {
+      notifyProjectStatusDefinitionsChanged(input.orgId);
+    }
   }
   return applied;
 }

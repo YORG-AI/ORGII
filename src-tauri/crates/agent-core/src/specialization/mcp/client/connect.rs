@@ -154,6 +154,13 @@ fn serialize_tool_input_schema<T: Serialize>(
 
 impl McpClient {
     pub async fn connect(name: &str, config: &McpServerConfig) -> Result<Self, String> {
+        if config.contains_redacted_secret_sentinel() {
+            return Err(format!(
+                "MCP server '{}' contains an unresolved redacted secret sentinel",
+                name
+            ));
+        }
+
         // Expand `${VAR}` / `${VAR:-default}` on a clone so the stored config
         // still reflects what the user wrote on disk (we never overwrite
         // their secrets). If expansion fails (e.g. a referenced env var is
@@ -382,10 +389,12 @@ impl McpClient {
             .as_ref()
             .ok_or_else(|| format!("MCP '{}' has no live service", self.name))?;
 
-        let tools = service
-            .list_all_tools()
-            .await
-            .map_err(|err| format!("tools/list failed for '{}': {}", self.name, err))?;
+        let tools = service.list_all_tools().await.map_err(|err| {
+            crate::specialization::mcp::config::redact_server_secrets_from_text(
+                &self.config,
+                &format!("tools/list failed for '{}': {}", self.name, err),
+            )
+        })?;
 
         let converted: Vec<McpToolDef> = tools
             .into_iter()
@@ -411,7 +420,10 @@ impl McpClient {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_custom_headers, serialize_tool_input_schema};
+    use super::{build_custom_headers, serialize_tool_input_schema, McpClient};
+    use crate::specialization::mcp::config::{
+        McpServerConfig, McpTransportType, MCP_SECRET_REDACTED_SENTINEL,
+    };
     use serde::ser::{Error as SerError, Serializer};
     use serde::Serialize;
     use std::collections::HashMap;
@@ -490,5 +502,32 @@ mod tests {
             serialize_tool_input_schema("server-a", "tool-b", &value).expect("schema serializes");
 
         assert_eq!(serialized, value);
+    }
+
+    #[tokio::test]
+    async fn connect_rejects_wire_sentinel_before_spawning_transport() {
+        let config = McpServerConfig {
+            transport_type: McpTransportType::Stdio,
+            command: Some(MCP_SECRET_REDACTED_SENTINEL.to_string()),
+            args: None,
+            cwd: None,
+            env: None,
+            url: None,
+            headers: None,
+            auto_approve: None,
+            disabled: false,
+            timeout: 30,
+        };
+
+        let err = match McpClient::connect("sentinel-test", &config).await {
+            Ok(client) => {
+                client.shutdown().await;
+                panic!("wire sentinel unexpectedly reached a transport")
+            }
+            Err(err) => err,
+        };
+
+        assert!(err.contains("unresolved redacted secret sentinel"));
+        assert!(!err.contains(MCP_SECRET_REDACTED_SENTINEL));
     }
 }

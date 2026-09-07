@@ -2,7 +2,12 @@ import { type Store, load } from "@tauri-apps/plugin-store";
 
 import { createLogger } from "@src/hooks/logger";
 
-import type { QueuedMessage } from "./messageQueueAtom";
+import {
+  MAX_QUEUED_MESSAGE_CHARS,
+  type QueuedMessage,
+  boundQueuedMessages,
+  queuedMessageCharSize,
+} from "./messageQueueAtom";
 
 const log = createLogger("messageQueueRepository");
 const STORE_PATH = "chat-message-queue.json";
@@ -21,9 +26,13 @@ function isQueuedMessage(value: unknown): value is QueuedMessage {
     typeof item.sessionId === "string" &&
     typeof item.content === "string" &&
     typeof item.displayContent === "string" &&
+    (item.imageDataUrls === undefined ||
+      (Array.isArray(item.imageDataUrls) &&
+        item.imageDataUrls.every((image) => typeof image === "string"))) &&
     (item.priority === "now" || item.priority === "next") &&
     item.status === "queued" &&
-    typeof item.createdAt === "string"
+    typeof item.createdAt === "string" &&
+    queuedMessageCharSize(item as QueuedMessage) <= MAX_QUEUED_MESSAGE_CHARS
   );
 }
 
@@ -60,7 +69,7 @@ export async function loadDurableMessageQueue(): Promise<QueuedMessage[]> {
   try {
     const stored = await store.get<unknown>(await queueKey());
     if (!Array.isArray(stored)) return [];
-    return stored.filter(isQueuedMessage);
+    return boundQueuedMessages(stored.filter(isQueuedMessage));
   } catch (error) {
     log.warn("[messageQueueRepository] failed to load queue", error);
     return [];
@@ -76,7 +85,9 @@ export async function loadDurableMessageQueue(): Promise<QueuedMessage[]> {
 export function persistDurableMessageQueue(
   messages: readonly QueuedMessage[]
 ): Promise<void> {
-  const snapshot = messages.map((message) => ({ ...message }));
+  const snapshot = boundQueuedMessages(messages).map((message) => ({
+    ...message,
+  }));
   writeChain = writeChain
     .catch((error) => {
       // A transient failure must not poison the serialization chain. The next
