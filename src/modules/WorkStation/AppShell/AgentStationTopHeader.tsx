@@ -22,7 +22,7 @@ import {
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import {
-  usePinnedWorkbenchChromeAvailable,
+  usePinnedWorkbenchChromeVisible,
   useWorkbenchRightEdgeReservation,
 } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
 import {
@@ -59,7 +59,7 @@ import { SimulatorAgentChip, StationModeChip } from "../shared";
 const AgentStationTopHeader: React.FC = memo(() => {
   const { t } = useTranslation("sessions");
   const shouldOffsetLeftChrome = useShouldOffsetWorkStationTopBar();
-  const sidePaneChromeManaged = usePinnedWorkbenchChromeAvailable();
+  const pinnedChrome = usePinnedWorkbenchChromeVisible();
   const rightEdge = useWorkbenchRightEdgeReservation();
   const getStationChatVisible = useAtomValue(activeStationChatVisibleAtom);
   const chatWidth = useAtomValue(chatWidthAtom);
@@ -72,6 +72,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
   // maximize/restore button, so the workstation-side toggle is redundant
   // and visually conflicting (two buttons driving the same atom).
   const isSettingsRoute = location.pathname.startsWith("/orgii/app/settings");
+  const showPaneControls = !isSettingsRoute && !pinnedChrome;
   const effectiveDockApp = useAtomValue(simulatorEffectiveDockAppAtom);
   const [captionEnabled, setCaptionEnabled] = useAtom(
     simulatorCaptionBarEnabledAtom
@@ -194,26 +195,25 @@ const AgentStationTopHeader: React.FC = memo(() => {
               strokeWidth={2}
             />
           </TabBarTrailingIconButton>
-          {!isSettingsRoute &&
-            !sidePaneChromeManaged &&
-            !isChatPanelVisible && (
-              <TabBarTrailingIconButton
-                title={chatPanelLabel}
-                shortcutId="maximize_work_station"
-                tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
-                onClick={handleToggleChatPanel}
-              >
-                <HugeiconsIcon
-                  icon={ArrowShrink01Icon}
-                  data-icon="minimize-2"
-                  size={14}
-                  strokeWidth={2}
-                />
-              </TabBarTrailingIconButton>
-            )}
-          {/* macOS keeps side-pane actions out of populated station headers,
-              leaving their content controls clear. */}
-          {!isSettingsRoute && !sidePaneChromeManaged && (
+          {showPaneControls && !isChatPanelVisible && (
+            <TabBarTrailingIconButton
+              title={chatPanelLabel}
+              shortcutId="maximize_work_station"
+              tooltipMouseEnterDelay={CHROME_TOOLTIP_HOVER_DELAY}
+              onClick={handleToggleChatPanel}
+            >
+              <HugeiconsIcon
+                icon={ArrowShrink01Icon}
+                data-icon="minimize-2"
+                size={14}
+                strokeWidth={2}
+              />
+            </TabBarTrailingIconButton>
+          )}
+          {/* Empty macOS stations leave these actions to the pinned window
+              chrome. Once a session populates Agent Station, this header
+              owns them so the controls do not disappear with that chrome. */}
+          {showPaneControls && (
             <TabBarTrailingIconButton
               title={chatPanelLabel}
               shortcutId="maximize_work_station"
@@ -237,7 +237,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
               )}
             </TabBarTrailingIconButton>
           )}
-          {!isSettingsRoute && !sidePaneChromeManaged && isChatPanelVisible && (
+          {showPaneControls && isChatPanelVisible && (
             <TabBarTrailingIconButton
               title={hideWorkstationLabel}
               shortcutId="maximize_chat"
