@@ -69,6 +69,13 @@
     "changelog": "Changelog"
   },
   "sidebar": {
+    "sort": {
+      "dropToUnpin": "ここにドロップしてピン留めを解除",
+      "title": "チャットの並び順",
+      "priority": "優先度",
+      "updated": "最終更新",
+      "manual": "手動順"
+    },
     "tabs": {
       "workstation": "Workstation",
       "manage": "管理",
@@ -78,6 +85,7 @@
       "agentOrgs": "Agent & チーム"
     },
     "groupBy": {
+      "none": "グループ化なし",
       "title": "グループ表示",
       "byTime": "時間順",
       "byAgent": "Agent 別",
@@ -568,7 +576,7 @@
     },
     "moveToOrg": {
       "menuItem": "組織タグ…",
-      "title": "セッションの組織タグ",
+      "title": "ラベル",
       "hint": "1つ以上の組織にチェックを入れてこのセッションを共有します。Personal と複数の組織に同時に所属できます。通常のローカルセッションのままで、そこで表示されるようになるだけです。リポジトリ範囲がこのセッションのリポジトリを含む組織のみ選択できます。",
       "noOrgs": "クラウド組織がまだありません — ORG2 クラウドにサインインして作成または参加してください。",
       "cloudBadge": "クラウド",

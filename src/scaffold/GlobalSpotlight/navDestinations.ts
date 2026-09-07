@@ -32,7 +32,7 @@ import type {
   NavDestinationGroup,
 } from "./navDestinationsTypes";
 
-export type { NavDestination, NavDestinationGroup };
+export type { NavDestination };
 
 // ============================================================================
 // Helpers

@@ -30,9 +30,6 @@ import { fetchWithTransportRetry } from "./org2CloudFetchRetry";
 
 const log = createLogger("Org2CloudCommentsClient");
 
-/** RPC-enforced body bound (0014 SIZE note) — mirrored in composers. */
-export const CLOUD_COMMENT_MAX_BODY_LENGTH = 4000;
-
 // ---------------------------------------------------------------------------
 // Error model
 // ---------------------------------------------------------------------------

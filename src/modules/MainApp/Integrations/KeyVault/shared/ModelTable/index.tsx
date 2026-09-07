@@ -56,8 +56,6 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type { ModelTableModelAlias, ModelTableVariantInfo, ModelTableViewMode };
-
 interface ModelTableProps {
   models: string[];
   enabledModels: string[] | Set<string>;

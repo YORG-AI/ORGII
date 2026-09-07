@@ -11,7 +11,7 @@ import type { TimezoneOption } from "@src/config/timezone";
 import { settingsAtom, updateSettingAtom } from "@src/store/settings";
 
 // Re-export types, options, and utilities from shared config
-export type { TimezoneOption, TimezoneOptionItem } from "@src/config/timezone";
+export type { TimezoneOption } from "@src/config/timezone";
 export {
   getCurrentTimeForTimezone,
   getCurrentTimezone,

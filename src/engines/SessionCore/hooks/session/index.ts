@@ -6,7 +6,7 @@
 
 export { useSessionDiscovery } from "./useSessionDiscovery";
 export { useSessionCreator } from "./useSessionCreator";
-export type { UseSessionCreatorReturn } from "./useSessionCreator/types";
+
 export { useTodoSync } from "./useTodoSync";
 
 // Session ID

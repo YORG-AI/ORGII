@@ -209,17 +209,6 @@ export function showServerErrorNotification(
 }
 
 /**
- * Show external API error notification (no URL shown)
- */
-export function showExternalErrorNotification(errorMessage: string): void {
-  Message.error({
-    title: i18n.t("errors.api.titles.external"),
-    content: `${errorMessage} ${i18n.t("errors.api.messages.externalHint")}`,
-    duration: NOTIFICATION_DURATION,
-  });
-}
-
-/**
  * Show API response error notification
  */
 export function showResponseErrorNotification(

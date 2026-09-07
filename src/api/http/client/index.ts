@@ -1,22 +1,3 @@
-/**
- * API Core - Main Export
- *
- * Centralized HTTP client infrastructure.
- * All API endpoints should import from here or from specific submodules.
- */
-
-// ============================================
-// Types
-// ============================================
-
-export type {
-  ApiErrorResponse,
-  ApiTarget,
-  DataField,
-  HttpMethod,
-  RequestOptions,
-} from "./types";
-
 // ============================================
 // Configuration
 // ============================================
@@ -33,14 +14,7 @@ export {
 // Error Handling
 // ============================================
 
-export {
-  buildErrorMessage,
-  capitalize,
-  showErrorNotification,
-  showResponseErrorNotification,
-  showServerErrorNotification,
-  showWorkflowErrorNotification,
-} from "./errorHandling";
+export { capitalize } from "./errorHandling";
 
 // ============================================
 // Token Management

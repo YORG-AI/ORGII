@@ -1,9 +1,10 @@
-export type GroupByMode = "byTime" | "byAgent" | "byWorkspace";
+export type GroupByMode = "byTime" | "byAgent" | "byWorkspace" | "none";
 
 export const GROUP_BY_MODES: readonly GroupByMode[] = [
   "byTime",
   "byWorkspace",
   "byAgent",
+  "none",
 ];
 
 export const SESSION_GROUP_VISIBLE_COUNTS = [5, 10] as const;

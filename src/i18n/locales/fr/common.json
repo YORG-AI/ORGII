@@ -1309,7 +1309,7 @@
       "mergeStatus": {
         "label": "État de fusion",
         "viewChecks": "Voir toutes les vérifications",
-        "ableToMerge": "Peut être fusionnée",
+        "ableToMerge": "Prête à fusionner",
         "blocked": "Fusion bloquée",
         "conflicts": "Conflits de fusion",
         "queued": "En file d'attente de fusion",
@@ -2473,5 +2473,9 @@
       "previewFailed": "Couldn't read cookies from that browser",
       "importFailed": "Couldn't import the selected cookies"
     }
+  },
+  "notifications": {
+    "taskCancelledToast": "« {{name}} » a été annulée",
+    "taskCompletedToast": "« {{name}} » est terminée. Ouvrez la session pour consulter le résultat."
   }
 }

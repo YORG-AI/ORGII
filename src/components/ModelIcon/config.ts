@@ -680,13 +680,6 @@ export function getIconProviderFromModelName(
   return "unknown";
 }
 
-/**
- * Check if icon provider has an icon
- */
-export function hasModelIcon(provider: IconProvider): boolean {
-  return provider !== "unknown" && ICON_MAP[provider] !== undefined;
-}
-
 // ============================================
 // Theming
 // ============================================

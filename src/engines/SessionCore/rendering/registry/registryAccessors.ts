@@ -7,7 +7,7 @@ import type { ComponentType, LazyExoticComponent } from "react";
 
 import { type IconSvgElement } from "@src/icons";
 
-import { getAllEventTypes } from "./events";
+import "./events";
 
 // Chat-context accessors are pure metadata; re-exported from ./events/contextConfig
 // so `ActionRegistry` (and the chat-projection worker behind it) can import
@@ -20,12 +20,6 @@ export interface ComponentOption {
   icon: IconSvgElement;
   description: string;
   component: LazyExoticComponent<ComponentType<Record<string, unknown>>>;
-}
-/**
- * Get all registered action types
- */
-export function getRegisteredActionTypes(): string[] {
-  return getAllEventTypes();
 }
 
 /**

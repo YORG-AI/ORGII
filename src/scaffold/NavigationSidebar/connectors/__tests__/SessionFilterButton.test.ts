@@ -83,6 +83,15 @@ describe("SessionFilterButton", () => {
     });
   });
 
+  it("exposes separate sort modes and persists manual selection", async () => {
+    await act(async () => queryTestId("sidebar-sort-trigger")?.click());
+    expect(queryTestId("sidebar-sort-priority")).not.toBeNull();
+    expect(queryTestId("sidebar-sort-updated")).not.toBeNull();
+    await act(async () => queryTestId("sidebar-sort-manual")?.click());
+    expect(localStorage.getItem("orgii:sidebarSessionSort")).toBe('"manual"');
+    expect(mocks.closeDropdown).toHaveBeenCalled();
+  });
+
   afterEach(() => {
     act(() => root.unmount());
     container.remove();

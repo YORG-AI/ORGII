@@ -8,5 +8,5 @@
  */
 export { SpotlightShell } from "./SpotlightShell";
 export { PaletteBody } from "./PaletteBody";
-export type { PaletteBodyProps } from "./PaletteBody";
+
 export { ShellFooterAction } from "./ShellFooterAction";

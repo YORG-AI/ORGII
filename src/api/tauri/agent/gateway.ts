@@ -8,10 +8,6 @@ import { rpc } from "@src/api/tauri/rpc";
 
 import type { GatewayStatus } from "./types";
 
-export async function isGatewayRunning(): Promise<boolean> {
-  return rpc.gateway.isRunning();
-}
-
 export async function startGateway(): Promise<void> {
   return rpc.gateway.start();
 }

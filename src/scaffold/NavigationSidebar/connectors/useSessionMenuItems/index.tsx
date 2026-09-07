@@ -580,6 +580,16 @@ export function useSessionMenuItems({
   );
   const baseMenuItems = useMemo<NavigationMenuItem[]>(() => {
     switch (groupByMode) {
+      case "none": {
+        const items: NavigationMenuItem[] = [];
+        const hiddenPinned = appendPinnedSessions(items, false);
+        items.push(
+          separator("sessions", tCommon("sessions:chat.history", "Sessions"))
+        );
+        const hidden = appendGroupSessions(items, "sessions", unpinnedSessions);
+        if (!hidden && !hiddenPinned) appendTrailingLoadMoreItems(items);
+        return items;
+      }
       case "byAgent":
         return byAgentMenuItems;
       case "byWorkspace":
@@ -588,7 +598,17 @@ export function useSessionMenuItems({
       default:
         return byTimeMenuItems;
     }
-  }, [groupByMode, byTimeMenuItems, byAgentMenuItems, byWorkspaceMenuItems]);
+  }, [
+    groupByMode,
+    byTimeMenuItems,
+    byAgentMenuItems,
+    byWorkspaceMenuItems,
+    appendPinnedSessions,
+    appendGroupSessions,
+    appendTrailingLoadMoreItems,
+    unpinnedSessions,
+    tCommon,
+  ]);
 
   const menuItems = useMemo<NavigationMenuItem[]>(
     () =>

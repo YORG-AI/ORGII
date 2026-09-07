@@ -18,14 +18,12 @@ export {
   useWorkItemCreatorDraft,
   workItemDraftToStubWorkItem,
   mapWorkItemUpdatesToDraftPatch,
-  WORK_ITEM_CREATOR_DRAFT_ID,
 } from "./useWorkItemCreatorDraft";
 
 export {
   useProjectDataChangedListener,
   useProjectDataChanged,
   projectDataChangedSignalAtom,
-  type ProjectDataChange,
 } from "./useProjectDataChanged";
 
 export { useAllRepoProjects } from "./useAllRepoProjects";

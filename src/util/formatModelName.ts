@@ -311,19 +311,6 @@ export function resolveModelPillDisplayParts(
   };
 }
 
-/**
- * Label for toolbar model pills — always derived from the model id
- * (alias → grouped/formatted id), matching the model dropdown rows. Skips listing
- * display names / provider labels so the pill shows only the model name,
- * not tier or source metadata.
- */
-export function resolveModelPillLabel(
-  selection: ModelSelection,
-  fallback: string = "Model"
-): string {
-  return resolveModelPillDisplayParts(selection, fallback).label;
-}
-
 /** Account / source label for model-pill breadcrumb tooltips. */
 export function resolveModelPillAccountName(
   selection: ModelSelection

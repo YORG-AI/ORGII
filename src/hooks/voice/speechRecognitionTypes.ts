@@ -63,7 +63,3 @@ export function getSpeechRecognitionCtor():
   const win = window as SpeechWindow;
   return win.SpeechRecognition ?? win.webkitSpeechRecognition;
 }
-
-export function isSpeechRecognitionAvailable(): boolean {
-  return getSpeechRecognitionCtor() != null;
-}

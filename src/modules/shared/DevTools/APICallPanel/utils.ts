@@ -82,43 +82,6 @@ export function formatJson(obj: unknown, maxLength: number = 300): string {
 }
 
 /**
- * Format value preview for display
- */
-export function formatValuePreview(value: unknown): string {
-  if (value === null) return "null";
-  if (value === undefined) return "undefined";
-
-  try {
-    if (typeof value === "object") {
-      const obj = value as Record<string, unknown>;
-      if (obj.__type === "Array") {
-        return `Array(${obj.length})`;
-      }
-      if (obj.__type === "Object") {
-        return `Object{${obj.keys} keys}`;
-      }
-      if (Array.isArray(value)) {
-        return `Array(${value.length})`;
-      }
-      const keys = Object.keys(value);
-      if (keys.length === 0) return "{}";
-      if (keys.length <= 2) {
-        return `{ ${keys.join(", ")} }`;
-      }
-      return `{${keys.length} keys}`;
-    }
-
-    if (typeof value === "string") {
-      return value.length > 50 ? `"${value.slice(0, 50)}..."` : `"${value}"`;
-    }
-
-    return String(value);
-  } catch {
-    return "[Error]";
-  }
-}
-
-/**
  * Format API URL by removing localhost prefix
  */
 export function formatApiUrl(fullUrl: string): string {

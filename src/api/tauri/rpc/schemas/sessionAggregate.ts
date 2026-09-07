@@ -341,9 +341,7 @@ export type NativeSidebarSessionCursor = z.output<
 export type NativeSidebarSessionPageResponse = z.output<
   typeof NativeSidebarSessionPageResponseSchema
 >;
-export type ExternalHistorySidebarDateBucket = z.output<
-  typeof ExternalHistorySidebarDateBucketSchema
->;
+
 export type ExternalHistorySidebarListRequest = z.input<
   typeof ExternalHistorySidebarListInput
 >;
@@ -356,4 +354,3 @@ export type ExternalHistorySidebarResponse = z.output<
 export type ExternalHistorySidebarBatchResponse = z.output<
   typeof ExternalHistorySidebarBatchResponseSchema
 >;
-export type SessionPatchPayload = z.input<typeof SessionPatchInput>;

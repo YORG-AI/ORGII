@@ -1,8 +1,8 @@
 import { type MutableRefObject, useEffect } from "react";
 
 import { shortcutRegistry } from "@src/hooks/keyboard";
-import { routeDebugModalOpenAtom } from "@src/store";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
+import { routeDebugModalOpenAtom } from "@src/store/ui/uiAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 import { resolveDigitZeroShortcut } from "./digitZeroShortcut";

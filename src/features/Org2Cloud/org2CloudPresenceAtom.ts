@@ -30,15 +30,6 @@ export interface Org2CloudPresencePayload extends Record<string, unknown> {
 /** Low-latency metadata nudge sent over the same private org channel. */
 export const PRESENCE_VIEW_CHANGED_EVENT = "presence-view-changed";
 
-export interface Org2CloudPresenceViewChangedPayload extends Record<
-  string,
-  unknown
-> {
-  userId: string;
-  viewingSessionId: string | null;
-  updatedAt: number;
-}
-
 /** orgId → userId → presence entry (last-write-wins per user key). */
 export const org2CloudPresenceAtom = atom<
   Record<string, Record<string, Org2CloudPresenceEntry>>
@@ -227,12 +218,4 @@ export function resolveCloudSessionRefs(
     }
   }
   return refs;
-}
-
-/** Singular compatibility helper for sessions with one cloud identity. */
-export function resolveCloudSessionRef(
-  session: Session,
-  taggedCloudOrgIds: readonly string[] = []
-): Org2CloudSessionRef | null {
-  return resolveCloudSessionRefs(session, taggedCloudOrgIds)[0] ?? null;
 }

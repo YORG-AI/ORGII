@@ -233,19 +233,6 @@ export function deriveBreadcrumbKeys(pathname: string): string[] {
 const BREADCRUMB_JOINER = " \u203a ";
 
 /**
- * Render a breadcrumb string like `Agents › Integrations › MCP`.
- * Callers pass their own translate fn (usually `t` from react-i18next).
- */
-export function buildBreadcrumbString(
-  pathname: string,
-  translate: (key: string) => string
-): string {
-  return deriveBreadcrumbKeys(pathname)
-    .map((key) => translate(key))
-    .join(BREADCRUMB_JOINER);
-}
-
-/**
  * Derive both the leaf label and the full breadcrumb path from a URL.
  * Used by Spotlight items so `label` and `description` never diverge.
  */

@@ -417,8 +417,6 @@ export const TurnGitArtifactSchema = z.object({
   targetBranch: z.string().optional(),
 });
 
-export type TurnGitArtifact = z.output<typeof TurnGitArtifactSchema>;
-
 export const TurnSummarySchema = z.object({
   sessionId: z.string(),
   turnId: z.string(),

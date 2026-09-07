@@ -69,6 +69,13 @@
     "changelog": "Changelog"
   },
   "sidebar": {
+    "sort": {
+      "dropToUnpin": "Sabitlemeyi kaldırmak için buraya bırakın",
+      "title": "Sohbetleri sırala",
+      "priority": "Öncelik",
+      "updated": "Son güncelleme",
+      "manual": "Manuel sıra"
+    },
     "tabs": {
       "workstation": "Workstation",
       "manage": "Yönet",
@@ -78,6 +85,7 @@
       "agentOrgs": "Agent ve ekip"
     },
     "groupBy": {
+      "none": "Gruplama yok",
       "title": "Grupla",
       "byTime": "Zamana göre",
       "byAgent": "Agent'a göre",
@@ -568,7 +576,7 @@
     },
     "moveToOrg": {
       "menuItem": "Org tags…",
-      "title": "Org tags for this session",
+      "title": "Etiketler",
       "hint": "Bu oturumu paylaşmak için bir veya daha fazla organizasyonu işaretleyin — aynı anda hem Personal'da hem de birden çok organizasyonda olabilir. Normal bir yerel oturum olarak kalır; bu yalnızca oralarda görünür olmasını sağlar. Yalnızca repo kapsamı bu oturumun deposunu kapsayan organizasyonlar seçilebilir.",
       "noOrgs": "No cloud orgs yet — sign in to ORG2 Cloud to create or join one.",
       "cloudBadge": "Cloud",

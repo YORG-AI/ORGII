@@ -72,17 +72,17 @@ function renderPublishedTrailing({
 }
 
 describe("useTaskKanbanHeader", () => {
-  it("orders search, separator, filter, and create controls", () => {
+  it("groups search, filter, and create controls with a 1px gap", () => {
     const markup = renderPublishedTrailing({ onAddTask: vi.fn() });
     const searchIndex = markup.indexOf('data-testid="kanban-search-control"');
-    const separatorIndex = markup.indexOf("bg-border-2");
     const filterIndex = markup.indexOf('data-testid="kanban-filter-control"');
     const createIndex = markup.indexOf('data-testid="kanban-create-session"');
 
     expect(searchIndex).toBeGreaterThanOrEqual(0);
-    expect(searchIndex).toBeLessThan(separatorIndex);
-    expect(separatorIndex).toBeLessThan(filterIndex);
+    expect(searchIndex).toBeLessThan(filterIndex);
     expect(filterIndex).toBeLessThan(createIndex);
+    expect(markup).toContain("gap-px");
+    expect(markup).not.toContain("bg-border-2");
     expect(markup).toContain('data-icon="message-add"');
     expect(markup).not.toContain('data-icon="plus"');
   });

@@ -11,7 +11,6 @@ export function selectedRowClassName<T>(
 }
 
 export { default as StatusDot } from "@src/components/StatusDot";
-export type { StatusDotProps } from "@src/components/StatusDot";
 
 export function RowChevron({ onClick }: { onClick: () => void }) {
   return (

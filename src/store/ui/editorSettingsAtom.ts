@@ -165,19 +165,6 @@ export const resolvedTerminalFontFamilyAtom = atom<string>((get) => {
  */
 export type EditorFontSize = 10 | 11 | 12 | 13 | 14 | 15 | 16 | 18 | 20 | 24;
 
-export const EDITOR_FONT_SIZES: { value: EditorFontSize; label: string }[] = [
-  { value: 10, label: "10px" },
-  { value: 11, label: "11px" },
-  { value: 12, label: "12px" },
-  { value: 13, label: "13px (default)" },
-  { value: 14, label: "14px" },
-  { value: 15, label: "15px" },
-  { value: 16, label: "16px" },
-  { value: 18, label: "18px" },
-  { value: 20, label: "20px" },
-  { value: 24, label: "24px" },
-];
-
 export const editorFontSizeAtom = atom(
   (get) => get(settingsAtom)["editor.fontSize"] as EditorFontSize,
   (_get, set, value: EditorFontSize) => {
@@ -190,12 +177,6 @@ export const editorFontSizeAtom = atom(
  */
 export type EditorTabSize = 2 | 4 | 8;
 
-export const EDITOR_TAB_SIZES: { value: EditorTabSize; label: string }[] = [
-  { value: 2, label: "2 spaces" },
-  { value: 4, label: "4 spaces" },
-  { value: 8, label: "8 spaces" },
-];
-
 export const editorTabSizeAtom = atom(
   (get) => get(settingsAtom)["editor.tabSize"] as EditorTabSize,
   (_get, set, value: EditorTabSize) => {
@@ -207,16 +188,6 @@ export const editorTabSizeAtom = atom(
  * Line height multiplier
  */
 export type EditorLineHeight = 1.2 | 1.4 | 1.5 | 1.6 | 1.8 | 2.0;
-
-export const EDITOR_LINE_HEIGHTS: { value: EditorLineHeight; label: string }[] =
-  [
-    { value: 1.2, label: "Compact (1.2)" },
-    { value: 1.4, label: "Tight (1.4)" },
-    { value: 1.5, label: "Normal (1.5)" },
-    { value: 1.6, label: "Relaxed (1.6)" },
-    { value: 1.8, label: "Loose (1.8)" },
-    { value: 2.0, label: "Double (2.0)" },
-  ];
 
 export const editorLineHeightAtom = atom(
   (get) => get(settingsAtom)["editor.lineHeight"] as EditorLineHeight,
@@ -233,16 +204,6 @@ export const editorLineHeightAtom = atom(
  * - interval: Show line numbers every 10 lines
  */
 export type EditorLineNumbers = "on" | "off" | "relative" | "interval";
-
-export const EDITOR_LINE_NUMBERS: {
-  value: EditorLineNumbers;
-  label: string;
-}[] = [
-  { value: "on", label: "On" },
-  { value: "off", label: "Off" },
-  { value: "relative", label: "Relative" },
-  { value: "interval", label: "Interval (every 10)" },
-];
 
 export const editorLineNumbersAtom = atom(
   (get) => get(settingsAtom)["editor.lineNumbers"] as EditorLineNumbers,

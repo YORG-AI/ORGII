@@ -28,7 +28,7 @@ import {
   monitorScanningAtom,
   networkRefreshTriggerAtom,
   storageRefreshTriggerAtom,
-} from "@src/store";
+} from "@src/store/ui/settingsPanelAtoms";
 
 const log = createLogger("Monitor");
 

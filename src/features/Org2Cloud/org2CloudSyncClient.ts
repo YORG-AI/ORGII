@@ -23,22 +23,18 @@
  * - `.turnIndex`   0012 per-round index publish/read
  */
 export {
-  ORG2_SYNC_ERROR_CODES,
   Org2CloudSyncError,
   isOrg2SyncErrorCode,
 } from "./org2CloudSyncClient.rpc";
-export type { Org2SyncErrorCode } from "./org2CloudSyncClient.rpc";
 
 export type {
   CloudOrgScopeState,
   CloudOrgSessions,
   CloudSegmentWire,
   CloudSessionEventsSnapshot,
-  CloudSessionEventsSummary,
 } from "./org2CloudSyncClient.schemas";
 
 export {
-  SESSION_LISTING_PAGE_SIZE,
   __SESSION_LISTING_INTERNALS,
   listOrgSessions,
 } from "./org2CloudSyncClient.listing";
@@ -53,7 +49,6 @@ export {
 export type {
   CloudAppendSessionEventsInput,
   CloudRewriteSessionEventsInput,
-  GetSessionEventsOptions,
 } from "./org2CloudSyncClient.events";
 
 export {
@@ -67,11 +62,7 @@ export {
 } from "./org2CloudSyncClient.orgSettings";
 
 export {
-  __TURN_INDEX_INTERNALS,
   getSessionTurnIndex,
   upsertSessionTurnIndex,
 } from "./org2CloudSyncClient.turnIndex";
-export type {
-  CloudSessionTurnIndex,
-  CloudSessionTurnSummary,
-} from "./org2CloudSyncClient.turnIndex";
+export type { CloudSessionTurnSummary } from "./org2CloudSyncClient.turnIndex";

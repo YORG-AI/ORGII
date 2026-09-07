@@ -17,11 +17,6 @@ export function generateMobileRemoteLanToken(): string {
   return crypto.randomUUID();
 }
 
-/** Sync fallback host before async LAN IP resolution completes. */
-export function resolveMobileRemoteLanHost(allowLanExposure: boolean): string {
-  return allowLanExposure ? MOBILE_REMOTE_LAN_HOST_PLACEHOLDER : "127.0.0.1";
-}
-
 /** Pick the host segment for a WS URL once LAN IP resolution has finished. */
 export function resolveMobileRemoteLanHostWithIp(
   allowLanExposure: boolean,
@@ -67,10 +62,6 @@ export function buildMobileRemoteWsUrl(args: {
     ? `?token=${encodeURIComponent(args.token)}`
     : "";
   return `ws://${args.host}:${port}/mobile/ws${tokenQuery}`;
-}
-
-export function ensureMobileRemoteLanToken(token: string): string {
-  return token.trim().length > 0 ? token : generateMobileRemoteLanToken();
 }
 
 export function isMobileRemoteLanHostPlaceholder(host: string): boolean {

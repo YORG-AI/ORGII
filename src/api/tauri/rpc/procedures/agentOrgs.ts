@@ -3,11 +3,7 @@ import { z } from "zod/v4";
 import { defineProcedure } from "../invoke";
 import * as schemas from "../schemas";
 
-export type {
-  CursorPluginHook,
-  CursorPluginInfo,
-  CursorPluginSkill,
-} from "../schemas/agentOrgs";
+export type { CursorPluginInfo } from "../schemas/agentOrgs";
 
 const cursor = {
   readConfig: defineProcedure("cursor_cli_config_read")

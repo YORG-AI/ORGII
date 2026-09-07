@@ -14,7 +14,6 @@ import {
 import { parseTaskAssignedPrompt } from "./parseTaskAssignedPrompt";
 
 export {
-  isAgentOrgGroupChatUserMessage,
   isAgentOrgInboxTranscriptEvent,
   isCoordinatorHumanUserEvent,
 } from "./groupChatPredicates";
@@ -524,28 +523,6 @@ export function resolveGroupChatMessageBubble(
   }
 
   return null;
-}
-
-export function isCoordinatorSessionEvent(
-  event: SessionEvent,
-  coordinatorSessionId: string
-): boolean {
-  return event.sessionId === coordinatorSessionId;
-}
-
-export function isGroupChatDetailSummaryEvent(
-  event: SessionEvent,
-  coordinatorSessionId: string
-): boolean {
-  if (isCoordinatorSessionEvent(event, coordinatorSessionId)) return false;
-  if (event.source === "system") return false;
-  if (isAgentOrgInboxTranscriptEvent(event)) return false;
-  if (isTaskRelatedGroupChatEvent(event)) return false;
-  if (isMemberInternalUserPrompt(event, coordinatorSessionId)) return false;
-  if (resolveGroupChatMessageBubble(event, coordinatorSessionId, []) !== null) {
-    return false;
-  }
-  return isGroupRenderableEvent(event);
 }
 
 export function emptyGroupChatToolUseSummary(): GroupChatToolUseSummary {

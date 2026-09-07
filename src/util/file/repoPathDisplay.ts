@@ -79,19 +79,6 @@ export function pickToolArgString(
   return undefined;
 }
 
-export function resolveToolTargetPath({
-  args,
-  repoPath,
-  pathKeys,
-}: ToolTargetPathInput): string | undefined {
-  return (
-    pickToolArgString(args, "repo_path", "repoPath") ||
-    pickToolArgString(args, ...pathKeys) ||
-    repoPath ||
-    undefined
-  );
-}
-
 export function formatToolTargetPath(
   input: ToolTargetPathInput
 ): string | undefined {

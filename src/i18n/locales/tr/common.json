@@ -1310,7 +1310,7 @@
       "mergeStatus": {
         "label": "Birleştirme durumu",
         "viewChecks": "Tüm kontrolleri gör",
-        "ableToMerge": "Birleştirilebilir",
+        "ableToMerge": "Birleştirmeye hazır",
         "blocked": "Birleştirme engellendi",
         "conflicts": "Birleştirme çakışmaları",
         "queued": "Birleştirme kuyruğunda",
@@ -2475,5 +2475,9 @@
       "previewFailed": "Couldn't read cookies from that browser",
       "importFailed": "Couldn't import the selected cookies"
     }
+  },
+  "notifications": {
+    "taskCancelledToast": "“{{name}}” iptal edildi",
+    "taskCompletedToast": "“{{name}}” tamamlandı. Sonucu incelemek için oturumu açın."
   }
 }

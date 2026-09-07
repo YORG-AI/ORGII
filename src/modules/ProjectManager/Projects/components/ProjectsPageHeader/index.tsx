@@ -125,7 +125,7 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
     );
 
   const headerSearchControls = (
-    <div className="flex shrink-0 items-center gap-px">
+    <>
       {trailingControls}
       {onSearch && (
         <Button
@@ -145,12 +145,12 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
           }
         />
       )}
-    </div>
+    </>
   );
 
   const headerActions =
     onCollapseAll || onRefresh || onAddProject ? (
-      <div className="flex shrink-0 items-center gap-px">
+      <>
         {onCollapseAll && (
           <Button
             htmlType="button"
@@ -195,16 +195,12 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
             }
           />
         )}
-      </div>
+      </>
     ) : null;
 
-  const hasHeaderSearchControls = Boolean(trailingControls || onSearch);
   const headerTrailing = (
     <div className="flex shrink-0 items-center gap-px">
       {headerSearchControls}
-      {hasHeaderSearchControls && headerActions && (
-        <HeaderSectionSeparator className="mx-1" />
-      )}
       {headerActions}
     </div>
   );

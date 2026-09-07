@@ -14,7 +14,6 @@ export const GITHUB_ITEM_KIND = {
   PR: "pr",
 } as const;
 
-export type IssueState = GitHubIssue["state"];
 export type ManagedIssueLabel = GitHubIssue["labels"][number];
 
 export interface ManagedIssueItem {

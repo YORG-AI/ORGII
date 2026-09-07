@@ -512,5 +512,4 @@ const SessionReplayIDEComponent: React.FC<SimulatorIDEProps> = ({
 export const SessionReplayIDE = memo(SessionReplayIDEComponent);
 SessionReplayIDE.displayName = "SessionReplayIDE";
 
-export { SessionReplayIDE as SimulatorIDE };
 export default SessionReplayIDE;

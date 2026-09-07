@@ -7,7 +7,6 @@ export {
 } from "./ActionSystemContext";
 export { collectAppZodActions } from "./collectAppActions";
 export {
-  cleanupServices,
   initializeServices,
   registerCoreActions,
 } from "@src/modules/WorkStation/ActionSystem/registration/registerCoreActions";
@@ -23,29 +22,8 @@ export {
 } from "./actions";
 
 export {
-  defineAppActionRegistration,
-  extractAppActionRegistrations,
-  isAppZodActionRegistration,
-  type AppZodActionRegistration,
-  type WorkStationActionContext,
-  type WorkStationZodActionRegistration,
-  type ZodActionRegistration,
-} from "./schema/actionRegistration";
-
-export {
-  defineZodAction,
   zodActionToGUIControlManifestAction,
   zodActionToLLMTool,
-  type ActionCategory,
-  type ActionExecutor,
-  type ActionLayer,
-  type ActionMeta,
-  type ActionParams,
-  type ActionResult,
-  type GUIControlManifest,
-  type GUIControlManifestAction,
-  type LLMToolDefinition,
-  type ZodAction,
 } from "./schema/defineZodAction";
 
 export { zodActionRegistry, ZodActionRegistry } from "./schema/zodRegistry";

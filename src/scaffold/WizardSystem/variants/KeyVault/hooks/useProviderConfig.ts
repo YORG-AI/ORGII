@@ -137,12 +137,3 @@ export function useProviderConfig(modelType: ModelType | undefined): {
     error: null,
   };
 }
-
-// ============================================
-// Preload Helper
-// ============================================
-
-/** Preload all provider configs into cache. Call early in app startup. */
-export function preloadProviderConfigs(): Promise<void> {
-  return loadAllConfigs().then(() => undefined);
-}

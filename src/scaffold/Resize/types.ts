@@ -164,27 +164,6 @@ export interface SplitGroupProps {
 }
 
 // ============================================
-// Layout State (for Jotai store)
-// ============================================
-
-export interface PanelSizes {
-  leftPanel: number;
-  rightPanel: number;
-  bottomPanel: number;
-}
-
-export interface SplitSizes {
-  [key: string]: number;
-}
-
-export interface LayoutState {
-  /** Panel sizes in pixels */
-  panels: PanelSizes;
-  /** Split positions (percentage or flex) */
-  splits: SplitSizes;
-}
-
-// ============================================
 // Resize Manager Context
 // ============================================
 

@@ -84,12 +84,3 @@ export type ChatProjectionResponse =
   | ReadyResponse
   | ResyncRequiredResponse
   | WorkerErrorResponse;
-
-export function createEnvelope(
-  values: Omit<ProjectionEnvelope, "protocolVersion">
-): ProjectionEnvelope {
-  return {
-    protocolVersion: CHAT_PROJECTION_PROTOCOL_VERSION,
-    ...values,
-  };
-}

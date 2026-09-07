@@ -30,8 +30,6 @@ import {
   type MessageType,
 } from "./types";
 
-export type { MessageConfig, MessageType } from "./types";
-
 // The toast renderer (framer-motion + icons) is loaded on the first toast so
 // the ~170 KB animation stack stays out of the startup graph. Auto-dismiss
 // timers start on item mount, so deferring the first paint by one chunk load

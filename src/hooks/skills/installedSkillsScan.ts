@@ -64,14 +64,6 @@ function rememberScope(key: string, items: InstalledSkill[]): void {
   cacheByScope.set(key, { items, fetchedAt: Date.now() });
 }
 
-/** Synchronously read the last cached scan for a scope, or `null` if none. */
-export function peekInstalledSkills(
-  scopePaths: readonly string[]
-): InstalledSkill[] | null {
-  const { key } = toScope(scopePaths);
-  return cacheByScope.get(key)?.items ?? null;
-}
-
 /**
  * Scan installed skills for the given workspace scope. Always queries the
  * global scope (`workspacePath: null`) plus each supplied path, then merges

@@ -22,7 +22,6 @@ export {
 export type {
   ChatGroupMeta,
   TailTurnPhase,
-  UnloadedTurnMeta,
   UseChatGroupsOptions,
   UseChatGroupsReturn,
 } from "./useChatGroupsProjection";

@@ -1,0 +1,9 @@
+# ChatPreviewShell unused-export audit
+
+| Line                                                                                  | Element                                | Verdict          | Reason                                                                                                                                                                                                                                                                                                                                               | Suggested change |
+| ------------------------------------------------------------------------------------- | -------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `src/modules/MainApp/Integrations/DevTools/playground/panels/ChatPreviewShell.tsx:14` | Retained typography and preview shells | keep with reason | Only the unreferenced `ChatPanelPaddedRow` wrapper and its export are deleted. The mounted `ChatTypographyScope`, `PlaygroundPreviewShell`, and `ChatPreviewShell` bodies retain their existing layout, tokens, typography subscriptions, and accessibility behavior. Source/script/test reference tracing found no consumer of the deleted wrapper. | None             |
+
+Verdict totals: **0 fix**, **1 keep with reason**, **0 abstract**.
+
+D1–D5: no changed live HTML, token, literal size/color, interaction, or repeated visual pattern. Other TSX edits in this cleanup narrow type/re-export surfaces; the skill's type/control-flow exclusion applies. Screenshots would not show an intended visual change.

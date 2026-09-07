@@ -27,11 +27,7 @@ export const TREE_ROW_ROUNDED_CLASS = "rounded-md";
 /** Icon size for chevrons */
 export const CHEVRON_SIZE = 14;
 
-/** Icon size for file type icons */
-export const FILE_ICON_SIZE = "small" as const;
-
-/** Status badge width for consistent alignment */
-export const STATUS_BADGE_WIDTH = 20; // w-5 = 1.25rem = 20px
+// w-5 = 1.25rem = 20px
 
 /** Shared hover background for tree rows and tree row actions. */
 export const TREE_ROW_HOVER_BG_CLASS = SURFACE_TOKENS.hover;

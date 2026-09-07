@@ -62,12 +62,6 @@ async function fetchGitIdentity(repoPath?: string): Promise<GitUserIdentity> {
   return identityPromise;
 }
 
-/** Reset cached identity (e.g. when repo changes) */
-export function resetGitIdentityCache() {
-  cachedGitIdentity = null;
-  identityPromise = null;
-}
-
 // ============================================
 // Identity collection
 // ============================================
@@ -226,19 +220,6 @@ function memberMatchesUser(
   }
 
   return false;
-}
-
-/**
- * Find a member entry by exact email match.
- */
-export function findMemberByEmail(
-  members: readonly MemberIdentity[],
-  email: string
-): MemberIdentity | undefined {
-  const normalized = email.toLowerCase().trim();
-  return members.find(
-    (member) => (member.email || "").toLowerCase().trim() === normalized
-  );
 }
 
 // ============================================

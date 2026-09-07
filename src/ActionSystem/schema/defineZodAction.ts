@@ -269,16 +269,6 @@ export function zodActionToGUIControlManifestAction<
 // ============================================
 
 /**
- * Extract the params type from a ZodAction
- *
- * @example
- * type ExecuteParams = ActionParams<typeof terminalExecute>;
- * // { command: string }
- */
-export type ActionParams<T> =
-  T extends ZodAction<infer TParams> ? z.infer<TParams> : never;
-
-/**
  * Extract the action ID from a ZodAction
  */
 export type ActionId<T> =

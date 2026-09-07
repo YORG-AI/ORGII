@@ -23,7 +23,7 @@ import CanvasInlineCard from "@src/engines/ChatPanel/blocks/CanvasInlineCard";
 import ChatCodeBlock from "@src/engines/ChatPanel/blocks/CodeBlock";
 import { parseCloudSessionReference } from "@src/features/Org2Cloud/cloudSessionReference";
 import { useOpenCloudSessionReference } from "@src/features/Org2Cloud/useOpenCloudSessionReference";
-import { themesAtom } from "@src/store";
+import { themesAtom } from "@src/store/ui/uiAtom";
 import { activeWorkspaceRootAtom } from "@src/store/workspace";
 
 import LinkHoverCard from "./LinkHoverCard";

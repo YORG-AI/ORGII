@@ -5,4 +5,3 @@
  */
 
 export { collectAdeContext } from "./AdeContextCollector";
-export type { WorkspaceSnapshot } from "@src/services/context/workspaceSnapshot";

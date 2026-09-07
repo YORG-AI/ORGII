@@ -157,23 +157,6 @@ export function checkRegionSupport(
   return regions.has(countryCode.toUpperCase()) ? "supported" : "unsupported";
 }
 
-/**
- * Get the supported region set for a provider (null if no documented restrictions).
- */
-export function getProviderSupportedRegions(
-  agentType: ModelType
-): ReadonlySet<string> | null {
-  return AGENT_REGION_MAP[agentType] ?? null;
-}
-
-/**
- * Whether a provider has documented region restrictions we can check against.
- */
-export function hasRegionRestrictions(agentType: ModelType | ""): boolean {
-  if (!agentType) return false;
-  return (agentType as ModelType) in AGENT_REGION_MAP;
-}
-
 // ── Cross-provider check (for generic CLIs) ──────────────────
 
 const MAJOR_PROVIDER_REGIONS: { name: string; regions: ReadonlySet<string> }[] =

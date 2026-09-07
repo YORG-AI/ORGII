@@ -1309,7 +1309,7 @@
       "mergeStatus": {
         "label": "Estado da mesclagem",
         "viewChecks": "Ver todas as verificações",
-        "ableToMerge": "Pode ser mesclado",
+        "ableToMerge": "Pronto para mesclar",
         "blocked": "Mesclagem bloqueada",
         "conflicts": "Conflitos de mesclagem",
         "queued": "Na fila para mesclar",
@@ -2470,5 +2470,9 @@
       "previewFailed": "Couldn't read cookies from that browser",
       "importFailed": "Couldn't import the selected cookies"
     }
+  },
+  "notifications": {
+    "taskCancelledToast": "“{{name}}” foi cancelada",
+    "taskCompletedToast": "“{{name}}” concluída. Abra a sessão para conferir o resultado."
   }
 }

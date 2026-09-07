@@ -1315,7 +1315,7 @@
       "mergeStatus": {
         "label": "Статус слияния",
         "viewChecks": "Показать все проверки",
-        "ableToMerge": "Можно слить",
+        "ableToMerge": "Готово к слиянию",
         "blocked": "Слияние заблокировано",
         "conflicts": "Конфликты слияния",
         "queued": "В очереди на слияние",
@@ -2490,5 +2490,9 @@
       "previewFailed": "Couldn't read cookies from that browser",
       "importFailed": "Couldn't import the selected cookies"
     }
+  },
+  "notifications": {
+    "taskCancelledToast": "«{{name}}» отменена",
+    "taskCompletedToast": "«{{name}}» завершена. Откройте сеанс, чтобы просмотреть результат."
   }
 }

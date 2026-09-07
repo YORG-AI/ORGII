@@ -57,6 +57,7 @@ import { useWorkstationSidebarSelectionAndCollapse } from "./sidebarConnector.se
 import { useWorkstationSidebarSessionInteractionHandlers } from "./sidebarConnector.sessionInteractionHandlers";
 import { useSidebarSessionRefreshAction } from "./sidebarSessionRefresh";
 import type { WorkstationSidebarKey } from "./types";
+import { useSessionSidebarOrdering } from "./useSessionSidebarOrdering";
 import { useSessionSidebarRowActions } from "./useSessionSidebarRowActions";
 import { useSidebarGuide } from "./useSidebarGuide";
 import { useSidebarStationNavigation } from "./useSidebarStationNavigation";
@@ -611,6 +612,27 @@ export const WorkstationSidebarConnector: React.FC = () => {
       pinnedMenuItems,
     });
 
+  const ordering = useSessionSidebarOrdering({
+    enabled: !projectsVisible && !channelSidebarVisible,
+    items: sidebarMenuItems,
+    sessionMap,
+    onTogglePin: handleTogglePin,
+  });
+  const wrapOrderedRow = ordering.wrap;
+  const renderOrderedMenuItem = useCallback(
+    (
+      item: Parameters<NonNullable<typeof resolvedRenderMenuItemWrapper>>[0],
+      node: React.ReactElement
+    ) =>
+      wrapOrderedRow(
+        item,
+        resolvedRenderMenuItemWrapper
+          ? resolvedRenderMenuItemWrapper(item, node)
+          : node
+      ),
+    [wrapOrderedRow, resolvedRenderMenuItemWrapper]
+  );
+
   const guide = useSidebarGuide({
     t,
     guideCloudOrg: manageableCloudOrg,
@@ -631,7 +653,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
         selectedKey={resolvedSelectedMenuItemId}
         onMenuItemClick={resolvedMenuItemClick}
         onMenuItemContextMenu={resolvedMenuItemContextMenu}
-        renderMenuItemWrapper={resolvedRenderMenuItemWrapper}
+        renderMenuItemWrapper={renderOrderedMenuItem}
         hostTopBarLeadingContent={sidebarOrgSelector}
         macTopBarFollowingContent={
           <div className="shrink-0 px-3 pt-1">{sidebarOrgSelector}</div>
@@ -647,32 +669,37 @@ export const WorkstationSidebarConnector: React.FC = () => {
         }
         listTopPadding
         bottomContent={
-          <SidebarBottomBar
-            leftContent={
-              <SidebarSettingsMenuButton
-                onSignIn={
-                  cloudSignedInIdentity === null ? handleCloudSignIn : undefined
-                }
-                renderTrigger={({ isOpen, onClick }) => (
-                  <SidebarAccountButton
-                    identity={cloudSignedInIdentity}
-                    avatarUrl={cloudSignedInAvatarUrl}
-                    menuOpen={isOpen}
-                    onClick={onClick}
-                  />
-                )}
-              />
-            }
-            rightActions={
-              <>
-                <SidebarGuideButton
-                  {...guide}
-                  onStartSession={handleGoToNewSession}
+          <>
+            {ordering.unpinDropZone}
+            <SidebarBottomBar
+              leftContent={
+                <SidebarSettingsMenuButton
+                  onSignIn={
+                    cloudSignedInIdentity === null
+                      ? handleCloudSignIn
+                      : undefined
+                  }
+                  renderTrigger={({ isOpen, onClick }) => (
+                    <SidebarAccountButton
+                      identity={cloudSignedInIdentity}
+                      avatarUrl={cloudSignedInAvatarUrl}
+                      menuOpen={isOpen}
+                      onClick={onClick}
+                    />
+                  )}
                 />
-                {sidebarBottomRightActions}
-              </>
-            }
-          />
+              }
+              rightActions={
+                <>
+                  <SidebarGuideButton
+                    {...guide}
+                    onStartSession={handleGoToNewSession}
+                  />
+                  {sidebarBottomRightActions}
+                </>
+              }
+            />
+          </>
         }
         isLoading={isLoading}
         collapsibleSections
@@ -689,6 +716,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
             : undefined
         }
       />
+      {ordering.insertionLine}
       <SidebarDialogs
         cloudChannelsDialogs={cloudChannelsDialogs}
         localChannelsDialogs={localChannelsDialogs}

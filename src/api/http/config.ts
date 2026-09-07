@@ -28,12 +28,6 @@ export interface ProviderInfo {
   default_model: string;
 }
 
-/** Provider list response */
-export interface ProvidersResponse {
-  status: string;
-  data: ProviderInfo[];
-}
-
 /** Agent information */
 export interface AgentInfo {
   name: string;
@@ -42,14 +36,4 @@ export interface AgentInfo {
   available: boolean;
   status: string;
   install_url?: string | null;
-}
-
-/** Agents response */
-export interface AgentsResponse {
-  status: string;
-  data: {
-    agents: AgentInfo[];
-    available_agents: string[];
-    unavailable_agents: string[];
-  };
 }

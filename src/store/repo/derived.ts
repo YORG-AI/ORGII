@@ -104,18 +104,6 @@ branchOptionsAtom.debugLabel = "branchOptionsAtom";
 // Stats Atoms
 // ============================================
 
-/** Total number of repos */
-export const repoCountAtom = atom((get) => {
-  return get(reposAtom).length;
-});
-repoCountAtom.debugLabel = "repoCountAtom";
-
-/** Check if there are any repos */
-export const hasReposAtom = atom((get) => {
-  return get(reposAtom).length > 0;
-});
-hasReposAtom.debugLabel = "hasReposAtom";
-
 /** Check if selected repo is valid */
 export const isSelectedRepoValidAtom = atom((get) => {
   const selectedId = get(selectedRepoIdAtom);

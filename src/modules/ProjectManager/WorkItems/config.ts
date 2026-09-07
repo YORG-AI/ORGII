@@ -23,7 +23,6 @@ import {
   UserMultipleIcon,
 } from "@src/icons";
 import {
-  ENTITY_COLORS,
   MILESTONE_COLORS,
   WORK_ITEM_PRIORITY_OPTIONS,
   WORK_ITEM_STATUS_OPTIONS,
@@ -192,38 +191,6 @@ export function getEffectiveWorkItemPrefix(
 ): string {
   if (isCustom && storedPrefix) return storedPrefix;
   return deriveWorkItemPrefix(projectName);
-}
-
-// ============================================
-// Helper Functions
-// ============================================
-
-export function createProjectOption(
-  project: WorkItemProject
-): DropdownOption<string> {
-  return {
-    value: project.id,
-    label: project.name,
-    icon: React.createElement(HugeiconsIcon, {
-      icon: DeliveryBox01Icon,
-      size: DROPDOWN_ITEM.iconSize,
-    }),
-    color: project.color || ENTITY_COLORS.blue,
-  };
-}
-
-export function createMilestoneOption(
-  milestone: WorkItemMilestone
-): DropdownOption<string> {
-  return {
-    value: milestone.id,
-    label: milestone.name,
-    icon: React.createElement(HugeiconsIcon, {
-      icon: DiamondIcon,
-      size: DROPDOWN_ITEM.iconSize,
-    }),
-    color: MILESTONE_COLORS.active,
-  };
 }
 
 // ============================================

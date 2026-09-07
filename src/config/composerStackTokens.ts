@@ -64,27 +64,6 @@ export const COMPOSER_STACK_ROW_HOVER = "hover:bg-fill-1";
 export const COMPOSER_STACK_ROW_LABEL =
   "chat-block-title min-w-0 flex-1 truncate text-text-2";
 
-/**
- * Secondary column — right-aligned muted path (parent dir, full path, etc.).
- * Pushes to the trailing edge via `flex-1` + `text-right`.
- */
-export const COMPOSER_STACK_ROW_SECONDARY =
-  "min-w-0 flex-1 truncate text-right text-text-3";
-
-/**
- * Info-card variant label — stronger left key for `key: value` rows
- * (e.g. `manage_workspace` mutation info). Pair with {@link COMPOSER_STACK_ROW_SECONDARY_INFO}.
- */
-export const COMPOSER_STACK_ROW_LABEL_INFO =
-  "chat-block-title min-w-0 flex-1 truncate text-text-1";
-
-/**
- * Info-card variant secondary — slightly smaller, less muted than the path variant,
- * for right-aligned values in `key: value` rows.
- */
-export const COMPOSER_STACK_ROW_SECONDARY_INFO =
-  "min-w-0 flex-1 truncate text-right text-[11px] leading-normal text-text-2";
-
 /** Hover-visible action tray at the end of a stack row. */
 export const COMPOSER_STACK_ROW_ACTIONS =
   "invisible ml-auto flex shrink-0 items-center gap-0.5 group-hover:visible";

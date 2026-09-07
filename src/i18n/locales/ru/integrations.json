@@ -20,6 +20,9 @@
     "confirmRemoveMessage": "Локальные учётные данные будут удалены. Это действие нельзя отменить.",
     "toasts": {
       "refreshed": "{{name}} успешно обновлён",
+      "refreshPartial": "Модели обновлены: +{{added}} / -{{removed}}, но произошла ошибка для {{failed}} из {{total}} аккаунтов",
+      "refreshedNoChange": "Модели обновлены: без изменений",
+      "refreshedDelta": "Модели обновлены: добавлено {{added}}, удалено {{removed}}",
       "refreshError": "Не удалось обновить {{name}}",
       "localRemoved": "{{name}} удалён",
       "deleteError": "Не удалось удалить {{name}}"

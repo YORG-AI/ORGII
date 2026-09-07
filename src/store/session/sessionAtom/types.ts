@@ -289,38 +289,6 @@ export interface Session {
 // Session Record Types (from Tauri backend)
 // ============================================
 
-/**
- * Base session record - shared fields across all session types
- */
-export interface BaseSessionRecord {
-  sessionId: string;
-  name: string;
-  status: string;
-  model: string | null;
-  userInput: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * CLI session record from Tauri backend (`code_sessions` table / `cli_sessions` module)
- */
-export interface CliSessionRecord extends BaseSessionRecord {
-  keySource: KeySource;
-  cliAgentType: CliAgentType | null;
-  tier: PriceTier | null;
-  accountId: string | null;
-  repoPath: string | null;
-  branch: string | null;
-  pid: number | null;
-  worktreePath: string | null;
-  worktreeBranch: string | null;
-  baseBranch: string | null;
-  mergeStatus: MergeStatus | null;
-  background: boolean;
-  totalTokens: number;
-}
-
 export interface SessionGroups {
   active: Session[];
   completed: Session[];

@@ -47,14 +47,13 @@
 // Context & Provider
 // ============================================
 
-export { ResizeProvider, useResizeManager } from "./ResizeManager";
+export { ResizeProvider } from "./ResizeManager";
 
 // ============================================
 // Hooks
 // ============================================
 
 export { useResizeController, useColumnResize } from "./hooks";
-export type { UseResizeControllerReturn } from "./hooks";
 
 // ============================================
 // Components
@@ -77,23 +76,5 @@ export {
   Pane,
   SplitGroup,
 } from "./components";
-export type { PaneProps } from "./components";
+
 export { default as ResizableSplitPanel } from "./components/ResizableSplitPanel";
-
-// ============================================
-// Types
-// ============================================
-
-export type {
-  GhostLayerProps,
-  LayoutState,
-  PanelSizes,
-  ResizableShellProps,
-  ResizeAxis,
-  ResizeControllerOptions,
-  ResizeHandleProps,
-  ResizeManagerContextType,
-  ResizeSession,
-  SplitGroupProps,
-  SplitSizes,
-} from "./types";

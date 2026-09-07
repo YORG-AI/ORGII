@@ -268,6 +268,5 @@ SqlQueryEditor.displayName = "SqlQueryEditor";
 
 // Re-export QueryResults for consumers who import from SqlEditor
 export { QueryResults } from "./QueryResults";
-export type { QueryResultsProps } from "./QueryResults";
 
 export default SqlQueryEditor;

@@ -176,15 +176,6 @@ export interface AgentOrgPlanApproval {
   resolvedAt?: string | null;
 }
 
-export interface AgentOrgDirectMemberMessageResponse {
-  memberSessionId: string;
-  response: {
-    content: string;
-    sessionId: string;
-    model: string;
-  };
-}
-
 export interface AgentOrgGroupChatMessageResponse {
   targetMemberId: string;
   targetMemberName: string;
@@ -364,23 +355,6 @@ export async function sendAgentOrgGroupChatMessage(
       targetMemberId,
       content,
       displayText: displayText ?? null,
-    }
-  );
-  publishAgentOrgStateChange(sessionId);
-  return response;
-}
-
-export async function sendAgentOrgUserMessageToMember(
-  sessionId: string,
-  memberId: string,
-  content: string
-): Promise<AgentOrgDirectMemberMessageResponse> {
-  const response = await invokeTauri<AgentOrgDirectMemberMessageResponse>(
-    "agent_org_send_user_message_to_member",
-    {
-      sessionId,
-      memberId,
-      content,
     }
   );
   publishAgentOrgStateChange(sessionId);

@@ -4,7 +4,7 @@ export { default as OverviewPropertiesPanel } from "./OverviewPropertiesPanel";
 export { default as WorkItemContent } from "./WorkItemContent";
 export { default as WorkItemContextMenu } from "./WorkItemContextMenu";
 export { default as WorkItemDetail } from "./WorkItemDetail";
-export type { WorkItemDetailActions } from "./WorkItemDetail";
+
 export { default as WorkItemDetailPage } from "./WorkItemDetailPage";
 export {
   default as WorkItemProperties,
@@ -25,4 +25,3 @@ export {
 } from "./WorkItemsPageHeader/WorkItemsHeaderContent";
 export { default as WorkItemsSettings } from "./WorkItemsSettings";
 export { default as WorkItemsTabContent } from "./WorkItemsTabContent";
-export type { WorkItemsViewTab } from "../types";

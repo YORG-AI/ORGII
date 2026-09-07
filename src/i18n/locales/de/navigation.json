@@ -69,6 +69,13 @@
     "changelog": "Changelog"
   },
   "sidebar": {
+    "sort": {
+      "dropToUnpin": "Zum Lösen hier ablegen",
+      "title": "Chats sortieren nach",
+      "priority": "Priorität",
+      "updated": "Zuletzt aktualisiert",
+      "manual": "Manuelle Reihenfolge"
+    },
     "tabs": {
       "workstation": "Workstation",
       "manage": "Verwalten",
@@ -78,6 +85,7 @@
       "agentOrgs": "Agent & Team"
     },
     "groupBy": {
+      "none": "Keine Gruppierung",
       "title": "Gruppieren nach",
       "byTime": "Nach Zeit",
       "byAgent": "Nach Agent",
@@ -570,7 +578,7 @@
     },
     "moveToOrg": {
       "menuItem": "Organisations-Tags…",
-      "title": "Organisations-Tags der Session",
+      "title": "Labels",
       "hint": "Wähle eine oder mehrere Organisationen, um diese Session zu teilen — sie kann gleichzeitig in Personal und mehreren Organisationen sein. Sie bleibt eine normale lokale Session; das macht sie dort nur sichtbar. Nur Organisationen, deren Repo-Bereich das Repository dieser Session abdeckt, sind wählbar.",
       "noOrgs": "Noch keine Cloud-Organisationen — melde dich bei ORG2 Cloud an, um eine zu erstellen oder beizutreten.",
       "cloudBadge": "Cloud",

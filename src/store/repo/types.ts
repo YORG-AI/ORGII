@@ -48,20 +48,6 @@ export interface Branch {
   isCurrent?: boolean;
 }
 
-/** Full repo store state (for type reference) */
-export interface RepoStoreState {
-  repos: Repo[];
-  selectedRepoId: string;
-  selectedBranch: string;
-  currentBranch: string;
-  branches: Branch[];
-  isLoading: boolean;
-  isBranchLoading: boolean;
-  error: string | null;
-  lastLoadedAt: number | null;
-  validRepoIds: Set<string>;
-}
-
 // ============================================
 // Cache Types
 // ============================================

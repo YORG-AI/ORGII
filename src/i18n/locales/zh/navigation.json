@@ -70,6 +70,13 @@
     "changelog": "更新日志"
   },
   "sidebar": {
+    "sort": {
+      "dropToUnpin": "拖到此处取消置顶",
+      "title": "会话排序",
+      "priority": "优先级",
+      "updated": "最近更新",
+      "manual": "手动排序"
+    },
     "tabs": {
       "workstation": "工作站",
       "manage": "管理",
@@ -79,6 +86,7 @@
       "agentOrgs": "Agent & 团队"
     },
     "groupBy": {
+      "none": "不分组",
       "title": "分组",
       "byTime": "按时间",
       "byAgent": "按 Agent",
@@ -660,7 +668,7 @@
     },
     "moveToOrg": {
       "menuItem": "组织标签…",
-      "title": "会话的组织标签",
+      "title": "标签",
       "hint": "勾选一个或多个组织来共享这个会话——它可以同时在 Personal 和多个组织里。它仍是你本地的普通会话，这只是让它在这些地方可见。只有 repo 范围覆盖此会话仓库的组织才能选择。",
       "noOrgs": "还没有云组织——登录 ORG2 Cloud 后创建或加入一个。",
       "cloudBadge": "云",

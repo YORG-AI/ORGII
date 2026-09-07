@@ -524,13 +524,10 @@ export default GanttChart;
 
 // Re-export types for convenience
 export type {
-  GanttConfig,
   GanttMarker,
   GanttMarkerRow,
   GanttTask,
-  GanttTimeScale,
   GanttViewScope,
-  GanttMilestone,
 } from "./types";
 export { VIEW_SCOPE_OPTIONS } from "./config";
 export { DEFAULT_GANTT_CONFIG, VIEW_SCOPE_CONFIGS } from "./types";

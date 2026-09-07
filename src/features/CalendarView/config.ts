@@ -37,15 +37,6 @@ export const WEEKDAY_NAMES_SHORT = [
   "Fri",
   "Sat",
 ];
-export const WEEKDAY_NAMES_FULL = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
 
 export const MONTH_NAMES_SHORT = [
   "Jan",
@@ -60,21 +51,6 @@ export const MONTH_NAMES_SHORT = [
   "Oct",
   "Nov",
   "Dec",
-];
-
-export const MONTH_NAMES_FULL = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
 ];
 
 // ============================================
@@ -152,11 +128,6 @@ export function getEndOfMonth(date: Date): Date {
   return result;
 }
 
-/** Get number of days in a month */
-export function getDaysInMonth(date: Date): number {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-}
-
 // ============================================
 // Date Utilities - Comparisons
 // ============================================
@@ -192,16 +163,6 @@ export function isSameMonth(date1: Date, date2: Date): boolean {
 /** Format month and year (e.g., "Jan 2026") */
 export function formatMonthYear(date: Date): string {
   return `${MONTH_NAMES_SHORT[date.getMonth()]} ${date.getFullYear()}`;
-}
-
-/** Format full month and year (e.g., "January 2026") */
-export function formatMonthYearFull(date: Date): string {
-  return `${MONTH_NAMES_FULL[date.getMonth()]} ${date.getFullYear()}`;
-}
-
-/** Format day header for week view (e.g., "Mon 5") */
-export function formatDayHeader(date: Date): string {
-  return `${WEEKDAY_NAMES_SHORT[date.getDay()]} ${date.getDate()}`;
 }
 
 /** Format time (e.g., "09:00" or "9 AM") */

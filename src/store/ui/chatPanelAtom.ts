@@ -11,10 +11,7 @@
  *   chatPanel/surfaceAtoms.ts      — surface projection, navigate, maximized
  *   chatPanel/miscAtoms.ts         — replay slider, dropdown, read-only
  */
-export {
-  CHAT_PANEL_SURFACE_KIND,
-  type ChatPanelSurfaceKind,
-} from "@src/types/ui/chatPanel";
+export { CHAT_PANEL_SURFACE_KIND } from "@src/types/ui/chatPanel";
 
 export * from "./chatPanel/widthAtoms";
 export * from "./chatPanel/visibilityAtoms";

@@ -35,9 +35,6 @@ export const FlowRecordActivitiesInput = z.object({
   activities: z.array(ActivityInputSchema),
 });
 
-/** Single-activity command payload (one `ActivityInput` at the top level). */
-export type FlowRecordActivityInput = z.input<typeof ActivityInputSchema>;
-
 export const FlowGetContextInput = z.object({
   sessionId: z.string().optional(),
   maxActivities: z.number().int().positive().optional(),
@@ -61,5 +58,3 @@ export const FlowSummaryOutputSchema = z.object({
   currentErrors: z.array(z.string()),
   idleSeconds: z.number().int().nonnegative().nullable().optional(),
 });
-
-export type FlowSummaryOutput = z.output<typeof FlowSummaryOutputSchema>;

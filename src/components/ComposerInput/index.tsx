@@ -48,7 +48,7 @@ import { PILL_DATA_ATTR, extractPlainText } from "./utils";
 
 export type { ComposerInputRef, ComposerSnapshot, PillIconType } from "./types";
 /** Attribute marking a pill host span — read-only surfaces route clicks on it. */
-export { PILL_DATA_ATTR, serializePillNode } from "./utils";
+export { serializePillNode } from "./utils";
 
 const IME_COMPOSITION_END_ENTER_GRACE_MS = 30;
 

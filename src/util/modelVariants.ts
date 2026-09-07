@@ -328,12 +328,6 @@ export function formatReasoningLevel(
   }
 }
 
-export function modelVariantsByModel(
-  variants: ModelVariantMetadata[] | undefined
-): Map<string, ModelVariantMetadata> {
-  return new Map((variants ?? []).map((variant) => [variant.model, variant]));
-}
-
 /**
  * Build a compact display label for a variant in the form
  * `Extra High · Thinking · Fast`. Omits any segment whose value is

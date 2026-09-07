@@ -6,10 +6,6 @@
  * engines/Simulator/apps/core/.
  */
 
-export {
-  getAppForEvent,
-  getSimulatorAppConfig,
-  hasSimulatorApp,
-} from "./registry";
+export { hasSimulatorApp } from "./registry";
 
 export { useSimulatorAppRenderer } from "./useSimulatorAppRenderer";

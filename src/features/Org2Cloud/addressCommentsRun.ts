@@ -198,13 +198,6 @@ export async function replyViaActiveAddressRun(
 type AddressRunFinishedListener = () => void;
 const addressRunFinishedListeners = new Set<AddressRunFinishedListener>();
 
-export function registerAddressRunFinishedListener(
-  listener: AddressRunFinishedListener
-): () => void {
-  addressRunFinishedListeners.add(listener);
-  return () => addressRunFinishedListeners.delete(listener);
-}
-
 function notifyAddressRunFinished(): void {
   for (const listener of [...addressRunFinishedListeners]) {
     try {
@@ -213,10 +206,6 @@ function notifyAddressRunFinished(): void {
       log.warn(`address-run finished listener threw: ${String(error)}`);
     }
   }
-}
-
-export function isAddressRunActive(localSessionId: string): boolean {
-  return (scheduledRunsBySession.get(localSessionId)?.length ?? 0) > 0;
 }
 
 async function freshAccessToken(): Promise<string> {

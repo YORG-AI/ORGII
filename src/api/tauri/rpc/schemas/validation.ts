@@ -12,17 +12,14 @@
 import { z } from "zod/v4";
 
 import {
-  AgentEnvConfigSchema,
   AutoDetectResultSchema,
   AvailableAgentSchema,
   AvailableApiProviderSchema,
   CliInstallMethodSchema,
   CliVersionSnapshotSchema,
-  CredentialImportItemReportSchema,
   CredentialImportReportSchema,
   CredentialSuggestionSchema,
   DetectedKeySchema,
-  DetectedQuotaInfoSchema,
   ProviderConfigSchema,
   ProviderEndpointSchema,
   SuggestionSourceKindSchema,
@@ -42,19 +39,11 @@ import {
   ClaudeCodeOauthStartResponseSchema,
   CodexOauthExchangeResponseSchema,
   CodexOauthStartResponseSchema,
-  CursorBillingUsagePageSchema,
-  CursorBillingUsageSnapshotSchema,
-  CursorNativeOauthPollResponseSchema,
-  CursorNativeOauthStartResponseSchema,
-  HousekeeperHealthCheckRequestSchema,
   HousekeeperHealthCheckResponseSchema,
-  HousekeeperTokenBenchmarkRequestSchema,
   HousekeeperTokenBenchmarkResponseSchema,
   HousekeeperUiContextSchema,
-  HousekeeperUiIntentRequestSchema,
   HousekeeperUiIntentResponseSchema,
   KeyQuotaRefreshStatusInfoSchema,
-  PromptPolishRequestSchema,
   PromptPolishResponseSchema,
   SessionStepExplainRequestSchema,
   SessionStepExplainResponseSchema,
@@ -63,11 +52,9 @@ import {
   DefaultVariantInfoSchema,
   FullKeyResponseSchema,
   KeyInfoSchema,
-  ModelAliasInfoSchema,
   ModelContextLengthsSchema,
   ModelVariantInfoSchema,
   ProviderProtocolSchema,
-  QuotaBalanceSchema,
   QuotaInfoSchema,
   SaveKeyRequestSchema,
   UsageItemSchema,
@@ -92,7 +79,7 @@ export type HealthStatus = z.infer<typeof HealthStatusSchema>;
 export type MergeStatus = z.infer<typeof MergeStatusSchema>;
 export type PriceTier = z.infer<typeof PriceTierSchema>;
 export type UsageItem = z.infer<typeof UsageItemSchema>;
-export type QuotaBalance = z.infer<typeof QuotaBalanceSchema>;
+
 export type QuotaInfo = z.infer<typeof QuotaInfoSchema>;
 export type ModelContextLengths = z.infer<typeof ModelContextLengthsSchema>;
 export type ValidationResult = z.infer<typeof ValidationResultSchema>;
@@ -104,9 +91,7 @@ export type DetectedKey = z.infer<typeof DetectedKeySchema>;
 export type AutoDetectResult = z.infer<typeof AutoDetectResultSchema>;
 export type SuggestionSourceKind = z.infer<typeof SuggestionSourceKindSchema>;
 export type CredentialSuggestion = z.infer<typeof CredentialSuggestionSchema>;
-export type CredentialImportItemReport = z.infer<
-  typeof CredentialImportItemReportSchema
->;
+
 export type CredentialImportReport = z.infer<
   typeof CredentialImportReportSchema
 >;
@@ -114,14 +99,13 @@ export type CliVersionSnapshot = z.infer<typeof CliVersionSnapshotSchema>;
 export type AvailableAgent = z.infer<typeof AvailableAgentSchema>;
 export type AvailableApiProvider = z.infer<typeof AvailableApiProviderSchema>;
 export type CliInstallMethod = z.infer<typeof CliInstallMethodSchema>;
-export type AgentEnvConfig = z.infer<typeof AgentEnvConfigSchema>;
-export type ModelAliasInfo = z.infer<typeof ModelAliasInfoSchema>;
+
 export type ModelVariantInfo = z.infer<typeof ModelVariantInfoSchema>;
 export type DefaultVariantInfo = z.infer<typeof DefaultVariantInfoSchema>;
-export type DetectedQuotaInfo = z.infer<typeof DetectedQuotaInfoSchema>;
+
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 export type ProviderEndpoint = z.infer<typeof ProviderEndpointSchema>;
-export type PromptPolishRequest = z.infer<typeof PromptPolishRequestSchema>;
+
 export type PromptPolishResponse = z.infer<typeof PromptPolishResponseSchema>;
 export type SessionStepExplainRequest = z.infer<
   typeof SessionStepExplainRequestSchema
@@ -129,40 +113,23 @@ export type SessionStepExplainRequest = z.infer<
 export type SessionStepExplainResponse = z.infer<
   typeof SessionStepExplainResponseSchema
 >;
-export type HousekeeperHealthCheckRequest = z.infer<
-  typeof HousekeeperHealthCheckRequestSchema
->;
+
 export type HousekeeperHealthCheckResponse = z.infer<
   typeof HousekeeperHealthCheckResponseSchema
 >;
-export type HousekeeperTokenBenchmarkRequest = z.infer<
-  typeof HousekeeperTokenBenchmarkRequestSchema
->;
+
 export type HousekeeperTokenBenchmarkResponse = z.infer<
   typeof HousekeeperTokenBenchmarkResponseSchema
 >;
 export type HousekeeperUiContext = z.infer<typeof HousekeeperUiContextSchema>;
-export type HousekeeperUiIntentRequest = z.infer<
-  typeof HousekeeperUiIntentRequestSchema
->;
+
 export type HousekeeperUiIntentResponse = z.infer<
   typeof HousekeeperUiIntentResponseSchema
 >;
 export type KeyQuotaRefreshStatusInfo = z.infer<
   typeof KeyQuotaRefreshStatusInfoSchema
 >;
-export type CursorBillingUsageSnapshot = z.infer<
-  typeof CursorBillingUsageSnapshotSchema
->;
-export type CursorBillingUsagePage = z.infer<
-  typeof CursorBillingUsagePageSchema
->;
-export type CursorNativeOauthStartResponse = z.infer<
-  typeof CursorNativeOauthStartResponseSchema
->;
-export type CursorNativeOauthPollResponse = z.infer<
-  typeof CursorNativeOauthPollResponseSchema
->;
+
 export type ClaudeCodeOauthStartResponse = z.infer<
   typeof ClaudeCodeOauthStartResponseSchema
 >;

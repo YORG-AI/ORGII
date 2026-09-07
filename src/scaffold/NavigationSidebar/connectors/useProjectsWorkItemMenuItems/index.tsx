@@ -26,14 +26,12 @@ import { toChatPanelProject, toChatPanelWorkItem } from "./chatPanelMapping";
 import { buildByOrgMenuItems } from "./groupingBuilders";
 import {
   getProjectsLinearLoadOrgId,
-  getProjectsLinearOrgGroupId,
   getProjectsLinearOrgId,
   getProjectsLinearWorkItemId,
   getProjectsLocalOrgId,
   getProjectsProjectOverviewSlug,
   getProjectsWorkItemCreateOrgId,
   getProjectsWorkItemId,
-  isProjectsLinearOrgGroupId,
   isProjectsWorkItemLoadMoreId,
 } from "./idHelpers";
 import { getErrorMessage } from "./linearHelpers";
@@ -53,14 +51,12 @@ const logger = createLogger("ProjectsWorkItemSidebar");
 
 export {
   getProjectsLinearLoadOrgId,
-  getProjectsLinearOrgGroupId,
   getProjectsLinearOrgId,
   getProjectsLinearWorkItemId,
   getProjectsLocalOrgId,
   getProjectsProjectOverviewSlug,
   getProjectsWorkItemCreateOrgId,
   getProjectsWorkItemId,
-  isProjectsLinearOrgGroupId,
   isProjectsWorkItemLoadMoreId,
 };
 
@@ -394,4 +390,4 @@ export function useProjectsWorkItemMenuItems({
   };
 }
 
-export type { SidebarLinearWorkItem, SidebarProject, SidebarWorkItem };
+export type { SidebarLinearWorkItem, SidebarWorkItem };

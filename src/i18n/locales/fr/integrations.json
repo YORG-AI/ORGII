@@ -20,6 +20,9 @@
     "confirmRemoveMessage": "Cela supprimera les identifiants locaux. Cette action est irréversible.",
     "toasts": {
       "refreshed": "{{name}} actualisé avec succès",
+      "refreshPartial": "Modèles actualisés : +{{added}} / -{{removed}}, mais {{failed}} comptes sur {{total}} ont échoué",
+      "refreshedNoChange": "Modèles actualisés : aucun changement",
+      "refreshedDelta": "Modèles actualisés : {{added}} ajoutés, {{removed}} supprimés",
       "refreshError": "Échec de l'actualisation de {{name}}",
       "localRemoved": "{{name}} supprimé",
       "deleteError": "Échec de la suppression de {{name}}"

@@ -122,8 +122,6 @@ export function calculateAutoLayout(taskCount: number): SimulatorGridLayout {
 }
 
 // Default configuration
-export const DEFAULT_LAYOUT: SimulatorGridLayout = "1x1";
-export const DEFAULT_SHOW_DOCK = true;
 
 // Note: Replay configuration is centralized in:
 // Shared config with @src/config/workspace/replayConfig.ts
@@ -187,21 +185,5 @@ export const getLayoutCells = (layout: SimulatorGridLayout): number => {
 };
 
 // Get grid icon for layout
-export const getLayoutIcon = (layout: SimulatorGridLayout): IconSvgElement => {
-  const iconMap: Record<SimulatorGridLayout, IconSvgElement> = {
-    "1x1": ICON_CONFIG.grid1x1,
-    "1x2": ICON_CONFIG.grid1x2,
-    "2x1": ICON_CONFIG.grid2x1,
-    "2x2": ICON_CONFIG.grid2x2,
-    "2x3": ICON_CONFIG.grid2x3,
-    "3x3": ICON_CONFIG.grid2x2,
-    "4x2": ICON_CONFIG.grid2x2,
-    "3x4": ICON_CONFIG.grid2x2,
-  };
-  return iconMap[layout];
-};
 
 // Get icon for event type
-export const getEventTypeIcon = (eventType: string): IconSvgElement => {
-  return EVENT_TYPE_ICONS[eventType] || ICON_CONFIG.event;
-};

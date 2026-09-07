@@ -9,7 +9,7 @@ import { cn } from "./cn";
 import { renderTabContent } from "./tabContent";
 import type { TabPillItem, TabPillProps } from "./types";
 
-export type { TabPillItem, TabPillProps } from "./types";
+export type { TabPillItem } from "./types";
 
 const SIDEBAR_PILL_BACKGROUND_STYLE: React.CSSProperties = {
   backgroundColor:

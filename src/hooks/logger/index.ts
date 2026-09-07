@@ -4,18 +4,12 @@
 export {
   // Factories
   createLogger,
-  useLogger,
   logger,
-
   // Top-level convenience helpers (variadic, namespace-first)
   log,
   logDebug,
   logWarn,
   logError,
-
-  // Lifecycle + level control
-  initializeLogging,
-  LogLevel,
 } from "./useLogger";
 
 export type { Logger } from "./useLogger";

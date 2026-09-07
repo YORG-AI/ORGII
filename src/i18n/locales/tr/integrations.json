@@ -20,6 +20,9 @@
     "confirmRemoveMessage": "Yerel kimlik bilgileri kaldırılacak. Bu işlem geri alınamaz.",
     "toasts": {
       "refreshed": "{{name}} başarıyla yenilendi",
+      "refreshPartial": "Modeller yenilendi: +{{added}} / -{{removed}}, ancak {{total}} hesaptan {{failed}} tanesi başarısız oldu",
+      "refreshedNoChange": "Modeller yenilendi: değişiklik yok",
+      "refreshedDelta": "Modeller yenilendi: {{added}} eklendi, {{removed}} kaldırıldı",
       "refreshError": "{{name}} yenilenemedi",
       "localRemoved": "{{name}} kaldırıldı",
       "deleteError": "{{name}} silinemedi"

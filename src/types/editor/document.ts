@@ -61,40 +61,6 @@ export interface EditOperation {
 }
 
 // ============================================
-// Document State
-// ============================================
-
-/**
- * Complete document state with versioning and edit history
- */
-export interface DocumentState {
-  // Versioning (VSCode-style)
-  /** Monotonically increasing version number (LSP-compatible) */
-  version: number;
-
-  /** Version when last saved/loaded from disk */
-  diskVersion: number;
-
-  // Content
-  /** Current document content */
-  content: string;
-
-  /** File path on disk */
-  filePath: string;
-
-  // State flags
-  /** Whether there are unsaved changes (version !== diskVersion) */
-  isDirty: boolean;
-
-  /** Whether disk file has changed since load */
-  isStale: boolean;
-
-  // Edit attribution (rolling window)
-  /** Recent edits for attribution tracking (last 100) */
-  recentEdits: EditOperation[];
-}
-
-// ============================================
 // Helper Functions
 // ============================================
 
@@ -127,30 +93,6 @@ export function getHumanEdits(edits: EditOperation[]): EditOperation[] {
  */
 export function getExternalEdits(edits: EditOperation[]): EditOperation[] {
   return filterEditsBySource(edits, "external");
-}
-
-/**
- * Calculate AI vs human contribution percentage
- */
-export function calculateContributionPercentage(edits: EditOperation[]): {
-  ai: number;
-  human: number;
-  external: number;
-} {
-  if (edits.length === 0) {
-    return { ai: 0, human: 0, external: 0 };
-  }
-
-  const aiCount = getAIEdits(edits).length;
-  const humanCount = getHumanEdits(edits).length;
-  const externalCount = getExternalEdits(edits).length;
-  const total = edits.length;
-
-  return {
-    ai: (aiCount / total) * 100,
-    human: (humanCount / total) * 100,
-    external: (externalCount / total) * 100,
-  };
 }
 
 /**

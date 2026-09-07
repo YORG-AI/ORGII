@@ -24,7 +24,6 @@ export {
 
 export {
   useDropdownListNavigation,
-  type UseDropdownListNavigationOptions,
   type UseDropdownListNavigationReturn,
 } from "./useDropdownListNavigation";
 

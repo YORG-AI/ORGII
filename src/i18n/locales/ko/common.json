@@ -1308,7 +1308,7 @@
       "mergeStatus": {
         "label": "병합 상태",
         "viewChecks": "모든 검사 보기",
-        "ableToMerge": "병합 가능",
+        "ableToMerge": "병합 준비 완료",
         "blocked": "병합 차단됨",
         "conflicts": "병합 충돌",
         "queued": "병합 대기열에 등록됨",
@@ -2471,5 +2471,9 @@
       "previewFailed": "Couldn't read cookies from that browser",
       "importFailed": "Couldn't import the selected cookies"
     }
+  },
+  "notifications": {
+    "taskCancelledToast": "“{{name}}” 취소됨",
+    "taskCompletedToast": "“{{name}}” 완료. 세션을 열어 결과를 확인하세요."
   }
 }

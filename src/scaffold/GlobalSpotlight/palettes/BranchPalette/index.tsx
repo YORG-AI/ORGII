@@ -449,7 +449,6 @@ export const WorktreePalette: React.FC<WorktreePaletteProps> = ({
 export { BranchPalette } from "./BranchPalette";
 
 export type {
-  BranchPaletteProps,
   BranchPaletteMode,
   WorktreePaletteMode,
   WorktreePaletteProps,

@@ -513,7 +513,7 @@ export const ProjectWorkItemsTabContent: React.FC<
   const headerTrailingControls = useMemo(
     () => (
       <div
-        className={`flex min-w-0 items-center gap-1 overflow-visible ${
+        className={`flex min-w-0 items-center gap-px overflow-visible ${
           useSplitListHeader ? "flex-1" : ""
         }`.trim()}
       >

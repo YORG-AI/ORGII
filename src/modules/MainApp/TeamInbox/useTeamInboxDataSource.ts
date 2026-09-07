@@ -29,10 +29,8 @@ import { createWorkItemFromSession } from "./createWorkItemFromSession";
 import { sessionHandoffDraft } from "./createWorkItemFromSession";
 import type {
   TeamInboxDataSource,
-  TeamInboxFilter,
   TeamInboxHandoffDestination,
   TeamInboxIssue,
-  TeamInboxItem,
   TeamInboxSessionHandoffDraft,
 } from "./domain";
 import { SessionHandoffPreparationError } from "./sessionHandoffError";
@@ -712,10 +710,6 @@ export function useTeamInboxDataSource(): {
   ]);
 
   return { dataSource, viewerMemberIds };
-}
-
-export function filterForItem(item: TeamInboxItem): TeamInboxFilter {
-  return item.kind === "comment_mention" ? "mentions" : "assigned";
 }
 
 export const __TEAM_INBOX_MEMBER_INTERNALS = {

@@ -87,13 +87,6 @@ export const CheckKeysResultSchema = z.object({
 export type ToolAction = z.output<typeof ToolActionSchema>;
 export type ToolInfo = z.output<typeof ToolInfoSchema>;
 export type ToolRegistryData = z.output<typeof ToolRegistryDataSchema>;
-export type EffectiveToolsRequest = z.output<
-  typeof EffectiveToolsRequestSchema
->;
-export type EffectiveToolsResponse = z.output<
-  typeof EffectiveToolsResponseSchema
->;
-export type CheckKeysResult = z.output<typeof CheckKeysResultSchema>;
 
 // ── Input schemas ───────────────────────────────────────────────────────────
 

@@ -36,13 +36,6 @@ export function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-export function compactDate(value?: string): string {
-  if (!value) return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString();
-}
-
 function linearPriorityToWorkItemPriority(priority?: number): WorkItemPriority {
   if (priority === 1) return "urgent";
   if (priority === 2) return "high";

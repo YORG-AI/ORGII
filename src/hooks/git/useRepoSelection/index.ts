@@ -10,7 +10,6 @@
  * - useRepoSelection.ts  - Main orchestrating hook
  */
 export { useRepoSelection, default } from "./useRepoSelection";
-export type { UseRepoSelectionOptions, UseRepoSelectionReturn } from "./types";
 
 // Sub-hooks for advanced use cases
 export { useRepoLoader } from "./useRepoLoader";

@@ -64,22 +64,6 @@ function newestTimestampFromEntries(
   return newestTimestamp;
 }
 
-export function getNewestBrowserEventTimestamp(
-  browserEntries: BrowserEntry[],
-  internalBrowserEntries: InternalBrowserEntry[]
-): string {
-  const newestBrowserTimestamp = newestTimestampFromEntries(browserEntries);
-  const newestInternalTimestamp = newestTimestampFromEntries(
-    internalBrowserEntries
-  );
-  if (!newestBrowserTimestamp) return newestInternalTimestamp;
-  if (!newestInternalTimestamp) return newestBrowserTimestamp;
-  return new Date(newestBrowserTimestamp).getTime() >=
-    new Date(newestInternalTimestamp).getTime()
-    ? newestBrowserTimestamp
-    : newestInternalTimestamp;
-}
-
 export function getNewestAgentBrowserTimestamp(
   browserEntries: BrowserEntry[],
   internalBrowserEntries: InternalBrowserEntry[]

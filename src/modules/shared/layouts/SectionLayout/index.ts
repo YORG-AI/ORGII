@@ -52,14 +52,8 @@ export {
 export {
   /** Apply to <Select> / <Input> / <NumberInput> controls: { width: 280, maxWidth: "100%" } */
   SECTION_CONTROL_STYLE,
-  /** "px-4" | "px-4 py-2" | "px-4 py-3" — padding variants for SectionContainer content */
-  SECTION_PADDING,
-  /** "pl-6" — left indent for sub-settings */
-  SECTION_INDENT_CLASSES,
   /** Label typography classes */
   SECTION_LABEL_CLASSES,
-  /** Light-weight label typography classes */
-  SECTION_LABEL_LIGHT_CLASSES,
   /** Sub-heading inside a SectionContainer — used for "Section title" rows */
   SECTION_SUBHEADING_CLASSES,
   /** Description text classes */

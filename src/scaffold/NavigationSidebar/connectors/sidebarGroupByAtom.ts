@@ -72,7 +72,7 @@ function parseStoredWorkspaceKeys(raw: unknown): string[] {
   );
 }
 
-function createStorage<T>(parseValue: (raw: unknown) => T) {
+export function createStorage<T>(parseValue: (raw: unknown) => T) {
   return {
     getItem(key: string, initialValue: T): T {
       if (typeof window === "undefined") return initialValue;

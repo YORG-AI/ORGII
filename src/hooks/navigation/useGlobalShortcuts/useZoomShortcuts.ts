@@ -1,7 +1,7 @@
 import { useAtom } from "jotai";
 import { useCallback, useEffect, useRef } from "react";
 
-import { UI_SCALE_CONFIG, uiScaleAtom } from "@src/store";
+import { UI_SCALE_CONFIG, uiScaleAtom } from "@src/store/ui/uiAtom";
 
 import { showScaleMessage } from "./types";
 

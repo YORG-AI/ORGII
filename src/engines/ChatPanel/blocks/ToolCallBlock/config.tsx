@@ -1,12 +1,4 @@
-export {
-  DEFAULT_TOOL_ICON_CLASS,
-  DEFAULT_TOOL_ICON_SIZE,
-  getToolIcon,
-  getToolIconComponent,
-  isTerminalTool,
-  TOOL_ICON_COMPONENTS,
-} from "@src/config/toolIcons";
-export type { GetToolIconOptions } from "@src/config/toolIcons";
+export { getToolIcon } from "@src/config/toolIcons";
 
 export const DEFAULT_VISIBLE_LINES = 4;
 /** Browser snapshot / a11y trees — keep initial slice small; expand shows rest */

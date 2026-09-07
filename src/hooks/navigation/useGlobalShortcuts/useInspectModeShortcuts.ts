@@ -1,7 +1,10 @@
 import { useAtom, useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef } from "react";
 
-import { inspectModeEnabledAtom, inspectModeLockedAtom } from "@src/store";
+import {
+  inspectModeEnabledAtom,
+  inspectModeLockedAtom,
+} from "@src/store/ui/uiAtom";
 
 /**
  * Inspect mode shortcut handlers (Cmd+8, Cmd+9, Tab/Shift+Tab, H, X)

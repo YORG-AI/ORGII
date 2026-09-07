@@ -259,14 +259,3 @@ export function startCrossWindowFocusPublisher(): () => void {
     }
   };
 }
-
-/** Test hook: drop the transport, peer claims, and listeners. */
-export function resetCrossWindowFocusForTests(): void {
-  if (runtime) {
-    const active = runtime;
-    runtime = null;
-    active.stop();
-  }
-  peerFocusByLabel.clear();
-  focusChangeListeners.clear();
-}

@@ -18,29 +18,11 @@ export type {
   PanelState,
   WorkStationLayoutState,
   WorkstationWorkspaceKey,
-  WorkstationWorkspaceId,
-  WorkstationTabPartition,
-  WorkstationTabRef,
-  WorkstationWorkspaceState,
-  WorkstationSharedState,
-  WorkstationTabsStateV3,
-  WorkstationTabOwnership,
-  TimelineDiffCommitInfo,
   // Editor cache types
   EditorRepoCache,
-  EditorCacheMap,
-  FileTabType,
-  ToolTabType,
 } from "./types";
 
-export type { CloseWorkstationTabsRequest } from "./atoms";
-
-export {
-  FILE_TAB_TYPES,
-  TOOL_TAB_TYPES,
-  getWorkstationTabOwnership,
-  closesSharedResourceOnDismiss,
-} from "./types";
+export { FILE_TAB_TYPES } from "./types";
 
 // ============================================
 // Atoms
@@ -51,7 +33,6 @@ export {
   workstationWorkspaceStateAtom,
   recentWorkstationTabsAtom,
   presentedWorkstationWorkspaceKeyAtom,
-  GLOBAL_WORKSTATION_WORKSPACE_KEY,
   sessionWorkstationWorkspaceKey,
   claimLegacyWorkstationSeedAtom,
   disposeWorkstationWorkspaceAtom,
@@ -80,47 +61,27 @@ export {
   queueFileOpens,
   consumePendingFileOpens,
   clearPendingFileOpensForSession,
-  type PendingFileOpen,
 } from "./pendingFileOpens";
 
 export {
   queuePendingCodeEditorTab,
   consumePendingCodeEditorTab,
-  clearPendingCodeEditorTabForSession,
 } from "./pendingCodeEditorTab";
 
-export {
-  getTabViewState,
-  setTabViewState,
-  deleteTabViewState,
-  clearTabViewStates,
-} from "./tabViewState";
+export { deleteTabViewState } from "./tabViewState";
 
 // ============================================
 // Tab Factory System
 // ============================================
 export { defineTabFactory, getFileName, getFileExtension } from "./tabFactory";
-export type { TabIdStrategy, TabFactoryConfig } from "./tabFactory";
 
 // ============================================
 // Tab Factories (all apps)
 // ============================================
 export {
-  // Code Editor factories
-  fileTabFactory,
-  directoryTabFactory,
   explorerTabFactory,
-  gitDiffTabFactory,
   sourceControlTabFactory,
-  gitLogTabFactory,
-  gitCommitDetailTabFactory,
-  gitStashDetailTabFactory,
   terminalTabFactory,
-  terminalContentTabFactory,
-  domComponentPreviewTabFactory,
-  aiImpactTabFactory,
-  searchSessionsTabFactory,
-  searchTabFactory,
   // Code Editor creator functions
   SOURCE_CONTROL_CHANGES_TAB_ID,
   CODE_EDITOR_MAIN_TERMINAL_SESSION_ID,
@@ -138,14 +99,9 @@ export {
   createTerminalTab,
   createTerminalContentTab,
   createDomComponentPreviewTab,
-  createAIImpactTab,
   createSearchSessionsTab,
   createSearchTab,
-  // Browser factories
-  browserSessionTabFactory,
   createBrowserSessionTab,
-  // Chat factories
-  chatSessionTabFactory,
   createChatSessionTab,
   // Project Manager factories
   STORY_ORG_SCOPE,
@@ -155,24 +111,12 @@ export {
   PROJECT_LINEAR_SURFACE_VIEW,
   PROJECT_DETAIL_SURFACE_VIEW,
   normalizeProjectLinearSurfaceView,
-  PROJECT_MANAGER_WORKSPACE_TITLE_KEY,
   resolveProjectManagerTabTitle,
-  projectDashboardTabFactory,
-  projectWorkItemsIndexTabFactory,
-  projectLinearProjectsTabFactory,
-  projectLinearWorkItemsTabFactory,
-  projectSettingsTabFactory,
-  projectOrgSettingsTabFactory,
-  projectOrgTabFactory,
-  projectGitSyncReviewTabFactory,
-  projectWorkItemsTabFactory,
-  workItemDetailTabFactory,
   createProjectDashboardTab,
   createProjectWorkItemsIndexTab,
   createProjectLinearProjectsTab,
   createProjectLinearWorkItemsTab,
   createProjectSettingsTab,
-  createProjectOrgSettingsTab,
   createProjectOrgTab,
   normalizeProjectOrgSurfaceView,
   normalizeProjectDetailSurfaceView,
@@ -183,8 +127,6 @@ export {
   getProjectLinearWorkItemsTabChrome,
   getProjectWorkItemsTabChrome,
   getWorkItemDetailTabChrome,
-  // Subagent factories
-  subagentDetailTabFactory,
   createSubagentDetailTab,
   // Agent Config factories
   agentConfigTabFactory,
@@ -198,38 +140,11 @@ export {
 } from "./factories";
 
 export type {
-  // Code Editor data types
-  FileTabData,
-  GitDiffTabData,
   SourceControlHistorySelection,
-  SourceControlTabData,
-  GitLogTabData,
-  GitCommitDetailTabData,
-  GitStashDetailTabData,
-  TerminalTabData,
-  TerminalContentTabData,
-  DomComponentPreviewTabData,
-  SearchTabData,
-  DirectoryTabData,
-  // Browser data types
-  BrowserSessionTabData,
-  // Chat data types
-  ChatSessionTabData,
-  // Project Manager data types
-  ProjectOrgFilterTabData,
   ProjectOrgScope,
-  ProjectSettingsTabData,
-  ProjectOrgSettingsTabData,
-  ProjectOrgTabData,
   ProjectOrgSurfaceView,
   ProjectLinearSurfaceView,
   ProjectDetailSurfaceView,
-  ProjectGitSyncReviewTabData,
-  ProjectWorkItemsTabData,
-  WorkItemDetailTabData,
-  NewWorkItemTabData,
-  // Subagent data types
-  SubagentDetailTabData,
   // Agent Config data types
   AgentConfigTabData,
   AgentConfigTabVariant,
