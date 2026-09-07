@@ -19,6 +19,39 @@ use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 
 #[test]
+fn codex_app_server_is_scoped_to_native_continuation_episode() {
+    let profile = || super::super::launch_profiles::ResolvedCliLaunchProfile {
+        permission_mode: super::super::launch_profiles::CliPermissionMode::Manual,
+        command: "codex".to_string(),
+        args: vec!["exec".to_string()],
+        env: HashMap::new(),
+        // Even a stale persisted opt-in must not change an ordinary turn.
+        transport: Some(super::super::launch_profiles::CLI_TRANSPORT_APP_SERVER.to_string()),
+    };
+
+    let mut ordinary = profile();
+    scope_codex_transport_to_turn(&ModelType::Codex, &mut ordinary, false);
+    assert!(!super::super::launch_profiles::uses_codex_app_server(
+        &ModelType::Codex,
+        &ordinary
+    ));
+
+    let mut continuation = profile();
+    scope_codex_transport_to_turn(&ModelType::Codex, &mut continuation, true);
+    assert!(super::super::launch_profiles::uses_codex_app_server(
+        &ModelType::Codex,
+        &continuation
+    ));
+
+    let mut claude = profile();
+    scope_codex_transport_to_turn(&ModelType::ClaudeCode, &mut claude, true);
+    assert_eq!(
+        claude.transport.as_deref(),
+        Some(super::super::launch_profiles::CLI_TRANSPORT_APP_SERVER)
+    );
+}
+
+#[test]
 fn command_logging_redacts_mcp_config_values() {
     let raw = vec![
         "codex".to_string(),
@@ -720,6 +753,61 @@ fn atlas_model_string_is_preserved_before_the_codex_provider_gate_rejects_it() {
 }
 
 #[test]
+fn claude_cross_type_session_model_overrides_the_account_fallback() {
+    let mut env = HashMap::from([
+        ("ANTHROPIC_MODEL".to_string(), "zai-org/glm-5.1".to_string()),
+        (
+            "ANTHROPIC_DEFAULT_SONNET_MODEL".to_string(),
+            "zai-org/glm-5.1".to_string(),
+        ),
+        (
+            "ANTHROPIC_DEFAULT_OPUS_MODEL".to_string(),
+            "zai-org/glm-5.1".to_string(),
+        ),
+        (
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL".to_string(),
+            "zai-org/glm-5.1".to_string(),
+        ),
+    ]);
+
+    apply_claude_cross_type_session_model(
+        &ModelType::ClaudeCode,
+        Some(&ModelType::AtlascloudApi),
+        Some("deepseek-ai/deepseek-v3.2"),
+        &mut env,
+    );
+
+    for key in [
+        "ANTHROPIC_MODEL",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    ] {
+        assert_eq!(
+            env.get(key).map(String::as_str),
+            Some("deepseek-ai/deepseek-v3.2"),
+        );
+    }
+}
+
+#[test]
+fn claude_native_session_keeps_its_cli_model_path() {
+    let mut env = HashMap::from([("ANTHROPIC_MODEL".to_string(), "account-default".to_string())]);
+
+    apply_claude_cross_type_session_model(
+        &ModelType::ClaudeCode,
+        Some(&ModelType::ClaudeCode),
+        Some("claude-opus-4-8"),
+        &mut env,
+    );
+
+    assert_eq!(
+        env.get("ANTHROPIC_MODEL").map(String::as_str),
+        Some("account-default"),
+    );
+}
+
+#[test]
 fn codex_rejects_chat_only_providers_and_zenmux_preserves_aggregator_namespace() {
     for provider in [ModelType::ZhipuApi, ModelType::AtlascloudApi] {
         let key = ModelKey::new(provider);
@@ -831,6 +919,95 @@ fn child_env_sanitization_keeps_runtime_tokens_out_of_subprocess_env() {
     );
     assert!(!codex_env.contains_key(CODEX_REFRESH_TOKEN_ENV_KEY));
     assert!(!codex_env.contains_key(CODEX_ID_TOKEN_ENV_KEY));
+}
+
+#[test]
+fn explicit_claude_account_clears_inherited_routing_not_owned_by_source() {
+    let selected = HashMap::from([
+        (
+            "ANTHROPIC_AUTH_TOKEN".to_string(),
+            "selected-oauth".to_string(),
+        ),
+        (
+            "CLAUDE_CONFIG_DIR".to_string(),
+            "/selected/profile".to_string(),
+        ),
+    ]);
+    let mut command = Command::new("claude");
+    apply_child_environment(&mut command, &ModelType::ClaudeCode, true, &selected);
+
+    let explicit = command
+        .as_std()
+        .get_envs()
+        .map(|(key, value)| {
+            (
+                key.to_string_lossy().into_owned(),
+                value.map(|value| value.to_string_lossy().into_owned()),
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    assert_eq!(
+        explicit.get("ANTHROPIC_AUTH_TOKEN"),
+        Some(&Some("selected-oauth".to_string()))
+    );
+    assert_eq!(explicit.get("ANTHROPIC_API_KEY"), Some(&None));
+    assert_eq!(explicit.get("ANTHROPIC_BASE_URL"), Some(&None));
+    assert_eq!(explicit.get("ANTHROPIC_MODEL"), Some(&None));
+    assert_eq!(
+        explicit.get("CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS"),
+        Some(&None)
+    );
+}
+
+#[test]
+fn explicit_claude_account_wins_over_stale_launch_profile_routing() {
+    let mut selected = HashMap::from([
+        (
+            "ANTHROPIC_AUTH_TOKEN".to_string(),
+            "anthropic-1-oauth".to_string(),
+        ),
+        (
+            "CLAUDE_CONFIG_DIR".to_string(),
+            "/accounts/anthropic-1".to_string(),
+        ),
+    ]);
+    let stale_profile = HashMap::from([
+        (
+            "ANTHROPIC_BASE_URL".to_string(),
+            "https://api.atlascloud.ai".to_string(),
+        ),
+        ("ANTHROPIC_MODEL".to_string(), "zai-org/glm-5.2".to_string()),
+        (
+            "ANTHROPIC_AUTH_TOKEN".to_string(),
+            "stale-atlas-token".to_string(),
+        ),
+        ("PATH".to_string(), "/custom/bin".to_string()),
+    ]);
+
+    merge_launch_profile_environment(&ModelType::ClaudeCode, true, &mut selected, stale_profile);
+
+    assert_eq!(
+        selected.get("ANTHROPIC_AUTH_TOKEN").map(String::as_str),
+        Some("anthropic-1-oauth")
+    );
+    assert_eq!(
+        selected.get("CLAUDE_CONFIG_DIR").map(String::as_str),
+        Some("/accounts/anthropic-1")
+    );
+    assert!(!selected.contains_key("ANTHROPIC_BASE_URL"));
+    assert!(!selected.contains_key("ANTHROPIC_MODEL"));
+    assert_eq!(
+        selected.get("PATH").map(String::as_str),
+        Some("/custom/bin")
+    );
+}
+
+#[test]
+fn ambient_claude_profile_keeps_shell_environment_available() {
+    let mut command = Command::new("claude");
+    apply_child_environment(&mut command, &ModelType::ClaudeCode, false, &HashMap::new());
+
+    assert!(command.as_std().get_envs().next().is_none());
 }
 
 #[test]

@@ -64,6 +64,8 @@ interface ModelSelectorPillProps {
   settingsMenuDefaultAdvanced?: boolean;
   /** Mobile uses the combined settings menu whenever variant rows exist. */
   preferCombinedSettingsMenu?: boolean;
+  /** Prevent opening a picker while its execution inventory is unresolved. */
+  disabled?: boolean;
 }
 
 const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
@@ -85,6 +87,7 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
       effortSegmentOverride,
       settingsMenuDefaultAdvanced = false,
       preferCombinedSettingsMenu = false,
+      disabled = false,
     },
     ref
   ) => {
@@ -183,7 +186,8 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
         tooltipFramedWide: true,
         ariaLabel: ariaLabel ?? defaultLabel,
         active,
-        danger: !hasModelSelection,
+        danger: !disabled && !hasModelSelection,
+        disabled,
         onClick,
         dataTestId: dataTestId,
         buttonRef: modelSegmentRef,
@@ -191,7 +195,7 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
         leadingFlush: triggerLeadingFlush,
       };
 
-      if (!effortEditable || !effortModelId) {
+      if (disabled || !effortEditable || !effortModelId) {
         return [modelSegment];
       }
 
@@ -249,6 +253,7 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
       ariaLabel,
       dataTestId,
       defaultLabel,
+      disabled,
       displayParts.label,
       displayParts.rawValue,
       displayParts.thinking,
@@ -280,14 +285,18 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
       variantOptions.fastAvailableAnywhere ||
       variantOptions.thinkingToggleable;
     const useCombinedSettingsMenu =
-      preferCombinedSettingsMenu && effortModelId && canEditVariants;
+      !disabled &&
+      preferCombinedSettingsMenu &&
+      Boolean(effortModelId) &&
+      canEditVariants;
     const useSliderSettingsMenu =
+      !disabled &&
       !preferCombinedSettingsMenu &&
       effortEditable &&
-      effortModelId &&
-      variant &&
+      Boolean(effortModelId) &&
+      Boolean(variant) &&
       variantOptions.availableLevels.length > 1;
-    if (useCombinedSettingsMenu || useSliderSettingsMenu) {
+    if ((useCombinedSettingsMenu || useSliderSettingsMenu) && effortModelId) {
       return (
         <ModelSettingsMenu
           anchorRef={modelSegmentRef}

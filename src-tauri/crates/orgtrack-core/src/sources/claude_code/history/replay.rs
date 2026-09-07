@@ -10,7 +10,7 @@ use crate::sources::imported_history::{self, ImportedToolCall};
 
 use super::discovery::{claude_file_stem_from_session_id, resolve_claude_session_path};
 use super::tools::{apply_claude_edit_diff, claude_tool_call_from_item};
-use super::types::{is_harness_injected_user_line, ClaudeJsonlLine};
+use super::types::{is_claude_compact_summary, is_harness_injected_user_line, ClaudeJsonlLine};
 use super::CLAUDE_CODE_PROVIDER_SLUG;
 
 pub fn load_claude_code_history_for_session(
@@ -22,7 +22,7 @@ pub fn load_claude_code_history_for_session(
     load_claude_code_history_from_path(session_id, &path)
 }
 
-pub(super) fn load_claude_code_history_from_path(
+pub fn load_claude_code_history_from_path(
     session_id: &str,
     path: &Path,
 ) -> Result<Vec<ActivityChunk>, String> {
@@ -42,6 +42,7 @@ pub(super) fn load_claude_code_history_from_reader<R: BufRead>(
         imported_history::PendingCallMap::new();
     let mut sequence = start_sequence;
     let mut forced_first_user_id = forced_first_user_id;
+    let mut pending_compact_boundary: Option<(String, String)> = None;
 
     for line in reader.lines() {
         let line = line.map_err(|err| format!("Failed to read Claude history line: {err}"))?;
@@ -58,6 +59,61 @@ pub(super) fn load_claude_code_history_from_reader<R: BufRead>(
             .as_deref()
             .map(imported_history::normalize_created_at)
             .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+        if parsed.r#type == "system" && parsed.subtype == "compact_boundary" {
+            if let Some((boundary_id, boundary_created_at)) = pending_compact_boundary.take() {
+                chunks.push(claude_context_compacted_chunk(
+                    session_id,
+                    sequence,
+                    &boundary_id,
+                    &boundary_created_at,
+                    None,
+                ));
+                sequence += 1;
+            }
+            let boundary_id = if parsed.uuid.trim().is_empty() {
+                format!("boundary-{sequence}")
+            } else {
+                parsed.uuid.clone()
+            };
+            pending_compact_boundary = Some((boundary_id, created_at));
+            continue;
+        }
+        if is_claude_compact_summary(&parsed) {
+            let summary = parsed
+                .message
+                .as_ref()
+                .and_then(|message| claude_content_text(&message.content));
+            let (boundary_id, boundary_created_at) =
+                pending_compact_boundary.take().unwrap_or_else(|| {
+                    let id = if parsed.uuid.trim().is_empty() {
+                        format!("summary-{sequence}")
+                    } else {
+                        parsed.uuid.clone()
+                    };
+                    (id, created_at.clone())
+                });
+            chunks.push(claude_context_compacted_chunk(
+                session_id,
+                sequence,
+                &boundary_id,
+                &boundary_created_at,
+                summary.as_deref(),
+            ));
+            sequence += 1;
+            continue;
+        }
+        if parsed.message.is_some() {
+            if let Some((boundary_id, boundary_created_at)) = pending_compact_boundary.take() {
+                chunks.push(claude_context_compacted_chunk(
+                    session_id,
+                    sequence,
+                    &boundary_id,
+                    &boundary_created_at,
+                    None,
+                ));
+                sequence += 1;
+            }
+        }
         let harness_injected = is_harness_injected_user_line(&parsed);
         let Some(message) = parsed.message else {
             continue;
@@ -66,7 +122,7 @@ pub(super) fn load_claude_code_history_from_reader<R: BufRead>(
         match parsed.r#type.as_str() {
             "user" => {
                 if let Some(tool_result_output) = claude_tool_result_text(&message.content) {
-                    if let Some((call_id, output)) = tool_result_output {
+                    if let Some((call_id, output, is_error)) = tool_result_output {
                         if let Some(call) = pending_tool_calls.remove(&call_id) {
                             let mut chunk = imported_history::tool_call_chunk(
                                 session_id,
@@ -75,6 +131,11 @@ pub(super) fn load_claude_code_history_from_reader<R: BufRead>(
                                 &call,
                                 &output,
                             );
+                            if is_error {
+                                chunk.result["success"] = Value::Bool(false);
+                                chunk.result["status"] = Value::String("failed".to_string());
+                                chunk.result["is_error"] = Value::Bool(true);
+                            }
                             // Edit/MultiEdit/Write results carry a
                             // `structuredPatch`; attach it as the exact diff so
                             // the edit card renders the real change.
@@ -152,18 +213,47 @@ pub(super) fn load_claude_code_history_from_reader<R: BufRead>(
         }
     }
 
+    if let Some((boundary_id, boundary_created_at)) = pending_compact_boundary.take() {
+        chunks.push(claude_context_compacted_chunk(
+            session_id,
+            sequence,
+            &boundary_id,
+            &boundary_created_at,
+            None,
+        ));
+    }
+
     for call in pending_tool_calls.drain_in_file_order() {
-        chunks.push(imported_history::tool_call_chunk(
+        chunks.push(imported_history::unresolved_tool_call_chunk(
             session_id,
             CLAUDE_CODE_PROVIDER_SLUG,
             sequence,
             &call,
-            "",
         ));
         sequence += 1;
     }
 
     Ok(chunks)
+}
+
+fn claude_context_compacted_chunk(
+    session_id: &str,
+    sequence: usize,
+    boundary_id: &str,
+    created_at: &str,
+    summary: Option<&str>,
+) -> ActivityChunk {
+    let mut chunk = ActivityChunk::new(session_id, "context_compacted", "context_compacted");
+    chunk.chunk_id = format!("claude-context-compacted-{boundary_id}-{sequence}");
+    chunk.created_at = created_at.to_string();
+    chunk.result = json!({
+        "success": true,
+        "native": true,
+        "provider": "claude_code",
+        "header": "Context compacted",
+        "observation": summary.unwrap_or(""),
+    });
+    chunk
 }
 
 pub(super) fn claude_content_items(content: &Value) -> Vec<&Value> {
@@ -218,7 +308,7 @@ fn claude_content_image_data_urls(content: &Value) -> Vec<String> {
         .collect()
 }
 
-pub(super) fn claude_tool_result_text(content: &Value) -> Option<Option<(String, String)>> {
+pub(super) fn claude_tool_result_text(content: &Value) -> Option<Option<(String, String, bool)>> {
     let Value::Array(items) = content else {
         return None;
     };
@@ -236,5 +326,9 @@ pub(super) fn claude_tool_result_text(content: &Value) -> Option<Option<(String,
         Some(other) => other.to_string(),
         None => String::new(),
     };
-    Some(Some((call_id, output)))
+    let is_error = result_item
+        .get("is_error")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    Some(Some((call_id, output, is_error)))
 }

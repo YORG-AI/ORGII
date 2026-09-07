@@ -466,7 +466,22 @@ pub async fn session_patch(
     session_id: String,
     patch: SessionPatch,
 ) -> Result<(), String> {
-    let identity_changed = patch.model.is_some();
+    let identity_changed = patch.model.is_some() || patch.account_id.is_some();
+    // Model/account identity participates in provider-native publication.
+    // Serialize that patch with interrupt/finalize/follow-up so an in-flight
+    // runner that started as account A can never be published through a newly
+    // patched account B binding. The UI remains responsive; the selection is
+    // committed for the next turn once the current provider boundary settles.
+    let _identity_guard = if identity_changed {
+        Some(
+            crate::agent_sessions::cli::session_runner::session_identity_lock(&session_id)
+                .await
+                .lock_owned()
+                .await,
+        )
+    } else {
+        None
+    };
     let switched_to_project = patch.product_mode.as_deref() == Some("project");
     let renamed = patch
         .name

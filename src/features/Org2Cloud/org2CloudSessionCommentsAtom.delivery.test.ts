@@ -42,8 +42,16 @@ vi.mock("./org2CloudCommentsBus", async (importOriginal) => {
 type CommentsApi = ReturnType<typeof useSessionComments>;
 let api: CommentsApi;
 
-function Harness({ onReady }: { onReady: (value: CommentsApi) => void }) {
-  const value = useSessionComments("org-1", "session-1");
+function Harness({
+  onReady,
+  orgId = "org-1",
+  sessionId = "session-1",
+}: {
+  onReady: (value: CommentsApi) => void;
+  orgId?: string | null;
+  sessionId?: string | null;
+}) {
+  const value = useSessionComments(orgId, sessionId);
   useEffect(() => onReady(value), [onReady, value]);
   return null;
 }
@@ -104,9 +112,9 @@ describe("Team Chat retained delivery", () => {
     expect(failure).toBeInstanceOf(SessionCommentDeliveryError);
     const localId = (failure as SessionCommentDeliveryError).commentId;
     const key = sessionCommentsKey("org-1", "session-1");
-    expect(
-      store.get(org2CloudSessionCommentsAtom)[key].comments
-    ).toContainEqual(
+    const readComments = () =>
+      store.get(org2CloudSessionCommentsAtom)[key].comments;
+    expect(readComments()).toContainEqual(
       expect.objectContaining({
         id: localId,
         body: "hello @Bob",
@@ -115,6 +123,7 @@ describe("Team Chat retained delivery", () => {
         clientDeliveryError: "offline",
       })
     );
+    const retainedAt = readComments()[0].createdAt;
 
     const delivered: CloudSessionComment = {
       id: "comment-1",
@@ -125,20 +134,78 @@ describe("Team Chat retained delivery", () => {
       kind: "user",
       mentionedUserIds: ["user-3"],
     };
-    mocks.addSessionComment.mockResolvedValueOnce(delivered);
-    await act(async () =>
-      api.retryComment(localId, "edited @Carol", ["user-3"])
+    let resolveSend!: (comment: CloudSessionComment) => void;
+    mocks.addSessionComment.mockReturnValueOnce(
+      new Promise<CloudSessionComment>((resolve) => {
+        resolveSend = resolve;
+      })
     );
+    // Retry is not a second mechanism: the owning surface re-sends the same
+    // row through addComment under its stable optimistic id.
+    let retry!: Promise<CloudSessionComment>;
+    await act(async () => {
+      retry = api.addComment({
+        body: "edited @Carol",
+        mentionedUserIds: ["user-3"],
+        optimisticId: localId,
+        replaceExisting: true,
+        expectedBody: "hello @Bob",
+        expectedMentionedUserIds: ["user-2"],
+      });
+    });
 
     expect(mocks.addSessionComment).toHaveBeenLastCalledWith(
       "access-token",
       expect.objectContaining({
         body: "edited @Carol",
         mentionedUserIds: ["user-3"],
+        clientMessageKey: localId,
+        replaceExisting: true,
+        expectedBody: "hello @Bob",
+        expectedMentionedUserIds: ["user-2"],
       })
     );
-    expect(store.get(org2CloudSessionCommentsAtom)[key].comments).toEqual([
-      delivered,
-    ]);
+    // The retained row is edited in place — never retracted, never re-dated.
+    const pending = readComments();
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({
+      id: localId,
+      body: "edited @Carol",
+      mentionedUserIds: ["user-3"],
+      createdAt: retainedAt,
+      clientDeliveryStatus: "pending",
+    });
+    expect(pending[0].clientDeliveryError).toBeUndefined();
+
+    await act(async () => {
+      resolveSend(delivered);
+      await retry;
+    });
+    expect(readComments()).toEqual([delivered]);
+  });
+
+  it("rejects without claiming ownership when no row was inserted", async () => {
+    const targetless = createSmokeRoot();
+    let targetlessApi!: CommentsApi;
+    await targetless.render(
+      createElement(
+        Provider,
+        { store },
+        createElement(Harness, {
+          orgId: null,
+          sessionId: null,
+          onReady: (value: CommentsApi) => {
+            targetlessApi = value;
+          },
+        })
+      )
+    );
+    await act(async () => Promise.resolve());
+
+    await expect(
+      targetlessApi.addComment({ body: "hello" })
+    ).rejects.not.toBeInstanceOf(SessionCommentDeliveryError);
+    expect(mocks.addSessionComment).not.toHaveBeenCalled();
+    await targetless.unmount();
   });
 });

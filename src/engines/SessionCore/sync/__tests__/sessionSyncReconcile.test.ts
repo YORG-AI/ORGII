@@ -7,12 +7,19 @@
  * matter are (a) a stale session must never win, and (b) a native-transcript
  * session must never merge a replay next to live in-memory turn events.
  *
- * Only the timer (`waitForReconcileDelay`) and the Rust event store are mocked.
- * `sessionSyncUtils`' hydration helpers, `nativeTranscriptReconcile`'s registry,
- * the status narrowing and the Jotai session store all run for real.
+ * Only the timer (`waitForReconcileDelay`), the Rust event store, and the
+ * failed-delivery cache lookup are mocked. `sessionSyncUtils`' hydration
+ * helpers, the durable transcript-source result, status narrowing and the
+ * Jotai session store all run for real.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  beginTurnDispatch,
+  getTurnPhase,
+  markTurnRunning,
+  resetTurnLifecycleForTests,
+} from "@src/engines/SessionCore/control/turnLifecycle";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import type { ContextUsageSnapshot } from "@src/store/session/cliSessionStatusAtom";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
@@ -22,7 +29,6 @@ import {
   getInstrumentedStore,
 } from "@src/util/core/state/instrumentedStore";
 
-import { registerSessionTranscriptSource } from "../nativeTranscriptReconcile";
 import {
   applySwitchPostLoadResult,
   reconcileInFlightHistory,
@@ -61,6 +67,22 @@ const store = vi.hoisted(() => {
 vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
   eventStoreProxy: store.api,
 }));
+
+vi.mock(
+  "@src/engines/SessionCore/storage/cacheAdapter",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@src/engines/SessionCore/storage/cacheAdapter")
+      >();
+    return {
+      ...actual,
+      // These reconciliation fixtures exercise provider history. They have no
+      // synthetic failed-send sidecar in SQLite.
+      getSessionMetadata: vi.fn(async () => null),
+    };
+  }
+);
 
 const timer = vi.hoisted(() => ({ delays: [] as number[] }));
 
@@ -188,12 +210,11 @@ function settle(): Promise<void> {
 describe("reconcileInFlightHistory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetTurnLifecycleForTests();
     store.reset();
     timer.delays.length = 0;
     createInstrumentedStore();
     getInstrumentedStore().set(sessionsAtom, []);
-    // Default: not a native-transcript session.
-    registerSessionTranscriptSource(SESSION_ID, "chunks");
   });
 
   it("merges the replay next to live events and stops on a terminal run status", async () => {
@@ -450,8 +471,7 @@ describe("reconcileInFlightHistory", () => {
     expect(recorded.contextTokens).toEqual([7]);
     expect(recorded.contextUsage).toEqual([usage]);
     expect(recorded.runtimeStatus).toEqual(["failed"]);
-    // A terminal status returns before the run error is applied.
-    expect(recorded.runtimeError).toEqual([]);
+    expect(recorded.runtimeError).toEqual(["provider exploded"]);
   });
 
   it("applies the run error when the status is still in flight", async () => {
@@ -474,6 +494,24 @@ describe("reconcileInFlightHistory", () => {
     expect(recorded.runtimeStatus).toEqual(["running", "completed"]);
   });
 
+  it("rejects a terminal snapshot when a newer dispatch wins the read race", async () => {
+    markTurnRunning(SESSION_ID);
+    const adapter = makeAdapter({
+      history: [makeEvent("a")],
+      postLoad: () => {
+        beginTurnDispatch(SESSION_ID);
+        return { runStatus: "completed" };
+      },
+    });
+    const { recorded, actions } = makeActions();
+
+    reconcileInFlightHistory(SESSION_ID, adapter, liveRefs(), actions);
+    await settle();
+
+    expect(recorded.runtimeStatus).toEqual([]);
+    expect(getTurnPhase(SESSION_ID)).toBe("dispatching");
+  });
+
   it("hydrates and dispatches even when the adapter has no postLoad", async () => {
     const adapter = makeAdapter({ history: [makeEvent("a")] });
     const { recorded, actions } = makeActions();
@@ -489,14 +527,10 @@ describe("reconcileInFlightHistory", () => {
   });
 
   describe("native-transcript sessions", () => {
-    beforeEach(() => {
-      registerSessionTranscriptSource(SESSION_ID, "native");
-    });
-
     it("replaces the on-screen events only when the store is empty", async () => {
       const adapter = makeAdapter({
         history: [makeEvent("replayed")],
-        postLoad: { runStatus: "completed" },
+        postLoad: { runStatus: "completed", transcriptSource: "native" },
       });
       const { recorded, actions } = makeActions();
 
@@ -518,7 +552,11 @@ describe("reconcileInFlightHistory", () => {
       store.eventsBySession.set(SESSION_ID, [makeEvent("live-bubble")]);
       const adapter = makeAdapter({
         history: [makeEvent("replayed")],
-        postLoad: { runStatus: "completed", contextTokens: 55 },
+        postLoad: {
+          runStatus: "completed",
+          contextTokens: 55,
+          transcriptSource: "native",
+        },
       });
       const { recorded, actions } = makeActions();
 
@@ -536,7 +574,7 @@ describe("reconcileInFlightHistory", () => {
     it("is idempotent across retries: a second tick re-replaces, never appends", async () => {
       const adapter = makeAdapter({
         history: [makeEvent("replayed")],
-        postLoad: { runStatus: "running" },
+        postLoad: { runStatus: "running", transcriptSource: "native" },
         // Emulate the real store: the `set` above leaves events behind, so
         // every later tick must take the "store not empty" branch.
       });
@@ -557,7 +595,7 @@ describe("reconcileInFlightHistory", () => {
       });
       const adapter = makeAdapter({
         history: [makeEvent("replayed")],
-        postLoad: { runStatus: "running" },
+        postLoad: { runStatus: "running", transcriptSource: "native" },
       });
       const { recorded, actions } = makeActions();
 
@@ -577,7 +615,7 @@ describe("reconcileInFlightHistory", () => {
       });
       const adapter = makeAdapter({
         history: [makeEvent("replayed")],
-        postLoad: { runStatus: "running" },
+        postLoad: { runStatus: "running", transcriptSource: "native" },
       });
       const { recorded, actions } = makeActions();
 

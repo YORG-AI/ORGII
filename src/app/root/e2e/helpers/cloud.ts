@@ -528,6 +528,8 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
                   body: comment.body,
                   editedAt: comment.editedAt ?? null,
                   deletedAt: comment.deletedAt ?? null,
+                  clientDeliveryStatus: comment.clientDeliveryStatus ?? null,
+                  clientDeliveryError: comment.clientDeliveryError ?? null,
                 })),
                 addressableHeadIds: addressableThreads.map(
                   (thread) => thread.headId

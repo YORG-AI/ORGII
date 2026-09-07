@@ -52,6 +52,8 @@ export interface SessionHeaderActionsMenuProps {
   activeSessionExists: boolean;
   copyEventJsonLabel: "idle" | "copied" | "failed";
   currentSessionId: string | null;
+  /** Existing binding owner selected by the canonical conversation resolver. */
+  appOpenSessionId?: string | null;
   displayMode: ChatHistoryDisplayMode;
   eventsLength: number;
   handleCompactDisplayModeToggle: (checked: boolean) => void;
@@ -91,6 +93,7 @@ export const SessionHeaderActionsMenu: React.FC<
   activeSessionExists,
   copyEventJsonLabel,
   currentSessionId,
+  appOpenSessionId,
   displayMode,
   eventsLength,
   handleCompactDisplayModeToggle,
@@ -488,8 +491,9 @@ export const SessionHeaderActionsMenu: React.FC<
               </DropdownItem>
             </ActionSubmenu>
             <SessionOpenInAppMenuItem
-              key={currentSessionId}
+              key={`${currentSessionId ?? ""}:${appOpenSessionId ?? ""}`}
               sessionId={currentSessionId}
+              appOpenSessionId={appOpenSessionId}
               onCloseMenu={toggleHeaderActionsMenu}
             />
             {showTranscriptActions && (

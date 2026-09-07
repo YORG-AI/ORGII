@@ -26,7 +26,7 @@ import {
   hasLiveSubagentJobs,
   subagentJobMapAtom,
 } from "@src/store/session/subagentJobAtom";
-import { holdSessionQueueForStopAtom } from "@src/store/ui/messageQueueAtom";
+import { parkSessionQueuedMessagesAfterStopAtom } from "@src/store/ui/messageQueueAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 import { streamingDeltaContentAtom } from "../core/atoms";
@@ -53,6 +53,11 @@ interface TimelineBoundaryEffect {
   isUserStop: boolean;
   /** Which OS shell processes to terminate at this boundary. */
   shellKill: ShellKillScope;
+}
+
+interface TimelineBoundaryScopeOptions {
+  /** Canonical queue owner when execution is running in a hidden episode. */
+  queueSessionId?: string;
 }
 
 /**
@@ -172,7 +177,8 @@ function shouldInterruptForTimelineBoundary(
 
 export function beginTimelineBoundary(
   sessionId: string,
-  reason: TimelineBoundaryReason
+  reason: TimelineBoundaryReason,
+  options: TimelineBoundaryScopeOptions = {}
 ): void {
   const store = getInstrumentedStore();
   const effect = BOUNDARY_EFFECTS[reason];
@@ -190,14 +196,15 @@ export function beginTimelineBoundary(
     beginTurnStopping(sessionId);
   }
 
+  const queueSessionId = options.queueSessionId ?? sessionId;
   if (effect.isUserStop) {
-    store.set(openPostStopDispatchEpisodeAtom, sessionId);
+    store.set(openPostStopDispatchEpisodeAtom, queueSessionId);
     store.set(isPendingCancelAtom, true);
     // Stop parks every queued follow-up of this session: the natural drain
     // skips them permanently; only an explicit Send Now dispatches them.
-    store.set(holdSessionQueueForStopAtom, sessionId);
+    store.set(parkSessionQueuedMessagesAfterStopAtom, queueSessionId);
   } else {
-    store.set(closePostStopDispatchEpisodeAtom, sessionId);
+    store.set(closePostStopDispatchEpisodeAtom, queueSessionId);
     store.set(isPendingCancelAtom, false);
   }
 
@@ -244,8 +251,11 @@ export function beginTimelineBoundary(
   });
 }
 
-export function beginStopBoundary(sessionId: string): void {
-  beginTimelineBoundary(sessionId, "stop");
+export function beginStopBoundary(
+  sessionId: string,
+  options: TimelineBoundaryScopeOptions = {}
+): void {
+  beginTimelineBoundary(sessionId, "stop", options);
 }
 
 export function isTimelineInterruptInFlight(
@@ -258,9 +268,18 @@ export function isTimelineInterruptInFlight(
 export async function cancelTurnForTimelineBoundary(
   sessionId: string,
   reason: TimelineBoundaryReason,
-  options: { onError?: (message: string) => void } = {}
+  options: {
+    onError?: (message: string) => void;
+    queueSessionId?: string;
+  } = {}
 ): Promise<void> {
-  beginTimelineBoundary(sessionId, reason);
+  beginTimelineBoundary(
+    sessionId,
+    reason,
+    options.queueSessionId
+      ? { queueSessionId: options.queueSessionId }
+      : undefined
+  );
   if (!shouldInterruptForTimelineBoundary(sessionId, reason)) return;
   const key = boundaryKey(sessionId, reason);
   if (interruptInFlightByBoundary.has(key)) return;

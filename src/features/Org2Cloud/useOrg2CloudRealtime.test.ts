@@ -8,7 +8,9 @@ import { activeSessionIdAtom } from "@src/store/session/viewAtom";
 import { chatPanelSelectedCloudOrgAtom } from "@src/store/ui/chatPanelAtom";
 import { type SmokeRoot, createSmokeRoot } from "@src/test/reactSmokeHarness";
 
+import { conversationPlaneSignalAtom } from "./SessionConversation/conversationPlaneAtom";
 import { org2CloudAuthAtom } from "./org2CloudAuthAtom";
+import { ORG_DB_CHANGED_EVENT } from "./org2CloudControlBus";
 import {
   type Org2CloudOrg,
   org2CloudOrgsAtom,
@@ -20,6 +22,7 @@ import type {
   Org2CloudRealtimeConnection,
   Org2CloudSubscribeOptions,
 } from "./org2CloudRealtimeClient";
+import { REALTIME_SIGNAL_COALESCE_MS } from "./org2CloudRealtimeSignalCoalescer";
 import { useOrg2CloudRealtime } from "./useOrg2CloudRealtime";
 
 const mocks = vi.hoisted(() => ({
@@ -377,5 +380,70 @@ describe("useOrg2CloudRealtime lifecycle", () => {
     expect(connection.dispose).toHaveBeenCalledOnce();
     expect(connection.presences[0]?.handle.leave).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(baselineTimerCount);
+  });
+
+  it("invalidates the canonical conversation plane on every visible subscribed edge", async () => {
+    await mount();
+    const connection = connections[0]!;
+    const signalSubscription = subscription(
+      connection,
+      "org_change_signals",
+      "org_id=eq.org-a"
+    );
+    const before = store.get(conversationPlaneSignalAtom)["org-a"] ?? 0;
+
+    act(() => signalSubscription.options.onStatus?.(true));
+    const afterFull = store.get(conversationPlaneSignalAtom)["org-a"] ?? 0;
+    expect(afterFull).toBe(before + 1);
+
+    act(() => signalSubscription.options.onStatus?.(true));
+    expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(afterFull + 1);
+  });
+
+  it("delivers the provider tail after a nearby admission signal without waiting for coarse recovery", async () => {
+    mocks.getCloudCapabilities.mockResolvedValue({ broadcastSignals: true });
+    await mount();
+    const presence = connections[0]!.presences.at(-1)!;
+    const before = store.get(conversationPlaneSignalAtom)["org-a"] ?? 0;
+    const signal = () =>
+      presence.options.onBroadcast?.(ORG_DB_CHANGED_EVENT, {
+        kind: "conversationEvents",
+      });
+
+    act(signal);
+    expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(before + 1);
+    act(() => {
+      vi.advanceTimersByTime(100);
+      signal();
+    });
+    expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(before + 1);
+    act(() => vi.advanceTimersByTime(REALTIME_SIGNAL_COALESCE_MS - 100));
+    expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(before + 2);
+
+    // A pending trailing refresh must not outlive its org/socket owner.
+    act(signal);
+    await root.unmount();
+    act(() => vi.advanceTimersByTime(REALTIME_SIGNAL_COALESCE_MS));
+    expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(before + 2);
+  });
+
+  it("owns short foreground recovery once and coalesces duplicate browser edges", async () => {
+    const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    await mount();
+    const before = store.get(conversationPlaneSignalAtom)["org-a"] ?? 0;
+
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(before + 1);
+
+    act(() => {
+      vi.advanceTimersByTime(REALTIME_SIGNAL_COALESCE_MS);
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(store.get(conversationPlaneSignalAtom)["org-a"]).toBe(before + 2);
+    hasFocus.mockRestore();
   });
 });

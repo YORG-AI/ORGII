@@ -4,7 +4,10 @@ import { cloudOrgToken } from "@src/features/TeamCollaboration/sessionOrgTagsAto
 
 import {
   rerootSessionCommentTarget,
+  resolvePendingCloudConversationTarget,
   resolveSessionCommentTarget,
+  retireExpiredOwnerCommentTarget,
+  sessionCommentTargetForConversationRoot,
 } from "./sessionCommentTarget";
 
 const CLOUD_ORGS = [
@@ -20,6 +23,50 @@ const IMPORTED = {
   seq: 2,
   count: 10,
 };
+
+describe("pending Cloud conversation authority", () => {
+  it("retains a tagged Cloud root before the membership roster loads", () => {
+    expect(
+      resolvePendingCloudConversationTarget({
+        session: { session_id: "sess-1" },
+        tags: { "sess-1": [cloudOrgToken("org-a")] },
+        preferredOrgId: null,
+      })
+    ).toEqual({ orgId: "org-a", sessionId: "sess-1" });
+  });
+
+  it("does not manufacture Cloud authority for a plain local session", () => {
+    expect(
+      resolvePendingCloudConversationTarget({
+        session: { session_id: "sess-1" },
+        tags: {},
+        preferredOrgId: null,
+      })
+    ).toBeNull();
+  });
+});
+
+describe("sessionCommentTargetForConversationRoot", () => {
+  it("keeps Team Chat on the Cloud root while a native child executes", () => {
+    expect(
+      sessionCommentTargetForConversationRoot({
+        authority: "org2-cloud",
+        authorityScope: ["org-a"],
+        conversationId: "root-1",
+      })
+    ).toEqual({ orgId: "org-a", sessionId: "root-1" });
+  });
+
+  it("does not manufacture Team Chat for local conversations", () => {
+    expect(
+      sessionCommentTargetForConversationRoot({
+        authority: "local-session",
+        authorityScope: [],
+        conversationId: "local-1",
+      })
+    ).toBeNull();
+  });
+});
 
 describe("resolveSessionCommentTarget", () => {
   it("imported teammate session targets the SOURCE coordinates", () => {
@@ -366,5 +413,69 @@ describe("rerootSessionCommentTarget", () => {
         ])
       ).toEqual({ orgId: "org-a", sessionId: "root-1" });
     });
+  });
+});
+
+describe("retireExpiredOwnerCommentTarget", () => {
+  const target = { orgId: "org-a", sessionId: "local-1" };
+  const listedRow = { sourceSessionId: "local-1" } as never;
+
+  it("keeps an owner-local target while its row is listed or the listing is loading", () => {
+    expect(
+      retireExpiredOwnerCommentTarget(
+        target,
+        { importedFrom: undefined },
+        { state: "ready", rows: [listedRow] }
+      )
+    ).toEqual(target);
+    expect(
+      retireExpiredOwnerCommentTarget(
+        target,
+        { importedFrom: undefined },
+        { state: "loading", rows: [] }
+      )
+    ).toEqual(target);
+    expect(
+      retireExpiredOwnerCommentTarget(
+        target,
+        { importedFrom: undefined },
+        undefined
+      )
+    ).toEqual(target);
+  });
+
+  it("retires an owner-local target whose row left a ready listing", () => {
+    expect(
+      retireExpiredOwnerCommentTarget(
+        target,
+        { importedFrom: undefined },
+        { state: "ready", rows: [] }
+      )
+    ).toBeNull();
+  });
+
+  it("never retires a replay viewer's target", () => {
+    expect(
+      retireExpiredOwnerCommentTarget(
+        target,
+        {
+          importedFrom: {
+            orgId: "org-a",
+            sourceSessionId: "local-1",
+          } as never,
+        },
+        { state: "ready", rows: [] }
+      )
+    ).toEqual(target);
+    expect(
+      retireExpiredOwnerCommentTarget(
+        null,
+        { importedFrom: undefined },
+        {
+          state: "ready",
+          rows: [],
+        }
+      )
+    ).toBeNull();
   });
 });

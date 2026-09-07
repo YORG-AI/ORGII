@@ -3,7 +3,6 @@ import { getTurnIntentDispatch } from "@src/engines/SessionCore/control/turnInte
 import {
   beginTurnDispatch,
   clearTurnLifecycleSession,
-  getTurnGeneration,
   getTurnPhase,
   markTurnTerminal,
 } from "@src/engines/SessionCore/control/turnLifecycle";
@@ -112,8 +111,7 @@ export class CliTurnLifecycleCoordinator {
 
       const generation =
         dispatch?.generation ?? beginTurnDispatch(event.sessionId);
-      markCliRuntimeRunning(event.sessionId, generation);
-      if (getTurnGeneration(event.sessionId) !== generation) return false;
+      if (!markCliRuntimeRunning(event.sessionId, generation)) return false;
       this.setActive(event.sessionId, { turnIntentId, generation });
       return true;
     }
@@ -131,9 +129,13 @@ export class CliTurnLifecycleCoordinator {
       : undefined;
     if (dispatch && dispatch.sessionId !== event.sessionId) return false;
     const generation = existing?.generation ?? dispatch?.generation;
-    markTurnTerminal(event.sessionId, cliTerminalStatus(status), {
-      generation,
-    });
+    if (
+      !markTurnTerminal(event.sessionId, cliTerminalStatus(status), {
+        generation,
+      })
+    ) {
+      return false;
+    }
     markObservedCliTerminalStatus(event.sessionId, status);
     if (isStoreInitialized()) {
       updateSessionStatus(event.sessionId, toSessionListStatus(status));

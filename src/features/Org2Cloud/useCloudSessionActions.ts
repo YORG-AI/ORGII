@@ -216,6 +216,9 @@ export function useCloudSessionActions(
       const sessionEnvironment =
         resolveCloudSessionEnvironmentIdentity(remoteSession);
       const sessionOwner = resolveCloudSessionOwnerIdentity(remoteSession);
+      const requestAuth = authRef.current;
+      if (!requestAuth) return "noop";
+      const requestAuthIdentityKey = org2CloudAuthIdentityKey(requestAuth);
       // Store read at call time: the render-captured map can be stale, and
       // both sidebar connectors plus Kanban share this registry. Only the
       // clicked row's own in-flight action blocks it.
@@ -265,6 +268,7 @@ export function useCloudSessionActions(
             localSessionId: pendingLocalId,
             entry: buildCloudPendingPlayEntry({
               remoteSession,
+              authIdentityKey: requestAuthIdentityKey,
               orgId,
               pendingEvents,
               etaMs: decision.etaMs,
@@ -366,8 +370,10 @@ export function useCloudSessionActions(
           reporter.report({
             localSessionId: importSessionId,
             progress: {
+              authIdentityKey: requestAuthIdentityKey,
               rowId: remoteSession.id,
               orgId,
+              sourceSession: remoteSession,
               sessionEnvironment,
               sessionOwner,
               loadedEvents: maxLoadedEvents,
@@ -549,8 +555,10 @@ export function useCloudSessionActions(
             upsertDownloadProgress({
               localSessionId,
               progress: {
+                authIdentityKey: requestAuthIdentityKey,
                 rowId: remoteSession.id,
                 orgId,
+                sourceSession: remoteSession,
                 sessionEnvironment,
                 sessionOwner,
                 loadedEvents: heldLoaded,
@@ -632,6 +640,9 @@ export function useCloudSessionActions(
       const sessionEnvironment =
         resolveCloudSessionEnvironmentIdentity(remoteSession);
       const sessionOwner = resolveCloudSessionOwnerIdentity(remoteSession);
+      const requestAuth = authRef.current;
+      if (!requestAuth) return "noop";
+      const requestAuthIdentityKey = org2CloudAuthIdentityKey(requestAuth);
       if (store.get(cloudSessionBusyRowsAtom).has(remoteSession.id)) {
         return "noop";
       }
@@ -674,6 +685,7 @@ export function useCloudSessionActions(
               localSessionId: pendingLocalId,
               entry: buildCloudPendingPlayEntry({
                 remoteSession,
+                authIdentityKey: requestAuthIdentityKey,
                 orgId,
                 pendingEvents,
                 etaMs: decision.etaMs,
@@ -762,8 +774,10 @@ export function useCloudSessionActions(
               reporter.report({
                 localSessionId: importSessionId,
                 progress: {
+                  authIdentityKey: requestAuthIdentityKey,
                   rowId: remoteSession.id,
                   orgId,
+                  sourceSession: remoteSession,
                   sessionEnvironment,
                   sessionOwner,
                   loadedEvents: maxLoadedEvents,
@@ -838,8 +852,10 @@ export function useCloudSessionActions(
                 upsertDownloadProgress({
                   localSessionId: importSessionId,
                   progress: {
+                    authIdentityKey: requestAuthIdentityKey,
                     rowId: remoteSession.id,
                     orgId,
+                    sourceSession: remoteSession,
                     sessionEnvironment,
                     sessionOwner,
                     loadedEvents: heldLoaded,

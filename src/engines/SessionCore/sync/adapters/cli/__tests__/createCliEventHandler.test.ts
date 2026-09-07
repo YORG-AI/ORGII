@@ -117,6 +117,9 @@ const store = vi.hoisted(() => {
         }
       ),
       getEvents: vi.fn(async (sessionId?: string) => [...list(sessionId)]),
+      getPersistedEvents: vi.fn(async (sessionId: string) => [
+        ...list(sessionId),
+      ]),
       setStreaming: vi.fn(async (streaming: boolean, sessionId?: string) => {
         streamingLog.push({ streaming, sessionId });
       }),
@@ -228,11 +231,15 @@ function makeChunk(overrides: Partial<ActivityChunk>): ActivityChunk {
   };
 }
 
-function activityEvent(chunk: ActivityChunk): RawSessionEvent {
+function activityEvent(
+  chunk: ActivityChunk,
+  turnIntentId?: string
+): RawSessionEvent {
   return {
     type: "code_session.activity",
     session_id: SESSION_ID,
     chunk: chunk as unknown as Record<string, unknown>,
+    ...(turnIntentId ? { turn_intent_id: turnIntentId } : {}),
   };
 }
 
@@ -386,6 +393,31 @@ describe("createCliEventHandler ingestion boundary", () => {
       expect(eventsFor().map((event) => event.id)).toEqual(["chunk-future"]);
     });
 
+    it("keeps opaque provider results unchanged when attributing a turn", async () => {
+      rustBridge.normalizeChunkRust.mockImplementation(
+        async (chunk: ActivityChunk, sessionId: string) => ({
+          ...normalizeLikeRust(chunk, sessionId),
+          result: chunk.result,
+        })
+      );
+      const results: unknown[] = [null, "opaque", ["opaque"]];
+      for (const [index, result] of results.entries()) {
+        handler.handleEvent(
+          activityEvent(
+            makeChunk({
+              chunk_id: `opaque-${index}`,
+              action_type: "provider_event",
+              result: result as ActivityChunk["result"],
+            }),
+            "turn-opaque"
+          )
+        );
+      }
+      await flush();
+
+      expect(eventsFor().map((event) => event.result)).toEqual(results);
+    });
+
     it("logs the failure and stores nothing when the normalize RPC rejects", async () => {
       // The previous shape of this test only wrapped the dispatch in
       // `expect(...).not.toThrow()`. That can never fail: the rejection lives
@@ -425,6 +457,39 @@ describe("createCliEventHandler ingestion boundary", () => {
   // -------------------------------------------------------------------------
 
   describe("assistant / thinking streaming", () => {
+    it("attributes live message and thinking projections to the runner turn", async () => {
+      handler.handleEvent(
+        activityEvent(
+          makeChunk({
+            chunk_id: "intent-message",
+            action_type: "assistant_delta",
+            result: { content: "answering", is_delta: true },
+          }),
+          "turn-live"
+        )
+      );
+      handler.handleEvent(
+        activityEvent(
+          makeChunk({
+            chunk_id: "intent-thinking",
+            action_type: "llm_thinking_delta",
+            result: { thought: "reasoning", is_delta: true },
+          }),
+          "turn-live"
+        )
+      );
+      await flush();
+
+      expect(eventsFor()).toHaveLength(2);
+      expect(
+        eventsFor().map((event) =>
+          typeof event.result === "object" && event.result !== null
+            ? Reflect.get(event.result, "turnIntentId")
+            : undefined
+        )
+      ).toEqual(["turn-live", "turn-live"]);
+    });
+
     it("accumulates message deltas under one stable stream id", async () => {
       handler.handleEvent(
         activityEvent(
@@ -887,7 +952,8 @@ describe("createCliEventHandler ingestion boundary", () => {
           makeChunk({
             action_type: "assistant_delta",
             result: { content: "partial", is_delta: true },
-          })
+          }),
+          "turn-live"
         )
       );
       await flush();
@@ -897,6 +963,12 @@ describe("createCliEventHandler ingestion boundary", () => {
       await flush();
 
       expect(eventsFor().map((event) => event.id)).toEqual([completeEvent.id]);
+      const completedResult = eventsFor()[0].result;
+      expect(
+        typeof completedResult === "object" && completedResult !== null
+          ? Reflect.get(completedResult, "turnIntentId")
+          : undefined
+      ).toBe("turn-live");
     });
 
     it("suppresses a late final activity chunk that repeats a completed id", async () => {
@@ -1026,7 +1098,8 @@ describe("createCliEventHandler ingestion boundary", () => {
   describe("tool_call_delta accumulation", () => {
     function toolDelta(
       result: Record<string, unknown>,
-      chunkId = `td-${Math.random()}`
+      chunkId = `td-${Math.random()}`,
+      turnIntentId?: string
     ): RawSessionEvent {
       return activityEvent(
         makeChunk({
@@ -1034,7 +1107,8 @@ describe("createCliEventHandler ingestion boundary", () => {
           action_type: "tool_call_delta",
           function: "tool_call",
           result,
-        })
+        }),
+        turnIntentId
       );
     }
 
@@ -1085,6 +1159,29 @@ describe("createCliEventHandler ingestion boundary", () => {
         functionName: "write_file",
         args: { file_path: "/tmp/b.txt" },
       });
+    });
+
+    it("attributes a partial tool projection to the runner turn", async () => {
+      handler.handleEvent(
+        toolDelta(
+          {
+            index: 0,
+            tool_call_id: "call-intent",
+            tool_name: "read_file",
+            arguments_delta: '{"path":"README.md"}',
+          },
+          "tool-intent",
+          "turn-live"
+        )
+      );
+      await flush();
+
+      const toolResult = eventsFor()[0].result;
+      expect(
+        typeof toolResult === "object" && toolResult !== null
+          ? Reflect.get(toolResult, "turnIntentId")
+          : undefined
+      ).toBe("turn-live");
     });
 
     it("keeps concurrent tool calls on separate buffers keyed by index", async () => {
@@ -1305,6 +1402,309 @@ describe("createCliEventHandler ingestion boundary", () => {
       expect(store.streamingLog.at(-1)).toEqual({
         streaming: false,
         sessionId: SESSION_ID,
+      });
+    });
+
+    it("keeps visible assistant partial text but fences an unresolved tool on cancel", async () => {
+      handler.handleEvent(
+        activityEvent(
+          makeChunk({
+            chunk_id: "partial-answer",
+            action_type: "assistant_delta",
+            result: { content: "I inspected the router.", is_delta: true },
+          })
+        )
+      );
+      handler.handleEvent(
+        activityEvent(
+          makeChunk({
+            chunk_id: "pending-tool",
+            action_type: "tool_call_delta",
+            function: "read_file",
+            result: {
+              tool_call_id: "call-pending",
+              tool_name: "read_file",
+              arguments_delta: '{"path":"src/router.ts"}',
+            },
+          })
+        )
+      );
+      await flush();
+
+      handler.handleEvent({
+        type: "code_session.status_changed",
+        session_id: SESSION_ID,
+        status: "cancelled",
+      });
+      await flush();
+
+      expect(
+        eventsFor().find((event) => event.id === "partial-answer") ??
+          eventsFor().find((event) =>
+            String(event.id).startsWith("stream-msg-ts-")
+          )
+      ).toMatchObject({
+        displayText: "I inspected the router.",
+        displayStatus: "completed",
+        isDelta: false,
+        result: { status: "completed" },
+      });
+      expect(
+        eventsFor().find((event) => event.id === "tool-call-call-pending")
+      ).toMatchObject({
+        displayStatus: "completed",
+        isDelta: false,
+        result: { status: "pending", interrupted: true },
+      });
+      expect(callbacks.agentCompletes).toBe(1);
+    });
+
+    it("closes interrupted tool output as a portable error result", async () => {
+      await store.api.upsert(
+        {
+          id: "partial-tool-output",
+          chunk_id: "partial-tool-output",
+          sessionId: SESSION_ID,
+          createdAt: "2026-08-01T00:00:00.000Z",
+          functionName: "run_command_line",
+          uiCanonical: "run_command_line",
+          actionType: "tool_call",
+          args: { command: "pnpm test" },
+          callId: "call-partial-output",
+          result: {
+            status: "running",
+            output: "Tests 12 passed\n",
+            observation: "Tests 12 passed\n",
+          },
+          source: "assistant",
+          displayText: "Tests 12 passed\n",
+          displayStatus: "running",
+          displayVariant: "tool_call",
+          activityStatus: "agent",
+        },
+        SESSION_ID
+      );
+
+      handler.handleEvent({
+        type: "code_session.status_changed",
+        session_id: SESSION_ID,
+        status: "cancelled",
+      });
+      await flush();
+
+      expect(
+        eventsFor().find((event) => event.id === "partial-tool-output")
+      ).toMatchObject({
+        displayStatus: "completed",
+        isDelta: false,
+        result: {
+          status: "interrupted",
+          interrupted: true,
+          output: "Tests 12 passed\n",
+        },
+      });
+    });
+
+    it("does not expose the terminal runtime state before partial rows close", async () => {
+      await store.api.upsert(
+        {
+          id: "slow-partial",
+          sessionId: SESSION_ID,
+          displayStatus: "running",
+          result: { status: "running" },
+          source: "assistant",
+        },
+        SESSION_ID
+      );
+      let releaseBarrier: (() => void) | undefined;
+      const barrier = new Promise<void>((resolve) => {
+        releaseBarrier = resolve;
+      });
+      store.api.upsert.mockImplementationOnce(async () => {
+        await barrier;
+      });
+
+      handler.handleEvent({
+        type: "code_session.status_changed",
+        session_id: SESSION_ID,
+        status: "cancelled",
+      });
+      await vi.waitFor(() => expect(store.api.upsert).toHaveBeenCalledTimes(2));
+
+      expect(getInstrumentedStore().get(sessionRuntimeStatusAtom)).toBe("idle");
+      releaseBarrier?.();
+      await flush();
+
+      expect(getInstrumentedStore().get(sessionRuntimeStatusAtom)).toBe(
+        "cancelled"
+      );
+      expect(callbacks.agentCompletes).toBe(1);
+    });
+
+    it("waits for an in-flight streamed row before publishing terminal state", async () => {
+      let releaseWrite: (() => void) | undefined;
+      const writeBarrier = new Promise<void>((resolve) => {
+        releaseWrite = resolve;
+      });
+      store.api.upsert.mockImplementationOnce(async (event, sessionId) => {
+        await writeBarrier;
+        const bucket = store.list(sessionId);
+        const index = bucket.findIndex(
+          (candidate) => candidate.id === event.id
+        );
+        if (index >= 0) bucket[index] = { ...bucket[index], ...event };
+        else bucket.push(event);
+      });
+
+      handler.handleEvent(
+        activityEvent(
+          makeChunk({
+            chunk_id: "late-partial",
+            action_type: "assistant_delta",
+            result: { content: "durable before terminal", is_delta: true },
+          })
+        )
+      );
+      handler.handleEvent({
+        type: "code_session.status_changed",
+        session_id: SESSION_ID,
+        status: "cancelled",
+      });
+      await flush();
+
+      expect(getInstrumentedStore().get(sessionRuntimeStatusAtom)).toBe("idle");
+      expect(callbacks.agentCompletes).toBe(0);
+
+      releaseWrite?.();
+      await vi.waitFor(() => expect(callbacks.agentCompletes).toBe(1));
+
+      expect(
+        eventsFor().find((event) =>
+          String(event.id).startsWith("stream-msg-ts-")
+        )
+      ).toMatchObject({
+        displayText: "durable before terminal",
+        displayStatus: "completed",
+        isDelta: false,
+        result: { status: "completed" },
+      });
+      expect(getInstrumentedStore().get(sessionRuntimeStatusAtom)).toBe(
+        "cancelled"
+      );
+    });
+
+    it("does not leave terminal state stuck when an EventStore write stalls", async () => {
+      vi.useFakeTimers();
+      let releaseWrite: (() => void) | undefined;
+      const writeBarrier = new Promise<void>((resolve) => {
+        releaseWrite = resolve;
+      });
+      store.api.upsert.mockImplementationOnce(async (event, sessionId) => {
+        await writeBarrier;
+        store.list(sessionId).push(event);
+      });
+
+      try {
+        handler.handleEvent(
+          activityEvent(
+            makeChunk({
+              chunk_id: "stalled-partial",
+              action_type: "assistant_delta",
+              result: { content: "late but durable", is_delta: true },
+            })
+          )
+        );
+        handler.handleEvent({
+          type: "code_session.status_changed",
+          session_id: SESSION_ID,
+          status: "cancelled",
+        });
+        await vi.advanceTimersByTimeAsync(3_999);
+
+        expect(getInstrumentedStore().get(sessionRuntimeStatusAtom)).toBe(
+          "idle"
+        );
+        expect(callbacks.agentCompletes).toBe(0);
+
+        await vi.advanceTimersByTimeAsync(1);
+
+        expect(getInstrumentedStore().get(sessionRuntimeStatusAtom)).toBe(
+          "cancelled"
+        );
+        expect(callbacks.agentCompletes).toBe(1);
+      } finally {
+        releaseWrite?.();
+        await vi.runAllTimersAsync();
+        vi.useRealTimers();
+      }
+    });
+
+    it("terminalizes cold persisted partial text and tool output after memory eviction", async () => {
+      store.list(SESSION_ID).push(
+        {
+          id: "cold-partial-answer",
+          sessionId: SESSION_ID,
+          actionType: "assistant_delta",
+          source: "assistant",
+          displayText: "I inspected the hidden runner.",
+          displayStatus: "running",
+          displayVariant: "message",
+          activityStatus: "agent",
+          result: {
+            content: "I inspected the hidden runner.",
+            status: "running",
+          },
+          isDelta: true,
+        },
+        {
+          id: "cold-partial-tool",
+          sessionId: SESSION_ID,
+          actionType: "tool_call",
+          functionName: "run_command_line",
+          source: "assistant",
+          displayText: "found one match\n",
+          displayStatus: "running",
+          displayVariant: "tool_call",
+          activityStatus: "agent",
+          callId: "call-cold-tool",
+          args: { command: "rg hidden" },
+          result: {
+            status: "running",
+            output: "found one match\n",
+            observation: "found one match\n",
+          },
+          isDelta: true,
+        }
+      );
+      // Simulate an unmounted/evicted renderer window. The durable EventStore
+      // reader still returns both rows from the cache.
+      store.api.getEvents.mockResolvedValueOnce([]);
+
+      handler.handleEvent({
+        type: "code_session.status_changed",
+        session_id: SESSION_ID,
+        status: "cancelled",
+      });
+      await flush();
+
+      expect(store.api.getPersistedEvents).toHaveBeenCalledWith(SESSION_ID);
+      expect(
+        eventsFor().find((event) => event.id === "cold-partial-answer")
+      ).toMatchObject({
+        displayStatus: "completed",
+        isDelta: false,
+        result: { status: "completed" },
+      });
+      expect(
+        eventsFor().find((event) => event.id === "cold-partial-tool")
+      ).toMatchObject({
+        displayStatus: "completed",
+        isDelta: false,
+        result: {
+          status: "interrupted",
+          interrupted: true,
+          output: "found one match\n",
+        },
       });
     });
 

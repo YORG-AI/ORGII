@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
-import { extractPlanMentionSource } from "../inputAreaEventSelectors";
+import {
+  extractPlanMentionSource,
+  resolveInputAreaWorkingState,
+} from "../inputAreaEventSelectors";
 
 function createPlanEvent(
   planPath: string,
@@ -55,5 +58,59 @@ describe("extractPlanMentionSource", () => {
       { planPath: "/a/plan-3.md", title: "Plan 3" },
       { planPath: "/a/plan-1.md", title: "Plan 1 duplicate" },
     ]);
+  });
+});
+
+describe("resolveInputAreaWorkingState", () => {
+  it("shows Stop for a hidden native runner even when the source session is idle", () => {
+    expect(
+      resolveInputAreaWorkingState({
+        runnerSessionId: "claude-runner-1",
+        runnerTurnActive: true,
+        sourceSessionActive: false,
+        hasComposerStopBlockingWork: false,
+        pendingCancel: false,
+        executionControlsEnabled: true,
+      })
+    ).toBe(true);
+  });
+
+  it("keeps the existing pending-cancel gate for a hidden runner", () => {
+    expect(
+      resolveInputAreaWorkingState({
+        runnerSessionId: "codex-runner-1",
+        runnerTurnActive: true,
+        sourceSessionActive: false,
+        hasComposerStopBlockingWork: false,
+        pendingCancel: true,
+        executionControlsEnabled: true,
+      })
+    ).toBe(false);
+  });
+
+  it("drops stale Stop as soon as the hidden runner reaches terminal", () => {
+    expect(
+      resolveInputAreaWorkingState({
+        runnerSessionId: "codex-runner-1",
+        runnerTurnActive: false,
+        sourceSessionActive: true,
+        hasComposerStopBlockingWork: true,
+        pendingCancel: false,
+        executionControlsEnabled: true,
+      })
+    ).toBe(false);
+  });
+
+  it("does not expose Agent controls in a human Team Chat composer", () => {
+    expect(
+      resolveInputAreaWorkingState({
+        runnerSessionId: "claude-runner-1",
+        runnerTurnActive: true,
+        sourceSessionActive: true,
+        hasComposerStopBlockingWork: true,
+        pendingCancel: false,
+        executionControlsEnabled: false,
+      })
+    ).toBe(false);
   });
 });

@@ -215,6 +215,21 @@ export function getExternalHistorySourceId(
   return config?.externalHistorySourceId;
 }
 
+/**
+ * Runnable native-CLI provider owned by an external-history session.
+ * Sources without a native resume contract deliberately return undefined.
+ */
+export function getExternalHistoryCliAgentType(
+  sessionId: string | null | undefined
+): string | undefined {
+  const sourceId = getExternalHistorySourceId(sessionId);
+  return sourceId
+    ? IMPORTED_HISTORY_SOURCE_DESCRIPTORS.find(
+        (descriptor) => descriptor.sourceId === sourceId
+      )?.cliResume?.agentType
+    : undefined;
+}
+
 export function isCodexAppSession(
   sessionId: string | null | undefined
 ): boolean {

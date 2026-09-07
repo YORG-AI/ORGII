@@ -45,7 +45,8 @@ export interface GitArtifactStats {
 export interface UseComposerSectionsOptions {
   sessionId?: string | null;
   queueCount: number;
-  enqueueCount?: number;
+  /** Current session's newest durable queue identity. */
+  queueTailKey?: string | null;
   /** Whether the AskQuestionCard currently has pending data (controls pill visibility). */
   hasQuestion?: boolean;
   /** Whether the PermissionCard currently has pending data. */
@@ -129,7 +130,7 @@ export function createFileInlineSection({
 export function useComposerSections({
   sessionId,
   queueCount,
-  enqueueCount = 0,
+  queueTailKey = null,
   hasQuestion = false,
   hasPermission = false,
   hasModeSwitch = false,
@@ -197,20 +198,18 @@ export function useComposerSections({
     setFileChangeStats({ count: 0, additions: 0, deletions: 0 });
   }
 
-  // Auto-expand queue when messages arrive. Prefer the monotonic enqueue
-  // counter when it is available, but also react to count growth so the queue
-  // stays visible if the counter update and queue filter land in different
-  // render passes or a session switch restores a non-empty queue.
-  const [prevEnqueueCount, setPrevEnqueueCount] = useState(enqueueCount);
+  // Auto-expand only for a new durable row in this session. A global enqueue
+  // counter made traffic in session B open the queue card in session A.
+  const [prevQueueTailKey, setPrevQueueTailKey] = useState(queueTailKey);
   const [prevQueueCount, setPrevQueueCount] = useState(queueCount);
   const [queueAutoOpenedForCount, setQueueAutoOpenedForCount] = useState(
     queueCount > 0 ? queueCount : 0
   );
-  if (prevEnqueueCount !== enqueueCount || prevQueueCount !== queueCount) {
+  if (prevQueueTailKey !== queueTailKey || prevQueueCount !== queueCount) {
     const hasNewQueueWork =
       queueCount > 0 &&
-      (enqueueCount > prevEnqueueCount || queueCount > prevQueueCount);
-    setPrevEnqueueCount(enqueueCount);
+      (queueTailKey !== prevQueueTailKey || queueCount > prevQueueCount);
+    setPrevQueueTailKey(queueTailKey);
     setPrevQueueCount(queueCount);
     setQueueAutoOpenedForCount(hasNewQueueWork ? queueCount : 0);
     if (hasNewQueueWork) {

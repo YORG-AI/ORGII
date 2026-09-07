@@ -20,6 +20,7 @@ import {
   truncateAfterMessage,
 } from "@src/api/tauri/agent";
 import Message from "@src/components/Message";
+import { useChatSessionId } from "@src/engines/ChatPanel/ChatSessionContext";
 import { projectOutgoingUserMessage } from "@src/engines/ChatPanel/hooks/useInputArea/projectOutgoingUserMessage";
 import { useUserIntentSubmit } from "@src/engines/ChatPanel/hooks/useWorkspaceChat/useUserIntentSubmit";
 import { editTruncationTimestampAtom } from "@src/engines/SessionCore";
@@ -30,13 +31,30 @@ import {
 import { cancelTurnForTimelineBoundary } from "@src/engines/SessionCore/control/sessionTimelineBoundary";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
+import {
+  flushMessageQueuePersistence,
+  hydrateMessageQueue,
+  refreshMessageDeliveries,
+} from "@src/engines/SessionCore/hooks/session/messageQueuePersistence";
+import {
+  isUserIntentSendError,
+  setOptimisticQueueUserDelivery,
+} from "@src/engines/SessionCore/services/userIntentDispatch";
 import { deleteSession as deleteCachedSession } from "@src/engines/SessionCore/storage/cacheAdapter";
+import { mintTurnIntentId } from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
+import { turnIntentIdOf } from "@src/engines/SessionCore/sync/utils/activityIds";
 import { createLogger } from "@src/hooks/logger";
 import {
   clearPendingPlanApproval,
   pendingPlanApprovalsAtom,
 } from "@src/store/session/planApprovalAtom";
 import { activeSessionIdAtom } from "@src/store/session/viewAtom";
+import {
+  editMessageAtom,
+  forceSendMessageAtom,
+  messageQueueAtom,
+  messageQueueHydratedAtom,
+} from "@src/store/ui/messageQueueAtom";
 import { clearTodosForSessionAtom } from "@src/store/ui/todoAtom";
 import { invokeTauri } from "@src/util/platform/tauri/init";
 import {
@@ -44,6 +62,7 @@ import {
   isCliSession,
 } from "@src/util/session/sessionDispatch";
 
+import type { ChatHistoryProps } from "../ChatHistory.types";
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
 import { showRevertConfirm } from "../components/RevertConfirmDialog";
 
@@ -58,7 +77,10 @@ function agentMessageIdFromUserEventId(eventId: string): string | undefined {
     : undefined;
 }
 
-export function useEditUserMessage(): (
+export function useEditUserMessage(
+  onFailedUserIntentRetry?: ChatHistoryProps["onFailedUserIntentRetry"],
+  resolveFailedUserIntentDispatch?: ChatHistoryProps["resolveFailedUserIntentDispatch"]
+): (
   chatItem: OptimizedChatItem,
   newText: string,
   imageDataUrls?: string[]
@@ -67,9 +89,13 @@ export function useEditUserMessage(): (
   const setPendingPlanApprovals = useSetAtom(pendingPlanApprovalsAtom);
   const clearTodosForSession = useSetAtom(clearTodosForSessionAtom);
   const store = useStore();
+  const surfaceSessionId = useChatSessionId();
   const resolveCurrentSessionId = useCallback(
-    () => store.get(activeSessionIdAtom) ?? store.get(sessionIdAtom),
-    [store]
+    () =>
+      surfaceSessionId ??
+      store.get(activeSessionIdAtom) ??
+      store.get(sessionIdAtom),
+    [store, surfaceSessionId]
   );
   const submitUserIntent = useUserIntentSubmit({
     getSessionId: resolveCurrentSessionId,
@@ -96,6 +122,7 @@ export function useEditUserMessage(): (
       const initiatedSessionId = resolveCurrentSessionId();
       const isStillOnInitiatingSession = (): boolean => {
         if (!initiatedSessionId) return false;
+        if (surfaceSessionId) return surfaceSessionId === initiatedSessionId;
         const activeSessionId = store.get(activeSessionIdAtom);
         if (activeSessionId) return activeSessionId === initiatedSessionId;
         return store.get(sessionIdAtom) === initiatedSessionId;
@@ -106,6 +133,171 @@ export function useEditUserMessage(): (
       if (!eventId) return;
 
       const createdAt = chatItem.event?.createdAt;
+      const failedSyntheticIntent = Boolean(
+        initiatedSessionId &&
+        chatItem.event?.displayStatus === "failed" &&
+        chatItem.event.result?.syntheticUserInput === true
+      );
+
+      // A delivery failure happened before the provider accepted this turn,
+      // so it is not a history-edit boundary. Retry through the ordinary
+      // submit/queue path and remove only the superseded failed placeholder;
+      // never truncate later turns or offer a file rewind for this case.
+      if (failedSyntheticIntent && initiatedSessionId && chatItem.event) {
+        const originalText = chatItem.event.displayText ?? "";
+        const originalTurnIntentId = turnIntentIdOf(chatItem.event);
+        const queueMessageId =
+          typeof chatItem.event.result?.queueMessageId === "string"
+            ? chatItem.event.result.queueMessageId
+            : null;
+        const resendImages =
+          imageDataUrls && imageDataUrls.length > 0 ? imageDataUrls : undefined;
+        const projection = projectOutgoingUserMessage({
+          displayText: newText,
+          allowCanvasInterception:
+            !resendImages && !isCliSession(initiatedSessionId),
+        });
+        try {
+          if (queueMessageId && !store.get(messageQueueHydratedAtom)) {
+            // The transcript can hydrate before the durable delivery registry
+            // after an app restart. Never interpret that temporary absence as
+            // permission to create a second owner and delete the only bubble.
+            await hydrateMessageQueue(store);
+          }
+          const findDurableFailedQueueRow = () =>
+            queueMessageId
+              ? store
+                  .get(messageQueueAtom)
+                  .find(
+                    (message) =>
+                      message.id === queueMessageId &&
+                      Boolean(message.deliveryError)
+                  )
+              : undefined;
+          let durableFailedQueueRow = findDurableFailedQueueRow();
+          if (queueMessageId && !durableFailedQueueRow) {
+            // Cover a cross-window mutation that landed after initial hydrate.
+            await refreshMessageDeliveries(store);
+            durableFailedQueueRow = findDurableFailedQueueRow();
+          }
+          if (queueMessageId && !durableFailedQueueRow) {
+            if (chatItem.event.result?.deliveryOwnerRetired !== true) {
+              // queueMessageId is an ownership claim, not a hint. Falling
+              // back to a new submit here would delete the only visible root
+              // row and create a second delivery on whichever Session is
+              // currently mounted. Preserve the failed bubble until its owner
+              // is readable.
+              throw new Error("failed delivery owner is not available yet");
+            }
+            // The dispatcher retired this owner after a terminal provider/
+            // Cloud verdict and stamped the row. The failed bubble is the only
+            // remaining owner, so retry it as a fresh intent below.
+            log.warn(
+              "[useEditUserMessage] failed delivery owner was retired; retrying as a new intent"
+            );
+          }
+          if (durableFailedQueueRow) {
+            const retryTurnIntentId = mintTurnIntentId();
+            // A held canonical row keeps the runtime it was admitted with.
+            // The user changes the picker precisely because that runtime
+            // failed, so the retry must carry the runtime shown now.
+            const retryDispatch =
+              durableFailedQueueRow.conversationDispatch?.kind ===
+              "canonical_conversation"
+                ? (resolveFailedUserIntentDispatch?.() ?? undefined)
+                : undefined;
+            const updated = store.set(editMessageAtom, {
+              messageId: durableFailedQueueRow.id,
+              content: projection.displayContent,
+              imageDataUrls: resendImages,
+              turnIntentId: retryTurnIntentId,
+              ...(retryDispatch ? { conversationDispatch: retryDispatch } : {}),
+            });
+            if (!updated) {
+              throw new Error("failed delivery is no longer retryable");
+            }
+            // Commit the edited payload while the row is still explicitly
+            // held. Then patch the SAME queue-owned transcript row back to
+            // pending before releasing the existing owner. The provider sees
+            // a fresh terminal intent, while the user never gets a duplicate
+            // bubble or loses serialized mention/image payloads.
+            try {
+              await flushMessageQueuePersistence(store);
+              const pendingUpdated = await setOptimisticQueueUserDelivery(
+                {
+                  // Queue admission owns the concrete EventStore projection
+                  // session. The mounted surface can be the canonical root
+                  // while this row lives on a local execution child.
+                  sessionId: durableFailedQueueRow.sessionId,
+                  visibleText: projection.displayContent,
+                  imageDataUrls:
+                    resendImages ?? durableFailedQueueRow.imageDataUrls,
+                  turnIntentId: retryTurnIntentId,
+                  queueMessageId: durableFailedQueueRow.id,
+                  createdAt: durableFailedQueueRow.createdAt,
+                },
+                "pending"
+              );
+              if (!pendingUpdated) {
+                throw new Error(
+                  "failed delivery projection is no longer available"
+                );
+              }
+            } catch (retryPreparationError) {
+              // The old failed bubble is still authoritative. Restore its
+              // matching held queue owner instead of leaving a new pending
+              // owner whose EventStore projection never moved with it.
+              store.set(messageQueueAtom, (queue) =>
+                queue.map((message) =>
+                  message.id === durableFailedQueueRow.id
+                    ? durableFailedQueueRow
+                    : message
+                )
+              );
+              await flushMessageQueuePersistence(store).catch(() => undefined);
+              throw retryPreparationError;
+            }
+            store.set(forceSendMessageAtom, durableFailedQueueRow.id);
+            return;
+          }
+          const turnIntentId =
+            newText === originalText
+              ? (originalTurnIntentId ?? undefined)
+              : undefined;
+          const handled = await onFailedUserIntentRetry?.({
+            displayText: projection.displayContent,
+            agentContent: projection.agentContent,
+            imageDataUrls: resendImages,
+            turnIntentId,
+          });
+          if (!handled) {
+            await submitUserIntent({
+              sessionId: initiatedSessionId,
+              displayContent: projection.displayContent,
+              agentContent: projection.agentContent,
+              imageDataUrls: resendImages,
+              source: "dispatch",
+              turnIntentId,
+            });
+          }
+          await eventStoreProxy.removeByIdPrefix(eventId, initiatedSessionId);
+        } catch (error) {
+          // A send-stage error already produced the replacement failed row.
+          // A preparation/storage error did not, so retain the original row.
+          if (isUserIntentSendError(error)) {
+            await eventStoreProxy
+              .removeByIdPrefix(eventId, initiatedSessionId)
+              .catch(() => 0);
+          }
+          log.error(
+            "[useEditUserMessage] failed delivery retry failed:",
+            error
+          );
+          Message.error(t("errors.errorOccurred"));
+        }
+        return;
+      }
+
       let revertFiles = true;
 
       if (
@@ -246,9 +438,12 @@ export function useEditUserMessage(): (
       setPendingPlanApprovals,
       clearTodosForSession,
       resolveCurrentSessionId,
+      surfaceSessionId,
       submitUserIntent,
       t,
       store,
+      onFailedUserIntentRetry,
+      resolveFailedUserIntentDispatch,
     ]
   );
 }

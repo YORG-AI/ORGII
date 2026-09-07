@@ -144,6 +144,10 @@ fn infer_display_variant(
     function_name: &str,
     result: &serde_json::Value,
 ) -> EventDisplayVariant {
+    if action_type == "context_compacted" || function_name == "context_compacted" {
+        return EventDisplayVariant::Message;
+    }
+
     let is_failed_session_end = (action_type == "session_end" || function_name == "session_end")
         && result.get("success").and_then(|value| value.as_bool()) == Some(false)
         && ["error", "error_message", "observation"]
@@ -159,7 +163,7 @@ fn infer_display_variant(
     }
 
     // User messages
-    if (action_type == "raw" || action_type == "raw_event") && raw_message_text(result).is_some() {
+    if (action_type == "raw" || action_type == "raw_event") && is_raw_user_message(result) {
         return EventDisplayVariant::Message;
     }
 
@@ -420,7 +424,10 @@ fn infer_activity_status(action_type: &str, result: &serde_json::Value) -> Activ
 // ============================================================================
 
 fn infer_source(action_type: &str, result: &serde_json::Value) -> EventSource {
-    if (action_type == "raw" || action_type == "raw_event") && raw_message_text(result).is_some() {
+    if action_type == "context_compacted" {
+        return EventSource::System;
+    }
+    if (action_type == "raw" || action_type == "raw_event") && is_raw_user_message(result) {
         return EventSource::User;
     }
     EventSource::Assistant
@@ -440,7 +447,14 @@ fn infer_display_text(
     let result_obj = result.as_object();
 
     match action_type {
-        "raw" | "raw_event" => raw_message_text(result).unwrap_or_else(|| "Activity".to_string()),
+        "raw" | "raw_event" if is_raw_user_message(result) => {
+            // Image-only user turns deliberately have no display text. Their
+            // attachment list renders the bubble; fabricating "Activity"
+            // would alter the native conversation when it is materialized.
+            raw_message_text(result).unwrap_or_default()
+        }
+
+        "raw" | "raw_event" => "Activity".to_string(),
 
         "assistant" | "assistant_delta" | "message" | "message_delta" => result_obj
             .and_then(|o| str_field(o, "observation").or_else(|| str_field(o, "content")))
@@ -533,11 +547,32 @@ fn infer_display_text(
     }
 }
 
-fn raw_message_text(result: &serde_json::Value) -> Option<String> {
-    let obj = result.as_object()?;
-    if obj.get("type").and_then(|v| v.as_str()) != Some("user") && !obj.contains_key("message") {
+pub(crate) fn is_raw_user_message(result: &serde_json::Value) -> bool {
+    let Some(obj) = result.as_object() else {
+        return false;
+    };
+    let result_type = obj.get("type").and_then(|value| value.as_str());
+    if result_type == Some("user") {
+        return true;
+    }
+    if result_type.is_some() {
+        return false;
+    }
+    let Some(message) = obj.get("message") else {
+        return false;
+    };
+    message
+        .as_object()
+        .and_then(|value| value.get("role"))
+        .and_then(|value| value.as_str())
+        .is_none_or(|role| role == "user")
+}
+
+pub(crate) fn raw_message_text(result: &serde_json::Value) -> Option<String> {
+    if !is_raw_user_message(result) {
         return None;
     }
+    let obj = result.as_object()?;
 
     let text = obj
         .get("message")

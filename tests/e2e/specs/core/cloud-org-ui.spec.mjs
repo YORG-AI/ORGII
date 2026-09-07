@@ -1140,7 +1140,7 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
     } catch (error) {
       const diagnostic = await execJS(`
         const panel = document.querySelector('[data-testid="cloud-org-panel"]');
-        const form = document.querySelector('[data-testid="create-collab-org-body"]');
+        const form = document.querySelector('[data-testid="collab-org-form"]');
         return {
           pathname: location.pathname,
           panel: panel?.textContent?.trim().slice(0, 800) ?? null,

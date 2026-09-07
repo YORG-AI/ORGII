@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 
+import type { ChatHistoryProps } from "../ChatHistory.types";
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
 import type { UseChatHistoryStateReturn } from "./useChatHistoryState";
 import { useEditUserMessage } from "./useEditUserMessage";
@@ -10,6 +11,8 @@ interface UseChatHistoryItemActionsOptions {
   groupHeaders: (OptimizedChatItem | null)[];
   handleIgnoreQuestionRef: UseChatHistoryStateReturn["handleIgnoreQuestionRef"];
   handleReplyQuestionRef: UseChatHistoryStateReturn["handleReplyQuestionRef"];
+  onFailedUserIntentRetry?: ChatHistoryProps["onFailedUserIntentRetry"];
+  resolveFailedUserIntentDispatch?: ChatHistoryProps["resolveFailedUserIntentDispatch"];
 }
 
 /** Stabilizes history mutation callbacks passed into virtualized row renderers. */
@@ -18,8 +21,13 @@ export function useChatHistoryItemActions({
   groupHeaders,
   handleIgnoreQuestionRef,
   handleReplyQuestionRef,
+  onFailedUserIntentRetry,
+  resolveFailedUserIntentDispatch,
 }: UseChatHistoryItemActionsOptions) {
-  const handleEditUserMessage = useEditUserMessage();
+  const handleEditUserMessage = useEditUserMessage(
+    onFailedUserIntentRetry,
+    resolveFailedUserIntentDispatch
+  );
   const handleRestoreCheckpoint = useRestoreCheckpoint();
   const pinnedEditSubmitRef = useRef(handleEditUserMessage);
   useEffect(() => {

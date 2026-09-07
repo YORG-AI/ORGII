@@ -35,6 +35,7 @@ interface QueuedMessageItemProps {
   draggable: boolean;
   isDragging: boolean;
   isEditing: boolean;
+  isHandoff: boolean;
   onStartEdit: (msg: QueuedMessage) => void;
   onSendNow: (messageId: string) => void;
   onCancel: (messageId: string) => void;
@@ -46,6 +47,7 @@ const QueuedMessageItem: React.FC<QueuedMessageItemProps> = memo(
     draggable,
     isDragging,
     isEditing,
+    isHandoff,
     onStartEdit,
     onSendNow,
     onCancel,
@@ -54,11 +56,12 @@ const QueuedMessageItem: React.FC<QueuedMessageItemProps> = memo(
     // "now" priority = Send Now clicked; the dispatcher delivers the moment
     // the interrupted turn's terminal lands. Render as "sending now…" so the
     // user sees their click took effect during the interrupt window.
-    const isSendingNow = msg.priority === "now";
+    const isSending =
+      isHandoff || msg.status !== "queued" || msg.priority === "now";
     const { attributes, listeners, setNodeRef, transform, transition } =
       useSortable({
         id: msg.id,
-        disabled: isEditing || isSendingNow || !draggable,
+        disabled: isEditing || isSending || !draggable,
       });
 
     const style: React.CSSProperties = {
@@ -78,19 +81,19 @@ const QueuedMessageItem: React.FC<QueuedMessageItemProps> = memo(
         style={style}
         className={`${COMPOSER_STACK_ROW_BASE} ${
           isEditing ? "bg-primary-1" : COMPOSER_STACK_ROW_HOVER
-        } ${draggable && !isEditing && !isSendingNow ? "cursor-grab active:cursor-grabbing" : ""}`}
+        } ${draggable && !isEditing && !isSending ? "cursor-grab active:cursor-grabbing" : ""}`}
         data-testid="queued-message-item"
         data-queued-message-id={msg.id}
         data-queued-message-content={msg.displayContent}
-        data-queued-message-sending={isSendingNow || undefined}
+        data-queued-message-sending={isSending || undefined}
         title={msg.displayContent}
         aria-label={msg.displayContent}
-        {...(draggable && !isEditing && !isSendingNow
+        {...(draggable && !isEditing && !isSending
           ? { ...attributes, ...listeners }
           : {})}
       >
         <div className="flex h-[14px] w-[14px] shrink-0 items-center justify-center">
-          {isSendingNow ? (
+          {isSending ? (
             <HugeiconsIcon
               icon={Loading03Icon}
               data-icon="loader-2"
@@ -111,12 +114,12 @@ const QueuedMessageItem: React.FC<QueuedMessageItemProps> = memo(
         >
           {preview}
         </span>
-        {isSendingNow && (
+        {isSending && (
           <span className="shrink-0 text-[10px] text-primary-6">
             {t("common:labels.sendingNow")}
           </span>
         )}
-        {!isEditing && !isSendingNow && (
+        {!isEditing && !isSending && (
           <span className={COMPOSER_STACK_ROW_ACTIONS}>
             <Button
               htmlType="button"

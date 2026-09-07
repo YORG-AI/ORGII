@@ -7,7 +7,7 @@
 //! - `helpers`        — shared state, emit_chunk, image persistence
 //! - `command`        — CLI command building and parser factory
 //! - `session`        — core run_session function
-//! - `input_assembly` — effective-prompt assembly (bridges, images, skills)
+//! - `input_assembly` — typed user/context turn assembly (bridges, images, skills)
 //! - `env_setup`      — child-process env / profile-dir / proxy preparation
 //! - `finalize`       — post-run status, error surfacing, resource teardown
 //! - `lifecycle`      — kill, cancel, cleanup
@@ -21,7 +21,7 @@
 pub(crate) mod command;
 mod context_bridge;
 mod cursor_usage;
-mod env_setup;
+pub(crate) mod env_setup;
 mod finalize;
 mod harness_hooks;
 mod helpers;
@@ -35,17 +35,17 @@ mod session;
 mod token_sync;
 
 pub(crate) use harness_hooks::stop_session as stop_session_hooks;
-pub use helpers::{flush_cli_streams_for_session, session_control_lock, RUNNING_SESSIONS};
+pub use helpers::{
+    flush_cli_streams_for_session, session_control_lock, session_identity_lock, RUNNING_SESSIONS,
+};
 pub(crate) use input_assembly::forget_session_context;
 pub use lifecycle::{
     cancel_session, cleanup_cursor_config_dir, kill_running_agent, terminate_process_tree,
 };
+pub(crate) use lifecycle::{fail_interrupted_turn, finalize_interrupted_follow_up};
 pub use proxy_release::release_proxy_token_for_session_pub;
 pub use session::run_session;
-
-#[cfg(test)]
-#[path = "../tests/runner_tests.rs"]
-mod tests;
+pub(crate) use session::run_session_with_ide_context;
 
 #[cfg(test)]
 #[path = "../tests/runner_command_tests.rs"]

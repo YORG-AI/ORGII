@@ -3,12 +3,18 @@
  * sibling hooks/sub-components can reference them without importing the
  * full `ChatView` component.
  */
-import type { SessionContinuation } from "@src/store/session/sessionTabPlacementAtom";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
+
+import type { ConversationTargetBinding } from "./conversationTargetSelection";
 
 export interface ChatViewProps {
   /** Session ID to display. Sync bridges and events load for this session. */
   sessionId: string;
+  /**
+   * Resolved once by a surface that also owns session header actions. When
+   * omitted, ChatView remains self-contained and resolves the binding itself.
+   */
+  conversationTargetBinding?: ConversationTargetBinding | null;
   displayMode?: ChatHistoryDisplayMode;
   turnPaginationEnabled?: boolean;
   /** Dock side for the containing chat panel, used to place side previews inward. */
@@ -40,10 +46,4 @@ export interface ChatViewProps {
    * the IDE's current folders.
    */
   secondary?: boolean;
-  /**
-   * Retarget the owning tab after an immutable imported history is forked
-   * into a writable ORGII session. The callback must also claim/navigate the
-   * new session pipeline for its surface.
-   */
-  onSessionContinuation?: (continuation: SessionContinuation) => void;
 }

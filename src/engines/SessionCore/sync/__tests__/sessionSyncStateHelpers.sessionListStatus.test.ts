@@ -17,7 +17,12 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { resetTurnLifecycleForTests } from "@src/engines/SessionCore/control/turnLifecycle";
+import {
+  getTurnPhase,
+  markTurnRunning,
+  markTurnTerminal,
+  resetTurnLifecycleForTests,
+} from "@src/engines/SessionCore/control/turnLifecycle";
 import type {
   ContextBreakdown,
   ContextUsageSnapshot,
@@ -34,6 +39,7 @@ import {
 
 import {
   applyPostLoadResult,
+  capturePostLoadLifecycleSnapshot,
   createSessionEventHandlerCallbacks,
 } from "../sessionSyncStateHelpers";
 import type { SessionEventHandlerStateActions } from "../sessionSyncStateHelpers";
@@ -179,6 +185,24 @@ describe("applyPostLoadResult writes a validated status to the session list", ()
     applyPostLoadResult(SESSION_ID, { runStatus: "cancelled" }, actions);
 
     expectRowStatus("cancelled");
+  });
+
+  it("does not let a stale running post-load resurrect a terminal turn", () => {
+    markTurnRunning(SESSION_ID);
+    const lifecycleSnapshot = capturePostLoadLifecycleSnapshot(SESSION_ID);
+    markTurnTerminal(SESSION_ID, "completed");
+    getInstrumentedStore().set(sessionsAtom, (sessions) =>
+      sessions.map((session) => ({ ...session, status: "completed" }))
+    );
+    const { actions, runtimeStatus } = makePostLoadActions();
+
+    applyPostLoadResult(SESSION_ID, { runStatus: "running" }, actions, {
+      lifecycleSnapshot,
+    });
+
+    expect(runtimeStatus).toEqual([]);
+    expectRowStatus("completed");
+    expect(getTurnPhase(SESSION_ID)).toBe("idle");
   });
 });
 

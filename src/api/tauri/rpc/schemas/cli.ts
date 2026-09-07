@@ -12,6 +12,7 @@ export const CliMessageRequestSchema = z.object({
   ideContext: z.unknown().optional(),
   mode: z.string().optional(),
   images: z.array(z.string()).optional(),
+  allowNativeContextRecovery: z.boolean().optional(),
 });
 
 /** `cli_agent_message` takes a single `request` struct, like the other
@@ -57,3 +58,8 @@ export const CliStatusBatchItemSchema = z.object({
 });
 
 export const CliChunksSchema = z.array(ActivityChunkSchema);
+
+export const CliTranscriptRevisionSchema = z.object({
+  native: z.boolean(),
+  revision: z.string().nullable().optional(),
+});

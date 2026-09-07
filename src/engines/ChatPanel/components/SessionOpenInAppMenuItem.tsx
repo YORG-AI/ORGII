@@ -9,9 +9,9 @@ import { useTranslation } from "react-i18next";
 
 import {
   type ExternalHistoryAppOpenPlan,
+  IMPORTED_HISTORY_SOURCE_DESCRIPTORS,
   externalHistoryAppOpenPlan,
   externalHistoryOpenInApp,
-  getImportedHistoryAppOpen,
 } from "@src/api/tauri/externalHistory";
 import AnyIcon from "@src/components/AnyIcon";
 import DropdownItem from "@src/components/Dropdown/DropdownItem";
@@ -29,11 +29,13 @@ const log = createLogger("ChatPanel");
 
 interface SessionOpenInAppMenuItemProps {
   sessionId: string | null;
+  /** Existing binding owner selected by the canonical conversation resolver. */
+  appOpenSessionId?: string | null;
   onCloseMenu: () => void;
 }
 
 /**
- * "Open in <App>" menu action for imported external sessions.
+ * "Open in <App>" menu action for imported and managed native sessions.
  *
  * Where `SessionContinueCliHeaderExtras` hands the session to its CLI inside
  * an ORGII terminal, this hands it to the vendor's own app through a
@@ -49,21 +51,27 @@ interface SessionOpenInAppMenuItemProps {
  */
 export const SessionOpenInAppMenuItem: React.FC<
   SessionOpenInAppMenuItemProps
-> = ({ sessionId, onCloseMenu }) => {
+> = ({
+  sessionId,
+  appOpenSessionId: resolvedAppOpenSessionId,
+  onCloseMenu,
+}) => {
   const { t } = useTranslation("navigation");
   const [plan, setPlan] = useState<ExternalHistoryAppOpenPlan | null>(null);
   const opening = useRef(false);
-
-  // Sync capability gate: sources without an app deep link never render the
-  // row and never pay the backend round-trip. The backend stays
-  // authoritative for per-session cases (subagents, odd ids).
-  const descriptorAppOpen = getImportedHistoryAppOpen(sessionId);
+  // `undefined` is a legacy/direct imported surface. An explicit `null`
+  // means the canonical binding owner found no executed native episode, so
+  // do not silently open an older imported source conversation.
+  const appOpenSessionId =
+    resolvedAppOpenSessionId === undefined
+      ? sessionId
+      : resolvedAppOpenSessionId;
 
   useEffect(() => {
     setPlan(null);
-    if (!sessionId || !descriptorAppOpen) return undefined;
+    if (!appOpenSessionId) return undefined;
     let cancelled = false;
-    externalHistoryAppOpenPlan(sessionId)
+    externalHistoryAppOpenPlan(appOpenSessionId)
       .then((result) => {
         if (!cancelled) setPlan(result);
       })
@@ -73,7 +81,17 @@ export const SessionOpenInAppMenuItem: React.FC<
     return () => {
       cancelled = true;
     };
-  }, [sessionId, descriptorAppOpen]);
+  }, [appOpenSessionId]);
+
+  const descriptorAppOpen = useMemo(
+    () =>
+      plan
+        ? IMPORTED_HISTORY_SOURCE_DESCRIPTORS.find(
+            (source) => source.sourceId === plan.source
+          )?.appOpen
+        : undefined,
+    [plan]
+  );
 
   const appDisplayName =
     plan?.appDisplayName ?? descriptorAppOpen?.displayName ?? "";
@@ -92,11 +110,11 @@ export const SessionOpenInAppMenuItem: React.FC<
   }, [appDisplayName, plan, t]);
 
   const handleOpen = useCallback(async (): Promise<void> => {
-    if (!sessionId || !plan?.sourceAvailable || opening.current) return;
+    if (!appOpenSessionId || !plan?.sourceAvailable || opening.current) return;
     opening.current = true;
     onCloseMenu();
     try {
-      await externalHistoryOpenInApp(sessionId);
+      await externalHistoryOpenInApp(appOpenSessionId);
     } catch (error) {
       log.error("failed to open imported session in its app", error);
       Message.error(
@@ -105,7 +123,7 @@ export const SessionOpenInAppMenuItem: React.FC<
     } finally {
       opening.current = false;
     }
-  }, [appDisplayName, onCloseMenu, plan, sessionId, t]);
+  }, [appDisplayName, appOpenSessionId, onCloseMenu, plan, t]);
 
   if (!descriptorAppOpen || !plan) return null;
 

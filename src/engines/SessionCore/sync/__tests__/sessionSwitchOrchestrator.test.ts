@@ -5,6 +5,10 @@ import type { SessionAdapter } from "../types";
 
 const mocks = vi.hoisted(() => ({
   applyPostLoadResult: vi.fn(),
+  capturePostLoadLifecycleSnapshot: vi.fn(() => ({
+    lastTerminal: null,
+    generation: 0,
+  })),
   dispatchLoadSession: vi.fn(),
   getEvents: vi.fn(),
   hydrateSessionStoreBeforeDisplay: vi.fn(),
@@ -52,6 +56,8 @@ vi.mock("../sessionSyncReconcile", () => ({
 
 vi.mock("../sessionSyncStateHelpers", () => ({
   applyPostLoadResult: mocks.applyPostLoadResult,
+  capturePostLoadLifecycleSnapshot: mocks.capturePostLoadLifecycleSnapshot,
+  isPostLoadRunStatusSuperseded: vi.fn(() => false),
 }));
 
 vi.mock("../sessionSyncUtils", () => ({

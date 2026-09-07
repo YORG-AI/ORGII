@@ -16,8 +16,8 @@ export interface ParentAgentSender {
  * Resolved once per chat rather than per message: every user row in a session
  * shares one answer, and reading it from the session store per row would
  * subscribe hundreds of memoized rows to a session object that churns on every
- * status update. `SharedConversationSenderContext` carries teammate identity
- * the same way and for the same reason.
+ * status update. `ConversationSenderMetadataContext` carries human account
+ * identity through the same one-provider-per-surface boundary.
  */
 const ParentAgentSenderContext = createContext<ParentAgentSender | null>(null);
 

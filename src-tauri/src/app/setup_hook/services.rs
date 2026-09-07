@@ -23,35 +23,45 @@ pub(crate) fn start_backend_services(
             tracing::info!("[Transport] Transport layer initialized");
         }
     }
-    match agent_sessions::cli::persistence::sweep_stale_sessions() {
-        Ok(orphans) if !orphans.is_empty() => {
-            tracing::info!(
-                count = orphans.len(),
-                "[CLI Sessions] swept stale sessions to failed"
-            );
-            // Kill the orphaned CLI process trees. After a backend
-            // restart (crash, quit, or dev-mode Rust recompile) the
-            // old CLI agents keep running unsupervised — the new
-            // backend has no RUNNING_SESSIONS handle, so the user's
-            // cancel button can't reach them. Resume previously did
-            // this lazily per-session; do it eagerly for all.
-            tauri::async_runtime::spawn(async move {
-                for (session_id, pid) in orphans {
-                    tracing::info!(
-                        "[CLI Sessions] terminating orphaned process tree pid={} (session {})",
-                        pid,
-                        session_id
-                    );
-                    agent_sessions::cli::session_runner::terminate_process_tree(pid, &session_id)
-                        .await;
-                }
-            });
+    let stale_cli_processes = match agent_sessions::cli::persistence::sweep_stale_sessions() {
+        Ok(orphans) => {
+            if !orphans.is_empty() {
+                tracing::info!(
+                    count = orphans.len(),
+                    "[CLI Sessions] swept stale sessions to failed"
+                );
+            }
+            orphans
         }
-        Ok(_) => {}
         Err(err) => {
             tracing::warn!(error = %err, "[CLI Sessions] Failed to sweep stale sessions");
+            Vec::new()
         }
-    }
+    };
+    // Reuse the existing startup lifecycle: first terminate provider processes
+    // left behind by the previous backend, then make one bounded pass over
+    // durable native-App catalog receipts. There is no timer or parallel
+    // coordinator, and clean sessions are never visited.
+    tauri::async_runtime::spawn(async move {
+        for (session_id, pid) in stale_cli_processes {
+            tracing::info!(
+                "[CLI Sessions] terminating orphaned process tree pid={} (session {})",
+                pid,
+                session_id
+            );
+            agent_sessions::cli::session_runner::terminate_process_tree(pid, &session_id).await;
+        }
+        let (repaired, failed) = agent_sessions::cli::native_materializer::
+            reconcile_pending_native_catalog_refreshes_on_startup()
+            .await;
+        if repaired > 0 || failed > 0 {
+            tracing::info!(
+                repaired,
+                failed,
+                "[CLI Sessions] reconciled pending native App catalog refreshes"
+            );
+        }
+    });
 
     system_services::app_menu::setup_menu_events(app.handle());
     tracing::info!("[AppMenu] Menu event handlers registered");
@@ -67,9 +77,7 @@ pub(crate) fn start_backend_services(
     }
 
     git::watch::RepoWatchManager::initialize(app.handle().clone());
-    tracing::info!(
-        "[RepoWatch] Repository watch manager initialized for on-demand active workspaces"
-    );
+    tracing::info!("[RepoWatch] Repository watch manager initialized for on-demand active workspaces");
 
     // Start L3 offline consolidation tick (60s interval, fires on
     // idle/forced triggers). Non-blocking, runs on its own thread +
@@ -81,20 +89,12 @@ pub(crate) fn start_backend_services(
     // agent-core persistence layer stays orgtrack-agnostic; CLI
     // sessions mirror through their own persistence write path.
     agent_core::session::persistence::register_session_mirror_hook(|session_id| {
-        if let Err(err) =
-            crate::agent_sessions::session_directory::orgtrack_adapter::upsert_rust_agent_session(
-                session_id,
-            )
-        {
+        if let Err(err) = crate::agent_sessions::session_directory::orgtrack_adapter::upsert_rust_agent_session(session_id) {
             tracing::warn!(session_id, error = %err, "[session-mirror] orgtrack session mirror failed");
         }
     });
     agent_core::session::persistence::register_session_delete_mirror_hook(|session_id| {
-        if let Err(err) =
-            crate::agent_sessions::session_directory::orgtrack_adapter::remove_mirrored_session(
-                session_id,
-            )
-        {
+        if let Err(err) = crate::agent_sessions::session_directory::orgtrack_adapter::remove_mirrored_session(session_id) {
             tracing::warn!(session_id, error = %err, "[session-mirror] orgtrack delete mirror failed");
         }
     });
@@ -106,6 +106,7 @@ pub(crate) fn start_backend_services(
             tracing::warn!(error = %err, "[session-mirror] startup reconcile failed");
         }
     });
+
 
     // Create WebSocket broadcast channel for real-time events
     let (ws_tx, _ws_rx) = tokio::sync::broadcast::channel::<String>(1000);
@@ -121,14 +122,13 @@ pub(crate) fn start_backend_services(
     // thread. Local single-user server: a small worker cap serves it fine and
     // avoids a full core-count worker pool (the app spawns several runtimes).
     let ide_server_port = runtime_profile.ide_server_port;
-    std::thread::spawn(move || {
-        match tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(4)
-            .enable_all()
-            .build()
-        {
-            Ok(rt) => {
-                rt.block_on(async {
+    std::thread::spawn(move || match tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => {
+            rt.block_on(async {
                 match api::start_server(ws_tx, ide_server_port).await {
                     Ok(_) => tracing::info!("[IDE Server] Server stopped"),
                     Err(err) => {
@@ -136,18 +136,13 @@ pub(crate) fn start_backend_services(
                     }
                 }
             });
-            }
-            Err(err) => {
-                tracing::error!(error = %err, "[IDE Server] Failed to create tokio runtime")
-            }
         }
+        Err(err) => tracing::error!(error = %err, "[IDE Server] Failed to create tokio runtime"),
     });
 
     // Start the local managed-config proxy used by supported CLI agents.
-    // Direct-only installations do not start a proxy listener.
-    if agent_cli::managed_config::has_active_managed_profiles() {
-        cli_managed_proxy::start_cli_managed_proxy_thread();
-    }
+    // It stays idle until a CLI points at 127.0.0.1:17888.
+    cli_managed_proxy::start_cli_managed_proxy_thread();
 
     // First launch defaults session-provenance capture on for supported
     // external agents. Later launches reconcile the platform hook
@@ -158,7 +153,9 @@ pub(crate) fn start_backend_services(
         }
     });
     orgtrack::session_provenance::spawn_hook_inbox_drain_loop(app.handle().clone());
-    orgtrack::session_provenance::spawn_codex_write_reconciliation_loop(app.handle().clone());
+    orgtrack::session_provenance::spawn_codex_write_reconciliation_loop(
+        app.handle().clone(),
+    );
 
     // Live agent-status registry: frontend fanout handle + restart
     // continuity from the last-status cache (TTL-filtered).

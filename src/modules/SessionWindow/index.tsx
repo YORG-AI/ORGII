@@ -41,6 +41,7 @@ import {
   CHAT_PANEL_HEADER_NO_DRAG_STYLE,
 } from "@src/engines/ChatPanel/header";
 import { shouldStartHeaderDragFromTarget } from "@src/engines/ChatPanel/header/chatPanelHeaderLayout";
+import { useConversationTargetBinding } from "@src/engines/ChatPanel/hooks/useConversationTargetBinding";
 import { useSessionActionModals } from "@src/engines/ChatPanel/hooks/useSessionActionModals";
 import { useSessionHeaderActions } from "@src/engines/ChatPanel/hooks/useSessionHeaderActions";
 import { useSessionViewMode } from "@src/engines/ChatPanel/hooks/useSessionViewMode";
@@ -48,6 +49,7 @@ import { useEventStoreBridge } from "@src/engines/SessionCore/core/store/useEven
 import GlobalPlanningIndicatorBridgeSync from "@src/engines/SessionCore/hooks/replay/GlobalPlanningIndicatorBridgeSync";
 import { useQueueDispatch } from "@src/engines/SessionCore/hooks/session/useQueueDispatch";
 import SessionSyncProvider from "@src/engines/SessionCore/sync/SessionSyncProvider";
+import { dispatchQueuedCanonicalConversation } from "@src/features/ConversationContinuation/canonicalConversationDispatcher";
 import SessionViewersIndicator from "@src/features/Org2Cloud/SessionViewersIndicator";
 import { useNativeSessionStatusMonitor } from "@src/hooks/session/useNativeSessionStatusMonitor";
 import { getPrimaryPaneBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
@@ -76,7 +78,7 @@ const MACOS_TRAFFIC_LIGHTS_INSET_PX = 84;
  *  while native notification delivery stays main-window-owned. */
 const SessionWindowBridges: React.FC = () => {
   useEventStoreBridge();
-  useQueueDispatch();
+  useQueueDispatch(dispatchQueuedCanonicalConversation);
   useNativeSessionStatusMonitor({ notifications: false });
   return <GlobalPlanningIndicatorBridgeSync />;
 };
@@ -91,6 +93,7 @@ const SessionWindowContent: React.FC<{ sessionId: string }> = memo(
     ]);
     const navigate = useNavigate();
     const session = useAtomValue(sessionByIdAtom(sessionId));
+    const conversationTargetBinding = useConversationTargetBinding(sessionId);
     const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
     const primaryPaneSurfaceStyle = useMemo(
       () => getPrimaryPaneBackgroundStyle(backgroundConfig.pageOpacity),
@@ -209,6 +212,9 @@ const SessionWindowContent: React.FC<{ sessionId: string }> = memo(
               activeSessionExists={Boolean(session)}
               copyEventJsonLabel={headerActions.copyEventJsonLabel}
               currentSessionId={sessionId || null}
+              appOpenSessionId={
+                conversationTargetBinding?.appOpenSessionId ?? null
+              }
               displayMode={headerActions.displayMode}
               eventsLength={headerActions.eventCount}
               handleCompactDisplayModeToggle={
@@ -261,8 +267,8 @@ const SessionWindowContent: React.FC<{ sessionId: string }> = memo(
         >
           <SessionContentView
             sessionId={sessionId}
+            conversationTargetBinding={conversationTargetBinding}
             displayMode={headerActions.displayMode}
-            onSessionContinuation={handleSessionContinuation}
             turnPaginationEnabled={headerActions.paginationEnabled}
           />
         </div>

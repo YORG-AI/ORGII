@@ -5,6 +5,9 @@ use std::collections::{HashMap, HashSet};
 
 use crate::agent_sessions::event_pipeline::extractors::extract_event_data_with_bounded_shell_output;
 use crate::agent_sessions::event_pipeline::ingestion::function_map::resolve_ui_canonical;
+use crate::agent_sessions::event_pipeline::ingestion::normalizer::{
+    is_raw_user_message, raw_message_text,
+};
 use crate::agent_sessions::event_pipeline::payload_compaction::is_compacted_event;
 use crate::agent_sessions::event_pipeline::types::{
     ActivityStatus, EventDisplayStatus, EventDisplayVariant, EventSource, SessionEvent,
@@ -750,21 +753,37 @@ pub(crate) fn cached_event_to_session_event(cached: &sqlite_cache::CachedEvent) 
         }
     };
 
-    let source_str = meta_obj
-        .and_then(|m| m.get("source"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("system");
-    let source = match source_str {
-        "user" => EventSource::User,
-        "assistant" => EventSource::Assistant,
-        _ => EventSource::System,
+    // Old replay snapshots could persist image-only raw user messages with
+    // assistant renderer metadata because the original normalizer used text
+    // presence as its role signal. The durable payload is unambiguous
+    // (`type=user` / `message.role=user`) and is the canonical source of
+    // truth. Repair that contradiction on read through the same predicate as
+    // live ingestion so historical Team Sessions remain losslessly portable.
+    let is_semantic_raw_user =
+        matches!(cached.event_type.as_str(), "raw" | "raw_event") && is_raw_user_message(&result);
+    let source = if is_semantic_raw_user {
+        EventSource::User
+    } else {
+        match meta_obj
+            .and_then(|m| m.get("source"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("system")
+        {
+            "user" => EventSource::User,
+            "assistant" => EventSource::Assistant,
+            _ => EventSource::System,
+        }
     };
 
-    let display_text = meta_obj
-        .and_then(|m| m.get("displayText"))
-        .and_then(|v| v.as_str())
-        .unwrap_or_else(|| cached.function_name.as_deref().unwrap_or("unknown"))
-        .to_string();
+    let display_text = if is_semantic_raw_user {
+        raw_message_text(&result).unwrap_or_default()
+    } else {
+        meta_obj
+            .and_then(|m| m.get("displayText"))
+            .and_then(|v| v.as_str())
+            .unwrap_or_else(|| cached.function_name.as_deref().unwrap_or("unknown"))
+            .to_string()
+    };
 
     let display_status_str = meta_obj
         .and_then(|m| m.get("displayStatus"))
@@ -773,12 +792,16 @@ pub(crate) fn cached_event_to_session_event(cached: &sqlite_cache::CachedEvent) 
     let display_status = serde_json::from_value(serde_json::json!(display_status_str))
         .unwrap_or(EventDisplayStatus::Running);
 
-    let display_variant_str = meta_obj
-        .and_then(|m| m.get("displayVariant"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("tool_call");
-    let display_variant = serde_json::from_value(serde_json::json!(display_variant_str))
-        .unwrap_or(EventDisplayVariant::ToolCall);
+    let display_variant = if is_semantic_raw_user {
+        EventDisplayVariant::Message
+    } else {
+        let display_variant_str = meta_obj
+            .and_then(|m| m.get("displayVariant"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("tool_call");
+        serde_json::from_value(serde_json::json!(display_variant_str))
+            .unwrap_or(EventDisplayVariant::ToolCall)
+    };
 
     let activity_status_str = meta_obj
         .and_then(|m| m.get("activityStatus"))

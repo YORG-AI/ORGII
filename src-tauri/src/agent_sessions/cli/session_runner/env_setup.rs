@@ -19,7 +19,7 @@ const OPENCODE_ZENMUX_PROVIDER_ID: &str = "zenmux";
 const OPENCODE_ZENMUX_BASE_URL: &str = "https://zenmux.ai/api/v1";
 const OPENCODE_DEFAULT_ZENMUX_MODEL: &str = "deepseek/deepseek-chat";
 const ATLASCLOUD_PROVIDER_ID: &str = "atlascloud";
-const CODEX_COMPATIBLE_PROVIDER_ID: &str = "orgii_compatible";
+pub(crate) const CODEX_COMPATIBLE_PROVIDER_ID: &str = "orgii_compatible";
 const ATLASCLOUD_BASE_URL: &str = "https://api.atlascloud.ai/v1";
 const ATLASCLOUD_DEFAULT_MODEL: &str = "zai-org/glm-5.1";
 const OPENCODE_ZENMUX_MODEL_IDS: &[&str] = &[
@@ -248,7 +248,7 @@ fn codex_compatible_base_url(selected_key: &ModelKey) -> Result<String, String> 
 /// auth, WebSocket support and Codex's own retry defaults. Routing them through
 /// the synthetic compatible-provider table downgrades all four for no benefit.
 /// A custom endpoint override is the one case that still needs the table.
-pub(super) fn codex_needs_compatible_profile(selected_key: &ModelKey) -> bool {
+pub(crate) fn codex_needs_compatible_profile(selected_key: &ModelKey) -> bool {
     if selected_key.model_type != ModelType::OpenaiApi {
         return true;
     }

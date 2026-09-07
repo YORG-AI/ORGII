@@ -8,7 +8,9 @@ use crate::projectors::turn_metadata::ProjectedTurnMetadata;
 use crate::sources::imported_history;
 
 use super::super::replay::{claude_content_text, claude_tool_result_text};
-use super::super::types::{is_harness_injected_user_line, ClaudeJsonlLine};
+use super::super::types::{
+    is_claude_compact_summary, is_harness_injected_user_line, ClaudeJsonlLine,
+};
 use super::super::CLAUDE_CODE_PROVIDER_SLUG;
 
 pub(in crate::sources::claude_code::history) const CLAUDE_WINDOW_TURN_ID_PREFIX: &str =
@@ -149,7 +151,10 @@ pub(in crate::sources::claude_code::history) fn index_claude_user_turns(
             count_toward_previous_turn(&mut turns);
             continue;
         };
-        if parsed.r#type != "user" || is_harness_injected_user_line(&parsed) {
+        if parsed.r#type != "user"
+            || is_claude_compact_summary(&parsed)
+            || is_harness_injected_user_line(&parsed)
+        {
             count_toward_previous_turn(&mut turns);
             continue;
         }

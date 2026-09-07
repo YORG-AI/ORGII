@@ -6,6 +6,7 @@ use super::super::super::desktop_exec::normalize_codex_exec_tool_calls;
 use super::super::super::normalize::{
     normalize_codex_tool_calls, normalize_tool_name_key, normalize_web_search_args,
 };
+use super::super::NATIVE_SOURCE_EVENT_ID_ARG;
 
 pub(in crate::sources::codex::app::transcript) fn pending_tool_calls_from_payload(
     payload: &Value,
@@ -13,11 +14,42 @@ pub(in crate::sources::codex::app::transcript) fn pending_tool_calls_from_payloa
 ) -> Option<(String, Vec<ImportedToolCall>)> {
     let call_id = payload.get("call_id")?.as_str()?.to_string();
     let raw_name = payload.get("name")?.as_str()?.to_string();
-    let arguments = payload
+    let mut arguments = payload
         .get("arguments")
         .and_then(Value::as_str)
         .map(imported_history::parse_inner_json)
         .unwrap_or_else(|| json!({}));
+    // `thread/inject_items` preserves the native response-item id supplied by
+    // the materializer. Canonical tool calls injected through that supported
+    // API must not be normalized a second time; ordinary Codex rollout tool
+    // calls have only `call_id` in the currently supported transcript schema.
+    if let Some(source_item_id) = payload
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|id| !id.trim().is_empty())
+    {
+        if let Some(args) = arguments.as_object_mut() {
+            args.insert(
+                NATIVE_SOURCE_EVENT_ID_ARG.to_string(),
+                Value::String(
+                    source_item_id
+                        .strip_suffix(":call")
+                        .unwrap_or(source_item_id)
+                        .to_string(),
+                ),
+            );
+        }
+        return Some((
+            call_id.clone(),
+            vec![ImportedToolCall {
+                call_id,
+                raw_name: raw_name.clone(),
+                canonical_name: raw_name,
+                args: arguments,
+                created_at: created_at.to_string(),
+            }],
+        ));
+    }
     let normalized_calls = normalize_codex_tool_calls(&raw_name, arguments);
     let call_count = normalized_calls.len();
     if call_count == 0 {

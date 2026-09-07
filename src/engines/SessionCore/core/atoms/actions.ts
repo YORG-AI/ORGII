@@ -16,7 +16,6 @@ import { REPLAY_CONFIG } from "@src/config/workspace/replayConfig";
 import { clearLoadedPayloads } from "@src/engines/SessionCore/payloads";
 import { clearLoadedTurnRegistry } from "@src/engines/SessionCore/turns/loadedTurnRegistry";
 import { createLogger } from "@src/hooks/logger";
-import { messageQueueAtom } from "@src/store/ui/messageQueueAtom";
 import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 
 import { isVisibleInChat } from "../../ingestion/visibilityFilters";
@@ -37,7 +36,6 @@ import {
   getUserMessageContent,
   getUserMessageImages,
   hasUserMessageImages,
-  syntheticMatchesQueuedMessage,
   syntheticSettledByScope,
   withUserMessageImages,
 } from "./actions.userMessageSync";
@@ -291,40 +289,21 @@ export const loadSessionAtom = atom(
     const argsMap = extendRunningArgsCache(eventsForLoad);
     const enrichedEvents = applyRunningArgs(argsMap, eventsForLoad);
 
-    const queuedMessagesForSession = get(messageQueueAtom).filter(
-      (message) => message.sessionId === sessionId
-    );
-    const queuedSyntheticEvents = new Set<string>();
-    for (const event of enrichedEvents) {
-      if (
-        isSyntheticUserInputEvent(event) &&
-        queuedMessagesForSession.some((message) =>
-          syntheticMatchesQueuedMessage(event, message)
-        )
-      ) {
-        queuedSyntheticEvents.add(event.id);
-      }
-    }
-    const transcriptEvents =
-      queuedSyntheticEvents.size > 0
-        ? enrichedEvents.filter((event) => !queuedSyntheticEvents.has(event.id))
-        : enrichedEvents;
+    // Queue state is delivery metadata, not a second transcript. Never remove
+    // a canonical user row merely because its durable queue job is still
+    // parked or recovering: pending/failed rows must survive hydration and a
+    // repeated prompt is a distinct turn. Exact event-id dedupe below is the
+    // only safe transcript dedupe boundary.
+    const transcriptEvents = enrichedEvents;
 
-    // Deduplicate: when events already contains the synthetic event (e.g.
-    // the initial loadSessionAtom call from launchSession passes it directly),
-    // don't prepend a second copy. Synthetic events that correspond to a
-    // still-parked frontend queue item are not transcript turns yet; keeping
-    // them here makes queued follow-ups cross the rendered round boundary
-    // before dispatch.
+    // Deduplicate exact event identities only. Queue delivery state is
+    // projected separately and matching by text used to hide a different
+    // repeated message during hydration.
     let mergedEvents: SessionEvent[];
     if (syntheticUserEvents.length > 0) {
       const enrichedIds = new Set(transcriptEvents.map((evt) => evt.id));
       const uniqueSynthetic = syntheticUserEvents.filter(
-        (evt) =>
-          !enrichedIds.has(evt.id) &&
-          !queuedMessagesForSession.some((message) =>
-            syntheticMatchesQueuedMessage(evt, message)
-          )
+        (evt) => !enrichedIds.has(evt.id)
       );
       if (uniqueSynthetic.length > 0) {
         // A rescued synthetic newer than the replayed transcript is a

@@ -23,6 +23,7 @@ describe("useEditMode initial message text", () => {
       getEditor: () => ({}),
       getText: () => "",
       getTextWithPills: () => "",
+      getSnapshot: () => ({ parts: [] }),
       setContent,
       focus: vi.fn(),
     };

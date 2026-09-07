@@ -12,6 +12,7 @@ import {
   vi,
 } from "vitest";
 
+import { SUPPORTED_LANGUAGES } from "@src/i18n";
 import type { QueuedMessage } from "@src/store/ui/messageQueueAtom";
 
 import QueuedMessages from "./QueuedMessages";
@@ -27,8 +28,11 @@ vi.mock("jotai", async (importOriginal) => ({
 }));
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key,
+  useTranslation: (namespace?: string) => ({
+    t: (key: string, fallback?: string) =>
+      namespace === "common" && key === "actions.clearAll"
+        ? "Clear all"
+        : (fallback ?? key),
   }),
 }));
 
@@ -170,7 +174,22 @@ describe("QueuedMessages edit seeding", () => {
       '[data-testid="queued-messages-clear-all"]'
     );
     expect(clearButton).not.toBeNull();
+    expect(clearButton?.textContent).toBe("Clear all");
+    expect(clearButton?.title).toBe("Clear all");
     act(() => clearButton?.click());
     expect(onClear).toHaveBeenCalledOnce();
   });
+});
+
+describe("QueuedMessages translations", () => {
+  it.each(SUPPORTED_LANGUAGES)(
+    "translates the clear-all queue action in %s",
+    async (language) => {
+      const common = (await import(`@src/i18n/locales/${language}/common.json`))
+        .default as { actions: Record<string, string> };
+
+      expect(common.actions.clearAll).toBeTruthy();
+      expect(common.actions.clearAll).not.toBe("actions.clearAll");
+    }
+  );
 });

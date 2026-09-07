@@ -112,3 +112,30 @@ export function isFetchTransportError(error: unknown): boolean {
     TRANSPORT_ERROR_MESSAGES.has(error.message.trim().toLowerCase())
   );
 }
+
+/**
+ * Whether a failed Cloud RPC has an ambiguous outcome and may be retried by
+ * an idempotent operation owner.
+ *
+ * Raw-fetch clients expose HTTP failures as typed errors with a nullable
+ * `status`. A server response in the 4xx range is definitive: retrying it
+ * forever cannot change the rejected request. Network loss, a local request
+ * deadline, and 5xx responses do not prove whether the server committed the
+ * write, so callers with a stable idempotency key retain recovery ownership.
+ */
+export function isRetryableCloudRequestError(error: unknown): boolean {
+  if (isFetchTransportError(error)) return true;
+  if (
+    error instanceof DOMException &&
+    (error.name === "TimeoutError" || error.name === "AbortError")
+  ) {
+    return true;
+  }
+  if (!error || typeof error !== "object" || !("status" in error)) {
+    return false;
+  }
+  const typed = error as { recoveryPending?: unknown; status?: unknown };
+  if (typed.recoveryPending === true) return true;
+  const status = typed.status;
+  return typeof status === "number" && status >= 500 && status <= 599;
+}

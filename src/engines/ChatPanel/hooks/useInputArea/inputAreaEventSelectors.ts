@@ -3,6 +3,10 @@ import { selectAtom } from "jotai/utils";
 import { useMemo } from "react";
 
 import { countChatRounds } from "@src/engines/ChatPanel/InputArea/components/compactFileChangesHelpers";
+import {
+  isTurnActive,
+  turnLifecycleSignalAtom,
+} from "@src/engines/SessionCore/control/turnLifecycle";
 import { sortedEventsAtom } from "@src/engines/SessionCore/core/atoms/events";
 import { sessionHasComposerStopBlockingWork } from "@src/engines/SessionCore/core/runningEventGate";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
@@ -20,6 +24,27 @@ function chatRoundCountEqual(left: number, right: number): boolean {
 
 function booleanEqual(left: boolean, right: boolean): boolean {
   return left === right;
+}
+
+export function resolveInputAreaWorkingState(options: {
+  runnerSessionId: string | null;
+  runnerTurnActive: boolean;
+  sourceSessionActive: boolean;
+  hasComposerStopBlockingWork: boolean;
+  pendingCancel: boolean;
+  executionControlsEnabled: boolean;
+}): boolean {
+  if (!options.executionControlsEnabled || options.pendingCancel) return false;
+  return options.runnerSessionId !== null
+    ? options.runnerTurnActive
+    : options.sourceSessionActive || options.hasComposerStopBlockingWork;
+}
+
+export function useInputAreaRunnerTurnActive(
+  runnerSessionId: string | null
+): boolean {
+  useAtomValue(turnLifecycleSignalAtom);
+  return runnerSessionId !== null && isTurnActive(runnerSessionId);
 }
 
 function planMentionSourceEqual(

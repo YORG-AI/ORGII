@@ -17,7 +17,10 @@ use crate::sources::imported_history::{
 use super::discovery::claude_session_title_for_record;
 use super::replay::{claude_content_items, claude_content_text};
 use super::tools::{collect_claude_impact_from_item, collect_claude_impact_from_tool_result};
-use super::types::{is_harness_injected_user_line, ClaudeCodeHistoryMeta, ClaudeJsonlLine};
+use super::types::{
+    is_claude_compact_summary, is_harness_injected_user_line, ClaudeCodeHistoryMeta,
+    ClaudeJsonlLine,
+};
 use super::{
     CLAUDE_CODE_METADATA_PARSER_VERSION, CLAUDE_CODE_SESSION_PREFIX, MAX_COMPACT_BOUNDARY_MARKERS,
 };
@@ -141,8 +144,10 @@ impl ClaudeSessionMetaState {
                 &mut self.touched_files,
             );
         }
+        let compact_summary = is_claude_compact_summary(&parsed);
         if self.first_user_uuid.is_none()
             && parsed.r#type == "user"
+            && !compact_summary
             && !parsed.uuid.trim().is_empty()
         {
             self.first_user_uuid = Some(parsed.uuid.trim().to_string());
@@ -165,7 +170,11 @@ impl ClaudeSessionMetaState {
         }
         let harness_injected = is_harness_injected_user_line(&parsed);
         if let Some(message) = parsed.message {
-            if self.first_prompt.is_empty() && parsed.r#type == "user" && !harness_injected {
+            if self.first_prompt.is_empty()
+                && parsed.r#type == "user"
+                && !compact_summary
+                && !harness_injected
+            {
                 if let Some(text) = claude_content_text(&message.content) {
                     // GUI-launched runs prefix the first prompt with the
                     // exec-mode briefing; bridge-only text is no title

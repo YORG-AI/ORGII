@@ -94,6 +94,41 @@ pub fn native_store_key_for_managed_session(
     Some((binding, cli_session_id))
 }
 
+/// Resolve the provider-native transcript currently selected by this managed
+/// session's account/profile. Unlike the append-only transcript ledger used
+/// for history discovery and deduplication, this is the binding the next CLI
+/// turn will actually resume.
+pub fn current_native_store_key_for_session(
+    session: &super::persistence::CodeSession,
+) -> Result<Option<(NativeTranscriptBinding, String)>, String> {
+    if session.transcript_source != TRANSCRIPT_SOURCE_NATIVE {
+        return Ok(None);
+    }
+    let Some(agent) = session
+        .cli_agent_type
+        .as_deref()
+        .and_then(ModelType::from_str)
+    else {
+        return Ok(None);
+    };
+    let Some(binding) = native_transcript_binding(&agent) else {
+        return Ok(None);
+    };
+    let account_id = session
+        .account_id
+        .as_deref()
+        .filter(|value| !value.trim().is_empty());
+    let native_id =
+        super::persistence::get_cli_session_id_for_account(&session.session_id, account_id)
+            .map_err(|error| {
+                format!(
+                    "Failed to read native transcript binding for {}: {error}",
+                    session.session_id
+                )
+            })?;
+    Ok(native_id.map(|native_id| (binding, native_id)))
+}
+
 /// Managed session id → imported-history transcript id, when the session is
 /// native-mode and a CLI-native id has been bound. Used by cross-provider
 /// projections (turn metadata, exporter) to route a managed id into the

@@ -234,6 +234,18 @@ describe("decideCloudAutoReplay", () => {
     ).toEqual({ kind: "reveal-local", requestId: 7, sessionId: SOURCE });
   });
 
+  it("keeps a canonical-root request on the Cloud replay even for the viewer's own local row", () => {
+    expect(
+      decideCloudAutoReplay(
+        input({
+          request: request({ sidebarItemId: undefined }),
+          selfUserId: OWNER,
+          localOwnSessionIds: new Set([SOURCE]),
+        })
+      )
+    ).toEqual({ kind: "replay", requestId: 7, row });
+  });
+
   it("still replays an own-owned row that has no local session here", () => {
     expect(
       decideCloudAutoReplay(

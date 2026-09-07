@@ -3,6 +3,10 @@ import { vi } from "vitest";
 import type { CollabOutboxPushItem } from "@src/api/http/project";
 import { getImportedHistorySourceBySessionId } from "@src/api/tauri/externalHistory";
 import Message from "@src/components/Message";
+import {
+  loadLocalCanonicalConversationSnapshot,
+  loadLocalExecutionChildrenRevision,
+} from "@src/engines/SessionCore/conversations/localConversationExecutionTail";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type {
   EventDisplayStatus,
@@ -104,6 +108,14 @@ vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
   },
 }));
 
+vi.mock(
+  "@src/engines/SessionCore/conversations/localConversationExecutionTail",
+  () => ({
+    loadLocalExecutionChildrenRevision: vi.fn(),
+    loadLocalCanonicalConversationSnapshot: vi.fn(),
+  })
+);
+
 vi.mock("@src/engines/SessionCore/ingestion/rustBridge", () => ({
   processChunksRust: vi.fn(),
 }));
@@ -152,6 +164,12 @@ vi.mock("./org2CloudProjectOrgAlias", () => ({
 }));
 
 export const eventStoreMock = vi.mocked(eventStoreProxy);
+export const localExecutionRevisionMock = vi.mocked(
+  loadLocalExecutionChildrenRevision
+);
+export const localCanonicalSnapshotMock = vi.mocked(
+  loadLocalCanonicalConversationSnapshot
+);
 export const processChunksRustMock = vi.mocked(processChunksRust);
 export const peekMock = vi.mocked(peekShareableScopeKeys);
 export const primeMock = vi.mocked(primeShareableScopeKey);
@@ -365,6 +383,13 @@ export function createEngineFixture() {
   eventStoreMock.getPersistedEventRevision.mockResolvedValue({
     eventCount: 2,
     revision: 1,
+  });
+  localExecutionRevisionMock.mockResolvedValue("[]");
+  localCanonicalSnapshotMock.mockResolvedValue({
+    events: [],
+    rootEvents: [],
+    segments: [],
+    childRevision: "[]",
   });
   processChunksRustMock.mockResolvedValue([]);
   vi.useFakeTimers();

@@ -6,11 +6,13 @@ import { loadPersistedHistory } from "../sessionSyncUtils";
 import type { SessionAdapter } from "../types";
 
 const cacheAdapterMock = vi.hoisted(() => ({
+  getSessionMetadata: vi.fn(),
   loadInitialTurnWindow: vi.fn(),
   loadEvents: vi.fn(),
 }));
 
 vi.mock("@src/engines/SessionCore/storage/cacheAdapter", () => ({
+  getSessionMetadata: cacheAdapterMock.getSessionMetadata,
   loadInitialTurnWindow: cacheAdapterMock.loadInitialTurnWindow,
   loadEvents: cacheAdapterMock.loadEvents,
 }));
@@ -32,6 +34,7 @@ function makeAdapter(
 describe("loadPersistedHistory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    cacheAdapterMock.getSessionMetadata.mockResolvedValue(null);
   });
 
   it("returns turn-window events when the event cache has rows", async () => {
@@ -70,6 +73,62 @@ describe("loadPersistedHistory", () => {
     expect(cacheAdapterMock.loadInitialTurnWindow).toHaveBeenCalledWith(
       "imported-session-large",
       0
+    );
+  });
+
+  it("rehydrates a failed collaboration-replay send outside its turn window", async () => {
+    const indexedHistory = [
+      {
+        ...makeEvent("imported-session-restart~native-user"),
+        createdAt: "2026-09-05T10:00:00Z",
+      },
+      {
+        ...makeEvent("imported-session-restart~native-assistant"),
+        createdAt: "2026-09-05T10:00:01Z",
+      },
+    ];
+    const failed = {
+      ...makeEvent("queued-user:queued-cloud-follow-up:"),
+      sessionId: "imported-session-restart",
+      createdAt: "2026-09-05T10:01:00Z",
+      source: "user",
+      functionName: "user_message",
+      displayStatus: "failed",
+      result: {
+        syntheticUserInput: true,
+        deliveryStatus: "failed",
+        deliveryError: "provider-native execution diverged",
+        turnIntentId: "cloud-turn-failed",
+        message: { role: "user", content: "queued follow-up" },
+      },
+    } as SessionEvent;
+    cacheAdapterMock.loadInitialTurnWindow.mockResolvedValue({
+      turns: [{ turnId: "indexed-native-turn" }],
+      events: indexedHistory,
+    });
+    cacheAdapterMock.getSessionMetadata.mockResolvedValue({
+      sessionId: "imported-session-restart",
+      eventCount: 3,
+      cachedAt: 1,
+    });
+    cacheAdapterMock.loadEvents.mockResolvedValue([...indexedHistory, failed]);
+    const adapter = makeAdapter("agent", []);
+
+    const result = await loadPersistedHistory(
+      adapter,
+      "imported-session-restart",
+      new AbortController().signal
+    );
+
+    expect(result.map((event) => event.id)).toEqual([
+      "imported-session-restart~native-user",
+      "imported-session-restart~native-assistant",
+      "queued-user:queued-cloud-follow-up:",
+    ]);
+    expect(result[2]).toBe(failed);
+    expect(adapter.loadHistory).not.toHaveBeenCalled();
+    expect(cacheAdapterMock.loadEvents).toHaveBeenCalledWith(
+      "imported-session-restart"
     );
   });
 
@@ -124,5 +183,71 @@ describe("loadPersistedHistory", () => {
 
     expect(result).toBe(fallback);
     expect(cacheAdapterMock.loadInitialTurnWindow).not.toHaveBeenCalled();
+  });
+
+  it("rehydrates a failed CLI user turn beside native history after restart", async () => {
+    const nativeHistory = [
+      {
+        ...makeEvent("native-user"),
+        createdAt: "2026-09-05T10:00:00Z",
+      },
+      {
+        ...makeEvent("native-assistant"),
+        createdAt: "2026-09-05T10:00:01Z",
+      },
+    ];
+    const failed = {
+      ...makeEvent("queued-user:q1:"),
+      sessionId: "cliagent-restart",
+      createdAt: "2026-09-05T10:01:00Z",
+      source: "user",
+      functionName: "user_message",
+      displayStatus: "failed",
+      result: {
+        syntheticUserInput: true,
+        deliveryStatus: "failed",
+        deliveryError: "provider unavailable",
+        turnIntentId: "turn-failed",
+        message: { role: "user", content: "please retry" },
+      },
+    } as SessionEvent;
+    cacheAdapterMock.getSessionMetadata.mockResolvedValue({
+      sessionId: "cliagent-restart",
+      eventCount: 1,
+      cachedAt: 1,
+    });
+    cacheAdapterMock.loadEvents.mockResolvedValue([failed]);
+    const adapter = makeAdapter("cli", nativeHistory);
+
+    const result = await loadPersistedHistory(
+      adapter,
+      "cliagent-restart",
+      new AbortController().signal
+    );
+
+    expect(result.map((event) => event.id)).toEqual([
+      "native-user",
+      "native-assistant",
+      "queued-user:q1:",
+    ]);
+    expect(result[2]).toBe(failed);
+    expect(adapter.loadHistory).toHaveBeenCalledTimes(1);
+    expect(cacheAdapterMock.loadEvents).toHaveBeenCalledWith(
+      "cliagent-restart"
+    );
+  });
+
+  it("does not reparse native CLI history through an empty event cache", async () => {
+    const history = [makeEvent("native")];
+    const adapter = makeAdapter("cli", history);
+
+    const result = await loadPersistedHistory(
+      adapter,
+      "cliagent-no-overlay",
+      new AbortController().signal
+    );
+
+    expect(result).toBe(history);
+    expect(cacheAdapterMock.loadEvents).not.toHaveBeenCalled();
   });
 });

@@ -35,6 +35,32 @@ export const EventDisplayStatusSchema = z.enum([
   "awaiting_user",
 ]);
 
+export const SessionTurnIntentInput = z.object({
+  sessionId: z.string().min(1),
+  turnIntentId: z.string().min(1),
+});
+
+export const SessionTurnIntentWaitInput = SessionTurnIntentInput.extend({
+  timeoutMs: z.number().int().positive().max(60_000),
+});
+
+export const SessionTurnIntentStatusSchema = z.object({
+  sessionId: z.string().min(1),
+  turnIntentId: z.string().min(1),
+  status: z.enum([
+    "optimistic",
+    "queued",
+    "running",
+    "completed",
+    "failed",
+    "cancelled",
+    "stale",
+    "coalesced",
+    "rejected",
+  ]),
+  updatedAt: z.string(),
+});
+
 export const EventDisplayVariantSchema = z.enum([
   "tool_call",
   "message",
@@ -263,6 +289,7 @@ export const NullableSessionIdInput = z.object({
 export const RemoveSyntheticUserInputsInput = z.object({
   sessionId: z.string().nullable(),
   matchingContents: z.array(z.string()).optional(),
+  matchingTurnIntentIds: z.array(z.string()).optional(),
   olderThan: z.string().optional(),
 });
 

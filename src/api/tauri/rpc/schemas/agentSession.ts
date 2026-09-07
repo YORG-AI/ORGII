@@ -185,8 +185,17 @@ export const SessionMessageSchema = z
     id: z.string(),
     role: z.string(),
     content: z.string(),
-    toolName: z.string().optional(),
-    toolInput: z.string().optional(),
+    // Rust serializes absent Option<String> fields as null. Normalize those
+    // values at the RPC boundary so callers keep the established optional
+    // string contract without rejecting ordinary non-tool messages.
+    toolName: z.preprocess(
+      (value) => value ?? undefined,
+      z.string().optional()
+    ),
+    toolInput: z.preprocess(
+      (value) => value ?? undefined,
+      z.string().optional()
+    ),
     createdAt: z.string(),
     compactFromSequence: z.number().nullable().optional(),
   })

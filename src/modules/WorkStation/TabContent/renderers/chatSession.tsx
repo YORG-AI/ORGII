@@ -18,6 +18,7 @@ import {
   SessionHeaderViewControls,
   SessionRawToolbarActions,
 } from "@src/engines/ChatPanel/components/SessionViewSwitcher";
+import { useConversationTargetBinding } from "@src/engines/ChatPanel/hooks/useConversationTargetBinding";
 import { useSessionActionModals } from "@src/engines/ChatPanel/hooks/useSessionActionModals";
 import { useSessionHeaderActions } from "@src/engines/ChatPanel/hooks/useSessionHeaderActions";
 import { useSessionViewMode } from "@src/engines/ChatPanel/hooks/useSessionViewMode";
@@ -45,6 +46,7 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
     ]);
     const sessionId = String(tab.data.sessionId ?? "");
     const session = useAtomValue(sessionByIdAtom(sessionId));
+    const conversationTargetBinding = useConversationTargetBinding(sessionId);
     const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
     const primaryPaneSurfaceStyle = useMemo(
       () => getPrimaryPaneBackgroundStyle(backgroundConfig.pageOpacity),
@@ -124,6 +126,7 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
           activeSessionExists={Boolean(session)}
           copyEventJsonLabel={headerActions.copyEventJsonLabel}
           currentSessionId={sessionId || null}
+          appOpenSessionId={conversationTargetBinding?.appOpenSessionId ?? null}
           displayMode={headerActions.displayMode}
           eventsLength={headerActions.eventCount}
           handleCompactDisplayModeToggle={
@@ -189,9 +192,9 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
         >
           <SessionContentView
             sessionId={sessionId}
+            conversationTargetBinding={conversationTargetBinding}
             secondary
             displayMode={headerActions.displayMode}
-            onSessionContinuation={handleSessionContinuation}
             turnPaginationEnabled={headerActions.paginationEnabled}
           />
         </div>

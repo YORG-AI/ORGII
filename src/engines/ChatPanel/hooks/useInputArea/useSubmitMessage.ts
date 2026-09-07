@@ -142,10 +142,10 @@ export function useSubmitMessage({
   const submitMessage = useCallback(
     async (options: SubmitMessageOptions = {}) => {
       // Imported teammate replays are intentionally read-only in the event
-      // store, but their composer owns an onSubmitOverride that performs
-      // fork-before-send. Let that coordinator inspect the submission before
-      // applying the ordinary read-only guard; otherwise the generic
-      // "No active session" toast makes the fork flow unreachable.
+      // store, but their composer owns an onSubmitOverride that admits the
+      // turn to the canonical conversation queue. Let that coordinator inspect
+      // the submission before applying the ordinary read-only guard; otherwise
+      // the generic "No active session" toast makes continuation unreachable.
       if (wpReadOnly && !onSubmitOverride) {
         Message.warning(t("chat.noActiveSession"));
         return;
@@ -172,6 +172,13 @@ export function useSubmitMessage({
         imageAttachment.hasImages
       );
       const { isExplicitAction } = resolvedInput;
+      // Capture typed mention identities before any async secret scan, MCP
+      // expansion, or pending-pill load. Display text is not an identity
+      // source: a roster rename while those awaits run must not retarget the
+      // Team Chat message.
+      const submitComposerSnapshot = isExplicitAction
+        ? undefined
+        : refs.composerInputRef.current.getSnapshot();
       let { displayText } = resolvedInput;
       const hasText = displayText.trim().length > 0;
       const { hasAttachedImages } = resolvedInput;
@@ -368,6 +375,7 @@ export function useSubmitMessage({
         displayText,
         agentContent,
         imageDataUrls,
+        composerSnapshot: submitComposerSnapshot,
       });
       if (submitInFlightKeyRef.current === submitKey) return;
       submitInFlightKeyRef.current = submitKey;
@@ -378,9 +386,7 @@ export function useSubmitMessage({
         // Captured only so a true pre-send validation failure can leave the
         // composer untouched. Transport/provider failures remain visible on
         // the failed transcript row and never repopulate this editor.
-        const editorSnapshot = isExplicitAction
-          ? null
-          : refs.composerInputRef.current.getSnapshot();
+        const editorSnapshot = submitComposerSnapshot ?? null;
         const imagesSnapshot: ChatImageAttachment[] = isExplicitAction
           ? []
           : imageAttachment.images.slice();
@@ -422,6 +428,7 @@ export function useSubmitMessage({
                 displayText: displayText || "(image)",
                 agentContent,
                 imageDataUrls: dispatchImages,
+                composerSnapshot: submitComposerSnapshot,
               })
             : false;
           if (!overrideHandled) {

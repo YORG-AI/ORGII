@@ -115,6 +115,14 @@ export interface SessionSendMessageParams {
    */
   directUserIntent?: boolean;
   /**
+   * Permission for guarded provider-native context recovery. This never
+   * triggers compaction by itself: the transport still requires an explicit
+   * context-exhausted terminal with no assistant/tool output, and retries the
+   * user turn at most once. Canonical continuation enables it only after the
+   * target episode is synchronized or freshly materialized.
+   */
+  allowNativeContextRecovery?: boolean;
+  /**
    * When `true`, this is a user-initiated Resume after a failed turn.
    * Backend runs deletion-based orphan tool-use filter.
    */

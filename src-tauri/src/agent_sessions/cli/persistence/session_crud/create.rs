@@ -1,10 +1,12 @@
 //! Insert path for new CLI code-session rows, including the wire-typo
 //! guards and the frozen transcript-source decision.
 
-use rusqlite::{params, Result as SqliteResult};
+use std::time::Duration;
+
+use rusqlite::{params, ErrorCode, Result as SqliteResult};
 
 use agent_core::session::AgentExecMode;
-use database::db::get_connection;
+use database::db::{get_connection, with_sessions_writer};
 
 use crate::agent_sessions::cli::native_transcript;
 use crate::agent_sessions::cli::persistence::types::{CodeSession, CreateCodeSessionParams};
@@ -16,12 +18,58 @@ use crate::agent_sessions::cli::types::{
 use super::read::get_session;
 use super::shared::{now_iso, sync_orgtrack_mirror};
 
+const CREATE_SESSION_WRITE_MAX_ATTEMPTS: u32 = 3;
+const CREATE_SESSION_WRITE_RETRY_BASE_MS: u64 = 50;
+
+fn is_transient_sqlite_writer_contention(error: &rusqlite::Error) -> bool {
+    matches!(
+        error,
+        rusqlite::Error::SqliteFailure(inner, _)
+            if matches!(inner.code, ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked)
+    )
+}
+
+/// Serialize session creation with the existing sessions.db write owner and
+/// retain a small cross-process fallback for SQLITE_BUSY/SQLITE_LOCKED.
+///
+/// `get_connection` belongs inside the attempt: its schema/PRAGMA setup can
+/// itself encounter a writer held by another ORG2 process. Sleep happens after
+/// releasing the in-process mutex so a stale external lock cannot block this
+/// process's healthy writers between attempts.
+fn with_create_session_write_retry<T>(
+    mut operation: impl FnMut() -> SqliteResult<T>,
+    mut sleep: impl FnMut(Duration),
+) -> SqliteResult<T> {
+    for attempt in 0..CREATE_SESSION_WRITE_MAX_ATTEMPTS {
+        match with_sessions_writer(&mut operation) {
+            Ok(value) => return Ok(value),
+            Err(error)
+                if is_transient_sqlite_writer_contention(&error)
+                    && attempt + 1 < CREATE_SESSION_WRITE_MAX_ATTEMPTS =>
+            {
+                let delay = Duration::from_millis(
+                    CREATE_SESSION_WRITE_RETRY_BASE_MS.saturating_mul(1_u64 << attempt),
+                );
+                tracing::debug!(
+                    "[CodeSession] create write contention on attempt {}/{}: {} — retrying in {}ms",
+                    attempt + 1,
+                    CREATE_SESSION_WRITE_MAX_ATTEMPTS,
+                    error,
+                    delay.as_millis()
+                );
+                sleep(delay);
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    unreachable!("CREATE_SESSION_WRITE_MAX_ATTEMPTS is non-zero")
+}
+
 /// Create a new code session. Returns the session ID.
 pub fn create_session(
     session_id: &str,
     params: &CreateCodeSessionParams,
 ) -> SqliteResult<CodeSession> {
-    let conn = get_connection()?;
     let ts = now_iso();
     let name = params
         .name
@@ -95,28 +143,90 @@ pub fn create_session(
         .map(|_| native_transcript::TRANSCRIPT_SOURCE_NATIVE)
         .unwrap_or(native_transcript::TRANSCRIPT_SOURCE_CHUNKS);
 
-    conn.execute(
-        "INSERT INTO code_sessions
-            (session_id, name, status, flow, runner, cli_agent_type, model, tier,
-             account_id, repo_path, branch, proxy_token, proxy_url, hosted_token,
-             proxy_session_id, background, key_source, additional_directories,
-             parent_session_id, org_member_id, org_id, project_id, project_name,
-             project_slug, work_item_id, agent_role, created_at, updated_at,
-             transcript_source, product_mode, agent_exec_mode, agent_definition_id)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32)",
-        params![
-            session_id, name, SessionStatus::Pending.as_ref(), flow, runner, params.cli_agent_type,
-            params.model, params.tier, params.account_id,
-            params.repo_path, params.branch, params.proxy_token, params.proxy_url,
-            params.hosted_token, params.proxy_session_id, background, key_source_str,
-            additional_dirs_json, params.parent_session_id, params.org_member_id,
-            org_id, params.project_id, params.project_name, params.project_slug,
-            params.work_item_id, params.agent_role, ts, ts, transcript_source,
-            product_mode, AgentExecMode::Build.as_str(), params.agent_definition_id,
-        ],
+    with_create_session_write_retry(
+        || {
+            let conn = get_connection()?;
+            conn.execute(
+                "INSERT INTO code_sessions
+                    (session_id, name, status, flow, runner, cli_agent_type, model, tier,
+                     account_id, repo_path, branch, proxy_token, proxy_url, hosted_token,
+                     proxy_session_id, background, key_source, additional_directories,
+                     parent_session_id, org_member_id, org_id, project_id, project_name,
+                     project_slug, work_item_id, agent_role, created_at, updated_at,
+                     transcript_source, product_mode, agent_exec_mode, agent_definition_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32)",
+                params![
+                    session_id, name, SessionStatus::Pending.as_ref(), flow, runner,
+                    params.cli_agent_type, params.model, params.tier, params.account_id,
+                    params.repo_path, params.branch, params.proxy_token, params.proxy_url,
+                    params.hosted_token, params.proxy_session_id, background, key_source_str,
+                    additional_dirs_json, params.parent_session_id, params.org_member_id, org_id,
+                    params.project_id, params.project_name, params.project_slug,
+                    params.work_item_id, params.agent_role, ts, ts, transcript_source,
+                    product_mode, AgentExecMode::Build.as_str(), params.agent_definition_id,
+                ],
+            )?;
+            Ok(())
+        },
+        std::thread::sleep,
     )?;
 
     let session = get_session(session_id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
     sync_orgtrack_mirror(session_id);
     Ok(session)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+
+    use rusqlite::ffi;
+
+    use super::*;
+
+    fn sqlite_failure(code: i32) -> rusqlite::Error {
+        rusqlite::Error::SqliteFailure(ffi::Error::new(code), None)
+    }
+
+    #[test]
+    fn create_write_retries_only_transient_sqlite_contention() {
+        let attempts = Cell::new(0_u32);
+        let mut delays = Vec::new();
+        let result = with_create_session_write_retry(
+            || {
+                let attempt = attempts.get();
+                attempts.set(attempt + 1);
+                if attempt == 0 {
+                    Err(sqlite_failure(ffi::SQLITE_BUSY))
+                } else if attempt == 1 {
+                    Err(sqlite_failure(ffi::SQLITE_LOCKED))
+                } else {
+                    Ok("created")
+                }
+            },
+            |delay| delays.push(delay),
+        );
+
+        assert_eq!(
+            result.expect("transient contention should recover"),
+            "created"
+        );
+        assert_eq!(attempts.get(), 3);
+        assert_eq!(
+            delays,
+            vec![Duration::from_millis(50), Duration::from_millis(100)]
+        );
+
+        let attempts = Cell::new(0_u32);
+        let error = with_create_session_write_retry(
+            || {
+                attempts.set(attempts.get() + 1);
+                Err::<(), _>(sqlite_failure(ffi::SQLITE_CONSTRAINT))
+            },
+            |_| panic!("permanent errors must not back off"),
+        )
+        .expect_err("constraint failure must remain terminal");
+        assert!(!is_transient_sqlite_writer_contention(&error));
+        assert_eq!(attempts.get(), 1);
+    }
 }

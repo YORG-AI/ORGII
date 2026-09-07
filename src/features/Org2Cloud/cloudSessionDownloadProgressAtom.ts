@@ -12,6 +12,7 @@
  */
 import { atom, type createStore } from "jotai";
 
+import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import { formatDurationCompact } from "@src/util/time/formatDuration";
 
 import type {
@@ -20,9 +21,13 @@ import type {
 } from "./cloudSessionDownloadControlAtoms";
 
 export interface CloudSessionDownloadProgress {
+  /** Endpoint + account that authorized the source row and transfer. */
+  authIdentityKey: string;
   /** Remote row id (`RemoteTeammateSessionMetadata.id`) this download serves. */
   rowId: string;
   orgId: string;
+  /** Source identity captured before the local replay row is materialized. */
+  sourceSession?: RemoteTeammateSessionMetadata;
   /** Immutable remote labels copied from the source row for pre-import UI. */
   sessionEnvironment?: CloudSessionEnvironmentIdentity;
   /** Immutable source-owner identity copied for the pre-import rail. */

@@ -53,6 +53,7 @@ interface ChatPanelHeaderProps {
   chatPanelPosition: ChatPanelPosition;
   copyEventJsonLabel: "idle" | "copied" | "failed";
   currentSessionId: string | null;
+  appOpenSessionId?: string | null;
   displayMode: ChatHistoryDisplayMode;
   eventsLength: number;
   handleChatFocusToggle: () => void;
@@ -112,6 +113,7 @@ export function ChatPanelHeader({
   chatPanelPosition,
   copyEventJsonLabel,
   currentSessionId,
+  appOpenSessionId,
   displayMode,
   eventsLength,
   handleChatFocusToggle,
@@ -242,6 +244,7 @@ export function ChatPanelHeader({
             activeSessionExists={activeSessionExists}
             copyEventJsonLabel={copyEventJsonLabel}
             currentSessionId={currentSessionId}
+            appOpenSessionId={appOpenSessionId}
             displayMode={displayMode}
             eventsLength={eventsLength}
             handleCompactDisplayModeToggle={handleCompactDisplayModeToggle}

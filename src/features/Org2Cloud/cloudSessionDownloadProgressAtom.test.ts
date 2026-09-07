@@ -16,6 +16,7 @@ function progress(
   overrides: Partial<CloudSessionDownloadProgress> = {}
 ): CloudSessionDownloadProgress {
   return {
+    authIdentityKey: "https://cloud.example.test|user-1",
     rowId: "org:owner:session",
     orgId: "org",
     loadedEvents: 500,
@@ -75,6 +76,7 @@ describe("createThrottledProgressReporter", () => {
   ) => ({
     localSessionId: "imported-session-abc",
     progress: {
+      authIdentityKey: "https://cloud.example.test|user-1",
       rowId: "row-1",
       orgId: "org-1",
       loadedEvents,
@@ -150,6 +152,7 @@ describe("completeCloudDownloadProgressWithLinger", () => {
     store.set(upsertCloudSessionDownloadProgressAtom, {
       localSessionId: "imported-session-abc",
       progress: {
+        authIdentityKey: "https://cloud.example.test|user-1",
         rowId: "row-1",
         orgId: "org-1",
         loadedEvents: 4000,

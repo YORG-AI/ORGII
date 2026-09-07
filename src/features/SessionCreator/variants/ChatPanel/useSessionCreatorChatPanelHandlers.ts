@@ -14,7 +14,7 @@ import {
   showDesktopOperationVisibilityTest,
   wingmanListMonitors,
 } from "@src/api/tauri/agent";
-import { KEY_SOURCE } from "@src/api/tauri/session";
+import { resolveAgentRuntimeSelection } from "@src/features/SessionCreator/agentRuntimeConfig";
 import type { AdvancedConfig } from "@src/features/SessionCreator/types";
 import {
   createSystemPathSessionSource,
@@ -22,10 +22,7 @@ import {
   getSystemPathSourcePath,
   isSystemPathSourceId,
 } from "@src/features/SessionCreator/utils/systemPathSource";
-import {
-  isSourceCompatibleWithAgent,
-  useAgentCompatibility,
-} from "@src/hooks/models/useAgentCompatibility";
+import { useAgentCompatibility } from "@src/hooks/models/useAgentCompatibility";
 import { useWorkspaceForm } from "@src/scaffold/GlobalSpotlight/hooks/forms";
 import type { AgentSelection } from "@src/scaffold/GlobalSpotlight/palettes/DispatchCategoryPalette";
 import type { RepoItem } from "@src/scaffold/GlobalSpotlight/types";
@@ -217,42 +214,18 @@ export function useSessionCreatorChatPanelHandlers({
       }));
 
       if (selection.category === "human_session") return;
-
-      const newCliType = selection.cliAgentType;
-      const hasModel = Boolean(
-        advancedConfig.model || advancedConfig.listingModel
-      );
-      const hasSource = Boolean(advancedConfig.selectedSourceModelType);
-      const isHosted = advancedConfig.keySource === KEY_SOURCE.HOSTED;
-
-      const isSourceCompatible =
-        !hasSource ||
-        isHosted ||
-        !newCliType ||
-        isSourceCompatibleWithAgent(
-          registry,
-          selection.category,
-          newCliType,
-          advancedConfig.selectedSourceModelType!
-        );
-
-      if (!isSourceCompatible) {
-        setAdvancedConfig({
-          ...advancedConfig,
-          keySource: advancedConfig.keySource,
-          cliAgentType: newCliType,
-        });
-        setRequestModelOpen(true);
-      } else if (!hasModel || !hasSource) {
-        if (newCliType) {
-          setAdvancedConfig({ ...advancedConfig, cliAgentType: newCliType });
-        }
-        setRequestModelOpen(true);
-      } else {
-        if (newCliType) {
-          setAdvancedConfig({ ...advancedConfig, cliAgentType: newCliType });
-        }
+      const resolution = resolveAgentRuntimeSelection({
+        selection,
+        candidates: [advancedConfig],
+        registry,
+        allowHosted: true,
+        allowAmbientClaude: false,
+      });
+      if (resolution.status === "ready") {
+        setAdvancedConfig(resolution.config);
+        return;
       }
+      setRequestModelOpen(true);
     },
     [setCreatorState, setAdvancedConfig, advancedConfig, registry]
   );

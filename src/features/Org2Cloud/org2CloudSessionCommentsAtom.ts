@@ -14,6 +14,7 @@
 import { atom, useAtom, useAtomValue } from "jotai";
 import { useCallback, useEffect, useRef } from "react";
 
+import { deliverOptimisticOutgoing } from "@src/engines/SessionCore/services/optimisticOutgoingDelivery";
 import { createLogger } from "@src/hooks/logger";
 
 import {
@@ -59,13 +60,13 @@ import {
   rememberCompletedForceToken,
 } from "./org2CloudSessionCommentsAtom.forceTokenTracker";
 import { useCloudFreshAccessToken } from "./org2CloudSessionCommentsAtom.freshToken";
+import { SessionCommentDeliveryError } from "./org2CloudSessionCommentsAtom.types";
 import type {
   AddCommentInput,
   CloudSessionCommentsEntry,
   SessionComment,
   UseSessionCommentsResult,
 } from "./org2CloudSessionCommentsAtom.types";
-import { SessionCommentDeliveryError } from "./org2CloudSessionCommentsAtom.types";
 
 // Re-exports: preserve this module's public import path for symbols that
 // now live in the sibling modules above (types / pure transforms /
@@ -80,7 +81,6 @@ export type {
   SessionCommentDeliveryStatus,
   UseSessionCommentsResult,
 } from "./org2CloudSessionCommentsAtom.types";
-export { SessionCommentDeliveryError } from "./org2CloudSessionCommentsAtom.types";
 export {
   MAX_SESSION_COMMENT_CACHE_ENTRIES,
   OPTIMISTIC_SESSION_COMMENT_ID_PREFIX,
@@ -101,6 +101,7 @@ export {
   shouldEvictSessionCommentsOnError,
   writeSessionCommentsEntry,
 } from "./org2CloudSessionCommentsAtom.commentTransforms";
+export { SessionCommentDeliveryError } from "./org2CloudSessionCommentsAtom.types";
 export { useCloudFreshAccessToken } from "./org2CloudSessionCommentsAtom.freshToken";
 
 const log = createLogger("Org2CloudSessionComments");
@@ -495,73 +496,15 @@ export function useSessionComments(
     );
   }, []);
 
-  const deliverComment = useCallback(
-    async (
-      commentId: string,
-      input: AddCommentInput
-    ): Promise<CloudSessionComment> => {
-      if (!orgId || !sessionId || !key) {
-        throw new Error("no cloud comment target");
-      }
-      try {
-        const { accessToken, identityKey } =
-          await freshTokenForCurrentIdentity();
-        const comment = await addSessionComment(accessToken, {
-          orgId,
-          sessionId,
-          body: input.body,
-          eventId: input.eventId,
-          parentId: input.parentId,
-          mentionedUserIds: input.mentionedUserIds,
-          ...(originSessionId && originSessionId !== sessionId
-            ? { originSessionId }
-            : {}),
-        });
-        if (!isCurrentIdentity(identityKey)) return comment;
-        patchEntry(key, (comments) =>
-          insertComment(
-            comments.filter((candidate) => candidate.id !== commentId),
-            comment
-          )
-        );
-        broadcastCommentsChangedToPeers(orgId, sessionId);
-        return comment;
-      } catch (error) {
-        let retained = false;
-        patchEntry(key, (comments) =>
-          comments.map((comment) => {
-            if (comment.id !== commentId) return comment;
-            retained = true;
-            return {
-              ...comment,
-              clientDeliveryStatus: "failed",
-              clientDeliveryError:
-                error instanceof Error ? error.message : String(error),
-            };
-          })
-        );
-        if (!retained) throw error;
-        throw new SessionCommentDeliveryError(commentId, input, error);
-      }
-    },
-    [
-      freshTokenForCurrentIdentity,
-      isCurrentIdentity,
-      key,
-      orgId,
-      originSessionId,
-      patchEntry,
-      sessionId,
-    ]
-  );
-
   const addComment = useCallback(
     async (input: AddCommentInput): Promise<CloudSessionComment> => {
       if (!orgId || !sessionId || !key) {
         throw new Error("no cloud comment target");
       }
-      const optimistic: SessionComment = {
-        id: `${OPTIMISTIC_SESSION_COMMENT_ID_PREFIX}${crypto.randomUUID()}`,
+      const optimistic: CloudSessionComment = {
+        id:
+          input.optimisticId ??
+          `${OPTIMISTIC_SESSION_COMMENT_ID_PREFIX}${crypto.randomUUID()}`,
         eventId: input.eventId,
         parentId: input.parentId,
         authorUserId: authRef.current?.userId ?? "",
@@ -571,50 +514,97 @@ export function useSessionComments(
         kind: "user",
         mentionedUserIds: input.mentionedUserIds ?? [],
         clientDeliveryStatus: "pending",
+        ...(input.replaceExisting
+          ? {
+              clientRetryExpectedBody: input.expectedBody,
+              clientRetryExpectedMentionedUserIds:
+                input.expectedMentionedUserIds ?? [],
+            }
+          : {}),
       };
-      patchEntry(key, (comments) => insertComment(comments, optimistic));
-      return deliverComment(optimistic.id, input);
-    },
-    [deliverComment, key, orgId, patchEntry, sessionId]
-  );
-
-  const retryComment = useCallback(
-    async (
-      commentId: string,
-      editedBody?: string,
-      editedMentionedUserIds?: string[]
-    ): Promise<CloudSessionComment> => {
-      if (!key) throw new Error("no cloud comment target");
-      let input: AddCommentInput | null = null;
-      patchEntry(key, (comments) =>
-        comments.map((comment) => {
-          if (
-            comment.id !== commentId ||
-            !isOptimisticSessionCommentId(comment.id) ||
-            comment.clientDeliveryStatus !== "failed"
-          ) {
-            return comment;
-          }
-          input = {
-            body: editedBody ?? comment.body,
-            eventId: comment.eventId,
-            parentId: comment.parentId,
-            mentionedUserIds:
-              editedMentionedUserIds ?? comment.mentionedUserIds,
-          };
-          return {
-            ...comment,
+      // A retry re-sends under the SAME optimistic id: replace the row in
+      // place and keep its original timestamp so the retained message does
+      // not jump out of the transcript position the user is looking at.
+      patchEntry(key, (comments) => {
+        const retainedRow = comments.find(
+          (candidate) => candidate.id === optimistic.id
+        );
+        return insertComment(
+          comments,
+          retainedRow
+            ? { ...optimistic, createdAt: retainedRow.createdAt }
+            : optimistic
+        );
+      });
+      let retained = false;
+      const delivered = await deliverOptimisticOutgoing({
+        send: async () => {
+          const { accessToken, identityKey } =
+            await freshTokenForCurrentIdentity();
+          const comment = await addSessionComment(accessToken, {
+            orgId,
+            sessionId,
             body: input.body,
+            eventId: input.eventId,
+            parentId: input.parentId,
             mentionedUserIds: input.mentionedUserIds,
-            clientDeliveryStatus: "pending",
-            clientDeliveryError: undefined,
-          };
-        })
-      );
-      if (!input) throw new Error("failed Team Chat message was not found");
-      return deliverComment(commentId, input);
+            clientMessageKey: optimistic.id,
+            replaceExisting: input.replaceExisting,
+            expectedBody: input.expectedBody,
+            expectedMentionedUserIds: input.expectedMentionedUserIds,
+            ...(originSessionId && originSessionId !== sessionId
+              ? { originSessionId }
+              : {}),
+          });
+          return { comment, identityKey };
+        },
+        markSent: ({ comment, identityKey }) => {
+          if (!isCurrentIdentity(identityKey)) return;
+          // Replace the local echo with the server-authored row atomically.
+          patchEntry(key, (comments) =>
+            insertComment(
+              comments.filter((candidate) => candidate.id !== optimistic.id),
+              comment
+            )
+          );
+          broadcastCommentsChangedToPeers(orgId, sessionId);
+        },
+        markFailed: (error) => {
+          patchEntry(key, (comments) => {
+            retained = comments.some(
+              (candidate) => candidate.id === optimistic.id
+            );
+            return patchComment(comments, optimistic.id, {
+              clientDeliveryStatus: "failed",
+              clientDeliveryError:
+                error instanceof Error ? error.message : String(error),
+            });
+          });
+        },
+        onProjectionError: (phase, error) => {
+          log.error(
+            `Failed to project ${phase} Cloud comment delivery for ${sessionId}`,
+            error
+          );
+        },
+      }).catch((error: unknown) => {
+        // Only claim delivery ownership when a failed row is actually on
+        // screen. Otherwise the composer is still the sole copy of the text
+        // and must restore it.
+        if (!retained) throw error;
+        throw new SessionCommentDeliveryError(optimistic.id, error);
+      });
+      return delivered.comment;
     },
-    [deliverComment, key, patchEntry]
+    [
+      orgId,
+      sessionId,
+      originSessionId,
+      key,
+      freshTokenForCurrentIdentity,
+      isCurrentIdentity,
+      patchEntry,
+    ]
   );
 
   const editComment = useCallback(
@@ -727,7 +717,6 @@ export function useSessionComments(
     refresh,
     insertLocalComment,
     addComment,
-    retryComment,
     editComment,
     deleteComment,
     resolveComment,

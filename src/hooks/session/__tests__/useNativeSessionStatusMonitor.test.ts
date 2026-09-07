@@ -26,7 +26,11 @@ import {
   vi,
 } from "vitest";
 
-import { resetTurnLifecycleForTests } from "@src/engines/SessionCore/control/turnLifecycle";
+import {
+  beginTurnDispatch,
+  getTurnPhase,
+  resetTurnLifecycleForTests,
+} from "@src/engines/SessionCore/control/turnLifecycle";
 import {
   deliverSessionTerminalNotification,
   shouldDeliverSessionTerminalNotification,
@@ -172,6 +176,16 @@ describe("useNativeSessionStatusMonitor session-list status", () => {
     emitStatus("completed");
 
     expectRowStatus("completed");
+  });
+
+  it("does not let an unattributed old terminal close a newly dispatching turn", () => {
+    beginTurnDispatch(SESSION_ID);
+
+    emitStatus("completed");
+
+    expect(getTurnPhase(SESSION_ID)).toBe("dispatching");
+    expectRowStatus("running");
+    expect(deliverSessionTerminalNotification).not.toHaveBeenCalled();
   });
 
   it("passes a non-terminal active status through to the session list", () => {

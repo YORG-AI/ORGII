@@ -5,7 +5,10 @@
 
 use serde_json::{json, Value};
 
-use super::{approval_auto_accept, thread_permission_params, CodexAppServerEventParser};
+use super::{
+    approval_auto_accept, build_thread_launch_request, build_turn_input, thread_permission_params,
+    CodexAppServerEventParser, CodexAppServerTurn,
+};
 use crate::agent_sessions::cli::session_runner::launch_profiles::CliPermissionMode;
 
 const SESSION_ID: &str = "test-session";
@@ -47,6 +50,20 @@ fn thread_response_captures_id_and_emits_session_start_once() {
         json!({"thread": {"id": "019f6f52-4aa1-7ac2-8fe4-486e23145e36"}}),
     );
     assert!(dup.is_empty());
+}
+
+#[test]
+fn native_thread_rebind_emits_fresh_id_after_initial_session_start() {
+    let mut p = parser();
+    let _ = p.on_thread_response(&json!({"thread": {"id": "source-thread"}}));
+
+    let chunks = p.on_thread_rebound(&json!({"thread": {"id": "forked-thread"}}));
+
+    assert_eq!(p.thread_id(), Some("forked-thread"));
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].action_type, "session_start");
+    assert_eq!(chunks[0].thread_id.as_deref(), Some("forked-thread"));
+    assert_eq!(chunks[0].result["native_rollover"], true);
 }
 
 #[test]
@@ -382,6 +399,124 @@ fn failed_turn_emits_unsuccessful_session_end_with_error() {
 }
 
 #[test]
+fn context_overflow_is_recoverable_only_before_output_or_tools() {
+    let overflow = json!({"threadId": "t", "turn": {
+        "id": "u", "items": [], "status": "failed",
+        "error": {"message": "Codex ran out of room in the model's context window."},
+    }});
+
+    let clean = parser();
+    assert!(clean.should_recover_context_exhaustion(&overflow));
+    assert!(!clean.should_recover_context_exhaustion(&json!({
+        "turn": {
+            "status": "completed",
+            "error": {"message": "Codex ran out of room in the model's context window."}
+        }
+    })));
+    assert!(!clean.should_recover_context_exhaustion(&json!({
+        "turn": {
+            "status": "failed",
+            "error": {"message": "connection refused"}
+        }
+    })));
+
+    let mut with_output = parser();
+    let chunks = notif(
+        &mut with_output,
+        "item/agentMessage/delta",
+        json!({"delta": "partial", "itemId": "msg_1"}),
+    );
+    assert_eq!(chunks.len(), 1);
+    assert!(!with_output.should_recover_context_exhaustion(&overflow));
+
+    let mut with_tool = parser();
+    let _ = notif(
+        &mut with_tool,
+        "item/started",
+        json!({"item": {
+            "type": "commandExecution", "id": "call_1",
+            "command": "touch changed", "cwd": "/repo", "status": "inProgress",
+        }}),
+    );
+    assert!(!with_tool.should_recover_context_exhaustion(&overflow));
+}
+
+#[test]
+fn turn_reset_preserves_thread_identity_and_clears_failed_attempt_state() {
+    let mut p = parser();
+    let _ = p.on_thread_response(&json!({"thread": {"id": "thread-1"}}));
+    let _ = notif(
+        &mut p,
+        "turn/started",
+        json!({"turn": {"id": "turn-1", "status": "inProgress"}}),
+    );
+    let _ = notif(
+        &mut p,
+        "error",
+        json!({"error": {"message": "Prompt is too long"}, "willRetry": false}),
+    );
+    let _ = notif(
+        &mut p,
+        "turn/completed",
+        json!({"turn": {"id": "turn-1", "status": "failed"}}),
+    );
+    assert_eq!(p.turn_status(), Some("failed"));
+
+    p.reset_turn_state();
+
+    assert_eq!(p.thread_id(), Some("thread-1"));
+    assert_eq!(p.turn_id(), None);
+    assert_eq!(p.turn_status(), None);
+    assert_eq!(p.turn_error(), None);
+    assert!(p.usage().is_none());
+}
+
+#[test]
+fn failed_context_recovery_restores_error_from_preceding_notification() {
+    let mut p = parser();
+    let _ = notif(
+        &mut p,
+        "error",
+        json!({
+            "error": {"message": "Codex ran out of room in the model's context window."},
+            "willRetry": false
+        }),
+    );
+    let completion = json!({"turn": {"id": "turn-1", "status": "failed"}});
+    let original_error = p.completed_turn_error(&completion).map(str::to_string);
+
+    // Native recovery drives maintenance turns and resets this transient
+    // parser state before it can report a failure of its own.
+    p.reset_turn_state();
+    p.pending_error_message = original_error;
+    let chunks = notif(&mut p, "turn/completed", completion);
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].result["success"], false);
+    assert_eq!(
+        chunks[0].result["error_message"],
+        "Codex ran out of room in the model's context window."
+    );
+}
+
+#[test]
+fn native_compaction_notifications_emit_one_deduplicated_marker() {
+    let mut p = parser();
+    let item = notif(
+        &mut p,
+        "item/completed",
+        json!({"item": {"type": "contextCompaction", "id": "compact-1"}}),
+    );
+    assert_eq!(item.len(), 1);
+    assert_eq!(item[0].action_type, "context_compacted");
+    assert_eq!(item[0].result["native"], true);
+    assert_eq!(item[0].result["provider"], "codex");
+
+    let legacy = notif(&mut p, "thread/compacted", json!({"threadId": "t"}));
+    assert!(legacy.is_empty());
+}
+
+#[test]
 fn interrupted_turn_records_status() {
     let mut p = parser();
     let chunks = notif(
@@ -547,6 +682,80 @@ fn only_full_permission_auto_accepts_approvals() {
     assert!(!approval_auto_accept(CliPermissionMode::Plan));
 }
 
+fn native_turn(
+    user_input: &str,
+    developer_instructions: &str,
+    resume_thread_id: Option<&str>,
+) -> CodexAppServerTurn {
+    CodexAppServerTurn {
+        session_id: SESSION_ID.to_string(),
+        user_input: user_input.to_string(),
+        developer_instructions: Some(developer_instructions.to_string()),
+        working_dir: "/workspace".to_string(),
+        resume_thread_id: resume_thread_id.map(str::to_string),
+        model: Some("gpt-5.6-sol".to_string()),
+        permission_mode: CliPermissionMode::Manual,
+        config: Some(json!({"mcp_servers": {"orgii": {"enabled": true}}})),
+        image_paths: vec!["/tmp/native-image.png".to_string()],
+        allow_native_context_recovery: false,
+    }
+}
+
+#[test]
+fn fresh_thread_keeps_agent_context_out_of_native_user_input() {
+    let developer_context = concat!(
+        "<orgii_cli_exec_mode_bridge>build</orgii_cli_exec_mode_bridge>\n\n",
+        "<ide_context>focused file</ide_context>"
+    );
+    let turn = native_turn("Literal visible user text", developer_context, None);
+
+    let (method, params) = build_thread_launch_request(&turn);
+    assert_eq!(method, "thread/start");
+    assert_eq!(params["developerInstructions"], developer_context);
+    assert!(params.get("baseInstructions").is_none());
+
+    let input = build_turn_input(&turn);
+    assert_eq!(
+        input[0],
+        json!({"type": "text", "text": "Literal visible user text"})
+    );
+    assert_eq!(
+        input[1],
+        json!({"type": "localImage", "path": "/tmp/native-image.png"})
+    );
+    let visible_payload = serde_json::to_string(&input).expect("serialize turn input");
+    assert!(!visible_payload.contains("<orgii_"));
+    assert!(!visible_payload.contains("<ide_context>"));
+}
+
+#[test]
+fn resumed_thread_receives_the_updated_developer_context() {
+    let first = native_turn("first", "WORKSPACE_CONTEXT_V1", None);
+    let (_, first_params) = build_thread_launch_request(&first);
+    assert_eq!(
+        first_params["developerInstructions"],
+        "WORKSPACE_CONTEXT_V1"
+    );
+
+    let resumed = native_turn(
+        "second literal user turn",
+        "WORKSPACE_CONTEXT_V2\n<orgii_hook_context>latest</orgii_hook_context>",
+        Some("native-codex-thread"),
+    );
+    let (method, params) = build_thread_launch_request(&resumed);
+    assert_eq!(method, "thread/resume");
+    assert_eq!(params["threadId"], "native-codex-thread");
+    assert_eq!(
+        params["developerInstructions"],
+        "WORKSPACE_CONTEXT_V2\n<orgii_hook_context>latest</orgii_hook_context>"
+    );
+    assert!(params.get("baseInstructions").is_none());
+    assert_eq!(
+        build_turn_input(&resumed)[0],
+        json!({"type": "text", "text": "second literal user turn"})
+    );
+}
+
 // ─── live smoke (opt-in) ───
 
 /// End-to-end smoke against a real `codex app-server` process. Requires the
@@ -556,7 +765,7 @@ fn only_full_permission_auto_accepts_approvals() {
 #[tokio::test]
 #[ignore = "spawns real codex app-server; needs codex auth + network"]
 async fn live_smoke_trivial_turn() {
-    use super::{run_app_server_turn, CodexAppServerTurn};
+    use super::run_app_server_turn;
     use std::process::Stdio;
 
     let mut child = match tokio::process::Command::new("codex")
@@ -578,12 +787,15 @@ async fn live_smoke_trivial_turn() {
 
     let turn = CodexAppServerTurn {
         session_id: SESSION_ID.to_string(),
-        task: "Reply with exactly: pong".to_string(),
+        user_input: "Reply with exactly: pong".to_string(),
+        developer_instructions: None,
         working_dir: std::env::temp_dir().to_string_lossy().to_string(),
         resume_thread_id: None,
         model: None,
         permission_mode: CliPermissionMode::Plan,
+        config: None,
         image_paths: vec![],
+        allow_native_context_recovery: false,
     };
 
     let protocol =

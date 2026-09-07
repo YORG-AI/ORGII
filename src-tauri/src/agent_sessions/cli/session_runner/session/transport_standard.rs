@@ -53,6 +53,7 @@ pub(super) async fn run_standard_branch(
     mut cli_session_id_out: Option<String>,
     sequence: &mut i64,
     attempt_stderr: &mut super::CliStderrCollector,
+    turn_intent_id: Option<&str>,
 ) -> StandardOutcome {
     let mut retryable_oauth_message: Option<String> = None;
     let mut retryable_overload_message: Option<String> = None;
@@ -198,7 +199,13 @@ pub(super) async fn run_standard_branch(
                                 .await
                                 {
                                     Ok(plan_chunk) => {
-                                        emit_chunk(&plan_chunk, &session_id, sequence).await;
+                                        emit_chunk(
+                                            &plan_chunk,
+                                            &session_id,
+                                            sequence,
+                                            turn_intent_id,
+                                        )
+                                        .await;
                                         cli_plan_registered_this_turn = true;
                                         cli_plan_approval_gate_triggered = true;
                                     }
@@ -227,7 +234,13 @@ pub(super) async fn run_standard_branch(
                                 .await
                                 {
                                     Ok(plan_chunk) => {
-                                        emit_chunk(&plan_chunk, &session_id, sequence).await;
+                                        emit_chunk(
+                                            &plan_chunk,
+                                            &session_id,
+                                            sequence,
+                                            turn_intent_id,
+                                        )
+                                        .await;
                                         cli_plan_registered_this_turn = true;
                                         cli_plan_approval_gate_triggered = true;
                                     }
@@ -252,7 +265,13 @@ pub(super) async fn run_standard_branch(
                                     .await
                                     {
                                         Ok(plan_chunk) => {
-                                            emit_chunk(&plan_chunk, &session_id, sequence).await;
+                                            emit_chunk(
+                                                &plan_chunk,
+                                                &session_id,
+                                                sequence,
+                                                turn_intent_id,
+                                            )
+                                            .await;
                                             cli_plan_registered_this_turn = true;
                                             cli_plan_approval_gate_triggered = true;
                                         }
@@ -273,7 +292,7 @@ pub(super) async fn run_standard_branch(
                             }
                             cli_plan_active = false;
                         }
-                        emit_chunk(&chunk, &session_id, sequence).await;
+                        emit_chunk(&chunk, &session_id, sequence, turn_intent_id).await;
                         if cli_plan_approval_gate_triggered && !cli_plan_gate_announced {
                             cli_plan_gate_announced = true;
                             tracing::info!(
@@ -285,7 +304,7 @@ pub(super) async fn run_standard_branch(
                             // instead of holding Stop for up to the 45s drain window
                             // while the child process winds down. The final
                             // status_changed after child exit is idempotent.
-                            flush_and_broadcast(&session_id).await;
+                            flush_and_broadcast(&session_id, turn_intent_id).await;
                             // The plan card supersedes any hook-derived
                             // waiting/working entry for this turn.
                             clear_live_status(
@@ -435,7 +454,7 @@ pub(super) async fn run_standard_branch(
             if let Some(snap_id) = &pre_message_snapshot_id {
                 snapshot_cli_file_edit(&session_id, snap_id, chunk, &snapshot_working_dir).await;
             }
-            emit_chunk(chunk, &session_id, sequence).await;
+            emit_chunk(chunk, &session_id, sequence, turn_intent_id).await;
         }
     }
 

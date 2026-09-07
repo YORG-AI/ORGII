@@ -67,7 +67,6 @@ import {
 import {
   messageQueueAtom,
   queueEditTargetAtom,
-  queueFlushRequestAtom,
 } from "@src/store/ui/messageQueueAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import {
@@ -292,7 +291,6 @@ export function createSessionHelpers(store: E2EStore) {
       store.set(sessionIdAtom, null);
       store.set(messageQueueAtom, []);
       store.set(queueEditTargetAtom, null);
-      store.set(queueFlushRequestAtom, 0);
       resetTurnLifecycleForTests();
       store.set(chatImageAttachmentsAtom, []);
       store.set(isPendingCancelAtom, false);

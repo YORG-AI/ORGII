@@ -262,6 +262,7 @@ describe("useSubmitMessage composer boundary", () => {
           displayText: expected,
           agentContent: undefined,
           imageDataUrls: undefined,
+          composerSnapshot: editorHarness.editor.getSnapshot(),
         });
         expect(handleSessChatSubmit).not.toHaveBeenCalled();
       } else {
@@ -378,7 +379,7 @@ describe("useSubmitMessage composer boundary", () => {
     expect(editorHarness.readText()).toBe("");
   });
 
-  it("lets a read-only imported replay delegate to its fork-before-send override", async () => {
+  it("lets a read-only imported replay delegate to its continuation override", async () => {
     const editorHarness = createEditor("continue from this replay");
     const onSubmitOverride = vi.fn().mockResolvedValue(true);
     const handleSessChatSubmit = vi.fn().mockResolvedValue(undefined);
@@ -401,6 +402,7 @@ describe("useSubmitMessage composer boundary", () => {
       displayText: "continue from this replay",
       agentContent: "agent:continue from this replay",
       imageDataUrls: undefined,
+      composerSnapshot: editorHarness.editor.getSnapshot(),
     });
     expect(handleSessChatSubmit).not.toHaveBeenCalled();
     expect(editorHarness.readText()).toBe("");

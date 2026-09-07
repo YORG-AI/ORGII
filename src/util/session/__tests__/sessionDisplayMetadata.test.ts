@@ -177,6 +177,31 @@ describe("resolveSessionDisplayMetadata", () => {
     expect(display.cliAgentType).toBeUndefined();
   });
 
+  it("uses the current episode provider instead of its canonical root provider", () => {
+    const display = resolveSessionDisplayMetadata({
+      kind: "remote",
+      session: {
+        sourceSessionId: "cliagent-claude-continuation",
+        forkedFrom: {
+          sourceSessionId: "codexapp-parent",
+          rootSessionId: "codexapp-root",
+        },
+        cliAgentType: "claude_code",
+        agentDisplayName: "Claude Code",
+        model: "claude-sonnet-5",
+        origin: { kind: "orgii" },
+      },
+    });
+
+    expect(display).toMatchObject({
+      agentLabel: "Claude Code",
+      agentIconId: "claude_code",
+      cliAgentType: "claude_code",
+      modelName: "claude-sonnet-5",
+    });
+    expect(display.externalSource).toBeUndefined();
+  });
+
   it("drives the sidebar adapter from the same final icon used by Kanban", () => {
     const session = {
       session_id: "cliagent-org-coordinator",

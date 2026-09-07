@@ -11,21 +11,16 @@ import { useCallback, useEffect } from "react";
 
 import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
 import { resolveSessionAgentExecMode } from "@src/config/sessionCreatorConfig";
+import { getTurnPhase } from "@src/engines/SessionCore/control/turnLifecycle";
+import type { QueuedConversationDispatch } from "@src/engines/SessionCore/conversations/queuedConversationContract";
+import { flushMessageQueuePersistence } from "@src/engines/SessionCore/hooks/session/messageQueuePersistence";
 import {
-  beginOptimisticTurn,
-  failOptimisticTurn,
-} from "@src/engines/SessionCore/control/optimisticTurnStatus";
-import { publishTurnIntentDispatch } from "@src/engines/SessionCore/control/turnIntentDispatchLifecycle";
-import {
-  beginTurnDispatch,
-  getTurnPhase,
-  markTurnTerminal,
-} from "@src/engines/SessionCore/control/turnLifecycle";
-import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
+  appendOptimisticQueueUserDelivery,
+  removeOptimisticQueueUserDelivery,
+} from "@src/engines/SessionCore/services/userIntentDispatch";
 import { mintTurnIntentId } from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
 import {
   type SessionRuntimeStatusSource,
-  closePostStopDispatchEpisodeAtom,
   isSessionActiveAtom,
   lastUserMessageAtom,
   postStopDispatchSessionsAtom,
@@ -33,9 +28,9 @@ import {
 import { creatorDefaultModelSelectionAtom } from "@src/store/session/creatorDefaultModelAtom";
 import { sessionMapAtom } from "@src/store/session/sessionAtom";
 import {
+  clearQueuedMessagesAtom,
   enqueueMessageAtom,
   messageQueueAtom,
-  queueFlushRequestAtom,
 } from "@src/store/ui/messageQueueAtom";
 import { selectionFromSession } from "@src/util/session/selectionFromSession";
 
@@ -79,11 +74,12 @@ export interface SubmitUserIntentOptions {
   source?: SessionRuntimeStatusSource;
   applyStopSubmitGuards?: boolean;
   dedupeDirectSubmit?: boolean;
-  clearUserInitiatedCancelOnQueue?: boolean;
   onQueued?: () => void;
   onBeforeDirectDispatch?: () => void;
   /** Stable caller-owned identity for observing a queued/direct dispatch. */
   turnIntentId?: string;
+  /** Route this intent through the existing canonical queue dispatcher. */
+  conversationDispatch?: QueuedConversationDispatch;
 }
 
 interface UseUserIntentSubmitOptions {
@@ -95,13 +91,8 @@ export function useUserIntentSubmit({
 }: UseUserIntentSubmitOptions) {
   const store = useStore();
   const isSessionActive = useAtomValue(isSessionActiveAtom);
-  const enqueueMessage = useSetAtom(enqueueMessageAtom);
-  const setQueueFlushRequest = useSetAtom(queueFlushRequestAtom);
   const setLastUserMessage = useSetAtom(lastUserMessageAtom);
-  const closePostStopDispatchEpisode = useSetAtom(
-    closePostStopDispatchEpisodeAtom
-  );
-  const { addUserMessage, dispatchMessageBySessionType } = useMessageDispatch();
+  const { dispatchMessageBySessionType } = useMessageDispatch();
 
   useEffect(() => {
     if (!isSessionActive) {
@@ -119,10 +110,10 @@ export function useUserIntentSubmit({
       source = "dispatch",
       applyStopSubmitGuards = false,
       dedupeDirectSubmit = false,
-      clearUserInitiatedCancelOnQueue = false,
       onQueued,
       onBeforeDirectDispatch,
       turnIntentId: providedTurnIntentId,
+      conversationDispatch,
     }: SubmitUserIntentOptions): Promise<void> => {
       const sessionId = explicitSessionId ?? getSessionId();
       if (!sessionId) {
@@ -177,6 +168,7 @@ export function useUserIntentSubmit({
             message.sessionId === sessionId && !message.requiresExplicitDispatch
         );
       const shouldEnqueue =
+        conversationDispatch !== undefined ||
         explicitPostStopSubmit ||
         getTurnPhase(sessionId) !== "idle" ||
         hasQueuedNaturalSibling;
@@ -194,8 +186,10 @@ export function useUserIntentSubmit({
           session?.agentExecMode
         );
 
-        const queueResult = enqueueMessage({
-          id: `queued-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        const id = `queued-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        const createdAt = new Date().toISOString();
+        const message = {
+          id,
           turnIntentId,
           sessionId,
           content: contentForAgent,
@@ -203,10 +197,24 @@ export function useUserIntentSubmit({
           imageDataUrls,
           modelSelection: snapshotSelection ?? undefined,
           agentExecMode: snapshotMode,
+          conversationDispatch,
           priority: explicitPostStopSubmit ? "now" : "next",
           status: "queued",
-          createdAt: new Date().toISOString(),
-        });
+          createdAt,
+        } as const;
+        // Canonical continuation can spend seconds validating/materializing a
+        // native transcript. Stage that row behind the existing explicit hold
+        // until both the durable queue owner and its optimistic EventStore
+        // projection exist. Ordinary Session queue admission remains the same
+        // single enqueue below without this additional durability barrier.
+        const admittedMessage = conversationDispatch
+          ? {
+              ...message,
+              priority: "next" as const,
+              requiresExplicitDispatch: true,
+            }
+          : message;
+        const queueResult = store.set(enqueueMessageAtom, admittedMessage);
         if (queueResult !== "enqueued" && queueResult !== "duplicate") {
           throw new Error(
             queueResult === "message_too_large"
@@ -214,14 +222,52 @@ export function useUserIntentSubmit({
               : "Message queue is full; send or remove a queued message first"
           );
         }
-        if (clearUserInitiatedCancelOnQueue && explicitPostStopSubmit) {
-          closePostStopDispatchEpisode(sessionId);
+        if (queueResult === "duplicate") {
+          onQueued?.();
+          return;
         }
-        if (explicitPostStopSubmit) {
-          setQueueFlushRequest((requestId) => requestId + 1);
-        }
-        if (!explicitPostStopSubmit) {
-          beginOptimisticTurn(sessionId, "queue");
+        if (conversationDispatch) {
+          let durableOwnerCommitted = false;
+          try {
+            await flushMessageQueuePersistence(store);
+            durableOwnerCommitted = true;
+            await appendOptimisticQueueUserDelivery({
+              sessionId,
+              visibleText: displayContent,
+              imageDataUrls,
+              turnIntentId,
+              queueMessageId: id,
+              createdAt,
+            });
+          } catch (error) {
+            if (!durableOwnerCommitted) {
+              store.set(clearQueuedMessagesAtom, [id]);
+              await flushMessageQueuePersistence(store).catch(() => undefined);
+            } else {
+              // Roll back in inverse order. If EventStore cannot prove the
+              // projection absent, retain the held durable owner; hydration
+              // can reconcile it without ever manufacturing another send.
+              const projectionRemoved = await removeOptimisticQueueUserDelivery(
+                { sessionId, queueMessageId: id }
+              )
+                .then(() => true)
+                .catch(() => false);
+              if (projectionRemoved) {
+                store.set(clearQueuedMessagesAtom, [id]);
+                await flushMessageQueuePersistence(store).catch(
+                  () => undefined
+                );
+              }
+            }
+            throw error;
+          }
+          // Release the same row to the existing queue coordinator only after
+          // its recovery owner and visible user projection are durable.
+          store.set(messageQueueAtom, (queue) =>
+            queue.map((candidate) =>
+              candidate.id === id ? message : candidate
+            )
+          );
         }
         onQueued?.();
         return;
@@ -232,71 +278,33 @@ export function useUserIntentSubmit({
         displayContent,
         imageDataUrls: restoreImageDataUrls,
       });
-      const dispatchGeneration = beginTurnDispatch(sessionId);
-      publishTurnIntentDispatch(turnIntentId, {
-        sessionId,
-        generation: dispatchGeneration,
-      });
-      beginOptimisticTurn(sessionId, source);
       if (dedupeDirectSubmit) {
         sharedSubmitGuard.current = true;
         sharedSubmitPayload.current = submitPayloadKey;
       }
 
-      let userEventId: string | null = null;
-      let dispatchStarted = false;
       try {
-        onBeforeDirectDispatch?.();
-        userEventId = await addUserMessage(
-          sessionId,
-          displayContent,
-          imageDataUrls,
-          turnIntentId
-        );
         const displayTextForDispatch =
           contentForAgent !== displayContent ? displayContent : undefined;
-        dispatchStarted = true;
-        await dispatchMessageBySessionType(
+        await dispatchMessageBySessionType({
           sessionId,
-          contentForAgent,
+          content: contentForAgent,
+          visibleText: displayContent,
           imageDataUrls,
-          undefined,
-          displayTextForDispatch,
-          `direct:${sessionId}:${stableSubmitHash(submitPayloadKey)}`,
+          displayText: displayTextForDispatch,
+          clientMessageId: `direct:${sessionId}:${stableSubmitHash(submitPayloadKey)}`,
           turnIntentId,
-          dispatchGeneration
-        );
+          runtimeStatusSource: source,
+          beforeAppend: onBeforeDirectDispatch,
+        });
       } catch (error) {
         if (dedupeDirectSubmit) {
           sharedSubmitGuard.current = false;
           sharedSubmitPayload.current = null;
         }
-        if (!dispatchStarted) {
-          failOptimisticTurn(sessionId, source);
-          markTurnTerminal(sessionId, "failed", {
-            generation: dispatchGeneration,
-          });
-        }
-        if (userEventId) {
-          try {
-            await eventStoreProxy.removeByIdPrefix(userEventId, sessionId);
-          } catch {
-            // Preserve the original dispatch error. A failed cleanup must not
-            // turn an already-failed submit into a misleading success.
-          }
-        }
         throw error;
       }
     },
-    [
-      addUserMessage,
-      closePostStopDispatchEpisode,
-      dispatchMessageBySessionType,
-      enqueueMessage,
-      getSessionId,
-      setLastUserMessage,
-      setQueueFlushRequest,
-      store,
-    ]
+    [dispatchMessageBySessionType, getSessionId, setLastUserMessage, store]
   );
 }

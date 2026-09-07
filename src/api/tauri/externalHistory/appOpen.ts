@@ -1,8 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 
 /**
- * Backend plan for reopening an imported external session in the vendor's
- * own app via a per-session deep link (`claude://resume?session=…`,
+ * Backend plan for reopening an imported or managed native session in the
+ * vendor's own app via a per-session deep link (`claude://resume?session=…`,
  * `codex://threads/…`). Mirrors `ExternalHistoryAppOpenPlanWire` in
  * `src-tauri/src/orgtrack/history_commands/scan.rs` (camelCase JSON).
  *
@@ -11,7 +11,7 @@ import { invoke } from "@tauri-apps/api/core";
  * frontend never gets to name what the OS opens.
  */
 export interface ExternalHistoryAppOpenPlan {
-  /** Imported-history source id (`claude_code` / `codex_app`). */
+  /** Native transcript source id (`claude_code` / `codex_app`). */
   source: string;
   /** Name of the app the deep link opens, for labels and tooltips. */
   appDisplayName: string;
@@ -28,9 +28,9 @@ export interface ExternalHistoryAppOpenPlan {
 }
 
 /**
- * `null` when the session is unknown to the imported-history cache, is a
- * subagent child, or its source has no verified per-session app deep link
- * (everything but Claude Code and Codex today).
+ * `null` when the session is unknown, has no current native binding, is an
+ * imported subagent child, or its source has no verified per-session app
+ * deep link (everything but Claude Code and Codex today).
  */
 export async function externalHistoryAppOpenPlan(
   sessionId: string
@@ -42,7 +42,7 @@ export async function externalHistoryAppOpenPlan(
 }
 
 /**
- * Open the imported session in the app that owns it. Rejects when the
+ * Open the imported or managed native session in the app that owns it.
  * session has no deep link or the OS refuses the URL; a link that routes
  * nowhere cannot be detected, so callers must not treat resolution as proof
  * the app surfaced the conversation.

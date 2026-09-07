@@ -21,6 +21,11 @@ export interface UnifiedModelPaletteProps extends BasePaletteProps {
   advancedConfig: AdvancedConfig;
   onConfigChange: (config: AdvancedConfig) => void;
   /**
+   * Display-name override for an already-running conversation's runtime.
+   * Creator surfaces omit this and keep using the SessionCreator selection.
+   */
+  agentNameOverride?: string;
+  /**
    * Override the dispatch category used for account filtering. When provided
    * (e.g. by ModelPill in an active session), this value takes precedence over
    * the SessionCreator atom so the palette filters accounts for the CURRENT

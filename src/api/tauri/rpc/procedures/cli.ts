@@ -20,6 +20,10 @@ export const cli = {
     .input(schemas.cli.CliSessionIdInputSchema)
     .output(schemas.cli.CliChunksSchema)
     .build(),
+  transcriptRevision: defineProcedure("cli_agent_transcript_revision")
+    .input(schemas.cli.CliSessionIdInputSchema)
+    .output(schemas.cli.CliTranscriptRevisionSchema)
+    .build(),
   cancel: defineProcedure("cli_agent_cancel")
     .input(schemas.cli.CliCancelInputSchema)
     .output(z.boolean())

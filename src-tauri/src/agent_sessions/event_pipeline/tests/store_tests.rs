@@ -576,6 +576,7 @@ fn test_scoped_synthetic_removal_keeps_unechoed_newer_placeholder() {
     // the fresh follow-up whose echo has not arrived yet.
     let removed = store.remove_synthetic_user_inputs(Some((
         &["first message".to_string()],
+        &[],
         Some("2026-08-14T10:00:00Z"),
     )));
 
@@ -598,11 +599,45 @@ fn test_scoped_synthetic_removal_drops_placeholder_predating_newest_real_turn() 
     // newest real user turn instead.
     let removed = store.remove_synthetic_user_inputs(Some((
         &["expanded yaml payload".to_string()],
+        &[],
         Some("2026-08-14T09:30:00Z"),
     )));
 
     assert_eq!(removed, 1);
     assert!(store.get_by_id("user-input-stale-pill").is_none());
+}
+
+#[test]
+fn test_scoped_synthetic_removal_does_not_timestamp_evict_new_intent() {
+    let mut store = EventStore::new();
+    let mut pending = make_synthetic_user_event(
+        "user-input-next",
+        "continue exploring",
+        "2026-08-14T10:00:00Z",
+    );
+    pending.result["turnIntentId"] = serde_json::json!("turn-next");
+    store.set(vec![pending]);
+
+    // A replayed OLD turn may be materialized later and therefore carry a
+    // misleadingly newer timestamp. It cannot settle the current intent.
+    let old_contents = vec!["old request".to_string()];
+    let old_intents = vec!["turn-old".to_string()];
+    let removed = store.remove_synthetic_user_inputs(Some((
+        &old_contents,
+        &old_intents,
+        Some("2026-08-14T11:00:00Z"),
+    )));
+    assert_eq!(removed, 0);
+    assert!(store.get_by_id("user-input-next").is_some());
+
+    let matching_intents = vec!["turn-next".to_string()];
+    let removed = store.remove_synthetic_user_inputs(Some((
+        &[],
+        &matching_intents,
+        Some("2026-08-14T11:00:00Z"),
+    )));
+    assert_eq!(removed, 1);
+    assert!(store.get_by_id("user-input-next").is_none());
 }
 
 #[test]
@@ -612,7 +647,10 @@ fn test_merge_authoritative_user_message_evicts_matching_synthetic_placeholder()
     synthetic.source = EventSource::User;
     synthetic.function_name = "user_message".to_string();
     synthetic.ui_canonical = "user_message".to_string();
-    synthetic.result = serde_json::json!({ "syntheticUserInput": true });
+    synthetic.result = serde_json::json!({
+        "syntheticUserInput": true,
+        "turnIntentId": "turn-live-1",
+    });
     synthetic.chunk_id = None;
     synthetic.display_text = "hello from user".to_string();
 
@@ -628,7 +666,13 @@ fn test_merge_authoritative_user_message_evicts_matching_synthetic_placeholder()
     store.merge_events(vec![backend]);
 
     assert!(store.get_by_id("user-input-synthetic").is_none());
-    assert!(store.get_by_id("user-input-cliagent-real").is_some());
+    assert_eq!(
+        store
+            .get_by_id("user-input-cliagent-real")
+            .and_then(|event| event.result.get("turnIntentId"))
+            .and_then(|value| value.as_str()),
+        Some("turn-live-1")
+    );
 }
 
 #[test]
@@ -637,7 +681,10 @@ fn test_set_reconciles_persisted_matching_synthetic_placeholder() {
     let mut synthetic = make_event("user-input-synthetic", "raw");
     synthetic.source = EventSource::User;
     synthetic.function_name = "user_message".to_string();
-    synthetic.result = serde_json::json!({ "syntheticUserInput": true });
+    synthetic.result = serde_json::json!({
+        "syntheticUserInput": true,
+        "turnIntentId": "turn-reload-1",
+    });
     synthetic.display_text = "persisted duplicate".to_string();
 
     let mut backend = make_event("user-input-real", "raw");
@@ -648,7 +695,46 @@ fn test_set_reconciles_persisted_matching_synthetic_placeholder() {
     store.set(vec![synthetic, backend]);
 
     assert!(store.get_by_id("user-input-synthetic").is_none());
-    assert!(store.get_by_id("user-input-real").is_some());
+    assert_eq!(
+        store
+            .get_by_id("user-input-real")
+            .and_then(|event| event.result.get("turnIntentId"))
+            .and_then(|value| value.as_str()),
+        Some("turn-reload-1")
+    );
+}
+
+#[test]
+fn test_repeated_user_text_reconciles_one_intent_per_authoritative_row() {
+    let mut store = EventStore::new();
+    let mut first = make_synthetic_user_event(
+        "user-input-synthetic-1",
+        "repeat me",
+        "2026-08-29T00:00:00Z",
+    );
+    first.result["turnIntentId"] = serde_json::json!("turn-repeat-1");
+    let mut second = make_synthetic_user_event(
+        "user-input-synthetic-2",
+        "repeat me",
+        "2026-08-29T00:00:01Z",
+    );
+    second.result["turnIntentId"] = serde_json::json!("turn-repeat-2");
+    store.append(vec![first, second]);
+
+    let mut authoritative = make_event("user-input-real-1", "raw");
+    authoritative.source = EventSource::User;
+    authoritative.display_text = "repeat me".to_string();
+    store.merge_events(vec![authoritative]);
+
+    assert!(store.get_by_id("user-input-synthetic-1").is_none());
+    assert!(store.get_by_id("user-input-synthetic-2").is_some());
+    assert_eq!(
+        store
+            .get_by_id("user-input-real-1")
+            .and_then(|event| event.result.get("turnIntentId"))
+            .and_then(|value| value.as_str()),
+        Some("turn-repeat-1")
+    );
 }
 
 #[test]
@@ -671,6 +757,90 @@ fn test_merge_authoritative_message_keeps_legitimate_repeated_user_text() {
 
     assert!(store.get_by_id("user-input-first").is_some());
     assert!(store.get_by_id("user-input-second").is_some());
+}
+
+fn make_runtime_user_projection(
+    id: &str,
+    function_name: &str,
+    turn_intent_id: &str,
+    backend_persisted: bool,
+) -> SessionEvent {
+    let mut event = make_event(id, "raw");
+    event.source = EventSource::User;
+    event.function_name = function_name.to_string();
+    event.ui_canonical = function_name.to_string();
+    event.display_text = "one logical user turn".to_string();
+    event.result = serde_json::json!({
+        "type": "user",
+        "message": { "content": "one logical user turn", "role": "user" },
+        "turnIntentId": turn_intent_id,
+        "backendPersisted": backend_persisted,
+    });
+    event
+}
+
+#[test]
+fn test_merge_user_turn_prefers_persisted_projection_by_turn_intent() {
+    let mut store = EventStore::new();
+    let mut live =
+        make_runtime_user_projection("message-42", "user_input", "turn-intent-42", false);
+    live.created_at = "2026-08-30T10:00:00.000Z".to_string();
+    let mut persisted = make_runtime_user_projection(
+        "user-message-message-42",
+        "user_message",
+        "turn-intent-42",
+        true,
+    );
+    persisted.result["messageId"] = serde_json::json!("message-42");
+    persisted.created_at = "2026-08-30T10:00:00.001Z".to_string();
+
+    store.append(vec![live]);
+    store.merge_events(vec![persisted]);
+
+    assert_eq!(store.event_count(), 1);
+    assert!(store.get_by_id("message-42").is_none());
+    let canonical = store
+        .get_by_id("user-message-message-42")
+        .expect("persisted projection survives");
+    assert_eq!(canonical.created_at, "2026-08-30T10:00:00.000Z");
+    assert_eq!(canonical.result["backendPersisted"], true);
+}
+
+#[test]
+fn test_late_low_level_user_projection_cannot_duplicate_persisted_turn() {
+    let mut store = EventStore::new();
+    let mut persisted = make_runtime_user_projection(
+        "user-message-message-43",
+        "user_message",
+        "turn-intent-43",
+        true,
+    );
+    persisted.result["messageId"] = serde_json::json!("message-43");
+    let live = make_runtime_user_projection("message-43", "user_input", "turn-intent-43", false);
+
+    store.append(vec![persisted]);
+    store.merge_events(vec![live]);
+
+    assert_eq!(store.event_count(), 1);
+    assert!(store.get_by_id("message-43").is_none());
+    assert!(store.get_by_id("user-message-message-43").is_some());
+}
+
+#[test]
+fn test_hydration_collapses_legacy_message_id_pair_without_text_dedup() {
+    let mut store = EventStore::new();
+    let live = make_runtime_user_projection("message-44", "user_input", "", false);
+    let mut persisted =
+        make_runtime_user_projection("user-message-message-44", "user_message", "", true);
+    persisted.result["messageId"] = serde_json::json!("message-44");
+    let repeated = make_runtime_user_projection("message-45", "user_input", "", false);
+
+    store.set(vec![live, persisted, repeated]);
+
+    assert_eq!(store.event_count(), 2);
+    assert!(store.get_by_id("message-44").is_none());
+    assert!(store.get_by_id("user-message-message-44").is_some());
+    assert!(store.get_by_id("message-45").is_some());
 }
 
 #[test]

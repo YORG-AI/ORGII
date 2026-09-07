@@ -257,8 +257,20 @@ const shellReplay = {
     .build(),
 } as const;
 
+const turnIntents = {
+  status: defineProcedure("session_turn_intent_status")
+    .input(schemas.sessionCore.SessionTurnIntentInput)
+    .output(schemas.sessionCore.SessionTurnIntentStatusSchema.nullable())
+    .build(),
+  waitForTerminal: defineProcedure("session_wait_for_turn_terminal")
+    .input(schemas.sessionCore.SessionTurnIntentWaitInput)
+    .output(schemas.sessionCore.SessionTurnIntentStatusSchema)
+    .build(),
+} as const;
+
 export const sessionCore = {
   cache,
   eventStore,
   shellReplay,
+  turnIntents,
 } as const;

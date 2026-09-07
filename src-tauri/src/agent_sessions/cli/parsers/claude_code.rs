@@ -588,11 +588,50 @@ impl CliAgentParser for ClaudeCodeParser {
                     .or_else(|| data.get("stopReason"))
                     .or_else(|| data.get("subtype"))
                     .and_then(|v| v.as_str());
+                // A run that filled its context can report success with a
+                // structured `terminal_reason` — surface it as a failure so
+                // the run record classifies the overflow instead of
+                // treating the truncated answer as a delivered result.
+                let terminal_reason = data.get("terminal_reason").and_then(|v| v.as_str());
+                let result_error = data
+                    .get("result")
+                    .and_then(|v| v.as_str())
+                    .filter(|text| !text.trim().is_empty());
+                // Claude-compatible gateways do not all use Anthropic's
+                // `prompt_too_long` terminal reason. Some return a generic
+                // `blocking_limit` while preserving the classifiable provider
+                // message in `result`. Keep that specific message instead of
+                // replacing it with the generic terminal code so every
+                // runtime shares the same context-exhaustion classifier.
+                let context_exhausted = terminal_reason == Some("prompt_too_long")
+                    || result_error
+                        .is_some_and(app_utils::runtime_errors::is_context_exhausted_message);
+                let error_message = data
+                    .get("error")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+                    .or_else(|| {
+                        (is_error || context_exhausted)
+                            .then(|| {
+                                result_error.map(|text| text.chars().take(320).collect::<String>())
+                            })
+                            .flatten()
+                    })
+                    .or_else(|| {
+                        (is_error || context_exhausted)
+                            .then(|| {
+                                terminal_reason
+                                    .map(|reason| format!("{{\"terminal_reason\":\"{reason}\"}}"))
+                            })
+                            .flatten()
+                    })
+                    .or_else(|| is_error.then(|| stop_reason.map(str::to_string)).flatten());
                 let mut chunk = ActivityChunk::new(&self.session_id, "session_end", "session_end");
                 chunk.result = serde_json::json!({
-                    "success": !is_error,
-                    "error_message": data.get("error").and_then(|v| v.as_str()),
+                    "success": !is_error && !context_exhausted,
+                    "error_message": error_message,
                     "stop_reason": stop_reason,
+                    "terminal_reason": terminal_reason,
                 });
                 vec![chunk]
             }

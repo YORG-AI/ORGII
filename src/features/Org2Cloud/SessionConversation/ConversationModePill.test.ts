@@ -10,6 +10,7 @@ import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 
 import { ConversationModePill } from "./ConversationModePill";
 import { conversationComposerModeAtomFamily } from "./conversationComposerMode";
+import { useConversationComposerMode } from "./useConversationComposer";
 
 const comments = vi.hoisted(() => ({ available: true, authenticated: true }));
 
@@ -59,6 +60,23 @@ function renderPill(sessionId: string | null = SESSION_ID): void {
           { i18n },
           createElement(ConversationModePill, { sessionId })
         )
+      )
+    );
+  });
+}
+
+function EffectiveMode({ sessionId }: { sessionId: string | null }) {
+  const [mode] = useConversationComposerMode(sessionId);
+  return createElement("output", { "data-testid": "effective-mode" }, mode);
+}
+
+function renderEffectiveMode(sessionId: string | null = SESSION_ID): void {
+  act(() => {
+    root.render(
+      createElement(
+        Provider,
+        { store },
+        createElement(EffectiveMode, { sessionId })
       )
     );
   });
@@ -167,6 +185,21 @@ describe("ConversationModePill", () => {
       expect(document.querySelector(".native-tooltip")).toBeNull();
     }
   );
+
+  it("falls back to Agent semantics when the target or auth disappears", () => {
+    store.set(conversationComposerModeAtomFamily(SESSION_ID), "team_chat");
+    renderEffectiveMode();
+    expect(container.textContent).toBe("team_chat");
+
+    comments.authenticated = false;
+    renderEffectiveMode();
+    expect(container.textContent).toBe("prompt");
+
+    comments.authenticated = true;
+    comments.available = false;
+    renderEffectiveMode();
+    expect(container.textContent).toBe("prompt");
+  });
 
   it("does no idle tooltip work and cleans up after repeated open/unmount cycles", () => {
     const addListener = vi.spyOn(window, "addEventListener");

@@ -157,9 +157,10 @@ isLoadingMoreAtom.debugLabel = "session/isLoadingMore";
 // ============================================
 
 /**
- * Holds the synthetic user event injected by launchSession so it survives
- * clearSessionAtom. loadSessionAtom consumes and merges it when the real
- * data arrives, then clears the atom.
+ * Holds the visible session's newest synthetic user event so it survives a
+ * session switch or a delayed transcript replace. loadSessionAtom consumes
+ * and merges it until the provider's real echo arrives, then clears the atom.
+ * Background sessions must not overwrite this foreground slot.
  */
 export const pendingSyntheticEventAtom = atom<SessionEvent | null>(null);
 pendingSyntheticEventAtom.debugLabel = "session/pendingSyntheticEvent";

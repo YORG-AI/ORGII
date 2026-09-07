@@ -106,6 +106,8 @@ const DropdownRow: React.FC<DropdownRowProps> = ({ item, keyboardProps }) => {
   const rightContent = data.rightContent as React.ReactNode | undefined;
   const availableKeys = data.availableKeys as KeyVaultAccount[] | undefined;
   const isCurrent = data.isCurrentSelection === true;
+  const isDisabled = data.disabled === true;
+  const tagLabel = typeof data.tagLabel === "string" ? data.tagLabel : null;
   const testId = typeof data.testId === "string" ? data.testId : undefined;
 
   const renderedIcon = useMemo(() => {
@@ -128,9 +130,10 @@ const DropdownRow: React.FC<DropdownRowProps> = ({ item, keyboardProps }) => {
       type="button"
       data-testid={testId}
       {...keyboardProps}
+      disabled={isDisabled}
       className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full justify-start ${
         isCurrent ? DROPDOWN_CLASSES.itemSelected : ""
-      }`}
+      } ${isDisabled ? "cursor-not-allowed opacity-50" : ""}`}
     >
       {renderedIcon && (
         <span className="flex h-5 w-5 shrink-0 items-center justify-center">
@@ -147,6 +150,9 @@ const DropdownRow: React.FC<DropdownRowProps> = ({ item, keyboardProps }) => {
           <span className="truncate text-[11px] text-text-3">{item.desc}</span>
         )}
       </div>
+      {tagLabel && (
+        <span className="shrink-0 text-[11px] text-text-3">{tagLabel}</span>
+      )}
       {availableKeys ? (
         <AvailableKeyCount keys={availableKeys} />
       ) : (
@@ -159,6 +165,7 @@ const DropdownRow: React.FC<DropdownRowProps> = ({ item, keyboardProps }) => {
 interface DispatchCategoryDropdownProps extends DispatchCategoryPaletteProps {
   /** Element the dropdown is anchored to. */
   anchorRef: React.RefObject<HTMLElement | null>;
+  placement?: "top" | "bottom";
 }
 
 export const DispatchCategoryDropdown: React.FC<
@@ -173,9 +180,11 @@ export const DispatchCategoryDropdown: React.FC<
   currentCliAgentType,
   hideOrgs = false,
   hideCliAgents = false,
+  allowedCliAgentTypes,
   cliOnly = false,
   includeHumanSession = false,
   anchorRef,
+  placement = "bottom",
 }) => {
   const { t: tCommon } = useTranslation("common");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -184,6 +193,7 @@ export const DispatchCategoryDropdown: React.FC<
     isOpen,
     hideOrgs,
     hideCliAgents,
+    allowedCliAgentTypes,
     cliOnly,
     includeHumanSession,
     currentCategory,
@@ -239,7 +249,7 @@ export const DispatchCategoryDropdown: React.FC<
 
   const handleSelect = useCallback((item: SpotlightItem) => {
     const data = getItemData(item);
-    if (data.isHeader === true) return;
+    if (data.isHeader === true || data.disabled === true) return;
     item.action?.();
   }, []);
 
@@ -252,12 +262,15 @@ export const DispatchCategoryDropdown: React.FC<
       if (!open) onClose();
     },
     anchorRef,
-    placement: "bottom",
+    placement,
     gap: DROPDOWN_PANEL.triggerGap,
     listNavigation: {
       items,
       onSelect: handleSelect,
-      isItemSelectable: (item) => getItemData(item).isHeader !== true,
+      isItemSelectable: (item) => {
+        const data = getItemData(item);
+        return data.isHeader !== true && data.disabled !== true;
+      },
       initialSelectedIndex: -1,
     },
   });

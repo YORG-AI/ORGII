@@ -28,6 +28,7 @@
  * not be imported here.
  */
 import { createHash } from "node:crypto";
+import { createServer } from "node:http";
 import { gzipSync } from "node:zlib";
 
 import {
@@ -323,6 +324,59 @@ export async function clearCloudEndpointOverride() {
   `);
 }
 
+/**
+ * Starts a loopback Cloud endpoint that accepts the browser request, keeps it
+ * in flight long enough for the rendered optimistic row to be observable,
+ * then returns a deterministic failure. A closed port rejects before the
+ * browser can paint/observe `pending`, making a strict pending -> failed E2E
+ * assertion scheduler-dependent rather than testing the production UI.
+ */
+export async function startDelayedCloudFailureEndpoint(delayMs = 750) {
+  const server = createServer((request, response) => {
+    response.setHeader("access-control-allow-origin", "*");
+    response.setHeader("access-control-allow-headers", "*");
+    response.setHeader(
+      "access-control-allow-methods",
+      "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS"
+    );
+    if (request.method === "OPTIONS") {
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+    setTimeout(() => {
+      response.writeHead(503, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({ message: "forced delayed Cloud delivery failure" })
+      );
+    }, delayMs);
+  });
+  await new Promise((resolveListen, rejectListen) => {
+    server.once("error", rejectListen);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", rejectListen);
+      resolveListen();
+    });
+  });
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    server.close();
+    throw new Error("delayed Cloud failure endpoint has no TCP address");
+  }
+  const origin = `http://127.0.0.1:${address.port}`;
+  return {
+    endpoint: {
+      webOrigin: origin,
+      supabaseUrl: origin,
+      anonKey: "delayed-failure-anon-key",
+    },
+    close: () =>
+      new Promise((resolveClose, rejectClose) => {
+        server.close((error) => (error ? rejectClose(error) : resolveClose()));
+      }),
+  };
+}
+
 // ============================================================================
 // Low-level rendered helpers
 // ============================================================================
@@ -434,7 +488,7 @@ export async function openCreateOrgFormFromSidebar() {
     "sidebar add-org action"
   );
   await waitForRendered(
-    '[data-testid="create-collab-org-body"]',
+    '[data-testid="collab-org-form"]',
     "create org form"
   );
 }
@@ -795,7 +849,7 @@ export async function setCloudSessionVisibilityViaDialog(
 }
 
 // ============================================================================
-// Session comments + owner-local in-place agent follow-up
+// Session comments + local native continuation
 // ============================================================================
 //
 // Same contract as everything above: assertions and clicks stay on the

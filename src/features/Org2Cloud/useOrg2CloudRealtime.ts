@@ -122,6 +122,7 @@ import { decideSubscribedEdgeRecovery } from "./org2CloudRealtimeRecovery";
 import { resolveActiveRealtimeOrgId } from "./org2CloudRealtimeScope";
 import {
   Org2CloudRealtimeSignalCoalescer,
+  REALTIME_SIGNAL_COALESCE_MS,
   STORM_SIGNAL_COALESCE_MS,
 } from "./org2CloudRealtimeSignalCoalescer";
 import {
@@ -351,6 +352,7 @@ export function useOrg2CloudRealtime(): void {
   const orgFullRecoveryAtRef = useRef(new Map<string, number>());
   const connectionTeardownAtRef = useRef<number | undefined>(undefined);
   const rosterEdgeRefetchAtRef = useRef<number | undefined>(undefined);
+  const conversationForegroundRecoveryAtRef = useRef(0);
   useEffect(() => {
     refetchRef.current = refetchOrgs;
   }, [refetchOrgs]);
@@ -421,6 +423,48 @@ export function useOrg2CloudRealtime(): void {
   // foreground — a user working in a detached window must not cost main its
   // socket after the blur grace.
   useEffect(() => startCrossWindowFocusPublisher(), []);
+
+  // A short app switch stays inside the Realtime lease's blur grace, so no
+  // reconnect edge exists to recover an at-most-once conversation signal.
+  // Own this once at the Cloud realtime boundary and invalidate the org's
+  // mounted conversation planes; each plane's existing after-seq loader owns
+  // the actual bounded pull. This avoids one browser listener and direct RPC
+  // path per mounted transcript surface.
+  useEffect(() => {
+    if (
+      !activeRealtimeOrgId ||
+      typeof window === "undefined" ||
+      typeof document === "undefined"
+    ) {
+      return undefined;
+    }
+    const recoverConversationPlanes = () => {
+      if (document.visibilityState === "hidden") return;
+      if (typeof document.hasFocus === "function" && !document.hasFocus()) {
+        return;
+      }
+      const now = Date.now();
+      if (
+        now - conversationForegroundRecoveryAtRef.current <
+        REALTIME_SIGNAL_COALESCE_MS
+      ) {
+        return;
+      }
+      conversationForegroundRecoveryAtRef.current = now;
+      bumpConversationPlaneVersion(activeRealtimeOrgId);
+    };
+    window.addEventListener("focus", recoverConversationPlanes);
+    window.addEventListener("online", recoverConversationPlanes);
+    document.addEventListener("visibilitychange", recoverConversationPlanes);
+    return () => {
+      window.removeEventListener("focus", recoverConversationPlanes);
+      window.removeEventListener("online", recoverConversationPlanes);
+      document.removeEventListener(
+        "visibilitychange",
+        recoverConversationPlanes
+      );
+    };
+  }, [activeRealtimeOrgId, bumpConversationPlaneVersion]);
 
   // --- Connection + Slice A (roster). Rebuilds on user / endpoint / active
   // org. A fresh connection on scope switch avoids supabase-js reusing a
@@ -721,6 +765,7 @@ export function useOrg2CloudRealtime(): void {
         bumpOrgCommentsSignal(orgId);
         bumpChannelsVersion(orgId);
         bumpChannelMessagesVersion(orgId);
+        bumpConversationPlaneVersion(orgId);
         return;
       }
       orgFullRecoveryAtRef.current.set(orgId, Date.now());
@@ -746,6 +791,7 @@ export function useOrg2CloudRealtime(): void {
       // Messages posted/edited/deleted during the gap arrive through the
       // channel's own `p_since` delta, which already carries tombstones.
       bumpChannelMessagesVersion(orgId);
+      bumpConversationPlaneVersion(orgId);
     },
     [
       armCoarseSignalSafetyNet,
@@ -754,6 +800,7 @@ export function useOrg2CloudRealtime(): void {
       bumpActiveSessionCommentsSignal,
       bumpChannelsVersion,
       bumpChannelMessagesVersion,
+      bumpConversationPlaneVersion,
       refreshEntitlementForOrg,
     ]
   );

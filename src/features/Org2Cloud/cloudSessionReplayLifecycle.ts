@@ -12,6 +12,7 @@ type CloudSessionPresentationInput = Partial<
   Pick<
     RemoteTeammateSessionMetadata,
     | "sourceSessionId"
+    | "forkedFrom"
     | "cliAgentType"
     | "agentDisplayName"
     | "agentDefinitionId"
@@ -78,12 +79,14 @@ export function resolveCloudSessionReplayIconId(
  */
 export function buildCloudPendingPlayEntry({
   remoteSession,
+  authIdentityKey,
   orgId,
   pendingEvents,
   etaMs,
   kind,
 }: {
-  remoteSession: CloudSessionPresentationInput & { id: string };
+  remoteSession: RemoteTeammateSessionMetadata;
+  authIdentityKey: string;
   orgId: string;
   pendingEvents: number;
   etaMs: number;
@@ -91,8 +94,10 @@ export function buildCloudPendingPlayEntry({
 }): CloudPendingPlay {
   const sessionOwner = resolveCloudSessionOwnerIdentity(remoteSession);
   return {
+    authIdentityKey,
     rowId: remoteSession.id,
     orgId,
+    sourceSession: remoteSession,
     iconId: resolveCloudSessionReplayIconId(remoteSession),
     sessionEnvironment: resolveCloudSessionEnvironmentIdentity(remoteSession),
     ...(sessionOwner ? { sessionOwner } : {}),

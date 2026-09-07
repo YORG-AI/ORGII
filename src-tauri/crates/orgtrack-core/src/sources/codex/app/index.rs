@@ -368,14 +368,15 @@ fn sync_codex_app_cache(conn: &mut Connection) -> Result<(), String> {
             &parse.watermark,
         )?;
         if let Some(mut meta) = parse.meta {
-            let is_managed_history_mirror =
-                crate::sources::imported_history::managed_mirror::is_managed_source_session_id(
-                    &managed_ids,
-                    &meta.source_session_id,
-                );
             reparsed_ids.push(meta.session_id.clone());
             rounds.append(&mut meta.rounds);
             let mut input = session_meta_to_cache_input(meta);
+            let is_managed_history_mirror =
+                crate::sources::imported_history::managed_mirror::is_managed_history_mirror(
+                    &managed_ids,
+                    &input.source_session_id,
+                    input.client_origin,
+                );
             input.listable = input.listable && !is_managed_history_mirror;
             inputs.push(input);
         }
@@ -385,6 +386,10 @@ fn sync_codex_app_cache(conn: &mut Connection) -> Result<(), String> {
         SOURCE_CODEX_APP,
         imported_cache::live_ids_from_signatures(&signatures),
         inputs,
+    )?;
+    crate::sources::imported_history::managed_mirror::demote_org2_origin_mirrors_from_conn(
+        conn,
+        SOURCE_CODEX_APP,
     )?;
     imported_cache::write_session_rounds_from_conn(conn, &reparsed_ids, &rounds)
 }

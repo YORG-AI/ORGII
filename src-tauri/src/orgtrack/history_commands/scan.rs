@@ -311,38 +311,74 @@ pub struct ExternalHistoryAppOpenPlanWire {
     pub source_available: bool,
 }
 
-/// Plan how to reopen an imported external session in the app that owns it.
-/// `Ok(None)` when the session is unknown, a subagent child, or its source
-/// has no verified per-session deep link (everything but Claude Code and
-/// Codex today).
+fn external_history_app_open_plan_from_conn(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+) -> Result<Option<ExternalHistoryAppOpenPlanWire>, String> {
+    if let Some((plan, session)) =
+        orgtrack_core::sources::app_open::app_open_plan_for_cached_session(conn, session_id)?
+    {
+        let source_available =
+            !session.source_path.is_empty() && Path::new(&session.source_path).exists();
+        return Ok(Some(ExternalHistoryAppOpenPlanWire {
+            plan,
+            source_available,
+        }));
+    }
+
+    // Managed native sessions use their current account/profile binding, not
+    // the append-only discovery ledger: after A -> B -> A, this must open the
+    // same native conversation the next CLI turn will resume.
+    let Some(session) = crate::agent_sessions::cli::persistence::get_session(session_id)
+        .map_err(|error| format!("Failed to read managed session {session_id}: {error}"))?
+    else {
+        return Ok(None);
+    };
+    let Some((binding, native_id)) =
+        crate::agent_sessions::cli::native_transcript::current_native_store_key_for_session(
+            &session,
+        )?
+    else {
+        return Ok(None);
+    };
+    let Some(plan) = orgtrack_core::sources::app_open::app_open_plan(binding.source, &native_id)
+    else {
+        return Ok(None);
+    };
+    let source_available =
+        crate::agent_sessions::cli::native_materializer::native_app_transcript_path(
+            &session, &native_id,
+        )?
+        .is_some();
+    Ok(Some(ExternalHistoryAppOpenPlanWire {
+        plan,
+        source_available,
+    }))
+}
+
+/// Plan how to reopen an imported or managed native session in the app that
+/// owns it. `Ok(None)` when the session is unknown, has no current native
+/// binding, is an imported subagent child, or its source has no verified
+/// per-session deep link (everything but Claude Code and Codex today).
 #[tauri::command]
 pub async fn external_history_app_open_plan(
     session_id: String,
 ) -> Result<Option<ExternalHistoryAppOpenPlanWire>, String> {
     tokio::task::spawn_blocking(move || {
         let conn = open_cache_conn()?;
-        let Some((plan, session)) =
-            orgtrack_core::sources::app_open::app_open_plan_for_cached_session(&conn, &session_id)?
-        else {
-            return Ok(None);
-        };
-        let source_available =
-            !session.source_path.is_empty() && Path::new(&session.source_path).exists();
-        Ok(Some(ExternalHistoryAppOpenPlanWire {
-            plan,
-            source_available,
-        }))
+        external_history_app_open_plan_from_conn(&conn, &session_id)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
 }
 
-/// Open an imported external session in the app that owns it.
+/// Open an imported or managed native session in the app that owns it.
 ///
-/// The deep link is rebuilt from the cache row here instead of being
-/// accepted from the frontend, so the webview never names a URL the host
-/// hands to the OS: the only links this can fire are the uuid-validated
-/// vendor routes [`orgtrack_core::sources::app_open`] knows how to spell.
+/// The deep link is rebuilt from the authoritative imported cache row or
+/// managed native binding here instead of being accepted from the frontend,
+/// so the webview never names a URL the host hands to the OS: the only links
+/// this can fire are the uuid-validated vendor routes
+/// [`orgtrack_core::sources::app_open`] knows how to spell.
 /// That also keeps the `opener:allow-open-url` capability scope limited to
 /// `http(s)`, since no custom-scheme URL ever crosses the IPC boundary.
 ///
@@ -359,14 +395,10 @@ pub async fn external_history_open_in_app(
 
     let deep_link = tokio::task::spawn_blocking(move || {
         let conn = open_cache_conn()?;
-        let Some((plan, _)) =
-            orgtrack_core::sources::app_open::app_open_plan_for_cached_session(&conn, &session_id)?
-        else {
-            return Err(format!(
-                "No native app deep link for imported session {session_id}"
-            ));
+        let Some(plan) = external_history_app_open_plan_from_conn(&conn, &session_id)? else {
+            return Err(format!("No native app deep link for session {session_id}"));
         };
-        Ok(plan.deep_link)
+        Ok(plan.plan.deep_link)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))??;
@@ -374,4 +406,210 @@ pub async fn external_history_open_in_app(
     app.opener()
         .open_url(deep_link.clone(), None::<&str>)
         .map_err(|err| format!("Failed to open {deep_link}: {err}"))
+}
+
+#[cfg(test)]
+mod managed_app_open_plan_tests {
+    use super::*;
+    use std::fs;
+
+    use crate::agent_sessions::cli::persistence::{self, CreateCodeSessionParams};
+    use crate::test_utils::test_env;
+
+    const CLAUDE_A_UUID: &str = "11111111-1111-4111-8111-111111111111";
+    const CLAUDE_B_UUID: &str = "22222222-2222-4222-8222-222222222222";
+    const CODEX_UUID: &str = "33333333-3333-4333-8333-333333333333";
+
+    fn create_managed_session(
+        session_id: &str,
+        cli_agent_type: &str,
+        account_id: &str,
+        repo_path: &Path,
+    ) {
+        persistence::create_session(
+            session_id,
+            &CreateCodeSessionParams {
+                name: Some("managed app-open fixture".to_string()),
+                flow: None,
+                runner: None,
+                cli_agent_type: cli_agent_type.to_string(),
+                model: Some("test-model".to_string()),
+                tier: None,
+                account_id: Some(account_id.to_string()),
+                repo_path: Some(repo_path.to_string_lossy().into_owned()),
+                branch: None,
+                worktree_path: None,
+                worktree_base_ref: None,
+                proxy_token: None,
+                proxy_url: None,
+                hosted_token: None,
+                proxy_session_id: None,
+                isolate: None,
+                background: Some(false),
+                key_source: Some("own_key".to_string()),
+                additional_directories: None,
+                parent_session_id: None,
+                org_member_id: None,
+                agent_definition_id: None,
+                org_id: None,
+                project_id: None,
+                project_name: None,
+                project_slug: None,
+                work_item_id: None,
+                agent_role: None,
+                product_mode: None,
+            },
+        )
+        .expect("create managed native session");
+    }
+
+    fn plan_for(session_id: &str) -> Option<ExternalHistoryAppOpenPlanWire> {
+        let conn = open_cache_conn().expect("open imported-history cache");
+        external_history_app_open_plan_from_conn(&conn, session_id)
+            .expect("resolve native app-open plan")
+    }
+
+    fn claude_transcript_path(cwd: &Path, native_id: &str) -> std::path::PathBuf {
+        let project_slug: String = cwd
+            .to_string_lossy()
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() {
+                    character
+                } else {
+                    '-'
+                }
+            })
+            .collect();
+        app_paths::native_transcript_home_dir()
+            .join(".claude/projects")
+            .join(project_slug)
+            .join(format!("{native_id}.jsonl"))
+    }
+
+    fn claude_runner_transcript_path(
+        account_id: &str,
+        cwd: &Path,
+        native_id: &str,
+    ) -> std::path::PathBuf {
+        let native = claude_transcript_path(cwd, native_id);
+        let relative = native
+            .strip_prefix(app_paths::native_transcript_home_dir().join(".claude"))
+            .expect("Claude native transcript relative path");
+        app_paths::claude_code_cli_profile_dir(account_id).join(relative)
+    }
+
+    fn write_file(path: &Path) {
+        fs::create_dir_all(path.parent().expect("fixture parent"))
+            .expect("create fixture directory");
+        fs::write(path, b"{}\n").expect("write provider transcript fixture");
+    }
+
+    #[test]
+    fn managed_claude_plan_uses_the_current_account_binding() {
+        let sandbox = test_env::sandbox();
+        let session_id = "cliagent-app-open-claude";
+        create_managed_session(session_id, "claude_code", "account-a", sandbox.path());
+        persistence::update_cli_session_id_for_account(
+            session_id,
+            Some("account-a"),
+            CLAUDE_A_UUID,
+        )
+        .expect("bind account A");
+
+        let conn = database::db::get_connection().expect("open sessions database");
+        conn.execute(
+            "UPDATE code_sessions SET account_id = 'account-b' WHERE session_id = ?1",
+            [session_id],
+        )
+        .expect("switch to account B");
+        persistence::update_cli_session_id_for_account(
+            session_id,
+            Some("account-b"),
+            CLAUDE_B_UUID,
+        )
+        .expect("bind account B");
+        conn.execute(
+            "UPDATE code_sessions SET account_id = 'account-a' WHERE session_id = ?1",
+            [session_id],
+        )
+        .expect("switch back to account A");
+        let cwd = fs::canonicalize(sandbox.path()).expect("canonical fixture workspace");
+        write_file(&claude_transcript_path(&cwd, CLAUDE_A_UUID));
+
+        let plan = plan_for(session_id).expect("managed Claude plan");
+        assert_eq!(plan.plan.source, "claude_code");
+        assert_eq!(plan.plan.native_session_id, CLAUDE_A_UUID);
+        assert_eq!(
+            plan.plan.deep_link,
+            format!("claude://resume?session={CLAUDE_A_UUID}")
+        );
+        assert!(plan.source_available);
+    }
+
+    #[test]
+    fn managed_codex_plan_addresses_the_bound_thread_uuid() {
+        let sandbox = test_env::sandbox();
+        let session_id = "cliagent-app-open-codex";
+        create_managed_session(session_id, "codex", "openai-1", sandbox.path());
+        persistence::update_cli_session_id_for_account(session_id, Some("openai-1"), CODEX_UUID)
+            .expect("bind Codex thread");
+        write_file(
+            &app_paths::native_transcript_home_dir()
+                .join(".codex/sessions/2026/09/06")
+                .join(format!("rollout-2026-09-06T00-00-00-{CODEX_UUID}.jsonl")),
+        );
+
+        let plan = plan_for(session_id).expect("managed Codex plan");
+        assert_eq!(plan.plan.source, "codex_app");
+        assert_eq!(plan.plan.native_session_id, CODEX_UUID);
+        assert_eq!(plan.plan.deep_link, format!("codex://threads/{CODEX_UUID}"));
+        assert!(plan.source_available);
+    }
+
+    #[test]
+    fn managed_session_without_a_native_binding_has_no_plan() {
+        let sandbox = test_env::sandbox();
+        let session_id = "cliagent-app-open-unbound";
+        create_managed_session(session_id, "claude_code", "account-a", sandbox.path());
+
+        assert!(plan_for(session_id).is_none());
+    }
+
+    #[test]
+    fn managed_plan_does_not_treat_a_runner_only_alias_as_native_app_available() {
+        let sandbox = test_env::sandbox();
+        let session_id = "cliagent-app-open-runner-only";
+        create_managed_session(session_id, "claude_code", "account-a", sandbox.path());
+        persistence::update_cli_session_id_for_account(
+            session_id,
+            Some("account-a"),
+            CLAUDE_A_UUID,
+        )
+        .expect("bind account A");
+        let cwd = fs::canonicalize(sandbox.path()).expect("canonical fixture workspace");
+        write_file(&claude_runner_transcript_path(
+            "account-a",
+            &cwd,
+            CLAUDE_A_UUID,
+        ));
+
+        let plan = plan_for(session_id).expect("managed Claude plan");
+        assert!(!plan.source_available);
+    }
+
+    #[test]
+    fn managed_session_with_an_unsafe_native_id_has_no_plan() {
+        let sandbox = test_env::sandbox();
+        let session_id = "cliagent-app-open-unsafe";
+        create_managed_session(session_id, "claude_code", "account-a", sandbox.path());
+        persistence::update_cli_session_id_for_account(
+            session_id,
+            Some("account-a"),
+            "not-a-uuid?launch=anything",
+        )
+        .expect("bind malformed provider id fixture");
+
+        assert!(plan_for(session_id).is_none());
+    }
 }

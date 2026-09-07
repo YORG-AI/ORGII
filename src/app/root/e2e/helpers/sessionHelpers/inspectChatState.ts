@@ -35,7 +35,6 @@ import {
   type QueuedMessage,
   messageQueueAtom,
   queueEditingAtom,
-  queueFlushRequestAtom,
 } from "@src/store/ui/messageQueueAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { todosAtom } from "@src/store/ui/todoAtom";
@@ -65,7 +64,6 @@ export function createInspectChatStateHelper(store: E2EStore) {
       userInitiatedCancel: boolean;
       turnPhase: string;
       turnGeneration: number;
-      queueFlushRequest: number;
       queuedMessages: Array<{
         id: string;
         sessionId: string;
@@ -223,7 +221,6 @@ export function createInspectChatStateHelper(store: E2EStore) {
         turnGeneration: activeSessionId
           ? getTurnGeneration(activeSessionId)
           : 0,
-        queueFlushRequest: store.get(queueFlushRequestAtom),
         queuedMessages,
         forceSendPendingMessages,
         fileReviewCount: store.get(fileReviewMapAtom).size,

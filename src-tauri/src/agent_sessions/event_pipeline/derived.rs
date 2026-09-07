@@ -85,11 +85,19 @@ pub fn is_visible_in_chat(event: &SessionEvent) -> bool {
         return false;
     }
 
-    // Hide user messages from failed turns. When an `agent:error` arrives the
-    // frontend marks the preceding user message as `Failed`; the original text
-    // stays in the store for audit / replay but should not appear in chat so
-    // retries don't produce a wall of duplicate inputs.
-    if event.source == EventSource::User && event.display_status == EventDisplayStatus::Failed {
+    // Legacy runtime failures mark the accepted user turn `Failed`; keep those
+    // hidden to avoid duplicating the provider's error card. A frontend
+    // delivery failure is different: the provider never accepted it, and the
+    // failed bubble is the user's only retry/edit surface.
+    let is_delivery_failure = event
+        .result
+        .get("deliveryStatus")
+        .and_then(|value| value.as_str())
+        == Some("failed");
+    if event.source == EventSource::User
+        && event.display_status == EventDisplayStatus::Failed
+        && !is_delivery_failure
+    {
         return false;
     }
 

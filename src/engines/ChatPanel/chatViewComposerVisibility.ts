@@ -15,18 +15,14 @@ export function shouldShowMainChatComposer({
   return showInteractArea && !isReadOnlySurface && !hasBlockingDownloadSurface;
 }
 
-export function shouldShowExternalHistoryForkComposer({
+export function shouldShowExternalHistoryContinuationComposer({
   isImportedHistory,
   readOnly,
-  canResume,
   hasBlockingDownloadSurface,
 }: {
   isImportedHistory: boolean;
   readOnly: boolean;
-  canResume: boolean;
   hasBlockingDownloadSurface: boolean;
 }): boolean {
-  return (
-    !hasBlockingDownloadSurface && isImportedHistory && !readOnly && canResume
-  );
+  return !hasBlockingDownloadSurface && isImportedHistory && !readOnly;
 }

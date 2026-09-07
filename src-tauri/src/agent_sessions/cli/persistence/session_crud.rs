@@ -29,8 +29,11 @@ pub use read::{
     status_snapshots,
 };
 pub use resume_state::{
-    clear_cli_resume_state, get_cli_session_id_for_account, get_history_mutation,
-    update_cli_session_id, update_cli_session_id_for_account,
+    acknowledge_native_catalog_refresh, clear_cli_resume_state,
+    clear_staged_cli_session_id_for_account, get_cli_session_id_for_account, get_history_mutation,
+    pending_native_catalog_refreshes, request_native_catalog_refresh,
+    stage_cli_session_id_for_account, update_cli_session_id, update_cli_session_id_for_account,
+    NativeCatalogRefreshReceipt, PendingNativeCatalogRefresh,
 };
 pub use transcript_source::{
     latest_native_transcript_id, native_transcript_ids_newest_first, session_persists_chunks,

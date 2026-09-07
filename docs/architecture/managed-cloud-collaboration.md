@@ -23,12 +23,13 @@ a link. The recipient sees that session in **Shared directly with me** without
 copying a URL. Link generation remains an explicit action and always exposes a
 Copy control.
 
-An imported shared session or local Codex/Claude/Cursor history is immutable
-at its source. The user may inspect and comment where cloud authorization
-exists. On the first attempt to continue the conversation, ORGII asks for a
-local repository/workspace with the same Git remote plus the local account and
-model, then creates a writable ORGII-owned fork and sends the message there.
-Cancelling the picker preserves the unsent message.
+An imported shared session or local provider history remains immutable at its
+source. Continuing it does not create a product-level fork or flatten history
+into a prompt. ORGII rebuilds the canonical role/tool transcript in the chosen
+Codex, Claude Code, or native Agent runtime, automatically reuses a valid local
+workspace, and sends through the ordinary durable message queue. Compatible
+runtime/account/workspace bindings retain their native UUID, so switching back
+synchronizes the missing suffix instead of starting over.
 
 ## Ownership and authorization
 
@@ -64,27 +65,30 @@ deletion may remain recoverable, so the sync worker uses a distinct purge path.
 Deleting a Project also deletes its child Work Items; children must never be
 silently converted into standalone items by an FK default.
 
-### Comments and owner-local agent follow-up
+### Conversation, comments, and local execution
 
 Session comments are durable cloud rows. Replies retain their thread root,
-edits and deletes converge live, and status is a typed tri-state value. The
-literal `@agent ` prefix is stored verbatim and rendered as a pill. It starts
-work only when submitted on the original cloud session by that session's
-owner; on another member's import, a read-only replay, or a writable fork it
-is ordinary comment text with no suggestion, assignment, toast, or agent side
-effect.
+edits and deletes converge live, and delivery is pending/sent/failed on the
+same visible message. Human Team Chat comments also project into the canonical
+conversation as user-role events with structured sender identity. Mentions
+select a notification audience; they do not create a separate transcript.
 
-There is no cloud task/lease/claim plane. An owner submission enters the same
-local queue/send path as an ordinary message and therefore uses the owner's
-locally authenticated account and selected model. The backend returns a
-viewer-derived ownership capability, the UI and runner both fail closed on
-it, and only the owner may stamp the resulting `agent_report`. The Address
-Comments action operates on an explicit selection and links agent output back
-to the originating comment using the exact dispatched turn generation.
-Top-level comments have exactly one scope: no event anchor means a session
-note applying to the session as a whole; an event anchor means a round comment.
-Address Comments groups both scopes, selects both by default, permits
-scope-level selection, and carries the scope into the agent briefing.
+Provider execution remains local and uses the sender's explicitly selected
+local account/model. Cloud never receives a provider key and does not host the
+runtime. When the backend advertises `conversationTurnCoordination`, admitting
+an Agent-directed user event also creates one per-canonical-root FIFO turn.
+The author's device claims the FIFO head with a renewable lease before local
+provider dispatch, marks it `accepted` immediately before that dispatch, and
+finishes it only after the provider tail is durably published. An expired
+`claimed` turn may be reclaimed, but an `accepted` turn cannot be stolen by a
+different device; renewal failure after acceptance therefore cannot start a
+second provider run. The same device must recover and finish that accepted
+turn. Backends without the capability retain the existing idempotent
+conversation-event push/list path and do not use coordination RPCs. The
+ordinary durable queue remains the only client dispatcher and owns local
+ordering and restart recovery. Agent reports remain system cards. Top-level
+comments have exactly one scope: no event anchor means a session note applying
+to the session as a whole; an event anchor means a round comment.
 
 ### Background upload policy
 

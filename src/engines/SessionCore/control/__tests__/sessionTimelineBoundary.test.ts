@@ -73,6 +73,28 @@ describe("sessionTimelineBoundary", () => {
     expect(interruptSpy).not.toHaveBeenCalled();
   });
 
+  it("parks the canonical queue while interrupting a hidden runner", () => {
+    beginStopBoundary("cliagent-runner", {
+      queueSessionId: "codexapp-source",
+    });
+
+    expect(
+      storeSetSpy.mock.calls.some(
+        ([target, value]) =>
+          target.debugLabel === "openPostStopDispatchEpisode" &&
+          value === "codexapp-source"
+      )
+    ).toBe(true);
+    expect(
+      storeSetSpy.mock.calls.some(
+        ([target, value]) =>
+          target.debugLabel === "parkSessionQueuedMessagesAfterStopAtom" &&
+          value === "codexapp-source"
+      )
+    ).toBe(true);
+    expect(markStoppedSpy).toHaveBeenCalledWith("cliagent-runner");
+  });
+
   it("deduplicates concurrent Stop interrupts for the same session", async () => {
     let resolveInterrupt!: () => void;
     interruptSpy.mockImplementationOnce(

@@ -6,7 +6,11 @@
  */
 import { atom } from "jotai";
 
-import { isSyntheticUserInputEvent } from "@src/engines/SessionCore/sync/utils/activityIds";
+import { createSyntheticUserEvent } from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
+import {
+  isSyntheticUserInputEvent,
+  turnIntentIdOf,
+} from "@src/engines/SessionCore/sync/utils/activityIds";
 import {
   type QueuedMessage,
   messageQueueAtom,
@@ -82,18 +86,6 @@ function normalizeEventText(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
 }
 
-function getSyntheticUserText(event: SessionEvent): string {
-  const resultMessage = event.result?.message;
-  if (
-    typeof resultMessage === "object" &&
-    resultMessage !== null &&
-    "content" in resultMessage
-  ) {
-    return normalizeEventText(String(resultMessage.content ?? ""));
-  }
-  return normalizeEventText(event.displayText);
-}
-
 export function filterQueuedSyntheticUserEvents(
   events: SessionEvent[],
   queuedMessages: QueuedMessage[]
@@ -101,20 +93,33 @@ export function filterQueuedSyntheticUserEvents(
   if (queuedMessages.length === 0) return events;
   const queuedBySession = new Map<string, Set<string>>();
   for (const message of queuedMessages) {
-    let texts = queuedBySession.get(message.sessionId);
-    if (!texts) {
-      texts = new Set<string>();
-      queuedBySession.set(message.sessionId, texts);
+    let turnIntentIds = queuedBySession.get(message.sessionId);
+    if (!turnIntentIds) {
+      turnIntentIds = new Set<string>();
+      queuedBySession.set(message.sessionId, turnIntentIds);
     }
-    texts.add(normalizeEventText(message.content));
-    texts.add(normalizeEventText(message.displayContent));
+    turnIntentIds.add(message.turnIntentId);
   }
 
   return events.filter((event) => {
     if (!isSyntheticUserInputEvent(event) || !event.sessionId) return true;
-    const queuedTexts = queuedBySession.get(event.sessionId);
-    if (!queuedTexts) return true;
-    return !queuedTexts.has(getSyntheticUserText(event));
+    // New queue entries are canonical transcript rows with an explicit
+    // delivery lifecycle. Keep them visible beside the queue footer; only
+    // hide legacy queue placeholders that had no delivery contract.
+    if (
+      event.result?.deliveryStatus === "pending" ||
+      event.result?.deliveryStatus === "sent" ||
+      event.result?.deliveryStatus === "failed"
+    ) {
+      return true;
+    }
+    const queuedTurnIntentIds = queuedBySession.get(event.sessionId);
+    if (!queuedTurnIntentIds) return true;
+    const turnIntentId = turnIntentIdOf(event);
+    // Legacy placeholders without a canonical identity are not safe to hide:
+    // matching by text made a later repeated prompt disappear. Only the exact
+    // queue-owned placeholder may be suppressed.
+    return !turnIntentId || !queuedTurnIntentIds.has(turnIntentId);
   });
 }
 
@@ -193,6 +198,79 @@ export function appendLiveAssistantEvent(
   return [...withoutLive, liveEvent];
 }
 
+/**
+ * Project durable queue rows as ordinary pending user turns immediately.
+ *
+ * The queue remains the sole dispatch authority; this is only its transcript
+ * projection. Once dispatch appends the real optimistic row, the shared
+ * turnIntentId suppresses this projection without text matching or a second
+ * queue. That gives queued/runtime-switch sends the same pending-message UX
+ * as direct sends while preserving crash recovery.
+ */
+export function appendQueuedUserEvents(
+  events: SessionEvent[],
+  sessionId: string | null,
+  queuedMessages: readonly QueuedMessage[]
+): SessionEvent[] {
+  if (!sessionId || queuedMessages.length === 0) return events;
+  const representedTurnIntents = new Map<string, number>();
+  events.forEach((event, index) => {
+    const turnIntentId = turnIntentIdOf(event);
+    if (turnIntentId && !representedTurnIntents.has(turnIntentId)) {
+      representedTurnIntents.set(turnIntentId, index);
+    }
+  });
+  let next = events;
+  for (const message of queuedMessages) {
+    if (message.sessionId !== sessionId) continue;
+    const representedIndex = representedTurnIntents.get(message.turnIntentId);
+    if (representedIndex !== undefined) {
+      // The durable queue row is the failure owner. When its optimistic
+      // transcript row could not be patched (the session was not loaded
+      // while the dispatcher classified the failure), the persisted row still
+      // reads "pending"; overlay the queue verdict so the bubble shows the
+      // error and its retry instead of sending forever.
+      const existing = next[representedIndex];
+      if (
+        !message.deliveryError ||
+        !existing ||
+        existing.result?.["queueMessageId"] !== message.id ||
+        existing.result?.["deliveryStatus"] !== "pending"
+      ) {
+        continue;
+      }
+      if (next === events) next = [...events];
+      next[representedIndex] = {
+        ...existing,
+        displayStatus: "failed",
+        result: {
+          ...existing.result,
+          deliveryStatus: "failed",
+          deliveryError: message.deliveryError,
+        },
+      };
+      continue;
+    }
+    const pending = createSyntheticUserEvent(
+      sessionId,
+      message.displayContent,
+      {
+        id: `queued-user-${message.turnIntentId}`,
+        createdAt: message.createdAt,
+        imageDataUrls: message.imageDataUrls,
+        turnIntentId: message.turnIntentId,
+        deliveryStatus: message.deliveryError ? "failed" : "pending",
+        deliveryError: message.deliveryError,
+        queueMessageId: message.id,
+      }
+    );
+    if (next === events) next = [...events];
+    next.push(pending);
+    representedTurnIntents.set(message.turnIntentId, next.length - 1);
+  }
+  return next;
+}
+
 export const chatEventsAtom = atom((get) => {
   const snap = get(derivedSnapshotAtom);
   const sessionId = get(sessionIdAtom);
@@ -216,7 +294,11 @@ export const chatEventsAtom = atom((get) => {
   const queuedMessages = get(messageQueueAtom);
 
   if (snap && "chatEvents" in snap) {
-    const rawChatEvents = snap.chatEvents;
+    const rawChatEvents = appendQueuedUserEvents(
+      snap.chatEvents,
+      sessionId,
+      queuedMessages
+    );
 
     // Fast path — skip the expensive derivation on unchanged frames.
     //
@@ -279,7 +361,11 @@ export const chatEventsAtom = atom((get) => {
   // Fallback: no DerivedSnapshot yet (session switch, initial load, or only a
   // raw StreamingSnapshot without chatEvents). Filter JS-side, same as
   // messagesEventsAtom / simulatorEventsAtom do in their own fallback paths.
-  const events = get(eventsAtom);
+  const events = appendQueuedUserEvents(
+    get(eventsAtom),
+    sessionId,
+    queuedMessages
+  );
   return appendLiveAssistantEvent(
     derivePlanDisplayEvents(
       filterQueuedSyntheticUserEvents(

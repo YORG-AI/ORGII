@@ -152,7 +152,12 @@ function buildUserDedupSet(events: SessionEvent[]): Set<string> {
     if (!text) continue;
 
     if (isOptimisticUserEvent(event)) {
-      pendingOptimisticByText.set(text, event);
+      // A failed optimistic row is the visible retry owner. The provider's
+      // copy of that prompt (recorded before it rejected the turn) must not
+      // collapse the failure and its Retry into a plain duplicate bubble.
+      if (event.result?.["deliveryStatus"] !== "failed") {
+        pendingOptimisticByText.set(text, event);
+      }
       continue;
     }
 

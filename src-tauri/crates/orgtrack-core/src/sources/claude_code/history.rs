@@ -28,7 +28,9 @@ const CLAUDE_CODE_PROVIDER_SLUG: &str = "claudecode";
 // survive Claude Code rewriting the first user message during compaction.
 // v12: name subagent rows from their small `.meta.json` sidecar instead of
 // the shared beginning of each child prompt.
-const CLAUDE_CODE_METADATA_PARSER_VERSION: i64 = 14;
+// v15: compact summaries are provider context metadata, not human turns or
+// first-prompt title candidates.
+const CLAUDE_CODE_METADATA_PARSER_VERSION: i64 = 15;
 const MAX_COMPACT_BOUNDARY_MARKERS: usize =
     crate::sources::imported_history::cache::MAX_CONTINUATION_MARKERS - 1;
 
@@ -38,7 +40,7 @@ pub type ClaudeCodeHistorySessionPage =
 pub type ClaudeCodeRecentPath = crate::sources::imported_history::ImportedHistoryRecentPath;
 
 pub use cache_sync::{list_claude_code_history_sessions_paginated, list_claude_code_recent_paths};
-pub use replay::load_claude_code_history_for_session;
+pub use replay::{load_claude_code_history_for_session, load_claude_code_history_from_path};
 pub use windows::{
     load_claude_code_cloud_turn_windows_for_session, load_claude_code_initial_window_for_session,
     load_claude_code_turn_ids_for_session, load_claude_code_turn_index_for_session,
@@ -73,8 +75,6 @@ use metadata::{
     parse_claude_session_meta, parse_claude_session_meta_incremental,
     parse_claude_session_meta_with_title, session_meta_to_cache_input,
 };
-#[cfg(test)]
-use replay::load_claude_code_history_from_path;
 #[cfg(test)]
 use windows::{
     claude_window_turn_id, index_claude_user_turns, load_claude_code_cloud_turn_windows_from_path,

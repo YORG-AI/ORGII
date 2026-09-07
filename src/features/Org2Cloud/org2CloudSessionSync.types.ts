@@ -46,6 +46,8 @@ export interface PreparedPushEvents {
   baseEventCount: number;
   /** Durable native-cache revision covered by this materialization. */
   localContentRevision?: number;
+  /** Stable local continuation-child catalog covered by this materialization. */
+  localExecutionRevision?: string | null;
   events: SessionEvent[];
   plan(): Promise<PreparedPushPlan>;
 }
@@ -54,6 +56,8 @@ export interface CleanEventPlaneStamp {
   verifiedAt: number;
   /** Imported transcript version used for this proof. */
   sourceUpdatedAt?: string;
+  /** Local continuation-child catalog covered by this proof. */
+  localExecutionRevision?: string;
 }
 
 export interface ExternalHistoryVersionObservation {

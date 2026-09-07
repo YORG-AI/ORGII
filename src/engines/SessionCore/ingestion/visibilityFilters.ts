@@ -13,6 +13,24 @@
  */
 import type { SessionEvent } from "../core/types";
 
+const INTERNAL_LIFECYCLE_ACTION_TYPES = new Set([
+  "task_start",
+  "task_completed",
+  "task_failed",
+  "stage_error",
+]);
+
+/**
+ * Internal execution bookkeeping is presentation metadata, not conversation
+ * history. Keep this predicate shared by chat visibility and native transcript
+ * projection so a renderer hint can never promote lifecycle rows to tools.
+ */
+export function isInternalLifecycleEvent(
+  event: Pick<SessionEvent, "actionType">
+): boolean {
+  return INTERNAL_LIFECYCLE_ACTION_TYPES.has(event.actionType);
+}
+
 // ============================================
 // Visibility Filters
 // ============================================
@@ -34,12 +52,7 @@ export function isVisibleInChat(event: SessionEvent): boolean {
 
   // Hide task lifecycle and stage errors from chat (no UI components).
   // Mirrors Rust is_visible_in_chat() in derived.rs.
-  if (
-    event.actionType === "task_start" ||
-    event.actionType === "task_completed" ||
-    event.actionType === "task_failed" ||
-    event.actionType === "stage_error"
-  ) {
+  if (isInternalLifecycleEvent(event)) {
     return false;
   }
 
