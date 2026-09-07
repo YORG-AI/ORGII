@@ -40,6 +40,7 @@ import { SubagentChatPane } from "./SubagentChatPane";
 import { SubagentPinnedPreviewPopover } from "./SubagentPinnedPreviewPopover";
 
 const IndependentGridCellComponent: React.FC<GridCellProps> = ({
+  historyLoad,
   index,
   color: _color,
   title,
@@ -255,6 +256,7 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
             {threadId ? (
               <SubagentChatPane
                 sessionId={threadId}
+                historyLoad={historyLoad}
                 cursorMs={cursorMsForPane}
                 isSessionLive={isSessionLive}
               />

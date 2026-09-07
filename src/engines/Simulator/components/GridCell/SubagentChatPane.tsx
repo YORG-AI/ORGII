@@ -81,6 +81,7 @@ import { HugeiconsIcon, ListChevronsDownUpIcon } from "@src/icons";
 import { SubagentPromptToggle } from "./SubagentPromptToggle";
 
 interface SubagentChatPaneProps {
+  historyLoad?: import("../../hooks/useMultiSessionSimulatorEvents").SubagentHistoryLoad;
   /** Subagent session id — passed to ChatSessionContext so the chat events
    *  atom routes to `chatEventsForSessionAtomFamily(sessionId)`. */
   sessionId: string;
@@ -96,6 +97,7 @@ interface SubagentChatPaneProps {
 
 const SubagentChatPaneComponent: React.FC<SubagentChatPaneProps> = ({
   sessionId,
+  historyLoad,
   cursorMs = null,
   isSessionLive = false,
 }) => {
@@ -149,11 +151,23 @@ const SubagentChatPaneComponent: React.FC<SubagentChatPaneProps> = ({
   if (isEmpty) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-chat-pane px-4 text-center">
-        <span className="text-[12px] text-text-3">
-          {t("simulator.subagentPane.waitingForActivity", {
-            defaultValue: "Waiting for activity…",
-          })}
-        </span>
+        {historyLoad?.status === "error" ? (
+          <Button variant="tertiary" size="small" onClick={historyLoad.retry}>
+            {t("simulator.subagentPane.retryHistory", {
+              defaultValue: "Couldn’t load history — Retry",
+            })}
+          </Button>
+        ) : (
+          <span role="status" className="text-[12px] text-text-3">
+            {historyLoad?.status === "loading"
+              ? t("simulator.subagentPane.loadingHistory", {
+                  defaultValue: "Loading history…",
+                })
+              : t("simulator.subagentPane.waitingForActivity", {
+                  defaultValue: "Waiting for activity…",
+                })}
+          </span>
+        )}
       </div>
     );
   }
@@ -173,6 +187,13 @@ const SubagentChatPaneComponent: React.FC<SubagentChatPaneProps> = ({
   // owns its own popover state — see `SubagentPromptToggle`.
   const paginationTrailingSlot = (
     <>
+      {historyLoad?.status === "error" && (
+        <Button variant="tertiary" size="small" onClick={historyLoad.retry}>
+          {t("simulator.subagentPane.retryHistory", {
+            defaultValue: "Couldn’t load history — Retry",
+          })}
+        </Button>
+      )}
       <SubagentPromptToggle sessionId={sessionId} />
       <Button
         htmlType="button"
