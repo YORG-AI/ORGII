@@ -155,6 +155,8 @@ pub(crate) struct EnqueueUserDirectedWorkParams {
     pub dispatch_content: String,
     pub source_display_content: String,
     pub source_images: Option<Vec<String>>,
+    pub runtime_reservation_id: String,
+    pub runtime_lease_id: String,
     pub queue_cap: i64,
 }
 
@@ -165,6 +167,7 @@ pub(crate) struct EnqueueUserDirectedWorkResult {
     /// Durable state of this exact chain Turn. Exact retries read this state
     /// back instead of asking the in-memory scheduler to enqueue it again.
     pub turn_status: String,
+    pub runtime_admission_status: String,
     pub should_request_yield: bool,
     pub duplicate: bool,
 }
@@ -203,7 +206,7 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
     create_schema(conn)
 }
 
-pub(crate) use persistence::create_schema;
+pub(crate) use persistence::{create_runtime_admission_schema, create_schema};
 use persistence::{get_by_receipt_with_connection, row_to_intervention, INTERVENTION_SELECT};
 
 pub struct AgentMemberInterventionStore;
@@ -225,6 +228,14 @@ impl AgentMemberInterventionStore {
         }
         if params.dispatch_content.trim().is_empty() {
             return Err("user_directed_source_invalid: dispatch content is empty".to_string());
+        }
+        if params.runtime_reservation_id.trim().is_empty()
+            || params.runtime_lease_id.trim().is_empty()
+        {
+            return Err(
+                "agent_org_runtime_admission_invalid: reservation and runtime lease are required"
+                    .to_string(),
+            );
         }
         let queue_cap = if params.queue_cap > 0 {
             params.queue_cap
@@ -292,6 +303,7 @@ impl AgentMemberInterventionStore {
                 &params.source_event_id,
             );
             let context = agent_org_turn_contexts::accept_with_connection(&tx, &admission)?;
+            let runtime_admission_status = prepare_runtime_admission_with_connection(&tx, &params)?;
             let sequence = context.member_dispatch_sequence.ok_or_else(|| {
                 "agent_org_turn_context_invalid: UserDirectedWork has no Member FIFO sequence"
                     .to_string()
@@ -348,6 +360,7 @@ impl AgentMemberInterventionStore {
                     should_request_yield: false,
                     intervention,
                     turn_status: existing_status,
+                    runtime_admission_status,
                     duplicate: true,
                 });
             }
@@ -462,6 +475,7 @@ impl AgentMemberInterventionStore {
                 context,
                 intervention,
                 turn_status: "queued".to_string(),
+                runtime_admission_status,
                 should_request_yield,
                 duplicate: false,
             })
@@ -636,8 +650,13 @@ impl AgentMemberInterventionStore {
 
     pub fn mark_turn_running(session_id: &str, turn_intent_id: &str) -> Result<bool, String> {
         let changed = with_sessions_writer(|| {
-            let conn = get_connection().map_err(|error| error.to_string())?;
-            Self::mark_turn_running_with_connection(&conn, session_id, turn_intent_id)
+            let mut conn = get_connection().map_err(|error| error.to_string())?;
+            let tx = conn
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                .map_err(|error| error.to_string())?;
+            let changed = Self::mark_turn_running_with_connection(&tx, session_id, turn_intent_id)?;
+            tx.commit().map_err(|error| error.to_string())?;
+            Ok::<bool, String>(changed)
         })?;
         if changed {
             notify_run_for_turn(session_id, turn_intent_id);
@@ -678,8 +697,23 @@ impl AgentMemberInterventionStore {
                 params![session_id, turn_intent_id, chrono::Utc::now().to_rfc3339()],
             )
             .map_err(|error| error.to_string())?;
+            return Ok(false);
         }
-        Ok(changed == 1)
+        let admission_changed = conn
+            .execute(
+                "UPDATE agent_org_member_turn_admissions
+                 SET status='committed',committed_at=?3,updated_at=?3
+                 WHERE session_id=?1 AND turn_intent_id=?2 AND status='prepared'",
+                params![session_id, turn_intent_id, &now],
+            )
+            .map_err(|error| error.to_string())?;
+        if admission_changed != 1 {
+            return Err(
+                "agent_org_runtime_admission_stale: prepared admission is missing at commit"
+                    .to_string(),
+            );
+        }
+        Ok(true)
     }
 
     pub fn mark_turn_terminal(
@@ -696,6 +730,28 @@ impl AgentMemberInterventionStore {
             notify_run_for_turn(session_id, turn_intent_id);
         }
         Ok(changed)
+    }
+
+    /// Provider execution did not begin after the runtime boundary had been
+    /// committed. This is narrower than normal turn finalization: completed
+    /// provider work deliberately keeps its committed admission evidence.
+    pub(crate) fn reject_committed_runtime_admission(
+        session_id: &str,
+        turn_intent_id: &str,
+        reason_code: &str,
+    ) -> Result<bool, String> {
+        with_sessions_writer(|| {
+            let conn = get_connection().map_err(|error| error.to_string())?;
+            let now = chrono::Utc::now().to_rfc3339();
+            conn.execute(
+                "UPDATE agent_org_member_turn_admissions
+                 SET status='rejected',reason_code=?3,terminal_at=?4,updated_at=?4
+                 WHERE session_id=?1 AND turn_intent_id=?2 AND status='committed'",
+                params![session_id, turn_intent_id, reason_code, now],
+            )
+            .map(|changed| changed == 1)
+            .map_err(|error| error.to_string())
+        })
     }
 
     /// Read pending direct Turns that never began Provider execution. Startup
@@ -726,11 +782,15 @@ impl AgentMemberInterventionStore {
                  JOIN session_turn_intents intent
                    ON intent.session_id=chain.session_id
                   AND intent.turn_intent_id=chain.turn_intent_id
+                 JOIN agent_org_member_turn_admissions admission
+                   ON admission.session_id=chain.session_id
+                  AND admission.turn_intent_id=chain.turn_intent_id
                  JOIN events event
                    ON event.id=chain.source_event_id
                   AND event.session_id=chain.session_id
                  JOIN agent_org_runtime_runs run ON run.id=context.org_run_id
                  WHERE chain.status='queued' AND intent.status='queued'
+                   AND admission.status='prepared'
                    AND chain.rowid>COALESCE(?1,0)
                    AND context.turn_kind='user_directed_work'
                    AND context.source_kind='direct_member'
@@ -1554,6 +1614,18 @@ pub(crate) fn update_chain_status_with_connection(
             params![session_id, turn_intent_id, intent_status, &now],
         )
         .map_err(|error| error.to_string())?;
+        conn.execute(
+            "UPDATE agent_org_member_turn_admissions
+             SET status='rejected',reason_code=?3,terminal_at=?4,updated_at=?4
+             WHERE session_id=?1 AND turn_intent_id=?2 AND status='prepared'",
+            params![
+                session_id,
+                turn_intent_id,
+                failure_reason.unwrap_or("turn_ended_before_runtime_commit"),
+                &now,
+            ],
+        )
+        .map_err(|error| error.to_string())?;
     }
     if changed == 1 && matches!(status, "failed" | "abandoned") {
         let failure_code = if status == "abandoned" {
@@ -1574,6 +1646,65 @@ pub(crate) fn update_chain_status_with_connection(
         .map_err(|error| error.to_string())?;
     }
     Ok(changed == 1)
+}
+
+fn prepare_runtime_admission_with_connection(
+    conn: &Connection,
+    params: &EnqueueUserDirectedWorkParams,
+) -> Result<String, String> {
+    let existing: Option<(String, String, String)> = conn
+        .query_row(
+            "SELECT status,reservation_id,runtime_lease_id
+             FROM agent_org_member_turn_admissions
+             WHERE session_id=?1 AND turn_intent_id=?2",
+            params![&params.session_id, &params.turn_intent_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let now = chrono::Utc::now().to_rfc3339();
+    match existing {
+        None => {
+            conn.execute(
+                "INSERT INTO agent_org_member_turn_admissions (
+                    session_id,turn_intent_id,org_run_id,member_id,
+                    reservation_id,runtime_lease_id,status,prepared_at,updated_at
+                 ) VALUES (?1,?2,?3,?4,?5,?6,'prepared',?7,?7)",
+                params![
+                    &params.session_id,
+                    &params.turn_intent_id,
+                    &params.org_run_id,
+                    &params.member_id,
+                    &params.runtime_reservation_id,
+                    &params.runtime_lease_id,
+                    &now,
+                ],
+            )
+            .map_err(|error| error.to_string())?;
+            Ok("prepared".to_string())
+        }
+        Some((status, reservation_id, runtime_lease_id)) if status == "prepared" => {
+            if reservation_id != params.runtime_reservation_id
+                || runtime_lease_id != params.runtime_lease_id
+            {
+                conn.execute(
+                    "UPDATE agent_org_member_turn_admissions
+                     SET reservation_id=?3,runtime_lease_id=?4,updated_at=?5
+                     WHERE session_id=?1 AND turn_intent_id=?2 AND status='prepared'",
+                    params![
+                        &params.session_id,
+                        &params.turn_intent_id,
+                        &params.runtime_reservation_id,
+                        &params.runtime_lease_id,
+                        &now,
+                    ],
+                )
+                .map_err(|error| error.to_string())?;
+            }
+            Ok(status)
+        }
+        Some((status, _, _)) => Ok(status),
+    }
 }
 
 fn notify_run_for_receipt(receipt_id: &str) {

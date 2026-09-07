@@ -55,6 +55,7 @@ pub(crate) enum AgentOrgTurnToolProfile {
     CoordinatorOrchestration,
     SummaryOnly,
     TaskExecution,
+    TaskExecutionWriter,
     UserDirectedWorker,
     UserDirectedWriter,
 }
@@ -301,7 +302,20 @@ impl CallContext {
                     }
                 }
                 crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution => {
-                    Some(AgentOrgTurnToolProfile::TaskExecution)
+                    let is_writer = crate::coordination::agent_org_runs::AgentOrgRunStore::context_for_run(
+                        &context.org_run_id,
+                    )
+                    .ok()
+                    .flatten()
+                    .is_some_and(|run| {
+                        run.capability_index
+                            .is_additional_writer(&context.participant_id)
+                    });
+                    Some(if is_writer {
+                        AgentOrgTurnToolProfile::TaskExecutionWriter
+                    } else {
+                        AgentOrgTurnToolProfile::TaskExecution
+                    })
                 }
                 crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::UserDirectedWork => {
                     None

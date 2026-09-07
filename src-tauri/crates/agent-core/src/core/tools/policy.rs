@@ -270,7 +270,21 @@ pub(crate) fn resolve_persisted_agent_org_tool_authority(
             }
         }
         crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution => {
-            Some(AgentOrgTurnToolProfile::TaskExecution)
+            let run_context =
+                crate::coordination::agent_org_runs::AgentOrgRunStore::context_for_run(
+                    &context.org_run_id,
+                )?
+                .ok_or_else(|| format!("agent_org_run_not_found: {}", context.org_run_id))?;
+            Some(
+                if run_context
+                    .capability_index
+                    .is_additional_writer(&context.participant_id)
+                {
+                    AgentOrgTurnToolProfile::TaskExecutionWriter
+                } else {
+                    AgentOrgTurnToolProfile::TaskExecution
+                },
+            )
         }
         crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::UserDirectedWork => None,
     };
@@ -297,7 +311,11 @@ pub(crate) fn resolve_persisted_agent_org_tool_authority(
             }
         }
     };
-    let task_execution = (profile == AgentOrgTurnToolProfile::TaskExecution).then(|| {
+    let task_execution = matches!(
+        profile,
+        AgentOrgTurnToolProfile::TaskExecution | AgentOrgTurnToolProfile::TaskExecutionWriter
+    )
+    .then(|| {
         crate::coordination::agent_org_task_execution_fence::TaskExecutionEffectIdentity {
             org_run_id: context.org_run_id,
             task_id: context.task_id.expect("validated TaskExecution task"),
@@ -536,6 +554,20 @@ impl ResolvedToolPolicy {
                             Some(GRAPH_OPERATIONS)
                         }
                         Some(AgentOrgTurnToolProfile::TaskExecution) => Some(OWNER_OPERATIONS),
+                        Some(AgentOrgTurnToolProfile::TaskExecutionWriter) => {
+                            const WRITER_OWNER_OPERATIONS: &[&str] = &[
+                                "patch_pending",
+                                "cancel",
+                                "cancel_and_replace",
+                                "append_audit_note",
+                                "start",
+                                "complete",
+                                "fail",
+                                "append_progress",
+                                "append_evidence",
+                            ];
+                            Some(WRITER_OWNER_OPERATIONS)
+                        }
                         None
                         | Some(AgentOrgTurnToolProfile::SummaryOnly)
                         | Some(AgentOrgTurnToolProfile::UserDirectedWorker) => None,
@@ -589,6 +621,10 @@ pub(crate) fn agent_org_profile_allows_tool(
                 | tool_names::TASK_GRAPH_CREATE
                 | tool_names::ORG_RUN_COMPLETE
                 | tool_names::ORG_INBOX_REPAIR
+        ),
+        AgentOrgTurnToolProfile::TaskExecutionWriter => !matches!(
+            tool_name,
+            tool_names::ORG_RUN_COMPLETE | tool_names::ORG_INBOX_REPAIR
         ),
         AgentOrgTurnToolProfile::UserDirectedWorker => !matches!(
             tool_name,

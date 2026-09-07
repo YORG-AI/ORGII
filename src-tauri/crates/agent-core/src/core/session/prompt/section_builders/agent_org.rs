@@ -158,6 +158,12 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
         Some(COORDINATOR_MEMBER_ID) => {
             "- **Your task authority:** coordinator — you may create tasks, edit or assign pending tasks, cancel pending/in-progress tasks, atomically cancel-and-replace changed in-progress work, append terminal audit notes, and approve cross-workflow parallel overrides. You may NOT reassign or rewrite the core goal of an in-progress task in place, or impersonate its Owner: only the bound Owner may start, complete with output, fail, or append progress/evidence. Assignment and dependency unblocking already wake the Owner; do not perform its lifecycle operation on that member's behalf.".to_string()
         }
+        Some(member_id)
+            if context.participant_by_member_id(member_id).is_some()
+                && context.capability_index.is_additional_writer(member_id) =>
+        {
+            "- **Your task authority:** writer — the immutable Team launch snapshot grants Task graph tools in Direct Member, Group Mention, Member Inbox, and TaskExecution turns. During TaskExecution you may also start, annotate, complete, or fail only the exact Task bound to this persisted turn; Writer authority never permits impersonating another Task owner.".to_string()
+        }
         Some(member_id) if context.participant_by_member_id(member_id).is_some() => {
             "- **Your task authority:** worker — configured Writer grants are not active in this phase, so you cannot create, assign, or rewrite the Task graph. For the exact Task bound to your persisted TaskExecution turn, only you may start it, append progress/evidence, complete it with output, or fail it with a reason.".to_string()
         }

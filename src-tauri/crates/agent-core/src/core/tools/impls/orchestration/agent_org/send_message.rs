@@ -44,7 +44,8 @@ pub use params::{MemberCoordinationPurpose, OrgSendMessageParams};
 use persistence::{
     ensure_recipients_deliverable_in_tx, persist_ordinary_message_in_tx,
     persist_user_directed_coordinator_message_in_tx, persist_user_directed_member_message_in_tx,
-    user_directed_link_allowed_in_tx, OrdinaryMessagePersistOutcome, OrgRecipientTarget,
+    user_directed_link_allowed_in_tx, OrdinaryMessagePersistError, OrdinaryMessagePersistOutcome,
+    OrgRecipientTarget,
 };
 
 fn parse_agent_org_remote_mode(
@@ -812,7 +813,14 @@ impl Tool for OrgSendMessageTool {
                             &recipients,
                         ) {
                             Ok(outcome) => outcome,
-                            Err(error) => return classify_message_tool_error(error),
+                            Err(OrdinaryMessagePersistError::Tool(error)) => {
+                                return classify_message_tool_error(error);
+                            }
+                            Err(OrdinaryMessagePersistError::AtomicWrite(error)) => {
+                                return Err(AgentOrgToolReceiptAbort::storage(format!(
+                                    "atomic Agent Org message write failed and was rolled back: {error}"
+                                )));
+                            }
                         };
                         let delivered_rows = match persist_outcome {
                             OrdinaryMessagePersistOutcome::Guidance(guidance) => {

@@ -71,11 +71,18 @@ const logger = createLogger("AgentOrgOverviewPanel");
 // double-click can otherwise land on the newly rendered inverse action.
 const PAUSE_TOGGLE_GESTURE_COOLDOWN_MS = 500;
 
-const AGENT_SESSION_STATUS = {
-  RUNNING: "running",
-  WAITING_FOR_USER: "waiting_for_user",
-  WAITING_FOR_FUNDS: "waiting_for_funds",
-} as const;
+const BLOCKER_RECOVERY_COPY: Record<string, string> = {
+  waiting_for_runtime: "Waiting for the running Team to continue",
+  system_repairing: "System recovery is in progress",
+  coordinator_repair_available:
+    "The Coordinator can inspect and safely repair this Inbox item",
+  system_attention_required: "System attention is required",
+  user_action_required: "Your decision is required",
+};
+
+const blockerRecoveryCopy = (recoveryState: string): string =>
+  BLOCKER_RECOVERY_COPY[recoveryState] ??
+  BLOCKER_RECOVERY_COPY.system_attention_required;
 
 interface TaskActionDialogState {
   task: AgentOrgTask;
@@ -648,19 +655,10 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
 
     const completedTasks = view?.taskOverview.completed ?? 0;
     const totalTasks = view?.taskOverview.total ?? 0;
-    const activeMembers =
-      view?.members.filter(
-        (member) =>
-          member.sessionRuntime?.status === AGENT_SESSION_STATUS.RUNNING ||
-          member.sessionRuntime?.status ===
-            AGENT_SESSION_STATUS.WAITING_FOR_USER ||
-          member.sessionRuntime?.status ===
-            AGENT_SESSION_STATUS.WAITING_FOR_FUNDS ||
-          member.activity != null
-      ).length ?? 0;
+    const activeMembers = view?.workState.activeMembers ?? 0;
     const membersWithDirectActivity =
       view?.members.filter((member) => member.activity != null) ?? [];
-    const pendingMessages = view?.blockingUnreadInboxCount ?? 0;
+    const pendingMessages = view?.workState.blockingInbox ?? 0;
     const planRevisions = view?.planRevisions ?? [];
     const blockedCurrentTaskCount =
       view?.tasks.filter(
@@ -932,6 +930,119 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                 </div>
               </div>
             </div>
+
+            <div
+              className="grid grid-cols-4 gap-1 text-[10px] text-text-3"
+              data-testid="agent-org-work-state"
+            >
+              {(
+                [
+                  [
+                    "activeMembers",
+                    t("planner.agentOrgOverview.activeMembers", {
+                      defaultValue: "Active members",
+                    }),
+                    view.workState.activeMembers,
+                  ],
+                  [
+                    "inFlightTurns",
+                    t("planner.agentOrgOverview.inFlightTurns", {
+                      defaultValue: "In-flight turns",
+                    }),
+                    view.workState.inFlightTurns,
+                  ],
+                  [
+                    "openTasks",
+                    t("planner.agentOrgOverview.openTasks", {
+                      defaultValue: "Open tasks",
+                    }),
+                    view.workState.openTasks,
+                  ],
+                  [
+                    "blockingInbox",
+                    t("planner.agentOrgOverview.blockingInbox", {
+                      defaultValue: "Blocking inbox",
+                    }),
+                    view.workState.blockingInbox,
+                  ],
+                ] as const
+              ).map(([kind, label, count]) => (
+                <div
+                  key={kind}
+                  className="min-w-0 rounded-md bg-bg-1 px-1.5 py-1"
+                  data-work-state-kind={kind}
+                  data-work-state-count={count}
+                >
+                  <div className="truncate" title={label}>
+                    {label}
+                  </div>
+                  <div className="font-medium text-text-1 tabular-nums">
+                    {count}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {view.blockers.length > 0 && (
+              <div
+                className="space-y-1 rounded-md border border-warning-6/25 bg-warning-6/5 px-2 py-1.5"
+                data-testid="agent-org-run-blockers"
+              >
+                <div className="flex items-center gap-1 text-[11px] font-medium text-warning-6">
+                  <HugeiconsIcon
+                    icon={Alert01Icon}
+                    data-icon="alert"
+                    size={11}
+                    strokeWidth={2}
+                  />
+                  {t("planner.agentOrgOverview.blockersTitle", {
+                    defaultValue: "What is still blocking completion",
+                  })}
+                </div>
+                {view.blockers.map((blocker) => (
+                  <div
+                    key={`${blocker.kind}:${blocker.recoveryState}:${blocker.reasonCode}`}
+                    className="flex min-w-0 items-center gap-2 text-[10px] text-text-2"
+                    data-testid={`agent-org-run-blocker-${blocker.kind}`}
+                    data-blocker-kind={blocker.kind}
+                    data-reason-code={blocker.reasonCode}
+                    data-recovery-state={blocker.recoveryState}
+                    data-user-action={blocker.userAction}
+                    data-requires-user-action={blocker.requiresUserAction}
+                    data-has-more={blocker.hasMore}
+                    title={blocker.objects
+                      .map((object) => `${object.displayName} (${object.id})`)
+                      .join(", ")}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">
+                        {blocker.display ||
+                          t("planner.agentOrgOverview.unknownBlocker", {
+                            defaultValue: "Unknown system blocker",
+                          })}
+                      </span>
+                      <span
+                        className="block truncate text-[9px] text-text-3"
+                        data-testid={`agent-org-run-blocker-recovery-${blocker.kind}`}
+                      >
+                        {blockerRecoveryCopy(blocker.recoveryState)}
+                        {blocker.recoveryState ===
+                          "coordinator_repair_available" &&
+                        blocker.objects.length > 0
+                          ? ` · ${blocker.objects
+                              .map((object) => object.displayName)
+                              .join(", ")}`
+                          : ""}
+                      </span>
+                    </span>
+                    <span className="shrink-0 tabular-nums">
+                      {blocker.count}
+                      {blocker.hasMore ? "+" : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {view.finalSummary?.status === "failed" ? (
               <AgentOrgFinalSummaryCard

@@ -183,6 +183,82 @@ export interface AgentOrgRunCompletionView {
   workRevision?: number | null;
 }
 
+export interface AgentOrgTaskStateProjection {
+  taskId: string;
+  status: AgentOrgTaskStatus;
+  ownerMemberId?: string | null;
+  activationGeneration: number;
+  replacesTaskId?: string | null;
+  replacementTaskId?: string | null;
+  updatedAt: string;
+}
+
+export interface AgentOrgTaskStateWindow {
+  tasks: AgentOrgTaskStateProjection[];
+  truncated: boolean;
+}
+
+export interface AgentOrgRunWorkState {
+  activeMembers: number;
+  inFlightTurns: number;
+  openTasks: number;
+  blockingInbox: number;
+}
+
+export type AgentOrgRunBlockerKind =
+  | "activeMembers"
+  | "inFlightTurns"
+  | "openTasks"
+  | "blockingInbox"
+  | "corruptTaskData"
+  | "unknownTurnIntents"
+  | "pendingFormalMaterializations"
+  | "activeRecoveryReservations"
+  | "pendingPlanApprovals"
+  | "unresolvedTaskHandoffs"
+  | "staleCompletionCertificate"
+  | "taskClosureIncomplete"
+  | "invalidScopeRemoval"
+  | "invalidReplacementChain"
+  | "completionValidation"
+  | (string & { readonly __futureAgentOrgBlockerKind?: never });
+
+export interface AgentOrgRunBlockerObject {
+  objectKind: string;
+  id: string;
+  displayName: string;
+}
+
+export type AgentOrgRunBlockerRecoveryState =
+  | "waiting_for_runtime"
+  | "system_repairing"
+  | "coordinator_repair_available"
+  | "system_attention_required"
+  | "user_action_required"
+  | (string & { readonly __futureAgentOrgRecoveryState?: never });
+
+export interface AgentOrgRunBlocker {
+  kind: AgentOrgRunBlockerKind;
+  count: number;
+  objects: AgentOrgRunBlockerObject[];
+  hasMore: boolean;
+  display: string;
+  reasonCode: string;
+  source: string;
+  recoveryState: AgentOrgRunBlockerRecoveryState;
+  requiresUserAction: boolean;
+  userAction?:
+    | "wait_for_members"
+    | "wait_for_turns"
+    | "wait_for_tasks"
+    | "wait_for_inbox"
+    | "review_tasks"
+    | "review_inbox"
+    | "review_plan"
+    | "review_handoff"
+    | null;
+}
+
 export type AgentOrgFinalSummaryStatus =
   | "pending"
   | "running"
@@ -231,6 +307,9 @@ export interface AgentOrgRunView {
   tasks: AgentOrgTask[];
   executionHandoffs: AgentOrgTaskExecutionHandoffReceipt[];
   taskOverview: AgentOrgRunTaskOverview;
+  taskStateWindow: AgentOrgTaskStateWindow;
+  workState: AgentOrgRunWorkState;
+  blockers: AgentOrgRunBlocker[];
   inbox: AgentOrgInboxPreviewRow[];
   /** All unread durable Inbox history, including non-actionable lifecycle records. */
   unreadInboxCount: number;

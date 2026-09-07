@@ -146,6 +146,33 @@ pub struct ResolveInboxDeliveryParams {
     pub replacement_task_id: Option<String>,
 }
 
+/// One store-owned answer to "may the Coordinator repair this Inbox row?".
+/// Callers must not infer eligibility from an error string or UI label.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum InboxRepairEligibility {
+    PermanentlyUnavailableRecipient,
+    UnboundCoordinatorTaskMessage,
+    NotRepairable { reason: String },
+}
+
+impl InboxRepairEligibility {
+    pub fn is_repairable(&self) -> bool {
+        matches!(
+            self,
+            Self::PermanentlyUnavailableRecipient | Self::UnboundCoordinatorTaskMessage
+        )
+    }
+
+    pub fn reason_code(&self) -> &str {
+        match self {
+            Self::PermanentlyUnavailableRecipient => "permanently_unavailable_recipient",
+            Self::UnboundCoordinatorTaskMessage => "unbound_coordinator_task_message",
+            Self::NotRepairable { reason } => reason,
+        }
+    }
+}
+
 /// Typed boundary between expected coordinator corrections and infrastructure
 /// failures. The LLM tool renders `Constraint` as recoverable guidance while
 /// keeping SQLite/schema/locking failures as real execution failures.

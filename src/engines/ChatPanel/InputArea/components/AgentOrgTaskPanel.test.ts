@@ -328,6 +328,14 @@ function runView(): AgentOrgRunView {
       visible: 2,
       truncated: false,
     },
+    taskStateWindow: { tasks: [], truncated: false },
+    workState: {
+      activeMembers: 0,
+      inFlightTurns: 0,
+      openTasks: 2,
+      blockingInbox: 0,
+    },
+    blockers: [],
     inbox: [],
     unreadInboxCount: 0,
     blockingUnreadInboxCount: 0,
@@ -1168,6 +1176,121 @@ describe("Agent Org Task panel", () => {
     expect(container.textContent).not.toContain(
       "planner.agentOrgOverview.unreadCount"
     );
+  });
+
+  it("separates work dimensions and renders typed blocker recovery details", async () => {
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: {
+            ...runView(),
+            workState: {
+              activeMembers: 0,
+              inFlightTurns: 1,
+              openTasks: 0,
+              blockingInbox: 0,
+            },
+            blockers: [
+              {
+                kind: "inFlightTurns",
+                count: 1,
+                objects: [
+                  {
+                    objectKind: "turn",
+                    id: "turn-orphan",
+                    displayName: "Builder turn",
+                  },
+                ],
+                hasMore: false,
+                display: "Turns are still in flight",
+                reasonCode: "agent_org_in_flight_turns",
+                source: "session_turn_intents",
+                recoveryState: "waiting_for_runtime",
+                requiresUserAction: false,
+              },
+              {
+                kind: "futureRuntimeFence",
+                count: 2,
+                objects: [],
+                hasMore: true,
+                display: "",
+                reasonCode: "agent_org_future_runtime_fence",
+                source: "future_runtime_table",
+                recoveryState: "future_recovery_state",
+                requiresUserAction: false,
+              },
+              {
+                kind: "blockingInbox",
+                count: 1,
+                objects: [
+                  {
+                    objectKind: "inbox",
+                    id: "303",
+                    displayName: "Inbox 303 → Writer",
+                  },
+                ],
+                hasMore: false,
+                display:
+                  "A historical task message can be repaired by the Coordinator",
+                reasonCode: "unbound_coordinator_task_message",
+                source: "agent_org_runtime_inbox_task_bindings",
+                recoveryState: "coordinator_repair_available",
+                requiresUserAction: false,
+              },
+            ],
+          },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+
+    const workState = container.querySelector(
+      '[data-testid="agent-org-work-state"]'
+    );
+    expect(
+      workState
+        ?.querySelector('[data-work-state-kind="activeMembers"]')
+        ?.getAttribute("data-work-state-count")
+    ).toBe("0");
+    expect(
+      workState
+        ?.querySelector('[data-work-state-kind="inFlightTurns"]')
+        ?.getAttribute("data-work-state-count")
+    ).toBe("1");
+    const blocker = container.querySelector(
+      '[data-testid="agent-org-run-blocker-inFlightTurns"]'
+    );
+    expect(blocker?.getAttribute("data-reason-code")).toBe(
+      "agent_org_in_flight_turns"
+    );
+    expect(blocker?.getAttribute("data-recovery-state")).toBe(
+      "waiting_for_runtime"
+    );
+    expect(blocker?.getAttribute("data-requires-user-action")).toBe("false");
+    expect(blocker?.getAttribute("title")).toContain(
+      "Builder turn (turn-orphan)"
+    );
+    const unknownBlocker = container.querySelector(
+      '[data-testid="agent-org-run-blocker-futureRuntimeFence"]'
+    );
+    expect(unknownBlocker?.textContent).toContain(
+      "planner.agentOrgOverview.unknownBlocker"
+    );
+    expect(unknownBlocker?.textContent).toContain("2+");
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-run-blocker-recovery-futureRuntimeFence"]'
+      )?.textContent
+    ).toContain("System attention is required");
+    const repairableInbox = container.querySelector(
+      '[data-reason-code="unbound_coordinator_task_message"]'
+    );
+    expect(repairableInbox?.textContent).toContain(
+      "The Coordinator can inspect and safely repair this Inbox item"
+    );
+    expect(repairableInbox?.textContent).toContain("Inbox 303 → Writer");
   });
 
   it("projects only current direct activity without changing the Team phase", async () => {

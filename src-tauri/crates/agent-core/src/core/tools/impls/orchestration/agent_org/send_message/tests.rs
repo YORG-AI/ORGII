@@ -118,6 +118,27 @@ fn params(recipient_member_id: &str) -> serde_json::Value {
     })
 }
 
+fn grant_member_writer_in_frozen_snapshot(conn: &rusqlite::Connection, member_id: &str) {
+    let mut snapshot: crate::definitions::orgs::AgentOrgLaunchSnapshot = conn
+        .query_row(
+            "SELECT org_snapshot_json FROM agent_org_runtime_runs WHERE id='run-1'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .map(|json| serde_json::from_str(&json).expect("decode frozen snapshot"))
+        .expect("load frozen snapshot");
+    snapshot
+        .additional_task_graph_writer_member_ids
+        .push(member_id.to_string());
+    snapshot.additional_task_graph_writer_member_ids.sort();
+    snapshot.additional_task_graph_writer_member_ids.dedup();
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET org_snapshot_json=?1 WHERE id='run-1'",
+        [serde_json::to_string(&snapshot).expect("encode frozen snapshot")],
+    )
+    .expect("persist frozen writer capability");
+}
+
 fn seed_owned_task(owner_member_id: &str) -> String {
     let task_id = new_task_id();
     AgentOrgTaskStore::create(CreateTaskParams {
@@ -500,6 +521,59 @@ fn member_coordination_params(purpose: &str) -> Value {
 }
 
 #[test]
+fn frozen_writer_capability_reaches_task_execution_policy_and_store_authorizer() {
+    let _sandbox = init_inbox_schema();
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    assert_eq!(
+        crate::tools::policy::resolve_persisted_agent_org_tool_authority(
+            "builder-session",
+            "builder-turn",
+        )
+        .expect("resolve ordinary TaskExecution worker")
+        .profile,
+        crate::tools::call_context::AgentOrgTurnToolProfile::TaskExecution
+    );
+    TaskGraphWriterAdmin::new("builder-session", "builder-turn")
+        .expect("ordinary worker actor")
+        .validate(&conn, "run-1")
+        .expect_err("ordinary worker must fail the Task store writer boundary");
+    grant_member_writer_in_frozen_snapshot(&conn, "builder");
+
+    let authority = crate::tools::policy::resolve_persisted_agent_org_tool_authority(
+        "builder-session",
+        "builder-turn",
+    )
+    .expect("resolve TaskExecution writer from immutable launch snapshot");
+    assert_eq!(
+        authority.profile,
+        crate::tools::call_context::AgentOrgTurnToolProfile::TaskExecutionWriter
+    );
+    TaskGraphWriterAdmin::new("builder-session", "builder-turn")
+        .expect("writer actor")
+        .validate(&conn, "run-1")
+        .expect("Task store must accept the same frozen writer identity");
+}
+
+#[test]
+fn frozen_writer_capability_reaches_group_user_directed_policy() {
+    let _sandbox = init_inbox_schema();
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    grant_member_writer_in_frozen_snapshot(&conn, "builder");
+    drop(conn);
+    let call = seed_started_group_udw_with_link();
+
+    let authority = crate::tools::policy::resolve_persisted_agent_org_tool_authority(
+        &call.session_id,
+        &call.turn_intent_id,
+    )
+    .expect("resolve GroupMention writer from immutable launch snapshot");
+    assert_eq!(
+        authority.profile,
+        crate::tools::call_context::AgentOrgTurnToolProfile::UserDirectedWriter
+    );
+}
+
+#[test]
 fn resolves_only_recipient_member_id() {
     let tool = OrgSendMessageTool::new(context(), COORDINATOR_MEMBER_ID.to_string());
     let recipients = tool
@@ -622,6 +696,9 @@ fn llm_description_recipient_hints_keep_peer_send_disabled() {
 #[tokio::test]
 async fn started_udw_can_send_exactly_once_to_a_snapshot_linked_peer() {
     let _sandbox = init_inbox_schema();
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    grant_member_writer_in_frozen_snapshot(&conn, "planner");
+    drop(conn);
     let call = seed_started_group_udw_with_link();
     let wake = Arc::new(RecordingWakeHook::default());
     let tool = OrgSendMessageTool::with_hooks(
@@ -657,6 +734,15 @@ async fn started_udw_can_send_exactly_once_to_a_snapshot_linked_peer() {
     assert_eq!(causal.root_authority_turn_id, "builder-udw-turn");
     assert_eq!(causal.depth, 1);
     assert_eq!(causal.delivery_ordinal, 2);
+    assert_eq!(
+        crate::tools::policy::resolve_persisted_agent_org_tool_authority(
+            "planner-session",
+            child_turn_intent_id,
+        )
+        .expect("resolve MemberInbox writer from immutable launch snapshot")
+        .profile,
+        crate::tools::call_context::AgentOrgTurnToolProfile::UserDirectedWriter,
+    );
 
     let mut changed = params("planner");
     changed["text"] = json!("changed after the same call_id");
@@ -1187,6 +1273,200 @@ async fn execute_persists_and_wakes_by_member_id() {
     assert_eq!(binding.0, task_id);
     assert_eq!(binding.1, "builder");
     assert_eq!(binding.2, call.turn_intent_id);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn member_inbox_coordinator_task_dispatch_returns_root_guidance_with_zero_business_writes() {
+    let _sandbox = init_inbox_schema();
+    let task_id = seed_owned_task("builder");
+    let member_call = seed_started_group_udw_with_link();
+    let side_quest_wake = Arc::new(RecordingWakeHook::default());
+    let member_tool = OrgSendMessageTool::with_hooks(
+        linked_context(),
+        "builder".to_string(),
+        side_quest_wake.clone(),
+        Arc::new(NoopSelfAbortHook),
+    );
+    member_tool
+        .execute_text(params(COORDINATOR_MEMBER_ID), &member_call)
+        .await
+        .expect("seed a real durable Coordinator member-inbox activation");
+    let coordinator_turn_intent_id = side_quest_wake.user_directed_snapshot()[0]
+        .turn_intent_id
+        .clone();
+    let member_inbox_call = crate::tools::call_context::CallContext {
+        session_id: "root-1".to_string(),
+        turn_intent_id: coordinator_turn_intent_id,
+        call_id: format!("send-call-{}", NEXT_CALL_ID.fetch_add(1, Ordering::Relaxed)),
+        ..Default::default()
+    }
+    .with_authority(
+        crate::tools::call_context::ToolCallAuthority::PersistedAgentOrg(
+            crate::tools::call_context::AgentOrgTurnToolProfile::CoordinatorOrchestration,
+        ),
+    );
+    let before_inbox = AgentInboxStore::count_by_run("run-1").expect("baseline Inbox count");
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let before_bindings: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_inbox_task_bindings WHERE org_run_id='run-1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("baseline task-message binding count");
+    drop(conn);
+
+    let wake = Arc::new(RecordingWakeHook::default());
+    let tool = OrgSendMessageTool::with_hooks(
+        context(),
+        COORDINATOR_MEMBER_ID.to_string(),
+        wake.clone(),
+        Arc::new(NoopSelfAbortHook),
+    );
+    let mut input = params("builder");
+    input["related_task_id"] = json!(task_id);
+    let result = tool
+        .execute_text(input.clone(), &member_inbox_call)
+        .await
+        .expect("member-inbox Coordinator dispatch receives recoverable guidance");
+    let value: Value = serde_json::from_str(&result).expect("guidance json");
+    assert_eq!(value["delivered"], false);
+    assert_eq!(
+        value["reason"],
+        "coordinator_task_dispatch_requires_root_authority"
+    );
+    assert_eq!(value["requires_root_coordinator"], true);
+    assert!(wake.snapshot().is_empty());
+
+    let retry = tool
+        .execute_text(input, &call_context_with_new_id(&member_inbox_call))
+        .await
+        .expect("a fresh retry remains side-effect free");
+    assert_eq!(
+        serde_json::from_str::<Value>(&retry).unwrap()["reason"],
+        "coordinator_task_dispatch_requires_root_authority"
+    );
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let inbox_count = AgentInboxStore::count_by_run("run-1").expect("count Inbox rows");
+    let binding_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_inbox_task_bindings WHERE org_run_id='run-1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count task message bindings");
+    assert_eq!(inbox_count, before_inbox);
+    assert_eq!(binding_count, before_bindings);
+    assert!(wake.snapshot().is_empty());
+}
+
+#[test]
+fn formal_task_batch_validates_every_recipient_before_the_first_inbox_write() {
+    let _sandbox = init_inbox_schema();
+    let task_id = seed_owned_task("builder");
+    let mut input = params("builder");
+    input["related_task_id"] = json!(task_id);
+    let params: OrgSendMessageParams =
+        serde_json::from_value(input).expect("decode formal task message params");
+    let message = AgentMessage::Plain {
+        summary: "batch preflight".to_string(),
+        text: "the whole batch must remain atomic".to_string(),
+    };
+    let recipients = vec![
+        OrgRecipientTarget {
+            member_id: "builder".to_string(),
+            agent_id: "agent-shared".to_string(),
+        },
+        OrgRecipientTarget {
+            member_id: "planner".to_string(),
+            agent_id: "agent-shared".to_string(),
+        },
+    ];
+    let sender = context()
+        .participant_by_member_id(COORDINATOR_MEMBER_ID)
+        .expect("Coordinator participant");
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let turn_context =
+        crate::coordination::agent_org_turn_contexts::revalidate_context_with_connection(
+            &conn,
+            "root-1",
+            "coordinator-turn",
+        )
+        .expect("root Coordinator turn context");
+
+    let result = persist_ordinary_message_in_tx(
+        &conn,
+        "run-1",
+        &sender,
+        &turn_context,
+        &params,
+        &message,
+        &recipients,
+    )
+    .expect("invalid batch returns guidance before writing");
+    let OrdinaryMessagePersistOutcome::Guidance(guidance) = result else {
+        panic!("mixed-validity batch must not be delivered");
+    };
+    let guidance: Value = serde_json::from_str(&guidance).expect("guidance json");
+    assert_eq!(guidance["reason"], "related_task_not_owned_by_recipient");
+    assert_eq!(AgentInboxStore::count_by_run("run-1").unwrap(), 0);
+    let binding_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_inbox_task_bindings WHERE org_run_id='run-1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count task message bindings");
+    assert_eq!(binding_count, 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn binding_write_failure_rolls_back_inbox_receipt_and_wake() {
+    let _sandbox = init_inbox_schema();
+    let task_id = seed_owned_task("builder");
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute_batch(
+        "CREATE TRIGGER fail_task_message_binding
+         BEFORE INSERT ON agent_org_runtime_inbox_task_bindings
+         BEGIN SELECT RAISE(ABORT,'injected task message binding failure'); END;",
+    )
+    .expect("install binding failure injection");
+    drop(conn);
+
+    let wake = Arc::new(RecordingWakeHook::default());
+    let tool = OrgSendMessageTool::with_hooks(
+        context(),
+        COORDINATOR_MEMBER_ID.to_string(),
+        wake.clone(),
+        Arc::new(NoopSelfAbortHook),
+    );
+    let mut input = params("builder");
+    input["related_task_id"] = json!(task_id);
+    let error = tool
+        .execute_text(input, &call_context(COORDINATOR_MEMBER_ID))
+        .await
+        .expect_err("post-insert binding failure must abort the whole transaction");
+    assert!(
+        error
+            .to_string()
+            .contains("atomic Agent Org message write failed and was rolled back"),
+        "{error}"
+    );
+
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    for (table, expected) in [
+        ("agent_org_runtime_inbox", 0_i64),
+        ("agent_org_runtime_inbox_task_bindings", 0_i64),
+        ("agent_org_runtime_tool_call_receipts", 0_i64),
+    ] {
+        let count: i64 = conn
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                row.get(0)
+            })
+            .unwrap_or_else(|error| panic!("count {table}: {error}"));
+        assert_eq!(count, expected, "{table} must have no partial write");
+    }
+    assert!(wake.snapshot().is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

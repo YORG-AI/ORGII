@@ -6,7 +6,10 @@
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::json;
 
-use crate::coordination::agent_inbox::{AgentInboxStore, AgentMessage, InsertInboxParams};
+use crate::coordination::agent_inbox::{
+    preflight_coordinator_task_message_in_tx, AgentInboxStore, AgentMessage,
+    CoordinatorTaskMessageAuthority, CoordinatorTaskMessagePreflight, InsertInboxParams,
+};
 use crate::coordination::agent_org_runs::{
     AgentOrgParticipant, AgentOrgRunStore, COORDINATOR_MEMBER_ID,
 };
@@ -40,6 +43,21 @@ pub(super) struct OrgRecipientTarget {
 pub(super) enum OrdinaryMessagePersistOutcome {
     Guidance(String),
     Delivered { rows: Vec<(String, i64)> },
+}
+
+#[derive(Debug)]
+pub(super) enum OrdinaryMessagePersistError {
+    Tool(ToolError),
+    /// A failure after the first business write must abort the receipt
+    /// transaction. Persisting an error receipt would otherwise commit the
+    /// partial Inbox mutation that the error describes.
+    AtomicWrite(String),
+}
+
+impl From<ToolError> for OrdinaryMessagePersistError {
+    fn from(error: ToolError) -> Self {
+        Self::Tool(error)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -532,7 +550,7 @@ pub(super) fn persist_ordinary_message_in_tx(
     params: &OrgSendMessageParams,
     message: &AgentMessage,
     recipients: &[OrgRecipientTarget],
-) -> Result<OrdinaryMessagePersistOutcome, ToolError> {
+) -> Result<OrdinaryMessagePersistOutcome, OrdinaryMessagePersistError> {
     let run_status: Option<String> = conn
         .query_row(
             "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
@@ -540,10 +558,14 @@ pub(super) fn persist_ordinary_message_in_tx(
             |row| row.get(0),
         )
         .optional()
-        .map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
+        .map_err(|err| {
+            OrdinaryMessagePersistError::Tool(ToolError::ExecutionFailed(err.to_string()))
+        })?;
     if run_status.as_deref() == Some("archived") {
-        return Err(ToolError::ExecutionFailed(
-            crate::coordination::agent_org_runs::mutation_blocked_error(run_id, "archived"),
+        return Err(OrdinaryMessagePersistError::Tool(
+            ToolError::ExecutionFailed(
+                crate::coordination::agent_org_runs::mutation_blocked_error(run_id, "archived"),
+            ),
         ));
     }
     if run_status.as_deref() != Some("running") {
@@ -587,13 +609,14 @@ pub(super) fn persist_ordinary_message_in_tx(
                 })).collect::<Vec<_>>(),
                 "guidance": "Do not shut down a Member that still owns pending or in-progress work. Complete, fail, cancel, or reassign those Tasks first, then retry the shutdown request.",
             }))
-            .map_err(|error| ToolError::ExecutionFailed(error.to_string()))?;
+            .map_err(|error| OrdinaryMessagePersistError::Tool(ToolError::ExecutionFailed(error.to_string())))?;
             return Ok(OrdinaryMessagePersistOutcome::Guidance(guidance));
         }
     }
 
     if let Some(guidance) =
-        member_coordination_guidance(conn, run_id, sender, context, params, message, recipients)?
+        member_coordination_guidance(conn, run_id, sender, context, params, message, recipients)
+            .map_err(OrdinaryMessagePersistError::Tool)?
     {
         return Ok(OrdinaryMessagePersistOutcome::Guidance(guidance));
     }
@@ -603,12 +626,81 @@ pub(super) fn persist_ordinary_message_in_tx(
             .iter()
             .any(|recipient| recipient.member_id != COORDINATOR_MEMBER_ID)
     {
-        let all_tasks = AgentOrgTaskStore::list_with_connection(conn, run_id)
-            .map_err(ToolError::ExecutionFailed)?;
-        if let Some(guidance) =
-            plain_work_context_guidance(params, message, recipients, &all_tasks)?
+        let all_tasks = AgentOrgTaskStore::list_with_connection(conn, run_id).map_err(|error| {
+            OrdinaryMessagePersistError::Tool(ToolError::ExecutionFailed(error))
+        })?;
+        if let Some(guidance) = plain_work_context_guidance(params, message, recipients, &all_tasks)
+            .map_err(OrdinaryMessagePersistError::Tool)?
         {
             return Ok(OrdinaryMessagePersistOutcome::Guidance(guidance));
+        }
+    }
+
+    // Coordinator formal task dispatch is authorized for every recipient
+    // before the first Inbox INSERT. This closes the historical partial-write
+    // path where a member-inbox Coordinator turn wrote an orphan row and only
+    // then failed to create its task binding.
+    let mut task_authorities = Vec::<CoordinatorTaskMessageAuthority>::new();
+    if sender.is_coordinator && matches!(message, AgentMessage::Plain { .. }) {
+        let worker_recipients = recipients
+            .iter()
+            .filter(|recipient| recipient.member_id != COORDINATOR_MEMBER_ID)
+            .collect::<Vec<_>>();
+        if !worker_recipients.is_empty() {
+            let task_id = params
+                .related_task_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|task_id| !task_id.is_empty())
+                .ok_or_else(|| {
+                    OrdinaryMessagePersistError::Tool(ToolError::ExecutionFailed(
+                        "validated Coordinator task message lost related_task_id".to_string(),
+                    ))
+                })?;
+            for recipient in worker_recipients {
+                match preflight_coordinator_task_message_in_tx(
+                    conn,
+                    run_id,
+                    task_id,
+                    &recipient.member_id,
+                    context,
+                )
+                .map_err(|error| {
+                    OrdinaryMessagePersistError::Tool(ToolError::ExecutionFailed(error))
+                })? {
+                    CoordinatorTaskMessagePreflight::Authorized(authority) => {
+                        task_authorities.push(authority);
+                    }
+                    CoordinatorTaskMessagePreflight::RequiresRootCoordinator => {
+                        let guidance = serde_json::to_string(&json!({
+                            "delivered": false,
+                            "reason": "coordinator_task_dispatch_requires_root_authority",
+                            "requires_root_coordinator": true,
+                            "related_task_id": task_id,
+                            "recipient_member_ids": recipients.iter().map(|recipient| recipient.member_id.clone()).collect::<Vec<_>>(),
+                            "guidance": "This Coordinator turn was activated by a member Inbox and cannot dispatch formal Task work. Return control to the Root Coordinator and retry the same task message there. No Inbox row was created and no member was woken.",
+                        }))
+                        .map_err(|error| OrdinaryMessagePersistError::Tool(
+                            ToolError::ExecutionFailed(error.to_string())
+                        ))?;
+                        return Ok(OrdinaryMessagePersistOutcome::Guidance(guidance));
+                    }
+                    CoordinatorTaskMessagePreflight::Rejected(reason) => {
+                        let guidance = serde_json::to_string(&json!({
+                            "delivered": false,
+                            "reason": reason,
+                            "requires_root_coordinator": false,
+                            "related_task_id": task_id,
+                            "recipient_member_ids": recipients.iter().map(|recipient| recipient.member_id.clone()).collect::<Vec<_>>(),
+                            "guidance": "The task, recipient, run generation, dependencies, or Root Coordinator authority changed before dispatch. Refresh task state and retry from the current Root Coordinator turn. No Inbox row was created and no member was woken.",
+                        }))
+                        .map_err(|error| OrdinaryMessagePersistError::Tool(
+                            ToolError::ExecutionFailed(error.to_string())
+                        ))?;
+                        return Ok(OrdinaryMessagePersistOutcome::Guidance(guidance));
+                    }
+                }
+            }
         }
     }
 
@@ -622,17 +714,17 @@ pub(super) fn persist_ordinary_message_in_tx(
         run_id,
         &member_ids,
     )
-    .map_err(ToolError::ExecutionFailed)?;
+    .map_err(|error| OrdinaryMessagePersistError::Tool(ToolError::ExecutionFailed(error)))?;
     for recipient in recipients {
         if let Some(runtime) = runtimes
             .iter()
             .find(|runtime| runtime.member_id.as_deref() == Some(recipient.member_id.as_str()))
         {
             if runtime.status == SessionStatus::Archived {
-                return Err(ToolError::InvalidParams(format!(
+                return Err(OrdinaryMessagePersistError::Tool(ToolError::InvalidParams(format!(
                         "delivery_blocked: recipient_member_id '{}' is archived/closed (session_id='{}'); reopen the member session or start a new Agent Org run before sending",
                         recipient.member_id, runtime.session_id
-                    )));
+                    ))));
             }
         }
     }
@@ -650,30 +742,29 @@ pub(super) fn persist_ordinary_message_in_tx(
                 message: message.clone(),
             },
         )
-        .map_err(ToolError::ExecutionFailed)?;
+        .map_err(OrdinaryMessagePersistError::AtomicWrite)?;
         if sender.is_coordinator
             && matches!(message, AgentMessage::Plain { .. })
             && recipient.member_id != COORDINATOR_MEMBER_ID
         {
-            let task_id = params
-                .related_task_id
-                .as_deref()
-                .map(str::trim)
-                .filter(|task_id| !task_id.is_empty())
+            let authority = task_authorities
+                .iter()
+                .find(|authority| authority.recipient_member_id == recipient.member_id)
                 .ok_or_else(|| {
-                    ToolError::ExecutionFailed(
-                        "validated Coordinator task message lost related_task_id".to_string(),
-                    )
+                    OrdinaryMessagePersistError::AtomicWrite(format!(
+                        "validated Coordinator task message lost preflight authority for Member {}",
+                        recipient.member_id
+                    ))
                 })?;
             AgentInboxStore::bind_task_message_in_tx(
                 conn,
                 run_id,
                 record.id,
-                task_id,
-                &recipient.member_id,
-                &context.turn_intent_id,
+                &authority.task_id,
+                &authority.recipient_member_id,
+                &authority.source_turn_intent_id,
             )
-            .map_err(ToolError::ExecutionFailed)?;
+            .map_err(OrdinaryMessagePersistError::AtomicWrite)?;
         }
         if !sender.is_coordinator
             && matches!(message, AgentMessage::Plain { .. })
@@ -698,7 +789,7 @@ pub(super) fn persist_ordinary_message_in_tx(
                     suppress_self_wake: false,
                 },
             )
-            .map_err(ToolError::ExecutionFailed)?;
+            .map_err(OrdinaryMessagePersistError::AtomicWrite)?;
         }
         delivered.push((recipient.member_id.clone(), record.id));
     }

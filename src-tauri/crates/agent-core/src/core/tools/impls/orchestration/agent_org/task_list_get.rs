@@ -216,6 +216,7 @@ impl Tool for TaskListTool {
         let (
             completion,
             completion_candidate,
+            completion_blockers,
             page,
             open_task_ids_preview,
             open_task_ids_truncated,
@@ -233,6 +234,11 @@ impl Tool for TaskListTool {
                 &projected_inbox_ids,
                 &completion,
             );
+            let completion_blockers = crate::coordination::agent_org_run_blockers::build_from_candidate_with_connection(
+                &tx,
+                &run_id,
+                &completion_candidate,
+            )?;
             let page = AgentOrgTaskStore::list_summary_page_with_connection(
                 &tx,
                 &run_id,
@@ -247,6 +253,7 @@ impl Tool for TaskListTool {
             Ok::<_, String>((
                 completion,
                 completion_candidate,
+                completion_blockers,
                 page,
                 open_task_ids_preview,
                 open_task_ids_truncated,
@@ -295,6 +302,7 @@ impl Tool for TaskListTool {
                 "unread_inbox_count": completion.facts.unread_inbox_count,
                 "pending_plan_approval_count": completion.facts.pending_plan_approval_count,
                 "completion_candidate": completion_candidate,
+                "completion_blockers": completion_blockers,
                 "quiescence_decision": completion.decision,
                 "current_quiescence_blockers": &completion.blockers,
             },

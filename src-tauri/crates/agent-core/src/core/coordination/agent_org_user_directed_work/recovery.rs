@@ -111,6 +111,15 @@ pub(crate) fn mark_started_unknown_after_restart_after(
                 .map_err(|error| error.to_string())?
             };
             if changed == 1 {
+                if recovery_kind == "member" {
+                    tx.execute(
+                        "UPDATE agent_org_member_turn_admissions
+                         SET status='unknown',reason_code=?3,terminal_at=?4,updated_at=?4
+                         WHERE session_id=?1 AND turn_intent_id=?2 AND status='committed'",
+                        params![&session_id, &turn_intent_id, reason, &now],
+                    )
+                    .map_err(|error| error.to_string())?;
+                }
                 tx.execute(
                     "UPDATE session_turn_intents
                      SET status='failed',updated_at=?3

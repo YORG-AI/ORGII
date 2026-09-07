@@ -31,6 +31,7 @@ pub(crate) mod agent_org_ownership;
 pub mod agent_org_pause;
 pub mod agent_org_payload_limits;
 pub mod agent_org_plan_approvals;
+pub mod agent_org_run_blockers;
 pub mod agent_org_run_completion;
 pub mod agent_org_run_events;
 pub mod agent_org_runs;

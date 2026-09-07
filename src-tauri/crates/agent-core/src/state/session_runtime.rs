@@ -109,6 +109,23 @@ struct RuntimeSlot {
     runtime: Arc<SessionRuntime>,
 }
 
+/// A prepared direct-Member turn pins one exact runtime lease until the
+/// scheduler either starts that turn or rejects it.  The durable admission
+/// row is written only after this token exists, so a competing initializer
+/// cannot replace the Provider between database acceptance and execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RuntimeAdmissionReservation {
+    pub reservation_id: String,
+    pub runtime_lease_id: String,
+    pub turn_intent_id: String,
+}
+
+#[derive(Debug)]
+struct RuntimeAdmissionSlot {
+    reservation: RuntimeAdmissionReservation,
+    holders: usize,
+}
+
 /// Exact in-memory identity of the Turn currently using a runtime lease.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RuntimeTurnIdentity {
@@ -152,6 +169,9 @@ pub struct AgentSession {
     /// `None` briefly while the session is being registered before
     /// `ensure_session_initialized` completes.
     runtime: tokio::sync::RwLock<Option<RuntimeSlot>>,
+    /// Prepared direct-Member runtime admissions. Access always precedes the
+    /// runtime-slot lock, making reservation/install/release one CAS domain.
+    runtime_admissions: tokio::sync::Mutex<Vec<RuntimeAdmissionSlot>>,
     /// In-memory half of the Team Delete fence. The Archived database gate
     /// prevents normal initialization, while this flag closes the final race
     /// between Delete's last lease check and a stale initializer installing
@@ -347,6 +367,7 @@ impl AgentSession {
             id,
             definition,
             runtime: tokio::sync::RwLock::new(None),
+            runtime_admissions: tokio::sync::Mutex::new(Vec::new()),
             runtime_install_blocked: AtomicBool::new(false),
             compaction: tokio::sync::Mutex::new(CompactionState::default()),
             last_context_tokens: Arc::new(AtomicI64::new(0)),
@@ -391,9 +412,21 @@ impl AgentSession {
     /// Attach (or replace) the runtime after initialization completes.
     pub async fn set_runtime(&self, runtime: Arc<SessionRuntime>) -> Result<String, String> {
         let lease_id = uuid::Uuid::new_v4().to_string();
+        let admissions = self.runtime_admissions.lock().await;
         let mut slot = self.runtime.write().await;
         if self.runtime_install_blocked.load(Ordering::SeqCst) {
             return Err("team_runtime_delete_in_progress: runtime installation is closed".into());
+        }
+        if !admissions.is_empty() {
+            if let Some(current) = slot.as_ref() {
+                if Arc::ptr_eq(&current.runtime, &runtime) {
+                    return Ok(current.lease_id.clone());
+                }
+            }
+            return Err(
+                "agent_org_runtime_admission_conflict: a prepared Member turn pins the current runtime"
+                    .to_string(),
+            );
         }
         *slot = Some(RuntimeSlot {
             lease_id: lease_id.clone(),
@@ -409,6 +442,7 @@ impl AgentSession {
         &self,
         runtime: Arc<SessionRuntime>,
     ) -> Result<String, String> {
+        let admissions = self.runtime_admissions.lock().await;
         let mut slot = self.runtime.write().await;
         if self.runtime_install_blocked.load(Ordering::SeqCst) {
             return Err("team_runtime_delete_in_progress: runtime installation is closed".into());
@@ -420,6 +454,11 @@ impl AgentSession {
             return Err(
                 "user_directed_runtime_conflict: a different runtime already owns the Session slot"
                     .to_string(),
+            );
+        }
+        if !admissions.is_empty() {
+            return Err(
+                "agent_org_runtime_admission_stale: prepared runtime lease disappeared".to_string(),
             );
         }
         let lease_id = uuid::Uuid::new_v4().to_string();
@@ -456,9 +495,90 @@ impl AgentSession {
             .map(|slot| Arc::clone(&slot.runtime))
     }
 
+    /// Prepare an exact runtime lease before durable DirectMember admission.
+    /// Exact retries reuse their token; a different runtime or missing slot
+    /// fails closed before any database row claims that the turn was accepted.
+    pub(crate) async fn reserve_runtime_admission(
+        &self,
+        runtime: &Arc<SessionRuntime>,
+        turn_intent_id: &str,
+    ) -> Result<RuntimeAdmissionReservation, String> {
+        let mut admissions = self.runtime_admissions.lock().await;
+        let slot = self.runtime.read().await;
+        let current = slot.as_ref().ok_or_else(|| {
+            "agent_org_runtime_admission_stale: no runtime is installed".to_string()
+        })?;
+        if !Arc::ptr_eq(&current.runtime, runtime) {
+            return Err(
+                "agent_org_runtime_admission_stale: initialized runtime no longer owns the Session slot"
+                    .to_string(),
+            );
+        }
+        if let Some(existing) = admissions
+            .iter_mut()
+            .find(|slot| slot.reservation.turn_intent_id == turn_intent_id)
+        {
+            if existing.reservation.runtime_lease_id == current.lease_id {
+                existing.holders += 1;
+                return Ok(existing.reservation.clone());
+            }
+            return Err(
+                "agent_org_runtime_admission_stale: retry references a replaced runtime lease"
+                    .to_string(),
+            );
+        }
+        let reservation = RuntimeAdmissionReservation {
+            reservation_id: format!("runtime_admission_{}", uuid::Uuid::new_v4()),
+            runtime_lease_id: current.lease_id.clone(),
+            turn_intent_id: turn_intent_id.to_string(),
+        };
+        admissions.push(RuntimeAdmissionSlot {
+            reservation: reservation.clone(),
+            holders: 1,
+        });
+        Ok(reservation)
+    }
+
+    /// Verify that a prepared token still pins the same installed Provider.
+    /// The caller performs this check immediately before the transaction that
+    /// promotes the turn to Running.
+    pub(crate) async fn runtime_admission_is_current(
+        &self,
+        reservation: &RuntimeAdmissionReservation,
+        runtime: &Arc<SessionRuntime>,
+    ) -> bool {
+        let admissions = self.runtime_admissions.lock().await;
+        if !admissions
+            .iter()
+            .any(|slot| slot.reservation == *reservation)
+        {
+            return false;
+        }
+        self.runtime.read().await.as_ref().is_some_and(|slot| {
+            slot.lease_id == reservation.runtime_lease_id && Arc::ptr_eq(&slot.runtime, runtime)
+        })
+    }
+
+    pub(crate) async fn release_runtime_admission(
+        &self,
+        reservation: &RuntimeAdmissionReservation,
+    ) -> bool {
+        let mut admissions = self.runtime_admissions.lock().await;
+        release_runtime_admission_slot(&mut admissions, reservation)
+    }
+
     /// Clear whichever runtime is current. This remains the ordinary SDE
     /// invalidation path; Pause uses the conditional lease method below.
     pub(crate) async fn invalidate_runtime(&self) {
+        let admissions = self.runtime_admissions.lock().await;
+        if !admissions.is_empty() {
+            tracing::info!(
+                session_id = %self.id,
+                prepared_admission_count = admissions.len(),
+                "preserving runtime pinned by prepared Agent Org admissions"
+            );
+            return;
+        }
         *self.runtime.write().await = None;
     }
 
@@ -504,6 +624,10 @@ impl AgentSession {
     /// captured by Archive is still current. A late Archive completion cannot
     /// clear a replacement runtime.
     pub(crate) async fn release_runtime_lease_if_current(&self, runtime_lease_id: &str) -> bool {
+        let admissions = self.runtime_admissions.lock().await;
+        if !admissions.is_empty() {
+            return false;
+        }
         let mut slot = self.runtime.write().await;
         if runtime_lease_identity_matches(
             slot.as_ref().map(|current| current.lease_id.as_str()),
@@ -519,10 +643,16 @@ impl AgentSession {
     /// terminal evidence. The lease must still be current and no newer Turn
     /// may be using it; otherwise the late completion is a no-op.
     pub(crate) async fn release_yielded_runtime_if_idle(&self, runtime_lease_id: &str) -> bool {
-        let mut slot = self.runtime.write().await;
+        let admissions = self.runtime_admissions.lock().await;
         if self.active_turn_identity.read().is_some() {
             return false;
         }
+        if !admissions.is_empty() {
+            return self.runtime.read().await.as_ref().is_some_and(|slot| {
+                runtime_lease_identity_matches(Some(slot.lease_id.as_str()), runtime_lease_id)
+            });
+        }
+        let mut slot = self.runtime.write().await;
         if runtime_lease_identity_matches(
             slot.as_ref().map(|current| current.lease_id.as_str()),
             runtime_lease_id,
@@ -540,6 +670,7 @@ impl AgentSession {
         runtime_lease_id: &str,
         dialog_turn_generation: &str,
     ) -> bool {
+        let admissions = self.runtime_admissions.lock().await;
         let mut slot = self.runtime.write().await;
         let current_lease = slot.as_ref().map(|current| current.lease_id.as_str());
         let turn = self.active_turn_identity.read();
@@ -556,6 +687,12 @@ impl AgentSession {
             runtime_lease_id,
             dialog_turn_generation,
         ) {
+            // A prepared direct successor deliberately inherits this warm
+            // Provider after the exact formal owner yields. Returning true
+            // lets the durable handoff advance while the lease stays pinned.
+            if !admissions.is_empty() {
+                return true;
+            }
             *slot = None;
             return true;
         }
@@ -862,6 +999,24 @@ fn runtime_release_identity_matches(
         && current_turn_generation == Some(expected_turn_generation)
 }
 
+fn release_runtime_admission_slot(
+    admissions: &mut Vec<RuntimeAdmissionSlot>,
+    reservation: &RuntimeAdmissionReservation,
+) -> bool {
+    let Some(index) = admissions
+        .iter()
+        .position(|slot| slot.reservation == *reservation)
+    else {
+        return false;
+    };
+    if admissions[index].holders > 1 {
+        admissions[index].holders -= 1;
+    } else {
+        admissions.remove(index);
+    }
+    true
+}
+
 fn runtime_lease_identity_matches(current_lease_id: Option<&str>, expected_lease_id: &str) -> bool {
     current_lease_id == Some(expected_lease_id)
 }
@@ -871,8 +1026,9 @@ mod runtime_lease_tests {
     use std::time::Duration;
 
     use super::{
-        runtime_lease_identity_matches, runtime_release_identity_matches, shell_cancellation_scope,
-        DialogTurnState, ShellCancellationScope,
+        release_runtime_admission_slot, runtime_lease_identity_matches,
+        runtime_release_identity_matches, shell_cancellation_scope, DialogTurnState,
+        RuntimeAdmissionReservation, RuntimeAdmissionSlot, ShellCancellationScope,
     };
     use crate::state::control_flow::CancelReason;
     use crate::{definitions::AgentDefinition, session::TurnStats, state::AgentSession};
@@ -952,6 +1108,35 @@ mod runtime_lease_tests {
             Some("turn-1"),
             "lease-a",
             "turn-1"
+        ));
+    }
+
+    #[test]
+    fn duplicate_runtime_admission_holders_cannot_unpin_each_other() {
+        let reservation = RuntimeAdmissionReservation {
+            reservation_id: "reservation-1".to_string(),
+            runtime_lease_id: "lease-1".to_string(),
+            turn_intent_id: "turn-1".to_string(),
+        };
+        let mut admissions = vec![RuntimeAdmissionSlot {
+            reservation: reservation.clone(),
+            holders: 2,
+        }];
+
+        assert!(release_runtime_admission_slot(
+            &mut admissions,
+            &reservation
+        ));
+        assert_eq!(admissions.len(), 1);
+        assert_eq!(admissions[0].holders, 1);
+        assert!(release_runtime_admission_slot(
+            &mut admissions,
+            &reservation
+        ));
+        assert!(admissions.is_empty());
+        assert!(!release_runtime_admission_slot(
+            &mut admissions,
+            &reservation
         ));
     }
 

@@ -1298,6 +1298,178 @@ fn run_view_separates_blocking_inbox_work_from_unread_audit_history() {
         .expect("build actionable Run View");
     assert_eq!(actionable.unread_inbox_count, 2);
     assert_eq!(actionable.blocking_unread_inbox_count, 1);
+    assert_eq!(actionable.work_state.active_members, 0);
+    assert_eq!(actionable.work_state.in_flight_turns, 0);
+    assert_eq!(actionable.work_state.blocking_inbox, 1);
+    let inbox_blocker = actionable
+        .blockers
+        .iter()
+        .find(|blocker| {
+            blocker.kind
+                == crate::coordination::agent_org_run_blockers::AgentOrgRunBlockerKind::BlockingInbox
+        })
+        .expect("typed Inbox blocker");
+    assert_eq!(inbox_blocker.count, 1);
+    assert_eq!(inbox_blocker.objects.len(), 1);
+    assert_eq!(inbox_blocker.objects[0].object_kind, "inbox");
+    assert!(!inbox_blocker.requires_user_action);
+    let wire = serde_json::to_value(&actionable).expect("serialize real Run View DTO");
+    let wire_blocker = wire["blockers"]
+        .as_array()
+        .and_then(|blockers| {
+            blockers
+                .iter()
+                .find(|blocker| blocker["kind"] == "blockingInbox")
+        })
+        .expect("serialized typed Inbox blocker");
+    assert_eq!(wire_blocker["objects"][0]["objectKind"], "inbox");
+    assert_eq!(wire_blocker["hasMore"], false);
+    assert_eq!(wire_blocker["recoveryState"], "waiting_for_runtime");
+    assert_eq!(wire_blocker["requiresUserAction"], false);
+}
+
+#[test]
+fn run_view_marks_historical_unbound_coordinator_task_message_as_repairable() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    ensure_run_view_runtime_schema();
+    let context = prepare_command_run("running");
+    let snapshot = AgentOrgLaunchSnapshot {
+        schema_version: 1,
+        org_id: context.org_id.clone(),
+        org_name: context.org_name.clone(),
+        coordinator_role: context.coordinator_role.clone(),
+        coordinator_agent_id: context.coordinator_agent_id.clone(),
+        plan_approval_policy: context.plan_approval_policy,
+        members: context
+            .members
+            .iter()
+            .map(|member| FlatOrgMember {
+                member_id: member.member_id.clone(),
+                name: member.name.clone(),
+                role: member.role.clone(),
+                agent_id: member.agent_id.clone(),
+                runtime_config: None,
+            })
+            .collect(),
+        additional_task_graph_writer_member_ids: Vec::new(),
+        member_communication_links: Vec::new(),
+    };
+    let conn = get_connection().expect("db connection");
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET org_snapshot_json=?2 WHERE id=?1",
+        params![
+            &context.run_id,
+            serde_json::to_string(&snapshot).expect("snapshot json")
+        ],
+    )
+    .expect("persist frozen roster");
+    drop(conn);
+    let now = "2026-09-07T00:00:00Z".to_string();
+    for (session_id, member_id, parent_session_id) in [
+        ("root-shared-agent", COORDINATOR_MEMBER_ID, None::<String>),
+        (
+            "builder-repair-session",
+            "member-builder",
+            Some("root-shared-agent".to_string()),
+        ),
+    ] {
+        crate::session::persistence::upsert_session(
+            &crate::session::persistence::UnifiedSessionRecord {
+                session_id: session_id.to_string(),
+                name: member_id.to_string(),
+                status: crate::session::SessionStatus::Idle.as_str().to_string(),
+                session_type: "agent".to_string(),
+                agent_definition_id: Some("builtin:sde".to_string()),
+                org_member_id: Some(member_id.to_string()),
+                parent_session_id,
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                ..Default::default()
+            },
+        )
+        .expect("persist canonical runtime");
+    }
+    let orphan = AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "builtin:sde".to_string(),
+        recipient_member_id: Some("member-builder".to_string()),
+        sender_agent_id: context.coordinator_agent_id.clone(),
+        sender_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+        org_run_id: Some(context.run_id.clone()),
+        message: AgentMessage::Plain {
+            summary: "Historical orphan".to_string(),
+            text: "This content must not appear in the blocker".to_string(),
+        },
+    })
+    .expect("persist historical unbound task message");
+
+    let view = build_agent_org_run_view(&context, COORDINATOR_MEMBER_ID.to_string())
+        .expect("build repairable orphan Run View");
+    let blocker = view
+        .blockers
+        .iter()
+        .find(|blocker| blocker.reason_code == "unbound_coordinator_task_message")
+        .expect("strict repairable orphan blocker");
+    assert_eq!(
+        blocker.recovery_state,
+        crate::coordination::agent_org_run_blockers::AgentOrgRunBlockerRecoveryState::CoordinatorRepairAvailable
+    );
+    assert_eq!(blocker.objects[0].id, orphan.id.to_string());
+    assert!(blocker.objects[0].display_name.contains("Builder"));
+    let wire = serde_json::to_string(blocker).expect("blocker json");
+    assert!(!wire.contains("This content must not appear"));
+}
+
+#[test]
+fn task_state_window_projects_current_identity_owner_generation_and_replacement() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    ensure_run_view_runtime_schema();
+    let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    let now = "2026-09-06T00:00:00Z";
+    conn.execute_batch(&format!(
+        "INSERT INTO agent_org_runtime_tasks (
+             id,org_run_id,activation_generation,subject,description,owner,status,
+             execution_mode,blocked_by_json,created_by_participant_id,
+             source_turn_intent_id,created_at,updated_at
+         ) VALUES (
+             'task-original','{run_id}',1,'Original','',NULL,'pending','build','[]',
+             'coordinator','turn-create','{now}','{now}'
+         );
+         INSERT INTO agent_org_runtime_tasks (
+             id,org_run_id,activation_generation,subject,description,owner,status,
+             execution_mode,blocked_by_json,created_by_participant_id,
+             source_turn_intent_id,replaces_task_id,created_at,updated_at
+         ) VALUES (
+             'task-replacement','{run_id}',1,'Replacement','',NULL,'pending','build','[]',
+             'coordinator','turn-replace','task-original','{now}','{now}'
+         );",
+        run_id = context.run_id,
+    ))
+    .expect("seed current Task projection");
+
+    let window = load_task_state_window(&conn, &context.run_id).expect("load Task states");
+    let original = window
+        .tasks
+        .iter()
+        .find(|task| task.task_id == "task-original")
+        .expect("original Task projection");
+    assert_eq!(original.status, TaskStatus::Pending);
+    assert_eq!(original.activation_generation, 1);
+    assert_eq!(original.owner_member_id, None);
+    assert_eq!(
+        original.replacement_task_id.as_deref(),
+        Some("task-replacement")
+    );
+    let replacement = window
+        .tasks
+        .iter()
+        .find(|task| task.task_id == "task-replacement")
+        .expect("replacement Task projection");
+    assert_eq!(
+        replacement.replaces_task_id.as_deref(),
+        Some("task-original")
+    );
+    assert!(!window.truncated);
 }
 
 #[test]
