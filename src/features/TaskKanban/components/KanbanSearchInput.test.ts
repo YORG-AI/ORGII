@@ -41,52 +41,45 @@ describe("KanbanSearchInput", () => {
     });
   }
 
-  it("starts as a search button and autofocuses the expanded input", () => {
+  it("shows the shared search immediately without taking focus", () => {
     renderSearch();
-
-    const trigger = container.querySelector<HTMLButtonElement>(
-      '[data-testid="kanban-search-trigger"]'
-    );
-    expect(trigger).not.toBeNull();
-    expect(container.querySelector("input")).toBeNull();
-
-    act(() => trigger?.click());
 
     const input = container.querySelector<HTMLInputElement>("input");
     expect(input).not.toBeNull();
-    expect(document.activeElement).toBe(input);
-
-    const closeButton = container.querySelector<HTMLButtonElement>(
-      'button[title="tooltips.closeEsc"]'
-    );
-    expect(closeButton).not.toBeNull();
-
-    act(() => closeButton?.click());
-
-    expect(container.querySelector("input")).toBeNull();
+    expect(input?.value).toBe("");
+    expect(document.activeElement).not.toBe(input);
+    expect(container.querySelector(".w-180")).not.toBeNull();
     expect(
       container.querySelector('[data-testid="kanban-search-trigger"]')
-    ).not.toBeNull();
+    ).toBeNull();
+    expect(
+      container.querySelector('button[title="tooltips.closeEsc"]')
+    ).toBeNull();
   });
 
-  it("keeps an active query visible and focused", () => {
+  it("clears the query while keeping the same input visible and focused", () => {
     store.set(kanbanSearchQueryAtom, "active session");
     renderSearch();
 
     const input = container.querySelector<HTMLInputElement>("input");
     expect(input?.value).toBe("active session");
-    expect(document.activeElement).toBe(input);
+    expect(document.activeElement).not.toBe(input);
+    act(() => input?.focus());
     expect(
       container.querySelector('[data-testid="kanban-search-trigger"]')
     ).toBeNull();
 
     act(() => {
       container
-        .querySelector<HTMLButtonElement>('button[title="tooltips.closeEsc"]')
+        .querySelector<HTMLButtonElement>(
+          'button[title="tooltips.clearSearch"]'
+        )
         ?.click();
     });
 
     expect(store.get(kanbanSearchQueryAtom)).toBe("");
-    expect(container.querySelector("input")).toBeNull();
+    expect(container.querySelector("input")).toBe(input);
+    expect(input?.value).toBe("");
+    expect(document.activeElement).toBe(input);
   });
 });

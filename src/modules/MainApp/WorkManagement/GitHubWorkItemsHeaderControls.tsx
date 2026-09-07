@@ -96,7 +96,7 @@ export function GitHubWorkItemsSearchAndActions({
 }): ReactNode {
   return (
     <div
-      className={`flex min-w-0 items-center gap-1 ${
+      className={`flex min-w-0 items-center gap-px ${
         fillSearch ? "flex-1" : ""
       }`.trim()}
     >
