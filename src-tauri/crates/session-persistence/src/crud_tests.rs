@@ -551,3 +551,38 @@ fn cross_session_search_skips_empty_and_non_positive_requests() {
             .is_empty());
     });
 }
+
+#[test]
+fn activity_probe_is_scoped_read_only_and_stops_at_first_match() {
+    with_temp_orgii_home(|| {
+        let conn = get_connection().unwrap();
+        super::super::schema::init_session_tables(&conn).unwrap();
+        drop(conn);
+        let events: Vec<_> = (0..1000)
+            .map(|n| cached_event("probe", &format!("e-{n}"), "2026-07-17T00:00:01Z"))
+            .collect();
+        save_events("probe", &events).unwrap();
+        let mut visited = 0;
+        assert!(any_event_matching("probe", |_| {
+            visited += 1;
+            true
+        })
+        .unwrap());
+        assert_eq!(visited, 1);
+        assert!(!any_event_matching("other", |_| panic!("cross-session event")).unwrap());
+        let before = load_events("probe").unwrap();
+        assert!(!any_event_matching("probe", |_| false).unwrap());
+        let after = load_events("probe").unwrap();
+        assert_eq!(before.len(), after.len());
+        assert_eq!(
+            before
+                .iter()
+                .map(|e| (&e.id, e.history_sequence))
+                .collect::<Vec<_>>(),
+            after
+                .iter()
+                .map(|e| (&e.id, e.history_sequence))
+                .collect::<Vec<_>>()
+        );
+    });
+}
