@@ -34,6 +34,7 @@ import React, { memo, useCallback, useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import AnyIcon from "@src/components/AnyIcon";
+import { useChatCollapseState } from "@src/engines/ChatPanel/ChatCollapseScope";
 import { getTurnTimingLabels } from "@src/engines/ChatPanel/ChatHistory/utils/turnTimingFormatting";
 import EventNavigateIcon from "@src/engines/ChatPanel/blocks/primitives/EventNavigateIcon";
 import { InSimulatorReplayContext } from "@src/engines/ChatPanel/blocks/primitives/inSimulatorReplayContext";
@@ -45,11 +46,6 @@ import {
   Loading03Icon,
   UnfoldMoreIcon,
 } from "@src/icons";
-import {
-  collapseAllCommandAtom,
-  setTurnCollapseOverrideAtom,
-  turnCollapseOverrideAtom,
-} from "@src/store/ui/collapseStateAtom";
 
 const log = createLogger("TurnCollapsePinBar");
 
@@ -87,6 +83,11 @@ const TurnCollapsePinBar: React.FC<TurnCollapsePinBarProps> = memo(
     turnCollapseInteractionAtRef,
     onExpand,
   }) => {
+    const {
+      collapseAllCommandAtom,
+      setTurnCollapseOverrideAtom,
+      turnCollapseOverrideAtom,
+    } = useChatCollapseState();
     const { t } = useTranslation("sessions");
     const inSimulatorReplay = useContext(InSimulatorReplayContext);
     const { replayEventById, canReplay } = useChatEventReplay();
