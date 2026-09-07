@@ -26,9 +26,6 @@ const log = createLogger("useCodeEditor");
  */
 export const COLLAPSED_SUBTREE_RETENTION_MS = 2 * 60 * 1000;
 
-/** How often the collapsed-subtree pruner looks for expired subtrees. */
-export const COLLAPSED_SUBTREE_SWEEP_MS = 30 * 1000;
-
 /**
  * Above this many loaded nodes every collapsed subtree is pruned at once,
  * without waiting for the retention window, so a huge repository cannot pin
@@ -247,16 +244,17 @@ export function countTreeNodes(nodes: FileNode[]): number {
 }
 
 /**
- * Drop the loaded children of a collapsed directory, remembering which of its
+ * Drop loaded children of the selected collapsed directories in one traversal,
+ * remembering which of their
  * descendants were expanded so the next expansion restores the same view.
  * Expanded directories and files are left untouched.
  */
-export function pruneCollapsedSubtree(
+export function pruneCollapsedSubtrees(
   tree: FileNode[],
-  targetPath: string
+  targetPaths: ReadonlySet<string>
 ): FileNode[] {
   return tree.map((node) => {
-    if (node.path === targetPath) {
+    if (targetPaths.has(node.path)) {
       if (
         node.type !== "directory" ||
         node.expanded ||
@@ -274,7 +272,7 @@ export function pruneCollapsedSubtree(
     if (node.children) {
       return {
         ...node,
-        children: pruneCollapsedSubtree(node.children, targetPath),
+        children: pruneCollapsedSubtrees(node.children, targetPaths),
       };
     }
     return node;

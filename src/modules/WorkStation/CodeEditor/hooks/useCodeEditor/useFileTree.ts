@@ -19,16 +19,14 @@ import {
 
 import {
   COLLAPSED_SUBTREE_RETENTION_MS,
-  COLLAPSED_SUBTREE_SWEEP_MS,
   MAX_RETAINED_TREE_NODES,
   collectExpandedPaths,
-  countTreeNodes,
   ensureGitignoreChecker,
   findNodeInTree,
   loadDirectoryContents,
   loadDirectorySubtree,
   mergeTreeReloadingExpanded,
-  pruneCollapsedSubtree,
+  pruneCollapsedSubtrees,
   updateTreeChildren,
   updateTreeExpansion,
 } from "./helpers";
@@ -82,68 +80,76 @@ export function useFileTree(
   // the next expansion restores the same view from a fresh directory read.
   const collapsedAtRef = useRef<Map<string, number>>(new Map());
 
-  const pruneCollapsedPaths = useCallback(
-    (paths: string[]) => {
-      if (paths.length === 0) return;
-      for (const path of paths) {
-        collapsedAtRef.current.delete(path);
-      }
-      setFileTree((prev) => {
-        let next = prev;
-        for (const path of paths) {
-          next = pruneCollapsedSubtree(next, path);
-        }
-        return next;
-      });
-    },
-    [setFileTree]
-  );
-
-  const sweepCollapsedSubtrees = useCallback(
-    (force: boolean) => {
-      const collapsedAt = collapsedAtRef.current;
-      if (collapsedAt.size === 0) return;
-      const now = Date.now();
-      const expired: string[] = [];
-      for (const [path, at] of collapsedAt) {
-        const node = findNodeInTree(fileTreeRef.current, path);
-        if (!node || node.type !== "directory" || node.expanded) {
-          collapsedAt.delete(path);
-          continue;
-        }
-        if (!node.children || node.children.length === 0) {
-          collapsedAt.delete(path);
-          continue;
-        }
-        if (force || now - at >= COLLAPSED_SUBTREE_RETENTION_MS) {
-          expired.push(path);
-        }
-      }
-      pruneCollapsedPaths(expired);
-    },
-    [pruneCollapsedPaths]
-  );
-
-  const noteCollapsed = useCallback(
-    (paths: string[]) => {
-      const now = Date.now();
-      for (const path of paths) {
-        collapsedAtRef.current.set(path, now);
-      }
-      if (countTreeNodes(fileTreeRef.current) > MAX_RETAINED_TREE_NODES) {
-        sweepCollapsedSubtrees(true);
-      }
-    },
-    [sweepCollapsedSubtrees]
-  );
+  const noteCollapsed = useCallback((paths: string[]) => {
+    const now = Date.now();
+    for (const path of paths) collapsedAtRef.current.set(path, now);
+  }, []);
 
   useEffect(() => {
-    const timer = setInterval(
-      () => sweepCollapsedSubtrees(false),
-      COLLAPSED_SUBTREE_SWEEP_MS
-    );
-    return () => clearInterval(timer);
-  }, [sweepCollapsedSubtrees]);
+    const collapsedAt = collapsedAtRef.current;
+    if (collapsedAt.size === 0) return;
+
+    // Reconcile retained paths and count nodes in one pass over the committed
+    // tree. In particular, a just-collapsed node must not be read from a stale ref.
+    const retained = new Set<string>();
+    let nodeCount = 0;
+    const visit = (nodes: FileNode[]) => {
+      for (const node of nodes) {
+        nodeCount += 1;
+        if (
+          node.type === "directory" &&
+          !node.expanded &&
+          node.children?.length
+        ) {
+          retained.add(node.path);
+        }
+        if (node.children) visit(node.children);
+      }
+    };
+    visit(fileTree);
+    for (const path of collapsedAt.keys()) {
+      if (!retained.has(path)) collapsedAt.delete(path);
+    }
+    if (collapsedAt.size === 0) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const clearTimer = () => {
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+    };
+    const expire = () => {
+      clearTimer();
+      if (document.visibilityState === "hidden") return;
+      const now = Date.now();
+      const expired = new Set<string>();
+      let nextExpiry = Infinity;
+      for (const [path, at] of collapsedAt) {
+        const deadline = at + COLLAPSED_SUBTREE_RETENTION_MS;
+        if (nodeCount > MAX_RETAINED_TREE_NODES || deadline <= now) {
+          expired.add(path);
+          collapsedAt.delete(path);
+        } else {
+          nextExpiry = Math.min(nextExpiry, deadline);
+        }
+      }
+      if (expired.size > 0) {
+        setFileTree((previous) => pruneCollapsedSubtrees(previous, expired));
+      }
+      if (nextExpiry !== Infinity) timer = setTimeout(expire, nextExpiry - now);
+    };
+    // Defer the first pass so React observes the committed collapse before
+    // applying memory pressure pruning. No recurring timer exists when idle.
+    const schedule = () => {
+      clearTimer();
+      if (document.visibilityState !== "hidden") timer = setTimeout(expire, 0);
+    };
+    schedule();
+    document.addEventListener("visibilitychange", schedule);
+    return () => {
+      clearTimer();
+      document.removeEventListener("visibilitychange", schedule);
+    };
+  }, [fileTree, setFileTree]);
 
   // ============================================
   // Load file tree
