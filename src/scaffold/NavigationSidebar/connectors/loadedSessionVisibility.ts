@@ -14,6 +14,7 @@ function visibleGroupIdForSession(
   groupByMode: GroupByMode
 ): string {
   if (session.pinned) return "pinned";
+  if (groupByMode === "none") return "sessions";
   if (groupByMode === "byTime") {
     return `time:${getDateGroup(session)}`;
   }

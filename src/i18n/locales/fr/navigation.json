@@ -69,6 +69,13 @@
     "changelog": "Changelog"
   },
   "sidebar": {
+    "sort": {
+      "dropToUnpin": "Déposer ici pour désépingler",
+      "title": "Trier les discussions par",
+      "priority": "Priorité",
+      "updated": "Dernière mise à jour",
+      "manual": "Ordre manuel"
+    },
     "tabs": {
       "workstation": "Workstation",
       "manage": "Gérer",
@@ -78,6 +85,7 @@
       "agentOrgs": "Agent et équipe"
     },
     "groupBy": {
+      "none": "Sans regroupement",
       "title": "Grouper par",
       "byTime": "Par date",
       "byAgent": "Par Agent",

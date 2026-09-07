@@ -99,6 +99,13 @@
     "changelog": "Changelog"
   },
   "sidebar": {
+    "sort": {
+      "dropToUnpin": "Drop here to unpin",
+      "title": "Sort chats by",
+      "priority": "Priority",
+      "updated": "Last updated",
+      "manual": "Manual order"
+    },
     "tabs": {
       "workstation": "Workstation",
       "manage": "Manage",
@@ -108,6 +115,7 @@
       "agentOrgs": "Agent & Team"
     },
     "groupBy": {
+      "none": "No grouping",
       "title": "Group by",
       "byTime": "By Time",
       "byAgent": "By Agent",

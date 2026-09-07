@@ -69,6 +69,13 @@
     "changelog": "Changelog"
   },
   "sidebar": {
+    "sort": {
+      "dropToUnpin": "ここにドロップしてピン留めを解除",
+      "title": "チャットの並び順",
+      "priority": "優先度",
+      "updated": "最終更新",
+      "manual": "手動順"
+    },
     "tabs": {
       "workstation": "Workstation",
       "manage": "管理",
@@ -78,6 +85,7 @@
       "agentOrgs": "Agent & チーム"
     },
     "groupBy": {
+      "none": "グループ化なし",
       "title": "グループ表示",
       "byTime": "時間順",
       "byAgent": "Agent 別",

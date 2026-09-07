@@ -69,6 +69,13 @@
     "changelog": "Changelog"
   },
   "sidebar": {
+    "sort": {
+      "dropToUnpin": "Upuść tutaj, aby odpiąć",
+      "title": "Sortuj czaty według",
+      "priority": "Priorytet",
+      "updated": "Ostatnia aktualizacja",
+      "manual": "Kolejność ręczna"
+    },
     "tabs": {
       "workstation": "Workstation",
       "manage": "Zarządzaj",
@@ -78,6 +85,7 @@
       "agentOrgs": "Agent i zespół"
     },
     "groupBy": {
+      "none": "Bez grupowania",
       "title": "Grupuj według",
       "byTime": "Według czasu",
       "byAgent": "Według Agenta",

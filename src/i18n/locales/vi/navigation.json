@@ -69,6 +69,13 @@
     "changelog": "Changelog"
   },
   "sidebar": {
+    "sort": {
+      "dropToUnpin": "Thả vào đây để bỏ ghim",
+      "title": "Sắp xếp cuộc trò chuyện",
+      "priority": "Ưu tiên",
+      "updated": "Cập nhật gần nhất",
+      "manual": "Thứ tự thủ công"
+    },
     "tabs": {
       "workstation": "Workstation",
       "manage": "Quản lý",
@@ -78,6 +85,7 @@
       "agentOrgs": "Agent và nhóm"
     },
     "groupBy": {
+      "none": "Không nhóm",
       "title": "Nhóm theo",
       "byTime": "Theo thời gian",
       "byAgent": "Theo Agent",

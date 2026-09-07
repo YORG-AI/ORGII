@@ -69,6 +69,13 @@
     "changelog": "Журнал изменений"
   },
   "sidebar": {
+    "sort": {
+      "dropToUnpin": "Перетащите сюда, чтобы открепить",
+      "title": "Сортировать чаты",
+      "priority": "Приоритет",
+      "updated": "Последнее обновление",
+      "manual": "Вручную"
+    },
     "tabs": {
       "workstation": "Workstation",
       "manage": "Управление",
@@ -78,6 +85,7 @@
       "agentOrgs": "Agent и команда"
     },
     "groupBy": {
+      "none": "Без группировки",
       "title": "Группировка",
       "byTime": "По времени",
       "byAgent": "По Agent",
