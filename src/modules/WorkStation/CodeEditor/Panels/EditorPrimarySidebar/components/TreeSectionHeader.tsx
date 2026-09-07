@@ -4,7 +4,7 @@ import { TreeRowBase, type TreeRowNode } from "@src/components/TreeRow";
 import {
   COUNT_BADGE,
   getCountBadgeSizeClass,
-} from "@src/modules/WorkStation/shared/tokens";
+} from "@src/config/workstation/tokens";
 
 interface TreeSectionHeaderProps {
   id: string;

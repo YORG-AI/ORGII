@@ -4,10 +4,10 @@ use std::path::Path;
 
 use git::util::run_git;
 
-use crate::orgtrack::paths;
 use crate::orgtrack::types::{
     OrgtrackBranchContext, OrgtrackReachability, OrgtrackReachabilityState,
 };
+use orgtrack_core::repo_sync::paths;
 
 pub(super) fn branch_context_for(repo_path: &Path) -> OrgtrackBranchContext {
     OrgtrackBranchContext {

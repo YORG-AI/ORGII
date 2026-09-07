@@ -14,7 +14,7 @@ import ColorPicker, {
 } from "@src/components/ColorPicker";
 import Input from "@src/components/Input";
 import { useKeyboardSave } from "@src/hooks/keyboard";
-import { useUndoStackWithRestore } from "@src/hooks/ui";
+import { useUndoStackWithRestore } from "@src/hooks/ui/useUndoableState";
 import { Add01Icon, Delete02Icon, HugeiconsIcon } from "@src/icons";
 import {
   SECTION_ACTION_GAP_CLASSES,

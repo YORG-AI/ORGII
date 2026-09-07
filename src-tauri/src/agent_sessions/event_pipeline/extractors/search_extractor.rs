@@ -1,7 +1,7 @@
 //! Search, glob, and list_dir extractors.
 
 use super::helpers::obj_str;
-use crate::agent_sessions::event_pipeline::extractors::types::*;
+use core_types::extracted::*;
 
 pub(super) fn extract_search(
     args: Option<&serde_json::Map<String, serde_json::Value>>,

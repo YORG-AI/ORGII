@@ -19,7 +19,7 @@ import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import PersonAvatar from "@src/components/PersonAvatar";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import {
   Add01Icon,
   ArrowDown01Icon,

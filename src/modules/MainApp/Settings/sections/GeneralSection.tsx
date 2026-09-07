@@ -47,7 +47,7 @@ import Switch from "@src/components/Switch";
 import type { TimezoneOption } from "@src/config/timezone";
 import CloudEndpointCard from "@src/features/Org2Cloud/CloudEndpointCard";
 import { Org2CloudLoginRows } from "@src/features/Org2Cloud/Org2CloudSection";
-import { useTimezoneSelect } from "@src/hooks/geo";
+import { useTimezoneSelect } from "@src/hooks/geo/useTimezoneSelect";
 import {
   LANGUAGE_NAMES,
   LANGUAGE_PREFERENCE,

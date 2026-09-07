@@ -8,7 +8,7 @@
  */
 import React, { memo } from "react";
 
-import { HEADER_CLASSES } from "../tokens";
+import { HEADER_CLASSES } from "@src/config/workstation/tokens";
 
 // ============================================
 // Types

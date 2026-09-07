@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatSkillFrontmatterPropertyLabel,
   parseSkillFrontmatter,
-} from "./skillFrontmatter";
+} from "@src/util/skills/skillFrontmatter";
 
 describe("formatSkillFrontmatterPropertyLabel", () => {
   it("formats frontmatter keys as title case labels", () => {

@@ -21,7 +21,6 @@ use super::think_split::ThinkTagSplitter;
 use super::translate_tool_choice_for_openai;
 use crate::providers::openai_policy::ChatTokenLimitField;
 use crate::providers::registry::provider_id;
-use crate::providers::safe_truncate::safe_truncate_utf8;
 use crate::providers::traits::{
     finish_reason as finish, usage_key, LLMResponse, ProviderError, StreamDelta, StreamErrorKind,
     ToolCallDelta, ToolCallRequest,
@@ -31,6 +30,7 @@ use crate::providers::wire_sanitize::{
     strip_tool_schema_cache_scopes,
 };
 use crate::utils::http_retry::extract_retry_after_secs;
+use crate::utils::safe_truncate_utf8;
 
 fn finish_reason_after_incomplete_tool_calls(
     finish_reason: String,

@@ -54,7 +54,7 @@ import { getViewportSize } from "@src/util/ui/window/viewport";
 import HoverAnimatedIcon, {
   triggerIconAnimation,
 } from "../components/HoverAnimatedIcon";
-import { SidebarRamMonitorPanel } from "../connectors/SidebarRamMonitorButton";
+import { SidebarRamMonitorPanel } from "../connectors/SidebarRamMonitorButton/index";
 import {
   type SettingsSubmenu,
   SidebarSettingsMenuSubmenus,

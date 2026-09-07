@@ -1,13 +1,11 @@
-use crate::agent_sessions::cli::parsers::alias_map::get_ui_canonical;
 use crate::agent_sessions::event_pipeline::extractors::extractors::{
     detect_language, extract_batch, extract_event_data, strip_line_number_prefixes_pub,
-};
-use crate::agent_sessions::event_pipeline::extractors::{
-    types::OrgTaskOperationOutcome, ExtractedData,
 };
 use crate::agent_sessions::event_pipeline::types::{
     ActivityStatus, EventDisplayStatus, EventDisplayVariant, EventSource, SessionEvent,
 };
+use core_types::cli_alias::get_ui_canonical;
+use core_types::extracted::{ExtractedData, OrgTaskOperationOutcome};
 
 fn make_event(
     function_name: &str,
@@ -1044,16 +1042,14 @@ fn test_extract_apply_patch_preserves_explicit_hunk_line_range() {
 fn test_extracted_data_serialization_shape() {
     // Wire format must be `{kind: "file", filePath: "...", ...}`
     // (serde tag = "kind", rename_all = "camelCase"). Frontend depends on this shape.
-    let data = ExtractedData::File(
-        crate::agent_sessions::event_pipeline::extractors::types::ExtractedFileData {
-            file_path: "/a.rs".to_string(),
-            file_name: "a.rs".to_string(),
-            content: None,
-            language: "rust".to_string(),
-            line_count: None,
-            start_line: None,
-        },
-    );
+    let data = ExtractedData::File(core_types::extracted::ExtractedFileData {
+        file_path: "/a.rs".to_string(),
+        file_name: "a.rs".to_string(),
+        content: None,
+        language: "rust".to_string(),
+        line_count: None,
+        start_line: None,
+    });
     let json = serde_json::to_string(&data).unwrap();
     assert!(json.contains("\"kind\":\"file\""), "got: {}", json);
     assert!(json.contains("\"filePath\":\"/a.rs\""), "got: {}", json);

@@ -36,7 +36,7 @@ import NavigationSidebar from "../../variants/NavigationSidebar";
 import SidebarAccountButton from "../SidebarAccountButton";
 import SidebarGuideButton from "../SidebarGuideButton";
 import type { SidebarTabDisposition } from "../sidebarTabNavigation";
-import { useSessionMenuItems } from "../useSessionMenuItems";
+import { useSessionMenuItems } from "../useSessionMenuItems/index";
 import { DEFAULT_COLLAPSED_SECTION_IDS } from "../workstationSidebarData";
 import { SidebarDialogs } from "./SidebarDialogs";
 import {

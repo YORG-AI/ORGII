@@ -27,7 +27,7 @@ vi.mock("@src/api/tauri/agent", () => ({
 vi.mock("@src/components/Message", () => ({
   default: { error: vi.fn() },
 }));
-vi.mock("@src/hooks/ui", () => ({
+vi.mock("@src/hooks/ui/useUndoableState", () => ({
   useUndoStackWithRestore: () => mocks.undoStack,
 }));
 

@@ -23,7 +23,7 @@ import React, {
 } from "react";
 
 import { useFilteredItems } from "@src/hooks/search";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import { GripIcon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import { agentNameAtom } from "@src/store/session/creatorStateAtom";
 import { spotlightModelKeyFirstAtom } from "@src/store/ui/spotlightModelKeyFirstAtom";

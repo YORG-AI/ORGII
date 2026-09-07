@@ -9,7 +9,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import {
   type DependencyStatus,

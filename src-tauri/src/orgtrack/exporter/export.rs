@@ -22,7 +22,6 @@ use super::summary::{
     write_record_if_missing,
 };
 use super::ScanContext;
-use crate::orgtrack::paths;
 use crate::orgtrack::types::{
     OrgtrackChangedFile, OrgtrackCommitRecord, OrgtrackExportResult, OrgtrackFileTimelineEntry,
     OrgtrackIndex, OrgtrackIndexCommit, OrgtrackIndexFile, OrgtrackIndexSession, OrgtrackManifest,
@@ -30,6 +29,7 @@ use crate::orgtrack::types::{
     OrgtrackSessionDetails, OrgtrackSessionMeta, OrgtrackSessionTrajectory, OrgtrackSymbolEntry,
     OrgtrackTier, OrgtrackTimelineEntryType, OrgtrackTimelineRecord, ORGTRACK_SCHEMA_VERSION,
 };
+use orgtrack_core::repo_sync::paths;
 
 pub fn initialize_orgtrack(
     repo_path: &Path,

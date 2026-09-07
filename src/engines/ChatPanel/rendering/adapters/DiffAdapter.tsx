@@ -7,7 +7,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { extractEditData } from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
+import { extractEditData } from "@src/engines/SessionCore/rendering/props/editExtractors";
 import {
   statusToLifecycle,
   useLifecycleLabels,

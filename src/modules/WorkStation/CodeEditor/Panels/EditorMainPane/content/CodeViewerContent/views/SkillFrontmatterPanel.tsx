@@ -17,14 +17,13 @@ import {
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
 import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
-
 import {
   type SkillFrontmatter,
   formatSkillFrontmatterPropertyLabel,
   serializeFrontmatter,
-} from "./skillFrontmatter";
+} from "@src/util/skills/skillFrontmatter";
 
-export { parseSkillFrontmatter } from "./skillFrontmatter";
+export { parseSkillFrontmatter } from "@src/util/skills/skillFrontmatter";
 
 const PROPERTY_VALUE_CONTROL_STYLE: React.CSSProperties = {
   width: 400,

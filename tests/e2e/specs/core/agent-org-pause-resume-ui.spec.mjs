@@ -940,7 +940,7 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
         // from the sidebar.
         //
         // The fix lives in two places:
-        //  1. `byAgentMenuItems` in `useSessionMenuItems.tsx` — org group's local
+        //  1. `byAgentMenuItems` in `useSessionMenuItems/index.tsx` — org group's local
         //     "Load more" now marks rust_agent as already emitted so the backend
         //     "Load more" is not duplicated. The rerender after member switch was
         //     triggering a full sidebar refresh that lost the session item.

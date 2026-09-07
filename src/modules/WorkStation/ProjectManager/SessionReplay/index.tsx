@@ -9,7 +9,12 @@ import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Placeholder } from "@src/components/Placeholder";
+import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import type { SessionEvent } from "@src/engines/SessionCore";
+import type {
+  ProjectOperation,
+  SimulatorProjectState,
+} from "@src/engines/Simulator/apps/core/sessionReplayTypes";
 import type { SimulatorAppProps } from "@src/engines/Simulator/apps/core/types";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { File02Icon, HugeiconsIcon, LayoutListIcon } from "@src/icons";
@@ -31,7 +36,6 @@ import {
   useSimulatorAwaitingAgentCaption,
   useSimulatorPlaceholderActions,
 } from "@src/modules/WorkStation/shared";
-import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/modules/WorkStation/shared/tokens";
 import type {
   Project,
   ProjectPriority,
@@ -44,7 +48,6 @@ import type {
 } from "@src/types/core/workItem";
 
 import { deriveProjectState } from "./config";
-import type { ProjectOperation, SimulatorProjectState } from "./types";
 
 type ProjectReplayView =
   | { kind: "projectList"; projects: Project[] }

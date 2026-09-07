@@ -13,7 +13,7 @@ import { useLocation } from "react-router-dom";
 import AnyIcon from "@src/components/AnyIcon";
 import { deriveBreadcrumbKeys, getPathIcon } from "@src/config/mainAppPaths";
 import { findRouteByPath, getLabelForPath } from "@src/config/routes";
-import { useRouteLabel } from "@src/hooks/i18n";
+import { useRouteLabel } from "@src/hooks/i18n/useRouteLabel";
 import { useSafeHover } from "@src/hooks/ui/useSafeHover";
 import {
   ArrowLeftRightIcon,

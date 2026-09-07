@@ -5,7 +5,7 @@
  */
 import React from "react";
 
-import { extractSearchData } from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
+import { extractSearchData } from "@src/engines/SessionCore/rendering/props/searchExtractors";
 import {
   statusToLifecycle,
   useLifecycleLabels,

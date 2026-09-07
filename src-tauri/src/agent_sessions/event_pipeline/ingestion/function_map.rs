@@ -7,7 +7,7 @@
 //! This module delegates to that map for storage canonical names, ensuring consistency
 //! between session persistence and UI routing.
 
-use crate::agent_sessions::cli::parsers::alias_map;
+use core_types::cli_alias as alias_map;
 use core_types::tool_names;
 
 /// Resolve the canonical function name for a raw event chunk (for DB storage).

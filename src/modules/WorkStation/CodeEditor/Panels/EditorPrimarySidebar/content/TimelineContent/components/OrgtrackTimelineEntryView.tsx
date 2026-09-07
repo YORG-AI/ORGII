@@ -1,7 +1,7 @@
 import React, { memo } from "react";
 
 import AnyIcon from "@src/components/AnyIcon";
-import { PRIMARY_SIDEBAR_HOVER } from "@src/modules/WorkStation/shared/tokens";
+import { PRIMARY_SIDEBAR_HOVER } from "@src/config/workstation/tokens";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import { TIMELINE_ICONS } from "../config";

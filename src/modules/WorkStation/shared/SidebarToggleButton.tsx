@@ -24,6 +24,7 @@ import Button from "@src/components/Button";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import type { TooltipProps } from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import {
   HugeiconsIcon,
   LayoutAlignLeftIcon,
@@ -44,8 +45,6 @@ import {
   activeStatusBarAppAtom,
   activeStatusBarCallbacksAtom,
 } from "@src/store/ui/workStationLayout/statusBarAtoms";
-
-import { HEADER_ICON_SIZE } from "./tokens";
 
 // ============================================
 // View component

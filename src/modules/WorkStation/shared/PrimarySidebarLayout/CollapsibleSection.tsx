@@ -13,14 +13,13 @@ import {
   type SectionHeaderAction,
   isSectionHeaderCustomAction,
 } from "@src/components/TreePanelSidebar/types";
-import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import {
   BUTTON_SIZE,
   SECTION_ACTION_BUTTON,
-} from "@src/modules/WorkStation/shared/tokens";
+} from "@src/config/workstation/tokens";
+import { HEADER_CLASSES } from "@src/config/workstation/tokens";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import { HorizontalResizeHandle } from "@src/scaffold/Resize";
-
-import { HEADER_CLASSES } from "../tokens";
 
 // ============================================
 // Types

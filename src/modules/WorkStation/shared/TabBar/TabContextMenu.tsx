@@ -11,14 +11,13 @@ import i18next from "i18next";
 import { useEffect, useRef } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import type { WorkStationTab } from "@src/store/workstation/tabs";
 import { copyText } from "@src/util/data/clipboard";
 import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
 import {
   type NativeMenuItemOptions,
   popupNativeMenu,
 } from "@src/util/platform/tauri/nativeMenuPopup";
-
-import type { WorkStationTab } from "./types";
 
 const logger = createLogger("TabContextMenu");
 

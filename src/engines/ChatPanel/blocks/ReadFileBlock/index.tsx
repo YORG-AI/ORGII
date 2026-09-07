@@ -10,7 +10,7 @@ import React, { useMemo } from "react";
 
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { getToolIcon } from "@src/config/toolIcons";
-import { extractFileData } from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
+import { extractFileData } from "@src/engines/SessionCore/rendering/props/fileExtractors";
 import {
   statusToLifecycle,
   useToolLabelText,

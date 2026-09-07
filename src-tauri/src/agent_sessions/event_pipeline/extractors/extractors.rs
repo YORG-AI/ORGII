@@ -3,11 +3,11 @@
 //! Rust port of the TypeScript `dataExtractors.ts`.
 //! Pulls structured rendering data from SessionEvent args/result fields.
 
-use crate::agent_sessions::event_pipeline::extractors::types::*;
 use crate::agent_sessions::event_pipeline::types::{EventDisplayVariant, SessionEvent};
 use agent_core::core::tools::builtin_tools::resolve_effective_app_subtool;
 use agent_core::core::tools::names as tool_names;
 use agent_core::core::tools::ui_metadata::AppSubtool;
+use core_types::extracted::*;
 
 use super::file_extractor::{extract_edit, extract_file};
 use super::helpers::obj_str;

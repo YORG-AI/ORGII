@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import Button, { type ButtonProps } from "@src/components/Button";
 import SkeletonBar from "@src/components/Skeleton";
-import { useCopyCheck } from "@src/hooks/ui";
+import { useCopyCheck } from "@src/hooks/ui/useCopyCheck";
 import { Copy01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
 import { normalizeScrollTrailLabel } from "@src/modules/shared/layouts/blocks/ScrollTrail";
 import { copyText } from "@src/util/data/clipboard";

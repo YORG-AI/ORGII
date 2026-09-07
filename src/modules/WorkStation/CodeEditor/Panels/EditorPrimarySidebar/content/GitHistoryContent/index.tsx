@@ -24,13 +24,13 @@ import type { GitCommitInfo } from "@src/api/http/git/types";
 import { Placeholder } from "@src/components/Placeholder";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { PRIMARY_SIDEBAR_HOVER } from "@src/config/workstation/tokens";
 import {
   type UseWorkStationTabsReturn,
   useWorkStationTabs,
 } from "@src/hooks/tabHost/useWorkStationTabs";
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
 import { HugeiconsIcon, Loading03Icon } from "@src/icons";
-import { PRIMARY_SIDEBAR_HOVER } from "@src/modules/WorkStation/shared/tokens";
 import {
   type GitHistoryRequest,
   getCachedGitHistory,

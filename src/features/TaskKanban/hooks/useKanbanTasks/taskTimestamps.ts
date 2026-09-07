@@ -1,4 +1,4 @@
-import type { KanbanTask } from "../../types";
+import type { KanbanTask } from "@src/features/KanbanBoard/types";
 
 export function getTaskTimestamp(task: KanbanTask): number {
   const timestamp = task.updated_at || task.created_at;

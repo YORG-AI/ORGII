@@ -10,7 +10,7 @@ import Switch from "@src/components/Switch";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
 import type { CursorRepo } from "@src/hooks/policies";
 import { getInstalledSkillIdentity } from "@src/hooks/skills/installedSkillsMerge";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import {
   Add01Icon,
   Delete02Icon,

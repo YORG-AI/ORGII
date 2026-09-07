@@ -22,7 +22,7 @@ import {
   useWorkItemImageInsert,
   workItemDraftToStubWorkItem,
 } from "@src/hooks/project";
-import { useUndoStackWithRestore } from "@src/hooks/ui";
+import { useUndoStackWithRestore } from "@src/hooks/ui/useUndoableState";
 import { DeliveryBox01Icon, HugeiconsIcon } from "@src/icons";
 import {
   CreateComposerTitleInput,

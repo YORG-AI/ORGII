@@ -9,7 +9,7 @@ import {
   ChatBubbleLayout,
 } from "@src/components/ChatBubble";
 import { TaskListCard } from "@src/engines/ChatPanel/blocks/ToolCallBlock/cards/TaskUpdateCard";
-import { parseAgentMessageCard } from "@src/engines/ChatPanel/blocks/ToolCallBlock/helpers";
+import { parseAgentMessageCard } from "@src/engines/ChatPanel/blocks/ToolCallBlock/helpers/cardParsers";
 import {
   OrgSendMessageBlock,
   OrgTaskAdapter,

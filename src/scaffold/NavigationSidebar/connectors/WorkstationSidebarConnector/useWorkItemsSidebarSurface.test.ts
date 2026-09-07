@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => ({
   mounted: vi.fn(),
   unmounted: vi.fn(),
 }));
-vi.mock("../useProjectsWorkItemMenuItems", async () => ({
+vi.mock("../useProjectsWorkItemMenuItems/index", async () => ({
   ...(await import("../useProjectsWorkItemMenuItems/idHelpers")),
   useProjectsWorkItemMenuItems: (
     params: UseProjectsWorkItemMenuItemsParams

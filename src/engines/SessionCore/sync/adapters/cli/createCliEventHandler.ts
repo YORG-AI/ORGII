@@ -29,7 +29,7 @@ import type {
   RawSessionEvent,
   SessionEventHandler,
 } from "../../types";
-import { makeToolCallEvent } from "../shared/eventBuilders";
+import { makeToolCallEvent } from "../shared/eventFactories";
 import {
   appendBoundedToolCallArgs,
   makeRoomForToolCallDelta,

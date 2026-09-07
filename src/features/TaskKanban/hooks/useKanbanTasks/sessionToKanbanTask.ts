@@ -1,4 +1,8 @@
 import { KANBAN_RESULT_STATUS } from "@src/features/KanbanBoard/types";
+import type {
+  KanbanResultStatus,
+  KanbanTask,
+} from "@src/features/KanbanBoard/types";
 import type { Session } from "@src/store/session";
 import {
   isAgentSession,
@@ -13,7 +17,6 @@ import {
   type KanbanAutoArchiveTtl,
   mapSessionToKanbanColumn,
 } from "../../config";
-import type { KanbanResultStatus, KanbanTask } from "../../types";
 import { resolveKanbanAgentFilter } from "./kanbanAgentFilter";
 
 function getResultStatus(

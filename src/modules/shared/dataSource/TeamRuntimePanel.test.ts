@@ -84,7 +84,7 @@ vi.mock("@src/features/Org2Cloud/org2CloudRemoteSessionsAtom", () => ({
     mocks.useCloudOrgRemoteSessions(orgId),
 }));
 
-vi.mock("@src/hooks/ui", () => ({
+vi.mock("@src/hooks/ui/useRefreshSpin", () => ({
   useRefreshSpin: (onRefresh: () => void) => ({
     spinClass: undefined,
     handleClick: onRefresh,

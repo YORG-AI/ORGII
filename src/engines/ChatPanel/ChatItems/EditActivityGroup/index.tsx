@@ -19,7 +19,7 @@ import {
   TOOL_USAGE_ARGS_KEY,
   type ToolUsageMetadata,
 } from "@src/engines/SessionCore/core/types";
-import { extractEditData } from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
+import { extractEditData } from "@src/engines/SessionCore/rendering/props/editExtractors";
 import { getChatLazyComponent } from "@src/engines/SessionCore/rendering/registry/events";
 import {
   getRegistryEventType,

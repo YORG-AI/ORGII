@@ -12,8 +12,8 @@ import FileTypeIcon from "@src/components/FileTypeIcon";
 import { GitStatusBadge, TreeRowAction } from "@src/components/TreeRow";
 import { TREE_PADDING_X } from "@src/components/TreeRow/config";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { PRIMARY_SIDEBAR_HOVER } from "@src/config/workstation/tokens";
 import { Add01Icon, MinusSignIcon, Tick01Icon, Undo02Icon } from "@src/icons";
-import { PRIMARY_SIDEBAR_HOVER } from "@src/modules/WorkStation/shared/tokens";
 import type { GitFile } from "@src/types/git/types";
 
 export interface GitFileListItemProps {

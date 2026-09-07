@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   extractApplyPatchDataFromRust,
   extractEditData,
-} from "../propsDataExtractors";
+} from "../editExtractors";
 import { makeUniversalProps } from "./fixtures";
 
 // ============================================

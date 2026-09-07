@@ -28,10 +28,10 @@ import { useTranslation } from "react-i18next";
 import { Placeholder } from "@src/components/Placeholder";
 import SessionContentView from "@src/engines/ChatPanel/SessionContentView";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
+import type { KanbanTask } from "@src/features/KanbanBoard/types";
 import { sessionMapAtom } from "@src/store/session";
 import { chatTurnPaginationEnabledAtom } from "@src/store/ui/chatPanelAtom";
 
-import type { KanbanTask } from "../../types";
 import TaskDetailHeader from "./TaskDetailHeader";
 import type { TaskDetailNavigationDirection } from "./TaskDetailHeader";
 import TaskDetailHeaderActions from "./TaskDetailHeaderActions";

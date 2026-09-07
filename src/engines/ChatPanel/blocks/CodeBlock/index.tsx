@@ -18,7 +18,7 @@ import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import ExpandOverlay from "@src/components/ExpandOverlay";
 import { FileTreeHoverPreview } from "@src/components/FileTreePreview/exports";
 import FileTypeIcon from "@src/components/FileTypeIcon";
-import { useCopyCheck } from "@src/hooks/ui";
+import { useCopyCheck } from "@src/hooks/ui/useCopyCheck";
 import {
   Copy01Icon,
   HugeiconsIcon,

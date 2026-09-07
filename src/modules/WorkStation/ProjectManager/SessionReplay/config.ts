@@ -7,9 +7,11 @@
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { getAppTypeForTool } from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
 import { defineSimulatorAppConfig } from "@src/engines/Simulator/apps/core/configFactory";
+import type {
+  ProjectOperation,
+  SimulatorProjectState,
+} from "@src/engines/Simulator/apps/core/sessionReplayTypes";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
-
-import type { ProjectOperation, SimulatorProjectState } from "./types";
 
 function normalizeArgs(args: unknown): Record<string, unknown> {
   return args && typeof args === "object" && !Array.isArray(args)

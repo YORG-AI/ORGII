@@ -21,15 +21,15 @@ import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip"
 import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import {
+  HEADER_BUTTON,
+  HEADER_ICON_SIZE,
+} from "@src/config/workstation/tokens";
+import {
   BrushCleaningIcon,
   Copy01Icon,
   HugeiconsIcon,
   Tick01Icon,
 } from "@src/icons";
-import {
-  HEADER_BUTTON,
-  HEADER_ICON_SIZE,
-} from "@src/modules/WorkStation/shared/tokens";
 import { copyText } from "@src/util/data/clipboard";
 
 import type { ConsoleEntry, FilterLevel, LogLevel } from "../../types";

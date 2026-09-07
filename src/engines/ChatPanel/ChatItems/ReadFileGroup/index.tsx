@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import ChatCodeBlock from "@src/engines/ChatPanel/blocks/CodeBlock";
 import { StackedBlock } from "@src/engines/ChatPanel/blocks/primitives";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-import { stripLineNumberPrefixes } from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
+import { stripLineNumberPrefixes } from "@src/engines/SessionCore/rendering/props/extractorShared";
 import { File02Icon, HugeiconsIcon } from "@src/icons";
 import { getFileName } from "@src/util/file/pathUtils";
 

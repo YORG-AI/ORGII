@@ -17,9 +17,9 @@ import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import type { DropdownOption } from "@src/components/Dropdown/types";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import Select from "@src/components/Select";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import { EllipsisIcon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
-import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import type { SourceControlFilterMode } from "@src/store/workstation/codeEditor/sourceControlTypes";
 
 export type { SourceControlFilterMode } from "@src/store/workstation/codeEditor/sourceControlTypes";

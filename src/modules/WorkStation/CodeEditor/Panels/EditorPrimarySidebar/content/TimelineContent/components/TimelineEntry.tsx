@@ -2,11 +2,11 @@ import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
-import { HugeiconsIcon } from "@src/icons";
 import {
   HEADER_BUTTON,
   PRIMARY_SIDEBAR_HOVER,
-} from "@src/modules/WorkStation/shared/tokens";
+} from "@src/config/workstation/tokens";
+import { HugeiconsIcon } from "@src/icons";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import { TIMELINE_ICONS } from "../config";

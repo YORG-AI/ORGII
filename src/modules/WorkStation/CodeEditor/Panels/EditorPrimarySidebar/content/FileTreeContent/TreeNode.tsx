@@ -31,7 +31,10 @@ import {
   TREE_ROW_INSET_X,
   TREE_ROW_ROUNDED_CLASS,
 } from "@src/components/TreeRow";
-import { type NativeDragItem, useNativeDrag } from "@src/hooks/files";
+import {
+  type NativeDragItem,
+  useNativeDrag,
+} from "@src/hooks/files/useNativeDrag";
 import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import { useIsFileSelected } from "@src/store/ui/fileTreeSelectionAtom";
 

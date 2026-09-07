@@ -1,4 +1,5 @@
 import { KANBAN_RESULT_STATUS } from "@src/features/KanbanBoard/types";
+import type { KanbanTask } from "@src/features/KanbanBoard/types";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session";
 import { basename } from "@src/util/path";
@@ -10,7 +11,6 @@ import {
   isKanbanActivityAutoArchived,
   mapSessionStatusToKanbanColumn,
 } from "../../config";
-import type { KanbanTask } from "../../types";
 import { resolveKanbanAgentFilter } from "./kanbanAgentFilter";
 
 const CLOUD_REMOTE_TASK_PREFIX = "cloud-remote:";

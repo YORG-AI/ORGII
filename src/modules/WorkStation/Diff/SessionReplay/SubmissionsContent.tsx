@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { GitCommitInfo } from "@src/api/http/git/types";
 import { Placeholder } from "@src/components/Placeholder";
 import PrStatusBadge from "@src/components/PrStatusBadge";
+import { HEADER_BUTTON, TYPOGRAPHY } from "@src/config/workstation/tokens";
 import type { ExtractedGitArtifactData } from "@src/engines/SessionCore/core/types";
 import {
   HugeiconsIcon,
@@ -12,10 +13,6 @@ import {
 } from "@src/icons";
 import GitCommitRow from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/GitHistoryContent/GitCommitRow";
 import { truncateBranchLabel } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/PullRequestContent/prCardHelpers";
-import {
-  HEADER_BUTTON,
-  TYPOGRAPHY,
-} from "@src/modules/WorkStation/shared/tokens";
 import { PR_STATUS_UNKNOWN } from "@src/shared/pr/prStatus";
 
 export type SubmissionArtifactOrigin = "created" | "mentioned";

@@ -20,10 +20,10 @@ import {
 } from "@src/components/KeyboardShortcut";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import { useActiveRepoRef } from "@src/hooks/git/useActiveRepoRef";
 import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotals";
 import { Infinity01Icon, type IconSvgElement } from "@src/icons";
-import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/modules/WorkStation/shared/tokens";
 import { hasActiveSessionAtom } from "@src/store/session/viewAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 

@@ -10,6 +10,7 @@ import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { IconButton } from "@src/components/IconButton";
+import { HEADER_ICON_SIZE, TYPOGRAPHY } from "@src/config/workstation/tokens";
 import {
   HugeiconsIcon,
   Loading03Icon,
@@ -17,10 +18,6 @@ import {
   Undo02Icon,
 } from "@src/icons";
 import { HUMANTOOLS_TEXT_KEYS } from "@src/modules/WorkStation/shared/textTokens";
-import {
-  HEADER_ICON_SIZE,
-  TYPOGRAPHY,
-} from "@src/modules/WorkStation/shared/tokens";
 
 function FloatingBarLayer({ children }: { children: React.ReactNode }) {
   return (

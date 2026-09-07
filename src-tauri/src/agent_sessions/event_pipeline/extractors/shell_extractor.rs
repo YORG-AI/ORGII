@@ -2,7 +2,7 @@
 
 use super::git_artifacts::{parse_git_artifacts, GitArtifactParseInput};
 use super::helpers::{obj_f64, obj_i64, obj_str};
-use crate::agent_sessions::event_pipeline::extractors::types::*;
+use core_types::extracted::*;
 
 pub(super) fn extract_shell(
     args: Option<&serde_json::Map<String, serde_json::Value>>,

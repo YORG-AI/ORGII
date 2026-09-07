@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { AgentLiveStatus } from "@src/api/tauri/rpc/schemas/agentOrgs";
+import { sessionMatchesOrgFilter } from "@src/features/Organizations/sessionOrgScope";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import {
   type Session,
@@ -28,7 +29,6 @@ import {
   buildByTimeMenuItems,
   buildByWorkspaceMenuItems,
 } from "./menuSectionBuilders";
-import { sessionMatchesOrgFilter } from "./orgFilter";
 import {
   appendSessionGroup,
   getLoadMoreGroupId,

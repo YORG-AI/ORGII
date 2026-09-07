@@ -10,11 +10,11 @@ import {
   TREE_ROW_INSET_CLASS,
   TREE_ROW_ROUNDED_CLASS,
 } from "@src/components/TreeRow";
-import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import {
   COUNT_BADGE,
   getCountBadgeSizeClass,
-} from "@src/modules/WorkStation/shared/tokens";
+} from "@src/config/workstation/tokens";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 
 export interface SectionHeaderProps {
   title: string;

@@ -14,6 +14,7 @@ import type { ReactNode } from "react";
 import type { GitHubIssue } from "@src/api/tauri/github";
 import Button from "@src/components/Button";
 import TabPill from "@src/components/TabPill";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import {
   ArrowLeft02Icon,
   ArrowRight02Icon,
@@ -25,7 +26,6 @@ import {
 } from "@src/icons";
 import { ExternalBrowserButton } from "@src/modules/WorkStation/shared/ExternalBrowserButton";
 import type { SourceControlFilterMode } from "@src/modules/WorkStation/shared/SidebarModules";
-import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import type {
   SourceControlHistorySelection,
   WorkStationTab,

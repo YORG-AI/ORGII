@@ -18,6 +18,7 @@ import type {
   CanvasInlinePayload,
 } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/types";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
+import { makeToolResultEvent } from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
 import { createLogger } from "@src/hooks/logger";
 import {
   type CanvasPreviewEntry,
@@ -29,7 +30,6 @@ import {
 } from "@src/store/session/canvasRevisionDraftAtom";
 import { clearMcpProgressForCallAtom } from "@src/store/session/mcpProgressAtom";
 
-import { makeToolResultEvent } from "../../shared/eventBuilders";
 import {
   SPAWNED_SESSION_RE,
   findActiveSubagentCallIndex,

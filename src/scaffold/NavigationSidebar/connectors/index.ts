@@ -4,4 +4,4 @@
  * Public exports for sidebar connector components
  */
 
-export { WorkstationSidebarConnector } from "./WorkstationSidebarConnector";
+export { WorkstationSidebarConnector } from "./WorkstationSidebarConnector/index";

@@ -16,7 +16,7 @@ import {
   type SidebarWorkItem,
   getProjectsLinearWorkItemId,
   getProjectsWorkItemId,
-} from "../useProjectsWorkItemMenuItems";
+} from "../useProjectsWorkItemMenuItems/index";
 
 export function useRenderSessionMenuItemWrapper(
   sessionMap: ReadonlyMap<string, Session>

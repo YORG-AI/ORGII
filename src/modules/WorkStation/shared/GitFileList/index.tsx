@@ -33,6 +33,7 @@ import {
   stickyRowPadding,
 } from "@src/components/VirtualizedStickyTree";
 import { getStatusColorForFile } from "@src/config/gitStatus";
+import { HEADER_BUTTON } from "@src/config/workstation/tokens";
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
@@ -52,7 +53,6 @@ import {
   flattenGitFileTree,
   toggleDirectoryInTree,
 } from "../../CodeEditor/Panels/EditorPrimarySidebar/content/SourceControlContent/utils/treeUtils";
-import { HEADER_BUTTON } from "../tokens";
 
 // ============================================
 // Types

@@ -29,7 +29,7 @@ import {
 import { getSkinsForVariant } from "@src/config/appearance/skins/registry";
 import type { SkinVariant } from "@src/config/appearance/skins/types";
 import { buildSettingsPath } from "@src/config/mainAppPaths";
-import { useUndoStackWithRestore } from "@src/hooks/ui";
+import { useUndoStackWithRestore } from "@src/hooks/ui/useUndoableState";
 import { updateSettingsBatchAtom } from "@src/store/settings/settingsAtom";
 import {
   type BackgroundConfig,

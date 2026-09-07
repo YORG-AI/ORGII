@@ -8,6 +8,7 @@ import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Placeholder } from "@src/components/Placeholder";
+import { HEADER_BUTTON } from "@src/config/workstation/tokens";
 import {
   EclipseIcon,
   HugeiconsIcon,
@@ -19,7 +20,6 @@ import {
   EditableField,
   LinkedInputPair,
 } from "@src/modules/WorkStation/shared/PropertyEditor";
-import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
 
 import { CollapsibleSection, SubSection } from "./CollapsibleSection";
 import { LayoutButtons } from "./LayoutButtons";

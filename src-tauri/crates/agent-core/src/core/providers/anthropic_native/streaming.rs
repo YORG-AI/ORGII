@@ -22,12 +22,12 @@ use super::request::{apply_headers, prepare_request};
 use super::stream_parser::{finalize_blocks, handle_event, EventOutcome, StreamState};
 use super::types::{ContentBlock, MessagesResponse, StreamEvent};
 use super::usage as usage_helpers;
-use crate::providers::safe_truncate::safe_truncate_utf8;
 use crate::providers::traits::{
     finish_reason as finish, AssistantBlock, ChatOptions, LLMProvider, LLMResponse, ProviderError,
     StreamDelta, StreamErrorKind, ToolCallRequest,
 };
 use crate::utils::http_retry::extract_retry_after_secs;
+use crate::utils::safe_truncate_utf8;
 
 #[async_trait]
 impl LLMProvider for AnthropicClient {

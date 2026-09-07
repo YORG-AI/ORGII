@@ -1,9 +1,9 @@
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { extractEditData } from "@src/engines/SessionCore/rendering/props/editExtractors";
 import {
-  extractEditData,
   mergeUnifiedDiffStrings,
   parseUnifiedDiffToOldNew,
-} from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
+} from "@src/engines/SessionCore/rendering/props/extractorShared";
 import { normalizeEventProps } from "@src/engines/SessionCore/rendering/props/propsNormalizer";
 import { shouldTrustDiffStartLines } from "@src/util/diff/startLines";
 import { normalizeDiffFilePath } from "@src/util/file/pathUtils";

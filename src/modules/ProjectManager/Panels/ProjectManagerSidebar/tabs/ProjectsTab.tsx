@@ -14,7 +14,7 @@ import {
 } from "@src/components/Dropdown/tokens";
 import type { SectionHeaderAction } from "@src/components/TreePanelSidebar/types";
 import { useDropdownEngine } from "@src/hooks/dropdown";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import {
   Add01Icon,
   DeliveryBox01Icon,

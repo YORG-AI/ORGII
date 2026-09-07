@@ -9,13 +9,13 @@ import {
   DROPDOWN_PANEL,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
-import { useDropdownEngine } from "@src/hooks/dropdown";
-import { Delete02Icon, EllipsisIcon, HugeiconsIcon } from "@src/icons";
 import {
   FOLDER_HEADER,
   HEADER_BUTTON,
   PRIMARY_SIDEBAR_HOVER,
-} from "@src/modules/WorkStation/shared/tokens";
+} from "@src/config/workstation/tokens";
+import { useDropdownEngine } from "@src/hooks/dropdown";
+import { Delete02Icon, EllipsisIcon, HugeiconsIcon } from "@src/icons";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 interface WorktreeActionsMenuProps {

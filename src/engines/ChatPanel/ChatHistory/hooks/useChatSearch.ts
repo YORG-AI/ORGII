@@ -30,7 +30,7 @@ import {
   useChatSearchPanePresentation,
   writeChatSearchSyncState,
 } from "./chatSearch";
-import { resolveVisibleSearchResultIndex } from "./chatSearchDom";
+import { resolveVisibleSearchResultIndex } from "./chatSearch";
 import {
   type ChatSearchModes,
   DEFAULT_CHAT_SEARCH_MODES,

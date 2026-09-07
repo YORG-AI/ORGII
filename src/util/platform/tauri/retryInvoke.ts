@@ -6,7 +6,7 @@
  * so the user sees the failure inline instead of only as a toast.
  */
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
-import { makeErrorEvent } from "@src/engines/SessionCore/sync/adapters/shared/eventBuilders";
+import { makeErrorEvent } from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
 import { createLogger } from "@src/hooks/logger";
 
 import { invokeTauri } from "./init";

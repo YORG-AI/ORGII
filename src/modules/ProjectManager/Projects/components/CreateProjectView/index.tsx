@@ -35,7 +35,7 @@ import { sidebarSelectedOrgIdAtom } from "@src/features/Organizations/sidebarOrg
 import LaunchButton from "@src/features/SessionCreator/components/LaunchButton";
 import { useKeyboardSave } from "@src/hooks/keyboard";
 import { createLogger } from "@src/hooks/logger";
-import { useUndoStackWithRestore } from "@src/hooks/ui";
+import { useUndoStackWithRestore } from "@src/hooks/ui/useUndoableState";
 import {
   CreateComposerHeader,
   CreateComposerPinnedActions,

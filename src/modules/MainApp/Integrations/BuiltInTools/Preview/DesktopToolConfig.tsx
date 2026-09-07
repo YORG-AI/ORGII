@@ -44,7 +44,7 @@ import {
   type AgentBrowserProviderSetting,
 } from "@src/config/settingsSchema/registry/agentBrowser";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import {
   Download01Icon,
   HugeiconsIcon,

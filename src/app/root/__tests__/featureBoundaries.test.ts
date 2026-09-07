@@ -72,7 +72,7 @@ const BOUNDARIES: Boundary[] = [
     reason: "renders every user message",
   },
   {
-    root: "modules/MainApp/TeamInbox/index.ts",
+    root: "modules/MainApp/TeamInbox/ConnectedTeamInboxView.tsx",
     forbidden: [
       ...EDITOR_STACK,
       ...TERMINAL_STACK,

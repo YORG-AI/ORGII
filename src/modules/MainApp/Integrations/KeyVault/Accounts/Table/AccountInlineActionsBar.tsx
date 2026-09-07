@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import Button from "@src/components/Button";
 import { buildCodexReauthPath } from "@src/config/mainAppPaths";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import { AccountStatusIndicator } from "@src/modules/shared/keyVault/AccountStatusIndicator";
 

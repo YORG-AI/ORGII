@@ -5,8 +5,8 @@
  */
 import React, { memo } from "react";
 
+import { HEADER_BUTTON } from "@src/config/workstation/tokens";
 import { FileDiffIcon, HugeiconsIcon, MinusSignIcon } from "@src/icons";
-import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
 import type { GitFile } from "@src/types/git/types";
 
 import { SHORTCUTS } from "../../../hooks/useSourceControlShortcuts";

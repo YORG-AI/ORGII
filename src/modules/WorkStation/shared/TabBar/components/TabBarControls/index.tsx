@@ -2,14 +2,13 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
-import { Add01Icon, HugeiconsIcon, MoreHorizontalIcon } from "@src/icons";
-
 import {
   HEADER_ICON_SIZE,
   TAB_BAR_CONTROLS_ROW_BASE_CLASS,
   TAB_BAR_CONTROLS_ROW_CLASS,
   TAB_BAR_CONTROLS_ROW_PADDING_TRAILING_ONLY,
-} from "../../../tokens";
+} from "@src/config/workstation/tokens";
+import { Add01Icon, HugeiconsIcon, MoreHorizontalIcon } from "@src/icons";
 
 interface TabBarControlsProps {
   hasTabs: boolean;

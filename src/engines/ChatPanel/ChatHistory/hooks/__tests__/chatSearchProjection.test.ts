@@ -10,7 +10,7 @@ import {
   CHAT_ITEM_ID_ATTR,
   findChatSearchTargetElement,
   formatChatEventIdsAttribute,
-} from "../chatSearchDom";
+} from "../chatSearch";
 import {
   buildEventIdProjectionIndex,
   collectChatItemEventIds,
@@ -98,7 +98,7 @@ describe("chatSearchProjection", () => {
   });
 });
 
-describe("chatSearchDom", () => {
+describe("chatSearch DOM helpers", () => {
   it("finds projected rows by event id and flat index", () => {
     const root = document.createElement("div");
     root.innerHTML = `

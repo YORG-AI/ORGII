@@ -11,7 +11,7 @@ import type { UniversalEventProps } from "@src/engines/SessionCore/rendering/typ
 import { CheckmarkCircle01Icon, HugeiconsIcon, InboxIcon } from "@src/icons";
 
 import AgentMessageCard from "../../blocks/ToolCallBlock/cards/AgentMessageCard";
-import { parseAgentMessageCard } from "../../blocks/ToolCallBlock/helpers";
+import { parseAgentMessageCard } from "../../blocks/ToolCallBlock/helpers/cardParsers";
 
 interface DeliveredRow {
   inboxId?: number;

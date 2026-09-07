@@ -8,8 +8,8 @@ import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
+import { SEARCH_TAB_ROW_CLASSES } from "@src/config/workstation/tokens";
 import { HugeiconsIcon, Loading03Icon } from "@src/icons";
-import { SEARCH_TAB_ROW_CLASSES } from "@src/modules/WorkStation/shared/tokens";
 
 import { SearchInput, SearchModeSelect } from "../../../shared";
 import type { SearchBarProps } from "./types";

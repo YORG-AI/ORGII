@@ -11,4 +11,7 @@ export {
   isCodeLanguage,
 } from "./detectLanguage";
 
-export { getLanguageDisplayName, getLanguageIconFile } from "./languageMap";
+export {
+  getLanguageDisplayName,
+  getLanguageIconFile,
+} from "@src/config/languageMap";

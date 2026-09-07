@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 
 import AnyIcon from "@src/components/AnyIcon";
 import type { SectionHeaderAction } from "@src/components/TreePanelSidebar/types";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 
 import { ICON_CONFIG, PANEL_CONSTANTS } from "../config";
 

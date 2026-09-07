@@ -9,13 +9,13 @@ use super::think_split::ThinkTagSplitter;
 use super::translate_tool_choice_for_openai;
 use crate::providers::openai_policy::ChatTokenLimitField;
 use crate::providers::registry::provider_id;
-use crate::providers::safe_truncate::safe_truncate_utf8;
 use crate::providers::traits::{finish_reason as finish, LLMResponse, ProviderError};
 use crate::providers::wire_sanitize::{
     coalesce_system_messages_to_front, sanitize_deepseek_messages, sanitize_openai_compat_messages,
     strip_tool_schema_cache_scopes,
 };
 use crate::utils::http_retry::extract_retry_after_secs;
+use crate::utils::safe_truncate_utf8;
 
 pub(super) async fn run_chat(
     this: &OpenAICompatClient,

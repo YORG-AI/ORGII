@@ -13,13 +13,13 @@ import Input from "@src/components/Input";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { Placeholder } from "@src/components/Placeholder";
 import { TreeRowBase, type TreeRowNode } from "@src/components/TreeRow";
+import { HEADER_BUTTON } from "@src/config/workstation/tokens";
 import {
   Cancel01Icon,
   FilterIcon,
   HugeiconsIcon,
   Loading03Icon,
 } from "@src/icons";
-import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
 import { getSiteNameFromUrl } from "@src/store/ui/navigationSidebarTabsAtom";
 import {
   NEW_TAB_TITLE,
