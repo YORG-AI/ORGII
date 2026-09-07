@@ -576,7 +576,7 @@
     },
     "moveToOrg": {
       "menuItem": "Thẻ tổ chức…",
-      "title": "Thẻ tổ chức của phiên",
+      "title": "Nhãn",
       "hint": "Chọn một hoặc nhiều tổ chức để chia sẻ phiên này — nó có thể ở trong Personal và nhiều tổ chức cùng lúc. Nó vẫn là phiên cục bộ bình thường; điều này chỉ làm cho nó hiển thị ở đó. Chỉ có thể chọn các tổ chức có phạm vi repo bao gồm kho của phiên này.",
       "noOrgs": "Chưa có tổ chức đám mây nào — đăng nhập ORG2 Cloud để tạo hoặc tham gia.",
       "cloudBadge": "Đám mây",

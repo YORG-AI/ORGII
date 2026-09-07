@@ -605,7 +605,7 @@
     },
     "moveToOrg": {
       "menuItem": "Org tags…",
-      "title": "Org tags for this session",
+      "title": "Labels",
       "hint": "Check one or more orgs to share this session — it can live in Personal and multiple orgs at once. It stays a normal local session; this only makes it visible there. Only orgs whose repo scope covers this session's repo can be selected.",
       "noOrgs": "No cloud orgs yet — sign in to ORG2 Cloud to create or join one.",
       "cloudBadge": "Cloud",

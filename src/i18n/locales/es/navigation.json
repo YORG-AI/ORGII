@@ -578,7 +578,7 @@
     },
     "moveToOrg": {
       "menuItem": "Etiquetas de organización…",
-      "title": "Etiquetas de organización de la sesión",
+      "title": "Etiquetas",
       "hint": "Marca una o más organizaciones para compartir esta sesión: puede estar en Personal y en varias organizaciones a la vez. Sigue siendo una sesión local normal; esto solo la hace visible allí. Solo se pueden seleccionar organizaciones cuyo ámbito de repos cubre el repositorio de esta sesión.",
       "noOrgs": "Aún no hay organizaciones en la nube — inicia sesión en ORG2 Cloud para crear una o unirte.",
       "cloudBadge": "Nube",

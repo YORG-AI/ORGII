@@ -578,7 +578,7 @@
     },
     "moveToOrg": {
       "menuItem": "Organisations-Tags…",
-      "title": "Organisations-Tags der Session",
+      "title": "Labels",
       "hint": "Wähle eine oder mehrere Organisationen, um diese Session zu teilen — sie kann gleichzeitig in Personal und mehreren Organisationen sein. Sie bleibt eine normale lokale Session; das macht sie dort nur sichtbar. Nur Organisationen, deren Repo-Bereich das Repository dieser Session abdeckt, sind wählbar.",
       "noOrgs": "Noch keine Cloud-Organisationen — melde dich bei ORG2 Cloud an, um eine zu erstellen oder beizutreten.",
       "cloudBadge": "Cloud",
