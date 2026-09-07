@@ -42,7 +42,7 @@
     "agentMemory": "Agent 메모리",
     "agentOrg": "Agent 팀",
     "collaboration": "협업",
-    "harnessConnections": "CLI 라우팅"
+    "harnessConnections": "앱 연결"
   },
   "coreSidebar": {
     "groups": {
@@ -1365,6 +1365,17 @@
     "conflict": "ORGII 외부에서 설정이 변경되었습니다. 적용하거나 복원하기 전에 변경 내용을 확인하세요. 변경 내용은 덮어쓰지 않습니다",
     "credentialsNote": "직접 연결 모드는 접근이 제한된 CLI 설정에 자격 증명을 기록합니다. 저장소에서 키를 삭제해도 내보낸 자격 증명은 취소되지 않습니다",
     "import": "cc-switch에서 가져오기",
-    "notInstalled": "연결을 테스트하거나 적용하기 전에 이 도구를 설치하세요"
+    "notInstalled": "연결을 테스트하거나 적용하기 전에 이 도구를 설치하세요",
+    "appSelector": "앱",
+    "endpoint": "API 엔드포인트",
+    "authentication": "인증 방식",
+    "desktopScope": "Claude Code CLI와 별도로 Claude Desktop을 설정합니다. 적용 후 앱을 완전히 종료하고 다시 여세요",
+    "desktopVersion": "설치된 버전: {{version}}",
+    "desktopCopy": "Claude Code CLI에서 복사",
+    "desktopCopyMissing": "먼저 Claude Code CLI 연결을 설정하세요",
+    "desktopCopyReview": "연결을 복사했습니다. 확인 후 Desktop에서 별도로 테스트하고 적용하세요",
+    "desktopApplied": "설정을 저장했습니다. Claude Desktop을 완전히 종료하고 다시 여세요",
+    "desktopRestored": "이전 설정을 복원했습니다. Claude Desktop을 완전히 종료하고 다시 여세요",
+    "desktopCredentials": "직접 연결은 접근이 제한된 로컬 설정에 자격 증명을 저장합니다. 보관함에서 키를 삭제해도 내보낸 자격 증명은 취소되지 않습니다"
   }
 }

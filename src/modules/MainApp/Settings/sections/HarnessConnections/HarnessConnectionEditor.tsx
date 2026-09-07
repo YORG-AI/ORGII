@@ -18,7 +18,10 @@ import {
 } from "@src/modules/shared/layouts/SectionLayout";
 import { HintWithInfo } from "@src/modules/shared/layouts/blocks/HintWithInfo";
 
+import ConnectionCards from "./ConnectionCards";
+import DesktopConnectionFields from "./DesktopConnectionFields";
 import {
+  readHarnessConnection,
   refreshHarnessConnections,
   useHarnessConnection,
 } from "./useHarnessConnection";
@@ -31,6 +34,11 @@ export default function HarnessConnectionEditor({
   onAdd: () => void;
 }) {
   const { t } = useTranslation("settings");
+  const desktop = agentName === "claude_desktop";
+  const [endpointOverride, setEndpointOverride] = useState<string | null>(null);
+  const [authOverride, setAuthOverride] = useState<
+    "bearer" | "x-api-key" | null
+  >(null);
   const { view, error, loading, reload } = useHarnessConnection(agentName);
   const [keyId, setKeyId] = useState<string | null>(null);
   const [model, setModel] = useState<string | null>(null);
@@ -41,7 +49,9 @@ export default function HarnessConnectionEditor({
     routingOverride ??
     (view?.config.mode === "orgii_managed" ? "orgii_managed" : "direct");
   const [advanced, setAdvanced] = useState(false);
-  const [busy, setBusy] = useState<"test" | "apply" | "restore" | null>(null);
+  const [busy, setBusy] = useState<
+    "test" | "apply" | "restore" | "copy" | null
+  >(null);
   const [message, setMessage] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<string | null>(null);
   const request = useRef<string | null>(null);
@@ -56,6 +66,45 @@ export default function HarnessConnectionEditor({
     choice?.models[0] ??
     "";
 
+  const appliedDesktop =
+    selectedKey === view?.config.selectedKeyId ? view?.desktopOptions : null;
+  const endpoint =
+    endpointOverride ?? appliedDesktop?.endpoint ?? choice?.endpoint ?? "";
+  const authScheme =
+    authOverride ??
+    appliedDesktop?.authScheme ??
+    (endpoint === "https://api.anthropic.com" ? "x-api-key" : "bearer");
+  const desktopOptions = desktop ? { endpoint, authScheme } : undefined;
+  const copyFromCli = async () => {
+    const current = ++revision.current;
+    setBusy("copy");
+    try {
+      const source = await readHarnessConnection("claude_code");
+      if (revision.current !== current) return;
+      if (source.config.conflict)
+        throw new Error(t("harnessConnections.conflict"));
+      if (source.config.mode === "default" || !source.config.selectedKeyId) {
+        setMessage(t("harnessConnections.desktopCopyMissing"));
+        return;
+      }
+      const sourceEndpoint =
+        source.choices.find(
+          (item) => item.keyId === source.config.selectedKeyId
+        )?.endpoint ?? "";
+      setKeyId(source.config.selectedKeyId);
+      setModel(source.config.selectedModel ?? null);
+      setEndpointOverride(sourceEndpoint);
+      setAuthOverride(
+        sourceEndpoint === "https://api.anthropic.com" ? "x-api-key" : "bearer"
+      );
+      setReceipt(null);
+      setMessage(t("harnessConnections.desktopCopyReview"));
+    } catch (error) {
+      if (revision.current === current) setMessage(String(error));
+    } finally {
+      if (revision.current === current) setBusy(null);
+    }
+  };
   const cancel = () => {
     revision.current++;
     if (request.current) {
@@ -78,7 +127,7 @@ export default function HarnessConnectionEditor({
   );
   useEffect(() => {
     setReceipt(null);
-  }, [selectedKey, selectedModel, choice?.endpoint]);
+  }, [selectedKey, selectedModel, choice?.endpoint, endpoint, authScheme]);
 
   const act = async (action: "test" | "apply" | "restore") => {
     const current = ++revision.current;
@@ -93,6 +142,7 @@ export default function HarnessConnectionEditor({
           keyId: selectedKey,
           model: selectedModel,
           requestId,
+          ...(desktopOptions ? { desktopOptions } : {}),
         });
         if (revision.current !== current) return;
         request.current = null;
@@ -104,6 +154,7 @@ export default function HarnessConnectionEditor({
           keyId: selectedKey,
           model: selectedModel,
           routing,
+          ...(desktopOptions ? { desktopOptions } : {}),
           receipt,
           expectedHashes: Object.fromEntries(
             (view?.config.targetFiles ?? []).map((target) => [
@@ -113,7 +164,13 @@ export default function HarnessConnectionEditor({
           ),
         });
         if (revision.current !== current) return;
-        setMessage(t("harnessConnections.applied"));
+        setMessage(
+          t(
+            desktop
+              ? "harnessConnections.desktopApplied"
+              : "harnessConnections.applied"
+          )
+        );
         refreshHarnessConnections();
       } else {
         await rpc.agentOrgs.managedConfig.restoreDefault({
@@ -121,7 +178,13 @@ export default function HarnessConnectionEditor({
           force: false,
         });
         if (revision.current !== current) return;
-        setMessage(t("harnessConnections.restored"));
+        setMessage(
+          t(
+            desktop
+              ? "harnessConnections.desktopRestored"
+              : "harnessConnections.restored"
+          )
+        );
         refreshHarnessConnections();
       }
     } catch (error) {
@@ -151,6 +214,8 @@ export default function HarnessConnectionEditor({
   };
   const blocked =
     !view?.installed ||
+    !view.config.supported ||
+    Boolean(view.configurationIssue) ||
     loading ||
     busy !== null ||
     !choice ||
@@ -160,7 +225,14 @@ export default function HarnessConnectionEditor({
   const currentLabel = (
     <span className="flex items-center gap-1">
       {t("harnessConnections.current")}
-      <HintWithInfo content={t("harnessConnections.scope")} position="right" />
+      <HintWithInfo
+        content={t(
+          desktop
+            ? "harnessConnections.desktopScope"
+            : "harnessConnections.scope"
+        )}
+        position="right"
+      />
     </span>
   );
   const connectionLabel = (
@@ -200,9 +272,45 @@ export default function HarnessConnectionEditor({
       : null);
   return (
     <SectionContainer
-      title={agentName === "codex" ? "Codex" : "Claude Code"}
+      title={
+        desktop
+          ? "Claude Desktop"
+          : agentName === "codex"
+            ? "Codex"
+            : "Claude Code CLI"
+      }
       dataTestId={`harness-connection-${agentName}`}
     >
+      {desktop && (
+        <SectionRow showHeader={false}>
+          <div className="flex flex-col gap-2">
+            <p className={SECTION_DESCRIPTION_CLASSES}>
+              {t("harnessConnections.desktopScope")}
+            </p>
+            {view?.version && (
+              <p className={SECTION_VALUE_SMALL_MUTED_CLASSES}>
+                {t("harnessConnections.desktopVersion", {
+                  version: view.version,
+                })}
+              </p>
+            )}
+            <Button
+              variant="secondary"
+              disabled={loading || busy !== null}
+              onClick={() => void copyFromCli()}
+            >
+              {t("harnessConnections.desktopCopy")}
+            </Button>
+          </div>
+        </SectionRow>
+      )}
+      {(view?.configurationIssue || view?.config.message) && (
+        <SectionRow showHeader={false}>
+          <p role="alert" className={SECTION_DESCRIPTION_CLASSES}>
+            {view?.configurationIssue ?? view?.config.message}
+          </p>
+        </SectionRow>
+      )}
       <SectionRow label={currentLabel}>
         <span className={SECTION_VALUE_TEXT_CLASSES}>
           {!view
@@ -240,28 +348,34 @@ export default function HarnessConnectionEditor({
         </SectionRow>
       )}
       <SectionRow label={connectionLabel}>
-        <div className={`${SECTION_ACTION_GAP_CLASSES} flex-wrap`}>
-          <Select
-            ariaLabel={t("harnessConnections.connection")}
-            value={selectedKey || undefined}
-            disabled={loading || busy !== null}
-            placeholder={t("harnessConnections.choose")}
-            style={SECTION_CONTROL_STYLE}
-            options={(view?.choices ?? []).map((choice) => ({
-              value: choice.keyId,
-              label: choice.name,
-            }))}
-            onChange={(value) => {
-              setKeyId(String(value));
-              setModel(null);
-              setReceipt(null);
-              setMessage(null);
-            }}
-          />
-          <Button variant="secondary" onClick={onAdd} disabled={busy !== null}>
-            {t("harnessConnections.add")}
-          </Button>
-        </div>
+        <ConnectionCards
+          choices={(view?.choices ?? []).map((item) =>
+            desktop &&
+            item.keyId === view?.config.selectedKeyId &&
+            view.config.mode === "direct"
+              ? {
+                  ...item,
+                  endpoint: view.desktopOptions?.endpoint ?? item.endpoint,
+                }
+              : item
+          )}
+          selected={selectedKey}
+          active={
+            view?.config.mode !== "default"
+              ? (view?.config.selectedKeyId ?? null)
+              : null
+          }
+          disabled={loading || busy !== null}
+          onAdd={onAdd}
+          onSelect={(value) => {
+            setEndpointOverride(null);
+            setAuthOverride(null);
+            setKeyId(value);
+            setModel(null);
+            setReceipt(null);
+            setMessage(null);
+          }}
+        />
       </SectionRow>
       {choice?.reason && (
         <SectionRow showHeader={false} className="py-2">
@@ -277,33 +391,59 @@ export default function HarnessConnectionEditor({
           </p>
         </SectionRow>
       )}
-      <SectionRow label={t("harnessConnections.model")}>
-        <Select
-          ariaLabel={t("harnessConnections.model")}
-          value={selectedModel || undefined}
+      {desktop ? (
+        <DesktopConnectionFields
+          endpoint={endpoint}
+          authScheme={authScheme}
+          model={selectedModel}
           disabled={loading || busy !== null || !choice}
-          style={SECTION_CONTROL_STYLE}
-          options={(choice?.models ?? []).map((value) => ({
-            value,
-            label: value,
-          }))}
-          onChange={(value) => {
-            setModel(String(value));
+          onEndpoint={(value) => {
+            setEndpointOverride(value);
+            setReceipt(null);
+            setMessage(null);
+          }}
+          onAuth={(value) => {
+            setAuthOverride(value);
+            setReceipt(null);
+            setMessage(null);
+          }}
+          onModel={(value) => {
+            setModel(value);
             setReceipt(null);
             setMessage(null);
           }}
         />
-      </SectionRow>
-      <SectionRow label={routingLabel}>
-        <Button
-          variant="secondary"
-          onClick={() => setAdvanced(!advanced)}
-          aria-expanded={advanced}
-        >
-          {t("harnessConnections.advanced")}
-        </Button>
-      </SectionRow>
-      {advanced && (
+      ) : (
+        <SectionRow label={t("harnessConnections.model")}>
+          <Select
+            ariaLabel={t("harnessConnections.model")}
+            value={selectedModel || undefined}
+            disabled={loading || busy !== null || !choice}
+            style={SECTION_CONTROL_STYLE}
+            options={(choice?.models ?? []).map((value) => ({
+              value,
+              label: value,
+            }))}
+            onChange={(value) => {
+              setModel(String(value));
+              setReceipt(null);
+              setMessage(null);
+            }}
+          />
+        </SectionRow>
+      )}
+      {!desktop && (
+        <SectionRow label={routingLabel}>
+          <Button
+            variant="secondary"
+            onClick={() => setAdvanced(!advanced)}
+            aria-expanded={advanced}
+          >
+            {t("harnessConnections.advanced")}
+          </Button>
+        </SectionRow>
+      )}
+      {!desktop && advanced && (
         <SectionRow label={t("harnessConnections.routing")}>
           <Select
             ariaLabel={t("harnessConnections.routing")}
@@ -359,6 +499,7 @@ export default function HarnessConnectionEditor({
               loading ||
               busy !== null ||
               !view ||
+              Boolean(view.configurationIssue) ||
               view.config.mode === "default" ||
               view.config.conflict
             }

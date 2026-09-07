@@ -443,7 +443,8 @@ pub fn managed_config_unavailable_reason_for_agent(agent_name: &str) -> Option<&
 }
 
 pub(super) fn supported_agent(agent_name: &str) -> bool {
-    managed_config_adapter(agent_name).is_some()
+    (agent_name == super::desktop::TARGET && super::desktop::supported())
+        || managed_config_adapter(agent_name).is_some()
 }
 
 pub(super) fn unavailable_agent_message(agent_name: &str) -> String {

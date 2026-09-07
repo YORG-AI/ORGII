@@ -43,7 +43,7 @@
     "agentOrg": "Agent 团队",
     "collaboration": "协作",
     "mobileRemote": "移动遥控",
-    "harnessConnections": "CLI 路由"
+    "harnessConnections": "应用连接"
   },
   "coreSidebar": {
     "groups": {
@@ -1479,6 +1479,17 @@
     "conflict": "配置已在 ORGII 外部更改。应用或恢复前请检查这些更改；系统不会覆盖它们",
     "credentialsNote": "直连模式会将凭据写入访问受限的 CLI 配置文件；删除密钥库中的密钥不会撤销已导出的凭据",
     "import": "从 cc-switch 导入",
-    "notInstalled": "请先安装此工具，再测试或应用连接"
+    "notInstalled": "请先安装此工具，再测试或应用连接",
+    "appSelector": "应用",
+    "endpoint": "API 端点",
+    "authentication": "认证方式",
+    "desktopScope": "单独配置 Claude Desktop，不影响 Claude Code CLI；应用后需完全退出并重新打开桌面应用",
+    "desktopVersion": "已安装版本：{{version}}",
+    "desktopCopy": "从 Claude Code CLI 复制",
+    "desktopCopyMissing": "请先配置 Claude Code CLI 连接",
+    "desktopCopyReview": "连接已复制，请检查并单独测试、应用到桌面应用",
+    "desktopApplied": "桌面配置已保存，请完全退出并重新打开 Claude Desktop",
+    "desktopRestored": "已恢复之前的桌面配置，请完全退出并重新打开 Claude Desktop",
+    "desktopCredentials": "直连模式会将所选凭据写入限制文件访问权限的本地桌面配置；删除密钥库中的密钥不会撤销已导出的凭据"
   }
 }

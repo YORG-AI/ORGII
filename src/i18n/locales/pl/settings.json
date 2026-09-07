@@ -42,7 +42,7 @@
     "agentMemory": "Pamięć Agent",
     "agentOrg": "Zespół Agent",
     "collaboration": "Współpraca",
-    "harnessConnections": "Routing CLI"
+    "harnessConnections": "Połączenia aplikacji"
   },
   "coreSidebar": {
     "groups": {
@@ -1368,6 +1368,17 @@
     "conflict": "Konfiguracja została zmieniona poza ORGII. Sprawdź zmiany przed zastosowaniem lub przywróceniem; nie zostaną nadpisane",
     "credentialsNote": "Tryb bezpośredni zapisuje dane uwierzytelniające w konfiguracji CLI z ograniczonym dostępem; usunięcie klucza ze skarbca nie unieważnia wyeksportowanych danych",
     "import": "Importuj z cc-switch",
-    "notInstalled": "Zainstaluj to narzędzie przed testowaniem lub zastosowaniem połączenia"
+    "notInstalled": "Zainstaluj to narzędzie przed testowaniem lub zastosowaniem połączenia",
+    "appSelector": "Aplikacja",
+    "endpoint": "Endpoint API",
+    "authentication": "Uwierzytelnianie",
+    "desktopScope": "Konfiguruje Claude Desktop niezależnie od Claude Code CLI; po zastosowaniu zamknij całkowicie aplikację i otwórz ją ponownie",
+    "desktopVersion": "Zainstalowana wersja: {{version}}",
+    "desktopCopy": "Kopiuj z Claude Code CLI",
+    "desktopCopyMissing": "Najpierw skonfiguruj połączenie Claude Code CLI",
+    "desktopCopyReview": "Skopiowano połączenie do sprawdzenia; przetestuj i zastosuj je osobno w Desktop",
+    "desktopApplied": "Zapisano konfigurację — zamknij całkowicie Claude Desktop i otwórz ponownie",
+    "desktopRestored": "Przywrócono poprzednią konfigurację — zamknij całkowicie Claude Desktop i otwórz ponownie",
+    "desktopCredentials": "Tryb bezpośredni zapisuje dane uwierzytelniające w lokalnym profilu z ograniczonym dostępem; usunięcie klucza ze skarbca nie unieważnia tej kopii"
   }
 }

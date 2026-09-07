@@ -42,7 +42,7 @@
     "agentMemory": "Agent-Speicher",
     "agentOrg": "Agent-Team",
     "collaboration": "Zusammenarbeit",
-    "harnessConnections": "CLI-Routing"
+    "harnessConnections": "App-Verbindungen"
   },
   "coreSidebar": {
     "groups": {
@@ -1365,6 +1365,17 @@
     "conflict": "Konfiguration außerhalb von ORGII geändert. Änderungen vor dem Anwenden oder Wiederherstellen prüfen; sie werden nicht überschrieben",
     "credentialsNote": "Der Direktmodus schreibt Zugangsdaten in die CLI-Konfiguration mit eingeschränktem Dateizugriff; das Löschen eines Tresorschlüssels widerruft die exportierten Zugangsdaten nicht",
     "import": "Aus cc-switch importieren",
-    "notInstalled": "Dieses Werkzeug vor dem Testen oder Anwenden einer Verbindung installieren"
+    "notInstalled": "Dieses Werkzeug vor dem Testen oder Anwenden einer Verbindung installieren",
+    "appSelector": "App",
+    "endpoint": "API-Endpunkt",
+    "authentication": "Authentifizierung",
+    "desktopScope": "Konfiguriert Claude Desktop getrennt von Claude Code CLI; Desktop nach dem Anwenden vollständig beenden und neu öffnen",
+    "desktopVersion": "Installierte Version: {{version}}",
+    "desktopCopy": "Aus Claude Code CLI kopieren",
+    "desktopCopyMissing": "Zuerst eine Claude Code CLI-Verbindung konfigurieren",
+    "desktopCopyReview": "Verbindung zur Prüfung kopiert; für Desktop separat testen und anwenden",
+    "desktopApplied": "Desktop-Konfiguration gespeichert — Claude Desktop vollständig beenden und neu öffnen",
+    "desktopRestored": "Vorherige Desktop-Konfiguration wiederhergestellt — Claude Desktop vollständig beenden und neu öffnen",
+    "desktopCredentials": "Direktverbindungen speichern Zugangsdaten in einem lokalen Desktop-Profil mit eingeschränkten Zugriffsrechten; das Löschen des Tresorschlüssels widerruft diesen Export nicht"
   }
 }

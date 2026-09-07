@@ -148,6 +148,12 @@ pub(super) fn apply_connection_unlocked(
     force: bool,
     direct: Option<&super::direct::DirectConnection>,
 ) -> Result<CliConfigManagedStatus, String> {
+    if agent_name == super::desktop::TARGET {
+        if direct.is_none() {
+            return Err("Claude Desktop currently supports direct connections only".into());
+        }
+        super::desktop::ensure_unmanaged()?;
+    }
     let fallback_targets = agent_manifest_targets(agent_name)?;
     let existing_manifest = read_manifest(agent_name)?;
     if let Some(manifest) = &existing_manifest {
@@ -279,6 +285,9 @@ pub(super) fn restore_agent_default_unlocked(
     agent_name: &str,
     force: bool,
 ) -> Result<CliConfigManagedStatus, String> {
+    if agent_name == super::desktop::TARGET {
+        super::desktop::ensure_unmanaged()?;
+    }
     let mut manifest = read_manifest(agent_name)?
         .ok_or_else(|| format!("No Default backup exists for {agent_name} yet"))?;
     if manifest.mode == CliConfigMode::Default {

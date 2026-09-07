@@ -42,7 +42,7 @@
     "agentMemory": "Bộ nhớ Agent",
     "agentOrg": "Nhóm Agent",
     "collaboration": "Cộng tác",
-    "harnessConnections": "Định tuyến CLI"
+    "harnessConnections": "Kết nối ứng dụng"
   },
   "coreSidebar": {
     "groups": {
@@ -1365,6 +1365,17 @@
     "conflict": "Cấu hình đã thay đổi bên ngoài ORGII. Xem lại thay đổi trước khi áp dụng hoặc khôi phục; chúng sẽ không bị ghi đè",
     "credentialsNote": "Chế độ trực tiếp ghi thông tin xác thực vào cấu hình CLI với quyền truy cập hạn chế; xóa khóa trong kho không thu hồi thông tin xác thực đã xuất",
     "import": "Nhập từ cc-switch",
-    "notInstalled": "Cài đặt công cụ này trước khi kiểm tra hoặc áp dụng kết nối"
+    "notInstalled": "Cài đặt công cụ này trước khi kiểm tra hoặc áp dụng kết nối",
+    "appSelector": "Ứng dụng",
+    "endpoint": "Điểm cuối API",
+    "authentication": "Xác thực",
+    "desktopScope": "Cấu hình Claude Desktop riêng với Claude Code CLI; thoát hoàn toàn rồi mở lại Desktop sau khi áp dụng",
+    "desktopVersion": "Phiên bản đã cài: {{version}}",
+    "desktopCopy": "Sao chép từ Claude Code CLI",
+    "desktopCopyMissing": "Hãy cấu hình kết nối Claude Code CLI trước",
+    "desktopCopyReview": "Đã sao chép kết nối để xem lại; kiểm tra và áp dụng riêng cho Desktop",
+    "desktopApplied": "Đã lưu cấu hình — thoát hoàn toàn rồi mở lại Claude Desktop",
+    "desktopRestored": "Đã khôi phục cấu hình trước — thoát hoàn toàn rồi mở lại Claude Desktop",
+    "desktopCredentials": "Chế độ trực tiếp ghi thông tin xác thực vào hồ sơ cục bộ có quyền truy cập hạn chế; xóa khóa trong kho không thu hồi bản đã xuất"
   }
 }

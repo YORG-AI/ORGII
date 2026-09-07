@@ -10,6 +10,48 @@ pub enum HarnessProtocol {
     OpenaiResponses,
 }
 
+/// Configuration targets are distinct from vault providers and executable agents.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectionTarget {
+    ClaudeCode,
+    ClaudeDesktop,
+    Codex,
+}
+impl TryFrom<&str> for ConnectionTarget {
+    type Error = String;
+    fn try_from(value: &str) -> Result<Self, String> {
+        match value {
+            "claude_code" => Ok(Self::ClaudeCode),
+            "claude_desktop" => Ok(Self::ClaudeDesktop),
+            "codex" => Ok(Self::Codex),
+            _ => Err("Unsupported connection target".into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ConnectionAuthScheme {
+    #[serde(rename = "bearer")]
+    Bearer,
+    #[serde(rename = "x-api-key")]
+    ApiKey,
+}
+impl ConnectionAuthScheme {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Bearer => "bearer",
+            Self::ApiKey => "x-api-key",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DesktopConnectionOptions {
+    pub endpoint: Option<String>,
+    pub auth_scheme: Option<ConnectionAuthScheme>,
+}
+
 // No Debug/Serialize: resolved connections contain decrypted credentials.
 pub struct ResolvedHarnessConnection {
     pub key_id: String,
@@ -18,20 +60,21 @@ pub struct ResolvedHarnessConnection {
     pub base_url: String,
     pub api_key: String,
     pub protocol: HarnessProtocol,
+    pub auth_scheme: ConnectionAuthScheme,
     pub requires_test: bool,
     /// Private fingerprint binds test receipts to all request-affecting fields.
     pub revision: String,
 }
 
-pub fn resolve(
-    agent: &str,
-    key: &ModelKey,
-    model: Option<&str>,
-) -> Result<ResolvedHarnessConnection, String> {
-    let protocol = match agent {
-        "claude_code" => HarnessProtocol::AnthropicMessages,
-        "codex" => HarnessProtocol::OpenaiResponses,
-        _ => return Err("Direct connections support Claude Code and Codex".into()),
+/// Credential/protocol eligibility is independent of the endpoint and model
+/// fields the user is still editing. Applying always resolves the full profile.
+pub fn validate_connection_key(agent: &str, key: &ModelKey) -> Result<HarnessProtocol, String> {
+    let target = ConnectionTarget::try_from(agent)?;
+    let protocol = match target {
+        ConnectionTarget::ClaudeCode | ConnectionTarget::ClaudeDesktop => {
+            HarnessProtocol::AnthropicMessages
+        }
+        ConnectionTarget::Codex => HarnessProtocol::OpenaiResponses,
     };
     if !key.enabled {
         return Err("Selected connection is disabled".into());
@@ -41,13 +84,11 @@ pub fn resolve(
             "Select an API key connection; subscription login is preserved separately".into(),
         );
     }
-    let api_key = key
-        .api_key
+    key.api_key
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .ok_or("Selected connection has no API key")?
-        .to_string();
+        .ok_or("Selected connection has no API key")?;
     let provider = key.model_type.as_str();
     let config = get_provider_config(provider);
     let required = match protocol {
@@ -72,9 +113,43 @@ pub fn resolve(
     {
         return Err("This connection selects Anthropic Messages, not OpenAI Responses".into());
     }
-    let explicit = key
-        .base_url
+    Ok(protocol)
+}
+
+pub fn resolve(
+    agent: &str,
+    key: &ModelKey,
+    model: Option<&str>,
+) -> Result<ResolvedHarnessConnection, String> {
+    resolve_with_options(agent, key, model, None)
+}
+
+pub fn resolve_with_options(
+    agent: &str,
+    key: &ModelKey,
+    model: Option<&str>,
+    options: Option<&DesktopConnectionOptions>,
+) -> Result<ResolvedHarnessConnection, String> {
+    let target = ConnectionTarget::try_from(agent)?;
+    if options.is_some() && target != ConnectionTarget::ClaudeDesktop {
+        return Err("Desktop settings cannot be applied to another app".into());
+    }
+    let protocol = validate_connection_key(agent, key)?;
+    let api_key = key
+        .api_key
         .as_deref()
+        .ok_or("Selected connection has no API key")?
+        .trim()
+        .to_string();
+    let provider = key.model_type.as_str();
+    let config = get_provider_config(provider);
+    let required = match protocol {
+        HarnessProtocol::AnthropicMessages => "anthropic",
+        HarnessProtocol::OpenaiResponses => "openai",
+    };
+    let explicit = options
+        .and_then(|options| options.endpoint.as_deref())
+        .or(key.base_url.as_deref())
         .map(str::trim)
         .filter(|value| !value.is_empty());
     let endpoint = if required == "anthropic" {
@@ -115,7 +190,9 @@ pub fn resolve(
         .filter(|value| !value.is_empty())
         .or_else(|| models.first().map(String::as_str))
         .ok_or("Select a model for this connection")?;
-    if !models.iter().any(|candidate| candidate == model) {
+    if target != ConnectionTarget::ClaudeDesktop
+        && !models.iter().any(|candidate| candidate == model)
+    {
         return Err("Model is not enabled for the selected connection".into());
     }
     let base_url = if required == "anthropic" {
@@ -131,6 +208,13 @@ pub fn resolve(
         HarnessProtocol::AnthropicMessages => base_url == "https://api.anthropic.com",
         HarnessProtocol::OpenaiResponses => base_url == "https://api.openai.com/v1",
     };
+    let auth_scheme = options.and_then(|options| options.auth_scheme).unwrap_or(
+        if protocol == HarnessProtocol::AnthropicMessages && official {
+            ConnectionAuthScheme::ApiKey
+        } else {
+            ConnectionAuthScheme::Bearer
+        },
+    );
     let fields = serde_json::json!([
         agent,
         key.id,
@@ -139,7 +223,8 @@ pub fn resolve(
         base_url,
         api_key,
         key.protocol,
-        key.enabled_models
+        key.enabled_models,
+        auth_scheme
     ]);
     let revision = format!("{:x}", Sha256::digest(fields.to_string().as_bytes()));
     Ok(ResolvedHarnessConnection {
@@ -149,7 +234,8 @@ pub fn resolve(
         base_url,
         api_key,
         protocol,
-        requires_test: !official,
+        auth_scheme,
+        requires_test: !official || target == ConnectionTarget::ClaudeDesktop,
         revision,
     })
 }
@@ -166,6 +252,46 @@ mod tests {
         key.base_url = Some("https://gateway.example/v1".into());
         key.available_models = vec!["test-model".into()];
         key
+    }
+
+    #[test]
+    fn desktop_overrides_are_scoped_and_receipts_bind_endpoint_auth_and_target() {
+        let mut key = key();
+        key.protocol = Some(ProviderProtocol::Anthropic);
+        key.available_models = vec!["claude-sonnet-5".into()];
+        let original_endpoint = key.base_url.clone();
+        let mut options = DesktopConnectionOptions {
+            endpoint: Some("https://desktop.example/prefix/v1/".into()),
+            auth_scheme: Some(ConnectionAuthScheme::ApiKey),
+        };
+        let first = resolve_with_options("claude_desktop", &key, None, Some(&options)).unwrap();
+        assert_eq!(first.base_url, "https://desktop.example/prefix");
+        assert_eq!(first.auth_scheme, ConnectionAuthScheme::ApiKey);
+        assert!(first.requires_test);
+        assert_eq!(key.base_url, original_endpoint);
+        assert!(resolve_with_options("claude_code", &key, None, Some(&options)).is_err());
+        assert_ne!(
+            first.revision,
+            resolve("claude_code", &key, None).unwrap().revision
+        );
+        options.auth_scheme = Some(ConnectionAuthScheme::Bearer);
+        assert_ne!(
+            first.revision,
+            resolve_with_options("claude_desktop", &key, None, Some(&options))
+                .unwrap()
+                .revision
+        );
+        options.auth_scheme = Some(ConnectionAuthScheme::ApiKey);
+        options.endpoint = Some("https://another.example".into());
+        assert_ne!(
+            first.revision,
+            resolve_with_options("claude_desktop", &key, None, Some(&options))
+                .unwrap()
+                .revision
+        );
+        options.endpoint = Some("https://user:secret@desktop.example".into());
+        assert!(resolve_with_options("claude_desktop", &key, None, Some(&options)).is_err());
+        assert!(resolve("unknown_desktop", &key, None).is_err());
     }
 
     #[test]

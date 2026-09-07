@@ -32,3 +32,6 @@ tempfile = "3.13"
 tokio = { workspace = true }
 toml = "0.8"
 tracing = "0.1"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55.0"

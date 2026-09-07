@@ -42,7 +42,7 @@
     "agentMemory": "Agent メモリ",
     "agentOrg": "Agent チーム",
     "collaboration": "コラボレーション",
-    "harnessConnections": "CLI ルーティング"
+    "harnessConnections": "アプリ接続"
   },
   "coreSidebar": {
     "groups": {
@@ -1365,6 +1365,17 @@
     "conflict": "ORGII 外で設定が変更されました。適用または復元前に変更を確認してください。変更は上書きされません",
     "credentialsNote": "直接接続ではアクセスを制限した CLI 設定に認証情報を書き込みます。保管庫のキーを削除しても、書き出した認証情報は失効しません",
     "import": "cc-switch からインポート",
-    "notInstalled": "接続のテストや適用の前に、このツールをインストールしてください"
+    "notInstalled": "接続のテストや適用の前に、このツールをインストールしてください",
+    "appSelector": "アプリ",
+    "endpoint": "API エンドポイント",
+    "authentication": "認証方式",
+    "desktopScope": "Claude Code CLI とは別に Claude Desktop を設定します。適用後は完全に終了して再起動してください",
+    "desktopVersion": "インストール済みバージョン: {{version}}",
+    "desktopCopy": "Claude Code CLI からコピー",
+    "desktopCopyMissing": "先に Claude Code CLI の接続を設定してください",
+    "desktopCopyReview": "接続をコピーしました。確認して Desktop 用にテスト・適用してください",
+    "desktopApplied": "設定を保存しました。Claude Desktop を完全に終了して再起動してください",
+    "desktopRestored": "以前の設定を復元しました。Claude Desktop を完全に終了して再起動してください",
+    "desktopCredentials": "直接接続では認証情報をアクセス制限付きのローカル設定に書き込みます。保管庫のキーを削除しても書き込んだ認証情報は無効になりません"
   }
 }

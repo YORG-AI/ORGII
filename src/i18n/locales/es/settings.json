@@ -42,7 +42,7 @@
     "agentMemory": "Memoria del Agent",
     "agentOrg": "Equipo Agent",
     "collaboration": "Colaboración",
-    "harnessConnections": "Enrutamiento de CLI"
+    "harnessConnections": "Conexiones de aplicaciones"
   },
   "coreSidebar": {
     "groups": {
@@ -1365,6 +1365,17 @@
     "conflict": "La configuración cambió fuera de ORGII. Revisa los cambios antes de aplicar o restaurar; no se sobrescribirán",
     "credentialsNote": "El modo directo escribe credenciales en la configuración de la CLI con acceso restringido; eliminar una clave del almacén no revoca la credencial exportada",
     "import": "Importar de cc-switch",
-    "notInstalled": "Instala esta herramienta antes de probar o aplicar una conexión"
+    "notInstalled": "Instala esta herramienta antes de probar o aplicar una conexión",
+    "appSelector": "Aplicación",
+    "endpoint": "Endpoint de API",
+    "authentication": "Autenticación",
+    "desktopScope": "Configura Claude Desktop por separado de Claude Code CLI; cierra Desktop por completo y vuelve a abrirlo después de aplicar",
+    "desktopVersion": "Versión instalada: {{version}}",
+    "desktopCopy": "Copiar de Claude Code CLI",
+    "desktopCopyMissing": "Primero configura una conexión de Claude Code CLI",
+    "desktopCopyReview": "Conexión copiada para revisar; pruébala y aplícala por separado a Desktop",
+    "desktopApplied": "Configuración guardada — cierra Claude Desktop por completo y vuelve a abrirlo",
+    "desktopRestored": "Configuración anterior restaurada — cierra Claude Desktop por completo y vuelve a abrirlo",
+    "desktopCredentials": "El modo directo guarda las credenciales en un perfil local con acceso restringido; eliminar la clave de la bóveda no revoca esa copia"
   }
 }

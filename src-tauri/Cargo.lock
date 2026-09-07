@@ -50,6 +50,7 @@ dependencies = [
  "toml 0.8.2",
  "toml_edit 0.20.2",
  "tracing",
+ "winreg 0.55.0",
 ]
 
 [[package]]
