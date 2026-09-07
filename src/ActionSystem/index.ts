@@ -22,8 +22,8 @@ export {
 } from "./actions";
 
 export {
-  zodActionRegistry,
   zodActionToGUIControlManifestAction,
   zodActionToLLMTool,
-  ZodActionRegistry,
-} from "./schema";
+} from "./schema/defineZodAction";
+
+export { zodActionRegistry, ZodActionRegistry } from "./schema/zodRegistry";
