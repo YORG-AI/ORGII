@@ -38,7 +38,6 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { useActionSystemOptional } from "@src/ActionSystem";
-import FileTypeIcon from "@src/components/FileTypeIcon";
 import { TAB_PILL_DRAG_OVERLAY_CLASS } from "@src/components/TabPill/TabPillSurface";
 import { TAB_PAIR_SEPARATOR_SLOT_CLASS } from "@src/components/TabPill/config";
 import { NoDragRegion } from "@src/components/WindowChrome";
@@ -73,6 +72,7 @@ import { tabScrollRevealAtom } from "@src/store/workstation/tabs";
 
 import TabContextMenu from "./TabContextMenu";
 import { SortableTab, TabBarControls } from "./components";
+import { WorkstationTabContent } from "./components/WorkstationTabContent";
 import { TAB_BAR_HEIGHT, TAB_STRIP_SECTION_RULE_CLASS } from "./config";
 import {
   useAutoScrollToActive,
@@ -466,16 +466,15 @@ export const TabBar: React.FC<TabBarProps> = memo(
                     <DragOverlay dropAnimation={null}>
                       {draggingTab && (
                         <div
-                          className={TAB_PILL_DRAG_OVERLAY_CLASS}
+                          className={`${TAB_PILL_DRAG_OVERLAY_CLASS} max-w-[240px]`}
+                          aria-hidden
                           style={{ zIndex: 9999 }}
                         >
-                          <FileTypeIcon
-                            fileName={draggingTab.title}
-                            size="small"
+                          <WorkstationTabContent
+                            tab={draggingTab}
+                            isActive={draggingTab.id === activeTabId}
+                            gitInfo={tabGitInfoMap.get(draggingTab.id)}
                           />
-                          <span className="max-w-[150px] overflow-hidden text-[13px] text-ellipsis whitespace-nowrap">
-                            {draggingTab.title}
-                          </span>
                         </div>
                       )}
                     </DragOverlay>,
