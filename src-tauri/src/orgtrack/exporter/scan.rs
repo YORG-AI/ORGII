@@ -7,11 +7,11 @@ use std::path::Path;
 use chrono::Utc;
 
 use super::ScanContext;
-use crate::orgtrack::paths;
 use crate::orgtrack::types::{
     OrgtrackScanCheckpoint, OrgtrackScanCounts, OrgtrackScanPhase, OrgtrackScanProgress,
     OrgtrackScanStatus, OrgtrackTier, ORGTRACK_SCHEMA_VERSION,
 };
+use orgtrack_core::repo_sync::paths;
 
 pub(super) fn initial_scan_progress(
     repo_path: &Path,

@@ -149,7 +149,7 @@ export {
   WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS,
   HEADER_BUTTON,
   HEADER_ICON_SIZE,
-} from "./tokens";
+} from "@src/config/workstation/tokens";
 
 // Text tokens (i18n keys for Workstation)
 export { HUMANTOOLS_TEXT_KEYS } from "./textTokens";

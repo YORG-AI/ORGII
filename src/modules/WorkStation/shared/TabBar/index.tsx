@@ -69,6 +69,7 @@ import {
   openSessionInWorkstationAtom,
 } from "@src/store/session/sessionTabPlacementAtom";
 import { tabScrollRevealAtom } from "@src/store/workstation/tabs";
+import type { WorkStationTab } from "@src/store/workstation/tabs";
 
 import TabContextMenu from "./TabContextMenu";
 import { SortableTab, TabBarControls } from "./components";
@@ -80,7 +81,6 @@ import {
   useTabGitInfoMap,
   useTabLabelCollapse,
 } from "./hooks";
-import type { WorkStationTab } from "./types";
 
 // ============================================
 // Types
@@ -542,5 +542,5 @@ TabBar.displayName = "TabBar";
 export default TabBar;
 
 // Re-export types and config
-export type { WorkStationTab } from "./types";
+export type { WorkStationTab } from "@src/store/workstation/tabs";
 export { TAB_BAR_HEIGHT, MAX_VISIBLE_TABS, STATUS_LABELS } from "./config";

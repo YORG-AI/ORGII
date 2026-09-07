@@ -11,8 +11,8 @@ import {
   SEARCH_WRAPPER_SIDEBAR,
   searchControlSingleLineInputStyle,
 } from "@src/components/SearchInput/searchControlInputStyles";
+import { HEADER_BUTTON } from "@src/config/workstation/tokens";
 import { BookOpen01Icon, HugeiconsIcon } from "@src/icons";
-import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
 
 // ============================================
 // Types

@@ -14,6 +14,7 @@ import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailing
 import { NoDragRegion } from "@src/components/WindowChrome";
 import { CHROME_TOOLTIP_HOVER_DELAY } from "@src/config/tooltip";
 import { TAB_BAR_CONTROLS_ROW_TRAILING_PADDING_PX } from "@src/config/workstation/tokens";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import CaptionBar from "@src/engines/Simulator/components/CaptionBar";
 import { useCurrentTurnLastAgentMessage } from "@src/engines/Simulator/hooks/useCurrentTurnLastAgentMessage";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
@@ -34,7 +35,6 @@ import {
   HugeiconsIcon,
   PanelRightIcon,
 } from "@src/icons";
-import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import { CHROME_INSET_TRANSITION_CLASSES } from "@src/modules/shared/layouts/viewContainerTokens";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";

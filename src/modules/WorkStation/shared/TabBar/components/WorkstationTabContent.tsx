@@ -22,8 +22,8 @@ import {
   CODE_EDITOR_MAIN_TERMINAL_TAB_ID,
   resolveProjectManagerTabTitle,
 } from "@src/store/workstation/tabs";
+import type { WorkStationTab } from "@src/store/workstation/tabs";
 
-import type { WorkStationTab } from "../types";
 import { WorkstationTabIcon } from "./WorkstationTabIcon";
 
 export function getWorkstationTabDisplayTitle(

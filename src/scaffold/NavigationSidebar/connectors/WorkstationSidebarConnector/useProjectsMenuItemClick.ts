@@ -34,7 +34,7 @@ import {
   getProjectsProjectOverviewSlug,
   getProjectsWorkItemCreateOrgId,
   getProjectsWorkItemId,
-} from "../useProjectsWorkItemMenuItems";
+} from "../useProjectsWorkItemMenuItems/index";
 
 interface UseProjectsMenuItemClickParams<
   Project,

@@ -27,6 +27,7 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { Placeholder } from "@src/components/Placeholder";
+import { HEADER_BUTTON } from "@src/config/workstation/tokens";
 import { createLogger } from "@src/hooks/logger";
 import {
   ArrowDown01Icon,
@@ -35,7 +36,6 @@ import {
   LinkSquare02Icon,
 } from "@src/icons";
 import { HUMANTOOLS_TEXT_KEYS } from "@src/modules/WorkStation/shared";
-import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
 import { workStationSearchFocusSignalAtom } from "@src/store/ui/workStationAtom";
 import {
   searchOptionsAtom,

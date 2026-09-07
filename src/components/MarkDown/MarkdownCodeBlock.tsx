@@ -13,7 +13,7 @@
 import React, { Suspense, lazy, memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useCopyCheck } from "@src/hooks/ui";
+import { useCopyCheck } from "@src/hooks/ui/useCopyCheck";
 import {
   Copy01Icon,
   HugeiconsIcon,

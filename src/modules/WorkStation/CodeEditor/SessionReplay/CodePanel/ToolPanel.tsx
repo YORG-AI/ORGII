@@ -2,7 +2,7 @@ import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getToolIcon } from "@src/engines/ChatPanel/blocks/ToolCallBlock/config";
-import { extractResultText } from "@src/engines/ChatPanel/blocks/ToolCallBlock/helpers";
+import { extractResultText } from "@src/engines/ChatPanel/blocks/ToolCallBlock/helpers/resultParsers";
 import {
   inferStatusFromResult,
   mapStatus,

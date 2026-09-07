@@ -14,7 +14,7 @@ import Button from "@src/components/Button";
 import { Placeholder } from "@src/components/Placeholder";
 import { useInlineWebview } from "@src/hooks/platform/useInlineWebview";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import {
   HugeiconsIcon,
   Refresh04Icon,

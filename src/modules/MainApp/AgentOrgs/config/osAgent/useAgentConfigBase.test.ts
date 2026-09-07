@@ -19,7 +19,7 @@ const undoStack = vi.hoisted(() => ({ snapshot: vi.fn() }));
 vi.mock("@src/components/Message", () => ({
   default: { error: vi.fn() },
 }));
-vi.mock("@src/hooks/ui", () => ({
+vi.mock("@src/hooks/ui/useUndoableState", () => ({
   useUndoStackWithRestore: () => undoStack,
 }));
 

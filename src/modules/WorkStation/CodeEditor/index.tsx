@@ -15,7 +15,7 @@ import { usePinnedTabs } from "@src/hooks/tabHost/usePinnedTabs";
 import { useRetainedTabPool } from "@src/hooks/tabHost/useRetainedTabPool";
 import { useWorkStationPanels } from "@src/hooks/tabHost/useWorkStationPanels";
 import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
-import { useEditorRepoCacheSync } from "@src/hooks/ui/tabs";
+import { useEditorRepoCacheSync } from "@src/hooks/ui/tabs/useEditorRepoCacheSync";
 import { CODE_EDITOR_CONFIG } from "@src/modules/WorkStation/CodeEditor/config";
 import { type PrimarySidebarTabKey } from "@src/store/ui/workStationAtom";
 import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";

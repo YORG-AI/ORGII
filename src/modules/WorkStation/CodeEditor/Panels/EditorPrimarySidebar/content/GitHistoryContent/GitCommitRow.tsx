@@ -2,8 +2,8 @@ import React, { memo, useCallback } from "react";
 
 import type { GitCommitInfo, GitCommitPerson } from "@src/api/http/git/types";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { PRIMARY_SIDEBAR_HOVER } from "@src/config/workstation/tokens";
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
-import { PRIMARY_SIDEBAR_HOVER } from "@src/modules/WorkStation/shared/tokens";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import type { CommitGraphNode } from "./graphLayout";

@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 
-import { useProjectsWorkItemMenuItems } from "../useProjectsWorkItemMenuItems";
+import { useProjectsWorkItemMenuItems } from "../useProjectsWorkItemMenuItems/index";
 import { useRenderProjectsMenuItemWrapper } from "./menuItemWrappers";
 import {
   getProjectsSectionVisibleCountKey,

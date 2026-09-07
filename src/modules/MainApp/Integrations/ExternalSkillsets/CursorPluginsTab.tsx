@@ -14,7 +14,7 @@ import SettingsTable, {
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
 import { createLogger } from "@src/hooks/logger";
-import { useCopyCheck } from "@src/hooks/ui";
+import { useCopyCheck } from "@src/hooks/ui/useCopyCheck";
 import {
   ClipboardIcon,
   FlashIcon,

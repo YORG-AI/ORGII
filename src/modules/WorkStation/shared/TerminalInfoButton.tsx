@@ -6,9 +6,8 @@ import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { HugeiconsIcon, InformationCircleIcon } from "@src/icons";
-
-import { HEADER_ICON_SIZE } from "./tokens";
 
 export interface TerminalInfoButtonProps {
   title: string;

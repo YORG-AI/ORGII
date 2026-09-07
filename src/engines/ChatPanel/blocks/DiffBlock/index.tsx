@@ -16,10 +16,8 @@ import { useTranslation } from "react-i18next";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { getToolIcon } from "@src/config/toolIcons";
-import {
-  extractEditData,
-  parseUnifiedDiffToOldNew,
-} from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
+import { extractEditData } from "@src/engines/SessionCore/rendering/props/editExtractors";
+import { parseUnifiedDiffToOldNew } from "@src/engines/SessionCore/rendering/props/extractorShared";
 import { useToolLabelText } from "@src/engines/SessionCore/rendering/registry";
 import type {
   EventStatus,

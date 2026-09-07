@@ -1,6 +1,9 @@
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
-import { makeAssistantEvent, makeThinkingEvent } from "../shared/eventBuilders";
+import {
+  makeAssistantEvent,
+  makeThinkingEvent,
+} from "../shared/eventFactories";
 
 /** Build the live typewriter event while Rust accumulates final stream text. */
 export function buildCliStreamingEvent(

@@ -20,6 +20,12 @@ import {
   type TreeRowNode,
 } from "@src/components/TreeRow";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
+import {
+  COUNT_BADGE,
+  HEADER_BUTTON,
+  PRIMARY_SIDEBAR_HOVER,
+  getCountBadgeSizeClass,
+} from "@src/config/workstation/tokens";
 import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import {
   ArchiveArrowUpIcon,
@@ -31,12 +37,6 @@ import {
   Loading03Icon,
   PackageIcon,
 } from "@src/icons";
-import {
-  COUNT_BADGE,
-  HEADER_BUTTON,
-  PRIMARY_SIDEBAR_HOVER,
-  getCountBadgeSizeClass,
-} from "@src/modules/WorkStation/shared/tokens";
 import {
   type SourceControlHistorySelection,
   createStashDetailTab,

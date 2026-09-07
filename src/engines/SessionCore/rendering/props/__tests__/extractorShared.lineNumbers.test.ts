@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { stripLineNumberPrefixes } from "../extractorShared";
-import { extractFileData } from "../propsDataExtractors";
+import { extractFileData } from "../fileExtractors";
 import { makeUniversalProps } from "./fixtures";
 
 // ============================================

@@ -22,7 +22,7 @@ import { getToolDisplayLabelFromRegistry } from "@src/util/ui/rendering/registry
 
 import ExploreBlock from "../../blocks/ExploreBlock";
 import ListDirBlock from "../../blocks/ListDirBlock";
-import { extractResultText } from "../../blocks/ToolCallBlock/helpers";
+import { extractResultText } from "../../blocks/ToolCallBlock/helpers/resultParsers";
 import { FailedEventRow } from "../../blocks/primitives";
 
 const BRACKETED_DIR_RE = /^\[dir\]\s+(.+)$/i;

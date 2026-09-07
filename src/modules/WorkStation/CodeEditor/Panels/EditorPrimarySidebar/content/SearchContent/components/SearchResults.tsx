@@ -40,13 +40,13 @@ import {
   stickyRowPadding,
 } from "@src/components/VirtualizedStickyTree";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
-import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
-import { usePrimarySidebarSurface } from "@src/modules/WorkStation/shared/hooks/usePrimarySidebarSurface";
 import {
   COUNT_BADGE,
   PRIMARY_SIDEBAR_HOVER,
   getCountBadgeSizeClass,
-} from "@src/modules/WorkStation/shared/tokens";
+} from "@src/config/workstation/tokens";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
+import { usePrimarySidebarSurface } from "@src/modules/WorkStation/shared/hooks/usePrimarySidebarSurface";
 import {
   searchResultSelectedKeyAtom,
   useIsSearchResultSelected,

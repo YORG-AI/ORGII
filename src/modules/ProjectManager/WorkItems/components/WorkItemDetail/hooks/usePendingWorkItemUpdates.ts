@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useKeyboardSave } from "@src/hooks/keyboard";
 import { createLogger } from "@src/hooks/logger";
-import { useUndoableState } from "@src/hooks/ui";
+import { useUndoableState } from "@src/hooks/ui/useUndoableState";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 
 import type { WorkItemDetailActions, WorkItemUpdateHandler } from "../types";

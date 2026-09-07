@@ -28,6 +28,10 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { useTranslation } from "react-i18next";
 
+import {
+  HEADER_BUTTON,
+  HEADER_ICON_SIZE,
+} from "@src/config/workstation/tokens";
 import { createLogger } from "@src/hooks/logger";
 import {
   DEBOUNCE_DELAYS,
@@ -39,10 +43,6 @@ import {
   Cancel01Icon,
   HugeiconsIcon,
 } from "@src/icons";
-import {
-  HEADER_BUTTON,
-  HEADER_ICON_SIZE,
-} from "@src/modules/WorkStation/shared/tokens";
 
 import { ReplaceInput, SearchInput } from "../../../shared";
 

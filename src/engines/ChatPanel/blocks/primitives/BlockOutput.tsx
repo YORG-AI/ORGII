@@ -43,7 +43,7 @@ import {
   processAnsiContent,
   stripAnsiCodes,
 } from "@src/engines/TerminalCore/components/TerminalDisplay/utils/ansiProcessor";
-import { useSyntaxHighlight } from "@src/hooks/code";
+import { useSyntaxHighlight } from "@src/hooks/code/useSyntaxHighlight";
 
 import "./_block-output.scss";
 import {

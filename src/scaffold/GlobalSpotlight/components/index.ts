@@ -16,7 +16,7 @@ export {
 } from "./SpotlightFooter";
 export type { SpotlightFooterActiveChip } from "./SpotlightFooter";
 
-export { KeyboardShortcut } from "./KeyboardShortcut";
+export { KeyboardShortcut } from "@src/components/KeyboardShortcut";
 
 export { SpotlightAccountFooter } from "./SpotlightAccountFooter";
 

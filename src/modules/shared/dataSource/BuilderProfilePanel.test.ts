@@ -31,7 +31,7 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-vi.mock("@src/hooks/ui", () => ({
+vi.mock("@src/hooks/ui/useRefreshSpin", () => ({
   useRefreshSpin: (onRefresh: () => void) => ({
     spinClass: undefined,
     handleClick: onRefresh,

@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { CHROME_TOOLTIP_HOVER_DELAY } from "@src/config/tooltip";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import {
   PINNED_WORKBENCH_CHROME_CENTER_TOP,
   PINNED_WORKBENCH_CHROME_RIGHT_INSET,
@@ -27,7 +28,6 @@ import {
   PanelRightIcon,
   PanelRightOpenIcon,
 } from "@src/icons";
-import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import {
   activeChatPanelTabAtom,

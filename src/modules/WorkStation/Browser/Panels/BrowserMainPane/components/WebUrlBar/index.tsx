@@ -14,6 +14,10 @@ import { useTranslation } from "react-i18next";
 import Button from "@src/components/Button";
 import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import {
+  FILE_BAR_ROW_CLASSES,
+  HEADER_ICON_SIZE,
+} from "@src/config/workstation/tokens";
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import {
   type WorkstationTabHeaderHost,
@@ -31,10 +35,6 @@ import {
   PencilRulerIcon,
   Refresh04Icon,
 } from "@src/icons";
-import {
-  FILE_BAR_ROW_CLASSES,
-  HEADER_ICON_SIZE,
-} from "@src/modules/WorkStation/shared/tokens";
 import { normalizeBrowserInput } from "@src/util/url/browserUrl";
 
 // ============================================

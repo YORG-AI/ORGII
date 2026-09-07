@@ -5,14 +5,14 @@
  */
 import Message from "@src/components/Message";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
-import { createLogger } from "@src/hooks/logger";
-import { streamRetryStatusAtom } from "@src/store/session/cliSessionStatusAtom";
-
 import {
   makeErrorEvent,
   makeRateLimitHintEvent,
   makeSummaryEvent,
-} from "../../shared/eventBuilders";
+} from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
+import { createLogger } from "@src/hooks/logger";
+import { streamRetryStatusAtom } from "@src/store/session/cliSessionStatusAtom";
+
 import type { AgentTokenUsage, AgentWSEvent } from "../../shared/types";
 import { resetAllStreamingState } from "./streamHelpers";
 import type { EventHandlerContext } from "./types";

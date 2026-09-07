@@ -22,9 +22,9 @@ import {
   dispatchSessionTabDragEnd,
   dispatchSessionTabDragStart,
 } from "@src/shared/dnd/sessionTabDrag";
+import type { WorkStationTab } from "@src/store/workstation/tabs";
 
 import type { TabDragEventDetail, TabDragPillPayload } from "../tabDragTypes";
-import type { WorkStationTab } from "../types";
 
 // ============================================
 // Types

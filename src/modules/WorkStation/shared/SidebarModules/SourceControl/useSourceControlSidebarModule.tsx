@@ -27,7 +27,7 @@ import type { SectionHeaderAction } from "@src/components/TreePanelSidebar/types
 import { useGitStatus } from "@src/contexts/git";
 import { sessionIdAtom } from "@src/engines/SessionCore";
 import { useFileReviewBatchActions } from "@src/hooks/fileReview";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import {
   ArrowLeft02Icon,
   CircleDotIcon,

@@ -27,6 +27,7 @@ import { TabPillSurface } from "@src/components/TabPill/TabPillSurface";
 import { TAB_PAIR_SEPARATOR_SLOT_CLASS } from "@src/components/TabPill/config";
 import { NoDragRegion } from "@src/components/WindowChrome";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { TAB_BAR_TRAILING_EDGE_CLASS } from "@src/config/workstation/tokens";
 import { EVENT_LOADING_SHIMMER_TEXT_CLASSES } from "@src/engines/ChatPanel/blocks/primitives";
 import {
   ComputerTerminal01Icon,
@@ -38,7 +39,6 @@ import {
 } from "@src/icons";
 
 import { TAB_BAR_HEIGHT } from "../TabBar/config";
-import { TAB_BAR_TRAILING_EDGE_CLASS } from "../tokens";
 
 /**
  * Well-known tab kinds that get a built-in fallback icon. Any other kind

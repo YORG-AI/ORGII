@@ -25,7 +25,7 @@ import Message from "@src/components/Message";
 import TabPill from "@src/components/TabPill";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import type { WorkstationTabHeaderHost } from "@src/hooks/tabHost/useWorkstationTabHeader";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import { Cancel01Icon, FileSymlinkIcon, HugeiconsIcon } from "@src/icons";
 import { PANEL_HEADER_TOKENS } from "@src/modules/shared/layouts/blocks/PanelHeader";
 import type { DiffViewMode } from "@src/types/git/types";

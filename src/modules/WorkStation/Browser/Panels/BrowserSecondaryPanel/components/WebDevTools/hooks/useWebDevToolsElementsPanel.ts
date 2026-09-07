@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import { useSourceNavigation } from "@src/modules/WorkStation/Browser/hooks/useSourceNavigation";
 import { useWebviewDOMTree } from "@src/modules/WorkStation/Browser/hooks/useWebviewDOMTree";
 import type { SourceLocation } from "@src/modules/WorkStation/Browser/hooks/useWebviewInspector";

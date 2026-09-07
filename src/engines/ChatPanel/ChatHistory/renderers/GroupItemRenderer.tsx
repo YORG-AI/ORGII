@@ -40,7 +40,7 @@ import {
   CHAT_FLAT_INDEX_ATTR,
   CHAT_ITEM_ID_ATTR,
   formatChatEventIdsAttribute,
-} from "../hooks/chatSearchDom";
+} from "../hooks/chatSearch";
 import { collectChatItemEventIds } from "../hooks/chatSearchProjection";
 import { getUnloadedTurnMeta, isTurnPreviewItem } from "../hooks/useChatGroups";
 import { ChatItemRenderer } from "./ChatItemRenderer";

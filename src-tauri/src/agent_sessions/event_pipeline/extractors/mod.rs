@@ -27,12 +27,11 @@ mod shell_extractor;
 
 #[allow(clippy::module_inception)]
 pub mod extractors;
-pub mod types;
 
+pub use core_types::extracted::ExtractedData;
 pub use extractors::{
     extract_batch, extract_event_data, extract_event_data_with_bounded_shell_output,
 };
-pub use types::ExtractedData;
 
 /// Register `extract_event_data` against the inversion-of-control slot
 /// in `core_types::session_event`. Called once at startup so

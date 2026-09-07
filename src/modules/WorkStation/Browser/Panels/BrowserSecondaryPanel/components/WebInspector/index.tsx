@@ -14,9 +14,9 @@ import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import { HEADER_BUTTON } from "@src/config/workstation/tokens";
 import { HugeiconsIcon, PanelRightOpenIcon } from "@src/icons";
 import type { ElementInfo } from "@src/modules/WorkStation/Browser/hooks/useWebviewInspector";
-import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
 import type { SecondaryPanelPosition } from "@src/store/ui/workStationAtom";
 
 import WebDevTools, {

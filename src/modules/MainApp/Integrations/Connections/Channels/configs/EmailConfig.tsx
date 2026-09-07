@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import Input from "@src/components/Input";
 import NumberInput from "@src/components/NumberInput";
 import Switch from "@src/components/Switch";
-import { useDraftNumber } from "@src/hooks/ui";
+import { useDraftNumber } from "@src/hooks/ui/useDraftNumber";
 
 import {
   getNestedBool,

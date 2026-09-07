@@ -29,7 +29,7 @@ import {
 } from "@src/config/mobileRemoteRelay";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
-import { useAsyncData } from "@src/hooks/async";
+import { useAsyncData } from "@src/hooks/async/useAsyncData";
 import { useSetting } from "@src/hooks/settings/useSettings";
 import {
   SectionContainer,

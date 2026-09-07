@@ -20,7 +20,16 @@ import {
   TreeRowBase,
 } from "@src/components/TreeRow";
 import type { GitStatusInfo, TreeRowNode } from "@src/components/TreeRow";
-import { type NativeDragItem, useNativeDrag } from "@src/hooks/files";
+import {
+  COUNT_BADGE,
+  HEADER_BUTTON,
+  PRIMARY_SIDEBAR_HOVER,
+  getCountBadgeSizeClass,
+} from "@src/config/workstation/tokens";
+import {
+  type NativeDragItem,
+  useNativeDrag,
+} from "@src/hooks/files/useNativeDrag";
 import {
   Add01Icon,
   ArchiveIcon,
@@ -32,12 +41,6 @@ import {
   Tick01Icon,
   Undo02Icon,
 } from "@src/icons";
-import {
-  COUNT_BADGE,
-  HEADER_BUTTON,
-  PRIMARY_SIDEBAR_HOVER,
-  getCountBadgeSizeClass,
-} from "@src/modules/WorkStation/shared/tokens";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 import type { GitFile } from "@src/types/git/types";
 

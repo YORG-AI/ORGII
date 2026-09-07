@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { extractTodoData } from "../propsDataExtractors";
+import { extractTodoData } from "../todoExtractors";
 import { makeUniversalProps } from "./fixtures";
 
 // ============================================

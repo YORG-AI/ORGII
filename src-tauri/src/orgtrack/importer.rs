@@ -4,13 +4,13 @@ use std::path::Path;
 
 use chrono::Utc;
 
-use super::paths;
 use super::types::{
     OrgtrackCommitRecord, OrgtrackFileTimeline, OrgtrackIndex, OrgtrackIndexCommit,
     OrgtrackIndexFile, OrgtrackIndexSession, OrgtrackIndexSummary, OrgtrackManifest,
     OrgtrackProvenanceRecord, OrgtrackRepairResult, OrgtrackSummaryBucket, OrgtrackTimelineRecord,
     ORGTRACK_SCHEMA_VERSION,
 };
+use orgtrack_core::repo_sync::paths;
 
 pub fn read_manifest(repo_path: &Path) -> Result<Option<OrgtrackManifest>, String> {
     let path = paths::manifest_path(repo_path);

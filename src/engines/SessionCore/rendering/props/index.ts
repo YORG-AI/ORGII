@@ -5,16 +5,16 @@
  */
 
 // Data extractors for specific event types
+export { extractThinkingData } from "./thinkingExtractors";
+export { extractFileData } from "./fileExtractors";
+export { extractEditData } from "./editExtractors";
+export { extractShellData } from "./shellExtractors";
+export { extractSearchData } from "./searchExtractors";
+export { extractTodoData } from "./todoExtractors";
 export {
-  extractThinkingData,
-  extractFileData,
-  extractEditData,
-  extractShellData,
-  extractSearchData,
-  extractTodoData,
   parseUnifiedDiffToOldNew,
   stripLineNumberPrefixes,
-} from "./propsDataExtractors";
+} from "./extractorShared";
 
 // React-flavored props normalizer
 export {

@@ -15,8 +15,8 @@ import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { CODE_EDITOR_TOUR_TARGETS } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import type { GitFileInfo } from "@src/store/git";
+import type { WorkStationTab } from "@src/store/workstation/tabs";
 
-import type { WorkStationTab } from "../../types";
 import {
   WorkstationTabContent,
   getWorkstationTabDisplayTitle,

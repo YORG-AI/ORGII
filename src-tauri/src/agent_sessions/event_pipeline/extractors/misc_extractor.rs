@@ -6,8 +6,8 @@ use agent_core::core::tools::names as tool_names;
 use super::helpers::{
     normalized_result_object, obj_bool, obj_f64, obj_i64, obj_str, obj_string_array,
 };
-use crate::agent_sessions::event_pipeline::extractors::types::*;
 use crate::agent_sessions::event_pipeline::types::{EventDisplayStatus, SessionEvent};
+use core_types::extracted::*;
 
 pub(super) fn extract_thinking(
     args: Option<&serde_json::Map<String, serde_json::Value>>,

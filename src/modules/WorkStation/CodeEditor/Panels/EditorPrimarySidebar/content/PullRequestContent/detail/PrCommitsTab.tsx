@@ -17,7 +17,7 @@ import Button from "@src/components/Button";
 import PersonAvatar from "@src/components/PersonAvatar";
 import { Placeholder } from "@src/components/Placeholder";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import { useCopyCheck } from "@src/hooks/ui";
+import { useCopyCheck } from "@src/hooks/ui/useCopyCheck";
 import {
   ArrowLeft01Icon,
   CancelCircleIcon,

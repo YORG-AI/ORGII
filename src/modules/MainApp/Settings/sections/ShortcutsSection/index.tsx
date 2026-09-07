@@ -18,7 +18,6 @@ import SettingsTable, {
   type SettingsTableColumn,
   type SettingsTableSelectFilter,
 } from "@src/components/SettingsTable";
-
 import {
   ALL_SHORTCUTS,
   CATEGORY_CONFIG,
@@ -26,7 +25,7 @@ import {
   type ShortcutCategory,
   type ShortcutEntry,
   getCategories,
-} from "./config";
+} from "@src/config/keyboard/shortcuts";
 
 type OsFilter = "mac" | "windows" | "linux";
 

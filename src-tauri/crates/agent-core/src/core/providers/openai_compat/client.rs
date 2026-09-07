@@ -157,7 +157,7 @@ impl OpenAICompatClient {
         body: &str,
         retry_after_secs: Option<u64>,
     ) -> ProviderError {
-        use crate::providers::safe_truncate::safe_truncate_utf8;
+        use crate::utils::safe_truncate_utf8;
         tracing::warn!(
             "[provider] API error HTTP {}: {}",
             status,

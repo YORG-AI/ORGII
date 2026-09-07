@@ -7,11 +7,11 @@ use std::path::Path;
 
 use super::identity::agent_identity_for;
 use super::SessionRow;
-use crate::orgtrack::paths;
 use crate::orgtrack::types::{
     OrgtrackFileTimelineEntry, OrgtrackIndexSummary, OrgtrackProvenanceRecord,
     OrgtrackSummaryBucket, OrgtrackTimelineEntryType, OrgtrackTimelineRecord,
 };
+use orgtrack_core::repo_sync::paths;
 
 pub(super) fn build_index_summary<'a>(
     session_ids: impl Iterator<Item = &'a String>,

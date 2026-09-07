@@ -16,7 +16,7 @@ export {
   makeToolCallEvent,
   makeToolResultEvent,
   createSyntheticUserEvent,
-} from "./eventBuilders";
+} from "./eventFactories";
 
 // Parsers (streaming args, think tags, shell detection)
 export {

@@ -25,7 +25,7 @@ import type {
 } from "@src/api/tauri/rpc/schemas/workspaceMemory";
 import Message from "@src/components/Message";
 import { useMounted } from "@src/hooks/lifecycle/useMounted";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 
 export const MEMORY_TYPE_FILTER_ALL = "all" as const;
 

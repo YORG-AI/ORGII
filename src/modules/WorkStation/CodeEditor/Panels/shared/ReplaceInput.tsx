@@ -26,8 +26,8 @@ import {
   searchControlSingleLineInputStyle,
   searchWrapperMultiline,
 } from "@src/components/SearchInput/searchControlInputStyles";
+import { HEADER_BUTTON } from "@src/config/workstation/tokens";
 import { HugeiconsIcon, ReplaceAllIcon, ReplaceIcon } from "@src/icons";
-import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
 
 // ============================================
 // Types

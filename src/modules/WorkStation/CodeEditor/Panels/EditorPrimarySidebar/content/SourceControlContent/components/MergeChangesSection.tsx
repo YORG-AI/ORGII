@@ -6,8 +6,8 @@
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { HEADER_BUTTON } from "@src/config/workstation/tokens";
 import { Alert01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
-import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
 import type { GitFile } from "@src/types/git/types";
 
 import { GIT_LABELS } from "../config";

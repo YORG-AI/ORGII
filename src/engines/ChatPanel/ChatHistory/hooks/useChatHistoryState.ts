@@ -33,7 +33,7 @@ import {
 } from "@src/engines/SessionCore";
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-import { useAgentWorkingRef } from "@src/hooks/streaming";
+import { useAgentWorkingRef } from "@src/hooks/streaming/useAgentWorkingRef";
 import {
   chatCodeFontSizeAtom,
   chatFontSizeAtom,

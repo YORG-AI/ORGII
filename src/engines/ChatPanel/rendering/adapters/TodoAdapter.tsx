@@ -6,7 +6,7 @@
 import { useAtomValue } from "jotai";
 import React from "react";
 
-import { extractTodoData } from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
+import { extractTodoData } from "@src/engines/SessionCore/rendering/props/todoExtractors";
 import {
   statusToLifecycle,
   useLifecycleLabels,

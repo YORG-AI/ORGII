@@ -6,7 +6,7 @@ use super::helpers::{
     extract_fenced_diff, get_success_data, obj_str, parse_diff_start_lines, safe_str,
 };
 use super::lang::{detect_language, strip_line_number_prefixes_with_start};
-use crate::agent_sessions::event_pipeline::extractors::types::*;
+use core_types::extracted::*;
 
 pub(super) fn extract_file(
     args: Option<&serde_json::Map<String, serde_json::Value>>,

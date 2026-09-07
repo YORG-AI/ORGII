@@ -1,4 +1,4 @@
-import { getLanguageDisplayName, getLanguageIconFile } from "../languageMap";
+import { getLanguageDisplayName, getLanguageIconFile } from "./languageMap";
 
 describe("getLanguageIconFile", () => {
   it("maps known language labels to representative filenames", () => {

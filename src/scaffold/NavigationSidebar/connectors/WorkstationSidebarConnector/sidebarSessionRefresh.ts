@@ -5,7 +5,7 @@ import {
   externalHistoryRescanSources,
 } from "@src/api/tauri/externalHistory";
 import { createLogger } from "@src/hooks/logger";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import {
   loadSessionRoster,
   refreshRecentNativeSessions,

@@ -1,8 +1,7 @@
 import { useMemo } from "react";
 
 import type { GitFileInfo } from "@src/store/git";
-
-import type { WorkStationTab } from "../types";
+import type { WorkStationTab } from "@src/store/workstation/tabs";
 
 type GitStatusLookup = {
   directMap: Map<string, GitFileInfo>;

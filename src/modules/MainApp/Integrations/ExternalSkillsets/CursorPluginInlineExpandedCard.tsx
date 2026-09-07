@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import type { CursorPluginInfo } from "@src/api/tauri/rpc/procedures/agentOrgs";
 import { createLogger } from "@src/hooks/logger";
-import { useCopyCheck } from "@src/hooks/ui";
+import { useCopyCheck } from "@src/hooks/ui/useCopyCheck";
 import {
   ClipboardIcon,
   HugeiconsIcon,

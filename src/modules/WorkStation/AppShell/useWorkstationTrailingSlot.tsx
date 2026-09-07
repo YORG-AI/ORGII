@@ -14,6 +14,7 @@ import { useLocation } from "react-router-dom";
 
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { CHROME_TOOLTIP_HOVER_DELAY } from "@src/config/tooltip";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { usePinnedWorkbenchChromeVisible } from "@src/hooks/ui/workbench/usePinnedWorkbenchChrome";
 import {
   ArrowExpand01Icon,
@@ -26,7 +27,6 @@ import {
 } from "@src/icons";
 import ProjectManagerWorkItemsTabBarTrailing from "@src/modules/ProjectManager/ProjectManagerLayout/components/ProjectManagerWorkItemsTabBarTrailing";
 import { TabBarPlusMenu } from "@src/modules/WorkStation/AppShell/TabBarPlusMenu";
-import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import {
   activeStationChatVisibleAtom,

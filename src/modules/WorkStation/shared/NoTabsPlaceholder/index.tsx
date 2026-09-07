@@ -15,6 +15,7 @@ import {
   KeyboardShortcut,
 } from "@src/components/KeyboardShortcut";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import {
   BubbleChatIcon,
   ContentWritingIcon,
@@ -30,7 +31,6 @@ import {
 } from "@src/icons";
 
 import type { QuickAction } from "../QuickActionsPanel/types";
-import { EDITOR_TAB_CANVAS_BG_CLASS } from "../tokens";
 
 // ============================================
 // Types

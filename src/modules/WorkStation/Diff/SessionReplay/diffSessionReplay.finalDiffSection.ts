@@ -8,7 +8,7 @@
  * re-export.
  */
 import { type OrgtrackSessionFinalDiff } from "@src/api/tauri/lineage";
-import { parseUnifiedDiffToOldNew } from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
+import { parseUnifiedDiffToOldNew } from "@src/engines/SessionCore/rendering/props/extractorShared";
 import {
   type DiffFileNavigationItem,
   type DiffFileSectionData,

@@ -15,6 +15,7 @@
 import { useAtomValue } from "jotai";
 import { useMemo } from "react";
 
+import type { KanbanTask } from "@src/features/KanbanBoard/types";
 import { useCloudOrgRemoteSessions } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import { sessionsAtom, visitedSessionsAtom } from "@src/store/session";
@@ -28,7 +29,6 @@ import type {
   KanbanTimeFilter,
 } from "../config";
 import { KANBAN_COLUMNS, getTimeFilterCutoff } from "../config";
-import type { KanbanTask } from "../types";
 import { useKanbanNowTick } from "./useKanbanNowTick";
 import {
   resolveKanbanTaskCreator,

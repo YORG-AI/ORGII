@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import type { KanbanTask } from "../../types";
+import type { KanbanTask } from "@src/features/KanbanBoard/types";
 
 interface TaskDetailInfoSectionProps {
   task: KanbanTask;

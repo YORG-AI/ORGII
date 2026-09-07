@@ -2,7 +2,7 @@ import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import SessionHoverCard from "@src/components/SessionHoverCard";
-import { PRIMARY_SIDEBAR_HOVER } from "@src/modules/WorkStation/shared/tokens";
+import { PRIMARY_SIDEBAR_HOVER } from "@src/config/workstation/tokens";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import type {

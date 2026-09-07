@@ -11,7 +11,7 @@ import { resolveAgentIcon } from "@src/config/agentIcons";
 import { isRegionSanctioned } from "@src/config/providerRegions";
 import type { ChatPanelRegionNotice } from "@src/engines/ChatPanel/types";
 import type { AdvancedConfig } from "@src/features/SessionCreator/types";
-import { useRegionCheck } from "@src/hooks/config";
+import { useRegionCheck } from "@src/hooks/config/useRegionCheck";
 import { useAgentCompatibility } from "@src/hooks/models/useAgentCompatibility";
 import { useAgentDefinitions } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentDefinitions";
 import type { OrgMember } from "@src/modules/MainApp/AgentOrgs/types";

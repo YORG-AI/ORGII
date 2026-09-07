@@ -5,7 +5,7 @@ import { DEFAULT_SESSION_ORG_ID } from "@src/store/session";
 import {
   buildSessionOrgFilterIds,
   sessionMatchesOrgFilter,
-} from "../orgFilter";
+} from "./sessionOrgScope";
 
 describe("buildSessionOrgFilterIds", () => {
   it("accepts the bare cloud org id under a cloud:<id> scope", () => {

@@ -27,6 +27,7 @@ import {
   buildOrgSelectorEntries,
   resolveProjectOrgScopeId,
 } from "@src/features/Organizations/orgSelectorEntries";
+import { buildSessionOrgFilterIds } from "@src/features/Organizations/sessionOrgScope";
 import { sidebarSelectedOrgIdAtom } from "@src/features/Organizations/sidebarOrgScopeAtom";
 import { collectScopeMatchedImportedSessionIds } from "@src/features/TeamCollaboration/importedSessionScopeMatch";
 import { useShareableScopeKeyVersion } from "@src/features/TeamCollaboration/repoScopeResolver";
@@ -39,8 +40,6 @@ import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
 import { CloudIcon, HugeiconsIcon, LaptopIcon } from "@src/icons";
 import { DEFAULT_SESSION_ORG_ID, type Session } from "@src/store/session";
-
-import { buildSessionOrgFilterIds } from "../useSessionMenuItems/orgFilter";
 
 const logger = createLogger("WorkstationSidebar");
 

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import RegionNoticeButton from "@src/components/RegionNoticeButton";
 import { isRegionSanctioned } from "@src/config/providerRegions";
-import { useRegionCheck } from "@src/hooks/config";
+import { useRegionCheck } from "@src/hooks/config/useRegionCheck";
 import type { RouteToolbarButton } from "@src/store/ui/routeToolbarAtom";
 
 const SETTINGS_REGION_NOTICE_BUTTON_ID = "settings-region-notice";

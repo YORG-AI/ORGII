@@ -42,7 +42,6 @@ pub mod archive;
 // Centralized code search index management
 
 // Shared JSON-RPC 2.0 protocol types
-pub mod jsonrpc;
 
 // Deferred disk cleanup orchestrator (file-history TTL, log rotation, cap enforcement)
 pub mod housekeeping;

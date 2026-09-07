@@ -8,7 +8,6 @@
  * NOTE: Uses normalizeFunctionName() to resolve CLI adapter aliases to ui_canonical
  * form (Rust source of truth via cli_agents/alias_map.rs).
  */
-import { getActionConfig } from "@src/engines/ChatPanel/ChatHistory/ActionRegistry";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import {
   PLAN_EVENT_NAME,
@@ -17,6 +16,8 @@ import {
   isStreamingPlanDraftEvent,
   isSubmittedCreatePlanEvent,
 } from "@src/engines/SessionCore/derived/planDisplayEvents";
+// Keep the projection worker on pure metadata; the registry barrel loads renderers.
+import { getActionConfig } from "@src/engines/SessionCore/rendering/registry/events/contextConfig";
 import {
   extractThinkContent,
   stripThinkTags,

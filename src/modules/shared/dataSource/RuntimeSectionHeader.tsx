@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import Button from "@src/components/Button";
 import { TEXT_HOVER_REFRESH_BUTTON_PROPS } from "@src/components/Button/refreshActionProps";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import { SECTION_SUBHEADING_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 

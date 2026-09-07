@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import * as actionRegistry from "@src/engines/ChatPanel/ChatHistory/ActionRegistry";
 import * as registryBarrel from "@src/engines/SessionCore/rendering/registry";
 import * as contextConfig from "@src/engines/SessionCore/rendering/registry/events/contextConfig";
 import * as eventsIndex from "@src/engines/SessionCore/rendering/registry/events/index";
@@ -32,13 +31,6 @@ describe("registry contextConfig boundary", () => {
     );
     expect(registryBarrel.getActionConfig).toBe(contextConfig.getActionConfig);
     expect(registryBarrel.CONTEXT_CONFIG).toBe(contextConfig.CONTEXT_CONFIG);
-  });
-
-  it("ActionRegistry (worker-side entry) resolves the same helpers", () => {
-    expect(actionRegistry.getActionConfig).toBe(contextConfig.getActionConfig);
-    expect(actionRegistry.requiresItemIndex).toBe(
-      contextConfig.requiresItemIndex
-    );
   });
 
   it("action config answers match the context table", () => {

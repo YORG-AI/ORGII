@@ -10,9 +10,9 @@ use super::super::persistence;
 use crate::agent_sessions::event_pipeline::commands::{
     save_events_retry, session_event_to_cached_event,
 };
-use crate::agent_sessions::event_pipeline::streaming::CLI_STREAMING_BUFFER;
 use crate::api::websocket_handler;
 use agent_core::bus::broadcast_event;
+use agent_core::foundation::streaming::CLI_STREAMING_BUFFER;
 
 type RunningSessionsMap = HashMap<String, tokio::task::JoinHandle<()>>;
 
@@ -319,7 +319,7 @@ fn persist_streaming_complete_chunk(
 /// Flush all pending CLI streams and broadcast completion events.
 fn flush_and_broadcast_blocking(session_id: &str) {
     let mut sequence = next_chunk_sequence(session_id);
-    for event in crate::agent_sessions::event_pipeline::streaming::cli_flush_session(session_id) {
+    for event in agent_core::foundation::streaming::cli_flush_session(session_id) {
         let stream_type = if event.action_type == "assistant" {
             "message"
         } else {

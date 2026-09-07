@@ -8,7 +8,7 @@
 //! UI. This module collapses HTML / empty bodies into the standard status
 //! reason phrase and trims/normalizes the remaining (plausibly useful) bodies.
 
-use crate::providers::safe_truncate::safe_truncate_utf8;
+use crate::utils::safe_truncate_utf8;
 
 /// Max characters of a non-HTML error body we keep in the user-facing message.
 const MAX_BODY_CHARS: usize = 300;

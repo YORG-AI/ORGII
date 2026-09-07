@@ -18,7 +18,7 @@ import {
 } from "@src/hooks/git/useGitOperations";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotals";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import { workspaceGitStatusMapAtom } from "@src/store/git";
 import type { GitPullStrategy } from "@src/store/ui/editorSettingsAtom";
 import {

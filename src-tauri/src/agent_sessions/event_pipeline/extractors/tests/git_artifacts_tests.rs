@@ -1,5 +1,5 @@
 use super::{parse_git_artifacts, GitArtifactParseInput};
-use crate::agent_sessions::event_pipeline::extractors::types::GitArtifactKind;
+use core_types::extracted::GitArtifactKind;
 
 #[test]
 fn parses_github_pr_url_from_gh_output() {

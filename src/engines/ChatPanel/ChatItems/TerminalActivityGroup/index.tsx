@@ -13,7 +13,7 @@ import { getToolIcon } from "@src/config/toolIcons";
 import { isMcpToolEvent } from "@src/engines/ChatPanel/ChatHistory/chatItemPipeline/classifiers";
 import ToolUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/ToolUsageBadge";
 import OrgtrackEnvelopeCard from "@src/engines/ChatPanel/blocks/ToolCallBlock/cards/OrgtrackEnvelopeCard";
-import { parseOrgtrackEnvelope } from "@src/engines/ChatPanel/blocks/ToolCallBlock/helpers";
+import { parseOrgtrackEnvelope } from "@src/engines/ChatPanel/blocks/ToolCallBlock/helpers/cardParsers";
 import {
   ChatLoadingBlock,
   StackedBlock,

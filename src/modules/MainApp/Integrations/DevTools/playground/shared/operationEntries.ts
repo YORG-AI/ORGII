@@ -1,10 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-import {
-  extractApplyPatchDataFromRust,
-  parseUnifiedDiffToOldNew,
-} from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
+import { extractApplyPatchDataFromRust } from "@src/engines/SessionCore/rendering/props/editExtractors";
+import { parseUnifiedDiffToOldNew } from "@src/engines/SessionCore/rendering/props/extractorShared";
 import { getAppSubtool } from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
 import { isDeleteTool } from "@src/engines/SessionCore/rendering/registry/toolRegistryDomain";
 import type { RustPatchConversionResult } from "@src/engines/SessionCore/rendering/types/universalProps";

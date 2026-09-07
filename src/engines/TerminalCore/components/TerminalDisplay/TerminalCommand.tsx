@@ -16,7 +16,7 @@
  */
 import React, { memo } from "react";
 
-import { useSyntaxHighlight } from "@src/hooks/code";
+import { useSyntaxHighlight } from "@src/hooks/code/useSyntaxHighlight";
 import { HugeiconsIcon, SquareIcon } from "@src/icons";
 
 export interface TerminalCommandStopAction {

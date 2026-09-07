@@ -24,12 +24,11 @@
 //!
 //! ## Alias Map
 //!
-//! The `alias_map` module provides dual canonical names for CLI tool aliases:
+//! The `core_types::cli_alias` module provides dual canonical names for CLI tool aliases:
 //! - `storage`: Fine-grained canonical name for database storage
 //! - `ui`: Coarse canonical name for UI component lookup
 
 // Shared utilities
-pub mod alias_map;
 pub mod normalizer;
 pub mod types;
 

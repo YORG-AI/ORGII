@@ -19,7 +19,7 @@ import Tag from "@src/components/Tag";
 import type { AvailableAgent } from "@src/config/cliAgents";
 import { MODEL_TABLE_SWITCH_SIZE } from "@src/config/modelTable";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
-import { useRefreshSpin } from "@src/hooks/ui";
+import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import { Add01Icon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import {
   cliAgentVisibilityOverridesAtom,

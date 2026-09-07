@@ -7,7 +7,6 @@ pub mod history_commands;
 mod history_scan_coordinator;
 pub mod impact_indexer;
 pub mod importer;
-pub mod paths;
 pub mod session_provenance;
 pub mod types;
 pub mod usage_dashboard_commands;

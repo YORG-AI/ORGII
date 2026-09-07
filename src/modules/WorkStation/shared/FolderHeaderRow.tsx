@@ -8,14 +8,13 @@
  */
 import React, { memo } from "react";
 
+import { FOLDER_HEADER } from "@src/config/workstation/tokens";
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
   HugeiconsIcon,
   WorkflowCircle05Icon,
 } from "@src/icons";
-
-import { FOLDER_HEADER } from "./tokens";
 
 export interface FolderHeaderRowProps {
   /** Display name (folder name / repo name) */

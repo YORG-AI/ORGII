@@ -17,7 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import Message from "@src/components/Message";
 import { createLogger } from "@src/hooks/logger";
-import { useUndoStackWithRestore } from "@src/hooks/ui";
+import { useUndoStackWithRestore } from "@src/hooks/ui/useUndoableState";
 
 const log = createLogger("useAgentConfigBase");
 

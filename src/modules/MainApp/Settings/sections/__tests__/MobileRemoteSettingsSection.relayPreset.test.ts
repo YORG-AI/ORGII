@@ -80,7 +80,7 @@ vi.mock("@src/hooks/settings/useSettings", () => ({
   },
 }));
 
-vi.mock("@src/hooks/async", () => ({
+vi.mock("@src/hooks/async/useAsyncData", () => ({
   useAsyncData: <T>({ initialData }: { initialData: T }) => ({
     data: initialData,
     error: null,

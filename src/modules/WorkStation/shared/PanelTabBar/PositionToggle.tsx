@@ -2,14 +2,13 @@ import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import {
   ArrowBigDownDashIcon,
   ArrowBigRightDashIcon,
   HugeiconsIcon,
 } from "@src/icons";
 import type { SecondaryPanelPosition } from "@src/store/ui/workStationAtom";
-
-import { HEADER_ICON_SIZE } from "../tokens";
 
 interface PanelPositionToggleProps {
   position: SecondaryPanelPosition;
